@@ -5,6 +5,7 @@ import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
+import { Link } from '@/i18n/navigation';
 import styles from './HeroSection.module.css';
 
 const AVATARS: { ini: string; color: string }[] = [
@@ -17,7 +18,7 @@ const AVATARS: { ini: string; color: string }[] = [
 export function HeroSection() {
   const t = useTranslations('hero');
   return (
-    <section className={styles.hero}>
+    <section id="about" className={styles.hero}>
       <div className={styles.blob1}>
         <OrganiBlob variant={1} fill="var(--color-terracotta-light)" size={380} />
       </div>
@@ -40,8 +41,12 @@ export function HeroSection() {
         <p className={styles.description}>{t('description')}</p>
 
         <div className={styles.ctaRow}>
-          <OrganicButton variant="primary">{t('explore')}</OrganicButton>
-          <OrganicButton variant="ghost">{t('share')}</OrganicButton>
+          <Link href="/home" style={{ textDecoration: 'none' }}>
+            <OrganicButton variant="primary">{t('explore')}</OrganicButton>
+          </Link>
+          <Link href="/write" style={{ textDecoration: 'none' }}>
+            <OrganicButton variant="ghost">{t('share')}</OrganicButton>
+          </Link>
         </div>
 
         <div className={styles.proof}>

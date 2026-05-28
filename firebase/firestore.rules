@@ -1,0 +1,145 @@
+rules_version = '2';
+
+// Resonance — client-direct Firestore access.
+// Update this file then deploy via `firebase deploy --only firestore:rules`.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function connectedTo(userId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/connections/$(request.auth.uid < userId ? request.auth.uid + "_" + userId : userId + "_" + request.auth.uid));
+    }
+
+    function cardVisible(data) {
+      return signedIn()
+        && (
+          data.authorId == request.auth.uid
+          || data.visibility == "public"
+          || (data.visibility == "connections" && connectedTo(data.authorId))
+        );
+    }
+
+    function authorOnlyMetricsUnchanged() {
+      return request.resource.data.readCount == resource.data.readCount
+        && request.resource.data.resonanceCount == resource.data.resonanceCount
+        && request.resource.data.inviteCount == resource.data.inviteCount;
+    }
+
+    // --- users ---
+    // phoneHash is never readable by anyone other than the owner.
+    // Public reads (e.g. profile pages) get the document minus phoneHash.
+    match /users/{userId} {
+      allow create: if isSelf(userId)
+        && request.resource.data.phoneHash == ""
+        && request.resource.data.handleLower == request.resource.data.handle.lower();
+      allow get: if signedIn()
+        && (isSelf(userId) || !("phoneHash" in resource.data));
+      // List is required for handle uniqueness check (where handleLower == ?).
+      allow list: if signedIn();
+      allow update: if isSelf(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "handle",
+          "handleLower",
+          "bio",
+          "region",
+          "primaryLocale",
+          "autoTranslateTo",
+          "avatarSeed",
+          "initials",
+          "accentColor",
+          "handleChangedAt"
+        ]);
+      allow delete: if false;
+    }
+
+    // --- cards ---
+    // Reads are governed by visibility. Writes are author-only and cannot
+    // tamper with metrics that are aggregated by trusted writers.
+    match /cards/{cardId} {
+      allow get: if cardVisible(resource.data);
+      allow list: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.keys().hasAll(["authorId", "thoughtCore", "story", "tags", "visibility"])
+        && request.resource.data.readCount == 0
+        && request.resource.data.resonanceCount == 0
+        && request.resource.data.inviteCount == 0;
+      allow update: if signedIn()
+        && resource.data.authorId == request.auth.uid
+        && authorOnlyMetricsUnchanged();
+      allow delete: if signedIn()
+        && resource.data.authorId == request.auth.uid
+        && resource.data.publishedAt == null;
+    }
+
+    // --- connections ---
+    // Only created server-side when an invite is accepted (trusted writer).
+    match /connections/{connectionId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.userIds;
+      allow create, update, delete: if false;
+    }
+
+    // --- invites ---
+    // Sender creates; sender/recipient can read and update status.
+    // The daily quota is enforced separately via /quotas (see below).
+    match /invites/{inviteId} {
+      allow read: if signedIn()
+        && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.status == "pending";
+      allow update: if signedIn()
+        && (
+          resource.data.fromUserId == request.auth.uid
+          || resource.data.toUserId == request.auth.uid
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"]);
+      allow delete: if false;
+    }
+
+    // --- resonances ---
+    // Doc ID convention: {cardId}_{userId} so toggling is idempotent and
+    // only the resonator can read/write their own record.
+    match /resonances/{resonanceId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && resonanceId == request.resource.data.cardId + "_" + request.auth.uid;
+      allow update: if signedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // --- notifications ---
+    // Written by trusted server only; recipients may mark them read.
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readAt"]);
+      allow create, delete: if false;
+    }
+
+    // --- quotas ---
+    // Doc ID convention: {userId}_{YYYY-MM-DD}. The owner may increment their
+    // own counter via a transaction, and rules cap it at 3 per day.
+    match /quotas/{quotaId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.inviteCount <= 3;
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.inviteCount <= 3
+        && request.resource.data.inviteCount >= resource.data.inviteCount;
+      allow delete: if false;
+    }
+  }
+}

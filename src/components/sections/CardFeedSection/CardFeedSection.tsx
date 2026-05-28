@@ -5,17 +5,21 @@ import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { StoryCard, type Story } from '@/components/molecules/StoryCard/StoryCard';
+import { StoryCard } from '@/components/molecules/StoryCard/StoryCard';
+import { Link } from '@/i18n/navigation';
+import type { Card, User } from '@/lib/db/types';
+import { cardToStory } from '@/lib/mock/adapters';
 import styles from './CardFeedSection.module.css';
 
 export interface CardFeedSectionProps {
-  stories: Story[];
+  cards: Card[];
+  authors: Record<string, User>;
 }
 
-export function CardFeedSection({ stories }: CardFeedSectionProps) {
+export function CardFeedSection({ cards, authors }: CardFeedSectionProps) {
   const t = useTranslations('feed');
   return (
-    <section className={styles.section}>
+    <section id="stories" className={styles.section}>
       <SectionEdge
         topColor="var(--color-cream)"
         seed={41}
@@ -41,13 +45,39 @@ export function CardFeedSection({ stories }: CardFeedSectionProps) {
           data-card-grid
           className={styles.grid}
         >
-          {stories.map((story, i) => (
-            <StoryCard key={i} story={story} index={i} isLast={i === stories.length - 1} />
-          ))}
+          {cards.map((card, i) => {
+            const author = authors[card.authorId];
+            const story = author
+              ? cardToStory(card, author)
+              : {
+                  title: card.thoughtCore,
+                  excerpt: '',
+                  author: '—',
+                  authorInitials: '?',
+                  readTime: '—',
+                  tags: card.tags,
+                };
+            return (
+              <Link
+                key={card.id}
+                href={`/card/${card.id}`}
+                style={{
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  display: 'block',
+                  breakInside: 'avoid',
+                }}
+              >
+                <StoryCard story={story} index={i} isLast={i === cards.length - 1} />
+              </Link>
+            );
+          })}
         </div>
 
         <div className={styles.loadMore}>
-          <OrganicButton variant="outline">{t('viewAll')}</OrganicButton>
+          <Link href="/home" style={{ textDecoration: 'none' }}>
+            <OrganicButton variant="outline">{t('viewAll')}</OrganicButton>
+          </Link>
         </div>
       </div>
     </section>

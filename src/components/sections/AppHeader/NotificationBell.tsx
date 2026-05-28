@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import type { Notification } from '@/lib/db/types';
-import { markNotificationRead } from '@/lib/actions/mutations';
+import { markNotificationRead } from '@/lib/db/firestore/client/notifications';
 
 export interface NotificationBellProps {
   count: number;

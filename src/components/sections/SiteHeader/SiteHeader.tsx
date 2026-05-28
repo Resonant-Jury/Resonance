@@ -37,6 +37,11 @@ function buildHeaderPaths(seed: number) {
 }
 
 export const NAV_KEYS = ['about', 'explore', 'stories'] as const;
+const NAV_TARGETS: Record<(typeof NAV_KEYS)[number], string> = {
+  about: 'about',
+  explore: 'explore',
+  stories: 'stories',
+};
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -58,6 +63,18 @@ export function SiteHeader() {
   }, [isMobile]);
 
   const { maskD, strokeD, W } = useMemo(() => buildHeaderPaths(211), []);
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, target: string) => {
+    const onLanding = pathname === '/';
+    if (onLanding) {
+      e.preventDefault();
+      const el = document.getElementById(target);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        history.replaceState(null, '', `#${target}`);
+      }
+    }
+  };
 
   const maskUrl = useMemo(() => {
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${W} ${HEADER_TOTAL_H}' preserveAspectRatio='none'><path d='${maskD}' fill='white'/></svg>`;
@@ -122,7 +139,12 @@ export function SiteHeader() {
           <>
             <nav className={styles.nav}>
               {NAV_KEYS.map((key) => (
-                <a key={key} href="#" className={styles.navLink}>
+                <a
+                  key={key}
+                  href={`/${locale}/#${NAV_TARGETS[key]}`}
+                  onClick={(e) => handleNavClick(e, NAV_TARGETS[key])}
+                  className={styles.navLink}
+                >
                   {t(key)}
                 </a>
               ))}
@@ -137,9 +159,11 @@ export function SiteHeader() {
               >
                 {t('languageSwitch')}
               </Link>
-              <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: '14px' }}>
-                {t('signIn')}
-              </OrganicButton>
+              <Link href="/signin" style={{ textDecoration: 'none' }}>
+                <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: '14px' }}>
+                  {t('signIn')}
+                </OrganicButton>
+              </Link>
               <HandDrawnAvatar initials="YO" size={36} color="var(--color-terracotta-light)" seed={77} />
             </div>
           </>

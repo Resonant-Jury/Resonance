@@ -3,9 +3,16 @@
 import { useTranslations } from 'next-intl';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
+import { Link } from '@/i18n/navigation';
 import styles from './SiteFooter.module.css';
 
 const LINK_KEYS = ['about', 'contact', 'privacy', 'terms'] as const;
+const HREFS: Record<(typeof LINK_KEYS)[number], string> = {
+  about: '/#about',
+  contact: 'mailto:hello@resonance.local',
+  privacy: '/#stories',
+  terms: '/#explore',
+};
 
 export function SiteFooter() {
   const t = useTranslations('footer');
@@ -29,9 +36,15 @@ export function SiteFooter() {
 
         <div className={styles.links}>
           {LINK_KEYS.map((k) => (
-            <a key={k} href="#" className={styles.link}>
-              {t(k)}
-            </a>
+            HREFS[k].startsWith('/') ? (
+              <Link key={k} href={HREFS[k] as '/#about' | '/#stories' | '/#explore'} className={styles.link}>
+                {t(k)}
+              </Link>
+            ) : (
+              <a key={k} href={HREFS[k]} className={styles.link}>
+                {t(k)}
+              </a>
+            )
           ))}
         </div>
 

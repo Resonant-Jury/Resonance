@@ -1,15 +1,21 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { CURRENT_USER_ID, repos } from '@/lib/db';
+import { repos } from '@/lib/db';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { ResonateButton } from '@/components/molecules/ResonateButton/ResonateButton';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
+import { CardAuthorMetrics } from '@/components/molecules/CardDetail/CardAuthorMetrics';
+import { CardViewerActions } from '@/components/molecules/CardDetail/CardViewerActions';
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
-import { ConnectInviteLauncher } from '@/components/molecules/ConnectInviteModal/ConnectInviteLauncher';
+
+export const revalidate = 86400;
+export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  return [];
+}
 
 export default async function CardDetailPage({
   params,
@@ -20,18 +26,16 @@ export default async function CardDetailPage({
   setRequestLocale(locale);
   const t = await getTranslations('card');
 
-  const card = await repos.card.findById(id, CURRENT_USER_ID);
-  if (!card) notFound();
+  const card = await repos.card.findById(id, null);
+  if (!card || card.visibility !== 'public' || !card.publishedAt) notFound();
 
-  const [author, resonated, related] = await Promise.all([
+  const [author, related] = await Promise.all([
     repos.user.findById(card.authorId),
-    repos.resonance.hasResonated(card.id, CURRENT_USER_ID),
     repos.card.findRelated(card.id, 3),
   ]);
   if (!author) notFound();
-  const isSelf = card.authorId === CURRENT_USER_ID;
   const relatedAuthorIds = Array.from(new Set(related.map((c) => c.authorId)));
-  const relatedAuthorList = await Promise.all(relatedAuthorIds.map((id) => repos.user.findById(id)));
+  const relatedAuthorList = await Promise.all(relatedAuthorIds.map((rid) => repos.user.findById(rid)));
   const relatedAuthors: Record<string, User> = {};
   for (const u of relatedAuthorList) if (u) relatedAuthors[u.id] = u;
 
@@ -84,11 +88,6 @@ export default async function CardDetailPage({
               : ''}
           </div>
         </div>
-        {card.visibility !== 'public' && (
-          <TagPill color="oklch(92% 0.033 215)">
-            {card.visibility === 'private' ? t('private') : t('connections')}
-          </TagPill>
-        )}
       </header>
 
       <figure
@@ -149,57 +148,22 @@ export default async function CardDetailPage({
         ))}
       </div>
 
-      {!isSelf && (
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 12,
-            padding: '24px 0',
-            borderTop: '1px solid oklch(80% 0.02 75)',
-            borderBottom: '1px solid oklch(80% 0.02 75)',
-            marginBottom: 40,
-          }}
-        >
-          <ResonateButton cardId={card.id} initialResonated={resonated} />
-          <Link href={`/write?ref=${card.id}`} style={{ textDecoration: 'none' }}>
-            <OrganicButton variant="outline">{t('writeResponse')}</OrganicButton>
-          </Link>
-          <ConnectInviteLauncher
-            targetUser={{ id: author.id, handle: author.handle, initials: author.initials, accentColor: author.accentColor }}
-            referenceCardId={card.id}
-          />
-        </div>
-      )}
+      <CardViewerActions
+        cardId={card.id}
+        author={{
+          id: author.id,
+          handle: author.handle,
+          initials: author.initials,
+          accentColor: author.accentColor,
+        }}
+      />
 
-      {isSelf && (
-        <aside
-          style={{
-            padding: 24,
-            borderRadius: 20,
-            background: 'oklch(94% 0.03 75 / 0.4)',
-            marginBottom: 40,
-          }}
-        >
-          <h4
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 12,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'var(--color-text-muted)',
-              marginBottom: 14,
-            }}
-          >
-            {t('authorMetrics.title')}
-          </h4>
-          <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
-            <MetricBox label={t('authorMetrics.reads')} value={card.readCount} />
-            <MetricBox label={t('authorMetrics.resonances')} value={card.resonanceCount} />
-            <MetricBox label={t('authorMetrics.inviteRequests')} value={card.inviteCount} />
-          </div>
-        </aside>
-      )}
+      <CardAuthorMetrics
+        authorId={author.id}
+        readCount={card.readCount}
+        resonanceCount={card.resonanceCount}
+        inviteCount={card.inviteCount}
+      />
 
       {related.length > 0 && (
         <section>
@@ -216,23 +180,5 @@ export default async function CardDetailPage({
         </section>
       )}
     </article>
-  );
-}
-
-function MetricBox({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <div
-        style={{
-          fontFamily: 'var(--font-heading)',
-          fontSize: 28,
-          fontWeight: 700,
-          color: 'var(--color-text)',
-        }}
-      >
-        {value}
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{label}</div>
-    </div>
   );
 }

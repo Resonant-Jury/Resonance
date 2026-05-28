@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { CURRENT_USER_ID, repos } from '@/lib/db';
+import { repos } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -16,14 +17,15 @@ export default async function OtherProfilePage({
   const { locale, handle } = await params;
   setRequestLocale(locale);
   const t = await getTranslations('profile');
+  const viewer = await requireUser();
   const user = await repos.user.findByHandle(handle);
   if (!user) notFound();
-  if (user.id === CURRENT_USER_ID) notFound();
+  if (user.id === viewer.id) notFound();
 
   const [isConnected, published, dailyRemaining] = await Promise.all([
-    repos.connection.isConnected(CURRENT_USER_ID, user.id),
+    repos.connection.isConnected(viewer.id, user.id),
     repos.card.findByAuthor(user.id, 'published'),
-    repos.invite.remainingDailyQuota(CURRENT_USER_ID),
+    repos.invite.remainingDailyQuota(viewer.id),
   ]);
 
   const preview = isConnected ? published : published.slice(0, 6);

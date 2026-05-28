@@ -82,14 +82,14 @@
     }
   },
   "home": {
-    "heading": "Today’s resonances",
-    "subheading": "AI picks thought-matches daily — not trending, just resonant.",
-    "moreBtn": "3 more",
-    "endOfDay": "That’s all for today 🌙",
+    "heading": "Latest resonances",
+    "subheading": "The newest public cards, in time order. Personalized AI discovery comes in the next phase.",
+    "moreBtn": "Load more",
+    "endOfDay": "You are caught up on the latest public cards",
     "writeResponse": "Write a response",
     "empty": {
       "title": "Write your first card",
-      "subtitle": "so AI can find voices that resonate with yours.",
+      "subtitle": "Once published, it can appear in the latest public feed.",
       "cta": "Start writing"
     },
     "matchReason": "because of “{reason}”"
@@ -124,7 +124,9 @@
     "storyLong": "This is getting long — it may split the reader’s attention",
     "tagsLabel": "Tags",
     "tagsSuggest": "AI: suggest 3–5",
-    "mediaLabel": "Image or video (optional)",
+    "mediaLabel": "Image (optional)",
+    "mediaRemove": "Remove image",
+    "mediaUploadError": "Image upload failed. Please try again.",
     "visibility": {
       "label": "Who can see",
       "public": "Public",
@@ -205,7 +207,13 @@
     "password": "Password",
     "magicLink": "Send me a magic link",
     "signIn": "Sign in",
+    "signingIn": "Signing in…",
     "signUp": "Create account",
+    "creating": "Creating…",
+    "continueWithGoogle": "Continue with Google",
+    "googleIntro": "We use Google to sign you in. We never see your password.",
+    "signInError": "Sign in failed. Please try again.",
+    "signUpError": "Could not create the account. Please try again.",
     "switchToSignUp": "No account yet?",
     "switchToSignIn": "Already have one?",
     "step": "Step {current} / {total}",

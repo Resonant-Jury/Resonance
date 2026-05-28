@@ -17,6 +17,7 @@ export function cardToStory(card: Card, author: Pick<User, 'handle' | 'initials'
     authorInitials: author.initials,
     readTime: `${minutes} min`,
     tags: card.tags,
+    imageUrl: card.media?.url,
     imageLabel: card.media?.label ?? card.thoughtCore.slice(0, 24),
   };
 }

@@ -1,5 +1,5 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { CURRENT_USER_ID, repos } from '@/lib/db';
+import { repos } from '@/lib/db';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
@@ -15,7 +15,7 @@ export default async function HomeFeedPage({
   setRequestLocale(locale);
   const t = await getTranslations('home');
 
-  const cards = await repos.card.findDailyFeed(CURRENT_USER_ID, new Date());
+  const cards = await repos.card.findLatestPublishedFeed(12);
   const authorIds = Array.from(new Set(cards.map((c) => c.authorId)));
   const authorList = await Promise.all(authorIds.map((id) => repos.user.findById(id)));
   const authors: Record<string, User> = {};

@@ -1,6 +1,8 @@
 import { AppHeader, HEADER_TOTAL_H } from '@/components/sections/AppHeader/AppHeader';
 import { FloatingWriteButton } from '@/components/sections/AppHeader/FloatingWriteButton';
-import { repos, CURRENT_USER_ID } from '@/lib/db';
+import { repos } from '@/lib/db';
+import { getCurrentUser } from '@/lib/auth';
+import { redirect } from '@/i18n/navigation';
 import { setRequestLocale } from 'next-intl/server';
 
 export default async function AppLayout({
@@ -12,12 +14,16 @@ export default async function AppLayout({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  const authUser = await getCurrentUser();
+  if (!authUser) {
+    redirect({ href: '/signin', locale });
+    return null;
+  }
   const [user, unreadCount] = await Promise.all([
     repos.user.getCurrent(),
-    repos.notification.unreadCount(CURRENT_USER_ID),
+    repos.notification.unreadCount(authUser.id),
   ]);
   if (!user) {
-    // In MVP (mock) this cannot happen; placeholder for future real auth.
     throw new Error('No current user');
   }
   return (

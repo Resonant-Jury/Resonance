@@ -14,11 +14,13 @@ export type CardBoxTab = 'published' | 'private' | 'draft' | 'resonated';
 export interface ICardRepository {
   findById(id: string, viewerId: string | null): Promise<Card | null>;
   findDailyFeed(userId: string, date: Date): Promise<Card[]>;
+  findLatestPublishedFeed(limit: number, cursor?: Date): Promise<Card[]>;
   findRelated(cardId: string, limit: number): Promise<Card[]>;
   findByAuthor(authorId: string, tab: CardBoxTab): Promise<Card[]>;
   create(data: NewCard): Promise<Card>;
   update(id: string, patch: Partial<Card>): Promise<Card>;
   publish(id: string): Promise<Card>;
+  deleteDraft(id: string, authorId: string): Promise<void>;
 }
 
 export interface IUserRepository {

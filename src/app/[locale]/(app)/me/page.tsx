@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { CURRENT_USER_ID, repos } from '@/lib/db';
+import { repos } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -15,14 +16,15 @@ export default async function MyCardBoxPage({
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations('me');
+  const authUser = await requireUser();
   const user = await repos.user.getCurrent();
   if (!user) throw new Error('No user');
 
   const [published, privateCards, drafts, resonated] = await Promise.all([
-    repos.card.findByAuthor(CURRENT_USER_ID, 'published'),
-    repos.card.findByAuthor(CURRENT_USER_ID, 'private'),
-    repos.card.findByAuthor(CURRENT_USER_ID, 'draft'),
-    repos.card.findByAuthor(CURRENT_USER_ID, 'resonated'),
+    repos.card.findByAuthor(authUser.id, 'published'),
+    repos.card.findByAuthor(authUser.id, 'private'),
+    repos.card.findByAuthor(authUser.id, 'draft'),
+    repos.card.findByAuthor(authUser.id, 'resonated'),
   ]);
 
   const all = [...published, ...privateCards, ...drafts, ...resonated];

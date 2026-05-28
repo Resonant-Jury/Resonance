@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Field, authInputStyle } from '@/components/molecules/AuthCard/AuthCard';
-import { updateProfile } from '@/lib/actions/mutations';
+import { updateProfile } from '@/lib/db/firestore/client/profile';
 import type { Locale } from '@/lib/db/types';
 
 type Section = 'profile' | 'account' | 'privacy' | 'notifications' | 'language' | 'ai' | 'terms' | 'delete';

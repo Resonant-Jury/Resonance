@@ -3,6 +3,7 @@ import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { NextIntlProvider } from '@/components/providers/NextIntlProvider';
+import { AuthProvider } from '@/components/providers/AuthProvider';
 import TweaksPanel from '@/components/providers/TweaksPanel';
 import '@/styles/globals.css';
 
@@ -50,7 +51,7 @@ export default async function LocaleLayout({
       </head>
       <body>
         <NextIntlProvider messages={messages} locale={locale}>
-          {children}
+          <AuthProvider>{children}</AuthProvider>
           <TweaksPanel />
         </NextIntlProvider>
       </body>

@@ -34,6 +34,20 @@ export class MockCardRepository implements ICardRepository {
     return clone(pool.slice(0, 6));
   }
 
+  async findLatestPublishedFeed(limit: number, cursor?: Date): Promise<Card[]> {
+    const pool = CARDS.filter(
+      (c) =>
+        c.visibility === 'public' &&
+        c.publishedAt &&
+        (!cursor || c.publishedAt < cursor)
+    ).sort((a, b) => {
+      const aTime = a.publishedAt?.getTime() ?? 0;
+      const bTime = b.publishedAt?.getTime() ?? 0;
+      return bTime - aTime;
+    });
+    return clone(pool.slice(0, limit));
+  }
+
   async findRelated(cardId: string, limit: number): Promise<Card[]> {
     const base = CARDS.find((c) => c.id === cardId);
     if (!base) return [];
@@ -80,5 +94,10 @@ export class MockCardRepository implements ICardRepository {
 
   async publish(id: string): Promise<Card> {
     return this.update(id, { publishedAt: new Date() });
+  }
+
+  async deleteDraft(id: string, authorId: string): Promise<void> {
+    const idx = CARDS.findIndex((c) => c.id === id && c.authorId === authorId && !c.publishedAt);
+    if (idx >= 0) CARDS.splice(idx, 1);
   }
 }

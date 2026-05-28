@@ -4,8 +4,12 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
-import { createCardDraft, publishCard } from '@/lib/actions/mutations';
-import type { Visibility, Locale } from '@/lib/db/types';
+import {
+  createCardDraft,
+  publishCard,
+  updateCardDraft,
+} from '@/lib/db/firestore/client/cards';
+import type { CardMedia, Visibility, Locale } from '@/lib/db/types';
 import { useRouter } from '@/i18n/navigation';
 
 export interface CardEditorProps {
@@ -15,6 +19,7 @@ export interface CardEditorProps {
     story?: string;
     tags?: string[];
     visibility?: Visibility;
+    media?: CardMedia;
   };
   locale: Locale;
 }
@@ -36,6 +41,8 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
   const [story, setStory] = useState(initial?.story ?? '');
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? 'public');
+  const [media, setMedia] = useState<CardMedia | undefined>(initial?.media);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [titleSuggestions, setTitleSuggestions] = useState<string[]>([]);
   const [polishPreview, setPolishPreview] = useState<string | null>(null);
@@ -78,18 +85,69 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
     setTags(tags.filter((x) => x !== tag));
   }
 
+  async function saveDraft() {
+    try {
+      const card = initial?.id
+        ? await updateCardDraft(initial.id, { thoughtCore, story, tags, visibility, media })
+        : await createCardDraft({
+            thoughtCore,
+            story,
+            tags,
+            visibility,
+            originalLocale: locale,
+            media,
+          });
+      setSavedAt(new Date());
+      return card;
+    } catch {
+      return null;
+    }
+  }
+
   function submit() {
     start(async () => {
-      const c = await createCardDraft({
-        thoughtCore,
-        story,
-        tags,
-        visibility,
-        originalLocale: locale,
-      });
-      await publishCard(c.id);
-      router.push(`/card/${c.id}`);
+      const card = await saveDraft();
+      if (!card) return;
+      try {
+        const published = await publishCard(card.id);
+        router.push(`/card/${published.id}`);
+      } catch {
+        // surface in future error UI
+      }
     });
+  }
+
+  async function uploadImage(file: File) {
+    setUploadError(null);
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        contentType: file.type,
+        size: file.size,
+        kind: 'image',
+      }),
+    });
+    if (!res.ok) {
+      setUploadError(t('mediaUploadError'));
+      return;
+    }
+    const upload = (await res.json()) as {
+      uploadUrl: string;
+      publicUrl: string;
+      headers: Record<string, string>;
+    };
+    const uploadRes = await fetch(upload.uploadUrl, {
+      method: 'PUT',
+      headers: upload.headers,
+      body: file,
+    });
+    if (!uploadRes.ok) {
+      setUploadError(t('mediaUploadError'));
+      return;
+    }
+    setMedia({ type: 'image', url: upload.publicUrl, label: file.name });
   }
 
   return (
@@ -271,6 +329,52 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
           </div>
         </div>
 
+        {/* Media */}
+        <div>
+          <Label>{t('mediaLabel')}</Label>
+          {media && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={media.url}
+                alt={media.label ?? ''}
+                style={{
+                  width: 96,
+                  height: 72,
+                  objectFit: 'cover',
+                  borderRadius: 12,
+                  border: '1px solid oklch(80% 0.02 75)',
+                }}
+              />
+              <OrganicButton variant="ghost" onClick={() => setMedia(undefined)}>
+                {t('mediaRemove')}
+              </OrganicButton>
+            </div>
+          )}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={(e) => {
+              const file = e.currentTarget.files?.[0];
+              if (file) void uploadImage(file);
+              e.currentTarget.value = '';
+            }}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 14,
+              border: '1px dashed oklch(70% 0.04 60)',
+              background: 'transparent',
+              color: 'var(--color-text-muted)',
+            }}
+          />
+          {uploadError && (
+            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--color-terracotta)' }}>
+              {uploadError}
+            </div>
+          )}
+        </div>
+
         {/* Visibility */}
         <div>
           <Label>{t('visibility.label')}</Label>
@@ -302,7 +406,16 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}>
-          <OrganicButton variant="outline">{t('saveDraft')}</OrganicButton>
+          <OrganicButton
+            variant="outline"
+            onClick={() => {
+              start(async () => {
+                await saveDraft();
+              });
+            }}
+          >
+            {t('saveDraft')}
+          </OrganicButton>
           <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
             <OrganicButton variant="primary" onClick={submit}>
               {pending ? t('publishing') : t('publish')}

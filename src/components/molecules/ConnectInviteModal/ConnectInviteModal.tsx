@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
-import { sendInvite } from '@/lib/actions/mutations';
+import { sendInvite } from '@/lib/db/firestore/client/invites';
 
 export interface ConnectInviteModalProps {
   open: boolean;

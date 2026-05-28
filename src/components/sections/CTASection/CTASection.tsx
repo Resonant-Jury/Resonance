@@ -4,12 +4,13 @@ import { useTranslations } from 'next-intl';
 import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { Link } from '@/i18n/navigation';
 import styles from './CTASection.module.css';
 
 export function CTASection() {
   const t = useTranslations('cta');
   return (
-    <section className={styles.section}>
+    <section id="explore" className={styles.section}>
       <SectionEdge
         topColor="var(--color-cream-dark)"
         seed={137}
@@ -31,8 +32,12 @@ export function CTASection() {
         <h2 className={styles.title}>{t('title')}</h2>
         <p className={styles.description}>{t('description')}</p>
         <div className={styles.ctaRow}>
-          <OrganicButton variant="ctaLight">{t('start')}</OrganicButton>
-          <OrganicButton variant="ctaGhost">{t('create')}</OrganicButton>
+          <Link href="/signup" style={{ textDecoration: 'none' }}>
+            <OrganicButton variant="ctaLight">{t('start')}</OrganicButton>
+          </Link>
+          <Link href="/write" style={{ textDecoration: 'none' }}>
+            <OrganicButton variant="ctaGhost">{t('create')}</OrganicButton>
+          </Link>
         </div>
       </div>
     </section>

@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { CURRENT_USER_ID, repos } from '@/lib/db';
+import { repos } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
 import { CardEditor } from '@/components/molecules/CardEditor/CardEditor';
 import type { Locale } from '@/lib/db/types';
 
@@ -12,8 +13,9 @@ export default async function EditCardPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
   const t = await getTranslations('write');
-  const card = await repos.card.findById(id, CURRENT_USER_ID);
-  if (!card || card.authorId !== CURRENT_USER_ID) notFound();
+  const user = await requireUser();
+  const card = await repos.card.findById(id, user.id);
+  if (!card || card.authorId !== user.id) notFound();
   return (
     <div
       style={{
@@ -39,6 +41,7 @@ export default async function EditCardPage({
           story: card.story,
           tags: card.tags,
           visibility: card.visibility,
+          media: card.media,
         }}
         locale={locale as Locale}
       />

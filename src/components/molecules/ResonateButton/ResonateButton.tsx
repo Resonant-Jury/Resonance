@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { toggleResonance } from '@/lib/actions/mutations';
+import { toggleResonance } from '@/lib/db/firestore/client/resonances';
 
 export interface ResonateButtonProps {
   cardId: string;

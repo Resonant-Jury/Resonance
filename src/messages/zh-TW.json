@@ -83,13 +83,13 @@
   },
   "home": {
     "heading": "看見生命的共振",
-    "subheading": "每一個真實的故事，都在等待那個能聽見它的人。今日為你推薦的靈魂交會：",
-    "moreBtn": "再給我 3 張",
-    "endOfDay": "今天就到這裡 🌙",
+    "subheading": "最新公開卡片正在這裡流動。先用時間順序看見彼此，推薦與 AI 留到下一階段。",
+    "moreBtn": "載入更多",
+    "endOfDay": "你已經看完最新公開卡片",
     "writeResponse": "寫一張回應",
     "empty": {
       "title": "先寫下你的第一張卡片,",
-      "subtitle": "這樣 AI 才能幫你找到同頻的聲音。",
+      "subtitle": "發布後，大家就能在最新公開 feed 看見你的故事。",
       "cta": "開始寫"
     },
     "matchReason": "因為「{reason}」"
@@ -124,7 +124,9 @@
     "storyLong": "這張卡有點長了,會拆開讀者的專注力",
     "tagsLabel": "標籤(讓別人找得到你)",
     "tagsSuggest": "AI 幫你想 3–5 個",
-    "mediaLabel": "搭配一張圖或一段影片(選填)",
+    "mediaLabel": "搭配一張圖片(選填)",
+    "mediaRemove": "移除圖片",
+    "mediaUploadError": "圖片上傳失敗，請稍後再試。",
     "visibility": {
       "label": "誰可以看見",
       "public": "公開",
@@ -205,7 +207,13 @@
     "password": "密碼",
     "magicLink": "寄登入連結給我",
     "signIn": "登入",
+    "signingIn": "登入中⋯",
     "signUp": "建立帳號",
+    "creating": "建立中⋯",
+    "continueWithGoogle": "使用 Google 繼續",
+    "googleIntro": "我們透過 Google 登入，從不會看到你的密碼。",
+    "signInError": "登入失敗，請再試一次。",
+    "signUpError": "建立帳號失敗，請稍後再試。",
     "switchToSignUp": "還沒有帳號?",
     "switchToSignIn": "已經有帳號?",
     "step": "第 {current} / {total} 步",
