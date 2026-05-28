@@ -18,6 +18,12 @@ export default function SignUpPage() {
   const router = useRouter();
   const auth = useAuth();
   const [step, setStep] = useState<Step>('google');
+
+  useEffect(() => {
+    if (!auth.loading && auth.user && step === 'google') {
+      setStep('profile');
+    }
+  }, [auth.loading, auth.user, step]);
   const [handle, setHandle] = useState('');
   const [region, setRegion] = useState('TW');
   const [primaryLocale, setPrimaryLocale] = useState<'en' | 'zh-TW'>('zh-TW');

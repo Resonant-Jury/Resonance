@@ -24,7 +24,8 @@ export default async function AppLayout({
     repos.notification.unreadCount(authUser.id),
   ]);
   if (!user) {
-    throw new Error('No current user');
+    redirect({ href: '/signup', locale });
+    return null;
   }
   return (
     <>
