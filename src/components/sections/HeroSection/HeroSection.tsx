@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
@@ -17,7 +18,15 @@ export function HeroSection() {
   const t = useTranslations('hero');
   return (
     <section className={styles.hero}>
-      <div className={styles.overlay} />
+      <div className={styles.blob1}>
+        <OrganiBlob variant={1} fill="var(--color-terracotta-light)" size={380} />
+      </div>
+      <div className={styles.blob2}>
+        <OrganiBlob variant={3} fill="var(--color-lavender)" size={300} />
+      </div>
+      <div className={styles.blob3}>
+        <OrganiBlob variant={2} fill="var(--color-sage)" size={180} />
+      </div>
 
       <div className={styles.content}>
         <div className={styles.tagWrap}>
@@ -25,21 +34,7 @@ export function HeroSection() {
         </div>
 
         <h1 className={styles.headline}>
-          {t('headlinePrefix')}{' '}
-          <span className={styles.accentWrap}>
-            <span className={styles.accent}>{t('headlineAccent')}</span>
-            <svg viewBox="0 0 200 12" className={styles.squiggle}>
-              <path
-                d="M2,8 C30,2 60,12 90,6 C120,0 150,10 198,6"
-                stroke="var(--color-terracotta)"
-                strokeWidth="2.5"
-                fill="none"
-                strokeLinecap="round"
-                opacity="0.6"
-              />
-            </svg>
-          </span>{' '}
-          {t('headlineSuffix')}
+          {t('headlinePrefix')}<span className={styles.accentWrap}><span className={styles.accent}>{t('headlineAccent')}</span><svg viewBox="0 0 200 12" className={styles.squiggle}><path d="M2,8 C30,2 60,12 90,6 C120,0 150,10 198,6" stroke="var(--color-terracotta)" strokeWidth="2.5" fill="none" strokeLinecap="round" opacity="0.6" /></svg></span>{t('headlineSuffix')}
         </h1>
 
         <p className={styles.description}>{t('description')}</p>

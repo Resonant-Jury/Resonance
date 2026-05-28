@@ -43,8 +43,23 @@
 }
 
 .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  columns: 1;
+  column-gap: 0;
+}
+
+.grid > * {
+  break-inside: avoid;
+}
+
+@media (min-width: 640px) {
+  .grid {
+    columns: 300px;
+    column-gap: 24px;
+  }
+
+  .grid > * {
+    margin-bottom: 24px;
+  }
 }
 
 .loadMore {

@@ -13,21 +13,26 @@ export function CardLinkGrid({ cards, authors }: CardLinkGridProps) {
     <div
       data-card-grid
       style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-        gap: 24,
+        columns: '240px',
+        columnGap: 24,
       }}
     >
       {cards.map((card, i) => {
         const author = authors[card.authorId];
         const story = author
           ? cardToStory(card, author)
-          : { title: card.thoughtCore, excerpt: '', author: '—', authorInitials: '?', readTime: '—', tag: card.tags[0] ?? '—' };
+          : { title: card.thoughtCore, excerpt: '', author: '—', authorInitials: '?', readTime: '—', tags: card.tags };
         return (
           <Link
             key={card.id}
             href={`/card/${card.id}`}
-            style={{ textDecoration: 'none', color: 'inherit' }}
+            style={{
+              textDecoration: 'none',
+              color: 'inherit',
+              display: 'block',
+              breakInside: 'avoid',
+              marginBottom: 24,
+            }}
           >
             <StoryCard story={story} index={i} isLast={i === cards.length - 1} />
           </Link>

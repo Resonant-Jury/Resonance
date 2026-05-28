@@ -12,7 +12,7 @@ export function NextIntlProvider({
   locale: string;
 }) {
   return (
-    <NextIntlClientProvider messages={messages} locale={locale}>
+    <NextIntlClientProvider messages={messages} locale={locale} timeZone="Asia/Taipei">
       {children}
     </NextIntlClientProvider>
   );

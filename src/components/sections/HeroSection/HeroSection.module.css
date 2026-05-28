@@ -4,18 +4,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-cream) url('/cover.webp') center center / cover no-repeat;
+  background: var(--color-cream);
   overflow: visible;
   padding-top: 100px;
 }
 
-.overlay {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 45% 42% at 50% 50%, oklch(99% 0.005 80 / 0.94) 0%, transparent 100%);
-  pointer-events: none;
-  z-index: 1;
-}
+.blob1 { position: absolute; top: 8%; left: -4%; opacity: 0.35; pointer-events: none; }
+.blob2 { position: absolute; bottom: 10%; right: -3%; opacity: 0.25; pointer-events: none; }
+.blob3 { position: absolute; top: 45%; right: 10%; opacity: 0.18; pointer-events: none; }
 
 .content {
   position: relative;
@@ -31,7 +27,7 @@
 
 .headline {
   font-family: var(--font-heading);
-  font-size: clamp(42px, 7vw, 84px);
+  font-size: clamp(38px, 6.5vw, 76px);
   font-weight: 800;
   color: var(--color-text);
   line-height: 1.08;

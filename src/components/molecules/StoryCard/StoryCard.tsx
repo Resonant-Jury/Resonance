@@ -18,7 +18,8 @@ export interface Story {
   author: string;
   authorInitials: string;
   readTime: string;
-  tag: string;
+  tags: string[];
+  imageUrl?: string;
   imageLabel?: string;
 }
 
@@ -42,42 +43,46 @@ const CARD_BORDERS = [
 
 const CARD_HUES = [55, 290, 140, 88, 215, 18];
 
-function ImagePlaceholder({ label, accentFill }: { label: string; accentFill: string }) {
+function StoryImage({ label, accentFill, imageUrl }: { label: string; accentFill: string; imageUrl?: string }) {
   const stripeFill = accentFill.replace(/(\d+)%/, (_, n) => `${Math.max(0, +n - 7)}%`);
   return (
     <div className={styles.imagePlaceholder}>
-      <svg
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-        viewBox="0 0 320 200"
-        preserveAspectRatio="xMidYMid slice"
-        aria-hidden="true"
-      >
-        <rect width="320" height="200" fill={accentFill} />
-        {Array.from({ length: 22 }, (_, i) => (
-          <line
-            key={i}
-            x1={i * 22 - 160}
-            y1="0"
-            x2={i * 22 + 160}
-            y2="200"
-            stroke={stripeFill}
-            strokeWidth="1.5"
-            strokeOpacity="0.28"
-          />
-        ))}
-        <text
-          x="50%"
-          y="52%"
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontFamily="monospace"
-          fontSize="10.5"
-          fill="oklch(28% 0.04 60)"
-          fillOpacity="0.42"
+      {imageUrl ? (
+        <img src={imageUrl} alt={label} className={styles.storyImage} />
+      ) : (
+        <svg
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+          viewBox="0 0 320 200"
+          preserveAspectRatio="xMidYMid slice"
+          aria-hidden="true"
         >
-          {label}
-        </text>
-      </svg>
+          <rect width="320" height="200" fill={accentFill} />
+          {Array.from({ length: 22 }, (_, i) => (
+            <line
+              key={i}
+              x1={i * 22 - 160}
+              y1="0"
+              x2={i * 22 + 160}
+              y2="200"
+              stroke={stripeFill}
+              strokeWidth="1.5"
+              strokeOpacity="0.28"
+            />
+          ))}
+          <text
+            x="50%"
+            y="52%"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontFamily="monospace"
+            fontSize="10.5"
+            fill="oklch(28% 0.04 60)"
+            fillOpacity="0.42"
+          >
+            {label}
+          </text>
+        </svg>
+      )}
       <GrainOverlay opacity={0.055} />
     </div>
   );
@@ -229,10 +234,16 @@ export function StoryCard({ story, index = 0, isLast = false }: StoryCardProps) 
       )}
 
       <div className={styles.content}>
-        <ImagePlaceholder label={story.imageLabel || 'story illustration'} accentFill={accentFill} />
+        <StoryImage 
+          label={story.imageLabel || 'story illustration'} 
+          accentFill={accentFill} 
+          imageUrl={story.imageUrl}
+        />
 
-        <div>
-          <TagPill color={accentFill}>{story.tag}</TagPill>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {story.tags?.slice(0, 4).map(t => (
+            <TagPill key={t} color={accentFill}>{t}</TagPill>
+          ))}
         </div>
 
         <h3 className={styles.title}>{story.title}</h3>

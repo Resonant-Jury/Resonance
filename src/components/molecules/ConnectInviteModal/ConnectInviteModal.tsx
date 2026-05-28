@@ -84,7 +84,7 @@ export function ConnectInviteModal({
                 {t('title')}
               </h3>
               <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                @{target.handle}
+                {target.handle}
               </div>
             </div>
           </div>

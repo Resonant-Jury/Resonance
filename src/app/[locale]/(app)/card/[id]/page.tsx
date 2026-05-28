@@ -70,7 +70,7 @@ export default async function CardDetailPage({
                 textDecoration: 'none',
               }}
             >
-              @{author.handle}
+              {author.handle}
             </Link>
             {author.verified && <HandDrawnCheckmark size={13} title={t('verified')} />}
           </div>

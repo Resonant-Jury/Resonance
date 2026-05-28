@@ -61,7 +61,7 @@ export default async function OtherProfilePage({
                 fontWeight: 700,
               }}
             >
-              @{user.handle}
+              {user.handle}
             </h1>
             {user.verified && <HandDrawnCheckmark size={16} />}
           </div>

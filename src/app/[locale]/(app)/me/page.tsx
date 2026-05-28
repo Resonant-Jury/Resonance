@@ -66,7 +66,7 @@ export default async function MyCardBoxPage({
                 color: 'var(--color-text)',
               }}
             >
-              @{user.handle}
+              {user.handle}
             </h1>
             {user.verified && <HandDrawnCheckmark size={16} />}
           </div>

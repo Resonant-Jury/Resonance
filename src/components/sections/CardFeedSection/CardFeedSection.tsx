@@ -6,7 +6,6 @@ import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { StoryCard, type Story } from '@/components/molecules/StoryCard/StoryCard';
-import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import styles from './CardFeedSection.module.css';
 
 export interface CardFeedSectionProps {
@@ -14,7 +13,6 @@ export interface CardFeedSectionProps {
 }
 
 export function CardFeedSection({ stories }: CardFeedSectionProps) {
-  const isMobile = useIsMobile();
   const t = useTranslations('feed');
   return (
     <section className={styles.section}>
@@ -42,7 +40,6 @@ export function CardFeedSection({ stories }: CardFeedSectionProps) {
         <div
           data-card-grid
           className={styles.grid}
-          style={{ gap: isMobile ? 0 : '24px' }}
         >
           {stories.map((story, i) => (
             <StoryCard key={i} story={story} index={i} isLast={i === stories.length - 1} />

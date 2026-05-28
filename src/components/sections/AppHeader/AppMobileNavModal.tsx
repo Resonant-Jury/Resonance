@@ -63,7 +63,7 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
         }}
       >
         <HandDrawnAvatar initials={user.initials} size={32} color={user.accentColor} seed={77} />
-        <span style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>@{user.handle}</span>
+        <span style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>{user.handle}</span>
       </div>
     </Modal>
   );
