@@ -26,22 +26,28 @@
 }
 
 .addTag {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   background: none;
-  border: 1px dashed oklch(70% 0.04 60);
-  border-radius: 999px;
-  padding: 5px 14px;
+  border: none;
+  padding: 6px 16px;
   color: var(--color-text-muted);
   font-family: var(--font-body);
   font-size: 12px;
   cursor: pointer;
-  transition: color 150ms, border-color 150ms;
+  transition: color 150ms;
 }
 .addTag:hover {
   color: var(--color-text);
-  border-color: var(--color-text-muted);
+}
+.addTagBody {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
 }
 
 .mediaRow {
@@ -63,19 +69,49 @@
   border-radius: 12px;
 }
 
+.uploadZone {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+}
 .fileInputWrap {
   width: 100%;
   border-radius: var(--field-radius);
 }
-.fileInput {
-  width: 100%;
-  padding: 14px 18px;
-  border-radius: var(--field-radius);
-  border: none;
-  background: transparent;
+.uploadInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: clamp(22px, 4vw, 34px) 18px;
+  text-align: center;
+}
+.uploadText {
+  font-size: 14px;
+  font-weight: 600;
   color: var(--color-text-muted);
-  font-family: var(--font-body);
-  cursor: pointer;
+  transition: color 150ms;
+}
+.uploadZone:hover .uploadText,
+.uploadZone[data-drag] .uploadText {
+  color: var(--color-text);
+}
+.uploadHint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  opacity: 0.75;
+}
+/* Visually hidden but still focusable / clickable via the wrapping label. */
+.fileInputHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .visibilityRow {

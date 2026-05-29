@@ -126,6 +126,8 @@
     "tagsSuggest": "AI: suggest 3–5",
     "mediaLabel": "Image (optional)",
     "mediaRemove": "Remove image",
+    "mediaPlaceholder": "Click, or drag an image here",
+    "mediaHint": "PNG, JPG, WebP · up to 5MB",
     "mediaUploadError": "Image upload failed. Please try again.",
     "visibility": {
       "label": "Who can see",

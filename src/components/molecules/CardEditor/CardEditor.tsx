@@ -59,6 +59,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? 'public');
   const [media, setMedia] = useState<CardMedia | undefined>(initial?.media);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [titleSuggestions, setTitleSuggestions] = useState<string[]>([]);
   const [polishPreview, setPolishPreview] = useState<string | null>(null);
@@ -271,9 +272,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
                 {tag}
               </TagPill>
             ))}
-            <button type="button" className={styles.addTag} onClick={suggestTags}>
-              <Icon name="plus" size={12} /> {t('tagsSuggest')}
-            </button>
+            <AddTagButton label={t('tagsSuggest')} onClick={suggestTags} />
           </div>
         </Field>
 
@@ -290,7 +289,33 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
               </OrganicButton>
             </div>
           )}
-          <HandDrawnDashedSurface seed={31} R={16} className={styles.fileInputWrap}>
+          <label
+            className={styles.uploadZone}
+            data-drag={dragOver || undefined}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) void uploadImage(file);
+            }}
+          >
+            <HandDrawnDashedSurface
+              seed={31}
+              R={16}
+              state={dragOver ? 'focus' : 'idle'}
+              className={styles.fileInputWrap}
+            >
+              <span className={styles.uploadInner}>
+                <Icon name="image" size={26} color="var(--color-terracotta)" />
+                <span className={styles.uploadText}>{t('mediaPlaceholder')}</span>
+                <span className={styles.uploadHint}>{t('mediaHint')}</span>
+              </span>
+            </HandDrawnDashedSurface>
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,image/gif"
@@ -299,9 +324,9 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
                 if (file) void uploadImage(file);
                 e.currentTarget.value = '';
               }}
-              className={styles.fileInput}
+              className={styles.fileInputHidden}
             />
-          </HandDrawnDashedSurface>
+          </label>
           {uploadError && (
             <div style={{ marginTop: 6, fontSize: 12, color: 'var(--color-terracotta)' }}>
               {uploadError}
@@ -441,6 +466,37 @@ function VisibilityChip({ value, index, active, icon, label, onSelect }: Visibil
       <span className={styles.visibilityChipBody}>
         <Icon name={icon} size={16} color={active ? 'var(--color-terracotta)' : 'currentColor'} />
         {label}
+      </span>
+    </button>
+  );
+}
+
+function AddTagButton({ label, onClick }: { label: string; onClick: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const { w, h } = useElementSize(ref, 130, 32);
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onFocus={() => setHover(true)}
+      onBlur={() => setHover(false)}
+      className={styles.addTag}
+    >
+      <HandDrawnBorder
+        w={w}
+        h={h}
+        R={Math.min(h / 2, 18)}
+        seed={67}
+        strokeColor={hover ? 'var(--field-border-hover)' : 'var(--field-border)'}
+        strokeWidth={2}
+        fillColor="transparent"
+      />
+      <span className={styles.addTagBody}>
+        <Icon name="plus" size={12} /> {label}
       </span>
     </button>
   );
