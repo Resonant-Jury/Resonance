@@ -11,8 +11,11 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useRef } from 'react';
-import type { IconName } from '@/components/atoms/Icon';
 import { Panel } from '@/components/molecules/Panel/Panel';
+import {
+  SegmentedActionBar,
+  type SegmentSpec,
+} from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
 import {
   createCardDraft,
   publishCard,
@@ -336,18 +339,30 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
 
         {/* Visibility */}
         <Field label={t('visibility.label')}>
-          <div className={styles.visibilityRow} role="radiogroup" aria-label={t('visibility.label')}>
-            {(['public', 'connections', 'private'] as Visibility[]).map((v, i) => (
-              <VisibilityChip
-                key={v}
-                value={v}
-                index={i}
-                active={visibility === v}
-                icon={VISIBILITY_ICON[v]}
-                label={tVis(v)}
-                onSelect={() => setVisibility(v)}
-              />
-            ))}
+          {/* flex wrapper so the inline-flex bar shrinks to content instead of
+              being stretched full-width by the Field's flex column */}
+          <div style={{ display: 'flex' }}>
+          <SegmentedActionBar
+            segments={(['public', 'connections', 'private'] as Visibility[]).map((v) => {
+              const active = visibility === v;
+              return {
+                key: v,
+                icon: (
+                  <Icon
+                    name={VISIBILITY_ICON[v]}
+                    size={16}
+                    color={active ? 'var(--color-terracotta)' : 'var(--color-text-muted)'}
+                  />
+                ),
+                label: tVis(v),
+                fill: active ? 'oklch(92% 0.06 55 / 0.6)' : 'transparent',
+                textColor: active ? 'var(--color-terracotta)' : 'var(--color-text-muted)',
+                hoverOverlay: 'oklch(0% 0 0 / 0.05)',
+                ariaLabel: tVis(v),
+                onClick: () => setVisibility(v),
+              } satisfies SegmentSpec;
+            })}
+          />
           </div>
         </Field>
 
@@ -414,61 +429,6 @@ interface AiRowProps {
   title: string;
   hint: string;
   onClick: () => void;
-}
-
-interface VisibilityChipProps {
-  value: Visibility;
-  index: number;
-  active: boolean;
-  icon: IconName;
-  label: string;
-  onSelect: () => void;
-}
-
-function VisibilityChip({ value, index, active, icon, label, onSelect }: VisibilityChipProps) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const { w, h } = useElementSize(ref, 120, 44);
-  const [hover, setHover] = useState(false);
-  const rot = (index - 1) * 1.6;
-  const seeds = [41, 47, 53];
-  const strokeColor = active
-    ? 'var(--color-terracotta)'
-    : hover
-    ? 'var(--field-border-hover)'
-    : 'var(--field-border)';
-  return (
-    <button
-      ref={ref}
-      type="button"
-      role="radio"
-      aria-checked={active}
-      data-value={value}
-      data-active={active || undefined}
-      onClick={onSelect}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onFocus={() => setHover(true)}
-      onBlur={() => setHover(false)}
-      className={styles.visibilityChip}
-      style={{ transform: `rotate(${rot}deg)` }}
-    >
-      <HandDrawnBorder
-        w={w}
-        h={h}
-        R={Math.min(h / 2, 22)}
-        seed={seeds[index] ?? 41}
-        cornerJitter={1.6}
-        cornerOffset={2.2}
-        strokeColor={strokeColor}
-        strokeWidth={active ? 2.6 : 2}
-        fillColor={active ? 'oklch(92% 0.06 55 / 0.55)' : 'transparent'}
-      />
-      <span className={styles.visibilityChipBody}>
-        <Icon name={icon} size={16} color={active ? 'var(--color-terracotta)' : 'currentColor'} />
-        {label}
-      </span>
-    </button>
-  );
 }
 
 function AddTagButton({ label, onClick }: { label: string; onClick: () => void }) {

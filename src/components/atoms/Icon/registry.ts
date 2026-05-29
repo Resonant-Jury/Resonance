@@ -10,6 +10,8 @@ import { EyeIcon } from './icons/eye';
 import { LockIcon } from './icons/lock';
 import { UsersIcon } from './icons/users';
 import { GlobeIcon } from './icons/globe';
+import { WaveIcon } from './icons/wave';
+import { PenIcon } from './icons/pen';
 import type { IconRenderer } from './types';
 
 /**
@@ -39,6 +41,8 @@ export const ICONS = {
   lock: LockIcon,
   users: UsersIcon,
   globe: GlobeIcon,
+  wave: WaveIcon,
+  pen: PenIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

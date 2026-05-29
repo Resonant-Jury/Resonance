@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { Icon } from '@/components/atoms/Icon';
 import { toggleResonance } from '@/lib/db/firestore/client/resonances';
 
 export interface ResonateButtonProps {
@@ -30,7 +31,17 @@ export function ResonateButton({ cardId, initialResonated }: ResonateButtonProps
         });
       }}
     >
-      <span style={{ opacity: pending ? 0.7 : 1 }}>{on ? t('resonated') : t('resonate')}</span>
+      <span
+        style={{
+          opacity: pending ? 0.7 : 1,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 7,
+        }}
+      >
+        <Icon name="wave" size={16} />
+        {on ? t('resonated') : t('resonate')}
+      </span>
     </OrganicButton>
   );
 }

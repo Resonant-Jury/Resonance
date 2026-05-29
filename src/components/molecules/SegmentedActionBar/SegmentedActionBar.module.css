@@ -1,0 +1,57 @@
+.bar {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+}
+
+.backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.seg {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: clamp(13px, 1.6vw, 16px) clamp(18px, 2.8vw, 28px);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: clamp(14px, 1.6vw, 15px);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: inherit;
+  transition: opacity 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.seg:focus-visible {
+  outline: none;
+}
+
+.seg:active {
+  opacity: 0.82;
+}
+
+/* mobile: let the bar fill the width and segments share it evenly */
+@media (max-width: 560px) {
+  .bar {
+    display: flex;
+    width: 100%;
+  }
+
+  .seg {
+    flex: 1;
+    padding-inline: clamp(8px, 2vw, 14px);
+  }
+}

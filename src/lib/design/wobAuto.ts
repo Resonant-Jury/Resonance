@@ -24,7 +24,7 @@ const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n
  *   ~600px (panel long edge)              → 8 (ceiling)
  */
 export function autoSegments(edge: number): number {
-  return clamp(Math.round(edge / 75), 2, 8);
+  return clamp(Math.round(edge / 95), 2, 8);
 }
 
 /**
@@ -34,17 +34,18 @@ export function autoSegments(edge: number): number {
  */
 export function autoMag(w: number, h: number): number {
   const s = Math.min(w, h);
-  return clamp(2 + s * 0.014, 2.5, 5);
+  return clamp(2 + s * 0.013, 2.4, 4);
 }
 
 /**
  * Per-segment curve factor. Higher = more bow per segment. Inverse of size,
  * with a steep slope so chips bend hard and big panels stay calm:
- *   ~44px chip   → ~2.5  (capped at ceiling)
- *   ~200px row   → ~1.8
- *   ~500px panel → ~0.6  (capped at floor)
+ *   ~44px chip   → ~1.6  (capped at ceiling)
+ *   ~90px input  → ~1.5
+ *   ~250px box   → ~1.05
+ *   ~400px panel → ~0.6  (capped at floor)
  */
 export function autoCurve(w: number, h: number): number {
   const s = Math.min(w, h);
-  return clamp(2.8 - s * 0.005, 0.6, 2.5);
+  return clamp(1.8 - s * 0.003, 0.6, 1.6);
 }

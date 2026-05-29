@@ -7,6 +7,7 @@ import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { CardAuthorMetrics } from '@/components/molecules/CardDetail/CardAuthorMetrics';
 import { CardViewerActions } from '@/components/molecules/CardDetail/CardViewerActions';
+import { CardQuote } from '@/components/molecules/CardDetail/CardQuote';
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
 
@@ -53,12 +54,16 @@ export default async function CardDetailPage({
   const hue = card.accentHue ?? 55;
 
   return (
+    <div
+      style={{
+        padding:
+          'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
+      }}
+    >
     <article
       style={{
         maxWidth: 760,
         margin: '0 auto',
-        padding:
-          'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
       }}
     >
       <header
@@ -102,42 +107,7 @@ export default async function CardDetailPage({
         </div>
       </header>
 
-      <figure
-        style={{
-          position: 'relative',
-          padding: '40px 28px',
-          borderRadius: '28px 32px 26px 30px',
-          background: `oklch(95% 0.04 ${hue} / 0.55)`,
-          marginBottom: 32,
-        }}
-      >
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            top: -4,
-            left: 18,
-            fontFamily: 'var(--font-heading)',
-            fontSize: 72,
-            color: `oklch(60% 0.12 ${hue} / 0.35)`,
-            lineHeight: 1,
-          }}
-        >
-          “
-        </span>
-        <blockquote
-          style={{
-            fontFamily: 'var(--font-heading)',
-            fontSize: 'clamp(24px, 3.4vw, 34px)',
-            fontWeight: 700,
-            lineHeight: 1.35,
-            color: 'var(--color-text)',
-            letterSpacing: '-0.01em',
-          }}
-        >
-          {card.thoughtCore}
-        </blockquote>
-      </figure>
+      <CardQuote text={card.thoughtCore} hue={hue} />
 
       <div
         style={{
@@ -176,21 +146,31 @@ export default async function CardDetailPage({
         resonanceCount={card.resonanceCount}
         inviteCount={card.inviteCount}
       />
-
-      {related.length > 0 && (
-        <section>
-          <h3
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: 22,
-              marginBottom: 20,
-            }}
-          >
-            {t('related')}
-          </h3>
-          <CardLinkGrid cards={related} authors={relatedAuthors} />
-        </section>
-      )}
     </article>
+
+    {related.length > 0 && (
+      <section
+        style={{
+          maxWidth: 'var(--page-max-w)',
+          margin: '8px auto 0',
+        }}
+      >
+        <h3
+          style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: 'clamp(22px, 2.6vw, 26px)',
+            fontWeight: 700,
+            letterSpacing: '-0.01em',
+            color: 'var(--color-text)',
+            marginBottom: 24,
+            textAlign: 'center',
+          }}
+        >
+          {t('related')}
+        </h3>
+        <CardLinkGrid cards={related} authors={relatedAuthors} />
+      </section>
+    )}
+    </div>
   );
 }

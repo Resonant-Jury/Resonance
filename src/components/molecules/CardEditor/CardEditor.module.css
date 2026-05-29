@@ -114,47 +114,6 @@
   border: 0;
 }
 
-.visibilityRow {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 6px 2px;
-}
-
-.visibilityChip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding: 10px 20px;
-  background: transparent;
-  border: none;
-  color: var(--color-text);
-  font-family: var(--font-body);
-  font-size: 14px;
-  cursor: pointer;
-  transition: transform 220ms cubic-bezier(.34,1.56,.64,1), color 160ms;
-  transform-origin: center;
-}
-
-.visibilityChip:hover {
-  transform: rotate(var(--rot, 0deg)) translateY(-1px) scale(1.03);
-}
-
-.visibilityChip[data-active='true'] {
-  color: var(--color-terracotta);
-  font-weight: 600;
-}
-
-.visibilityChipBody {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
 .actions {
   display: flex;
   gap: 12px;

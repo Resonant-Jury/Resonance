@@ -39,8 +39,14 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
   const v = BTN_VARIANTS[variant] || BTN_VARIANTS.primary;
   const seed = BTN_SEEDS[variant] ?? 3;
   const R = h > 0 ? h / 2 : 25;
-  const mag = Math.min(w, h) * 0.05;
+  const mag = Math.min(w, h) * 0.04;
   const maskId = useId().replace(/:/g, '');
+
+  // Buttons are small — keep the wobble gentle (few turns, low bow) so the
+  // outline reads as a calm pill rather than a busy blob.
+  const segH: [number, number] = [2, 3];
+  const btnCurve = 1.3;
+  const btnJitter = 1.3;
 
   const recordPointer = (e: MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -48,14 +54,14 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
   };
   const maxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 4;
 
-  const cornerOff = Math.min(w, h) * 0.035;
+  const cornerOff = Math.min(w, h) * 0.03;
   const overlayPath = useMemo(() => {
     if (!w || !h) return '';
     return wobRect(w, h, R, seed, mag, {
-      segmentsH: [3, 4],
+      segmentsH: segH,
       segmentsV: 1,
-      curve: 1.9,
-      cornerJitter: 1.6,
+      curve: btnCurve,
+      cornerJitter: btnJitter,
       cornerOffset: cornerOff,
     });
   }, [w, h, R, seed, mag, cornerOff]);
@@ -76,8 +82,8 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
         fillColor={style.fillColor || v.fill}
         strokeColor="transparent"
         strokeWidth={0}
-        segmentsH={[3, 4]} segmentsV={1}
-        curve={1.9} cornerJitter={1.6} cornerOffset={cornerOff}
+        segmentsH={segH} segmentsV={1}
+        curve={btnCurve} cornerJitter={btnJitter} cornerOffset={cornerOff}
       />
       {v.fill !== 'transparent' && (
         <ShapeGrain w={w} h={h} d={overlayPath} opacity={0.38} frequency={1.1} seed={seed} />
@@ -111,8 +117,8 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
       <HandDrawnBorder
         w={w} h={h} R={R} seed={seed} mag={mag}
         strokeColor={v.stroke}
-        segmentsH={[3, 4]} segmentsV={1}
-        curve={1.9} cornerJitter={1.6} cornerOffset={cornerOff}
+        segmentsH={segH} segmentsV={1}
+        curve={btnCurve} cornerJitter={btnJitter} cornerOffset={cornerOff}
       />
       <span className={styles.label}>{children}</span>
     </button>

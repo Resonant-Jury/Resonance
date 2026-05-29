@@ -95,7 +95,7 @@
     "matchReason": "because of “{reason}”"
   },
   "card": {
-    "resonate": "🌊 Resonate",
+    "resonate": "Resonate",
     "resonated": "Resonated",
     "writeResponse": "Write a card in response",
     "initiateConnect": "Invite to connect",

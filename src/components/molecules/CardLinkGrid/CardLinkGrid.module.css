@@ -8,13 +8,21 @@
   /* mobile: cards stack flush, no gap */
 }
 
+/* tablet: two columns */
 @media (min-width: 640px) {
   .grid {
-    columns: 240px;
+    columns: 2;
     column-gap: 24px;
   }
 
   .item {
     margin-bottom: 24px;
+  }
+}
+
+/* desktop: three columns */
+@media (min-width: 1024px) {
+  .grid {
+    columns: 3;
   }
 }
