@@ -8,7 +8,7 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { StoryCard } from '@/components/molecules/StoryCard/StoryCard';
 import { Link } from '@/i18n/navigation';
 import type { Card, User } from '@/lib/db/types';
-import { cardToStory } from '@/lib/mock/adapters';
+import { cardToStory } from '@/lib/adapters/story';
 import styles from './CardFeedSection.module.css';
 
 export interface CardFeedSectionProps {
@@ -65,7 +65,6 @@ export function CardFeedSection({ cards, authors }: CardFeedSectionProps) {
                   textDecoration: 'none',
                   color: 'inherit',
                   display: 'block',
-                  breakInside: 'avoid',
                 }}
               >
                 <StoryCard story={story} index={i} isLast={i === cards.length - 1} />

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { sendInvite } from '@/lib/db/firestore/client/invites';
+import { getCurrentUserHandle } from '@/lib/db/firestore/client/profile';
 
 export interface ConnectInviteModalProps {
   open: boolean;
@@ -13,6 +14,7 @@ export interface ConnectInviteModalProps {
   target: { id: string; handle: string; initials: string; accentColor: string };
   referenceCardId?: string;
   dailyRemaining: number;
+  onSent?: () => void;
 }
 
 export function ConnectInviteModal({
@@ -21,19 +23,42 @@ export function ConnectInviteModal({
   target,
   referenceCardId,
   dailyRemaining,
+  onSent,
 }: ConnectInviteModalProps) {
   const t = useTranslations('invite');
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [fromHandle, setFromHandle] = useState<string>('');
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    getCurrentUserHandle()
+      .then((h) => {
+        if (alive) setFromHandle(h ?? '');
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [open]);
+
   const len = message.length;
   const valid = len >= 14 && len <= 140 && dailyRemaining > 0;
 
   function submit() {
     if (!valid) return;
+    setError(null);
     start(async () => {
-      await sendInvite({ toUserId: target.id, message, referenceCardId });
-      setSent(true);
+      try {
+        await sendInvite({ toUserId: target.id, message, referenceCardId, fromHandle });
+        setSent(true);
+        onSent?.();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     });
   }
 
@@ -151,6 +176,17 @@ export function ConnectInviteModal({
             </span>
           </div>
 
+          {error && (
+            <div
+              style={{
+                marginBottom: 10,
+                fontSize: 12,
+                color: 'var(--color-terracotta)',
+              }}
+            >
+              {error}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <OrganicButton variant="ghost" onClick={onClose}>
               {t('cancel')}

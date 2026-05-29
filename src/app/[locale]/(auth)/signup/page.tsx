@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
-import { Link, useRouter } from '@/i18n/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
+import { Link } from '@/i18n/navigation';
+import { sanitizeNextPath, nextQuery } from '@/lib/auth/nextPath';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { AuthCard, Field } from '@/components/molecules/AuthCard/AuthCard';
 import { OrganicInput, OrganicSelect } from '@/components/atoms/OrganicInput/OrganicInput';
@@ -14,8 +16,17 @@ import { checkHandleAvailable, createCurrentUserProfile } from '@/lib/db/firesto
 type Step = 'google' | 'profile';
 
 export default function SignUpPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignUpPageInner />
+    </Suspense>
+  );
+}
+
+function SignUpPageInner() {
   const t = useTranslations('auth');
-  const router = useRouter();
+  const locale = useLocale();
+  const searchParams = useSearchParams();
   const auth = useAuth();
   const [step, setStep] = useState<Step>('google');
 
@@ -62,7 +73,8 @@ export default function SignUpPage() {
     setError(null);
     try {
       await createCurrentUserProfile({ handle, region, primaryLocale });
-      router.push('/write');
+      const next = sanitizeNextPath(searchParams.get('next')) ?? `/${locale}/write`;
+      window.location.href = next;
     } catch {
       setError(t('signUpError'));
     } finally {
@@ -164,7 +176,10 @@ export default function SignUpPage() {
         }}
       >
         {t('switchToSignIn')}{' '}
-        <Link href="/signin" style={{ color: 'var(--color-terracotta)' }}>
+        <Link
+          href={`/signin${nextQuery(searchParams.get('next'))}`}
+          style={{ color: 'var(--color-terracotta)' }}
+        >
           {t('signIn')}
         </Link>
       </p>

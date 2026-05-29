@@ -200,6 +200,13 @@
     "successSubtitle": "You can now see each other’s full card box and DM.",
     "expiresIn": "{days} days to respond"
   },
+  "inviteInbox": {
+    "title": "{count} pending connection invite(s)",
+    "accept": "Accept",
+    "decline": "Decline",
+    "expiresAt": "respond by {date}",
+    "emptyMessage": "(No message)"
+  },
   "auth": {
     "signInTitle": "Welcome back",
     "signUpTitle": "First visit",
@@ -258,7 +265,8 @@
     "account": {
       "email": "Email",
       "phone": "Phone (verified)",
-      "password": "Password"
+      "password": "Password",
+      "signOut": "Sign out"
     },
     "privacy": {
       "defaultVisibility": "Default publish scope",

@@ -2,7 +2,6 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { repos } from '@/lib/db';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
 
@@ -26,16 +25,13 @@ export default async function HomeFeedPage({
   return (
     <div
       style={{
-        maxWidth: 1200,
+        maxWidth: 'var(--page-max-w-wide)',
         margin: '0 auto',
-        padding: 'clamp(32px, 5vw, 64px) clamp(20px, 4vw, 48px) 80px',
+        padding:
+          'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
       }}
     >
       <header style={{ marginBottom: 40, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <TagPill color="oklch(92% 0.075 88)">{new Date().toLocaleDateString(locale, {
-          month: 'long',
-          day: 'numeric',
-        })}</TagPill>
         <h1
           style={{
             fontFamily: 'var(--font-heading)',

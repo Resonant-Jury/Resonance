@@ -200,6 +200,13 @@
     "successSubtitle": "現在可以看見彼此完整的卡片盒,也可以私訊。",
     "expiresIn": "{days} 天內回應即可"
   },
+  "inviteInbox": {
+    "title": "你收到了 {count} 個連結邀請",
+    "accept": "接受",
+    "decline": "婉拒",
+    "expiresAt": "{date} 前回覆",
+    "emptyMessage": "(這個人沒有留下訊息)"
+  },
   "auth": {
     "signInTitle": "回到共振",
     "signUpTitle": "第一次造訪",
@@ -258,7 +265,8 @@
     "account": {
       "email": "電子郵件",
       "phone": "手機 (已驗證)",
-      "password": "密碼"
+      "password": "密碼",
+      "signOut": "登出"
     },
     "privacy": {
       "defaultVisibility": "預設發布範圍",

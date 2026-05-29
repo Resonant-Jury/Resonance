@@ -39,11 +39,10 @@ function buildHeaderPaths(seed: number) {
 
 export interface AppHeaderProps {
   user: { initials: string; handle: string; accentColor: string };
-  unreadCount: number;
   activeKey?: 'home' | 'me' | 'write';
 }
 
-export function AppHeader({ user, unreadCount, activeKey }: AppHeaderProps) {
+export function AppHeader({ user, activeKey }: AppHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile(720);
@@ -105,7 +104,7 @@ export function AppHeader({ user, unreadCount, activeKey }: AppHeaderProps) {
 
         {isMobile ? (
           <div className={styles.account}>
-            <NotificationBell count={unreadCount} />
+            <NotificationBell />
             <button
               aria-label="Open menu"
               aria-expanded={menuOpen}
@@ -136,7 +135,7 @@ export function AppHeader({ user, unreadCount, activeKey }: AppHeaderProps) {
                   {t('write')}
                 </OrganicButton>
               </Link>
-              <NotificationBell count={unreadCount} />
+              <NotificationBell />
               <Link
                 href={pathname}
                 locale={otherLocale}

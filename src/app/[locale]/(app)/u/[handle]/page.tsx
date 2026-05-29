@@ -34,9 +34,10 @@ export default async function OtherProfilePage({
   return (
     <div
       style={{
-        maxWidth: 1200,
+        maxWidth: 'var(--page-max-w-wide)',
         margin: '0 auto',
-        padding: 'clamp(32px, 5vw, 56px) clamp(20px, 4vw, 48px) 80px',
+        padding:
+          'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
       }}
     >
       <header

@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Field, authInputStyle } from '@/components/molecules/AuthCard/AuthCard';
 import { updateProfile } from '@/lib/db/firestore/client/profile';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { useRouter } from '@/i18n/navigation';
 import type { Locale } from '@/lib/db/types';
 
 type Section = 'profile' | 'account' | 'privacy' | 'notifications' | 'language' | 'ai' | 'terms' | 'delete';
@@ -32,6 +34,9 @@ export interface SettingsClientProps {
 
 export function SettingsClient({ initial }: SettingsClientProps) {
   const t = useTranslations('settings');
+  const locale = useLocale();
+  const router = useRouter();
+  const auth = useAuth();
   const [active, setActive] = useState<Section>('profile');
   const [handle, setHandle] = useState(initial.handle);
   const [bio, setBio] = useState(initial.bio);
@@ -39,6 +44,18 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   const [primaryLocale, setPrimaryLocale] = useState<Locale>(initial.primaryLocale);
   const [savedTick, setSavedTick] = useState(false);
   const [pending, start] = useTransition();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await auth.signOut();
+      window.location.href = `/${locale}/signin`;
+    } catch {
+      setSigningOut(false);
+    }
+  }
 
   const [prefs, setPrefs] = useState({
     searchable: true,
@@ -57,9 +74,20 @@ export function SettingsClient({ initial }: SettingsClientProps) {
 
   function save() {
     start(async () => {
-      await updateProfile({ handle, bio, region, primaryLocale });
+      const patch: Parameters<typeof updateProfile>[0] = { bio, region, primaryLocale };
+      if (handle !== initial.handle) patch.handle = handle;
+      await updateProfile(patch);
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 1800);
+      // If the UI locale needs to change, navigate (next-intl Link handles
+      // locale prefix). Saving primaryLocale does not change the URL locale
+      // automatically — user must confirm switch.
+      if (
+        (primaryLocale === 'en' || primaryLocale === 'zh-TW') &&
+        primaryLocale !== locale
+      ) {
+        router.replace('/settings', { locale: primaryLocale });
+      }
     });
   }
 
@@ -139,14 +167,26 @@ export function SettingsClient({ initial }: SettingsClientProps) {
         {active === 'account' && (
           <>
             <Field label={t('account.email')}>
-              <input style={authInputStyle} defaultValue="you@example.com" disabled />
+              <input
+                style={authInputStyle}
+                value={auth.user?.email ?? ''}
+                placeholder="you@example.com"
+                disabled
+              />
             </Field>
             <Field label={t('account.phone')}>
-              <input style={authInputStyle} defaultValue="+886 ••• ••• 123" disabled />
+              <input
+                style={authInputStyle}
+                value={auth.user?.phoneNumber ?? ''}
+                placeholder="—"
+                disabled
+              />
             </Field>
-            <Field label={t('account.password')}>
-              <input style={authInputStyle} type="password" defaultValue="••••••••" />
-            </Field>
+            <div style={{ marginTop: 24 }}>
+              <OrganicButton variant="outline" onClick={signOut}>
+                {signingOut ? '…' : t('account.signOut')}
+              </OrganicButton>
+            </div>
           </>
         )}
         {active === 'privacy' && (

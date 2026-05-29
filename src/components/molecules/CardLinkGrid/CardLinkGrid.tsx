@@ -1,7 +1,8 @@
 import { StoryCard } from '@/components/molecules/StoryCard/StoryCard';
 import type { Card, User } from '@/lib/db/types';
-import { cardToStory } from '@/lib/mock/adapters';
+import { cardToStory } from '@/lib/adapters/story';
 import { Link } from '@/i18n/navigation';
+import styles from './CardLinkGrid.module.css';
 
 export interface CardLinkGridProps {
   cards: Card[];
@@ -10,13 +11,7 @@ export interface CardLinkGridProps {
 
 export function CardLinkGrid({ cards, authors }: CardLinkGridProps) {
   return (
-    <div
-      data-card-grid
-      style={{
-        columns: '240px',
-        columnGap: 24,
-      }}
-    >
+    <div data-card-grid className={styles.grid}>
       {cards.map((card, i) => {
         const author = authors[card.authorId];
         const story = author
@@ -26,12 +21,11 @@ export function CardLinkGrid({ cards, authors }: CardLinkGridProps) {
           <Link
             key={card.id}
             href={`/card/${card.id}`}
+            className={styles.item}
             style={{
               textDecoration: 'none',
               color: 'inherit',
               display: 'block',
-              breakInside: 'avoid',
-              marginBottom: 24,
             }}
           >
             <StoryCard story={story} index={i} isLast={i === cards.length - 1} />

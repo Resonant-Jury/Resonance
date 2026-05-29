@@ -1,0 +1,212 @@
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: clamp(20px, 3vw, 40px);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(22px, 3vw, 32px);
+  min-width: 0;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.addTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px dashed oklch(70% 0.04 60);
+  border-radius: 999px;
+  padding: 5px 14px;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms;
+}
+.addTag:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.mediaRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.mediaThumbWrap {
+  display: inline-block;
+  border-radius: 14px;
+}
+.mediaThumb {
+  display: block;
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.fileInputWrap {
+  width: 100%;
+  border-radius: var(--field-radius);
+}
+.fileInput {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: var(--field-radius);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.visibilityRow {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 6px 2px;
+}
+
+.visibilityChip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 220ms cubic-bezier(.34,1.56,.64,1), color 160ms;
+  transform-origin: center;
+}
+
+.visibilityChip:hover {
+  transform: rotate(var(--rot, 0deg)) translateY(-1px) scale(1.03);
+}
+
+.visibilityChip[data-active='true'] {
+  color: var(--color-terracotta);
+  font-weight: 600;
+}
+
+.visibilityChipBody {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.autosave {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+.aiRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 12px 4px;
+  cursor: pointer;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  transition: opacity 150ms;
+}
+.aiRow:hover { opacity: 0.75; }
+
+.aiRowTitle { font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.aiRowHint  { font-size: 12px; color: var(--color-text-muted); line-height: 1.5; }
+
+.suggestionList {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.suggestionBtn {
+  display: block;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  padding: 8px 0;
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  width: 100%;
+}
+.suggestionBtn:hover { color: var(--color-terracotta); }
+
+.polishPreview {
+  margin-top: 16px;
+  padding: 16px 0 0;
+  border-top: 1px dashed oklch(70% 0.04 60);
+  font-size: 14px;
+}
+
+.polishHeader {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.polishText {
+  white-space: pre-wrap;
+  font-family: var(--font-body);
+  margin-bottom: 12px;
+  line-height: 1.7;
+}
+
+.iconBtn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.iconBtn:hover { color: var(--color-text); }

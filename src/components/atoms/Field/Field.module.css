@@ -1,0 +1,106 @@
+.label {
+  display: block;
+  font-family: var(--font-body);
+  font-size: var(--label-size);
+  font-weight: 600;
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+}
+
+.label .required {
+  color: var(--color-terracotta);
+  margin-left: 4px;
+}
+
+.hint {
+  margin-top: 6px;
+  font-family: var(--font-body);
+  font-size: var(--hint-size);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.hint[data-tone='error'] { color: var(--color-terracotta); }
+.hint[data-tone='ok']    { color: oklch(55% 0.13 140); }
+
+.charCount {
+  margin-top: 6px;
+  text-align: right;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.charCount[data-state='over'] { color: var(--color-terracotta); }
+
+/* The wobbly dashed border owns the chrome; the field itself is
+ * transparent and sits above the SVG. */
+.surface {
+  background: var(--color-cream);
+  border-radius: var(--field-radius);
+}
+
+.field {
+  display: block;
+  width: 100%;
+  padding: var(--field-pad-y) var(--field-pad-x);
+  border-radius: var(--field-radius);
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-text);
+  outline: none;
+  position: relative;
+  z-index: 1;
+}
+
+.field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.field[data-tone='display'] {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+textarea.field {
+  resize: vertical;
+  min-height: 96px;
+}
+
+/* Variant: subtle — borderless underline-only inputs */
+.field[data-variant='subtle'] {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--field-border);
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+.field[data-variant='subtle']:focus-visible {
+  box-shadow: none;
+  border-bottom-color: var(--field-border-focus);
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.fieldFoot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.fieldFootHint { flex: 1; }

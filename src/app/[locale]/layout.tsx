@@ -49,7 +49,7 @@ export default async function LocaleLayout({
           rel="stylesheet"
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <NextIntlProvider messages={messages} locale={locale}>
           <AuthProvider>{children}</AuthProvider>
           <TweaksPanel />

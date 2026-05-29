@@ -18,6 +18,7 @@ export class R2StorageProvider implements IStorageProvider {
   private client = new S3Client({
     region: 'auto',
     endpoint: env('R2_ENDPOINT'),
+    forcePathStyle: true,
     credentials: {
       accessKeyId: env('R2_ACCESS_KEY_ID'),
       secretAccessKey: env('R2_SECRET_ACCESS_KEY'),

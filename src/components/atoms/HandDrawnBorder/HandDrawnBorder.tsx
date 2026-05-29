@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { wobRect, type SegValue } from '@/lib/design/wobRect';
+import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
 
 export interface HandDrawnBorderProps {
   w: number;
@@ -32,14 +33,17 @@ export function HandDrawnBorder({
   chalkSeed,
   segmentsH,
   segmentsV,
-  curve = 1,
+  curve,
   cornerJitter = 1,
   cornerOffset = 0,
 }: HandDrawnBorderProps) {
-  const m = mag != null ? mag : Math.min(w, h) * 0.025;
+  const m = mag != null ? mag : autoMag(w, h);
+  const c = curve != null ? curve : autoCurve(w, h);
+  const segH: SegValue = segmentsH != null ? segmentsH : autoSegments(w);
+  const segV: SegValue = segmentsV != null ? segmentsV : autoSegments(h);
   const path = useMemo(
-    () => wobRect(w, h, R, seed, m, { segmentsH, segmentsV, curve, cornerJitter, cornerOffset }),
-    [w, h, R, seed, m, segmentsH, segmentsV, curve, cornerJitter, cornerOffset]
+    () => wobRect(w, h, R, seed, m, { segmentsH: segH, segmentsV: segV, curve: c, cornerJitter, cornerOffset }),
+    [w, h, R, seed, m, segH, segV, c, cornerJitter, cornerOffset]
   );
   if (!w || !h) return null;
   const chalkId = chalkSeed != null ? `chalk-hdb-${chalkSeed}` : null;

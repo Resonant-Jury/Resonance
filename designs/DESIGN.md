@@ -545,10 +545,221 @@ Circular avatar with initials, wobbled border via `HandDrawnBorder`.
 
 ---
 
-## 11. Anti-Patterns
+## 11. Form System ([`src/components/atoms/Field`](../src/components/atoms/Field/Field.tsx))
+
+Unified label / control / hint primitives. All inputs share the same chrome
+(border, focus ring, placeholder treatment) via `Field.module.css`.
+
+| Token | Value | Where defined |
+|---|---|---|
+| `--field-pad-y` | `14px` | tokens.css |
+| `--field-pad-x` | `18px` | tokens.css |
+| `--field-radius` | `16px` | tokens.css |
+| `--field-border` | `oklch(80% 0.02 75)` | tokens.css |
+| `--field-border-hover` | `oklch(60% 0.04 60)` | tokens.css |
+| `--field-border-focus` | `var(--color-terracotta)` | tokens.css |
+| `--placeholder` | `oklch(64% 0.03 70)` | tokens.css |
+| `--label-size` / `--label-tracking` | `12px` / `0.06em` | tokens.css |
+| `--hint-size` | `12px` | tokens.css |
+
+**Placeholders** are styled globally in `globals.css` — italic, family
+`--font-body`, color `--placeholder`. Do not override per-component.
+
+**Components:**
+
+- `<FieldLabel htmlFor required>` — uppercase 12px caption.
+- `<FieldHint tone="default|ok|error">` — 12px, color matches tone.
+- `<CharCount count max />` — right-aligned, turns terracotta when over.
+- `<Input variant="default|subtle" tone="default|display" />` — single line.
+- `<Textarea>` — same props as Input; `tone="display"` swaps to Playfair 22/700.
+- `<Field label hint hintTone trailing>{control}</Field>` — wraps the three above.
+
+**Variant: `subtle`** — borderless input with only a bottom rule, for inline
+editing inside Panels (no nested-card chrome).
+
+---
+
+## 12. Panel + Divider — Section Composition
+
+**Rule:** never nest cards inside cards. Use one `<Panel>` per region; split
+its inner content with `<Divider />`. On mobile, Panels with
+`collapseOnMobile` (default `true`) drop all chrome and read as plain sections.
+
+**Files:**
+- [`src/components/molecules/Panel`](../src/components/molecules/Panel/Panel.tsx)
+- [`src/components/atoms/Divider`](../src/components/atoms/Divider/Divider.tsx)
+
+```tsx
+<Panel title={<>AI 寫作夥伴</>} footer={hint} sticky collapseOnMobile>
+  <AiRow title="潤稿" hint="..." />
+  <Divider seed={11} />
+  <AiRow title="標題建議" hint="..." />
+  <Divider seed={23} />
+  <AiRow title="生成標籤" hint="..." />
+</Panel>
+```
+
+`<Panel variant>` — `default` (filled + bordered), `soft` (no border), `plain`
+(no padding/background). `<Panel sticky>` snaps to
+`calc(var(--app-header-h) + 16px)` in a side-rail layout.
+
+`<Divider orientation="horizontal" seed amplitude steps color spacing />` —
+wavy by default, matches the section-edge family.
+
+---
+
+## 13. Page Rhythm
+
+The `(app)` route group's layout no longer applies any top padding. Every page
+must own its own header offset via one of:
+
+1. **Recommended:** `<PageShell width="default|wide">{children}</PageShell>`
+   ([`src/components/molecules/PageShell`](../src/components/molecules/PageShell/PageShell.tsx))
+   — handles max-width, padding, and `paddingTop:
+   calc(var(--app-header-h) + var(--page-pad-top))`.
+2. Use the same calc directly when the page has bespoke chrome (e.g. card
+   detail's narrow article container).
+
+```css
+--app-header-h: 82px;       /* fixed AppHeader total */
+--page-pad-top: clamp(40px, 6vw, 72px);
+--page-pad-bottom: clamp(64px, 8vw, 112px);
+--page-pad-x:   clamp(20px, 4vw, 48px);
+--page-max-w:   1080px;
+--page-max-w-wide: 1200px;
+```
+
+`<PageTitle eyebrow subtitle align>` provides the standard h1 typography for
+the first heading of a page.
+
+---
+
+## 14. TagPill Sizes
+
+```tsx
+<TagPill size="sm" />  // 10px / pad 3·10
+<TagPill size="md" />  // 11px / pad 4·14  (default — feed/detail)
+<TagPill size="lg" />  // 13px / pad 7·18  (filters, editor pills)
+<TagPill size="xl" />  // 14px / pad 9·22  (page eyebrow / hero)
+```
+
+Additional props:
+- `onRemove?: () => void` — renders a × button on the right.
+- `onClick?: () => void` — whole pill becomes a button (filter chip pattern).
+- `seed` — explicit wobble seed; otherwise derived from the label.
+
+---
+
+## 15. Icon System ([`src/components/atoms/Icon`](../src/components/atoms/Icon))
+
+Hand-drawn SVG icons accessed through a single registry. **Do not** add inline
+SVG or emoji to component files — register a new icon instead.
+
+```tsx
+<Icon name="bell" size={22} />
+<Icon name="sparkle" size={14} color="var(--color-terracotta)" />
+<Icon name="check" size={16} ariaLabel="Saved" />
+```
+
+**Adding an icon:**
+1. Create `src/components/atoms/Icon/icons/<name>.tsx`, exporting a function
+   that accepts `IconRenderProps { size, color, strokeWidth }`.
+2. Use hand-drawn stroke style: slightly wobbled bezier paths, `strokeLinecap`
+   round, no fill except for accents. Match the existing icons' weight.
+3. Add the import + entry in `registry.ts`. The `IconName` union updates
+   automatically via `satisfies`.
+
+**Why a registry over per-file imports:** consumers pass the name as a string
+(handy for prop drilling like `<TabBar icon="bell" />`), all icons share one
+prop contract, and future swaps (e.g. lazy load, theme variants) only touch
+the registry.
+
+**Current icons:** `bell`, `star`, `sparkle`, `close`, `plus`, `check`,
+`arrow-right`, `image`, `eye`, `lock`, `users`, `globe`.
+
+---
+
+## 16. Adaptive Wobble (`src/lib/design/wobAuto.ts`)
+
+Every hand-drawn rounded-rect surface needs three procedural parameters:
+
+| param | meaning |
+|---|---|
+| `segmentsH` / `segmentsV` | turning points along the horizontal / vertical edges |
+| `mag` | perpendicular wobble amplitude in pixels |
+| `curve` | per-segment bow factor (higher = more pronounced) |
+
+`wobAuto.ts` derives all three from the surface's measured width and height
+so designers don't need to tune each call site:
+
+```ts
+autoSegments(edge)  // ~1 point per 75px, clamped 2–8
+autoMag(w, h)       // clamp(2 + min·0.014, 2.5, 5)px
+autoCurve(w, h)     // clamp(2.8 − min·0.005, 0.6, 2.5)
+```
+
+Two intuitions baked in:
+
+1. **Each edge is scaled independently** — long sides get more turning
+   points than short sides on the same shape. When an image upload box
+   becomes taller after a file is loaded, the vertical edges automatically
+   pick up more anchors.
+2. **Curve inversely scales with size** — small chips/buttons need a high
+   `curve` for the hand-drawn quality to read at all (~2.5); big cards need
+   a low `curve` (~0.6) or they look crooked, not organic.
+
+### Reference table
+
+| surface | dims | segH | segV | mag | curve |
+|---|---|---|---|---|---|
+| Visibility chip | 120×44 | 2 | 2 | 2.6 | 2.5 |
+| Tag pill / button | 90×36 | 2 | 2 | 2.5 | 2.5 |
+| Single-line Input | 320×46 | 4 | 2 | 2.6 | 2.5 |
+| Textarea | 520×220 | 7 | 3 | 5.1→5 (cap) | 1.7 |
+| Panel (default) | 380×500 | 5 | 7 | 5 (cap) | 0.9 |
+| Upload (empty) | 480×140 | 6 | 2 | 4.0 | 2.1 |
+| Upload (with image) | 480×420 | 6 | 6 | 5 (cap) | 0.7 |
+
+### Wiring
+
+Both border atoms — `HandDrawnBorder` (solid) and `HandDrawnDashedBorder` /
+`HandDrawnDashedSurface` (kept name for compat; draws a solid wobbly curve) —
+fall back to `autoSegments` / `autoMag` / `autoCurve` whenever the matching
+prop is `undefined`. Pass an explicit value only when you want to override.
+
+```tsx
+// Auto everywhere — the usual path:
+<HandDrawnDashedSurface seed={5}>{children}</HandDrawnDashedSurface>
+
+// Tuned override (StoryCard, AuthCard etc.):
+<HandDrawnBorder w={w} h={h} segmentsH={[3, 4]} segmentsV={[5, 6]} curve={0.55} />
+```
+
+### Border color states (form surfaces)
+
+| state | token |
+|---|---|
+| idle | `--field-border` (gray) |
+| hover | `--field-border-hover` (darker gray) |
+| focus / emphasized item | `--field-border-focus` (terracotta) |
+
+The `state` prop on `HandDrawnDashedSurface` picks the right token; callers
+just pass `state={focus ? 'focus' : hover ? 'hover' : 'idle'}`.
+
+## 17. Anti-Patterns
 
 - Overusing organic shapes — max 2–3 per page
 - Making buttons unrecognizable (maintain pill shape affordance)
 - Heavy noise texture — grain should feel soft, not dominant
 - Strong drop shadows, glassmorphism, neumorphism
 - Full illustration replacing functional UI components
+- **Cards inside cards.** Use `<Panel>` + `<Divider />` instead.
+- **Inline SVG / emoji icons in components.** Register an `Icon` instead.
+- **Inline `style` for typography, color, padding tokens.** Use CSS Modules +
+  tokens. Inline `style` is acceptable for one-off layout (grid template,
+  sticky positioning) but never for design-system values.
+- **Page-level top padding hard-coded per page.** Use `<PageShell>` or the
+  `calc(var(--app-header-h) + var(--page-pad-top))` formula.
+- **Hard-coded `segmentsH/V` / `mag` / `curve` on new surfaces.** Let
+  `wobAuto` handle it. Override only when you're matching an aesthetically
+  tuned legacy primitive (e.g. `StoryCard`).

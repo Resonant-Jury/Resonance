@@ -29,4 +29,25 @@
   --color-text-muted:       oklch(52%   0.04  70);
 
   --grain-opacity: 0.10;
+
+  /* Layout rhythm (used by PageShell + app pages) */
+  --app-header-h: 82px;             /* HEADER_BODY_H 68 + HEADER_WAVE_H 14 */
+  --page-pad-x: clamp(20px, 4vw, 48px);
+  --page-pad-top: clamp(40px, 6vw, 72px);
+  --page-pad-bottom: clamp(64px, 8vw, 112px);
+  --page-max-w: 1080px;
+  --page-max-w-wide: 1200px;
+
+  /* Form rhythm */
+  --field-pad-y: 14px;
+  --field-pad-x: 18px;
+  --field-radius: 16px;
+  --field-border: oklch(80% 0.02 75);
+  --field-border-hover: oklch(60% 0.04 60);
+  --field-border-focus: var(--color-terracotta);
+
+  --label-size: 12px;
+  --label-tracking: 0.06em;
+  --hint-size: 12px;
+  --placeholder: oklch(64% 0.03 70);
 }

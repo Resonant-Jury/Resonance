@@ -10,6 +10,12 @@ import { CardViewerActions } from '@/components/molecules/CardDetail/CardViewerA
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
 
+// ISR — render once per card and serve the static HTML for up to a day.
+// Author edits / publish events ping /api/revalidate to regenerate.
+// Only public + published cards are baked into the cache; private and
+// connections-only cards are read client-direct from Firestore (rules enforce
+// visibility), so the static page renders the public shape and the viewer
+// actions hydrate per-viewer state.
 export const revalidate = 86400;
 export const dynamicParams = true;
 
@@ -26,8 +32,13 @@ export default async function CardDetailPage({
   setRequestLocale(locale);
   const t = await getTranslations('card');
 
+  // Render only public, published cards in the static page. Viewer-specific
+  // visibility (private / connections-only) is intentionally not baked into
+  // ISR — those readers can still see the card via client-direct Firestore
+  // reads from a profile or feed view.
   const card = await repos.card.findById(id, null);
-  if (!card || card.visibility !== 'public' || !card.publishedAt) notFound();
+  if (!card) notFound();
+  if (!card.publishedAt || card.visibility !== 'public') notFound();
 
   const [author, related] = await Promise.all([
     repos.user.findById(card.authorId),
@@ -46,7 +57,8 @@ export default async function CardDetailPage({
       style={{
         maxWidth: 760,
         margin: '0 auto',
-        padding: 'clamp(32px, 5vw, 64px) clamp(20px, 4vw, 48px) 80px',
+        padding:
+          'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
       }}
     >
       <header

@@ -1,0 +1,20 @@
+.grid {
+  columns: 1;
+  column-gap: 0;
+}
+
+.item {
+  break-inside: avoid;
+  /* mobile: cards stack flush, no gap */
+}
+
+@media (min-width: 640px) {
+  .grid {
+    columns: 240px;
+    column-gap: 24px;
+  }
+
+  .item {
+    margin-bottom: 24px;
+  }
+}

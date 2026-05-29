@@ -6,11 +6,7 @@ const intlMiddleware = createMiddleware(routing);
 const appPathPattern = /^\/(en|zh-TW)\/(home|card|write|me|u|settings)(\/|$)/;
 
 export default function middleware(request: NextRequest) {
-  const usingMock =
-    process.env.DATA_PROVIDER === 'mock' ||
-    (process.env.DATA_PROVIDER === undefined && process.env.NEXT_PUBLIC_USE_MOCK !== 'false');
-
-  if (!usingMock && appPathPattern.test(request.nextUrl.pathname)) {
+  if (appPathPattern.test(request.nextUrl.pathname)) {
     const sessionCookieName = process.env.FIREBASE_SESSION_COOKIE_NAME ?? '__session';
     const hasSession = Boolean(request.cookies.get(sessionCookieName)?.value);
     if (!hasSession) {
@@ -25,7 +21,12 @@ export default function middleware(request: NextRequest) {
     }
   }
 
-  return intlMiddleware(request);
+  const response = intlMiddleware(request);
+  response.headers.set(
+    'x-pathname',
+    `${request.nextUrl.pathname}${request.nextUrl.search}`
+  );
+  return response;
 }
 
 export const config = {

@@ -5,6 +5,7 @@ import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAva
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { ProfileTabs, type TabKey } from '@/components/molecules/ProfileTabs/ProfileTabs';
+import { InvitesInbox } from '@/components/molecules/InvitesInbox/InvitesInbox';
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
 
@@ -38,9 +39,10 @@ export default async function MyCardBoxPage({
   return (
     <div
       style={{
-        maxWidth: 1200,
+        maxWidth: 'var(--page-max-w-wide)',
         margin: '0 auto',
-        padding: 'clamp(32px, 5vw, 56px) clamp(20px, 4vw, 48px) 80px',
+        padding:
+          'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
       }}
     >
       <header
@@ -96,6 +98,8 @@ export default async function MyCardBoxPage({
           <OrganicButton variant="ghost">{t('editProfile')}</OrganicButton>
         </Link>
       </header>
+
+      <InvitesInbox />
 
       <ProfileTabs
         tabs={tabs}

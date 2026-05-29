@@ -1,16 +1,26 @@
 'use client';
 
-import { useState } from 'react';
-import { useTranslations } from 'next-intl';
-import { useRouter } from '@/i18n/navigation';
+import { Suspense, useState } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { AuthCard } from '@/components/molecules/AuthCard/AuthCard';
 import { GoogleMark } from '@/components/atoms/GoogleMark/GoogleMark';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { sanitizeNextPath } from '@/lib/auth/nextPath';
 
 export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInPageInner />
+    </Suspense>
+  );
+}
+
+function SignInPageInner() {
   const t = useTranslations('auth');
-  const router = useRouter();
+  const locale = useLocale();
+  const searchParams = useSearchParams();
   const auth = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -20,7 +30,8 @@ export default function SignInPage() {
     setError(null);
     try {
       await auth.signInWithGoogle();
-      router.push('/home');
+      const next = sanitizeNextPath(searchParams.get('next')) ?? `/${locale}/home`;
+      window.location.href = next;
     } catch {
       setError(t('signInError'));
     } finally {

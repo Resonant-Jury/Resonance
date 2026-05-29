@@ -20,6 +20,15 @@ body {
    white gutter on the right. */
 main { display: block; width: 100%; max-width: 100%; overflow-x: clip; }
 
+/* ── Form placeholders (global, applied to all inputs/textareas) ── */
+input::placeholder,
+textarea::placeholder {
+  color: var(--placeholder);
+  opacity: 1;
+  font-family: var(--font-body);
+  font-style: italic;
+}
+
 /* ── Scrollbar ───────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--color-cream-dark); }

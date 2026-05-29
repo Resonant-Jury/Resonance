@@ -1,0 +1,27 @@
+.svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.surface {
+  position: relative;
+  display: block;
+}
+
+.surface.inline {
+  display: inline-block;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+
+.surface.inline > .content {
+  display: inline-block;
+}

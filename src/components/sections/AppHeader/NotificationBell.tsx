@@ -1,37 +1,59 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { Modal } from '@/components/molecules/Modal/Modal';
+import { Icon } from '@/components/atoms/Icon';
 import type { Notification } from '@/lib/db/types';
-import { markNotificationRead } from '@/lib/db/firestore/client/notifications';
+import { useAuth } from '@/components/providers/AuthProvider';
+import {
+  listNotifications,
+  markNotificationRead,
+} from '@/lib/db/firestore/client/notifications';
 
-export interface NotificationBellProps {
-  count: number;
-  notifications?: Notification[];
-}
-
-export function NotificationBell({ count, notifications = [] }: NotificationBellProps) {
+export function NotificationBell() {
+  const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
-  const [localCount, setLocalCount] = useState(count);
-  const [list, setList] = useState(notifications);
-  const mountRef = useRef(true);
-
-  useEffect(() => {
-    setLocalCount(count);
-  }, [count]);
-  useEffect(() => {
-    setList(notifications);
-  }, [notifications]);
-  useEffect(() => () => { mountRef.current = false; }, []);
+  const [items, setItems] = useState<Notification[]>([]);
+  const [fetched, setFetched] = useState(false);
 
   const tApp = useTranslations('app.notifications');
+  const tNav = useTranslations('app.nav');
+
+  const refresh = useCallback(async () => {
+    if (!user) {
+      setItems([]);
+      setFetched(true);
+      return;
+    }
+    try {
+      const next = await listNotifications(20);
+      setItems(next);
+    } catch {
+      // rules / network errors — keep current state
+    } finally {
+      setFetched(true);
+    }
+  }, [user]);
+
+  // Load count on mount (and whenever auth changes) so the badge reflects
+  // unread state without opening the bell.
+  useEffect(() => {
+    if (loading) return;
+    void refresh();
+  }, [loading, refresh]);
+
+  const unreadCount = useMemo(
+    () => items.filter((n) => n.readAt === null).length,
+    [items],
+  );
 
   function handleClickItem(n: Notification) {
     if (n.readAt === null) {
-      setLocalCount((c) => Math.max(0, c - 1));
-      setList((prev) => prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date() } : x)));
+      setItems((prev) =>
+        prev.map((it) => (it.id === n.id ? { ...it, readAt: new Date() } : it)),
+      );
       markNotificationRead(n.id).catch(() => {});
     }
     setOpen(false);
@@ -40,7 +62,10 @@ export function NotificationBell({ count, notifications = [] }: NotificationBell
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+          if (!fetched) void refresh();
+        }}
         aria-label="Notifications"
         style={{
           position: 'relative',
@@ -51,23 +76,8 @@ export function NotificationBell({ count, notifications = [] }: NotificationBell
           color: 'var(--color-text)',
         }}
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path
-            d="M5.5 16.5 C 6 12.5, 6 10, 7 8 C 8.5 5, 10.5 4, 12 4 C 14 4, 16 5, 17.2 8 C 18 10, 18.2 12.5, 18.8 16.5 C 17 17, 14 17.4, 12 17.4 C 10 17.4, 7 17, 5.5 16.5 Z"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-            fill="none"
-          />
-          <path
-            d="M10.3 19.4 C 10.8 20.4, 13.3 20.4, 13.8 19.3"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            fill="none"
-          />
-        </svg>
-        {localCount > 0 && (
+        <Icon name="bell" size={22} />
+        {unreadCount > 0 && (
           <span
             style={{
               position: 'absolute',
@@ -87,7 +97,7 @@ export function NotificationBell({ count, notifications = [] }: NotificationBell
               lineHeight: 1,
             }}
           >
-            {localCount}
+            {unreadCount}
           </span>
         )}
       </button>
@@ -101,13 +111,13 @@ export function NotificationBell({ count, notifications = [] }: NotificationBell
         ariaLabel="Notifications"
       >
         <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, marginBottom: 14 }}>
-          {useTranslations('app.nav')('notifications')}
+          {tNav('notifications')}
         </h3>
-        {list.length === 0 && (
+        {fetched && items.length === 0 && (
           <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>{tApp('empty')}</p>
         )}
         <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {list.map((n) => {
+          {items.map((n) => {
             const isUnread = n.readAt === null;
             let body = '';
             let href: string | null = null;

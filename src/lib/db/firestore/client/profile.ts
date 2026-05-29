@@ -22,6 +22,15 @@ function requireUid(): string {
   return uid;
 }
 
+export async function getCurrentUserHandle(): Promise<string | null> {
+  const uid = getFirebaseClientAuth().currentUser?.uid;
+  if (!uid) return null;
+  const snap = await getDoc(doc(getClientDb(), 'users', uid));
+  if (!snap.exists()) return null;
+  const handle = snap.data().handle;
+  return typeof handle === 'string' ? handle : null;
+}
+
 export async function checkHandleAvailable(handle: string): Promise<boolean> {
   const handleLower = handle.trim().toLowerCase();
   if (!handleLower) return false;

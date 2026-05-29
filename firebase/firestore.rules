@@ -80,10 +80,27 @@ service cloud.firestore {
     }
 
     // --- connections ---
-    // Only created server-side when an invite is accepted (trusted writer).
+    // Either party may create the connection atomically when accepting an
+    // invite. The doc id is deterministic: min(uidA, uidB) + "_" + max(...).
+    // Rules require the caller is one of the two parties and that both
+    // members are present.
+    function sortedConnectionId(a, b) {
+      return a < b ? a + "_" + b : b + "_" + a;
+    }
     match /connections/{connectionId} {
       allow read: if signedIn() && request.auth.uid in resource.data.userIds;
-      allow create, update, delete: if false;
+      allow create: if signedIn()
+        && request.resource.data.userIds is list
+        && request.resource.data.userIds.size() == 2
+        && request.auth.uid in request.resource.data.userIds
+        && connectionId == sortedConnectionId(
+            request.resource.data.userIds[0],
+            request.resource.data.userIds[1]
+          );
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.userIds
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["muted"]);
+      allow delete: if false;
     }
 
     // --- invites ---
@@ -117,13 +134,26 @@ service cloud.firestore {
     }
 
     // --- notifications ---
-    // Written by trusted server only; recipients may mark them read.
+    // Recipients can read and mark their own notifications read.
+    // Limited client-create is allowed for events the sender already has
+    // permission to perform (e.g. inviting someone, marking a resonance):
+    //   * type == "invite"             -> payload.fromUserId == auth.uid
+    //   * type == "resonance_summary"  -> created by trusted writer only
+    //   * type == "translation_done"   -> created by trusted writer only
+    function notificationIsInviteSender() {
+      return request.resource.data.type == "invite"
+        && request.resource.data.payload.fromUserId == request.auth.uid
+        && request.resource.data.userId != request.auth.uid;
+    }
     match /notifications/{notificationId} {
       allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.readAt == null
+        && (notificationIsInviteSender());
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readAt"]);
-      allow create, delete: if false;
+      allow delete: if false;
     }
 
     // --- quotas ---
