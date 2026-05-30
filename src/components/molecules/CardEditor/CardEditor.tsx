@@ -9,6 +9,7 @@ import { Divider } from '@/components/atoms/Divider/Divider';
 import { Field, Textarea, CharCount } from '@/components/atoms/Field/Field';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
+import { HandDrawnImage } from '@/components/atoms/HandDrawnImage/HandDrawnImage';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useRef } from 'react';
 import { Panel } from '@/components/molecules/Panel/Panel';
@@ -281,55 +282,55 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
 
         {/* Media */}
         <Field label={t('mediaLabel')}>
-          {media && (
-            <div className={styles.mediaRow}>
-              <HandDrawnDashedSurface seed={29} R={14} className={styles.mediaThumbWrap}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={media.url} alt={media.label ?? ''} className={styles.mediaThumb} />
-              </HandDrawnDashedSurface>
-              <OrganicButton variant="ghost" onClick={() => setMedia(undefined)}>
-                {t('mediaRemove')}
-              </OrganicButton>
-            </div>
-          )}
-          <label
-            className={styles.uploadZone}
-            data-drag={dragOver || undefined}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              const file = e.dataTransfer.files?.[0];
-              if (file) void uploadImage(file);
-            }}
-          >
-            <HandDrawnDashedSurface
+          {media ? (
+            <HandDrawnImage
+              src={media.url}
+              alt={media.label ?? ''}
               seed={31}
               R={16}
-              state={dragOver ? 'focus' : 'idle'}
-              className={styles.fileInputWrap}
-            >
-              <span className={styles.uploadInner}>
-                <Icon name="image" size={26} color="var(--color-terracotta)" />
-                <span className={styles.uploadText}>{t('mediaPlaceholder')}</span>
-                <span className={styles.uploadHint}>{t('mediaHint')}</span>
-              </span>
-            </HandDrawnDashedSurface>
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              onChange={(e) => {
-                const file = e.currentTarget.files?.[0];
-                if (file) void uploadImage(file);
-                e.currentTarget.value = '';
-              }}
-              className={styles.fileInputHidden}
+              onRemove={() => setMedia(undefined)}
+              removeLabel={t('mediaRemove')}
             />
-          </label>
+          ) : (
+            <label
+              className={styles.uploadZone}
+              data-drag={dragOver || undefined}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) void uploadImage(file);
+              }}
+            >
+              <HandDrawnDashedSurface
+                seed={31}
+                R={16}
+                state={dragOver ? 'focus' : 'idle'}
+                className={styles.fileInputWrap}
+              >
+                <span className={styles.uploadInner}>
+                  <Icon name="image" size={26} color="var(--color-terracotta)" />
+                  <span className={styles.uploadText}>{t('mediaPlaceholder')}</span>
+                  <span className={styles.uploadHint}>{t('mediaHint')}</span>
+                </span>
+              </HandDrawnDashedSurface>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  const file = e.currentTarget.files?.[0];
+                  if (file) void uploadImage(file);
+                  e.currentTarget.value = '';
+                }}
+                className={styles.fileInputHidden}
+              />
+            </label>
+          )}
           {uploadError && (
             <div style={{ marginTop: 6, fontSize: 12, color: 'var(--color-terracotta)' }}>
               {uploadError}

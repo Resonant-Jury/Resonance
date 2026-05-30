@@ -50,24 +50,6 @@
   white-space: nowrap;
 }
 
-.mediaRow {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 10px;
-}
-
-.mediaThumbWrap {
-  display: inline-block;
-  border-radius: 14px;
-}
-.mediaThumb {
-  display: block;
-  width: 96px;
-  height: 72px;
-  object-fit: cover;
-  border-radius: 12px;
-}
 
 .uploadZone {
   display: block;

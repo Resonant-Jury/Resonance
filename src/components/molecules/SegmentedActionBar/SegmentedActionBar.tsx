@@ -166,7 +166,7 @@ export function SegmentedActionBar({
               d={polyline(pts)}
               fill="none"
               stroke={divider}
-              strokeWidth={1.6}
+              strokeWidth={2}
               strokeLinecap="round"
               clipPath={`url(#sab-clip-${seed})`}
             />

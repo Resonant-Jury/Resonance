@@ -1,0 +1,38 @@
+.wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.removeBtn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 150ms;
+}
+.removeBtn:hover {
+  transform: scale(1.08);
+}
+.removeBtn > :last-child {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
