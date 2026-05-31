@@ -1,45 +1,57 @@
-import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { notFound } from 'next/navigation';
-import { repos } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+'use client';
+
+import { useTranslations } from 'next-intl';
+import { useParams } from 'next/navigation';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { ConnectInviteLauncher } from '@/components/molecules/ConnectInviteModal/ConnectInviteLauncher';
+import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
+import { useProfileByHandle } from '@/lib/data/hooks';
 
-export default async function OtherProfilePage({
-  params,
-}: {
-  params: Promise<{ locale: string; handle: string }>;
-}) {
-  const { locale, handle } = await params;
-  setRequestLocale(locale);
-  const t = await getTranslations('profile');
-  const viewer = await requireUser();
-  const user = await repos.user.findByHandle(handle);
-  if (!user) notFound();
-  if (user.id === viewer.id) notFound();
+const wrapStyle = {
+  maxWidth: 'var(--page-max-w-wide)',
+  margin: '0 auto',
+  padding:
+    'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
+} as const;
 
-  const [isConnected, published, dailyRemaining] = await Promise.all([
-    repos.connection.isConnected(viewer.id, user.id),
-    repos.card.findByAuthor(user.id, 'published'),
-    repos.invite.remainingDailyQuota(viewer.id),
-  ]);
+export default function OtherProfilePage() {
+  const params = useParams<{ handle: string }>();
+  const handle = params?.handle;
+  const t = useTranslations('profile');
+  const { data, isLoading } = useProfileByHandle(handle);
 
+  if (isLoading) {
+    return (
+      <div style={wrapStyle}>
+        <FeedSkeleton count={4} />
+      </div>
+    );
+  }
+
+  if (!data || !data.user) {
+    return (
+      <div style={{ ...wrapStyle, textAlign: 'center' }}>
+        <p style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--color-text)', marginBottom: 12 }}>
+          {t('notFound')}
+        </p>
+        <Link href="/home" style={{ textDecoration: 'none' }}>
+          <span style={{ color: 'var(--color-terracotta)' }}>{t('backHome')}</span>
+        </Link>
+      </div>
+    );
+  }
+
+  const { user, isConnected, published, dailyRemaining } = data;
   const preview = isConnected ? published : published.slice(0, 6);
   const authors: Record<string, User> = { [user.id]: user };
 
   return (
-    <div
-      style={{
-        maxWidth: 'var(--page-max-w-wide)',
-        margin: '0 auto',
-        padding:
-          'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
-      }}
-    >
+    <div style={wrapStyle}>
       <header
         style={{
           display: 'flex',

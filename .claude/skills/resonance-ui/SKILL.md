@@ -14,9 +14,13 @@ When building UI in this repo, **always reach for these primitives before writin
 | Build a page in `(app)/...` | `<PageShell>` + `<PageTitle>` |
 | Build a page in `(auth)/...` | The `(auth)` layout already centers — just place content |
 | Take text input | `<Input>` or `<Textarea>` (from `atoms/Field/Field`) |
+| Pick from a fixed list (dropdown) | `<Select>` (from `atoms/Field/Field`) — organic surface + hand-drawn chevron |
 | Add a label / hint / char counter | `<Field label hint trailing={<CharCount/>}>` |
+| Switch between tabs / nav sections | `<OrganicTabs orientation="horizontal|vertical">` (from `molecules/OrganicTabs`) |
+| Flip a boolean preference (on/off switch) | `<ToggleSwitch checked onChange>` (from `atoms/ToggleSwitch`) — wobbly track + knob |
+| Separate stacked rows/sections | `<Divider seed={N} spacing={6} />` — wavy pen rule, never a flat 1px border |
 | Group related controls into a side panel | one `<Panel>` with `<Divider />` between sub-sections |
-| Show a status icon (bell, star, sparkle, check, close, plus, arrow, image, eye, lock, users, globe) | `<Icon name="…" size=… />` |
+| Show a status icon (bell, star, sparkle, check, close, plus, arrow-right, chevron-down, image, eye, lock, users, globe, wave, pen) | `<Icon name="…" size=… />` |
 | Show a tag / chip | `<TagPill size="sm|md|lg|xl" onRemove? onClick?>` |
 | Primary action | `<OrganicButton variant="primary|outline|ghost">` |
 | Vertical/horizontal separator | `<Divider seed={N} />` |
@@ -48,6 +52,22 @@ When building UI in this repo, **always reach for these primitives before writin
 <Field label="Story" hint="280–1200 words" hintTone="default|ok|error" trailing={<CharCount count={n} max={1200} />}>
   <Textarea variant="default|subtle" tone="default|display" placeholder="…" rows={14} />
 </Field>
+<Field label="Region">
+  <Select seed={43} value={region} onChange={(e) => setRegion(e.target.value)}>
+    <option value="TW">🇹🇼 Taiwan</option>
+  </Select>
+</Field>
+
+// Tabs / section switcher (horizontal = wavy underline, vertical = wobbly highlight)
+<OrganicTabs
+  orientation="horizontal" seed={23}
+  tabs={keys.map((k) => ({ key: k, label: t(k) }))}
+  active={active} onChange={setActive}
+/>
+
+// Toggle rows: organic switch + wavy dividers between rows (no flat borders),
+// roomy padding so the section breathes.
+<ToggleSwitch checked={on} onChange={() => setOn(!on)} ariaLabel="…" seed={71} />
 
 // Panels
 <Panel title={<><Icon name="sparkle" size={16}/> AI</>} footer="hint" sticky collapseOnMobile variant="default|soft|plain">

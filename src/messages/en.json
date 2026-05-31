@@ -110,7 +110,11 @@
     },
     "verified": "Verified",
     "private": "Private",
-    "connections": "Connections only"
+    "connections": "Connections only",
+    "notFound": {
+      "title": "This card can't be found",
+      "back": "Back to home"
+    }
   },
   "write": {
     "title": "New card",
@@ -181,7 +185,9 @@
     "block": "Block",
     "disconnect": "Disconnect",
     "translating": "Translating…",
-    "showOriginal": "Show original"
+    "showOriginal": "Show original",
+    "notFound": "This person can't be found",
+    "backHome": "Back to home"
   },
   "invite": {
     "title": "Invite to connect",

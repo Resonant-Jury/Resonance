@@ -8,38 +8,16 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
-  Timestamp,
 } from 'firebase/firestore';
 import type { Card, CardMedia, Locale, NewCard, Visibility } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
-import { requestRevalidate } from './revalidate';
+import { mapCard } from './map';
 
 function requireUid(): string {
   const uid = getFirebaseClientAuth().currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
   return uid;
-}
-
-function mapCard(id: string, data: Record<string, unknown>): Card {
-  const publishedAt = data.publishedAt as Timestamp | null | undefined;
-  return {
-    id,
-    authorId: String(data.authorId),
-    thoughtCore: String(data.thoughtCore ?? ''),
-    story: String(data.story ?? ''),
-    tags: (data.tags as string[]) ?? [],
-    media: data.media as CardMedia | undefined,
-    originalLocale: (data.originalLocale as Locale) ?? 'zh-TW',
-    translations: (data.translations as Card['translations']) ?? {},
-    visibility: (data.visibility as Visibility) ?? 'public',
-    embedding: data.embedding as number[] | undefined,
-    referenceCardId: data.referenceCardId as string | undefined,
-    publishedAt: publishedAt ? publishedAt.toDate() : null,
-    readCount: Number(data.readCount ?? 0),
-    resonanceCount: Number(data.resonanceCount ?? 0),
-    inviteCount: Number(data.inviteCount ?? 0),
-  };
 }
 
 export async function createCardDraft(input: {
@@ -108,13 +86,10 @@ export async function publishCard(id: string): Promise<Card> {
     { merge: true }
   );
   const snap = await getDoc(ref);
-  const card = mapCard(snap.id, snap.data() ?? {});
-  await requestRevalidate([`/card/${id}`, '/home', '/me']);
-  return card;
+  return mapCard(snap.id, snap.data() ?? {});
 }
 
 export async function deleteCardDraft(id: string): Promise<void> {
   requireUid();
   await deleteDoc(doc(getClientDb(), 'cards', id));
-  await requestRevalidate(['/me']);
 }

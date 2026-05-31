@@ -14,7 +14,6 @@ import {
 import type { Locale, User } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
-import { requestRevalidate } from './revalidate';
 
 function requireUid(): string {
   const uid = getFirebaseClientAuth().currentUser?.uid;
@@ -59,7 +58,6 @@ export async function updateProfile(patch: {
     next.handleChangedAt = serverTimestamp();
   }
   await setDoc(ref, next, { merge: true });
-  await requestRevalidate(['/me', '/settings']);
 }
 
 export async function createCurrentUserProfile(input: {

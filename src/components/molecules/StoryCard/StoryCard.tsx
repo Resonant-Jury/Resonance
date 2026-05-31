@@ -6,6 +6,7 @@ import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
+import { Icon } from '@/components/atoms/Icon';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
@@ -276,21 +277,12 @@ export function StoryCard({ story, index = 0, isLast = false }: StoryCardProps) 
             <div className={styles.authorName}>{story.author}</div>
             <div className={styles.readTime}>{story.readTime}</div>
           </div>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
+          <Icon
+            name="arrow-right"
+            size={18}
+            strokeWidth={1.7}
             style={{ opacity: hovered ? 0.7 : 0.28, transition: 'opacity 180ms' }}
-          >
-            <path
-              d="M3 8h10M9 4l4 4-4 4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          />
         </div>
       </div>
     </article>

@@ -5,6 +5,7 @@ import { CloseIcon } from './icons/close';
 import { PlusIcon } from './icons/plus';
 import { CheckIcon } from './icons/check';
 import { ArrowRightIcon } from './icons/arrow-right';
+import { ChevronDownIcon } from './icons/chevron-down';
 import { ImageIcon } from './icons/image';
 import { EyeIcon } from './icons/eye';
 import { LockIcon } from './icons/lock';
@@ -36,6 +37,7 @@ export const ICONS = {
   plus: PlusIcon,
   check: CheckIcon,
   'arrow-right': ArrowRightIcon,
+  'chevron-down': ChevronDownIcon,
   image: ImageIcon,
   eye: EyeIcon,
   lock: LockIcon,

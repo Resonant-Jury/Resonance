@@ -1,40 +1,22 @@
-import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { repos } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+'use client';
+
+import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { ProfileTabs, type TabKey } from '@/components/molecules/ProfileTabs/ProfileTabs';
 import { InvitesInbox } from '@/components/molecules/InvitesInbox/InvitesInbox';
 import { Link } from '@/i18n/navigation';
-import type { User } from '@/lib/db/types';
+import { useMyCardBox, useMyProfile } from '@/lib/data/hooks';
 
-export default async function MyCardBoxPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
-  const { locale } = await params;
-  setRequestLocale(locale);
-  const t = await getTranslations('me');
-  const authUser = await requireUser();
-  const user = await repos.user.getCurrent();
-  if (!user) throw new Error('No user');
+const tabs: TabKey[] = ['published', 'private', 'draft', 'resonated', 'thoughtMap'];
 
-  const [published, privateCards, drafts, resonated] = await Promise.all([
-    repos.card.findByAuthor(authUser.id, 'published'),
-    repos.card.findByAuthor(authUser.id, 'private'),
-    repos.card.findByAuthor(authUser.id, 'draft'),
-    repos.card.findByAuthor(authUser.id, 'resonated'),
-  ]);
-
-  const all = [...published, ...privateCards, ...drafts, ...resonated];
-  const authorIds = Array.from(new Set(all.map((c) => c.authorId)));
-  const authorList = await Promise.all(authorIds.map((id) => repos.user.findById(id)));
-  const authors: Record<string, User> = {};
-  for (const u of authorList) if (u) authors[u.id] = u;
-
-  const tabs: TabKey[] = ['published', 'private', 'draft', 'resonated', 'thoughtMap'];
+export default function MyCardBoxPage() {
+  const locale = useLocale();
+  const t = useTranslations('me');
+  const { data: user } = useMyProfile();
+  const { data: box } = useMyCardBox();
 
   return (
     <div
@@ -55,10 +37,10 @@ export default async function MyCardBoxPage({
         }}
       >
         <HandDrawnAvatar
-          initials={user.initials}
+          initials={user?.initials ?? '··'}
           size={72}
-          color={user.accentColor}
-          seed={Number(user.avatarSeed)}
+          color={user?.accentColor ?? 'oklch(88% 0.08 55)'}
+          seed={Number(user?.avatarSeed ?? 0)}
         />
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -70,9 +52,9 @@ export default async function MyCardBoxPage({
                 color: 'var(--color-text)',
               }}
             >
-              {user.handle}
+              {user?.handle ?? ' '}
             </h1>
-            {user.verified && <HandDrawnCheckmark size={16} />}
+            {user?.verified && <HandDrawnCheckmark size={16} />}
           </div>
           <p
             style={{
@@ -80,19 +62,21 @@ export default async function MyCardBoxPage({
               color: 'var(--color-text-muted)',
               fontSize: 14,
               marginBottom: 4,
-              fontStyle: user.bio ? 'normal' : 'italic',
+              fontStyle: user?.bio ? 'normal' : 'italic',
             }}
           >
-            {user.bio || t('bioEmpty')}
+            {user?.bio || t('bioEmpty')}
           </p>
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-            {t('joined', {
-              date: new Date(user.joinedAt).toLocaleDateString(locale, {
-                year: 'numeric',
-                month: 'long',
-              }),
-            })}
-          </p>
+          {user && (
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              {t('joined', {
+                date: new Date(user.joinedAt).toLocaleDateString(locale, {
+                  year: 'numeric',
+                  month: 'long',
+                }),
+              })}
+            </p>
+          )}
         </div>
         <Link href="/settings" style={{ textDecoration: 'none' }}>
           <OrganicButton variant="ghost">{t('editProfile')}</OrganicButton>
@@ -101,11 +85,20 @@ export default async function MyCardBoxPage({
 
       <InvitesInbox />
 
-      <ProfileTabs
-        tabs={tabs}
-        data={{ published, private: privateCards, draft: drafts, resonated }}
-        authors={authors}
-      />
+      {box ? (
+        <ProfileTabs
+          tabs={tabs}
+          data={{
+            published: box.published,
+            private: box.private,
+            draft: box.draft,
+            resonated: box.resonated,
+          }}
+          authors={box.authors}
+        />
+      ) : (
+        <FeedSkeleton count={4} />
+      )}
     </div>
   );
 }

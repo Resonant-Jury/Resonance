@@ -5,9 +5,11 @@ import {
   useState,
   type InputHTMLAttributes,
   type ReactNode,
+  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
+import { Icon } from '@/components/atoms/Icon';
 import styles from './Field.module.css';
 
 type Variant = 'default' | 'subtle';
@@ -137,6 +139,60 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       className={styles.surface}
     >
       {el}
+    </HandDrawnDashedSurface>
+  );
+});
+
+export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
+  variant?: Variant;
+  seed?: number;
+};
+
+/**
+ * Organic `<select>` — the native control sits transparent inside the same
+ * wobbly hand-drawn surface as `<Input>`, with a hand-drawn chevron overlaid
+ * on the right. Pass children as `<option>`s like a normal select.
+ */
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
+  { variant = 'default', className, seed = 15, children, onFocus, onBlur, onMouseEnter, onMouseLeave, ...rest },
+  ref,
+) {
+  const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
+
+  const selectEl = (
+    <select
+      ref={ref}
+      {...rest}
+      onFocus={(e) => { setFocus(true); onFocus?.(e); }}
+      onBlur={(e) => { setFocus(false); onBlur?.(e); }}
+      onMouseEnter={(e) => { setHover(true); onMouseEnter?.(e); }}
+      onMouseLeave={(e) => { setHover(false); onMouseLeave?.(e); }}
+      className={[styles.field, styles.select, className].filter(Boolean).join(' ')}
+      data-variant={variant === 'default' ? undefined : variant}
+    >
+      {children}
+    </select>
+  );
+
+  const withChevron = (
+    <span className={styles.selectWrap}>
+      {selectEl}
+      <Icon name="chevron-down" size={18} className={styles.selectChevron} />
+    </span>
+  );
+
+  if (variant !== 'default') return withChevron;
+
+  return (
+    <HandDrawnDashedSurface
+      seed={seed}
+      R={16}
+      strokeWidth={2}
+      state={focus ? 'focus' : hover ? 'hover' : 'idle'}
+      className={styles.surface}
+    >
+      {withChevron}
     </HandDrawnDashedSurface>
   );
 });

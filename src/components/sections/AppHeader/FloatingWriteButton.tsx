@@ -1,6 +1,7 @@
 'use client';
 
 import { Link } from '@/i18n/navigation';
+import { Icon } from '@/components/atoms/Icon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 
 export function FloatingWriteButton() {
@@ -23,13 +24,11 @@ export function FloatingWriteButton() {
         alignItems: 'center',
         justifyContent: 'center',
         textDecoration: 'none',
-        fontSize: 28,
-        fontWeight: 300,
         boxShadow: '0 6px 22px oklch(20% 0.04 60 / 0.25)',
         zIndex: 90,
       }}
     >
-      +
+      <Icon name="plus" size={26} strokeWidth={2.4} ariaLabel="Write a card" />
     </Link>
   );
 }
