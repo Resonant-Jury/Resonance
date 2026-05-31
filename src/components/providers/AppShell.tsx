@@ -1,0 +1,52 @@
+'use client';
+
+import { useEffect } from 'react';
+import { AppHeader } from '@/components/sections/AppHeader/AppHeader';
+import { FloatingWriteButton } from '@/components/sections/AppHeader/FloatingWriteButton';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { useMyProfile } from '@/lib/data/hooks';
+import { useRouter, usePathname } from '@/i18n/navigation';
+import { nextQuery } from '@/lib/auth/nextPath';
+
+const PLACEHOLDER_USER = {
+  initials: '··',
+  handle: '',
+  accentColor: 'oklch(88% 0.08 55)',
+};
+
+/**
+ * Client shell for the authenticated (app) area. Replaces the former
+ * admin-SDK auth check in the server layout: middleware already gates on the
+ * session-cookie's presence, so here we only resolve the viewer client-side
+ * and route to /signin (no auth) or /signup (authed but no profile yet).
+ */
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const { user: authUser, loading } = useAuth();
+  const { data: profile, isLoading: profileLoading } = useMyProfile();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!authUser) {
+      router.replace(`/signin${nextQuery(pathname)}`);
+      return;
+    }
+    // Authenticated but no profile document yet → finish onboarding.
+    if (!profileLoading && profile === null) {
+      router.replace('/signup');
+    }
+  }, [loading, authUser, profileLoading, profile, pathname, router]);
+
+  const headerUser = profile
+    ? { initials: profile.initials, handle: profile.handle, accentColor: profile.accentColor }
+    : PLACEHOLDER_USER;
+
+  return (
+    <>
+      <AppHeader user={headerUser} />
+      <main style={{ minHeight: '100vh' }}>{children}</main>
+      <FloatingWriteButton />
+    </>
+  );
+}

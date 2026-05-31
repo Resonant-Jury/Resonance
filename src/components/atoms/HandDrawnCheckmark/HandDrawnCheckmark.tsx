@@ -29,7 +29,7 @@ export function HandDrawnCheckmark({
     >
       <title>{title}</title>
       <path
-        d="M2.5 8.6 C 3.4 9.2, 4.8 10.1, 5.8 11.4 C 7.0 9.4, 9.5 5.6, 13.2 3.6"
+        d="M2.2 8.4 C 3.3 8.8, 4.6 10.2, 5.9 12.0 C 7.4 9.2, 9.6 5.4, 13.6 2.9"
         stroke={color}
         strokeWidth={strokeWidth}
         strokeLinecap="round"

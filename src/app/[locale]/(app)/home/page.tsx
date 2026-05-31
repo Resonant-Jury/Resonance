@@ -1,26 +1,18 @@
-import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { repos } from '@/lib/db';
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
+import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Link } from '@/i18n/navigation';
-import type { User } from '@/lib/db/types';
+import { useFeed } from '@/lib/data/hooks';
 
-export default async function HomeFeedPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
-  const { locale } = await params;
-  setRequestLocale(locale);
-  const t = await getTranslations('home');
-
-  const cards = await repos.card.findLatestPublishedFeed(12);
-  const authorIds = Array.from(new Set(cards.map((c) => c.authorId)));
-  const authorList = await Promise.all(authorIds.map((id) => repos.user.findById(id)));
-  const authors: Record<string, User> = {};
-  for (const u of authorList) if (u) authors[u.id] = u;
-
-  const isEmpty = cards.length === 0;
+export default function HomeFeedPage() {
+  const t = useTranslations('home');
+  const { data, isLoading } = useFeed();
+  const cards = data?.cards ?? [];
+  const authors = data?.authors ?? {};
+  const isEmpty = !isLoading && cards.length === 0;
 
   return (
     <div
@@ -57,7 +49,9 @@ export default async function HomeFeedPage({
         </p>
       </header>
 
-      {isEmpty ? (
+      {isLoading ? (
+        <FeedSkeleton count={6} />
+      ) : isEmpty ? (
         <div
           style={{
             textAlign: 'center',

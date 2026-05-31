@@ -1,8 +1,7 @@
 import type { IconRenderProps } from '../types';
 
-// Bowed shaft + a single continuous bowed arrowhead (one pen stroke from the
-// top barb, round the tip, down to the bottom barb) for a hand-drawn feel.
-export function ArrowRightIcon({
+// Hand-drawn chevron — a single bowed "v" stroke, slightly uneven arms.
+export function ChevronDownIcon({
   size = 22,
   strokeWidth = 1.6,
   color = 'currentColor',
@@ -20,8 +19,7 @@ export function ArrowRightIcon({
       aria-hidden="true"
       style={{ display: 'block', flexShrink: 0 }}
     >
-      <path d="M3.9,11.8 C8.2,13.7 14.8,10.2 19.2,12.3" />
-      <path d="M12.9,6.2 C15.4,8.0 17.8,10.4 19.2,12.2 C18.2,13.5 16.7,15.1 13.0,17.7" />
+      <path d="M5.4,9.2 C8.0,11.6 10.0,14.2 11.9,15.6 C13.9,14.0 16.1,11.4 18.7,9.4" />
     </svg>
   );
 }

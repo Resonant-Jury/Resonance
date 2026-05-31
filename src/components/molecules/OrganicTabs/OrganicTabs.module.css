@@ -1,0 +1,74 @@
+.list {
+  display: flex;
+}
+
+.list.horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.list.vertical {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tab {
+  position: relative;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 150ms;
+}
+
+.horizontal .tab {
+  padding: 10px 16px 14px;
+}
+
+.vertical .tab {
+  width: 100%;
+  padding: 10px 14px;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+.tab.active {
+  color: var(--color-terracotta);
+  font-weight: 600;
+}
+
+.tabLabel {
+  position: relative;
+  z-index: 1;
+}
+
+/* Wavy underline beneath the active horizontal tab. */
+.underline {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 2px;
+  width: auto;
+  height: 8px;
+  overflow: visible;
+}
+
+/* Active vertical item — surface stretches full width; the wrapped button
+ * keeps the same padding so nothing shifts. */
+.activeSurface {
+  width: 100%;
+}
+
+.activeSurface .tab {
+  color: var(--color-terracotta);
+  font-weight: 600;
+}

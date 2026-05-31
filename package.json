@@ -17,7 +17,8 @@
     "next": "^15.1.0",
     "next-intl": "^3.26.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "swr": "^2.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

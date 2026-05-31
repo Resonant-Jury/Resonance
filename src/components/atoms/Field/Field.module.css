@@ -76,6 +76,31 @@ textarea.field {
   min-height: 96px;
 }
 
+/* Select — native control, transparent, with extra right padding to clear the
+ * overlaid chevron. */
+.selectWrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: calc(var(--field-pad-x) + 22px);
+  cursor: pointer;
+}
+
+.selectChevron {
+  position: absolute;
+  top: 50%;
+  right: var(--field-pad-x);
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* Variant: subtle — borderless underline-only inputs */
 .field[data-variant='subtle'] {
   background: transparent;

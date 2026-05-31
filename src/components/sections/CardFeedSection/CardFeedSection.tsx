@@ -5,10 +5,9 @@ import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { StoryCard } from '@/components/molecules/StoryCard/StoryCard';
+import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { Link } from '@/i18n/navigation';
 import type { Card, User } from '@/lib/db/types';
-import { cardToStory } from '@/lib/adapters/story';
 import styles from './CardFeedSection.module.css';
 
 export interface CardFeedSectionProps {
@@ -41,37 +40,7 @@ export function CardFeedSection({ cards, authors }: CardFeedSectionProps) {
           <p className={styles.subtitle}>{t('subtitle')}</p>
         </div>
 
-        <div
-          data-card-grid
-          className={styles.grid}
-        >
-          {cards.map((card, i) => {
-            const author = authors[card.authorId];
-            const story = author
-              ? cardToStory(card, author)
-              : {
-                  title: card.thoughtCore,
-                  excerpt: '',
-                  author: '—',
-                  authorInitials: '?',
-                  readTime: '—',
-                  tags: card.tags,
-                };
-            return (
-              <Link
-                key={card.id}
-                href={`/card/${card.id}`}
-                style={{
-                  textDecoration: 'none',
-                  color: 'inherit',
-                  display: 'block',
-                }}
-              >
-                <StoryCard story={story} index={i} isLast={i === cards.length - 1} />
-              </Link>
-            );
-          })}
-        </div>
+        <CardLinkGrid cards={cards} authors={authors} />
 
         <div className={styles.loadMore}>
           <Link href="/home" style={{ textDecoration: 'none' }}>

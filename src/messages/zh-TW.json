@@ -110,7 +110,11 @@
     },
     "verified": "已驗證",
     "private": "私人卡片",
-    "connections": "僅連結可見"
+    "connections": "僅連結可見",
+    "notFound": {
+      "title": "找不到這張卡片",
+      "back": "回到首頁"
+    }
   },
   "write": {
     "title": "寫一張新卡片",
@@ -181,7 +185,9 @@
     "block": "封鎖",
     "disconnect": "解除連結",
     "translating": "翻譯中⋯",
-    "showOriginal": "顯示原文"
+    "showOriginal": "顯示原文",
+    "notFound": "找不到這個人",
+    "backHome": "回到首頁"
   },
   "invite": {
     "title": "想和 Ta 連結",

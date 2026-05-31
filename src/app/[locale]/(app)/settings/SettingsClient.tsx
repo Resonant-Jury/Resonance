@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { Fragment, useState, useTransition } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { Field, authInputStyle } from '@/components/molecules/AuthCard/AuthCard';
+import { Field, Input, Select } from '@/components/atoms/Field/Field';
+import { Divider } from '@/components/atoms/Divider/Divider';
+import { ToggleSwitch } from '@/components/atoms/ToggleSwitch/ToggleSwitch';
+import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { updateProfile } from '@/lib/db/firestore/client/profile';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useRouter } from '@/i18n/navigation';
@@ -103,139 +106,120 @@ export function SettingsClient({ initial }: SettingsClientProps) {
       <style>{`
         @media (max-width: 760px) {
           .settings-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
-          .settings-nav { flex-direction: row !important; overflow-x: auto; padding-bottom: 8px; }
         }
       `}</style>
-      <nav
+      <OrganicTabs
+        aria-label={t('sections.profile')}
+        orientation="vertical"
+        seed={41}
         className="settings-nav"
-        style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
-      >
-        {SECTIONS.map((s) => (
-          <button
-            key={s}
-            onClick={() => setActive(s)}
-            style={{
-              padding: '10px 14px',
-              textAlign: 'left',
-              border: 'none',
-              background: active === s ? 'oklch(92% 0.05 55 / 0.45)' : 'transparent',
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              fontWeight: active === s ? 600 : 500,
-              color: active === s ? 'var(--color-terracotta)' : 'var(--color-text)',
-              cursor: 'pointer',
-              borderRadius: 10,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {t(`sections.${s}`)}
-          </button>
-        ))}
-      </nav>
+        tabs={SECTIONS.map((s) => ({ key: s, label: t(`sections.${s}`) }))}
+        active={active}
+        onChange={setActive}
+      />
 
-      <section>
+      <section style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
         {active === 'profile' && (
-          <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <Field label={t('profile.handle')} hint={t('profile.handleCooldown')}>
-              <input
+              <Input
+                seed={31}
                 value={handle}
                 onChange={(e) => setHandle(e.target.value.slice(0, 20))}
-                style={authInputStyle}
               />
             </Field>
             <Field label={t('profile.bio')}>
-              <input
+              <Input
+                seed={37}
                 value={bio}
                 onChange={(e) => setBio(e.target.value.slice(0, 80))}
-                style={authInputStyle}
               />
             </Field>
             <Field label={t('profile.region')}>
-              <select
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-                style={{ ...authInputStyle, appearance: 'none' }}
-              >
+              <Select seed={43} value={region} onChange={(e) => setRegion(e.target.value)}>
                 <option value="TW">🇹🇼 Taiwan</option>
                 <option value="JP">🇯🇵 Japan</option>
                 <option value="US">🇺🇸 United States</option>
                 <option value="KR">🇰🇷 Korea</option>
-              </select>
+              </Select>
             </Field>
-          </>
+          </div>
         )}
         {active === 'account' && (
-          <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <Field label={t('account.email')}>
-              <input
-                style={authInputStyle}
+              <Input
+                seed={51}
                 value={auth.user?.email ?? ''}
                 placeholder="you@example.com"
                 disabled
               />
             </Field>
             <Field label={t('account.phone')}>
-              <input
-                style={authInputStyle}
+              <Input
+                seed={57}
                 value={auth.user?.phoneNumber ?? ''}
                 placeholder="—"
                 disabled
               />
             </Field>
-            <div style={{ marginTop: 24 }}>
+            <div style={{ marginTop: 4 }}>
               <OrganicButton variant="outline" onClick={signOut}>
                 {signingOut ? '…' : t('account.signOut')}
               </OrganicButton>
             </div>
-          </>
+          </div>
         )}
         {active === 'privacy' && (
           <>
-            <ToggleRow
-              label={t('privacy.searchable')}
-              on={prefs.searchable}
-              onToggle={() => togglePref('searchable')}
+            <ToggleGroup
+              seed={71}
+              rows={[
+                { key: 'searchable', label: t('privacy.searchable'), on: prefs.searchable, onToggle: () => togglePref('searchable') },
+                { key: 'aiOptIn', label: t('privacy.aiOptIn'), on: prefs.aiOptIn, onToggle: () => togglePref('aiOptIn') },
+              ]}
             />
-            <ToggleRow
-              label={t('privacy.aiOptIn')}
-              on={prefs.aiOptIn}
-              onToggle={() => togglePref('aiOptIn')}
-            />
-            <div style={{ marginTop: 18 }}>
+            <div style={{ marginTop: 28 }}>
               <OrganicButton variant="outline">{t('privacy.manageBlocks')}</OrganicButton>
             </div>
           </>
         )}
         {active === 'notifications' && (
-          <>
-            <ToggleRow label={t('notifications.resonance')} on={prefs.notifResonance} onToggle={() => togglePref('notifResonance')} />
-            <ToggleRow label={t('notifications.connection')} on={prefs.notifConnection} onToggle={() => togglePref('notifConnection')} />
-            <ToggleRow label={t('notifications.dm')} on={prefs.notifDm} onToggle={() => togglePref('notifDm')} />
-            <ToggleRow label={t('notifications.translation')} on={prefs.notifTranslation} onToggle={() => togglePref('notifTranslation')} />
-          </>
+          <ToggleGroup
+            seed={83}
+            rows={[
+              { key: 'resonance', label: t('notifications.resonance'), on: prefs.notifResonance, onToggle: () => togglePref('notifResonance') },
+              { key: 'connection', label: t('notifications.connection'), on: prefs.notifConnection, onToggle: () => togglePref('notifConnection') },
+              { key: 'dm', label: t('notifications.dm'), on: prefs.notifDm, onToggle: () => togglePref('notifDm') },
+              { key: 'translation', label: t('notifications.translation'), on: prefs.notifTranslation, onToggle: () => togglePref('notifTranslation') },
+            ]}
+          />
         )}
         {active === 'language' && (
-          <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <Field label={t('language.original')}>
-              <select
+              <Select
+                seed={63}
                 value={primaryLocale}
                 onChange={(e) => setPrimaryLocale(e.target.value as Locale)}
-                style={{ ...authInputStyle, appearance: 'none' }}
               >
                 <option value="zh-TW">繁體中文</option>
                 <option value="en">English</option>
                 <option value="ja">日本語</option>
                 <option value="ko">한국어</option>
-              </select>
+              </Select>
             </Field>
-          </>
+          </div>
         )}
         {active === 'ai' && (
-          <>
-            <ToggleRow label={t('ai.polish')} on={prefs.aiPolish} onToggle={() => togglePref('aiPolish')} />
-            <ToggleRow label={t('ai.tags')} on={prefs.aiTags} onToggle={() => togglePref('aiTags')} />
-            <ToggleRow label={t('ai.hints')} on={prefs.aiHints} onToggle={() => togglePref('aiHints')} />
-          </>
+          <ToggleGroup
+            seed={97}
+            rows={[
+              { key: 'polish', label: t('ai.polish'), on: prefs.aiPolish, onToggle: () => togglePref('aiPolish') },
+              { key: 'tags', label: t('ai.tags'), on: prefs.aiTags, onToggle: () => togglePref('aiTags') },
+              { key: 'hints', label: t('ai.hints'), on: prefs.aiHints, onToggle: () => togglePref('aiHints') },
+            ]}
+          />
         )}
         {active === 'terms' && (
           <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>
@@ -255,7 +239,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
         )}
 
         {(active === 'profile' || active === 'account' || active === 'language') && (
-          <div style={{ marginTop: 24, display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ marginTop: 4, display: 'flex', gap: 12, alignItems: 'center' }}>
             <OrganicButton variant="primary" onClick={save}>
               {pending ? '…' : t('save')}
             </OrganicButton>
@@ -271,58 +255,51 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   );
 }
 
+interface ToggleRowSpec {
+  key: string;
+  label: string;
+  on: boolean;
+  onToggle: () => void;
+}
+
+/** A stack of toggle rows separated by wavy hand-drawn dividers (no flat
+ * borders), with generous row padding so the section breathes. */
+function ToggleGroup({ rows, seed = 17 }: { rows: ToggleRowSpec[]; seed?: number }) {
+  return (
+    <div>
+      {rows.map((row, i) => (
+        <Fragment key={row.key}>
+          {i > 0 && <Divider seed={seed + i * 4} spacing={6} />}
+          <ToggleRow label={row.label} on={row.on} onToggle={row.onToggle} seed={seed + i * 13} />
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
 function ToggleRow({
   label,
   on,
   onToggle,
+  seed,
 }: {
   label: string;
   on: boolean;
   onToggle: () => void;
+  seed?: number;
 }) {
   return (
-    <label
+    <div
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '14px 0',
-        borderBottom: '1px solid oklch(85% 0.02 75)',
-        cursor: 'pointer',
+        gap: 24,
+        padding: '20px 2px',
       }}
     >
-      <span style={{ fontSize: 15, color: 'var(--color-text)' }}>{label}</span>
-      <button
-        onClick={onToggle}
-        role="switch"
-        aria-checked={on}
-        style={{
-          width: 38,
-          height: 22,
-          borderRadius: 999,
-          border: 'none',
-          background: on
-            ? 'var(--color-terracotta)'
-            : 'oklch(85% 0.02 75)',
-          position: 'relative',
-          cursor: 'pointer',
-          transition: 'background 150ms',
-        }}
-      >
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            top: 2,
-            left: on ? 18 : 2,
-            width: 18,
-            height: 18,
-            borderRadius: '50%',
-            background: 'var(--color-cream)',
-            transition: 'left 150ms',
-          }}
-        />
-      </button>
-    </label>
+      <span style={{ fontSize: 15, lineHeight: 1.5, color: 'var(--color-text)' }}>{label}</span>
+      <ToggleSwitch checked={on} onChange={onToggle} ariaLabel={label} seed={seed} />
+    </div>
   );
 }
