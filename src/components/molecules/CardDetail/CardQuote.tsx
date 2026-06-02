@@ -2,11 +2,14 @@
 
 import { useRef } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 
 export interface CardQuoteProps {
-  text: string;
+  text?: string;
   hue: number;
+  /** Keep the organic quote chrome but swap the quote text for grey blocks. */
+  loading?: boolean;
 }
 
 /**
@@ -14,7 +17,7 @@ export interface CardQuoteProps {
  * StoryCard aesthetic: wobbly border + warm chalk fill, instead of the plain
  * CSS rounded rectangle used elsewhere.
  */
-export function CardQuote({ text, hue }: CardQuoteProps) {
+export function CardQuote({ text, hue, loading = false }: CardQuoteProps) {
   const ref = useRef<HTMLElement>(null);
   const { w, h } = useElementSize(ref, 700, 220);
   const seed = 41;
@@ -66,7 +69,14 @@ export function CardQuote({ text, hue }: CardQuoteProps) {
           letterSpacing: '-0.01em',
         }}
       >
-        {text}
+        {loading ? (
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Skeleton height={28} radius={9} />
+            <Skeleton height={28} width="80%" radius={9} />
+          </span>
+        ) : (
+          text
+        )}
       </blockquote>
     </figure>
   );

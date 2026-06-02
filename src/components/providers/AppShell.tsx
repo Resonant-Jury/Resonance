@@ -14,6 +14,17 @@ const PLACEHOLDER_USER = {
   accentColor: 'oklch(88% 0.08 55)',
 };
 
+// Routes a logged-out visitor may view (public cards & profiles). Everything
+// else under (app) — writing, the card box, settings — still requires sign-in.
+// Paths are locale-stripped (next-intl usePathname), e.g. "/home", "/card/abc".
+const PUBLIC_PREFIXES = ['/home', '/card', '/u'];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
 /**
  * Client shell for the authenticated (app) area. Replaces the former
  * admin-SDK auth check in the server layout: middleware already gates on the
@@ -29,7 +40,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     if (!authUser) {
-      router.replace(`/signin${nextQuery(pathname)}`);
+      // Logged-out visitors may stay on public routes; gate the rest.
+      if (!isPublicPath(pathname)) router.replace(`/signin${nextQuery(pathname)}`);
       return;
     }
     // Authenticated but no profile document yet → finish onboarding.

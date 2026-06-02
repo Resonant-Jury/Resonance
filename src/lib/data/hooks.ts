@@ -28,6 +28,9 @@ async function withAuthors(cards: Card[]): Promise<CardsWithAuthors> {
 
 /** Latest public feed for the home page. */
 export function useFeed() {
+  // The feed lists only public cards, which Firestore rules allow anonymously,
+  // so it can fetch immediately regardless of auth state — no need to wait on
+  // the client SDK's async auth restoration.
   return useSWR<CardsWithAuthors>('feed:latest', async () => {
     const cards = await getLatestPublishedFeed(12);
     return withAuthors(cards);
@@ -36,16 +39,31 @@ export function useFeed() {
 
 /** A single card plus its author. `data === null` means not found / not visible. */
 export function useCard(id: string | undefined) {
-  return useSWR(id ? `card:${id}` : null, async () => {
+  // A card may be public (anonymous-readable) or private/connections (only its
+  // owner / connected viewers). Wait for auth to *settle* before fetching:
+  // firing during the client SDK's async auth restoration would read as an
+  // anonymous viewer and 404 the owner's own private card, which SWR would then
+  // cache against a static key. Re-keying on the viewer id also refetches with
+  // the right permissions when the viewer signs in or out.
+  const { user, loading } = useAuth();
+  const key = id && !loading ? `card:${id}:${user?.id ?? 'anon'}` : null;
+  const swr = useSWR(key, async () => {
     const card = await getCardById(id!);
     if (!card) return null;
     const author = await getUserById(card.authorId);
     return { card, author };
   });
+  // While auth is still settling (or we have no id yet) the SWR key is null, so
+  // SWR reports isLoading=false with data=undefined — which would briefly render
+  // the "not found" state before the real fetch begins. Treat that pre-fetch
+  // window as loading so the skeleton shows first.
+  return { ...swr, isLoading: swr.isLoading || (!!id && key === null) };
 }
 
 /** Cards related to the given card, with authors. */
 export function useRelated(id: string | undefined) {
+  // Related cards come from the public feed, so this is anonymous-readable and
+  // can fetch as soon as we have a card id.
   return useSWR<CardsWithAuthors>(id ? `related:${id}` : null, async () => {
     const cards = await getRelatedCards(id!, 3);
     return withAuthors(cards);

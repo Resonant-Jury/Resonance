@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
-import { CardSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
+import { CardDetailSkeleton } from '@/components/molecules/CardDetail/CardDetailSkeleton';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { CardAuthorMetrics } from '@/components/molecules/CardDetail/CardAuthorMetrics';
 import { CardViewerActions } from '@/components/molecules/CardDetail/CardViewerActions';
@@ -30,9 +30,7 @@ export default function CardDetailPage() {
   if (isLoading) {
     return (
       <div style={wrapStyle}>
-        <div style={{ maxWidth: 760, margin: '0 auto' }}>
-          <CardSkeleton />
-        </div>
+        <CardDetailSkeleton />
       </div>
     );
   }

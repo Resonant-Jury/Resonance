@@ -18,11 +18,13 @@ service cloud.firestore {
     }
 
     function cardVisible(data) {
-      return signedIn()
-        && (
-          data.authorId == request.auth.uid
-          || data.visibility == "public"
-          || (data.visibility == "connections" && connectedTo(data.authorId))
+      return data.visibility == "public"
+        || (
+          signedIn()
+          && (
+            data.authorId == request.auth.uid
+            || (data.visibility == "connections" && connectedTo(data.authorId))
+          )
         );
     }
 
@@ -33,16 +35,19 @@ service cloud.firestore {
     }
 
     // --- users ---
-    // phoneHash is never readable by anyone other than the owner.
-    // Public reads (e.g. profile pages) get the document minus phoneHash.
+    // Profiles are public on this storytelling platform (author bylines, public
+    // profile pages, and feeds are viewable by logged-out visitors). Firestore
+    // rules cannot redact individual fields, so the user doc must hold no
+    // secret: phoneHash is forced to "" on create (below) and any real PII must
+    // live in a separate owner-only doc/subcollection if ever added.
     match /users/{userId} {
       allow create: if isSelf(userId)
         && request.resource.data.phoneHash == ""
         && request.resource.data.handleLower == request.resource.data.handle.lower();
-      allow get: if signedIn()
-        && (isSelf(userId) || !("phoneHash" in resource.data));
-      // List is required for handle uniqueness check (where handleLower == ?).
-      allow list: if signedIn();
+      allow get: if true;
+      // List is required for handle uniqueness checks and public profile lookups
+      // (where handleLower == ?).
+      allow list: if true;
       allow update: if isSelf(userId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "handle",
@@ -64,7 +69,11 @@ service cloud.firestore {
     // tamper with metrics that are aggregated by trusted writers.
     match /cards/{cardId} {
       allow get: if cardVisible(resource.data);
-      allow list: if signedIn();
+      // Anonymous visitors may only list public cards (the feed query filters
+      // visibility == "public", so every candidate doc passes). Signed-in users
+      // may run author-scoped list queries that also surface their own
+      // private/connections cards.
+      allow list: if signedIn() || resource.data.visibility == "public";
       allow create: if signedIn()
         && request.resource.data.authorId == request.auth.uid
         && request.resource.data.keys().hasAll(["authorId", "thoughtCore", "story", "tags", "visibility"])

@@ -7,6 +7,7 @@ import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { Icon } from '@/components/atoms/Icon';
+import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
@@ -90,12 +91,14 @@ function StoryImage({ label, accentFill, imageUrl }: { label: string; accentFill
 }
 
 export interface StoryCardProps {
-  story: Story;
+  story?: Story;
   index?: number;
   isLast?: boolean;
+  /** Render the real card chrome (border, fills, colours) but swap text/image/icons for grey blocks. */
+  loading?: boolean;
 }
 
-export function StoryCard({ story, index = 0, isLast = false }: StoryCardProps) {
+export function StoryCard({ story, index = 0, isLast = false, loading = false }: StoryCardProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const cardRef = useRef<HTMLElement>(null);
@@ -235,20 +238,49 @@ export function StoryCard({ story, index = 0, isLast = false }: StoryCardProps) 
       )}
 
       <div className={styles.content}>
-        <StoryImage 
-          label={story.imageLabel || 'story illustration'} 
-          accentFill={accentFill} 
-          imageUrl={story.imageUrl}
-        />
+        {loading ? (
+          <div className={styles.imagePlaceholder}>
+            <Skeleton height="100%" radius={0} style={{ position: 'absolute', inset: 0 }} />
+          </div>
+        ) : (
+          <StoryImage
+            label={story!.imageLabel || 'story illustration'}
+            accentFill={accentFill}
+            imageUrl={story!.imageUrl}
+          />
+        )}
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {story.tags?.slice(0, 4).map(t => (
-            <TagPill key={t} color={accentFill}>{t}</TagPill>
-          ))}
+          {loading ? (
+            <>
+              <Skeleton width={56} height={22} radius={11} />
+              <Skeleton width={72} height={22} radius={11} />
+            </>
+          ) : (
+            story!.tags?.slice(0, 4).map(t => (
+              <TagPill key={t} color={accentFill}>{t}</TagPill>
+            ))
+          )}
         </div>
 
-        <h3 className={styles.title}>{story.title}</h3>
-        <p className={styles.excerpt}>{story.excerpt}</p>
+        {loading ? (
+          <div className={styles.title}>
+            <Skeleton height={18} width="90%" />
+            <Skeleton height={18} width="55%" style={{ marginTop: 8 }} />
+          </div>
+        ) : (
+          <h3 className={styles.title}>{story!.title}</h3>
+        )}
+
+        {loading ? (
+          <div className={styles.excerpt} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Skeleton height={13} />
+            <Skeleton height={13} />
+            <Skeleton height={13} width="70%" />
+          </div>
+        ) : (
+          <p className={styles.excerpt}>{story!.excerpt}</p>
+        )}
 
         <svg
           viewBox="0 0 200 6"
@@ -267,22 +299,39 @@ export function StoryCard({ story, index = 0, isLast = false }: StoryCardProps) 
         </svg>
 
         <div className={styles.authorRow}>
-          <HandDrawnAvatar
-            initials={story.authorInitials}
-            size={30}
-            color={accentFill}
-            seed={story.authorInitials.charCodeAt(0) * 13}
-          />
+          {loading ? (
+            <Skeleton width={30} height={30} circle />
+          ) : (
+            <HandDrawnAvatar
+              initials={story!.authorInitials}
+              size={30}
+              color={accentFill}
+              seed={story!.authorInitials.charCodeAt(0) * 13}
+            />
+          )}
           <div style={{ flex: 1 }}>
-            <div className={styles.authorName}>{story.author}</div>
-            <div className={styles.readTime}>{story.readTime}</div>
+            {loading ? (
+              <>
+                <Skeleton width={96} height={13} />
+                <Skeleton width={56} height={11} style={{ marginTop: 6 }} />
+              </>
+            ) : (
+              <>
+                <div className={styles.authorName}>{story!.author}</div>
+                <div className={styles.readTime}>{story!.readTime}</div>
+              </>
+            )}
           </div>
-          <Icon
-            name="arrow-right"
-            size={18}
-            strokeWidth={1.7}
-            style={{ opacity: hovered ? 0.7 : 0.28, transition: 'opacity 180ms' }}
-          />
+          {loading ? (
+            <Skeleton width={18} height={18} circle />
+          ) : (
+            <Icon
+              name="arrow-right"
+              size={18}
+              strokeWidth={1.7}
+              style={{ opacity: hovered ? 0.7 : 0.28, transition: 'opacity 180ms' }}
+            />
+          )}
         </div>
       </div>
     </article>

@@ -1,0 +1,27 @@
+.block {
+  display: block;
+  border-radius: 7px;
+  background: linear-gradient(
+    90deg,
+    oklch(87% 0.006 70 / 0.75) 25%,
+    oklch(93% 0.006 70 / 0.9) 37%,
+    oklch(87% 0.006 70 / 0.75) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    animation: none;
+  }
+}

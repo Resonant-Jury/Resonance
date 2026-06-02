@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { routing } from './i18n/routing';
 
 const intlMiddleware = createMiddleware(routing);
-const appPathPattern = /^\/(en|zh-TW)\/(home|card|write|me|u|settings)(\/|$)/;
+// Only authoring/account routes require a session. Public read routes (home
+// feed, card detail, public profiles) are viewable by logged-out visitors;
+// AppShell still resolves the viewer client-side for personalized UI.
+const appPathPattern = /^\/(en|zh-TW)\/(write|me|settings)(\/|$)/;
 
 export default function middleware(request: NextRequest) {
   if (appPathPattern.test(request.nextUrl.pathname)) {
