@@ -11,6 +11,7 @@ import { Field, Textarea, CharCount } from '@/components/atoms/Field/Field';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { HandDrawnImage } from '@/components/atoms/HandDrawnImage/HandDrawnImage';
+import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { MarkdownEditor } from '@/components/molecules/MarkdownEditor/MarkdownEditor';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useRef } from 'react';
@@ -66,6 +67,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? 'public');
   const [media, setMedia] = useState<CardMedia | undefined>(initial?.media);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   // AI 寫作夥伴：暫時停用，未來會重新啟用
@@ -116,13 +118,13 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
     const card = initial?.id
       ? await updateCardDraft(initial.id, { thoughtCore, story, tags, visibility, media })
       : await createCardDraft({
-          thoughtCore,
-          story,
-          tags,
-          visibility,
-          originalLocale: locale,
-          media,
-        });
+        thoughtCore,
+        story,
+        tags,
+        visibility,
+        originalLocale: locale,
+        media,
+      });
     setSavedAt(new Date());
     return card;
   }
@@ -144,18 +146,26 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
   }
 
   async function uploadImage(file: File) {
+    if (uploading) return;
     setUploadError(null);
-    // Send the file to our own API route; the server streams it to R2. The
-    // browser never contacts the R2 storage host directly.
-    const form = new FormData();
-    form.append('file', file);
-    const res = await fetch('/api/upload', { method: 'POST', body: form });
-    if (!res.ok) {
+    setUploading(true);
+    try {
+      // Send the file to our own API route; the server streams it to R2. The
+      // browser never contacts the R2 storage host directly.
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      if (!res.ok) {
+        setUploadError(t('mediaUploadError'));
+        return;
+      }
+      const { publicUrl } = (await res.json()) as { publicUrl: string };
+      setMedia({ type: 'image', url: publicUrl, label: file.name });
+    } catch {
       setUploadError(t('mediaUploadError'));
-      return;
+    } finally {
+      setUploading(false);
     }
-    const { publicUrl } = (await res.json()) as { publicUrl: string };
-    setMedia({ type: 'image', url: publicUrl, label: file.name });
   }
 
   return (
@@ -174,6 +184,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
             placeholder={t('corePlaceholder')}
             rows={2}
             tone="display"
+            curve={0.8}
           />
           {/* AI 寫作夥伴：標題建議暫時停用，未來會重新啟用 */}
         </Field>
@@ -185,8 +196,8 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
             storyState === 'short'
               ? t('storyMin', { count: storyLen })
               : storyState === 'ok'
-              ? t('storyOk')
-              : t('storyLong')
+                ? t('storyOk')
+                : t('storyLong')
           }
           hintTone={storyState === 'ok' ? 'ok' : 'default'}
         >
@@ -225,9 +236,23 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
               alt={media.label ?? ''}
               seed={31}
               R={16}
+              curve={0.8}
               onRemove={() => setMedia(undefined)}
               removeLabel={t('mediaRemove')}
             />
+          ) : uploading ? (
+            <HandDrawnDashedSurface
+              seed={31}
+              R={16}
+              curve={0.8}
+              state="focus"
+              className={styles.fileInputWrap}
+            >
+              <span className={styles.uploadInner}>
+                <SketchLoader size={64} seed={31} ariaLabel={t('mediaUploading')} />
+                <span className={styles.uploadText}>{t('mediaUploading')}</span>
+              </span>
+            </HandDrawnDashedSurface>
           ) : (
             <label
               className={styles.uploadZone}
@@ -247,6 +272,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
               <HandDrawnDashedSurface
                 seed={31}
                 R={16}
+                curve={0.8}
                 state={dragOver ? 'focus' : 'idle'}
                 className={styles.fileInputWrap}
               >
@@ -280,27 +306,27 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
           {/* flex wrapper so the inline-flex bar shrinks to content instead of
               being stretched full-width by the Field's flex column */}
           <div style={{ display: 'flex' }}>
-          <SegmentedActionBar
-            segments={(['public', 'connections', 'private'] as Visibility[]).map((v) => {
-              const active = visibility === v;
-              return {
-                key: v,
-                icon: (
-                  <Icon
-                    name={VISIBILITY_ICON[v]}
-                    size={16}
-                    color={active ? 'var(--color-terracotta)' : 'var(--color-text-muted)'}
-                  />
-                ),
-                label: tVis(v),
-                fill: active ? 'oklch(92% 0.06 55 / 0.6)' : 'transparent',
-                textColor: active ? 'var(--color-terracotta)' : 'var(--color-text-muted)',
-                hoverOverlay: 'oklch(0% 0 0 / 0.05)',
-                ariaLabel: tVis(v),
-                onClick: () => setVisibility(v),
-              } satisfies SegmentSpec;
-            })}
-          />
+            <SegmentedActionBar
+              segments={(['public', 'connections', 'private'] as Visibility[]).map((v) => {
+                const active = visibility === v;
+                return {
+                  key: v,
+                  icon: (
+                    <Icon
+                      name={VISIBILITY_ICON[v]}
+                      size={16}
+                      color={active ? 'var(--color-terracotta)' : 'var(--color-text-muted)'}
+                    />
+                  ),
+                  label: tVis(v),
+                  fill: active ? 'oklch(92% 0.06 55 / 0.6)' : 'transparent',
+                  textColor: active ? 'var(--color-terracotta)' : 'var(--color-text-muted)',
+                  hoverOverlay: 'oklch(0% 0 0 / 0.05)',
+                  ariaLabel: tVis(v),
+                  onClick: () => setVisibility(v),
+                } satisfies SegmentSpec;
+              })}
+            />
           </div>
         </Field>
 

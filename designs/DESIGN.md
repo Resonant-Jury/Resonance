@@ -693,9 +693,9 @@ Every hand-drawn rounded-rect surface needs three procedural parameters:
 so designers don't need to tune each call site:
 
 ```ts
-autoSegments(edge)  // ~1 point per 75px, clamped 2–8
-autoMag(w, h)       // clamp(2 + min·0.014, 2.5, 5)px
-autoCurve(w, h)     // clamp(2.8 − min·0.005, 0.6, 2.5)
+autoSegments(edge)  // ~1 point per 95px, clamped 2–8
+autoMag(w, h)       // clamp(2 + min·0.013, 2.4, 4)px
+autoCurve(w, h)     // clamp(1.8 − min·0.003, 0.6, 1.6)
 ```
 
 Two intuitions baked in:
@@ -705,20 +705,20 @@ Two intuitions baked in:
    becomes taller after a file is loaded, the vertical edges automatically
    pick up more anchors.
 2. **Curve inversely scales with size** — small chips/buttons need a high
-   `curve` for the hand-drawn quality to read at all (~2.5); big cards need
+   `curve` for the hand-drawn quality to read at all (~1.6); big cards need
    a low `curve` (~0.6) or they look crooked, not organic.
 
 ### Reference table
 
 | surface | dims | segH | segV | mag | curve |
 |---|---|---|---|---|---|
-| Visibility chip | 120×44 | 2 | 2 | 2.6 | 2.5 |
-| Tag pill / button | 90×36 | 2 | 2 | 2.5 | 2.5 |
-| Single-line Input | 320×46 | 4 | 2 | 2.6 | 2.5 |
-| Textarea | 520×220 | 7 | 3 | 5.1→5 (cap) | 1.7 |
-| Panel (default) | 380×500 | 5 | 7 | 5 (cap) | 0.9 |
-| Upload (empty) | 480×140 | 6 | 2 | 4.0 | 2.1 |
-| Upload (with image) | 480×420 | 6 | 6 | 5 (cap) | 0.7 |
+| Visibility chip | 120×44 | 2 | 2 | 2.6 | 1.6 |
+| Tag pill / button | 90×36 | 2 | 2 | 2.5 | 1.6 |
+| Single-line Input | 320×46 | 3 | 2 | 2.6 | 1.6 |
+| Textarea | 520×220 | 5 | 2 | 4.0 | 1.1 |
+| Panel (default) | 380×500 | 4 | 5 | 4.0 | 0.7 |
+| Upload (empty) | 480×140 | 5 | 2 | 3.8 | 1.4 |
+| Upload (with image) | 480×420 | 5 | 4 | 4.0 | 0.6 |
 
 ### Wiring
 

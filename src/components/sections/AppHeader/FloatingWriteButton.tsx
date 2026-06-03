@@ -1,6 +1,6 @@
 'use client';
 
-import { Link } from '@/i18n/navigation';
+import { Link, usePathname } from '@/i18n/navigation';
 import { Icon } from '@/components/atoms/Icon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
@@ -12,7 +12,14 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
  * the hand-drawn pen icon.
  */
 export function FloatingWriteButton() {
+  const pathname = usePathname();
   const isMobile = useIsMobile(720);
+
+  // Do not show the floating write button on the write/edit page itself.
+  if (pathname === '/write' || pathname.startsWith('/write/')) {
+    return null;
+  }
+
   return (
     <Link
       href="/write"

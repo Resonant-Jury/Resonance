@@ -1,13 +1,24 @@
 .aside {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .avatarLink {
   display: inline-flex;
+  flex-shrink: 0;
   width: fit-content;
   text-decoration: none;
+}
+
+/* Author text column — sits to the right of the avatar. */
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 2px;
 }
 
 .name {

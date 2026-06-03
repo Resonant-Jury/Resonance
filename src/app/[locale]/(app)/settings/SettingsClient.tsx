@@ -6,6 +6,7 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Field, Input, Select } from '@/components/atoms/Field/Field';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { ToggleSwitch } from '@/components/atoms/ToggleSwitch/ToggleSwitch';
+import { OrganicSlider } from '@/components/atoms/OrganicSlider/OrganicSlider';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { updateProfile } from '@/lib/db/firestore/client/profile';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -150,7 +151,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               />
             </Field>
             <Field label={t('profile.region')}>
-              <Select seed={43} value={region} onChange={(e) => setRegion(e.target.value)}>
+              <Select seed={43} value={region} onChange={setRegion}>
                 <option value="TW">🇹🇼 Taiwan</option>
                 <option value="JP">🇯🇵 Japan</option>
                 <option value="US">🇺🇸 United States</option>
@@ -215,7 +216,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               <Select
                 seed={61}
                 value={locale}
-                onChange={(e) => router.replace(pathname, { locale: e.target.value as Locale })}
+                onChange={(v) => router.replace(pathname, { locale: v as Locale })}
               >
                 <option value="zh-TW">繁體中文</option>
                 <option value="en">English</option>
@@ -225,7 +226,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               <Select
                 seed={63}
                 value={primaryLocale}
-                onChange={(e) => setPrimaryLocale(e.target.value as Locale)}
+                onChange={(v) => setPrimaryLocale(v as Locale)}
               >
                 <option value="zh-TW">繁體中文</option>
                 <option value="en">English</option>
@@ -241,7 +242,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               <Select
                 seed={71}
                 value={tweaks.accentColor}
-                onChange={(e) => updateTweaks({ accentColor: e.target.value })}
+                onChange={(v) => updateTweaks({ accentColor: v })}
               >
                 <option value="terracotta">{tTweaks('accentTerracotta')}</option>
                 <option value="sage">{tTweaks('accentSage')}</option>
@@ -253,7 +254,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               <Select
                 seed={77}
                 value={tweaks.fontFamily}
-                onChange={(e) => updateTweaks({ fontFamily: e.target.value })}
+                onChange={(v) => updateTweaks({ fontFamily: v })}
               >
                 <option value="default">{tTweaks('fontDefault')}</option>
                 <option value="handwritten">{tTweaks('fontHandwritten')}</option>
@@ -263,7 +264,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               <Select
                 seed={83}
                 value={tweaks.cardDensity}
-                onChange={(e) => updateTweaks({ cardDensity: e.target.value })}
+                onChange={(v) => updateTweaks({ cardDensity: v })}
               >
                 <option value="normal">{tTweaks('densityNormal')}</option>
                 <option value="compact">{tTweaks('densityCompact')}</option>
@@ -271,14 +272,14 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               </Select>
             </Field>
             <Field label={tTweaks('grainIntensity')}>
-              <input
-                type="range"
+              <OrganicSlider
+                seed={91}
                 min={0}
                 max={3}
                 step={1}
                 value={tweaks.grainIntensity}
-                onChange={(e) => updateTweaks({ grainIntensity: Number(e.target.value) })}
-                style={{ width: '100%', accentColor: 'var(--color-terracotta)' }}
+                onChange={(v) => updateTweaks({ grainIntensity: v })}
+                ariaLabel={tTweaks('grainIntensity')}
               />
               <div
                 style={{

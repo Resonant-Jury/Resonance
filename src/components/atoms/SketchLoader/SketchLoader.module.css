@@ -1,0 +1,41 @@
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.svg {
+  display: block;
+  overflow: visible;
+  /* slow lazy spin so the repeated passes drift, like a hand moving */
+  animation: sketchSpin 5200ms linear infinite;
+}
+
+.ring {
+  stroke-dasharray: 1 1;
+  animation: sketchDraw 1400ms ease-in-out infinite;
+}
+
+/* Draw the ring on, hold a beat, then sweep it off from the far end — a
+   continuous "re-sketching" loop. */
+@keyframes sketchDraw {
+  0%   { stroke-dashoffset: 1; }
+  45%  { stroke-dashoffset: 0; }
+  55%  { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -1; }
+}
+
+@keyframes sketchSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svg { animation: none; }
+  .ring {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+    opacity: 0.7;
+  }
+}

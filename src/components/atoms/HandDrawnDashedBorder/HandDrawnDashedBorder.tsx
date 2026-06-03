@@ -26,7 +26,7 @@ export interface HandDrawnDashedBorderProps {
 export function HandDrawnDashedBorder({
   w,
   h,
-  R = 18,
+  R = 16,
   seed = 1,
   mag,
   strokeColor = 'var(--field-border)',
@@ -100,7 +100,7 @@ export interface HandDrawnDashedSurfaceProps {
  */
 export function HandDrawnDashedSurface({
   children,
-  R = 18,
+  R = 16,
   seed = 3,
   mag,
   state = 'idle',

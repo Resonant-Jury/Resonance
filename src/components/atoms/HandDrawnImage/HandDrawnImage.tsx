@@ -13,6 +13,7 @@ export interface HandDrawnImageProps {
   alt?: string;
   seed?: number;
   R?: number;
+  curve?: number;
   /** Show a hand-drawn close button (top-right) wired to this handler. */
   onRemove?: () => void;
   removeLabel?: string;
@@ -28,6 +29,7 @@ export function HandDrawnImage({
   alt = '',
   seed = 31,
   R = 16,
+  curve,
   onRemove,
   removeLabel,
 }: HandDrawnImageProps) {
@@ -40,9 +42,9 @@ export function HandDrawnImage({
     return wobRect(w, h, R, seed, autoMag(w, h), {
       segmentsH: autoSegments(w),
       segmentsV: autoSegments(h),
-      curve: autoCurve(w, h),
+      curve: curve != null ? curve : autoCurve(w, h),
     });
-  }, [w, h, R, seed]);
+  }, [w, h, R, seed, curve]);
 
   return (
     <div ref={ref} className={styles.wrap}>

@@ -38,7 +38,7 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
   const { w, h } = useElementSize(ref, 160, 50);
   const v = BTN_VARIANTS[variant] || BTN_VARIANTS.primary;
   const seed = BTN_SEEDS[variant] ?? 3;
-  const R = h > 0 ? h / 2 : 25;
+  const R = 16; // md radius for controls consistency
   const mag = Math.min(w, h) * 0.04;
   const maskId = useId().replace(/:/g, '');
 

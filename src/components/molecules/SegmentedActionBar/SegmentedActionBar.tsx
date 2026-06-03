@@ -104,9 +104,7 @@ export function SegmentedActionBar({
     document.fonts.ready.then(recompute).catch(() => {});
   }, [recompute]);
 
-  // Pull the radius in from a full pill (h/2) so genuine short edges exist for
-  // the wobble to bite into — otherwise the rounded caps have no turning points.
-  const R = h > 0 ? h * 0.36 : 18;
+  const R = 16; // md radius for controls consistency
   // Overshoot the bar by this much so fills reach past the border, then get
   // clipped back to it — covers the outward wobble of the cap and top/bottom.
   const pad = h > 0 ? Math.max(12, h * 0.3) : 0;

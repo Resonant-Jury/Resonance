@@ -39,10 +39,15 @@
   --page-max-w: 1080px;
   --page-max-w-wide: 1200px;
 
+  /* Border Radius Tokens (Unified Corner Scale) */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+
   /* Form rhythm */
   --field-pad-y: 14px;
   --field-pad-x: 18px;
-  --field-radius: 16px;
+  --field-radius: var(--radius-md);
   --field-border: oklch(80% 0.02 75);
   --field-border-hover: oklch(60% 0.04 60);
   --field-border-focus: var(--color-terracotta);

@@ -82,7 +82,7 @@ export function MarkdownEditor({
   return (
     <HandDrawnDashedSurface
       seed={seed}
-      R={18}
+      R={16}
       strokeWidth={2}
       state={focus ? 'focus' : hover ? 'hover' : 'idle'}
       className={styles.surface}

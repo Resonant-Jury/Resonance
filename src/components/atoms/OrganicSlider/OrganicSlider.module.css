@@ -1,0 +1,57 @@
+.wrap {
+  position: relative;
+  width: 100%;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Transparent native range on top — handles drag / keyboard / a11y. The visual
+   knob is the SVG behind it, so the native thumb is hidden but still draggable
+   across the full width. */
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.input:disabled {
+  cursor: not-allowed;
+}
+.input:focus-visible {
+  outline: none;
+}
+
+.input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: transparent;
+}
+.input::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+}
+.input::-webkit-slider-runnable-track {
+  background: transparent;
+}
+.input::-moz-range-track {
+  background: transparent;
+}

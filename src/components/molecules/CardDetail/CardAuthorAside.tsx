@@ -18,14 +18,16 @@ export function CardAuthorAside({ author, verifiedLabel }: { author: User; verif
           seed={Number(author.avatarSeed)}
         />
       </Link>
-      <div className={styles.name}>
-        <Link href={`/u/${author.handle}`} className={styles.handle}>
-          {author.handle}
-        </Link>
-        {author.verified && <HandDrawnCheckmark size={14} title={verifiedLabel} />}
+      <div className={styles.info}>
+        <div className={styles.name}>
+          <Link href={`/u/${author.handle}`} className={styles.handle}>
+            {author.handle}
+          </Link>
+          {author.verified && <HandDrawnCheckmark size={14} title={verifiedLabel} />}
+        </div>
+        {author.region && <div className={styles.region}>{author.region}</div>}
+        {author.bio && <p className={styles.bio}>{author.bio}</p>}
       </div>
-      {author.region && <div className={styles.region}>{author.region}</div>}
-      {author.bio && <p className={styles.bio}>{author.bio}</p>}
     </div>
   );
 }

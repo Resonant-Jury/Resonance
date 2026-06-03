@@ -13,13 +13,25 @@
   color: var(--color-text-muted);
 }
 
+/* Holds the wavy left rule (absolutely positioned) and the list beside it. */
+.listWrap {
+  position: relative;
+}
+
+.rule {
+  position: absolute;
+  left: 1px;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
 .list {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  border-left: 2px solid var(--field-border);
-  padding-left: 12px;
+  padding-left: 14px;
 }
 
 .list li[data-level='3'] {

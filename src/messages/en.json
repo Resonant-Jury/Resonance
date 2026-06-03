@@ -134,6 +134,7 @@
     "mediaPlaceholder": "Click, or drag an image here",
     "mediaHint": "PNG, JPG, WebP · up to 5MB",
     "mediaUploadError": "Image upload failed. Please try again.",
+    "mediaUploading": "Sketching it in…",
     "visibility": {
       "label": "Who can see",
       "public": "Public",

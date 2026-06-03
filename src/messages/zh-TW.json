@@ -134,6 +134,7 @@
     "mediaPlaceholder": "點一下，或把圖片拖進來",
     "mediaHint": "PNG、JPG、WebP，最大 5MB",
     "mediaUploadError": "圖片上傳失敗，請稍後再試。",
+    "mediaUploading": "正在描繪中⋯",
     "visibility": {
       "label": "誰可以看見",
       "public": "公開",

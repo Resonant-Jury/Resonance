@@ -1,15 +1,27 @@
 'use client';
 
 import {
+  Children,
+  Fragment,
   forwardRef,
+  isValidElement,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
   useState,
   type InputHTMLAttributes,
+  type KeyboardEvent,
+  type ReactElement,
   type ReactNode,
-  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { Icon } from '@/components/atoms/Icon';
+import { Divider } from '@/components/atoms/Divider/Divider';
+import { wobOpenTop } from '@/lib/design/wobOpenRect';
+import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
+import { useElementSize } from '@/lib/hooks/useElementSize';
 import styles from './Field.module.css';
 
 type Variant = 'default' | 'subtle';
@@ -62,10 +74,11 @@ export type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   tone?: Tone;
   /** Seed for the wobbly dashed border. */
   seed?: number;
+  curve?: number;
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { variant = 'default', tone = 'default', className, seed = 13, onFocus, onBlur, onMouseEnter, onMouseLeave, ...rest },
+  { variant = 'default', tone = 'default', className, seed = 13, curve, onFocus, onBlur, onMouseEnter, onMouseLeave, ...rest },
   ref,
 ) {
   const [hover, setHover] = useState(false);
@@ -92,6 +105,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       seed={seed}
       R={16}
       strokeWidth={2}
+      curve={curve}
       state={focus ? 'focus' : hover ? 'hover' : 'idle'}
       className={styles.surface}
     >
@@ -104,10 +118,11 @@ export type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   variant?: Variant;
   tone?: Tone;
   seed?: number;
+  curve?: number;
 };
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
-  { variant = 'default', tone = 'default', className, rows = 6, seed = 17, onFocus, onBlur, onMouseEnter, onMouseLeave, ...rest },
+  { variant = 'default', tone = 'default', className, rows = 6, seed = 17, curve, onFocus, onBlur, onMouseEnter, onMouseLeave, ...rest },
   ref,
 ) {
   const [hover, setHover] = useState(false);
@@ -133,8 +148,9 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   return (
     <HandDrawnDashedSurface
       seed={seed}
-      R={18}
+      R={16}
       strokeWidth={2}
+      curve={curve}
       state={focus ? 'focus' : hover ? 'hover' : 'idle'}
       className={styles.surface}
     >
@@ -143,59 +159,237 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   );
 });
 
-export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
-  variant?: Variant;
+interface SelectOption {
+  value: string;
+  label: ReactNode;
+}
+
+export interface SelectProps {
+  value: string;
+  /** Called with the chosen option's value. */
+  onChange: (value: string) => void;
+  /** `<option value="…">label</option>` children, like a native select. */
+  children: ReactNode;
+  /** Seed so the wobble of the box + panel is deterministic per-instance. */
   seed?: number;
-};
+  ariaLabel?: string;
+  disabled?: boolean;
+  className?: string;
+}
 
 /**
- * Organic `<select>` — the native control sits transparent inside the same
- * wobbly hand-drawn surface as `<Input>`, with a hand-drawn chevron overlaid
- * on the right. Pass children as `<option>`s like a normal select.
+ * Organic dropdown. Closed, it's the same wobbly hand-drawn box as `<Input>`.
+ * Clicking it expands a large curved panel **directly attached beneath** — the
+ * panel has left/bottom/right borders but no top border (it reads as a
+ * continuation of the box, not a floating menu), with a wavy hand-drawn divider
+ * between each option (N options → N−1 dividers). Pass `<option>`s as children.
  */
-export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { variant = 'default', className, seed = 15, children, onFocus, onBlur, onMouseEnter, onMouseLeave, ...rest },
-  ref,
-) {
+export function Select({
+  value,
+  onChange,
+  children,
+  seed = 15,
+  ariaLabel,
+  disabled,
+  className,
+}: SelectProps) {
+  const options = useMemo<SelectOption[]>(
+    () =>
+      Children.toArray(children)
+        .filter((c): c is ReactElement<{ value: string; children: ReactNode }> =>
+          isValidElement(c),
+        )
+        .map((c) => ({ value: String(c.props.value), label: c.props.children })),
+    [children],
+  );
+
+  const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
-  const [focus, setFocus] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const uid = useId().replace(/:/g, '');
 
-  const selectEl = (
-    <select
-      ref={ref}
-      {...rest}
-      onFocus={(e) => { setFocus(true); onFocus?.(e); }}
-      onBlur={(e) => { setFocus(false); onBlur?.(e); }}
-      onMouseEnter={(e) => { setHover(true); onMouseEnter?.(e); }}
-      onMouseLeave={(e) => { setHover(false); onMouseLeave?.(e); }}
-      className={[styles.field, styles.select, className].filter(Boolean).join(' ')}
-      data-variant={variant === 'default' ? undefined : variant}
-    >
-      {children}
-    </select>
-  );
+  const selectedIndex = options.findIndex((o) => o.value === value);
+  const selectedLabel = selectedIndex >= 0 ? options[selectedIndex].label : '';
 
-  const withChevron = (
-    <span className={styles.selectWrap}>
-      {selectEl}
-      <Icon name="chevron-down" size={18} className={styles.selectChevron} />
-    </span>
-  );
+  function openPanel() {
+    if (disabled) return;
+    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    setOpen(true);
+  }
+  function choose(v: string) {
+    onChange(v);
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
 
-  if (variant !== 'default') return withChevron;
+  // Close on outside pointer-down.
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        if (!open) openPanel();
+        else setActiveIndex((i) => Math.min(options.length - 1, i + 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        if (!open) openPanel();
+        else setActiveIndex((i) => Math.max(0, i - 1));
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (!open) openPanel();
+        else if (options[activeIndex]) choose(options[activeIndex].value);
+        break;
+      case 'Escape':
+        if (open) {
+          e.preventDefault();
+          setOpen(false);
+        }
+        break;
+      case 'Tab':
+        if (open) setOpen(false);
+        break;
+    }
+  }
 
   return (
-    <HandDrawnDashedSurface
-      seed={seed}
-      R={16}
-      strokeWidth={2}
-      state={focus ? 'focus' : hover ? 'hover' : 'idle'}
-      className={styles.surface}
-    >
-      {withChevron}
-    </HandDrawnDashedSurface>
+    <div ref={rootRef} className={[styles.dropdownRoot, className].filter(Boolean).join(' ')}>
+      <HandDrawnDashedSurface
+        seed={seed}
+        R={16}
+        strokeWidth={2}
+        state={open ? 'focus' : hover ? 'hover' : 'idle'}
+        className={styles.surface}
+      >
+        <button
+          ref={triggerRef}
+          type="button"
+          className={styles.dropdownTrigger}
+          data-open={open || undefined}
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={ariaLabel}
+          aria-activedescendant={open ? `${uid}-opt-${activeIndex}` : undefined}
+          onClick={() => (open ? setOpen(false) : openPanel())}
+          onKeyDown={onKeyDown}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          onBlur={() => setHover(false)}
+        >
+          <span className={styles.dropdownValue}>{selectedLabel}</span>
+          <Icon name="chevron-down" size={18} className={styles.dropdownChevron} />
+        </button>
+      </HandDrawnDashedSurface>
+
+      {open && (
+        <DropdownPanel
+          seed={seed}
+          uid={uid}
+          options={options}
+          value={value}
+          activeIndex={activeIndex}
+          onActivate={setActiveIndex}
+          onChoose={choose}
+        />
+      )}
+    </div>
   );
-});
+}
+
+interface DropdownPanelProps {
+  seed: number;
+  uid: string;
+  options: SelectOption[];
+  value: string;
+  activeIndex: number;
+  onActivate: (i: number) => void;
+  onChoose: (value: string) => void;
+}
+
+/**
+ * The expanding panel: an open-top wobbly border (left/bottom/right only) drawn
+ * to the measured panel size, with the options listed inside, separated by
+ * wavy `Divider`s.
+ */
+function DropdownPanel({
+  seed,
+  uid,
+  options,
+  value,
+  activeIndex,
+  onActivate,
+  onChoose,
+}: DropdownPanelProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { w, h } = useElementSize(ref);
+  const path = useMemo(() => {
+    if (!w || !h) return '';
+    return wobOpenTop(w, h, 16, seed + 100, autoMag(w, h), {
+      segmentsH: autoSegments(w),
+      segmentsV: autoSegments(h),
+      curve: autoCurve(w, h),
+    });
+  }, [w, h, seed]);
+
+  return (
+    <div ref={ref} className={styles.dropdownPanel}>
+      {w > 0 && h > 0 && (
+        <svg
+          className={`${styles.dropdownBorder} res-shape-fade-in`}
+          width={w}
+          height={h}
+          viewBox={`0 0 ${w} ${h}`}
+          aria-hidden
+        >
+          <path
+            d={path}
+            fill="none"
+            stroke="var(--field-border-focus)"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+      <div className={styles.dropdownList} role="listbox" aria-label="options">
+        {options.map((opt, i) => (
+          <Fragment key={opt.value}>
+            {i > 0 && <Divider seed={seed + i * 7} spacing={0} amplitude={1.1} />}
+            <button
+              type="button"
+              role="option"
+              id={`${uid}-opt-${i}`}
+              aria-selected={opt.value === value}
+              className={styles.dropdownOption}
+              data-active={i === activeIndex || undefined}
+              data-selected={opt.value === value || undefined}
+              onClick={() => onChoose(opt.value)}
+              onMouseEnter={() => onActivate(i)}
+            >
+              <span>{opt.label}</span>
+              {opt.value === value && (
+                <Icon name="check" size={16} color="var(--color-terracotta)" />
+              )}
+            </button>
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export interface FieldProps {
   label?: ReactNode;
