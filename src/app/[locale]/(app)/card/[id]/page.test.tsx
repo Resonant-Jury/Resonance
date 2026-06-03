@@ -76,7 +76,9 @@ describe('CardDetailPage', () => {
 
     expect(screen.getByText('The core thought of this card')).toBeInTheDocument();
     expect(screen.getByText('The longer story body of this card.')).toBeInTheDocument();
-    expect(screen.getByText('@author')).toBeInTheDocument();
+    // Author appears in both the mobile header and the desktop aside (responsive
+    // markup; CSS hides one). At least one should be present.
+    expect(screen.getAllByText('@author').length).toBeGreaterThan(0);
     expect(screen.getByText('grief')).toBeInTheDocument();
   });
 

@@ -102,6 +102,7 @@
     "translateTo": "Translate to",
     "showOriginal": "Show original",
     "related": "Extended cards",
+    "toc": "Contents",
     "authorMetrics": {
       "title": "Only you see this",
       "reads": "Reads",
@@ -260,6 +261,7 @@
       "privacy": "Privacy & connections",
       "notifications": "Notifications",
       "language": "Language",
+      "appearance": "Appearance",
       "ai": "AI writing partner",
       "terms": "Terms",
       "delete": "Delete account"

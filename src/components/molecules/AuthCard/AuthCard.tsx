@@ -3,12 +3,15 @@
 import { useMemo, useRef, type ReactNode } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
+import { Divider } from '@/components/atoms/Divider/Divider';
 import { useElementSize } from '@/lib/hooks/useElementSize';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
 
 export function AuthCard({ children, title }: { children: ReactNode; title: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useElementSize(ref, 420, 480);
+  const isMobile = useIsMobile(640);
   const seed = 313;
   const R = 22;
   const interior = 'oklch(97.5% 0.012 60)';
@@ -23,6 +26,33 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
       cornerOffset: 4,
     });
   }, [w, h]);
+
+  // On phones the card chrome (border + grain) is dropped in favor of a
+  // borderless "section" framed by top/bottom wavy rules — mirroring how the
+  // home feed cards degrade to dividers on small screens. (After all hooks, so
+  // hook order stays stable across the breakpoint.)
+  if (isMobile) {
+    return (
+      <section style={{ width: '100%' }}>
+        <Divider seed={seed} spacing={0} />
+        <div style={{ padding: '28px 4px' }}>
+          <h1
+            style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: 24,
+              fontWeight: 700,
+              marginBottom: 22,
+              color: 'var(--color-text)',
+            }}
+          >
+            {title}
+          </h1>
+          {children}
+        </div>
+        <Divider seed={seed + 11} spacing={0} />
+      </section>
+    );
+  }
 
   return (
     <div

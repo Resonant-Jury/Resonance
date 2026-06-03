@@ -56,25 +56,27 @@ export function OrganicTabs<K extends string = string>({
             onClick={() => onChange(tab.key)}
             className={[styles.tab, isActive ? styles.active : ''].filter(Boolean).join(' ')}
           >
-            <span className={styles.tabLabel}>{tab.label}</span>
-            {orientation === 'horizontal' && isActive && (
-              <svg
-                className={styles.underline}
-                viewBox="0 -5 100 10"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <path
-                  d={underline}
-                  fill="none"
-                  stroke="var(--color-terracotta)"
-                  strokeWidth={2.4}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
-            )}
+            <span className={styles.tabLabel}>
+              {tab.label}
+              {orientation === 'horizontal' && isActive && (
+                <svg
+                  className={styles.underline}
+                  viewBox="0 -5 100 10"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d={underline}
+                    fill="none"
+                    stroke="var(--color-terracotta)"
+                    strokeWidth={2.4}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+              )}
+            </span>
           </button>
         );
 

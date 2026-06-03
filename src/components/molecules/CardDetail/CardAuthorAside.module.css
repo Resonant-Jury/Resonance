@@ -1,0 +1,37 @@
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.avatarLink {
+  display: inline-flex;
+  width: fit-content;
+  text-decoration: none;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.handle {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.region {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.bio {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}

@@ -13,6 +13,23 @@ vi.mock('@/lib/db/firestore/client/cards', () => ({
   publishCard: vi.fn(),
   deleteCardDraft: vi.fn(),
 }));
+// The story field is a Tiptap (ProseMirror) editor that doesn't mount cleanly
+// in jsdom; mock it at the boundary with a plain textarea that preserves the
+// value/onChange/aria-label contract so the editor's surrounding logic (hint,
+// publish payload) stays testable.
+vi.mock('@/components/molecules/MarkdownEditor/MarkdownEditor', () => ({
+  MarkdownEditor: ({
+    value,
+    onChange,
+    ariaLabel,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    ariaLabel?: string;
+  }) => (
+    <textarea aria-label={ariaLabel} value={value} onChange={(e) => onChange(e.target.value)} />
+  ),
+}));
 
 import { createCardDraft, publishCard } from '@/lib/db/firestore/client/cards';
 
@@ -45,16 +62,6 @@ describe('CardEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'AI: suggest 3–5' }));
     // First sample tag should now be rendered as a pill.
     expect(screen.getByText('脆弱性')).toBeInTheDocument();
-  });
-
-  it('applies an AI title suggestion into the core field', async () => {
-    renderWithIntl(<CardEditor locale="en" />);
-    await userEvent.click(screen.getByRole('button', { name: /Title ideas/ }));
-
-    const firstTitle = '有些話,寫下來,是為了自己先聽見。';
-    await userEvent.click(screen.getByRole('button', { name: firstTitle }));
-
-    expect(screen.getByLabelText('One line: the thought at the core')).toHaveValue(firstTitle);
   });
 
   it('saves a draft then publishes and navigates to the new card', async () => {

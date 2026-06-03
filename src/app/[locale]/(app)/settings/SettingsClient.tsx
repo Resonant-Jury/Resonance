@@ -9,10 +9,20 @@ import { ToggleSwitch } from '@/components/atoms/ToggleSwitch/ToggleSwitch';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { updateProfile } from '@/lib/db/firestore/client/profile';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { useRouter } from '@/i18n/navigation';
+import { useTweaks } from '@/components/providers/TweaksPanel';
+import { usePathname, useRouter } from '@/i18n/navigation';
 import type { Locale } from '@/lib/db/types';
 
-type Section = 'profile' | 'account' | 'privacy' | 'notifications' | 'language' | 'ai' | 'terms' | 'delete';
+type Section =
+  | 'profile'
+  | 'account'
+  | 'privacy'
+  | 'notifications'
+  | 'language'
+  | 'appearance'
+  | 'ai'
+  | 'terms'
+  | 'delete';
 
 const SECTIONS: Section[] = [
   'profile',
@@ -20,6 +30,7 @@ const SECTIONS: Section[] = [
   'privacy',
   'notifications',
   'language',
+  'appearance',
   'ai',
   'terms',
   'delete',
@@ -37,9 +48,12 @@ export interface SettingsClientProps {
 
 export function SettingsClient({ initial }: SettingsClientProps) {
   const t = useTranslations('settings');
+  const tTweaks = useTranslations('tweaks');
   const locale = useLocale();
   const router = useRouter();
+  const pathname = usePathname();
   const auth = useAuth();
+  const { state: tweaks, update: updateTweaks } = useTweaks();
   const [active, setActive] = useState<Section>('profile');
   const [handle, setHandle] = useState(initial.handle);
   const [bio, setBio] = useState(initial.bio);
@@ -197,6 +211,16 @@ export function SettingsClient({ initial }: SettingsClientProps) {
         )}
         {active === 'language' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <Field label={t('language.ui')}>
+              <Select
+                seed={61}
+                value={locale}
+                onChange={(e) => router.replace(pathname, { locale: e.target.value as Locale })}
+              >
+                <option value="zh-TW">繁體中文</option>
+                <option value="en">English</option>
+              </Select>
+            </Field>
             <Field label={t('language.original')}>
               <Select
                 seed={63}
@@ -208,6 +232,68 @@ export function SettingsClient({ initial }: SettingsClientProps) {
                 <option value="ja">日本語</option>
                 <option value="ko">한국어</option>
               </Select>
+            </Field>
+          </div>
+        )}
+        {active === 'appearance' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <Field label={tTweaks('accentColor')}>
+              <Select
+                seed={71}
+                value={tweaks.accentColor}
+                onChange={(e) => updateTweaks({ accentColor: e.target.value })}
+              >
+                <option value="terracotta">{tTweaks('accentTerracotta')}</option>
+                <option value="sage">{tTweaks('accentSage')}</option>
+                <option value="lavender">{tTweaks('accentLavender')}</option>
+                <option value="yellow">{tTweaks('accentYellow')}</option>
+              </Select>
+            </Field>
+            <Field label={tTweaks('fontFamily')}>
+              <Select
+                seed={77}
+                value={tweaks.fontFamily}
+                onChange={(e) => updateTweaks({ fontFamily: e.target.value })}
+              >
+                <option value="default">{tTweaks('fontDefault')}</option>
+                <option value="handwritten">{tTweaks('fontHandwritten')}</option>
+              </Select>
+            </Field>
+            <Field label={tTweaks('cardDensity')}>
+              <Select
+                seed={83}
+                value={tweaks.cardDensity}
+                onChange={(e) => updateTweaks({ cardDensity: e.target.value })}
+              >
+                <option value="normal">{tTweaks('densityNormal')}</option>
+                <option value="compact">{tTweaks('densityCompact')}</option>
+                <option value="airy">{tTweaks('densityAiry')}</option>
+              </Select>
+            </Field>
+            <Field label={tTweaks('grainIntensity')}>
+              <input
+                type="range"
+                min={0}
+                max={3}
+                step={1}
+                value={tweaks.grainIntensity}
+                onChange={(e) => updateTweaks({ grainIntensity: Number(e.target.value) })}
+                style={{ width: '100%', accentColor: 'var(--color-terracotta)' }}
+              />
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  color: 'var(--color-text-muted)',
+                  marginTop: 4,
+                }}
+              >
+                <span>{tTweaks('grainNone')}</span>
+                <span>{tTweaks('grainSoft')}</span>
+                <span>{tTweaks('grainMedium')}</span>
+                <span>{tTweaks('grainHeavy')}</span>
+              </div>
             </Field>
           </div>
         )}

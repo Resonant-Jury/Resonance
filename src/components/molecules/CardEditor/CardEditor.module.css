@@ -1,20 +1,17 @@
+/* Single writing column, horizontally centered. The AI partner panel that used
+   to occupy the right track is deferred; we keep the column at its prior
+   reading width (not full page width) and center it. */
 .grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: clamp(20px, 3vw, 40px);
-  align-items: start;
-}
-
-@media (max-width: 860px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
+  display: flex;
+  justify-content: center;
 }
 
 .column {
   display: flex;
   flex-direction: column;
   gap: clamp(22px, 3vw, 32px);
+  width: 100%;
+  max-width: 680px;
   min-width: 0;
 }
 

@@ -23,3 +23,8 @@ export interface PresignedUpload {
   headers: Record<string, string>;
   expiresAt: Date;
 }
+
+export interface StoredObject {
+  key: string;
+  publicUrl: string;
+}

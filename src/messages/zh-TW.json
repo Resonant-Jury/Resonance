@@ -102,6 +102,7 @@
     "translateTo": "翻譯成",
     "showOriginal": "顯示原文",
     "related": "延伸的卡片",
+    "toc": "目錄",
     "authorMetrics": {
       "title": "只有你看得到",
       "reads": "被閱讀",
@@ -260,6 +261,7 @@
       "privacy": "隱私與連結",
       "notifications": "通知",
       "language": "語言",
+      "appearance": "外觀",
       "ai": "AI 寫作夥伴",
       "terms": "條款",
       "delete": "刪除帳號"

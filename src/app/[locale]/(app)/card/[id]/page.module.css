@@ -1,0 +1,42 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: clamp(32px, 4vw, 64px);
+  align-items: start;
+  max-width: var(--page-max-w-wide);
+  margin: 0 auto;
+}
+
+.article {
+  min-width: 0;
+  max-width: 720px;
+}
+
+/* Right rail: author intro on top, ToC below; sticks while the article scrolls. */
+.aside {
+  position: sticky;
+  top: calc(var(--app-header-h) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Compact author header shown inline above the article on mobile (the rail is
+   hidden there). */
+.mobileAuthor {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+    max-width: 760px;
+  }
+  .aside {
+    display: none;
+  }
+  .mobileAuthor {
+    display: block;
+    margin-bottom: 28px;
+  }
+}

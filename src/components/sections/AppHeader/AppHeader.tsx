@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { HamburgerIcon } from '@/components/atoms/HamburgerIcon/HamburgerIcon';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
-import { Link, usePathname } from '@/i18n/navigation';
+import { Link } from '@/i18n/navigation';
 import { NotificationBell } from './NotificationBell';
 import { AppMobileNavModal } from './AppMobileNavModal';
 import styles from './AppHeader.module.css';
@@ -47,9 +46,6 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile(720);
   const t = useTranslations('app.nav');
-  const locale = useLocale();
-  const pathname = usePathname();
-  const otherLocale = locale === 'en' ? 'zh-TW' : 'en';
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -130,20 +126,7 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
             </nav>
 
             <div className={styles.account}>
-              <Link href="/write" style={{ textDecoration: 'none' }}>
-                <OrganicButton variant="primary" style={{ padding: '9px 20px', fontSize: '14px' }}>
-                  {t('write')}
-                </OrganicButton>
-              </Link>
               <NotificationBell />
-              <Link
-                href={pathname}
-                locale={otherLocale}
-                className={styles.navLink}
-                aria-label="Switch language"
-              >
-                {locale === 'en' ? '中' : 'EN'}
-              </Link>
               <Link href="/me" aria-label={t('me')}>
                 <HandDrawnAvatar
                   initials={user.initials}

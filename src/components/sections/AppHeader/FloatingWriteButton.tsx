@@ -4,17 +4,22 @@ import { Link } from '@/i18n/navigation';
 import { Icon } from '@/components/atoms/Icon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 
+/**
+ * The primary "write a card" affordance, anchored bottom-right on every
+ * viewport (it replaced the old header button and now sits where the runtime
+ * tweak toggle used to live). Keeps the organic rounded-square FAB look; uses
+ * the hand-drawn pen icon.
+ */
 export function FloatingWriteButton() {
   const isMobile = useIsMobile(720);
-  if (!isMobile) return null;
   return (
     <Link
       href="/write"
       aria-label="Write a card"
       style={{
         position: 'fixed',
-        right: 20,
-        bottom: 88,
+        right: isMobile ? 20 : 24,
+        bottom: isMobile ? 88 : 24,
         width: 56,
         height: 56,
         borderRadius: '20px 24px 18px 22px',
@@ -28,7 +33,7 @@ export function FloatingWriteButton() {
         zIndex: 90,
       }}
     >
-      <Icon name="plus" size={26} strokeWidth={2.4} ariaLabel="Write a card" />
+      <Icon name="pen" size={24} strokeWidth={2.2} ariaLabel="Write a card" />
     </Link>
   );
 }

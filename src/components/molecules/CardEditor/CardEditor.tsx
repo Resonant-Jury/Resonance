@@ -5,14 +5,16 @@ import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { Icon } from '@/components/atoms/Icon';
-import { Divider } from '@/components/atoms/Divider/Divider';
+// AI 寫作夥伴：暫時停用，未來會重新啟用（保留 import 供日後恢復）。
+// import { Divider } from '@/components/atoms/Divider/Divider';
 import { Field, Textarea, CharCount } from '@/components/atoms/Field/Field';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { HandDrawnImage } from '@/components/atoms/HandDrawnImage/HandDrawnImage';
+import { MarkdownEditor } from '@/components/molecules/MarkdownEditor/MarkdownEditor';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useRef } from 'react';
-import { Panel } from '@/components/molecules/Panel/Panel';
+// import { Panel } from '@/components/molecules/Panel/Panel'; // AI 寫作夥伴（暫停）
 import {
   SegmentedActionBar,
   type SegmentSpec,
@@ -39,11 +41,12 @@ export interface CardEditorProps {
 }
 
 const SAMPLE_TAGS = ['脆弱性', '記憶', '成長', '家族', '陌生人', '夜晚', '和解', '書寫'];
-const SAMPLE_TITLES = [
-  '有些話,寫下來,是為了自己先聽見。',
-  '被看見,比被喜歡更難得。',
-  '停下來看一件小事,是一種慢慢的勇敢。',
-];
+// AI 寫作夥伴：暫時停用，未來會重新啟用
+// const SAMPLE_TITLES = [
+//   '有些話,寫下來,是為了自己先聽見。',
+//   '被看見,比被喜歡更難得。',
+//   '停下來看一件小事,是一種慢慢的勇敢。',
+// ];
 
 const VISIBILITY_ICON: Record<Visibility, 'globe' | 'users' | 'lock'> = {
   public: 'globe',
@@ -54,7 +57,7 @@ const VISIBILITY_ICON: Record<Visibility, 'globe' | 'users' | 'lock'> = {
 export function CardEditor({ initial, locale }: CardEditorProps) {
   const t = useTranslations('write');
   const tVis = useTranslations('write.visibility');
-  const tAi = useTranslations('write.ai');
+  // const tAi = useTranslations('write.ai'); // AI 寫作夥伴：暫時停用
   const router = useRouter();
 
   const [thoughtCore, setThoughtCore] = useState(initial?.thoughtCore ?? '');
@@ -65,8 +68,9 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
-  const [titleSuggestions, setTitleSuggestions] = useState<string[]>([]);
-  const [polishPreview, setPolishPreview] = useState<string | null>(null);
+  // AI 寫作夥伴：暫時停用，未來會重新啟用
+  // const [titleSuggestions, setTitleSuggestions] = useState<string[]>([]);
+  // const [polishPreview, setPolishPreview] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
 
@@ -96,12 +100,13 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
     }
     setTags([...tags, ...picked.slice(0, 4 - tags.length)]);
   }
-  function suggestTitles() {
-    setTitleSuggestions(SAMPLE_TITLES);
-  }
-  function stubPolish() {
-    setPolishPreview(story.replace(/\n{3,}/g, '\n\n').trim());
-  }
+  // AI 寫作夥伴：暫時停用，未來會重新啟用
+  // function suggestTitles() {
+  //   setTitleSuggestions(SAMPLE_TITLES);
+  // }
+  // function stubPolish() {
+  //   setPolishPreview(story.replace(/\n{3,}/g, '\n\n').trim());
+  // }
 
   function removeTag(tag: string) {
     setTags(tags.filter((x) => x !== tag));
@@ -140,35 +145,17 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
 
   async function uploadImage(file: File) {
     setUploadError(null);
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        filename: file.name,
-        contentType: file.type,
-        size: file.size,
-        kind: 'image',
-      }),
-    });
+    // Send the file to our own API route; the server streams it to R2. The
+    // browser never contacts the R2 storage host directly.
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/upload', { method: 'POST', body: form });
     if (!res.ok) {
       setUploadError(t('mediaUploadError'));
       return;
     }
-    const upload = (await res.json()) as {
-      uploadUrl: string;
-      publicUrl: string;
-      headers: Record<string, string>;
-    };
-    const uploadRes = await fetch(upload.uploadUrl, {
-      method: 'PUT',
-      headers: upload.headers,
-      body: file,
-    });
-    if (!uploadRes.ok) {
-      setUploadError(t('mediaUploadError'));
-      return;
-    }
-    setMedia({ type: 'image', url: upload.publicUrl, label: file.name });
+    const { publicUrl } = (await res.json()) as { publicUrl: string };
+    setMedia({ type: 'image', url: publicUrl, label: file.name });
   }
 
   return (
@@ -188,30 +175,12 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
             rows={2}
             tone="display"
           />
-          {titleSuggestions.length > 0 && (
-            <div className={styles.suggestionList}>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{tAi('title')}</div>
-              {titleSuggestions.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={styles.suggestionBtn}
-                  onClick={() => {
-                    setThoughtCore(s);
-                    setTitleSuggestions([]);
-                  }}
-                >
-                  <Icon name="sparkle" size={14} color="var(--color-terracotta)" /> {s}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* AI 寫作夥伴：標題建議暫時停用，未來會重新啟用 */}
         </Field>
 
         {/* Story */}
         <Field
           label={t('storyLabel')}
-          htmlFor="card-story"
           hint={
             storyState === 'short'
               ? t('storyMin', { count: storyLen })
@@ -221,46 +190,14 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
           }
           hintTone={storyState === 'ok' ? 'ok' : 'default'}
         >
-          <Textarea
-            id="card-story"
+          <MarkdownEditor
             value={story}
-            onChange={(e) => setStory(e.target.value)}
+            onChange={setStory}
             placeholder={t('storyPlaceholder')}
-            rows={14}
-            style={{ fontSize: 16, lineHeight: 1.7 }}
+            ariaLabel={t('storyLabel')}
+            seed={17}
           />
-          {polishPreview && (
-            <div className={styles.polishPreview}>
-              <div className={styles.polishHeader}>
-                <span>
-                  <Icon name="sparkle" size={12} /> {tAi('polish')} · diff 預覽
-                </span>
-                <button
-                  type="button"
-                  className={styles.iconBtn}
-                  aria-label="Dismiss polish preview"
-                  onClick={() => setPolishPreview(null)}
-                >
-                  <Icon name="close" size={14} />
-                </button>
-              </div>
-              <pre className={styles.polishText}>{polishPreview}</pre>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <OrganicButton
-                  variant="primary"
-                  onClick={() => {
-                    setStory(polishPreview);
-                    setPolishPreview(null);
-                  }}
-                >
-                  {tAi('apply')}
-                </OrganicButton>
-                <OrganicButton variant="ghost" onClick={() => setPolishPreview(null)}>
-                  {tAi('keep')}
-                </OrganicButton>
-              </div>
-            </div>
-          )}
+          {/* AI 寫作夥伴：潤飾 diff 預覽暫時停用，未來會重新啟用 */}
         </Field>
 
         {/* Tags */}
@@ -269,7 +206,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
             {tags.map((tag) => (
               <TagPill
                 key={tag}
-                size="md"
+                size="lg"
                 color="oklch(92% 0.075 88)"
                 onRemove={() => removeTag(tag)}
               >
@@ -403,34 +340,35 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
         </div>
       </div>
 
-      {/* AI Assist Panel — flat panel separated by Dividers, no nested cards. */}
-      <Panel
-        title={
-          <>
-            <Icon name="sparkle" size={16} color="var(--color-terracotta)" />
-            {tAi('panel')}
-          </>
-        }
-        footer={tAi('stubNotice')}
-        sticky
-        collapseOnMobile
-      >
-        <AiRow icon="sparkle" title={tAi('polish')} hint={tAi('polishHint')} onClick={stubPolish} />
-        <Divider seed={11} />
-        <AiRow icon="star" title={tAi('title')} hint={tAi('titleHint')} onClick={suggestTitles} />
-        <Divider seed={23} />
-        <AiRow icon="plus" title={tAi('tags')} hint={tAi('tagsHint')} onClick={suggestTags} />
-      </Panel>
+      {/*
+        AI 寫作夥伴（暫時停用，未來會重新啟用）
+        原本右側的 AI Assist Panel — 提供潤飾 / 標題 / 標籤建議。
+        恢復時取消下方註解，並還原上方相關 state、handlers、imports（Panel / Divider / tAi）。
+
+        <Panel
+          title={<><Icon name="sparkle" size={16} color="var(--color-terracotta)" />{tAi('panel')}</>}
+          footer={tAi('stubNotice')}
+          sticky
+          collapseOnMobile
+        >
+          <AiRow icon="sparkle" title={tAi('polish')} hint={tAi('polishHint')} onClick={stubPolish} />
+          <Divider seed={11} />
+          <AiRow icon="star" title={tAi('title')} hint={tAi('titleHint')} onClick={suggestTitles} />
+          <Divider seed={23} />
+          <AiRow icon="plus" title={tAi('tags')} hint={tAi('tagsHint')} onClick={suggestTags} />
+        </Panel>
+      */}
     </div>
   );
 }
 
-interface AiRowProps {
-  icon: 'sparkle' | 'star' | 'plus';
-  title: string;
-  hint: string;
-  onClick: () => void;
-}
+// AI 寫作夥伴：暫時停用，未來會重新啟用
+// interface AiRowProps {
+//   icon: 'sparkle' | 'star' | 'plus';
+//   title: string;
+//   hint: string;
+//   onClick: () => void;
+// }
 
 function AddTagButton({ label, onClick }: { label: string; onClick: () => void }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -463,14 +401,15 @@ function AddTagButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
-function AiRow({ icon, title, hint, onClick }: AiRowProps) {
-  return (
-    <button type="button" onClick={onClick} className={styles.aiRow}>
-      <span className={styles.aiRowTitle}>
-        <Icon name={icon} size={14} color="var(--color-terracotta)" />
-        {title}
-      </span>
-      <span className={styles.aiRowHint}>{hint}</span>
-    </button>
-  );
-}
+// AI 寫作夥伴：暫時停用，未來會重新啟用
+// function AiRow({ icon, title, hint, onClick }: AiRowProps) {
+//   return (
+//     <button type="button" onClick={onClick} className={styles.aiRow}>
+//       <span className={styles.aiRowTitle}>
+//         <Icon name={icon} size={14} color="var(--color-terracotta)" />
+//         {title}
+//       </span>
+//       <span className={styles.aiRowHint}>{hint}</span>
+//     </button>
+//   );
+// }

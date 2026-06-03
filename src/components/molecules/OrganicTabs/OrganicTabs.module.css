@@ -49,16 +49,19 @@
 .tabLabel {
   position: relative;
   z-index: 1;
+  display: inline-block;
 }
 
-/* Wavy underline beneath the active horizontal tab. */
+/* Wavy underline beneath the active horizontal tab. Anchored to the label so
+   it hugs the text width (a tiny bleed each side) instead of stretching across
+   the padded tab and overshooting the word. */
 .underline {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 2px;
+  left: -3px;
+  right: -3px;
+  bottom: -7px;
   width: auto;
-  height: 8px;
+  height: 7px;
   overflow: visible;
 }
 
