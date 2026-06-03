@@ -246,9 +246,12 @@ function SubnavPanel({
   label,
 }: SubnavPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const optRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [{ w, h }, setDims] = useState({ w: 0, h: 0 });
-  const [rows, setRows] = useState<{ top: number; height: number }[]>([]);
+  const ROW_H = 44;
+  const h = ITEMS.length * ROW_H;
+  const [{ w }, setDims] = useState({ w: 0 });
+
+  // Pre-defined static coordinates since every row option button is exactly ROW_H high
+  const rows = useMemo(() => ITEMS.map((_, i) => ({ top: i * ROW_H, height: ROW_H })), []);
 
   // Hover and mouse position tracking for the SegmentedActionBar style wash
   const [hovered, setHovered] = useState<number | null>(null);
@@ -257,22 +260,13 @@ function SubnavPanel({
   const recompute = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    const pr = el.getBoundingClientRect();
-    setDims({ w: el.offsetWidth, h: el.offsetHeight });
-    setRows(
-      optRefs.current.map((o) => {
-        if (!o) return { top: 0, height: 0 };
-        const r = o.getBoundingClientRect();
-        return { top: r.top - pr.top, height: r.height };
-      }),
-    );
+    setDims({ w: el.offsetWidth });
   }, []);
 
   useLayoutEffect(() => {
     recompute();
     const ro = new ResizeObserver(recompute);
     if (ref.current) ro.observe(ref.current);
-    optRefs.current.forEach((o) => o && ro.observe(o));
     return () => ro.disconnect();
   }, [recompute]);
 
@@ -288,7 +282,7 @@ function SubnavPanel({
   }, [w, h, seed]);
 
   const boundaries = useMemo<[number, number][][]>(() => {
-    if (!w || rows.length !== ITEMS.length) return [];
+    if (!w) return [];
     return rows.slice(1).map((r, i) => {
       const prev = rows[i];
       const y = (prev.top + prev.height + r.top) / 2;
@@ -316,7 +310,7 @@ function SubnavPanel({
   }, [activeIndex, rows, w]);
 
   return (
-    <div ref={ref} className={styles.panel}>
+    <div ref={ref} className={styles.panel} style={{ height: `${h}px` }}>
       {w > 0 && h > 0 && (
         <svg
           className={`${styles.border} res-shape-fade-in`}
@@ -392,9 +386,6 @@ function SubnavPanel({
         {ITEMS.map((item, i) => (
           <button
             key={item.key}
-            ref={(el) => {
-              optRefs.current[i] = el;
-            }}
             type="button"
             role="menuitem"
             id={`${uid}-opt-${i}`}
@@ -411,7 +402,7 @@ function SubnavPanel({
             onMouseMove={recordPointer}
             onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
           >
-            <Icon name={item.icon} size={20} strokeWidth={1.6} className={styles.optionIcon} />
+            <Icon name={item.icon} size={18} strokeWidth={1.8} className={styles.optionIcon} />
             <span className={styles.optionLabel}>
               {item.key === 'signOut' && signingOut ? '…' : label(item.key)}
             </span>
