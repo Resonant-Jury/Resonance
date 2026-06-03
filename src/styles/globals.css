@@ -34,6 +34,21 @@ textarea::placeholder {
 ::-webkit-scrollbar-track { background: var(--color-cream-dark); }
 ::-webkit-scrollbar-thumb { background: var(--color-terracotta-light); border-radius: 99px; }
 
+/* ── Organic shape entrance ──────────────────────────────────────────
+   Hand-drawn SVGs only mount once their host has been measured, so they
+   appear after the surrounding chrome. A short fade keeps that arrival from
+   reading as a pop. */
+@keyframes resShapeFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.res-shape-fade-in {
+  animation: resShapeFadeIn 280ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .res-shape-fade-in { animation: none; }
+}
+
 /* ── Modal entrance animations ───────────────────────────────────── */
 @keyframes resModalFadeIn {
   from { opacity: 0; }

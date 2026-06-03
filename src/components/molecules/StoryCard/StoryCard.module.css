@@ -4,6 +4,17 @@
   transition: background 320ms ease;
 }
 
+/* Loading placeholder chrome: a plain rounded border drawn purely in CSS so
+   it paints instantly at the correct size — no measure-then-draw step and no
+   organic SVG to flash. Mirrors the real card's interior tint and footprint. */
+.skeletonChrome {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 20px 24px 18px 22px;
+  border: 1.5px solid oklch(86% 0.015 75);
+}
+
 .imagePlaceholder {
   position: relative;
   width: 100%;

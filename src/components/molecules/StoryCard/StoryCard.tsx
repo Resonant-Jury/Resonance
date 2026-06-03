@@ -150,7 +150,9 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
         background: isMobile ? cardInterior : 'transparent',
       }}
     >
-      {isMobile ? (
+      {loading ? (
+        <div className={styles.skeletonChrome} aria-hidden style={{ background: cardInterior }} />
+      ) : isMobile ? (
         <>
           <GrainOverlay opacity={0.08} />
           <svg

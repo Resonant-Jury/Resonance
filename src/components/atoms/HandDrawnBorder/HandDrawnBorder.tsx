@@ -51,6 +51,7 @@ export function HandDrawnBorder({
   return (
     <svg
       aria-hidden="true"
+      className="res-shape-fade-in"
       width={w}
       height={h}
       viewBox={`0 0 ${w} ${h}`}
