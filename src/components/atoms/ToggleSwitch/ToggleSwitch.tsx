@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { wobRect } from '@/lib/design/wobRect';
+import { wobCircle } from '@/lib/design/wobCircle';
 
 export interface ToggleSwitchProps {
   checked: boolean;
@@ -26,19 +27,18 @@ export function ToggleSwitch({ checked, onChange, ariaLabel, seed = 9 }: ToggleS
     () =>
       wobRect(W, H, H / 2, seed, 1.1, {
         curve: 1.5,
-        segmentsH: [2, 3],
-        segmentsV: [2, 2],
+        segmentsH: [1, 2],
+        segmentsV: [3, 4],
         cornerJitter: 0.6,
       }),
     [seed],
   );
   const knob = useMemo(
     () =>
-      wobRect(KNOB, KNOB, KNOB / 2, seed + 5, 0.7, {
-        curve: 1.7,
-        segmentsH: [2, 2],
-        segmentsV: [2, 2],
-        cornerJitter: 0.5,
+      wobCircle(KNOB / 2, KNOB / 2, KNOB / 2, seed + 5, {
+        segments: 8,
+        mag: 0.5,
+        cpJitter: 0.3,
       }),
     [seed],
   );
