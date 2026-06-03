@@ -41,7 +41,7 @@ export function FloatingWriteButton() {
         mag={56 * 0.022}
         fillColor="var(--color-terracotta)"
         strokeColor="color-mix(in oklch, var(--color-terracotta), black 35%)"
-        strokeWidth={2.0}
+        strokeWidth={2.5}
         segmentsH={1}
         segmentsV={1}
         curve={1.3}
