@@ -14,7 +14,7 @@ When building UI in this repo, **always reach for these primitives before writin
 | Build a page in `(app)/...` | `<PageShell>` + `<PageTitle>` |
 | Build a page in `(auth)/...` | The `(auth)` layout already centers — just place content |
 | Take text input | `<Input>` or `<Textarea>` (from `atoms/Field/Field`) |
-| Pick from a fixed list (dropdown) | `<Select>` (from `atoms/Field/Field`) — wobbly box that expands a connected open-top curved panel (no floating menu) with a wavy `Divider` between each option |
+| Pick from a fixed list (dropdown) | `<Select>` (from `atoms/Field/Field`) — wobbly box that expands into a curved **card covering the box**, listing the options with a wavy hand-drawn divider between each (reaching both edges) and the active option washed in along the curved region |
 | Add a label / hint / char counter | `<Field label hint trailing={<CharCount/>}>` |
 | Switch between tabs / nav sections | `<OrganicTabs orientation="horizontal|vertical">` (from `molecules/OrganicTabs`) |
 | Flip a boolean preference (on/off switch) | `<ToggleSwitch checked onChange>` (from `atoms/ToggleSwitch`) — wobbly track + knob |
@@ -59,8 +59,8 @@ When building UI in this repo, **always reach for these primitives before writin
 <Field label="Region">
   {/* Custom organic dropdown — NOT a native <select>. `onChange` receives the
       chosen value directly (string), not a DOM event. Children are still
-      <option>s (parsed for value + label). Clicking opens an open-top wobbly
-      panel attached flush beneath, with a wavy Divider between each option. */}
+      <option>s (parsed for value + label). Clicking opens a curved card that
+      covers the box and lists the options, with a wavy divider between each. */}
   <Select seed={43} value={region} onChange={setRegion} ariaLabel="Region">
     <option value="TW">🇹🇼 Taiwan</option>
   </Select>

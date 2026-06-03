@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { MouseEvent, ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { wobRect } from '@/lib/design/wobRect';
 import { makePrng } from '@/lib/design/prng';
 import styles from './SegmentedActionBar.module.css';
@@ -79,7 +79,12 @@ export function SegmentedActionBar({
   const segRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [{ w, h }, setDims] = useState({ w: 0, h: 0 });
   const [bounds, setBounds] = useState<Bound[]>([]);
+  // Index currently hovered (null = none). Each segment owns its own reveal
+  // circle so moving between segments re-grows the wash from the new pointer,
+  // exactly like hovering one OrganicButton then another.
   const [hovered, setHovered] = useState<number | null>(null);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const maskId = useId().replace(/:/g, '');
 
   const recompute = useCallback(() => {
     const bar = barRef.current;
@@ -108,6 +113,16 @@ export function SegmentedActionBar({
   // Overshoot the bar by this much so fills reach past the border, then get
   // clipped back to it — covers the outward wobble of the cap and top/bottom.
   const pad = h > 0 ? Math.max(12, h * 0.3) : 0;
+
+  // Radial-reveal hover (mirrors OrganicButton): track the pointer relative to
+  // the bar and grow a circle out to the far corner.
+  const recordPointer = (e: MouseEvent<HTMLButtonElement>) => {
+    const r = barRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
+  };
+  const hoverMaxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 4;
+
   const outerPath = useMemo(() => {
     if (!w || !h) return '';
     return wobRect(w, h, R, seed, Math.min(w, h) * 0.05, {
@@ -139,6 +154,28 @@ export function SegmentedActionBar({
             <clipPath id={`sab-clip-${seed}`}>
               <path d={outerPath} />
             </clipPath>
+            {/* One pointer-anchored reveal circle per segment — the hovered one
+                grows to hoverMaxR, the rest sit at 0, so each transitions in/out
+                independently (no jump when sliding between segments). */}
+            {segments.map((s, i) => (
+              <mask
+                key={s.key}
+                id={`sab-hover-${maskId}-${i}`}
+                maskUnits="userSpaceOnUse"
+                x={-w}
+                y={-h}
+                width={w * 3}
+                height={h * 3}
+              >
+                <circle
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={hovered === i ? hoverMaxR : 0}
+                  fill="white"
+                  style={{ transition: 'r 340ms linear' }}
+                />
+              </mask>
+            ))}
           </defs>
           <g clipPath={`url(#sab-clip-${seed})`}>
             {/* base fill */}
@@ -149,13 +186,19 @@ export function SegmentedActionBar({
                 <path key={s.key} d={segmentRegion(i, segments.length, boundaries, w, h, pad)} fill={s.fill} />
               ) : null
             )}
-            {/* hover wash */}
-            {hovered != null && boundaries.length === segments.length - 1 && (
-              <path
-                d={segmentRegion(hovered, segments.length, boundaries, w, h, pad)}
-                fill={segments[hovered].hoverOverlay ?? 'oklch(0% 0 0 / 0.07)'}
-              />
-            )}
+            {/* hover wash — each segment region revealed through its own circle */}
+            {boundaries.length === segments.length - 1 &&
+              segments.map((s, i) => (
+                <g key={s.key} mask={`url(#sab-hover-${maskId}-${i})`}>
+                  <path
+                    d={segmentRegion(i, segments.length, boundaries, w, h, pad)}
+                    fill={
+                      s.hoverOverlay ??
+                      'color-mix(in oklch, var(--color-terracotta) 13%, transparent)'
+                    }
+                  />
+                </g>
+              ))}
           </g>
           {/* wavy dividers */}
           {boundaries.map((pts, i) => (
@@ -164,13 +207,13 @@ export function SegmentedActionBar({
               d={polyline(pts)}
               fill="none"
               stroke={divider}
-              strokeWidth={2}
+              strokeWidth={2.5}
               strokeLinecap="round"
               clipPath={`url(#sab-clip-${seed})`}
             />
           ))}
-          {/* outer stroke */}
-          <path d={outerPath} fill="none" stroke={stroke} strokeWidth={2} strokeLinejoin="round" />
+          {/* outer stroke — matched to OrganicButton / StoryCard (2.5) */}
+          <path d={outerPath} fill="none" stroke={stroke} strokeWidth={2.5} strokeLinejoin="round" />
         </svg>
       )}
 
@@ -182,10 +225,15 @@ export function SegmentedActionBar({
           }}
           type="button"
           onClick={s.onClick}
-          onMouseEnter={() => setHovered(i)}
-          onMouseLeave={() => setHovered((h) => (h === i ? null : h))}
-          onFocus={() => setHovered(i)}
-          onBlur={() => setHovered((h) => (h === i ? null : h))}
+          onMouseEnter={(e) => { recordPointer(e); setHovered(i); }}
+          onMouseMove={recordPointer}
+          onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
+          onFocus={() => {
+            const b = bounds[i];
+            if (b) setPos({ x: b.left + b.width / 2, y: h / 2 });
+            setHovered(i);
+          }}
+          onBlur={() => setHovered((cur) => (cur === i ? null : cur))}
           aria-label={s.ariaLabel}
           className={styles.seg}
           style={{ color: s.textColor ?? 'var(--color-terracotta)' }}

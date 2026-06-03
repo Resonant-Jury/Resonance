@@ -11,6 +11,10 @@ export interface TocHeading {
   level: 2 | 3;
 }
 
+// Curve depth + stroke weight of the hand-drawn rule down the left of the list.
+const AMP = 5;
+const SW = 3;
+
 /**
  * Table of Contents for the card reading page. Headings are extracted from the
  * rendered story (so the `id`s match rehype-slug exactly); clicking one
@@ -20,13 +24,14 @@ export function CardToc({ headings, title }: { headings: TocHeading[]; title: st
   const listRef = useRef<HTMLUListElement>(null);
   const { h: listH } = useElementSize(listRef);
 
-  // Wavy hand-drawn rule running down the left of the list — the organic
-  // sibling of a flat 1px border. A higher step count keeps the curve gentle
-  // over tall lists; amplitude stays small so it reads as a guide, not noise.
+  // A pronounced wavy rule — the organic sibling of a flat 1px border. Step
+  // count scales with height so the curve stays evenly spaced over long lists.
   const linePath = useMemo(
-    () => (listH > 0 ? wavyVertical(listH, 7, 2.2, Math.max(4, Math.round(listH / 36))) : ''),
+    () => (listH > 0 ? wavyVertical(listH, 9, AMP, Math.max(5, Math.round(listH / 32))) : ''),
     [listH],
   );
+
+  const railW = AMP * 2 + SW + 2;
 
   if (headings.length === 0) return null;
 
@@ -39,24 +44,28 @@ export function CardToc({ headings, title }: { headings: TocHeading[]; title: st
     <nav className={styles.toc} aria-label={title}>
       <div className={styles.title}>{title}</div>
       <div className={styles.listWrap}>
-        {listH > 0 && (
-          <svg
-            className={`${styles.rule} res-shape-fade-in`}
-            width={6}
-            height={listH}
-            viewBox={`-3 0 6 ${listH}`}
-            preserveAspectRatio="none"
-            aria-hidden
-          >
-            <path
-              d={linePath}
-              fill="none"
-              stroke="var(--field-border)"
-              strokeWidth={2}
-              strokeLinecap="round"
-            />
-          </svg>
-        )}
+        <div className={styles.rail} style={{ width: railW }}>
+          {listH > 0 && (
+            <svg
+              className="res-shape-fade-in"
+              width={railW}
+              height={listH}
+              viewBox={`${-railW / 2} 0 ${railW} ${listH}`}
+              preserveAspectRatio="none"
+              aria-hidden
+              style={{ display: 'block', overflow: 'visible' }}
+            >
+              <path
+                d={linePath}
+                fill="none"
+                stroke="var(--field-border)"
+                strokeWidth={SW}
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          )}
+        </div>
         <ul className={styles.list} ref={listRef}>
           {headings.map((h) => (
             <li key={h.id} data-level={h.level}>

@@ -23,7 +23,7 @@ describe('Select (organic dropdown)', () => {
     expect(trigger).toHaveTextContent('Japan');
   });
 
-  it('expands a connected panel with one divider between each option (N options → N-1 dividers)', async () => {
+  it('expands a covering card listing every option', async () => {
     render(
       <Select value="tw" onChange={() => {}} ariaLabel="Region">
         {OPTIONS}
@@ -31,11 +31,11 @@ describe('Select (organic dropdown)', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Region' }));
 
-    const listbox = screen.getByRole('listbox');
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Region' })).toHaveAttribute('aria-expanded', 'true');
+    // All N options are listed in the open card (the wavy dividers between them
+    // are SVG paths drawn once the panel is measured).
     expect(screen.getAllByRole('option')).toHaveLength(4);
-    // The only non-option direct children of the panel are the wavy dividers.
-    expect(listbox.querySelectorAll(':scope > div')).toHaveLength(3);
   });
 
   it('marks the current value as selected', async () => {

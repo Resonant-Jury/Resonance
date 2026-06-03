@@ -120,17 +120,20 @@ textarea.field {
   transform: rotate(180deg);
 }
 
-/* The panel attaches flush under the box — square top corners meet the box,
-   rounded bottom corners. Sits above following fields. */
+/* The panel *covers* the closed box (anchored at top:0) and reads as its own
+   card — full wobbly border, opaque fill. Sits above following fields. */
 .dropdownPanel {
   position: absolute;
-  top: calc(100% - 2px);
+  top: 0;
   left: 0;
   right: 0;
   z-index: 40;
   background: var(--color-cream);
-  border-radius: 0 0 var(--field-radius) var(--field-radius);
-  padding: 6px 0;
+  border-radius: var(--field-radius);
+  /* No vertical padding: the first/last rows then match the interior rows
+     exactly (each row's own padding is the only spacing), so every option
+     reads as evenly centred rather than the ends having extra whitespace. */
+  padding: 0;
 }
 .dropdownBorder {
   position: absolute;
@@ -145,7 +148,7 @@ textarea.field {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  padding: 0 8px;
+  padding: 0 10px;
 }
 .dropdownOption {
   display: flex;
@@ -153,19 +156,16 @@ textarea.field {
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  padding: 11px 10px;
+  /* Taller rows give the wavy dividers room to breathe. */
+  padding: 16px 8px;
   border: none;
-  border-radius: 12px;
   background: transparent;
   font-family: var(--font-body);
   font-size: 15px;
   color: var(--color-text);
   text-align: left;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
-}
-.dropdownOption[data-active] {
-  background: oklch(92% 0.04 70 / 0.6);
+  transition: color 120ms ease;
 }
 .dropdownOption[data-selected] {
   color: var(--color-terracotta);

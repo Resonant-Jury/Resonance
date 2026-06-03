@@ -2,11 +2,12 @@
 
 import {
   Children,
-  Fragment,
   forwardRef,
   isValidElement,
+  useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -18,10 +19,9 @@ import {
 } from 'react';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { Icon } from '@/components/atoms/Icon';
-import { Divider } from '@/components/atoms/Divider/Divider';
-import { wobOpenTop } from '@/lib/design/wobOpenRect';
+import { wobRect } from '@/lib/design/wobRect';
+import { makePrng } from '@/lib/design/prng';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
-import { useElementSize } from '@/lib/hooks/useElementSize';
 import styles from './Field.module.css';
 
 type Variant = 'default' | 'subtle';
@@ -179,10 +179,11 @@ export interface SelectProps {
 
 /**
  * Organic dropdown. Closed, it's the same wobbly hand-drawn box as `<Input>`.
- * Clicking it expands a large curved panel **directly attached beneath** — the
- * panel has left/bottom/right borders but no top border (it reads as a
- * continuation of the box, not a floating menu), with a wavy hand-drawn divider
- * between each option (N options → N−1 dividers). Pass `<option>`s as children.
+ * Clicking it expands a large curved card that **covers the box** and lists the
+ * options — a fully closed wobbly border (so the left/right edges always meet),
+ * a wavy hand-drawn divider between each option (N options → N−1 dividers) that
+ * reaches both edges, and the active option washed in along the curved divider
+ * regions. Pass `<option>`s as children; `onChange` receives the value.
  */
 export function Select({
   value,
@@ -271,6 +272,9 @@ export function Select({
         R={16}
         strokeWidth={2}
         state={open ? 'focus' : hover ? 'hover' : 'idle'}
+        // When open, the covering panel draws its own border — hide this one so
+        // the two wobbly outlines don't stack on top of each other.
+        strokeColor={open ? 'transparent' : undefined}
         className={styles.surface}
       >
         <button
@@ -290,7 +294,7 @@ export function Select({
           onBlur={() => setHover(false)}
         >
           <span className={styles.dropdownValue}>{selectedLabel}</span>
-          <Icon name="chevron-down" size={18} className={styles.dropdownChevron} />
+          <Icon name="chevron-down" size={20} strokeWidth={2.4} className={styles.dropdownChevron} />
         </button>
       </HandDrawnDashedSurface>
 
@@ -319,10 +323,79 @@ interface DropdownPanelProps {
   onChoose: (value: string) => void;
 }
 
+// A gently wavy horizontal boundary between two option rows, as a point list so
+// the row fills and the stroked dividers share identical geometry. Runs from
+// -pad to w+pad so fills overshoot the panel and the outer clip trims them flush
+// to the wobbly border (no slivers, dividers reach the edges).
+function rowBoundary(
+  y: number,
+  w: number,
+  seed: number,
+  amp: number,
+  pad: number,
+): [number, number][] {
+  const steps = 4;
+  const rnd = makePrng(seed);
+  const f = (n: number): number => +n.toFixed(2);
+  const pts: [number, number][] = [[-pad, f(y)]];
+  for (let k = 0; k <= steps; k++) {
+    const x = (k / steps) * w;
+    const off = k === 0 || k === steps ? 0 : (rnd() - 0.5) * 2 * amp;
+    pts.push([f(x), f(y + off)]);
+  }
+  pts.push([w + pad, f(y)]);
+  return pts;
+}
+
+// Smooth cubic segments through the points, with horizontal control handles
+// (the same curve feel as wavyLine). Assumes the pen is already at pts[0].
+function segs(pts: [number, number][]): string {
+  const f = (n: number): number => +n.toFixed(2);
+  let d = '';
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1];
+    const [x1, y1] = pts[i];
+    const hx = (x1 - x0) / 3;
+    d += ` C ${f(x0 + hx)},${f(y0)} ${f(x1 - hx)},${f(y1)} ${f(x1)},${f(y1)}`;
+  }
+  return d;
+}
+
+const dividerPath = (pts: [number, number][]): string =>
+  `M ${pts[0][0]},${pts[0][1]}` + segs(pts);
+
+// Closed region for one option row, bounded by the wavy divider above and below
+// (or the padded panel edge for the first/last row), so a hover/selection wash
+// fills the *curve-divided* area rather than a rectangle. Both edges are drawn
+// as smooth curves so the wash hugs the divider exactly.
+function rowRegion(
+  i: number,
+  count: number,
+  boundaries: [number, number][][],
+  w: number,
+  h: number,
+  pad: number,
+): string {
+  const top: [number, number][] =
+    i === 0 ? [[-pad, -pad], [w + pad, -pad]] : boundaries[i - 1];
+  const bottom: [number, number][] =
+    i === count - 1 ? [[-pad, h + pad], [w + pad, h + pad]] : boundaries[i];
+  const botRev = [...bottom].reverse();
+  return (
+    `M ${top[0][0]},${top[0][1]}` +
+    segs(top) +
+    ` L ${botRev[0][0]},${botRev[0][1]}` +
+    segs(botRev) +
+    ' Z'
+  );
+}
+
 /**
- * The expanding panel: an open-top wobbly border (left/bottom/right only) drawn
- * to the measured panel size, with the options listed inside, separated by
- * wavy `Divider`s.
+ * The expanded panel. It **covers the closed box** (anchored at `top: 0`) and
+ * reads as a self-contained card: a full closed wobbly border (no open top, so
+ * left/right edges always meet), an opaque cream fill, the N options listed
+ * inside separated by wavy hand-drawn dividers that reach both edges, and the
+ * active option washed in along the *curved* divider regions (not a rectangle).
  */
 function DropdownPanel({
   seed,
@@ -334,15 +407,57 @@ function DropdownPanel({
   onChoose,
 }: DropdownPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const { w, h } = useElementSize(ref);
-  const path = useMemo(() => {
+  const optRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [{ w, h }, setDims] = useState({ w: 0, h: 0 });
+  // offsetTop + height of each option row, used to place the wavy boundaries.
+  const [rows, setRows] = useState<{ top: number; height: number }[]>([]);
+
+  const recompute = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const pr = el.getBoundingClientRect();
+    setDims({ w: el.offsetWidth, h: el.offsetHeight });
+    // Row offsets relative to the panel (the list is a positioned offsetParent,
+    // so plain offsetTop would be relative to the list, not the panel).
+    setRows(
+      optRefs.current.map((o) => {
+        if (!o) return { top: 0, height: 0 };
+        const r = o.getBoundingClientRect();
+        return { top: r.top - pr.top, height: r.height };
+      }),
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    if (ref.current) ro.observe(ref.current);
+    optRefs.current.forEach((o) => o && ro.observe(o));
+    return () => ro.disconnect();
+  }, [recompute, options.length]);
+
+  const pad = h > 0 ? Math.max(10, h * 0.04) : 0;
+
+  const outerPath = useMemo(() => {
     if (!w || !h) return '';
-    return wobOpenTop(w, h, 16, seed + 100, autoMag(w, h), {
+    return wobRect(w, h, 16, seed + 100, autoMag(w, h), {
       segmentsH: autoSegments(w),
       segmentsV: autoSegments(h),
       curve: autoCurve(w, h),
     });
   }, [w, h, seed]);
+
+  // One wavy boundary between each adjacent pair of rows.
+  const boundaries = useMemo<[number, number][][]>(() => {
+    if (!w || rows.length !== options.length) return [];
+    return rows.slice(1).map((r, i) => {
+      const prev = rows[i];
+      const y = (prev.top + prev.height + r.top) / 2;
+      return rowBoundary(y, w, seed + i * 31 + 7, 3, pad);
+    });
+  }, [w, rows, options.length, seed, pad]);
+
+  const ready = w > 0 && h > 0 && boundaries.length === options.length - 1;
 
   return (
     <div ref={ref} className={styles.dropdownPanel}>
@@ -354,11 +469,41 @@ function DropdownPanel({
           viewBox={`0 0 ${w} ${h}`}
           aria-hidden
         >
+          <defs>
+            <clipPath id={`sel-clip-${uid}`}>
+              <path d={outerPath} />
+            </clipPath>
+          </defs>
+          <g clipPath={`url(#sel-clip-${uid})`}>
+            {/* opaque card fill */}
+            <path d={outerPath} fill="var(--color-cream)" />
+            {/* active row wash, clipped to the curved region */}
+            {ready && activeIndex >= 0 && (
+              <path
+                d={rowRegion(activeIndex, options.length, boundaries, w, h, pad)}
+                fill="color-mix(in oklch, var(--color-terracotta) 15%, var(--color-cream))"
+              />
+            )}
+          </g>
+          {/* wavy dividers — drawn past the edges, clipped flush to the border */}
+          {ready &&
+            boundaries.map((pts, i) => (
+              <path
+                key={i}
+                d={dividerPath(pts)}
+                fill="none"
+                stroke="oklch(60% 0.04 60 / 0.45)"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                clipPath={`url(#sel-clip-${uid})`}
+              />
+            ))}
+          {/* outer stroke */}
           <path
-            d={path}
+            d={outerPath}
             fill="none"
             stroke="var(--field-border-focus)"
-            strokeWidth={2}
+            strokeWidth={2.5}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -366,25 +511,25 @@ function DropdownPanel({
       )}
       <div className={styles.dropdownList} role="listbox" aria-label="options">
         {options.map((opt, i) => (
-          <Fragment key={opt.value}>
-            {i > 0 && <Divider seed={seed + i * 7} spacing={0} amplitude={1.1} />}
-            <button
-              type="button"
-              role="option"
-              id={`${uid}-opt-${i}`}
-              aria-selected={opt.value === value}
-              className={styles.dropdownOption}
-              data-active={i === activeIndex || undefined}
-              data-selected={opt.value === value || undefined}
-              onClick={() => onChoose(opt.value)}
-              onMouseEnter={() => onActivate(i)}
-            >
-              <span>{opt.label}</span>
-              {opt.value === value && (
-                <Icon name="check" size={16} color="var(--color-terracotta)" />
-              )}
-            </button>
-          </Fragment>
+          <button
+            key={opt.value}
+            ref={(el) => {
+              optRefs.current[i] = el;
+            }}
+            type="button"
+            role="option"
+            id={`${uid}-opt-${i}`}
+            aria-selected={opt.value === value}
+            className={styles.dropdownOption}
+            data-selected={opt.value === value || undefined}
+            onClick={() => onChoose(opt.value)}
+            onMouseEnter={() => onActivate(i)}
+          >
+            <span>{opt.label}</span>
+            {opt.value === value && (
+              <Icon name="check" size={18} strokeWidth={2.4} color="var(--color-terracotta)" />
+            )}
+          </button>
         ))}
       </div>
     </div>

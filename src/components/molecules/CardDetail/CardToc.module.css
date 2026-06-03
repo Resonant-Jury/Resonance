@@ -13,17 +13,15 @@
   color: var(--color-text-muted);
 }
 
-/* Holds the wavy left rule (absolutely positioned) and the list beside it. */
+/* Flex row: the wavy rule rail on the left, list to its right. */
 .listWrap {
-  position: relative;
+  display: flex;
+  align-items: stretch;
 }
 
-.rule {
-  position: absolute;
-  left: 1px;
-  top: 0;
-  overflow: visible;
-  pointer-events: none;
+/* Fixed-width column holding the measured wavy SVG (stretches to list height). */
+.rail {
+  flex-shrink: 0;
 }
 
 .list {
@@ -31,7 +29,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-left: 14px;
+  padding-left: 12px;
 }
 
 .list li[data-level='3'] {

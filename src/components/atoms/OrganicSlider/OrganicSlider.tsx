@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useMemo, useRef } from 'react';
-import { wobRect } from '@/lib/design/wobRect';
+import { wavyLine } from '@/lib/design/wavyPath';
 import { wobCircle } from '@/lib/design/wobCircle';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import styles from './OrganicSlider.module.css';
@@ -17,7 +17,7 @@ export interface OrganicSliderProps {
   disabled?: boolean;
 }
 
-const TRACK_H = 8;
+const TRACK_SW = 7; // thickness of the hand-drawn bar stroke
 const KNOB_R = 11;
 
 /**
@@ -47,17 +47,17 @@ export function OrganicSlider({
   const frac = max > min ? (value - min) / (max - min) : 0;
   const thumbX = pad + frac * usableW;
 
-  // The track + its terracotta fill share one wobble (the fill is the same path
-  // clipped to the value), so the filled portion sits exactly over the track.
-  const trackPath = useMemo(() => {
-    if (!w) return '';
-    return wobRect(w, TRACK_H, TRACK_H / 2, seed, 1, {
-      curve: 1.4,
-      segmentsH: [3, 5],
-      segmentsV: 1,
-      cornerJitter: 0.5,
-    });
-  }, [w, seed]);
+  // Inset the bar so its round end-caps aren't clipped by the svg box.
+  const capPad = TRACK_SW / 2 + 1;
+  const barLen = Math.max(0, w - capPad * 2);
+
+  // The bar is a single thick wavy stroke (a hand-drawn squiggle, not a flat
+  // pill). The terracotta fill is the *same* wavy path clipped to the value, so
+  // the filled portion rides exactly over the grey bar.
+  const barPath = useMemo(
+    () => (barLen > 0 ? wavyLine(barLen, seed, 2.6, Math.max(4, Math.round(barLen / 38))) : ''),
+    [barLen, seed],
+  );
 
   const knobPath = useMemo(
     () => wobCircle(KNOB_R, KNOB_R, KNOB_R, seed + 5, { segments: 9, mag: 0.7, cpJitter: 0.4 }),
@@ -75,17 +75,26 @@ export function OrganicSlider({
           aria-hidden
         >
           <defs>
+            {/* Local frame is translated by (capPad, cy); x=-capPad covers the
+                visual left, width=thumbX puts the cut at the global thumb x. */}
             <clipPath id={`oslider-${uid}`}>
-              <rect x={0} y={0} width={thumbX} height={H} />
+              <rect x={-capPad} y={-H} width={thumbX} height={H * 2} />
             </clipPath>
           </defs>
-          <g transform={`translate(0, ${cy - TRACK_H / 2})`}>
-            <path d={trackPath} fill="oklch(88% 0.02 75)" stroke="oklch(72% 0.03 70)" strokeWidth={1.2} />
+          <g transform={`translate(${capPad}, ${cy})`}>
             <path
-              d={trackPath}
-              fill="var(--color-terracotta)"
-              stroke="oklch(45% 0.11 45)"
-              strokeWidth={1.2}
+              d={barPath}
+              fill="none"
+              stroke="oklch(84% 0.022 75)"
+              strokeWidth={TRACK_SW}
+              strokeLinecap="round"
+            />
+            <path
+              d={barPath}
+              fill="none"
+              stroke="var(--color-terracotta)"
+              strokeWidth={TRACK_SW}
+              strokeLinecap="round"
               clipPath={`url(#oslider-${uid})`}
             />
           </g>

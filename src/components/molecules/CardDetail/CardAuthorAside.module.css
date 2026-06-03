@@ -3,6 +3,8 @@
   flex-direction: row;
   align-items: flex-start;
   gap: 12px;
+  /* A little breathing room above the avatar so the rail feels balanced. */
+  margin-top: 8px;
 }
 
 .avatarLink {
