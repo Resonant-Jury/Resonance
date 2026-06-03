@@ -35,6 +35,7 @@
   --page-pad-x: clamp(20px, 4vw, 48px);
   --page-pad-top: clamp(40px, 6vw, 72px);
   --page-pad-bottom: clamp(64px, 8vw, 112px);
+  --page-max-w-narrow: calc(680px + var(--page-pad-x) + var(--page-pad-x));
   --page-max-w: 1080px;
   --page-max-w-wide: 1200px;
 

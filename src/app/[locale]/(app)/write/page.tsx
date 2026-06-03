@@ -12,7 +12,7 @@ export default async function WritePage({
   setRequestLocale(locale);
   const t = await getTranslations('write');
   return (
-    <PageShell>
+    <PageShell width="narrow">
       <PageTitle>{t('title')}</PageTitle>
       <CardEditor locale={locale as Locale} />
     </PageShell>

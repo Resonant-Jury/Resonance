@@ -19,6 +19,8 @@ import { useCard, useRelated } from '@/lib/data/hooks';
 import styles from './page.module.css';
 
 const wrapStyle = {
+  maxWidth: 'var(--page-max-w-wide)',
+  margin: '0 auto',
   padding:
     'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
 } as const;
@@ -162,8 +164,7 @@ export default function CardDetailPage() {
       {related.length > 0 && (
         <section
           style={{
-            maxWidth: 'var(--page-max-w)',
-            margin: '8px auto 0',
+            marginTop: 8,
           }}
         >
           <h3

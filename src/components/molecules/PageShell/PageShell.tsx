@@ -2,8 +2,8 @@ import type { CSSProperties, ReactNode } from 'react';
 
 export interface PageShellProps {
   children: ReactNode;
-  /** "default" = 1080px, "wide" = 1200px */
-  width?: 'default' | 'wide';
+  /** "narrow" = form column, "default" = 1080px, "wide" = 1200px */
+  width?: 'narrow' | 'default' | 'wide';
   /** Optional override; otherwise uses --page-pad-top from tokens. */
   topPad?: CSSProperties['paddingTop'];
   className?: string;
@@ -28,7 +28,12 @@ export function PageShell({
   className,
   style,
 }: PageShellProps) {
-  const maxWidth = width === 'wide' ? 'var(--page-max-w-wide)' : 'var(--page-max-w)';
+  const maxWidth =
+    width === 'wide'
+      ? 'var(--page-max-w-wide)'
+      : width === 'narrow'
+        ? 'var(--page-max-w-narrow)'
+        : 'var(--page-max-w)';
   return (
     <div
       className={className}

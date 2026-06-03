@@ -18,7 +18,7 @@ export default async function EditCardPage({
   const card = await repos.card.findById(id, user.id);
   if (!card || card.authorId !== user.id) notFound();
   return (
-    <PageShell>
+    <PageShell width="narrow">
       <PageTitle>{t('editTitle')}</PageTitle>
       <CardEditor
         initial={{
