@@ -258,7 +258,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
           />
         )}
 
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className={styles.tagRow}>
           {loading ? (
             <>
               <Skeleton width={56} height={22} radius={11} />

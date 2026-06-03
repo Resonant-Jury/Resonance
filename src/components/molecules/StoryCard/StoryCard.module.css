@@ -94,3 +94,11 @@
   font-size: 12px;
   color: var(--color-text-muted);
 }
+
+.tagRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
