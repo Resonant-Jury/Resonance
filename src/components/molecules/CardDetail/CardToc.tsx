@@ -44,7 +44,7 @@ export function CardToc({ headings, title }: { headings: TocHeading[]; title: st
     <nav className={styles.toc} aria-label={title}>
       <div className={styles.title}>{title}</div>
       <div className={styles.listWrap}>
-        <div className={styles.rail} style={{ width: railW }}>
+        <div className={styles.rail} style={{ width: `${railW}px`, height: `${listH}px` }}>
           {listH > 0 && (
             <svg
               className="res-shape-fade-in"
@@ -53,7 +53,7 @@ export function CardToc({ headings, title }: { headings: TocHeading[]; title: st
               viewBox={`${-railW / 2} 0 ${railW} ${listH}`}
               preserveAspectRatio="none"
               aria-hidden
-              style={{ display: 'block', overflow: 'visible' }}
+              style={{ display: 'block', overflow: 'visible', width: `${railW}px`, height: `${listH}px` }}
             >
               <path
                 d={linePath}
@@ -61,7 +61,6 @@ export function CardToc({ headings, title }: { headings: TocHeading[]; title: st
                 stroke="var(--field-border)"
                 strokeWidth={SW}
                 strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
               />
             </svg>
           )}

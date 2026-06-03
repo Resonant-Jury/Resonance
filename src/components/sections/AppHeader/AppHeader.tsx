@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { HamburgerIcon } from '@/components/atoms/HamburgerIcon/HamburgerIcon';
-import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { Link } from '@/i18n/navigation';
 import { NotificationBell } from './NotificationBell';
 import { AppMobileNavModal } from './AppMobileNavModal';
+import { Subnavbar } from './Subnavbar';
 import styles from './AppHeader.module.css';
 
 const HEADER_BODY_H = 68;
@@ -63,10 +63,6 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
     return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
   }, [maskD, W]);
 
-  const navItems: { key: 'home' | 'me' | 'write'; href: '/home' | '/me' | '/write' }[] = [
-    { key: 'home', href: '/home' },
-    { key: 'me', href: '/me' },
-  ];
 
   return (
     <header className={styles.header} style={{ height: HEADER_TOTAL_H }}>
@@ -111,32 +107,10 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
             </button>
           </div>
         ) : (
-          <>
-            <nav className={styles.nav}>
-              {navItems.map(({ key, href }) => (
-                <Link
-                  key={key}
-                  href={href}
-                  className={styles.navLink}
-                  data-active={activeKey === key || undefined}
-                >
-                  {t(key)}
-                </Link>
-              ))}
-            </nav>
-
-            <div className={styles.account}>
-              <NotificationBell />
-              <Link href="/me" aria-label={t('me')}>
-                <HandDrawnAvatar
-                  initials={user.initials}
-                  size={36}
-                  color={user.accentColor}
-                  seed={77}
-                />
-              </Link>
-            </div>
-          </>
+          <div className={styles.account}>
+            <NotificationBell />
+            <Subnavbar user={user} />
+          </div>
         )}
       </div>
 

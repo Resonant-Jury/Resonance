@@ -13,6 +13,8 @@ import { UsersIcon } from './icons/users';
 import { GlobeIcon } from './icons/globe';
 import { WaveIcon } from './icons/wave';
 import { PenIcon } from './icons/pen';
+import { CardsIcon } from './icons/cards';
+import { LogoutIcon } from './icons/logout';
 import type { IconRenderer } from './types';
 
 /**
@@ -45,6 +47,8 @@ export const ICONS = {
   globe: GlobeIcon,
   wave: WaveIcon,
   pen: PenIcon,
+  cards: CardsIcon,
+  logout: LogoutIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

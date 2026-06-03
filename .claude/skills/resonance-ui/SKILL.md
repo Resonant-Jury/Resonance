@@ -15,6 +15,7 @@ When building UI in this repo, **always reach for these primitives before writin
 | Build a page in `(auth)/...` | The `(auth)` layout already centers — just place content |
 | Take text input | `<Input>` or `<Textarea>` (from `atoms/Field/Field`) |
 | Pick from a fixed list (dropdown) | `<Select>` (from `atoms/Field/Field`) — wobbly box that expands into a curved **card covering the box**, listing the options with a wavy hand-drawn divider between each (reaching both edges) and the active option washed in along the curved region |
+| Render account/profile menu actions in desktop header | `<Subnavbar>` (from `sections/AppHeader/Subnavbar`) — wobbly organic dropdown hanging off the user avatar with wavy dividers and a radial-reveal hover wash |
 | Add a label / hint / char counter | `<Field label hint trailing={<CharCount/>}>` |
 | Switch between tabs / nav sections | `<OrganicTabs orientation="horizontal|vertical">` (from `molecules/OrganicTabs`) |
 | Flip a boolean preference (on/off switch) | `<ToggleSwitch checked onChange>` (from `atoms/ToggleSwitch`) — wobbly track + knob |
@@ -22,7 +23,7 @@ When building UI in this repo, **always reach for these primitives before writin
 | Show a busy / loading state (e.g. while uploading) | `<SketchLoader>` (from `atoms/SketchLoader`) — wobbly rings that continuously re-sketch themselves |
 | Separate stacked rows/sections | `<Divider seed={N} spacing={6} />` — wavy pen rule, never a flat 1px border |
 | Group related controls into a side panel | one `<Panel>` with `<Divider />` between sub-sections |
-| Show a status icon (bell, star, sparkle, check, close, plus, arrow-right, chevron-down, image, eye, lock, users, globe, wave, pen) | `<Icon name="…" size=… />` |
+| Show a status icon (bell, star, sparkle, check, close, plus, arrow-right, chevron-down, image, eye, lock, users, globe, wave, pen, cards, logout) | `<Icon name="…" size=… />` |
 | Show a tag / chip | `<TagPill size="sm|md|lg|xl" onRemove? onClick?>` |
 | Primary action | `<OrganicButton variant="primary|outline|ghost">` |
 | Vertical/horizontal separator | `<Divider seed={N} />` |
@@ -40,6 +41,9 @@ When building UI in this repo, **always reach for these primitives before writin
 7. **Border color states for form surfaces:** idle → `--field-border` (gray), hover → `--field-border-hover` (darker gray), focus / emphasized item → `--field-border-focus` (terracotta). `HandDrawnDashedSurface` handles this via its `state` prop — just feed it the React state.
 8. **Size-driven shapes measure before they draw — never seed a guessed size, never show a half-drawn shape.** Any SVG whose geometry comes from `wobRect`/`wobCircle`/`wavyLine` (e.g. `HandDrawnBorder`, `ShapeGrain`) must take its pixel size from `useElementSize` and **render `null` until measured** (`if (!w || !h) return null`). `useElementSize` starts at `0×0` and measures in a layout effect (synchronous, pre-paint), so the shape appears already at the correct geometry instead of flashing at a default size and resizing ~1s later. Wrap the SVG in `className="res-shape-fade-in"` (keyframe in `globals.css`, respects `prefers-reduced-motion`) so its arrival is a soft fade, not a pop. The trailing numeric args to `useElementSize(ref, …)` are legacy no-ops — don't rely on them for an initial size.
 9. **Skeletons use plain CSS chrome, not organic SVG.** A loading placeholder must not run the measure-then-draw cycle (it would flash at the wrong size before settling). Give the loading branch a CSS rounded border that paints instantly at the right footprint — see `StoryCard`'s `loading` branch rendering `.skeletonChrome` instead of `<HandDrawnBorder>` — and reuse the real component's interior tint so it stays visually continuous.
+10. **Custom Select dropdown structure & spacing:** The custom `<Select>` dropdown renders as a wobbly card covering the trigger box, with options separated by smooth wavy dividers (cubic curves from `segs()` helper, amplitude `3`) instead of flat polylines. Option rows use `16px` padding (taller rows) and the dropdown panel has `0` top/bottom padding to keep option rows evenly centered. To avoid double-outlines when the dropdown is open, hide the underlying trigger's border (`strokeColor="transparent"`).
+11. **Table of Contents (ToC) vertical rules:** The vertical curve line running down the left of the headings list is generated via `wavyVertical` (with amplitude `5` and stroke `3`). It is rendered in a fixed-width `div.rail` with explicit inline pixel dimensions (`width: ${railW}px`, `height: ${listH}px`) to prevent browsers from collapsing it to 0 height/width in flex layouts, and the SVG itself uses inline pixel style matching these dimensions.
+12. **SegmentedActionBar hover wash animations:** Instead of using a single shared reveal circle that teleports when hovering between options, each segment owns its own reveal circle (radius grows to max for the hovered one, stays at 0 for others). This allows the hover wash to shrink/grow independently per segment during pointer movement.
 
 ## Common props quick reference
 
