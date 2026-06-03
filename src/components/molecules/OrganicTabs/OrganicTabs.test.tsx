@@ -34,4 +34,11 @@ describe('OrganicTabs', () => {
     render(<OrganicTabs tabs={tabs} active="all" onChange={() => {}} orientation="vertical" />);
     expect(screen.getByRole('tablist')).toHaveAttribute('aria-orientation', 'vertical');
   });
+
+  it('renders wobbly surface active indicator when variant is surface', () => {
+    render(<OrganicTabs tabs={tabs} active="mine" onChange={() => {}} variant="surface" />);
+    const activeTab = screen.getByRole('tab', { name: 'Mine' });
+    // HandDrawnDashedSurface wraps the tab button inside a .content span inside a .surface tag
+    expect(activeTab.parentElement?.parentElement?.className).toContain('surface');
+  });
 });

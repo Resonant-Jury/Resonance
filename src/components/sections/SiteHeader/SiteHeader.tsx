@@ -9,6 +9,8 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { Link, usePathname } from '@/i18n/navigation';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { useMyProfile } from '@/lib/data/hooks';
 import { MobileNavModal } from './MobileNavModal';
 import styles from './SiteHeader.module.css';
 
@@ -52,7 +54,13 @@ export function SiteHeader() {
   const pathname = usePathname();
   const otherLocale = locale === 'en' ? 'zh-TW' : 'en';
 
+  const { user, loading } = useAuth();
+  const { data: profile } = useMyProfile();
+
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
@@ -159,12 +167,26 @@ export function SiteHeader() {
               >
                 {t('languageSwitch')}
               </Link>
-              <Link href="/signin" style={{ textDecoration: 'none' }}>
-                <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: '14px' }}>
-                  {t('signIn')}
-                </OrganicButton>
-              </Link>
-              <HandDrawnAvatar initials="YO" size={36} color="var(--color-terracotta-light)" seed={77} />
+              {mounted && !loading && (
+                <>
+                  {!user ? (
+                    <Link href="/signin" style={{ textDecoration: 'none' }}>
+                      <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: '14px' }}>
+                        {t('signIn')}
+                      </OrganicButton>
+                    </Link>
+                  ) : (
+                    <Link href="/me" aria-label="My Profile" style={{ textDecoration: 'none' }}>
+                      <HandDrawnAvatar
+                        initials={profile?.initials || '··'}
+                        size={36}
+                        color={profile?.accentColor || 'var(--color-terracotta-light)'}
+                        seed={77}
+                      />
+                    </Link>
+                  )}
+                </>
+              )}
             </div>
           </>
         )}

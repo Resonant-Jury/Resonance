@@ -16,6 +16,8 @@ export interface OrganicTabsProps<K extends string = string> {
   onChange: (key: K) => void;
   /** Horizontal tabs get a wavy underline; vertical get an organic highlight. */
   orientation?: 'horizontal' | 'vertical';
+  /** Style variant for the active tab indicator. Defaults to 'surface' for vertical and 'underline' for horizontal. */
+  variant?: 'underline' | 'surface';
   /** Base seed so each tab's wobble is deterministic but distinct. */
   seed?: number;
   className?: string;
@@ -33,11 +35,13 @@ export function OrganicTabs<K extends string = string>({
   active,
   onChange,
   orientation = 'horizontal',
+  variant,
   seed = 5,
   className,
   'aria-label': ariaLabel,
 }: OrganicTabsProps<K>) {
   const underline = useMemo(() => wavyLine(100, seed, 1.6, 5), [seed]);
+  const resolvedVariant = variant ?? (orientation === 'vertical' ? 'surface' : 'underline');
 
   return (
     <div
@@ -58,7 +62,7 @@ export function OrganicTabs<K extends string = string>({
           >
             <span className={styles.tabLabel}>
               {tab.label}
-              {orientation === 'horizontal' && isActive && (
+              {orientation === 'horizontal' && resolvedVariant === 'underline' && isActive && (
                 <svg
                   className={styles.underline}
                   viewBox="0 -5 100 10"
@@ -80,7 +84,7 @@ export function OrganicTabs<K extends string = string>({
           </button>
         );
 
-        if (orientation === 'vertical' && isActive) {
+        if (resolvedVariant === 'surface' && isActive) {
           return (
             <HandDrawnDashedSurface
               key={tab.key}
@@ -90,6 +94,8 @@ export function OrganicTabs<K extends string = string>({
               strokeColor="var(--color-terracotta)"
               fillColor="oklch(92% 0.05 55 / 0.45)"
               className={styles.activeSurface}
+              inline={orientation === 'horizontal'}
+              as={orientation === 'horizontal' ? 'span' : 'div'}
             >
               {button}
             </HandDrawnDashedSurface>

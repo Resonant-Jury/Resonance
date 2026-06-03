@@ -59,7 +59,7 @@
   position: absolute;
   left: -3px;
   right: -3px;
-  bottom: -7px;
+  bottom: -3px;
   width: auto;
   height: 7px;
   overflow: visible;
@@ -67,7 +67,7 @@
 
 /* Active vertical item — surface stretches full width; the wrapped button
  * keeps the same padding so nothing shifts. */
-.activeSurface {
+.vertical .activeSurface {
   width: 100%;
 }
 

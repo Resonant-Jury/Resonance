@@ -27,6 +27,7 @@ export function ProfileTabs({ tabs, data, authors }: ProfileTabsProps) {
         active={active}
         onChange={setActive}
         className="profile-tabs"
+        variant="surface"
       />
       <div style={{ marginBottom: 28 }} />
       {active === 'thoughtMap' ? (
