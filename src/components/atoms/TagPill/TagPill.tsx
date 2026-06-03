@@ -77,8 +77,8 @@ export function TagPill({
         fillColor={color}
         strokeColor="oklch(32% 0.05 60 / 0.45)"
         strokeWidth={1.2}
-        segmentsH={[3, 4]}
-        segmentsV={1}
+        segmentsH={[2, 3]}
+        segmentsV={[1, 2]}
         curve={2.0}
         cornerJitter={1.8}
         cornerOffset={Math.min(w, h) * 0.04}

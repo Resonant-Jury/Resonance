@@ -6,6 +6,7 @@ import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
+import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { Icon } from '@/components/atoms/Icon';
 import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
 import { useElementSize } from '@/lib/hooks/useElementSize';
@@ -45,13 +46,17 @@ const CARD_BORDERS = [
 
 const CARD_HUES = [55, 290, 140, 88, 215, 18];
 
-function StoryImage({ label, accentFill, imageUrl }: { label: string; accentFill: string; imageUrl?: string }) {
+function StoryImage({ label, accentFill, imageUrl, seed }: { label: string; accentFill: string; imageUrl?: string; seed: number }) {
   const stripeFill = accentFill.replace(/(\d+)%/, (_, n) => `${Math.max(0, +n - 7)}%`);
   return (
-    <div className={styles.imagePlaceholder}>
-      {imageUrl ? (
-        <img src={imageUrl} alt={label} className={styles.storyImage} />
-      ) : (
+    <OrganicImage
+      src={imageUrl}
+      alt={label}
+      seed={seed}
+      ratio={0.62}
+      className={styles.imagePlaceholder}
+    >
+      {!imageUrl && (
         <svg
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
           viewBox="0 0 320 200"
@@ -86,7 +91,7 @@ function StoryImage({ label, accentFill, imageUrl }: { label: string; accentFill
         </svg>
       )}
       <GrainOverlay opacity={0.055} />
-    </div>
+    </OrganicImage>
   );
 }
 
@@ -249,6 +254,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
             label={story!.imageLabel || 'story illustration'}
             accentFill={accentFill}
             imageUrl={story!.imageUrl}
+            seed={seed + 5}
           />
         )}
 

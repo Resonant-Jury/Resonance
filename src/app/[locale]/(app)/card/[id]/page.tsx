@@ -12,7 +12,7 @@ import { CardAuthorMetrics } from '@/components/molecules/CardDetail/CardAuthorM
 import { CardAuthorAside } from '@/components/molecules/CardDetail/CardAuthorAside';
 import { CardToc, type TocHeading } from '@/components/molecules/CardDetail/CardToc';
 import { CardViewerActions } from '@/components/molecules/CardDetail/CardViewerActions';
-import { CardQuote } from '@/components/molecules/CardDetail/CardQuote';
+import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { StoryMarkdown } from '@/components/molecules/CardDetail/StoryMarkdown';
 import { Link } from '@/i18n/navigation';
 import { useCard, useRelated } from '@/lib/data/hooks';
@@ -123,7 +123,17 @@ export default function CardDetailPage() {
             </div>
           </header>
 
-          <CardQuote text={card.thoughtCore} hue={hue} />
+          {card.media?.url && (
+            <OrganicImage
+              src={card.media.url}
+              alt={card.media.label ?? card.thoughtCore}
+              seed={hue + 11}
+              ratio={0.52}
+              className={styles.heroImage}
+            />
+          )}
+
+          <h1 className={styles.title}>{card.thoughtCore}</h1>
 
           <div ref={storyRef} style={{ marginBottom: 32 }}>
             <StoryMarkdown source={card.story} />

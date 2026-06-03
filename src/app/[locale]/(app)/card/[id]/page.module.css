@@ -12,6 +12,22 @@
   max-width: 720px;
 }
 
+/* Article cover image — clipped to an organic curve by OrganicImage. */
+.heroImage {
+  margin-bottom: clamp(20px, 3vw, 28px);
+}
+
+/* Article title — replaces the old quote-card chrome with a plain heading. */
+.title {
+  margin: 0 0 28px;
+  font-family: var(--font-heading);
+  font-size: clamp(28px, 4.4vw, 44px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--color-text);
+}
+
 /* Right rail: author intro on top, ToC below; sticks while the article scrolls. */
 .aside {
   position: sticky;

@@ -36,6 +36,8 @@ When building UI in this repo, **always reach for these primitives before writin
 5. **Placeholders are styled globally** in `globals.css`. Do not set `::placeholder` per-component.
 6. **Do not hard-code `segmentsH/V` / `mag` / `curve` on new hand-drawn surfaces.** `wobAuto.ts` derives all three from the measured size — long edges automatically get more turning points than short edges, big surfaces curve gently, small chips curve assertively. Override only when matching a tuned legacy primitive (`StoryCard`, `AuthCard`, …).
 7. **Border color states for form surfaces:** idle → `--field-border` (gray), hover → `--field-border-hover` (darker gray), focus / emphasized item → `--field-border-focus` (terracotta). `HandDrawnDashedSurface` handles this via its `state` prop — just feed it the React state.
+8. **Size-driven shapes measure before they draw — never seed a guessed size, never show a half-drawn shape.** Any SVG whose geometry comes from `wobRect`/`wobCircle`/`wavyLine` (e.g. `HandDrawnBorder`, `ShapeGrain`) must take its pixel size from `useElementSize` and **render `null` until measured** (`if (!w || !h) return null`). `useElementSize` starts at `0×0` and measures in a layout effect (synchronous, pre-paint), so the shape appears already at the correct geometry instead of flashing at a default size and resizing ~1s later. Wrap the SVG in `className="res-shape-fade-in"` (keyframe in `globals.css`, respects `prefers-reduced-motion`) so its arrival is a soft fade, not a pop. The trailing numeric args to `useElementSize(ref, …)` are legacy no-ops — don't rely on them for an initial size.
+9. **Skeletons use plain CSS chrome, not organic SVG.** A loading placeholder must not run the measure-then-draw cycle (it would flash at the wrong size before settling). Give the loading branch a CSS rounded border that paints instantly at the right footprint — see `StoryCard`'s `loading` branch rendering `.skeletonChrome` instead of `<HandDrawnBorder>` — and reuse the real component's interior tint so it stays visually continuous.
 
 ## Common props quick reference
 
@@ -65,9 +67,17 @@ When building UI in this repo, **always reach for these primitives before writin
   active={active} onChange={setActive}
 />
 
-// Toggle rows: organic switch + wavy dividers between rows (no flat borders),
-// roomy padding so the section breathes.
-<ToggleSwitch checked={on} onChange={() => setOn(!on)} ariaLabel="…" seed={71} />
+// Toggle (atoms/ToggleSwitch): organic wobbly pill track + slightly irregular
+// knob. Fixed 50×28 — NOT size-configurable, and self-contained (no
+// useElementSize), so it draws correctly on first paint.
+//  - `onChange` is a bare `() => void` toggle callback — it gets NO event, so
+//    flip the state yourself: onChange={() => setOn(!on)}.
+//  - Renders a real <button role="switch" aria-checked>; always pass ariaLabel
+//    (or label it via an adjacent <label>) since there's no visible text.
+//  - `seed` makes the track+knob wobble deterministic per instance — vary it
+//    between rows so adjacent switches don't look identical.
+// Lay out settings as rows separated by <Divider>, never boxed in flat borders.
+<ToggleSwitch checked={on} onChange={() => setOn(!on)} ariaLabel="Email digest" seed={71} />
 
 // Panels
 <Panel title={<><Icon name="sparkle" size={16}/> AI</>} footer="hint" sticky collapseOnMobile variant="default|soft|plain">

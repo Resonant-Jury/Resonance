@@ -1,12 +1,11 @@
 import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
-import { CardQuote } from './CardQuote';
 
 /**
  * Loading state for the card detail page. Reuses the real article layout and
- * spacing — only the avatar, text, tags and icons become grey blocks. Keeps the
- * organic CardQuote chrome so there's no visual style jump when content arrives.
+ * spacing — only the avatar, image, text, tags and icons become grey blocks so
+ * there's no visual style jump when content arrives.
  */
-export function CardDetailSkeleton({ hue = 55 }: { hue?: number }) {
+export function CardDetailSkeleton() {
   return (
     <article style={{ maxWidth: 760, margin: '0 auto' }} role="status" aria-label="Loading">
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
@@ -17,7 +16,12 @@ export function CardDetailSkeleton({ hue = 55 }: { hue?: number }) {
         </div>
       </header>
 
-      <CardQuote hue={hue} loading />
+      <Skeleton height={260} radius={18} style={{ display: 'block', marginBottom: 24 }} />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
+        <Skeleton height={34} width="85%" />
+        <Skeleton height={34} width="55%" />
+      </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
         <Skeleton height={17} />
