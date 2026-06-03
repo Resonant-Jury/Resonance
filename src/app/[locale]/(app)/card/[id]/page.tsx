@@ -114,9 +114,9 @@ export default function CardDetailPage() {
                   {author.region}
                   {card.publishedAt
                     ? ` · ${new Date(card.publishedAt).toLocaleDateString(locale, {
-                        month: 'short',
-                        day: 'numeric',
-                      })}`
+                      month: 'short',
+                      day: 'numeric',
+                    })}`
                     : ''}
                 </div>
               </div>
@@ -174,7 +174,7 @@ export default function CardDetailPage() {
       {related.length > 0 && (
         <section
           style={{
-            marginTop: 8,
+            marginTop: 'clamp(20  px, 4vw, 40px)',
           }}
         >
           <h3
@@ -184,7 +184,7 @@ export default function CardDetailPage() {
               fontWeight: 700,
               letterSpacing: '-0.01em',
               color: 'var(--color-text)',
-              marginBottom: 24,
+              margin: '0 0 clamp(28px, 3.5vw, 40px)',
               textAlign: 'center',
             }}
           >
