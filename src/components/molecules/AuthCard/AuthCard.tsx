@@ -4,6 +4,7 @@ import { useMemo, useRef, type ReactNode } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { Divider } from '@/components/atoms/Divider/Divider';
+import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
@@ -33,9 +34,22 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
   // hook order stays stable across the breakpoint.)
   if (isMobile) {
     return (
-      <section style={{ width: '100%' }}>
-        <Divider seed={seed} spacing={0} />
-        <div style={{ padding: '28px 4px' }}>
+      <section
+        style={{
+          position: 'relative',
+          alignSelf: 'stretch',
+          margin: '0 -24px',
+          background: interior,
+          padding: '42px clamp(32px, 9vw, 64px)',
+        }}
+      >
+        <GrainOverlay opacity={0.04} />
+
+        <div style={{ position: 'absolute', top: -3, left: 0, right: 0, pointerEvents: 'none', zIndex: 5 }}>
+          <Divider seed={seed} spacing={0} color="oklch(52% 0.13 55)" strokeWidth={1.4} />
+        </div>
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
           <h1
             style={{
               fontFamily: 'var(--font-heading)',
@@ -49,7 +63,10 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
           </h1>
           {children}
         </div>
-        <Divider seed={seed + 11} spacing={0} />
+
+        <div style={{ position: 'absolute', bottom: -3, left: 0, right: 0, pointerEvents: 'none', zIndex: 5 }}>
+          <Divider seed={seed + 11} spacing={0} color="oklch(52% 0.13 55)" strokeWidth={1.4} />
+        </div>
       </section>
     );
   }
@@ -61,7 +78,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
         position: 'relative',
         width: '100%',
         maxWidth: 420,
-        padding: '40px 36px',
+        padding: '48px clamp(24px, 5vw, 48px)',
       }}
     >
       <HandDrawnBorder

@@ -22,6 +22,7 @@ import { Icon } from '@/components/atoms/Icon';
 import { wobRect } from '@/lib/design/wobRect';
 import { makePrng } from '@/lib/design/prng';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
+import { INK, INK_LIGHT } from '@/lib/design/strokes';
 import styles from './Field.module.css';
 
 type Variant = 'default' | 'subtle';
@@ -104,7 +105,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <HandDrawnDashedSurface
       seed={seed}
       R={16}
-      strokeWidth={2}
+      strokeWidth={INK}
       curve={curve}
       state={focus ? 'focus' : hover ? 'hover' : 'idle'}
       className={styles.surface}
@@ -149,7 +150,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     <HandDrawnDashedSurface
       seed={seed}
       R={16}
-      strokeWidth={2}
+      strokeWidth={INK}
       curve={curve}
       state={focus ? 'focus' : hover ? 'hover' : 'idle'}
       className={styles.surface}
@@ -270,7 +271,7 @@ export function Select({
       <HandDrawnDashedSurface
         seed={seed}
         R={16}
-        strokeWidth={2}
+        strokeWidth={INK}
         state={open ? 'focus' : hover ? 'hover' : 'idle'}
         // When open, the covering panel draws its own border — hide this one so
         // the two wobbly outlines don't stack on top of each other.
@@ -493,7 +494,7 @@ function DropdownPanel({
                 d={dividerPath(pts)}
                 fill="none"
                 stroke="oklch(60% 0.04 60 / 0.45)"
-                strokeWidth={1.6}
+                strokeWidth={INK_LIGHT}
                 strokeLinecap="round"
                 clipPath={`url(#sel-clip-${uid})`}
               />
@@ -503,7 +504,7 @@ function DropdownPanel({
             d={outerPath}
             fill="none"
             stroke="var(--field-border-focus)"
-            strokeWidth={2.5}
+            strokeWidth={INK}
             strokeLinecap="round"
             strokeLinejoin="round"
           />

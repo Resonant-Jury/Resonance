@@ -6,6 +6,7 @@ import { Icon } from '../Icon/Icon';
 import { wobRect } from '@/lib/design/wobRect';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
 import { useElementSize } from '@/lib/hooks/useElementSize';
+import { INK } from '@/lib/design/strokes';
 import styles from './HandDrawnImage.module.css';
 
 export interface HandDrawnImageProps {
@@ -75,7 +76,7 @@ export function HandDrawnImage({
             d={path}
             fill="none"
             stroke="var(--field-border)"
-            strokeWidth={2}
+            strokeWidth={INK}
             strokeLinecap="round"
             strokeLinejoin="round"
           />

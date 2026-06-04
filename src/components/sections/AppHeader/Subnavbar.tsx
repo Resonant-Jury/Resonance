@@ -19,6 +19,7 @@ import { useRouter } from '@/i18n/navigation';
 import { wobRect } from '@/lib/design/wobRect';
 import { makePrng } from '@/lib/design/prng';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
+import { INK, INK_LIGHT } from '@/lib/design/strokes';
 import styles from './Subnavbar.module.css';
 
 type ItemKey = 'me' | 'settings' | 'signOut';
@@ -366,7 +367,7 @@ function SubnavPanel({
                 d={dividerPath(pts)}
                 fill="none"
                 stroke="oklch(60% 0.04 60 / 0.45)"
-                strokeWidth={1.6}
+                strokeWidth={INK_LIGHT}
                 strokeLinecap="round"
                 clipPath={`url(#subnav-clip-${uid})`}
               />
@@ -376,7 +377,7 @@ function SubnavPanel({
             d={outerPath}
             fill="none"
             stroke="var(--field-border-hover)"
-            strokeWidth={1.6}
+            strokeWidth={INK}
             strokeLinecap="round"
             strokeLinejoin="round"
           />

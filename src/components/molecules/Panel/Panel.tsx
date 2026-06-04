@@ -64,7 +64,6 @@ export function Panel({
         <HandDrawnDashedSurface
           seed={seed}
           R={22}
-          strokeWidth={2}
           className={styles.surface}
         >
           <div className={styles.panelInner}>{inner}</div>

@@ -4,6 +4,7 @@ import { Link, usePathname } from '@/i18n/navigation';
 import { Icon } from '@/components/atoms/Icon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { INK } from '@/lib/design/strokes';
 
 /**
  * The primary "write a card" affordance, anchored bottom-right on every
@@ -35,8 +36,6 @@ export function FloatingWriteButton() {
         alignItems: 'center',
         justifyContent: 'center',
         textDecoration: 'none',
-        boxShadow: '0 6px 22px oklch(20% 0.04 60 / 0.25)',
-        borderRadius: '20px 24px 18px 22px', // Round container for the shadow
         zIndex: 90,
       }}
     >
@@ -48,7 +47,7 @@ export function FloatingWriteButton() {
         mag={56 * 0.022}
         fillColor="var(--color-terracotta)"
         strokeColor="color-mix(in oklch, var(--color-terracotta), black 35%)"
-        strokeWidth={2.5}
+        strokeWidth={INK}
         segmentsH={1}
         segmentsV={1}
         curve={1.3}

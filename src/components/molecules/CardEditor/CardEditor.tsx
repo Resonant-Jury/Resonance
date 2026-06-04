@@ -417,7 +417,6 @@ function AddTagButton({ label, onClick }: { label: string; onClick: () => void }
         R={Math.min(h / 2, 18)}
         seed={67}
         strokeColor={hover ? 'var(--field-border-hover)' : 'var(--field-border)'}
-        strokeWidth={2}
         fillColor="transparent"
       />
       <span className={styles.addTagBody}>

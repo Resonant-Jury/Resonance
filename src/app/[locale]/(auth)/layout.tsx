@@ -30,7 +30,7 @@ export default async function AuthLayout({
           alignItems: 'center',
           gap: 10,
           textDecoration: 'none',
-          marginBottom: 36,
+          marginBottom: 'clamp(36px, 6vw, 56px)',
         }}
       >
         <ResonanceIcon size={44} />

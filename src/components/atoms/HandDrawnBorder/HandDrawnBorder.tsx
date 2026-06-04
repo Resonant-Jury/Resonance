@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { wobRect, type SegValue } from '@/lib/design/wobRect';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
+import { INK } from '@/lib/design/strokes';
 
 export interface HandDrawnBorderProps {
   w: number;
@@ -29,7 +30,7 @@ export function HandDrawnBorder({
   mag,
   fillColor,
   strokeColor,
-  strokeWidth = 2.5,
+  strokeWidth = INK,
   chalkSeed,
   segmentsH,
   segmentsV,

@@ -4,6 +4,7 @@ import { useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { wobRect, type SegValue } from '@/lib/design/wobRect';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
 import { useElementSize } from '@/lib/hooks/useElementSize';
+import { INK } from '@/lib/design/strokes';
 import styles from './HandDrawnDashedBorder.module.css';
 
 export interface HandDrawnDashedBorderProps {
@@ -30,7 +31,7 @@ export function HandDrawnDashedBorder({
   seed = 1,
   mag,
   strokeColor = 'var(--field-border)',
-  strokeWidth = 2,
+  strokeWidth = INK,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   dashArray,
   fillColor,
@@ -105,7 +106,7 @@ export function HandDrawnDashedSurface({
   mag,
   state = 'idle',
   strokeColor,
-  strokeWidth = 2,
+  strokeWidth = INK,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   dashArray,
   curve,

@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { wobRect } from '@/lib/design/wobRect';
 import { wobCircle } from '@/lib/design/wobCircle';
+import { INK, INK_LIGHT } from '@/lib/design/strokes';
 
 export interface ToggleSwitchProps {
   checked: boolean;
@@ -67,7 +68,7 @@ export function ToggleSwitch({ checked, onChange, ariaLabel, seed = 9 }: ToggleS
           d={track}
           fill={checked ? 'var(--color-terracotta)' : 'oklch(86% 0.02 75)'}
           stroke={checked ? 'oklch(45% 0.11 45)' : 'oklch(70% 0.03 70)'}
-          strokeWidth={1.4}
+          strokeWidth={INK}
           strokeLinejoin="round"
           style={{ transition: 'fill 160ms' }}
         />
@@ -81,7 +82,7 @@ export function ToggleSwitch({ checked, onChange, ariaLabel, seed = 9 }: ToggleS
             d={knob}
             fill="var(--color-cream)"
             stroke="oklch(58% 0.03 60 / 0.4)"
-            strokeWidth={1}
+            strokeWidth={INK_LIGHT}
             strokeLinejoin="round"
           />
         </g>

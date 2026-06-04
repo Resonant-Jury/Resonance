@@ -3,6 +3,7 @@
 import { MouseEvent, ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { wobRect } from '@/lib/design/wobRect';
 import { makePrng } from '@/lib/design/prng';
+import { INK, INK_LIGHT } from '@/lib/design/strokes';
 import styles from './SegmentedActionBar.module.css';
 
 export interface SegmentSpec {
@@ -207,13 +208,13 @@ export function SegmentedActionBar({
               d={polyline(pts)}
               fill="none"
               stroke={divider}
-              strokeWidth={2.5}
+              strokeWidth={INK_LIGHT}
               strokeLinecap="round"
               clipPath={`url(#sab-clip-${seed})`}
             />
           ))}
-          {/* outer stroke — matched to OrganicButton / StoryCard (2.5) */}
-          <path d={outerPath} fill="none" stroke={stroke} strokeWidth={2.5} strokeLinejoin="round" />
+          {/* outer stroke — the house pen (INK), matched across all frames */}
+          <path d={outerPath} fill="none" stroke={stroke} strokeWidth={INK} strokeLinejoin="round" />
         </svg>
       )}
 

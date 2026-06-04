@@ -6,6 +6,7 @@ import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { HamburgerIcon } from '@/components/atoms/HamburgerIcon/HamburgerIcon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
+import { INK } from '@/lib/design/strokes';
 import { Link } from '@/i18n/navigation';
 import { NotificationBell } from './NotificationBell';
 import { AppMobileNavModal } from './AppMobileNavModal';
@@ -81,8 +82,8 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
         <path
           d={strokeD}
           fill="none"
-          stroke="oklch(55% 0.05 60 / 0.38)"
-          strokeWidth="1.1"
+          stroke="var(--field-border-hover)"
+          strokeWidth={INK}
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
         />

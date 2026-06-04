@@ -2,6 +2,7 @@
 
 import { MouseEvent, useId, useMemo, useRef, useState } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { INK } from '@/lib/design/strokes';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
@@ -238,6 +239,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
           <HandDrawnBorder
             w={w} h={h} R={R} seed={seed}
             strokeColor={bc1}
+            strokeWidth={INK}
             segmentsH={[3, 4]} segmentsV={[5, 6]}
             curve={0.55} cornerJitter={0.7} cornerOffset={4}
           />

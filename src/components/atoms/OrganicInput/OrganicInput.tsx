@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
 import { useElementSize } from '@/lib/hooks/useElementSize';
+import { INK, INK_STRONG } from '@/lib/design/strokes';
 
 interface OrganicFieldShellProps {
   children: ReactNode;
@@ -70,7 +71,7 @@ function OrganicFieldShell({
         seed={seed}
         mag={mag}
         strokeColor={stroke}
-        strokeWidth={focused ? 1.6 : 1.2}
+        strokeWidth={focused ? INK_STRONG : INK}
         segmentsH={[3, 4]}
         segmentsV={1}
         curve={1.9}
