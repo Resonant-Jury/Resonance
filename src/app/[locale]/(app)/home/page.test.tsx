@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderWithIntl, screen } from '@/../test/render';
 import type { Card, User } from '@/lib/db/types';
 

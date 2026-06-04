@@ -18,7 +18,7 @@ describe('Select (organic dropdown)', () => {
         {OPTIONS}
       </Select>,
     );
-    const trigger = screen.getByRole('button', { name: 'Region' });
+    const trigger = screen.getByRole('combobox', { name: 'Region' });
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveTextContent('Japan');
   });
@@ -29,10 +29,10 @@ describe('Select (organic dropdown)', () => {
         {OPTIONS}
       </Select>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Region' }));
+    await userEvent.click(screen.getByRole('combobox', { name: 'Region' }));
 
     expect(screen.getByRole('listbox')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Region' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('combobox', { name: 'Region' })).toHaveAttribute('aria-expanded', 'true');
     // All N options are listed in the open card (the wavy dividers between them
     // are SVG paths drawn once the panel is measured).
     expect(screen.getAllByRole('option')).toHaveLength(4);
@@ -44,7 +44,7 @@ describe('Select (organic dropdown)', () => {
         {OPTIONS}
       </Select>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Region' }));
+    await userEvent.click(screen.getByRole('combobox', { name: 'Region' }));
     expect(screen.getByRole('option', { name: /United States/ })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -58,7 +58,7 @@ describe('Select (organic dropdown)', () => {
         {OPTIONS}
       </Select>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Region' }));
+    await userEvent.click(screen.getByRole('combobox', { name: 'Region' }));
     await userEvent.click(screen.getByRole('option', { name: 'Korea' }));
     expect(onChange).toHaveBeenCalledWith('kr');
     expect(screen.queryByRole('listbox')).toBeNull();

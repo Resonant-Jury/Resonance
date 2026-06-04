@@ -144,10 +144,12 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
       <button
         ref={triggerRef}
         type="button"
+        role="combobox"
         className={styles.trigger}
         data-open={open || undefined}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={`${uid}-menu`}
         aria-label={user.handle}
         aria-activedescendant={open ? `${uid}-opt-${activeIndex}` : undefined}
         onClick={() => (open ? setOpen(false) : openMenu())}
@@ -414,7 +416,7 @@ function SubnavPanel({
           />
         </svg>
       )}
-      <div className={styles.list} role="menu" aria-label={label('me')}>
+      <div id={`${uid}-menu`} className={styles.list} role="menu" aria-label={label('me')}>
         {ITEMS.map((item, i) => (
           <button
             key={item.key}

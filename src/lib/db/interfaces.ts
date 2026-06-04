@@ -5,7 +5,6 @@ import type {
   NewCard,
   NewInvite,
   Notification,
-  Resonance,
   User,
 } from './types';
 

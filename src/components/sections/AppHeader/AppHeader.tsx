@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useTranslations } from 'next-intl';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { HamburgerIcon } from '@/components/atoms/HamburgerIcon/HamburgerIcon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
@@ -46,7 +45,6 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile(720);
-  const t = useTranslations('app.nav');
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);

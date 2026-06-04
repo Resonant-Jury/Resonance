@@ -75,6 +75,9 @@ export function OrganicImage({
           land on image pixels rather than on empty space. */}
       <div style={{ position: 'absolute', inset: clip ? -bleed : 0 }}>
         {src && (
+          // Plain <img>: the surrounding clip-path + outward `bleed` mask the
+          // image organically; next/image's wrapper/sizing fights that layout.
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={src}
             alt={alt}

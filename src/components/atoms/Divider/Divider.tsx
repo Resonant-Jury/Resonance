@@ -32,6 +32,10 @@ export function Divider({
   spacing = 'clamp(4px, 0.8vw, 8px)',
   width = '100%',
 }: DividerProps) {
+  const W = 240;
+  const d = useMemo(() => wavyLine(W, seed, amplitude, steps), [seed, amplitude, steps]);
+  const h = amplitude * 2 + strokeWidth * 2;
+
   if (orientation === 'vertical') {
     return (
       <div
@@ -45,10 +49,6 @@ export function Divider({
       />
     );
   }
-
-  const W = 240;
-  const d = useMemo(() => wavyLine(W, seed, amplitude, steps), [seed, amplitude, steps]);
-  const h = amplitude * 2 + strokeWidth * 2;
 
   return (
     <div

@@ -3,7 +3,7 @@ import type { IInviteRepository } from '../interfaces';
 import type { Connection, Invite, NewInvite } from '../types';
 import { ForbiddenError, NotFoundError, QuotaExceededError } from '../errors';
 import { getAdminDb } from './admin';
-import { mapConnection, mapInvite } from './mapper';
+import { mapInvite } from './mapper';
 
 const DAILY_QUOTA = 3;
 

@@ -42,7 +42,7 @@ export function useElementSize<T extends HTMLElement>(
     ro.observe(ref.current);
     update();
     return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [ref.current, ...deps]);
   return dims;
 }

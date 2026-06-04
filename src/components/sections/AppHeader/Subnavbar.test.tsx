@@ -26,14 +26,14 @@ describe('Subnavbar', () => {
 
   it('renders closed by default showing avatar', () => {
     renderWithIntl(<Subnavbar user={user} />);
-    const trigger = screen.getByRole('button', { name: 'ncchen' });
+    const trigger = screen.getByRole('combobox', { name: 'ncchen' });
     expect(trigger).toBeInTheDocument();
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('opens panel showing menu items on click', async () => {
     renderWithIntl(<Subnavbar user={user} />);
-    const trigger = screen.getByRole('button', { name: 'ncchen' });
+    const trigger = screen.getByRole('combobox', { name: 'ncchen' });
     await userEvent.click(trigger);
 
     expect(screen.getByRole('menu')).toBeInTheDocument();
@@ -45,7 +45,7 @@ describe('Subnavbar', () => {
 
   it('navigates to card box and settings', async () => {
     renderWithIntl(<Subnavbar user={user} />);
-    const trigger = screen.getByRole('button', { name: 'ncchen' });
+    const trigger = screen.getByRole('combobox', { name: 'ncchen' });
     
     // Open menu
     await userEvent.click(trigger);
@@ -68,7 +68,7 @@ describe('Subnavbar', () => {
     mockSignOut.mockResolvedValueOnce(undefined);
 
     renderWithIntl(<Subnavbar user={user} />);
-    const trigger = screen.getByRole('button', { name: 'ncchen' });
+    const trigger = screen.getByRole('combobox', { name: 'ncchen' });
     await userEvent.click(trigger);
 
     await userEvent.click(screen.getByText('Sign out'));

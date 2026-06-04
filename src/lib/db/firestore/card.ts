@@ -73,7 +73,7 @@ export class FirestoreCardRepository implements ICardRepository {
   async findRelated(cardId: string, limit: number): Promise<Card[]> {
     const base = await this.collection().doc(cardId).get();
     const tags = ((base.data()?.tags ?? []) as string[]).slice(0, 5);
-    let snap = await this.collection()
+    const snap = await this.collection()
       .where('visibility', '==', 'public')
       .where('publishedAt', '!=', null)
       .orderBy('publishedAt', 'desc')
@@ -104,7 +104,7 @@ export class FirestoreCardRepository implements ICardRepository {
       return cards.filter((card): card is Card => Boolean(card));
     }
 
-    let snap = await this.collection()
+    const snap = await this.collection()
       .where('authorId', '==', authorId)
       .orderBy('publishedAt', 'desc')
       .limit(40)

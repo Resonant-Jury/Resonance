@@ -24,6 +24,11 @@ const BTN_SEEDS: Record<OrganicButtonVariant, number> = {
   primary: 3, secondary: 201, ghost: 401, outline: 601, ctaLight: 801, ctaGhost: 1001,
 };
 
+// Buttons are small — keep the wobble gentle (few turns, low bow) so the
+// outline reads as a calm pill rather than a busy blob. Module-scoped so the
+// reference stays stable across renders (used in a useMemo dep list).
+const BTN_SEG_H: [number, number] = [2, 3];
+
 export interface OrganicButtonProps {
   children: ReactNode;
   variant?: OrganicButtonVariant;
@@ -42,9 +47,6 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
   const mag = Math.min(w, h) * 0.04;
   const maskId = useId().replace(/:/g, '');
 
-  // Buttons are small — keep the wobble gentle (few turns, low bow) so the
-  // outline reads as a calm pill rather than a busy blob.
-  const segH: [number, number] = [2, 3];
   const btnCurve = 1.3;
   const btnJitter = 1.3;
 
@@ -58,7 +60,7 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
   const overlayPath = useMemo(() => {
     if (!w || !h) return '';
     return wobRect(w, h, R, seed, mag, {
-      segmentsH: segH,
+      segmentsH: BTN_SEG_H,
       segmentsV: 1,
       curve: btnCurve,
       cornerJitter: btnJitter,
@@ -82,7 +84,7 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
         fillColor={style.fillColor || v.fill}
         strokeColor="transparent"
         strokeWidth={0}
-        segmentsH={segH} segmentsV={1}
+        segmentsH={BTN_SEG_H} segmentsV={1}
         curve={btnCurve} cornerJitter={btnJitter} cornerOffset={cornerOff}
       />
       {v.fill !== 'transparent' && (
@@ -117,7 +119,7 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
       <HandDrawnBorder
         w={w} h={h} R={R} seed={seed} mag={mag}
         strokeColor={v.stroke}
-        segmentsH={segH} segmentsV={1}
+        segmentsH={BTN_SEG_H} segmentsV={1}
         curve={btnCurve} cornerJitter={btnJitter} cornerOffset={cornerOff}
       />
       <span className={styles.label}>{children}</span>

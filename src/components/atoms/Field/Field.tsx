@@ -281,11 +281,13 @@ export function Select({
         <button
           ref={triggerRef}
           type="button"
+          role="combobox"
           className={styles.dropdownTrigger}
           data-open={open || undefined}
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={open}
+          aria-controls={`${uid}-listbox`}
           aria-label={ariaLabel}
           aria-activedescendant={open ? `${uid}-opt-${activeIndex}` : undefined}
           onClick={() => (open ? setOpen(false) : openPanel())}
@@ -510,7 +512,7 @@ function DropdownPanel({
           />
         </svg>
       )}
-      <div className={styles.dropdownList} role="listbox" aria-label="options">
+      <div id={`${uid}-listbox`} className={styles.dropdownList} role="listbox" aria-label="options">
         {options.map((opt, i) => (
           <button
             key={opt.value}
