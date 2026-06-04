@@ -3,6 +3,7 @@
 import { useMemo, useRef } from 'react';
 import { wavyVertical } from '@/lib/design/wavyPath';
 import { useElementSize } from '@/lib/hooks/useElementSize';
+import { INK_LIGHT } from '@/lib/design/strokes';
 import styles from './CardToc.module.css';
 
 export interface TocHeading {
@@ -13,7 +14,7 @@ export interface TocHeading {
 
 // Curve depth + stroke weight of the hand-drawn rule down the left of the list.
 const AMP = 5;
-const SW = 3;
+const SW = INK_LIGHT;
 
 /**
  * Table of Contents for the card reading page. Headings are extracted from the
