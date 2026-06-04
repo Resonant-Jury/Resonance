@@ -78,6 +78,9 @@
       "invite": "{handle} wants to connect",
       "resonanceSummary": "{count} people resonated with you yesterday",
       "translationDone": "Translation complete",
+      "resonance": "{handle} resonated with your card",
+      "comment": "{handle} commented on your card",
+      "cardLink": "{handle} linked a card to your card",
       "viewAll": "View all"
     }
   },
@@ -99,6 +102,32 @@
     "resonated": "Resonated",
     "writeResponse": "Write a card in response",
     "initiateConnect": "Invite to connect",
+    "linkWithCard": "Link with a card",
+    "linkedCards": "Cards linked to this",
+    "resonatedBy": "Resonated by",
+    "viewAllResonators": "View all",
+    "noResonatorsYet": "No one has resonated with this card yet.",
+    "noBio": "No bio yet.",
+    "comments": {
+      "title": "Comments",
+      "hint": "Comments are public to everyone.",
+      "placeholder": "Share your thoughts…",
+      "submit": "Post comment",
+      "empty": "No comments yet — be the first.",
+      "signInToComment": "Sign in to comment"
+    },
+    "linkModal": {
+      "title": "Link with a card",
+      "pickCard": "Pick one of your cards to link with this one.",
+      "confirm": "Create link",
+      "cancel": "Cancel",
+      "close": "Close",
+      "linked": "Linked!",
+      "noCards": "You have no published cards to link yet."
+    },
+    "resonatorsModal": {
+      "title": "Resonated with this card"
+    },
     "translateTo": "Translate to",
     "showOriginal": "Show original",
     "related": "Extended cards",
@@ -135,6 +164,12 @@
     "mediaHint": "PNG, JPG, WebP · up to 5MB",
     "mediaUploadError": "Image upload failed. Please try again.",
     "mediaUploading": "Sketching it in…",
+    "mediaGenerate": "Generate",
+    "mediaGenerateHint": "An image from your story",
+    "mediaGenerateNeedStory": "Write your story first",
+    "mediaGenerating": "Imagining a scene…",
+    "mediaGenerateError": "Couldn’t generate an image. Please try again.",
+    "mediaGeneratedLabel": "AI-generated illustration",
     "visibility": {
       "label": "Who can see",
       "public": "Public",
@@ -168,12 +203,14 @@
       "private": "Private",
       "draft": "Drafts",
       "resonated": "Resonated",
+      "linked": "Linked",
       "thoughtMap": "Thought map"
     },
     "thoughtMapSoon": "Thought map lands in Phase 2.",
     "emptyPublished": "Nothing published yet.",
     "emptyPrivate": "No private cards.",
     "emptyDraft": "No drafts.",
+    "emptyLinked": "No one has linked a card to you yet.",
     "emptyResonated": "No resonances yet."
   },
   "profile": {
@@ -182,6 +219,7 @@
     "initiateConnect": "Invite to connect",
     "message": "Message",
     "softLock": "More cards, saved for those who connect ✿",
+    "linkedCards": "Cards linked to them",
     "more": "⋯",
     "report": "Report",
     "block": "Block",

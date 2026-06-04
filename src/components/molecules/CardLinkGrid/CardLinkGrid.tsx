@@ -20,7 +20,7 @@ export function CardLinkGrid({ cards, authors }: CardLinkGridProps) {
         return (
           <Link
             key={card.id}
-            href={`/card/${card.id}`}
+            href={`/card/${card.slug ?? card.id}`}
             className={styles.item}
             style={{
               textDecoration: 'none',

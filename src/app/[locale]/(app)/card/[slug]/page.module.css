@@ -56,3 +56,13 @@
     margin-bottom: 28px;
   }
 }
+
+/* "Cards linked to this one" heading (author-only section). */
+.linkedHeading {
+  font-family: var(--font-heading);
+  font-size: clamp(20px, 2.4vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin: 0 0 24px;
+}

@@ -35,6 +35,28 @@ export async function getCardById(id: string): Promise<Card | null> {
   }
 }
 
+/**
+ * Single card by URL segment, which may be a slug or a legacy doc id. We resolve
+ * the segment → doc id on the server (admin, returns only the id), then read the
+ * card through the visibility-enforced `get` rule via {@link getCardById}. This
+ * keeps private cards gated by the same rule path as before — the slug index
+ * never exposes their content.
+ */
+export async function getCardBySlugOrId(key: string): Promise<Card | null> {
+  let id = key;
+  try {
+    const res = await fetch(`/api/cards/resolve?key=${encodeURIComponent(key)}`);
+    if (res.ok) {
+      const { id: resolved } = (await res.json()) as { id: string | null };
+      if (!resolved) return null;
+      id = resolved;
+    }
+  } catch {
+    // Network hiccup — fall back to treating the segment as a doc id.
+  }
+  return getCardById(id);
+}
+
 /** Latest public, published cards. Mirrors FirestoreCardRepository.findLatestPublishedFeed. */
 export async function getLatestPublishedFeed(limit = 12, cursor?: Date): Promise<Card[]> {
   const db = getClientDb();

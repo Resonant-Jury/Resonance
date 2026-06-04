@@ -3,16 +3,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderWithIntl, screen } from '@/../test/render';
 import type { Card, User } from '@/lib/db/types';
 
-// Page data boundary: useCard / useRelated. Drive them to cover the page's
-// branching (loading → skeleton, not-found → message, loaded → article).
+// Page data boundary: useCard / useRelated / useLinkedToCard. Drive them to
+// cover the page's branching (loading → skeleton, not-found → message,
+// loaded → article).
 const mockUseCard = vi.fn();
 const mockUseRelated = vi.fn();
+const mockUseLinkedToCard = vi.fn();
 vi.mock('@/lib/data/hooks', () => ({
   useCard: () => mockUseCard(),
   useRelated: () => mockUseRelated(),
+  useLinkedToCard: () => mockUseLinkedToCard(),
+}));
+vi.mock('@/components/providers/AuthProvider', () => ({
+  useAuth: () => ({ user: null, loading: false }),
 }));
 vi.mock('next/navigation', () => ({
-  useParams: () => ({ id: 'c1' }),
+  useParams: () => ({ slug: 'c1' }),
 }));
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => (
@@ -20,13 +26,16 @@ vi.mock('@/i18n/navigation', () => ({
   ),
 }));
 // The detail body composes leaf components that perform their own Firestore
-// reads (resonance state, author metrics). They aren't the subject here, so we
-// stub them to keep the test focused on the page's data wiring.
+// reads (resonance state, author metrics, comments). They aren't the subject
+// here, so we stub them to keep the test focused on the page's data wiring.
 vi.mock('@/components/molecules/CardDetail/CardViewerActions', () => ({
   CardViewerActions: () => <div data-testid="viewer-actions" />,
 }));
 vi.mock('@/components/molecules/CardDetail/CardAuthorMetrics', () => ({
   CardAuthorMetrics: () => <div data-testid="author-metrics" />,
+}));
+vi.mock('@/components/molecules/CommentsSection/CommentsSection', () => ({
+  CommentsSection: () => <div data-testid="comments" />,
 }));
 
 import CardDetailPage from './page';
@@ -66,6 +75,7 @@ function author(): User {
 
 beforeEach(() => {
   mockUseRelated.mockReturnValue({ data: { cards: [], authors: {} } });
+  mockUseLinkedToCard.mockReturnValue({ data: { cards: [], authors: {} } });
 });
 afterEach(() => vi.clearAllMocks());
 

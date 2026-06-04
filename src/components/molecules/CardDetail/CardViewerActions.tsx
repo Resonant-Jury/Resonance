@@ -1,14 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/navigation';
 import { Icon } from '@/components/atoms/Icon';
 import { SegmentedActionBar, type SegmentSpec } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
-import { ConnectInviteModal } from '@/components/molecules/ConnectInviteModal/ConnectInviteModal';
+import { LinkCardModal } from '@/components/molecules/LinkCardModal/LinkCardModal';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { useMyProfile } from '@/lib/data/hooks';
 import { hasResonated as fetchHasResonated, toggleResonance } from '@/lib/db/firestore/client/resonances';
-import { remainingDailyQuota } from '@/lib/db/firestore/client/invites';
 
 export interface CardViewerActionsProps {
   cardId: string;
@@ -19,19 +19,11 @@ export function CardViewerActions({ cardId, author }: CardViewerActionsProps) {
   const t = useTranslations('card');
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { data: me } = useMyProfile();
   const [resonated, setResonated] = useState<boolean | null>(null);
   const [pending, startResonance] = useTransition();
 
-  // connect-invite modal state (was previously owned by ConnectInviteLauncher)
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [quota, setQuota] = useState(3);
-  const refreshQuota = useCallback(async () => {
-    try {
-      setQuota(await remainingDailyQuota());
-    } catch {
-      /* keep default */
-    }
-  }, []);
+  const [linkOpen, setLinkOpen] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -47,10 +39,6 @@ export function CardViewerActions({ cardId, author }: CardViewerActionsProps) {
     };
   }, [cardId, user]);
 
-  useEffect(() => {
-    if (inviteOpen) void refreshQuota();
-  }, [inviteOpen, refreshQuota]);
-
   if (loading) return null;
   if (user && user.id === author.id) return null;
 
@@ -60,7 +48,11 @@ export function CardViewerActions({ cardId, author }: CardViewerActionsProps) {
     setResonated(!prev);
     startResonance(async () => {
       try {
-        await toggleResonance(cardId, prev);
+        await toggleResonance(
+          cardId,
+          prev,
+          me ? { authorId: author.id, fromHandle: me.handle } : undefined,
+        );
       } catch {
         setResonated(prev);
       }
@@ -102,11 +94,11 @@ export function CardViewerActions({ cardId, author }: CardViewerActionsProps) {
 
   if (user) {
     segments.push({
-      key: 'connect',
-      icon: <Icon name="users" size={16} color="var(--color-terracotta)" />,
-      label: t('initiateConnect'),
+      key: 'link',
+      icon: <Icon name="cards" size={16} color="var(--color-terracotta)" />,
+      label: t('linkWithCard'),
       fill: 'oklch(94% 0.035 45 / 0.7)',
-      onClick: () => setInviteOpen(true),
+      onClick: () => setLinkOpen(true),
     });
   }
 
@@ -117,13 +109,11 @@ export function CardViewerActions({ cardId, author }: CardViewerActionsProps) {
       </div>
 
       {user && (
-        <ConnectInviteModal
-          open={inviteOpen}
-          onClose={() => setInviteOpen(false)}
-          target={author}
-          referenceCardId={cardId}
-          dailyRemaining={quota}
-          onSent={() => setQuota((n) => Math.max(0, n - 1))}
+        <LinkCardModal
+          open={linkOpen}
+          onClose={() => setLinkOpen(false)}
+          targetCardId={cardId}
+          targetAuthorId={author.id}
         />
       )}
     </div>

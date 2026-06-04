@@ -22,6 +22,7 @@ export function mapCard(id: string, data: Raw): Card {
   return {
     id,
     authorId: String(data.authorId),
+    slug: data.slug as string | undefined,
     thoughtCore: String(data.thoughtCore ?? ''),
     story: String(data.story ?? ''),
     tags: (data.tags as string[]) ?? [],

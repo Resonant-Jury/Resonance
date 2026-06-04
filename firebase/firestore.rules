@@ -134,12 +134,46 @@ service cloud.firestore {
     // Doc ID convention: {cardId}_{userId} so toggling is idempotent and
     // only the resonator can read/write their own record.
     match /resonances/{resonanceId} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      // The resonator reads their own record; the card's author may also read
+      // every resonance on their card (to render the resonator avatar group).
+      allow read: if signedIn() && (
+        resource.data.userId == request.auth.uid
+        || get(/databases/$(database)/documents/cards/$(resource.data.cardId)).data.authorId == request.auth.uid
+      );
       allow create: if signedIn()
         && request.resource.data.userId == request.auth.uid
         && resonanceId == request.resource.data.cardId + "_" + request.auth.uid;
       allow update: if signedIn() && resource.data.userId == request.auth.uid;
       allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // --- comments ---
+    // One flat level (parentId reserved for future threading). Anyone who can
+    // see the card can read its comments; only signed-in users may post, and
+    // only as themselves. Commenters may delete their own comments.
+    match /comments/{commentId} {
+      allow read: if cardVisible(get(/databases/$(database)/documents/cards/$(resource.data.cardId)).data);
+      allow create: if signedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.parentId == null
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 2000;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    // --- cardLinks ---
+    // A public association from one of the viewer's own cards to a target card.
+    // Doc id is deterministic: {sourceCardId}_{targetCardId} (idempotent).
+    match /cardLinks/{linkId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.sourceAuthorId == request.auth.uid
+        && linkId == request.resource.data.sourceCardId + "_" + request.resource.data.targetCardId
+        && get(/databases/$(database)/documents/cards/$(request.resource.data.sourceCardId)).data.authorId == request.auth.uid;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.sourceAuthorId == request.auth.uid;
     }
 
     // --- notifications ---
@@ -154,11 +188,23 @@ service cloud.firestore {
         && request.resource.data.payload.fromUserId == request.auth.uid
         && request.resource.data.userId != request.auth.uid;
     }
+    // Interaction notifications (resonance / comment / card_link): the actor
+    // creates a notification addressed to someone else, stamped with their uid.
+    function actorNotif(type) {
+      return request.resource.data.type == type
+        && request.resource.data.payload.fromUserId == request.auth.uid
+        && request.resource.data.userId != request.auth.uid;
+    }
     match /notifications/{notificationId} {
       allow read: if signedIn() && resource.data.userId == request.auth.uid;
       allow create: if signedIn()
         && request.resource.data.readAt == null
-        && (notificationIsInviteSender());
+        && (
+          notificationIsInviteSender()
+          || actorNotif("resonance")
+          || actorNotif("comment")
+          || actorNotif("card_link")
+        );
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readAt"]);

@@ -11,6 +11,7 @@ import type { Card, User } from '@/lib/db/types';
 // author resolution, viewer===self short-circuit) without touching Firebase.
 vi.mock('@/lib/db/firestore/client/reads', () => ({
   getCardById: vi.fn(),
+  getCardBySlugOrId: vi.fn(),
   getCardsByAuthor: vi.fn(),
   getCurrentUserProfile: vi.fn(),
   getLatestPublishedFeed: vi.fn(),
@@ -23,6 +24,16 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
 vi.mock('@/lib/db/firestore/client/invites', () => ({
   remainingDailyQuota: vi.fn(),
 }));
+vi.mock('@/lib/db/firestore/client/comments', () => ({
+  listComments: vi.fn(),
+}));
+vi.mock('@/lib/db/firestore/client/resonances', () => ({
+  listResonators: vi.fn(),
+}));
+vi.mock('@/lib/db/firestore/client/cardLinks', () => ({
+  listLinksToAuthor: vi.fn(),
+  listLinksToCard: vi.fn(),
+}));
 
 // useAuth is mocked so each test controls the signed-in viewer directly,
 // instead of standing up the real AuthProvider + Firebase auth.
@@ -32,7 +43,7 @@ vi.mock('@/components/providers/AuthProvider', () => ({
 }));
 
 import {
-  getCardById,
+  getCardBySlugOrId,
   getCardsByAuthor,
   getLatestPublishedFeed,
   getRelatedCards,
@@ -42,6 +53,7 @@ import {
   isConnected,
 } from '@/lib/db/firestore/client/reads';
 import { remainingDailyQuota } from '@/lib/db/firestore/client/invites';
+import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
 import { useCard, useFeed, useMyCardBox, useProfileByHandle, useRelated } from './hooks';
 
 // --- fixtures --------------------------------------------------------------
@@ -90,6 +102,9 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   mockUseAuth.mockReturnValue({ user: { id: 'me' }, loading: false });
+  // Card-link lookups default to empty so existing tests (card box, profile)
+  // exercise their original branches without standing up link fixtures.
+  vi.mocked(listLinksToAuthor).mockResolvedValue([]);
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -148,17 +163,17 @@ describe('useCard auth-settle gating', () => {
     mockUseAuth.mockReturnValue({ user: null, loading: true });
     const { result } = renderHook(() => useCard('c1'), { wrapper });
     await new Promise((r) => setTimeout(r, 0));
-    expect(getCardById).not.toHaveBeenCalled();
+    expect(getCardBySlugOrId).not.toHaveBeenCalled();
     expect(result.current.data).toBeUndefined();
   });
 
   it('fetches the card + author once auth has settled', async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: true });
-    vi.mocked(getCardById).mockResolvedValue(card('c1', 'a1'));
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(card('c1', 'a1'));
     vi.mocked(getUserById).mockResolvedValue(user('a1'));
 
     const { result, rerender } = renderHook(() => useCard('c1'), { wrapper });
-    expect(getCardById).not.toHaveBeenCalled();
+    expect(getCardBySlugOrId).not.toHaveBeenCalled();
 
     mockUseAuth.mockReturnValue({ user: { id: 'me' }, loading: false });
     rerender();
@@ -170,7 +185,7 @@ describe('useCard auth-settle gating', () => {
 
   it('settles for a logged-out viewer too (anonymous can read public cards)', async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
-    vi.mocked(getCardById).mockResolvedValue(card('c1', 'a1'));
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(card('c1', 'a1'));
     vi.mocked(getUserById).mockResolvedValue(user('a1'));
 
     const { result } = renderHook(() => useCard('c1'), { wrapper });
@@ -180,7 +195,7 @@ describe('useCard auth-settle gating', () => {
 
   it('yields null (not-found) when the card is missing or not visible', async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
-    vi.mocked(getCardById).mockResolvedValue(null);
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(null);
     const { result } = renderHook(() => useCard('missing'), { wrapper });
     await waitFor(() => expect(result.current.data).not.toBeUndefined());
     expect(result.current.data).toBeNull();
@@ -256,6 +271,8 @@ describe('useProfileByHandle', () => {
       user: null,
       isConnected: false,
       published: [],
+      linked: [],
+      linkedAuthors: {},
       dailyRemaining: 0,
     });
     // short-circuit must avoid the connection / cards / quota round-trips

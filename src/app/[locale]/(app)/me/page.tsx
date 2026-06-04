@@ -4,13 +4,12 @@ import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { ProfileTabs, type TabKey } from '@/components/molecules/ProfileTabs/ProfileTabs';
 import { InvitesInbox } from '@/components/molecules/InvitesInbox/InvitesInbox';
 import { Link } from '@/i18n/navigation';
 import { useMyCardBox, useMyProfile } from '@/lib/data/hooks';
 
-const tabs: TabKey[] = ['published', 'private', 'draft', 'resonated', 'thoughtMap'];
+const tabs: TabKey[] = ['published', 'private', 'draft', 'resonated', 'linked', 'thoughtMap'];
 
 export default function MyCardBoxPage() {
   const locale = useLocale();
@@ -85,20 +84,23 @@ export default function MyCardBoxPage() {
 
       <InvitesInbox />
 
-      {box ? (
-        <ProfileTabs
-          tabs={tabs}
-          data={{
-            published: box.published,
-            private: box.private,
-            draft: box.draft,
-            resonated: box.resonated,
-          }}
-          authors={box.authors}
-        />
-      ) : (
-        <FeedSkeleton count={4} />
-      )}
+      <ProfileTabs
+        tabs={tabs}
+        data={
+          box
+            ? {
+                published: box.published,
+                private: box.private,
+                draft: box.draft,
+                resonated: box.resonated,
+                linked: box.linked,
+              }
+            : undefined
+        }
+        authors={box?.authors}
+        loading={!box}
+      />
     </div>
   );
 }
+

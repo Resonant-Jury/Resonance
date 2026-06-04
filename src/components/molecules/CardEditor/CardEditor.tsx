@@ -5,8 +5,7 @@ import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { Icon } from '@/components/atoms/Icon';
-// AI 寫作夥伴：暫時停用，未來會重新啟用（保留 import 供日後恢復）。
-// import { Divider } from '@/components/atoms/Divider/Divider';
+import { Divider } from '@/components/atoms/Divider/Divider';
 import { Field, Textarea, CharCount } from '@/components/atoms/Field/Field';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
@@ -68,6 +67,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
   const [media, setMedia] = useState<CardMedia | undefined>(initial?.media);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   // AI 寫作夥伴：暫時停用，未來會重新啟用
@@ -136,7 +136,24 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
     try {
       const card = await saveDraft();
       const published = await publishCard(card.id);
-      router.push(`/card/${published.id}`);
+      // Auto-generate the English URL slug (LLM translation of the title, made
+      // collision-free server-side). Fall back to the doc id if it fails so
+      // publishing never blocks on the AI step.
+      let destination = published.id;
+      try {
+        const res = await fetch('/api/cards/slug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cardId: published.id }),
+        });
+        if (res.ok) {
+          const { slug } = (await res.json()) as { slug?: string };
+          if (slug) destination = slug;
+        }
+      } catch {
+        // keep the doc-id destination
+      }
+      router.push(`/card/${destination}`);
     } catch (err) {
       console.error('Publish failed:', err);
       setPublishError(err instanceof Error ? err.message : String(err));
@@ -145,8 +162,37 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
     }
   }
 
+  const mediaBusy = uploading || generating;
+  const canGenerate = story.trim().length > 0 && !mediaBusy;
+
+  async function generateFromStory() {
+    if (mediaBusy || story.trim().length === 0) return;
+    setUploadError(null);
+    setGenerating(true);
+    try {
+      // The story body lives only in editor state here (the draft may be
+      // unsaved), so send it to the server, which distills it into an imagery
+      // prompt, renders the doodle, stores it in R2, and returns the URL.
+      const res = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ story }),
+      });
+      if (!res.ok) {
+        setUploadError(t('mediaGenerateError'));
+        return;
+      }
+      const { publicUrl } = (await res.json()) as { publicUrl: string };
+      setMedia({ type: 'image', url: publicUrl, label: t('mediaGeneratedLabel') });
+    } catch {
+      setUploadError(t('mediaGenerateError'));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   async function uploadImage(file: File) {
-    if (uploading) return;
+    if (mediaBusy) return;
     setUploadError(null);
     setUploading(true);
     try {
@@ -240,7 +286,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
               onRemove={() => setMedia(undefined)}
               removeLabel={t('mediaRemove')}
             />
-          ) : uploading ? (
+          ) : mediaBusy ? (
             <HandDrawnDashedSurface
               seed={31}
               R={16}
@@ -249,50 +295,78 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
               className={styles.fileInputWrap}
             >
               <span className={styles.uploadInner}>
-                <SketchLoader size={64} seed={31} ariaLabel={t('mediaUploading')} />
-                <span className={styles.uploadText}>{t('mediaUploading')}</span>
+                <SketchLoader
+                  size={64}
+                  seed={31}
+                  ariaLabel={generating ? t('mediaGenerating') : t('mediaUploading')}
+                />
+                <span className={styles.uploadText}>
+                  {generating ? t('mediaGenerating') : t('mediaUploading')}
+                </span>
               </span>
             </HandDrawnDashedSurface>
           ) : (
-            <label
-              className={styles.uploadZone}
-              data-drag={dragOver || undefined}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file) void uploadImage(file);
-              }}
+            // Split surface: drag/click upload on the left, AI generation on the
+            // right, divided by a vertical pen rule.
+            <HandDrawnDashedSurface
+              seed={31}
+              R={16}
+              curve={0.8}
+              state={dragOver ? 'focus' : 'idle'}
+              className={styles.fileInputWrap}
             >
-              <HandDrawnDashedSurface
-                seed={31}
-                R={16}
-                curve={0.8}
-                state={dragOver ? 'focus' : 'idle'}
-                className={styles.fileInputWrap}
-              >
-                <span className={styles.uploadInner}>
-                  <Icon name="image" size={26} color="var(--color-terracotta)" />
-                  <span className={styles.uploadText}>{t('mediaPlaceholder')}</span>
-                  <span className={styles.uploadHint}>{t('mediaHint')}</span>
-                </span>
-              </HandDrawnDashedSurface>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                onChange={(e) => {
-                  const file = e.currentTarget.files?.[0];
-                  if (file) void uploadImage(file);
-                  e.currentTarget.value = '';
-                }}
-                className={styles.fileInputHidden}
-              />
-            </label>
+              <div className={styles.mediaSplit}>
+                <label
+                  className={styles.mediaHalf}
+                  data-drag={dragOver || undefined}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) void uploadImage(file);
+                  }}
+                >
+                  <span className={styles.uploadInner}>
+                    <Icon name="image" size={26} color="var(--color-terracotta)" />
+                    <span className={styles.uploadText}>{t('mediaPlaceholder')}</span>
+                    <span className={styles.uploadHint}>{t('mediaHint')}</span>
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(e) => {
+                      const file = e.currentTarget.files?.[0];
+                      if (file) void uploadImage(file);
+                      e.currentTarget.value = '';
+                    }}
+                    className={styles.fileInputHidden}
+                  />
+                </label>
+
+                <Divider orientation="vertical" spacing={0} />
+
+                <button
+                  type="button"
+                  className={styles.mediaHalf}
+                  disabled={!canGenerate}
+                  onClick={() => void generateFromStory()}
+                  title={canGenerate ? undefined : t('mediaGenerateNeedStory')}
+                >
+                  <span className={styles.uploadInner}>
+                    <Icon name="sparkle" size={26} color="var(--color-terracotta)" />
+                    <span className={styles.uploadText}>{t('mediaGenerate')}</span>
+                    <span className={styles.uploadHint}>
+                      {canGenerate ? t('mediaGenerateHint') : t('mediaGenerateNeedStory')}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </HandDrawnDashedSurface>
           )}
           {uploadError && (
             <div style={{ marginTop: 6, fontSize: 12, color: 'var(--color-terracotta)' }}>

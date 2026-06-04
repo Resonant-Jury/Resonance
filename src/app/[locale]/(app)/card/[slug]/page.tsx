@@ -8,14 +8,17 @@ import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDr
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { CardDetailSkeleton } from '@/components/molecules/CardDetail/CardDetailSkeleton';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
+import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { CardAuthorMetrics } from '@/components/molecules/CardDetail/CardAuthorMetrics';
 import { CardAuthorAside } from '@/components/molecules/CardDetail/CardAuthorAside';
 import { CardToc, type TocHeading } from '@/components/molecules/CardDetail/CardToc';
 import { CardViewerActions } from '@/components/molecules/CardDetail/CardViewerActions';
+import { CommentsSection } from '@/components/molecules/CommentsSection/CommentsSection';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { StoryMarkdown } from '@/components/molecules/CardDetail/StoryMarkdown';
 import { Link } from '@/i18n/navigation';
-import { useCard, useRelated } from '@/lib/data/hooks';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { useCard, useLinkedToCard, useRelated } from '@/lib/data/hooks';
 import styles from './page.module.css';
 
 const wrapStyle = {
@@ -26,13 +29,19 @@ const wrapStyle = {
 } as const;
 
 export default function CardDetailPage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id;
+  const params = useParams<{ slug: string }>();
+  const slug = params?.slug;
   const locale = useLocale();
   const t = useTranslations('card');
 
-  const { data, isLoading } = useCard(id);
-  const { data: relatedData } = useRelated(id);
+  const { user } = useAuth();
+  const { data, isLoading } = useCard(slug);
+  // Related cards key off the resolved doc id (the URL carries a slug now), so
+  // they fetch once the card itself has loaded.
+  const { data: relatedData } = useRelated(data?.card?.id);
+  // Cards that others linked to this one — author-only surface.
+  const isOwner = !!user && !!data?.card && user.id === data.card.authorId;
+  const { data: linkedData } = useLinkedToCard(isOwner ? data?.card?.id : undefined);
 
   const storyRef = useRef<HTMLDivElement>(null);
   const [headings, setHeadings] = useState<TocHeading[]>([]);
@@ -157,12 +166,16 @@ export default function CardDetailPage() {
             }}
           />
 
-          <CardAuthorMetrics
-            authorId={author.id}
-            readCount={card.readCount}
-            resonanceCount={card.resonanceCount}
-            inviteCount={card.inviteCount}
-          />
+          <CardAuthorMetrics cardId={card.id} authorId={author.id} />
+
+          {isOwner && (linkedData?.cards.length ?? 0) > 0 && (
+            <section style={{ marginBottom: 40 }}>
+              <h3 className={styles.linkedHeading}>{t('linkedCards')}</h3>
+              <MiniCardGrid cards={linkedData!.cards} authors={linkedData!.authors} />
+            </section>
+          )}
+
+          <CommentsSection cardId={card.id} authorId={author.id} />
         </article>
 
         <aside className={styles.aside}>

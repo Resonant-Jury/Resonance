@@ -78,6 +78,9 @@
       "invite": "{handle} 想和你連結",
       "resonanceSummary": "昨天有 {count} 個人與你共振",
       "translationDone": "卡片翻譯完成",
+      "resonance": "{handle} 與你的卡片共振了",
+      "comment": "{handle} 在你的卡片留言了",
+      "cardLink": "{handle} 用卡片連結了你的文章",
       "viewAll": "查看全部"
     }
   },
@@ -99,6 +102,32 @@
     "resonated": "已共振",
     "writeResponse": "寫一張卡片回應",
     "initiateConnect": "想和 Ta 連結",
+    "linkWithCard": "用卡片連結",
+    "linkedCards": "與 Ta 連結的文章",
+    "resonatedBy": "與這張卡片共振的人",
+    "viewAllResonators": "查看全部",
+    "noResonatorsYet": "還沒有人與這張卡片共振。",
+    "noBio": "這個人還沒寫下自我介紹。",
+    "comments": {
+      "title": "留言",
+      "hint": "留言會公開顯示給所有人。",
+      "placeholder": "寫下你的想法⋯",
+      "submit": "送出留言",
+      "empty": "還沒有留言，成為第一個吧。",
+      "signInToComment": "登入後即可留言"
+    },
+    "linkModal": {
+      "title": "用一張卡片連結",
+      "pickCard": "選擇你的一張文章，與這篇建立連結。",
+      "confirm": "建立連結",
+      "cancel": "取消",
+      "close": "關閉",
+      "linked": "已建立連結！",
+      "noCards": "你還沒有已發布的卡片可以連結。"
+    },
+    "resonatorsModal": {
+      "title": "與這張卡片共振的人"
+    },
     "translateTo": "翻譯成",
     "showOriginal": "顯示原文",
     "related": "延伸的卡片",
@@ -135,6 +164,12 @@
     "mediaHint": "PNG、JPG、WebP，最大 5MB",
     "mediaUploadError": "圖片上傳失敗，請稍後再試。",
     "mediaUploading": "正在描繪中⋯",
+    "mediaGenerate": "生成圖片",
+    "mediaGenerateHint": "依故事內容構思畫面",
+    "mediaGenerateNeedStory": "請先寫下故事內容",
+    "mediaGenerating": "正在構思畫面⋯",
+    "mediaGenerateError": "圖片生成失敗，請再試一次。",
+    "mediaGeneratedLabel": "AI 生成插圖",
     "visibility": {
       "label": "誰可以看見",
       "public": "公開",
@@ -168,13 +203,15 @@
       "private": "私人卡",
       "draft": "草稿",
       "resonated": "我共振過的",
+      "linked": "被連結",
       "thoughtMap": "思想地圖"
     },
     "thoughtMapSoon": "思想地圖會在 Phase 2 上線。",
     "emptyPublished": "還沒有發布任何卡片。",
     "emptyPrivate": "還沒有私人卡片。",
     "emptyDraft": "沒有草稿。",
-    "emptyResonated": "還沒共振過別人的卡片。"
+    "emptyResonated": "還沒共振過別人的卡片。",
+    "emptyLinked": "還沒有人用卡片連結你。"
   },
   "profile": {
     "notConnected": "尚未連結",
@@ -182,6 +219,7 @@
     "initiateConnect": "想和 Ta 連結",
     "message": "私訊",
     "softLock": "更多卡片，留給有緣人看 ✿",
+    "linkedCards": "與 Ta 連結的文章",
     "more": "⋯",
     "report": "檢舉",
     "block": "封鎖",

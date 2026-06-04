@@ -17,6 +17,8 @@ export interface CardMedia {
 export interface Card {
   id: string;
   authorId: string;
+  /** URL slug (English, generated from the title at publish). Absent on drafts. */
+  slug?: string;
   thoughtCore: string;
   story: string;
   tags: string[];
@@ -78,10 +80,41 @@ export interface Resonance {
   createdAt: Date;
 }
 
+export interface Comment {
+  id: string;
+  cardId: string;
+  /** uid of the commenter. */
+  authorId: string;
+  /** Reserved for future threaded replies; always null in the current one-level design. */
+  parentId: string | null;
+  body: string;
+  createdAt: Date;
+}
+
+export interface CardLink {
+  id: string;
+  /** The viewer's own card doing the linking. */
+  sourceCardId: string;
+  /** uid of the viewer who created the link. */
+  sourceAuthorId: string;
+  /** The card being linked to (the article being viewed). */
+  targetCardId: string;
+  /** uid of the target card's author (denormalized for profile-level queries). */
+  targetAuthorId: string;
+  createdAt: Date;
+}
+
 export interface Notification {
   id: string;
   userId: string;
-  type: 'invite' | 'resonance_summary' | 'translation_done' | 'invite_expired';
+  type:
+    | 'invite'
+    | 'resonance_summary'
+    | 'translation_done'
+    | 'invite_expired'
+    | 'resonance'
+    | 'comment'
+    | 'card_link';
   payload: Record<string, unknown>;
   readAt: Date | null;
   createdAt: Date;

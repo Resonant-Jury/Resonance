@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
-import pageStyles from '@/app/[locale]/(app)/card/[id]/page.module.css';
+import pageStyles from '@/app/[locale]/(app)/card/[slug]/page.module.css';
 
 /**
  * Loading state for the card detail page. Reuses the real article layout —

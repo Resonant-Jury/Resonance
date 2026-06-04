@@ -7,6 +7,7 @@ import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDr
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
+import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { ConnectInviteLauncher } from '@/components/molecules/ConnectInviteModal/ConnectInviteLauncher';
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
@@ -28,7 +29,7 @@ export default function OtherProfilePage() {
   if (isLoading) {
     return (
       <div style={wrapStyle}>
-        <FeedSkeleton count={4} />
+        <FeedSkeleton count={6} />
       </div>
     );
   }
@@ -46,7 +47,7 @@ export default function OtherProfilePage() {
     );
   }
 
-  const { user, isConnected, published, dailyRemaining } = data;
+  const { user, isConnected, published, linked, linkedAuthors, dailyRemaining } = data;
   const preview = isConnected ? published : published.slice(0, 6);
   const authors: Record<string, User> = { [user.id]: user };
 
@@ -121,6 +122,24 @@ export default function OtherProfilePage() {
       </header>
 
       {preview.length > 0 && <CardLinkGrid cards={preview} authors={authors} />}
+
+      {linked.length > 0 && (
+        <section style={{ marginTop: 48 }}>
+          <h2
+            style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: 'clamp(20px, 2.4vw, 24px)',
+              fontWeight: 700,
+              letterSpacing: '-0.01em',
+              color: 'var(--color-text)',
+              margin: '0 0 24px',
+            }}
+          >
+            {t('linkedCards')}
+          </h2>
+          <MiniCardGrid cards={linked} authors={linkedAuthors} />
+        </section>
+      )}
 
       {!isConnected && published.length > 6 && (
         <div
