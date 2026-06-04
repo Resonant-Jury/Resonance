@@ -123,6 +123,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
   const hue = CARD_HUES[index % CARD_HUES.length];
   const seed = index * 77 + 13;
   const R = 22;
+  const mag = Math.min(w, h) * 0.025;
 
   const cardInterior = `oklch(97.5% 0.012 ${hue})`;
   const cardHovered = `oklch(92.5% 0.024 ${hue})`;
@@ -132,14 +133,14 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
 
   const borderPath = useMemo(() => {
     if (!w || !h) return '';
-    return wobRect(w, h, R, seed, Math.min(w, h) * 0.025, {
+    return wobRect(w, h, R, seed, mag, {
       segmentsH: [3, 4],
       segmentsV: [5, 6],
       curve: 0.55,
       cornerJitter: 0.7,
       cornerOffset: 4,
     });
-  }, [w, h, R, seed]);
+  }, [w, h, R, seed, mag]);
 
   const mobileBleed = 'clamp(24px, 5vw, 80px)';
 
@@ -201,7 +202,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
       ) : (
         <>
           <HandDrawnBorder
-            w={w} h={h} R={R} seed={seed}
+            w={w} h={h} R={R} seed={seed} mag={mag}
             fillColor={cardInterior}
             strokeColor="transparent"
             strokeWidth={0}
@@ -237,7 +238,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
           )}
           <ShapeGrain w={w} h={h} d={borderPath} opacity={0.3} frequency={0.85} seed={seed} />
           <HandDrawnBorder
-            w={w} h={h} R={R} seed={seed}
+            w={w} h={h} R={R} seed={seed} mag={mag}
             strokeColor={bc1}
             strokeWidth={INK}
             segmentsH={[3, 4]} segmentsV={[5, 6]}

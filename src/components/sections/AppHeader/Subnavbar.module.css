@@ -16,13 +16,6 @@
   cursor: pointer;
   border-radius: 999px;
   line-height: 0;
-  transition: transform 160ms ease;
-}
-.trigger:hover {
-  transform: translateY(-1px);
-}
-.trigger[data-open] {
-  transform: translateY(-1px);
 }
 
 /* The dropped card. Anchored under the avatar, right-aligned to the header

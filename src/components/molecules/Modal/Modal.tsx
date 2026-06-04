@@ -36,6 +36,7 @@ export function Modal({
   useEffect(() => setMounted(true), []);
   const { w, h } = useElementSize(ref, 0, 0, [open]);
   const R = 26;
+  const mag = Math.min(w, h) * 0.025;
 
   useEffect(() => {
     if (!open) return;
@@ -55,7 +56,7 @@ export function Modal({
 
   const borderPath =
     w && h
-      ? wobRect(w, h, R, seed, Math.min(w, h) * 0.025, {
+      ? wobRect(w, h, R, seed, mag, {
           segmentsH: [3, 4],
           segmentsV: [5, 6],
           curve: 0.6,
@@ -79,7 +80,7 @@ export function Modal({
         style={{ maxWidth, padding }}
       >
         <HandDrawnBorder
-          w={w} h={h} R={R} seed={seed}
+          w={w} h={h} R={R} seed={seed} mag={mag}
           fillColor={fillColor}
           strokeColor="transparent"
           strokeWidth={0}
@@ -89,7 +90,7 @@ export function Modal({
         />
         <ShapeGrain w={w} h={h} d={borderPath} opacity={0.3} frequency={0.88} seed={seed} />
         <HandDrawnBorder
-          w={w} h={h} R={R} seed={seed}
+          w={w} h={h} R={R} seed={seed} mag={mag}
           strokeColor={borderColor}
           strokeWidth={1.8}
           segmentsH={[3, 4]} segmentsV={[5, 6]}

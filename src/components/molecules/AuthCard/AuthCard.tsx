@@ -16,17 +16,18 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
   const seed = 313;
   const R = 22;
   const interior = 'oklch(97.5% 0.012 60)';
+  const mag = Math.min(w, h) * 0.025;
 
   const borderPath = useMemo(() => {
     if (!w || !h) return '';
-    return wobRect(w, h, R, seed, Math.min(w, h) * 0.025, {
+    return wobRect(w, h, R, seed, mag, {
       segmentsH: [3, 4],
       segmentsV: [5, 6],
       curve: 0.55,
       cornerJitter: 0.7,
       cornerOffset: 4,
     });
-  }, [w, h]);
+  }, [w, h, mag]);
 
   // On phones the card chrome (border + grain) is dropped in favor of a
   // borderless "section" framed by top/bottom wavy rules — mirroring how the
@@ -86,6 +87,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
         h={h}
         R={R}
         seed={seed}
+        mag={mag}
         fillColor={interior}
         strokeColor="transparent"
         strokeWidth={0}
@@ -102,6 +104,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
         h={h}
         R={R}
         seed={seed}
+        mag={mag}
         strokeColor="oklch(52% 0.13 55)"
         segmentsH={[3, 4]}
         segmentsV={[5, 6]}

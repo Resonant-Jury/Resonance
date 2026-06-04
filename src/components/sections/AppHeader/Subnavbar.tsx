@@ -57,6 +57,7 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
 
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [interactionMode, setInteractionMode] = useState<'mouse' | 'keyboard'>('keyboard');
   const [signingOut, setSigningOut] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -64,6 +65,7 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
 
   function openMenu() {
     setActiveIndex(0);
+    setInteractionMode('keyboard');
     setOpen(true);
   }
 
@@ -106,18 +108,23 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
+        setInteractionMode('keyboard');
         if (!open) openMenu();
         else setActiveIndex((i) => Math.min(ITEMS.length - 1, i + 1));
         break;
       case 'ArrowUp':
         e.preventDefault();
+        setInteractionMode('keyboard');
         if (!open) openMenu();
         else setActiveIndex((i) => Math.max(0, i - 1));
         break;
       case 'Enter':
       case ' ':
         e.preventDefault();
-        if (!open) openMenu();
+        if (!open) {
+          setInteractionMode('keyboard');
+          openMenu();
+        }
         else void activate(activeIndex);
         break;
       case 'Escape':
@@ -145,6 +152,8 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
         aria-activedescendant={open ? `${uid}-opt-${activeIndex}` : undefined}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
+        onMouseEnter={() => setInteractionMode('mouse')}
+        onMouseDown={() => setInteractionMode('mouse')}
       >
         <HandDrawnAvatar initials={user.initials} size={36} color={user.accentColor} seed={77} />
       </button>
@@ -154,6 +163,8 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
           seed={seed}
           uid={uid}
           activeIndex={activeIndex}
+          interactionMode={interactionMode}
+          setInteractionMode={setInteractionMode}
           signingOut={signingOut}
           onActivate={setActiveIndex}
           onChoose={(i) => void activate(i)}
@@ -168,6 +179,8 @@ interface SubnavPanelProps {
   seed: number;
   uid: string;
   activeIndex: number;
+  interactionMode: 'mouse' | 'keyboard';
+  setInteractionMode: (mode: 'mouse' | 'keyboard') => void;
   signingOut: boolean;
   onActivate: (i: number) => void;
   onChoose: (i: number) => void;
@@ -241,6 +254,8 @@ function SubnavPanel({
   seed,
   uid,
   activeIndex,
+  interactionMode,
+  setInteractionMode,
   signingOut,
   onActivate,
   onChoose,
@@ -300,7 +315,7 @@ function SubnavPanel({
   };
 
   const hoverMaxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 4;
-  const currentHovered = hovered !== null ? hovered : activeIndex;
+  const currentHovered = hovered !== null ? hovered : (interactionMode === 'keyboard' ? activeIndex : null);
 
   // Sync activeIndex changes (like keyboard arrows) to center the wash circle
   useEffect(() => {
@@ -348,13 +363,29 @@ function SubnavPanel({
           <g clipPath={`url(#subnav-clip-${uid})`}>
             {/* opaque card fill */}
             <path d={outerPath} fill="var(--color-cream)" />
+            {/* base fill for specific rows (e.g., warning yellow for sign out before hover) */}
+            {ready &&
+              ITEMS.map((item, i) =>
+                item.key === 'signOut' ? (
+                  <path
+                    key={`base-${item.key}`}
+                    d={rowRegion(i, ITEMS.length, boundaries, w, h, pad)}
+                    fill="color-mix(in oklch, var(--color-yellow) 25%, var(--color-cream))"
+                  />
+                ) : null
+              )
+            }
             {/* hover wash revealed through the circle masks */}
             {ready &&
               ITEMS.map((item, i) => (
                 <g key={item.key} mask={`url(#subnav-hover-${uid}-${i})`}>
                   <path
                     d={rowRegion(i, ITEMS.length, boundaries, w, h, pad)}
-                    fill="color-mix(in oklch, var(--color-terracotta) 13%, transparent)"
+                    fill={
+                      item.key === 'signOut'
+                        ? 'color-mix(in oklch, var(--color-yellow) 40%, transparent)'
+                        : 'color-mix(in oklch, var(--color-terracotta) 13%, transparent)'
+                    }
                   />
                 </g>
               ))}
@@ -391,7 +422,7 @@ function SubnavPanel({
             role="menuitem"
             id={`${uid}-opt-${i}`}
             className={styles.option}
-            data-active={i === activeIndex || undefined}
+            data-active={i === currentHovered || undefined}
             data-tone={item.tone}
             disabled={item.key === 'signOut' && signingOut}
             onClick={() => onChoose(i)}
@@ -399,6 +430,7 @@ function SubnavPanel({
               recordPointer(e);
               onActivate(i);
               setHovered(i);
+              setInteractionMode('mouse');
             }}
             onMouseMove={recordPointer}
             onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
