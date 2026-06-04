@@ -3,7 +3,7 @@
 import { MouseEvent, ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { wobRect } from '@/lib/design/wobRect';
 import { makePrng } from '@/lib/design/prng';
-import { INK, INK_LIGHT } from '@/lib/design/strokes';
+import { INK } from '@/lib/design/strokes';
 import styles from './SegmentedActionBar.module.css';
 
 export interface SegmentSpec {
@@ -208,7 +208,7 @@ export function SegmentedActionBar({
               d={polyline(pts)}
               fill="none"
               stroke={divider}
-              strokeWidth={INK_LIGHT}
+              strokeWidth={INK}
               strokeLinecap="round"
               clipPath={`url(#sab-clip-${seed})`}
             />
