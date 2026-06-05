@@ -381,7 +381,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
               being stretched full-width by the Field's flex column */}
           <div style={{ display: 'flex' }}>
             <SegmentedActionBar
-              segments={(['public', 'connections', 'private'] as Visibility[]).map((v) => {
+              segments={(['public', 'private'] as Visibility[]).map((v) => {
                 const active = visibility === v;
                 return {
                   key: v,

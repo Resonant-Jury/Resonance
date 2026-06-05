@@ -227,7 +227,13 @@
     "translating": "翻譯中⋯",
     "showOriginal": "顯示原文",
     "notFound": "找不到這個人",
-    "backHome": "回到首頁"
+    "backHome": "回到首頁",
+    "bioEmpty": "還沒寫下關於自己的介紹。",
+    "joined": "{date} 加入",
+    "editProfile": "編輯個人檔案",
+    "cardCount": "{count, plural, other {# 篇公開卡片}}",
+    "publishedHeading": "公開文章",
+    "emptyPublished": "目前還沒有公開的卡片。"
   },
   "invite": {
     "title": "想和 Ta 連結",

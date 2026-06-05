@@ -227,7 +227,13 @@
     "translating": "Translating…",
     "showOriginal": "Show original",
     "notFound": "This person can't be found",
-    "backHome": "Back to home"
+    "backHome": "Back to home",
+    "bioEmpty": "No bio yet.",
+    "joined": "Joined {date}",
+    "editProfile": "Edit profile",
+    "cardCount": "{count, plural, =0 {No public cards} one {# public card} other {# public cards}}",
+    "publishedHeading": "Published",
+    "emptyPublished": "Nothing published yet."
   },
   "invite": {
     "title": "Invite to connect",

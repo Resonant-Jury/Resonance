@@ -1,0 +1,122 @@
+/* Blog-style public profile — a centered "personal homepage" masthead above
+   the author's published cards. */
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  margin-bottom: clamp(8px, 2vw, 16px);
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.name {
+  font-family: var(--font-heading);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.bio {
+  font-family: var(--font-body);
+  font-size: clamp(15px, 1.8vw, 17px);
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  max-width: 560px;
+  margin: 0;
+}
+
+.bioEmpty {
+  font-style: italic;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.connected {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-sage, oklch(55% 0.13 140));
+}
+
+/* --- sections --- */
+
+.section {
+  margin-top: clamp(28px, 4vw, 44px);
+}
+
+.sectionHeading {
+  font-family: var(--font-heading);
+  font-size: clamp(20px, 2.4vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin: 0 0 24px;
+}
+
+.empty {
+  text-align: center;
+  padding: clamp(40px, 6vw, 64px) 24px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+
+/* --- not found --- */
+
+.notFound {
+  text-align: center;
+  padding-top: clamp(40px, 8vw, 80px);
+}
+
+.notFoundTitle {
+  font-family: var(--font-heading);
+  font-size: clamp(22px, 3vw, 28px);
+  color: var(--color-text);
+  margin: 0 0 12px;
+}
+
+.backLink {
+  color: var(--color-terracotta);
+  text-decoration: none;
+  font-family: var(--font-body);
+}
+
+.backLink:hover {
+  text-decoration: underline;
+}

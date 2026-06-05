@@ -47,11 +47,16 @@
 }
 
 .prose blockquote {
+  display: flex;
+  align-items: stretch;
+  gap: 1em;
   margin: 0 0 1.1em;
-  padding-left: 1em;
-  border-left: 3px solid var(--color-terracotta-light);
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+.prose .blockquoteBody > :last-child {
+  margin-bottom: 0;
 }
 
 .prose a {

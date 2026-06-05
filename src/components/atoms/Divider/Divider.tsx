@@ -1,10 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
-import { wavyLine } from '@/lib/design/wavyPath';
+import { useMemo, useRef } from 'react';
+import { wavyLine, wavyVertical } from '@/lib/design/wavyPath';
+import { useElementSize } from '@/lib/hooks/useElementSize';
+
+// One wobble turn per ~this many px of rendered height, so a taller quote
+// gets proportionally more turns instead of a fixed count stretched out.
+const PX_PER_STEP = 34;
 
 export interface DividerProps {
-  /** Horizontal: wavy line. Vertical: thin straight rule. */
+  /** Both orientations render a wavy hand-drawn line. */
   orientation?: 'horizontal' | 'vertical';
   /** Used for seed so each instance gets unique wobble. */
   seed?: number;
@@ -33,20 +38,62 @@ export function Divider({
   width = '100%',
 }: DividerProps) {
   const W = 240;
-  const d = useMemo(() => wavyLine(W, seed, amplitude, steps), [seed, amplitude, steps]);
+  const isVertical = orientation === 'vertical';
+  // Fraction trimmed off each end so the rule floats in the middle of the
+  // panel rather than touching its top/bottom (or left/right) edges.
+  const INSET = 0.18;
+
+  // Vertical rules derive their turn count from the rendered height, so a
+  // longer quote gets more turns at a constant density rather than the same
+  // fixed count stretched thinner. Falls back to `steps` until measured (and
+  // for horizontal rules, which keep their explicit count).
+  const ref = useRef<HTMLDivElement>(null);
+  const { h: measuredH, measured } = useElementSize(ref);
+  const effectiveSteps =
+    isVertical && measured
+      ? Math.max(2, Math.round((measuredH * (1 - INSET * 2)) / PX_PER_STEP))
+      : steps;
+
+  const d = useMemo(
+    () =>
+      isVertical
+        ? wavyVertical(W * (1 - INSET * 2), seed, amplitude, effectiveSteps)
+        : wavyLine(W, seed, amplitude, effectiveSteps),
+    [isVertical, seed, amplitude, effectiveSteps]
+  );
   const h = amplitude * 2 + strokeWidth * 2;
 
-  if (orientation === 'vertical') {
+  if (isVertical) {
     return (
       <div
+        ref={ref}
         aria-hidden
         style={{
-          width: 1,
+          position: 'relative',
+          width: h,
           alignSelf: 'stretch',
-          background: color,
           margin: `0 ${typeof spacing === 'number' ? `${spacing}px` : spacing}`,
+          lineHeight: 0,
         }}
-      />
+      >
+        {/* Absolutely positioned so the SVG fills the flex-stretched height
+            without its viewBox aspect-ratio inflating the row. */}
+        <svg
+          viewBox={`${-h / 2} 0 ${h} ${W}`}
+          preserveAspectRatio="none"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}
+        >
+          <path
+            d={d}
+            transform={`translate(0, ${W * INSET})`}
+            fill="none"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      </div>
     );
   }
 

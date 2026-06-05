@@ -9,6 +9,7 @@ import {
   getCardsByAuthor,
   getCurrentUserProfile,
   getLatestPublishedFeed,
+  getPublicCardsByAuthor,
   getRelatedCards,
   getUserById,
   getUserByHandle,
@@ -152,6 +153,8 @@ export function useLinkedToCard(cardId: string | undefined) {
 
 export interface PublicProfile {
   user: User | null;
+  /** True when the signed-in viewer is looking at their own public page. */
+  isSelf: boolean;
   isConnected: boolean;
   published: Card[];
   /** Cards that other people linked to one of this user's cards. */
@@ -160,30 +163,44 @@ export interface PublicProfile {
   dailyRemaining: number;
 }
 
-/** Another user's public profile, viewed by the signed-in viewer. */
+const emptyProfile: PublicProfile = {
+  user: null,
+  isSelf: false,
+  isConnected: false,
+  published: [],
+  linked: [],
+  linkedAuthors: {},
+  dailyRemaining: 0,
+};
+
+/**
+ * A user's outward-facing, blog-style profile keyed by handle.
+ *
+ * Works for anonymous visitors as well as signed-in viewers: the profile and
+ * its public cards are anonymous-readable, so the SWR key only waits for auth
+ * to *settle* (not for a viewer to exist). It re-keys on the viewer id so
+ * connection state and the self/visitor distinction refresh on sign-in/out.
+ * Connection lookups and the daily invite quota are only fetched when a
+ * non-owner viewer is signed in (those reads require auth).
+ */
 export function useProfileByHandle(handle: string | undefined) {
-  const { user: viewer } = useAuth();
-  const key = handle && viewer ? `pubprofile:${handle}:${viewer.id}` : null;
+  const { user: viewer, loading } = useAuth();
+  const key = handle && !loading ? `pubprofile:${handle}:${viewer?.id ?? 'anon'}` : null;
   return useSWR<PublicProfile>(key, async () => {
     const user = await getUserByHandle(handle!);
-    if (!user || user.id === viewer!.id) {
-      return {
-        user: null,
-        isConnected: false,
-        published: [],
-        linked: [],
-        linkedAuthors: {},
-        dailyRemaining: 0,
-      };
-    }
-    const [connected, published, links, dailyRemaining] = await Promise.all([
-      isConnected(viewer!.id, user.id),
-      getCardsByAuthor(user.id, 'published'),
+    if (!user) return emptyProfile;
+
+    const isSelf = !!viewer && viewer.id === user.id;
+    const [published, links] = await Promise.all([
+      getPublicCardsByAuthor(user.id),
       listLinksToAuthor(user.id),
-      remainingDailyQuota(),
     ]);
+    const [connected, dailyRemaining] =
+      viewer && !isSelf
+        ? await Promise.all([isConnected(viewer.id, user.id), remainingDailyQuota()])
+        : [false, 0];
     const linked = await cardsFromIds(links.map((l) => l.sourceCardId));
     const linkedAuthors = await getUsersByIds(linked.map((c) => c.authorId));
-    return { user, isConnected: connected, published, linked, linkedAuthors, dailyRemaining };
+    return { user, isSelf, isConnected: connected, published, linked, linkedAuthors, dailyRemaining };
   });
 }

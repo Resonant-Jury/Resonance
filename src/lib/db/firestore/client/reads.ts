@@ -123,6 +123,27 @@ export async function getCardsByAuthor(authorId: string, tab: CardBoxTab): Promi
   return cards;
 }
 
+/**
+ * Public cards for an author's outward-facing profile, newest first.
+ *
+ * Unlike {@link getCardsByAuthor}, this constrains the query to
+ * `visibility == "public"` so it satisfies the Firestore `list` rule for
+ * anonymous (signed-out) viewers — a logged-out visitor can read a blog-style
+ * profile without tripping a permission error.
+ */
+export async function getPublicCardsByAuthor(authorId: string): Promise<Card[]> {
+  const snap = await getDocs(
+    query(
+      collection(getClientDb(), 'cards'),
+      where('authorId', '==', authorId),
+      where('visibility', '==', 'public'),
+      orderBy('publishedAt', 'desc'),
+      fbLimit(40)
+    )
+  );
+  return snap.docs.map((d) => mapCard(d.id, d.data())).filter((c) => c.publishedAt);
+}
+
 // --- users ---
 
 export async function getUserById(id: string): Promise<User | null> {

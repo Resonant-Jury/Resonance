@@ -1,9 +1,20 @@
 'use client';
 
-import Markdown from 'react-markdown';
+import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
+import { Divider } from '@/components/atoms/Divider/Divider';
 import styles from './StoryMarkdown.module.css';
+
+const components: Components = {
+  // Replace the flat accent border with a hand-drawn vertical curve.
+  blockquote: ({ children }) => (
+    <blockquote>
+      <Divider orientation="vertical" seed={5} color="var(--color-terracotta-light)" spacing={0} />
+      <div className={styles.blockquoteBody}>{children}</div>
+    </blockquote>
+  ),
+};
 
 /**
  * Renders a card's story (stored as Markdown) into prose. `rehype-slug` adds
@@ -12,7 +23,7 @@ import styles from './StoryMarkdown.module.css';
 export function StoryMarkdown({ source }: { source: string }) {
   return (
     <div className={styles.prose}>
-      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug]}>
+      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug]} components={components}>
         {source}
       </Markdown>
     </div>

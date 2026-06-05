@@ -1,110 +1,108 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { Icon } from '@/components/atoms/Icon';
+import { Divider } from '@/components/atoms/Divider/Divider';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
+import { PageShell } from '@/components/molecules/PageShell/PageShell';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { ConnectInviteLauncher } from '@/components/molecules/ConnectInviteModal/ConnectInviteLauncher';
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
 import { useProfileByHandle } from '@/lib/data/hooks';
+import styles from './page.module.css';
 
-const wrapStyle = {
-  maxWidth: 'var(--page-max-w-wide)',
-  margin: '0 auto',
-  padding:
-    'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
-} as const;
+/** Route segments arrive percent-encoded (e.g. a CJK handle like `念誠` →
+ * `%E5%BF%B5%E8%AA%A0`); decode before matching it against stored handles. */
+function decodeHandle(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
 
-export default function OtherProfilePage() {
+export default function PublicProfilePage() {
   const params = useParams<{ handle: string }>();
-  const handle = params?.handle;
+  const handle = decodeHandle(params?.handle);
+  const locale = useLocale();
   const t = useTranslations('profile');
   const { data, isLoading } = useProfileByHandle(handle);
 
   if (isLoading) {
     return (
-      <div style={wrapStyle}>
+      <PageShell width="wide">
         <FeedSkeleton count={6} />
-      </div>
+      </PageShell>
     );
   }
 
   if (!data || !data.user) {
     return (
-      <div style={{ ...wrapStyle, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--color-text)', marginBottom: 12 }}>
-          {t('notFound')}
-        </p>
-        <Link href="/home" style={{ textDecoration: 'none' }}>
-          <span style={{ color: 'var(--color-terracotta)' }}>{t('backHome')}</span>
-        </Link>
-      </div>
+      <PageShell width="wide">
+        <div className={styles.notFound}>
+          <p className={styles.notFoundTitle}>{t('notFound')}</p>
+          <Link href="/home" className={styles.backLink}>
+            {t('backHome')}
+          </Link>
+        </div>
+      </PageShell>
     );
   }
 
-  const { user, isConnected, published, linked, linkedAuthors, dailyRemaining } = data;
-  const preview = isConnected ? published : published.slice(0, 6);
+  const { user, isSelf, isConnected, published, linked, linkedAuthors, dailyRemaining } = data;
   const authors: Record<string, User> = { [user.id]: user };
+  const joined = new Date(user.joinedAt).toLocaleDateString(locale, {
+    year: 'numeric',
+    month: 'long',
+  });
 
   return (
-    <div style={wrapStyle}>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 20,
-          marginBottom: 40,
-          flexWrap: 'wrap',
-        }}
-      >
+    <PageShell width="wide">
+      <header className={styles.hero}>
         <HandDrawnAvatar
           initials={user.initials}
-          size={72}
+          size={96}
           color={user.accentColor}
           seed={Number(user.avatarSeed)}
         />
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <h1
-              style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: 28,
-                fontWeight: 700,
-              }}
-            >
-              {user.handle}
-            </h1>
-            {user.verified && <HandDrawnCheckmark size={16} />}
-          </div>
-          <p
-            style={{
-              color: 'var(--color-text-muted)',
-              fontSize: 14,
-              marginBottom: 4,
-            }}
-          >
-            {user.bio}
-          </p>
-          <p
-            style={{
-              fontSize: 12,
-              color: isConnected
-                ? 'var(--color-sage, oklch(55% 0.13 140))'
-                : 'var(--color-text-muted)',
-              fontWeight: isConnected ? 600 : 400,
-            }}
-          >
-            {isConnected ? `✿ ${t('connected')}` : t('notConnected')}
-          </p>
+
+        <div className={styles.nameRow}>
+          <h1 className={styles.name}>{user.handle}</h1>
+          {user.verified && <HandDrawnCheckmark size={18} />}
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {isConnected ? (
-            <OrganicButton variant="outline">{t('message')}</OrganicButton>
+
+        <p className={`${styles.bio} ${user.bio ? '' : styles.bioEmpty}`}>
+          {user.bio || t('bioEmpty')}
+        </p>
+
+        <div className={styles.meta}>
+          {user.region && (
+            <span className={styles.metaItem}>
+              <Icon name="globe" size={14} />
+              {user.region}
+            </span>
+          )}
+          <span className={styles.metaItem}>
+            <Icon name="cards" size={14} />
+            {t('cardCount', { count: published.length })}
+          </span>
+          <span className={styles.metaItem}>{t('joined', { date: joined })}</span>
+        </div>
+
+        <div className={styles.actions}>
+          {isSelf ? (
+            <Link href="/settings" style={{ textDecoration: 'none' }}>
+              <OrganicButton variant="ghost">{t('editProfile')}</OrganicButton>
+            </Link>
+          ) : isConnected ? (
+            <span className={styles.connected}>✿ {t('connected')}</span>
           ) : (
             <ConnectInviteLauncher
               targetUser={{
@@ -121,42 +119,23 @@ export default function OtherProfilePage() {
         </div>
       </header>
 
-      {preview.length > 0 && <CardLinkGrid cards={preview} authors={authors} />}
+      <Divider seed={37} spacing={20} />
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionHeading}>{t('publishedHeading')}</h2>
+        {published.length > 0 ? (
+          <CardLinkGrid cards={published} authors={authors} />
+        ) : (
+          <p className={styles.empty}>{t('emptyPublished')}</p>
+        )}
+      </section>
 
       {linked.length > 0 && (
-        <section style={{ marginTop: 48 }}>
-          <h2
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: 'clamp(20px, 2.4vw, 24px)',
-              fontWeight: 700,
-              letterSpacing: '-0.01em',
-              color: 'var(--color-text)',
-              margin: '0 0 24px',
-            }}
-          >
-            {t('linkedCards')}
-          </h2>
+        <section className={styles.section}>
+          <h2 className={styles.sectionHeading}>{t('linkedCards')}</h2>
           <MiniCardGrid cards={linked} authors={linkedAuthors} />
         </section>
       )}
-
-      {!isConnected && published.length > 6 && (
-        <div
-          style={{
-            marginTop: 48,
-            padding: '40px 24px',
-            textAlign: 'center',
-            borderRadius: 20,
-            background: 'oklch(94% 0.03 75 / 0.5)',
-            color: 'var(--color-text-muted)',
-          }}
-        >
-          <p style={{ fontFamily: 'var(--font-heading)', fontSize: 18, marginBottom: 6 }}>
-            {t('softLock')}
-          </p>
-        </div>
-      )}
-    </div>
+    </PageShell>
   );
 }
