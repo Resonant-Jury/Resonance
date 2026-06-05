@@ -1,11 +1,7 @@
 .card {
   position: relative;
   cursor: pointer;
-  transition: transform 220ms ease;
-}
-
-.card:hover {
-  transform: translateY(-2px);
+  transition: background 320ms ease;
 }
 
 .imagePlaceholder {

@@ -79,7 +79,6 @@
       "resonanceSummary": "昨天有 {count} 個人與你共振",
       "translationDone": "卡片翻譯完成",
       "resonance": "{handle} 與你的卡片共振了",
-      "comment": "{handle} 在你的卡片留言了",
       "cardLink": "{handle} 用卡片連結了你的文章",
       "viewAll": "查看全部"
     }
@@ -100,21 +99,22 @@
   "card": {
     "resonate": "共振",
     "resonated": "已共振",
-    "writeResponse": "寫一張卡片回應",
+    "modify": "修改",
+    "publishResonance": "公開發表",
+    "saveResonanceDraft": "存草稿",
     "initiateConnect": "想和 Ta 連結",
-    "linkWithCard": "用卡片連結",
     "linkedCards": "與 Ta 連結的文章",
     "resonatedBy": "與這張卡片共振的人",
     "viewAllResonators": "查看全部",
     "noResonatorsYet": "還沒有人與這張卡片共振。",
     "noBio": "這個人還沒寫下自我介紹。",
-    "comments": {
-      "title": "留言",
-      "hint": "留言會公開顯示給所有人。",
-      "placeholder": "寫下你的想法⋯",
-      "submit": "送出留言",
-      "empty": "還沒有留言，成為第一個吧。",
-      "signInToComment": "登入後即可留言"
+    "resonance": {
+      "titlePrefill": "〈{title}〉有感而發"
+    },
+    "resonanceSection": {
+      "title": "與此文共振的文章",
+      "sourceTitle": "此文共振自",
+      "empty": "還沒有人與這篇文章共振，成為第一個吧。"
     },
     "linkModal": {
       "title": "用一張卡片連結",
@@ -315,7 +315,12 @@
       "handle": "筆名",
       "handleCooldown": "每 30 天可修改一次",
       "bio": "一句話介紹 (≤ 80 字)",
-      "region": "地區"
+      "region": "地區",
+      "avatar": "個人頭像",
+      "avatarHint": "點擊或拖曳圖片到這裡 · 支援 PNG、JPG、WebP",
+      "avatarChange": "更換頭像",
+      "avatarUploading": "正在描繪中…",
+      "avatarError": "上傳失敗，請再試一次。"
     },
     "account": {
       "email": "電子郵件",

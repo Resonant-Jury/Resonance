@@ -16,7 +16,9 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
   getPublicCardsByAuthor: vi.fn(),
   getCurrentUserProfile: vi.fn(),
   getLatestPublishedFeed: vi.fn(),
+  getMyResonanceCard: vi.fn(),
   getRelatedCards: vi.fn(),
+  getResonanceCards: vi.fn(),
   getUserById: vi.fn(),
   getUserByHandle: vi.fn(),
   getUsersByIds: vi.fn(),
@@ -24,12 +26,6 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
 }));
 vi.mock('@/lib/db/firestore/client/invites', () => ({
   remainingDailyQuota: vi.fn(),
-}));
-vi.mock('@/lib/db/firestore/client/comments', () => ({
-  listComments: vi.fn(),
-}));
-vi.mock('@/lib/db/firestore/client/resonances', () => ({
-  listResonators: vi.fn(),
 }));
 vi.mock('@/lib/db/firestore/client/cardLinks', () => ({
   listLinksToAuthor: vi.fn(),

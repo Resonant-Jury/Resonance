@@ -2,23 +2,23 @@
 
 import useSWR from 'swr';
 import { useAuth } from '@/components/providers/AuthProvider';
-import type { Card, CardBoxTab, Comment, User } from '@/lib/db';
+import type { Card, CardBoxTab, User } from '@/lib/db';
 import {
   getCardById,
   getCardBySlugOrId,
   getCardsByAuthor,
   getCurrentUserProfile,
   getLatestPublishedFeed,
+  getMyResonanceCard,
   getPublicCardsByAuthor,
   getRelatedCards,
+  getResonanceCards,
   getUserById,
   getUserByHandle,
   getUsersByIds,
   isConnected,
 } from '@/lib/db/firestore/client/reads';
 import { remainingDailyQuota } from '@/lib/db/firestore/client/invites';
-import { listComments } from '@/lib/db/firestore/client/comments';
-import { listResonators } from '@/lib/db/firestore/client/resonances';
 import { listLinksToAuthor, listLinksToCard } from '@/lib/db/firestore/client/cardLinks';
 
 export interface CardsWithAuthors {
@@ -117,28 +117,60 @@ export function useMyCardBox() {
   });
 }
 
-/** Comments on a card (everyone-readable), with the commenters' profiles. */
-export interface CommentsWithAuthors {
-  comments: Comment[];
-  authors: Record<string, User>;
-}
-export function useComments(cardId: string | undefined) {
-  return useSWR<CommentsWithAuthors>(cardId ? `comments:${cardId}` : null, async () => {
-    const comments = await listComments(cardId!);
-    const authors = await getUsersByIds(comments.map((c) => c.authorId));
-    return { comments, authors };
+/**
+ * Public cards that resonate with (reference) a card, with their authors.
+ * Anonymous-readable — drives the card-detail resonance section.
+ */
+export function useResonanceCards(cardId: string | undefined) {
+  return useSWR<CardsWithAuthors>(cardId ? `resonanceCards:${cardId}` : null, async () => {
+    const cards = await getResonanceCards(cardId!);
+    return withAuthors(cards);
   });
 }
 
 /**
- * The people who resonated with a card, newest first — author-only data, so the
- * caller gates this on `viewer.id === authorId` by passing `undefined` otherwise.
+ * The original card that a resonance (response) card references, with its
+ * author — wrapped as {@link CardsWithAuthors} (zero or one card) so it can feed
+ * the same {@link MiniCardGrid} as the incoming resonance list. Anonymous-
+ * readable; resolves to an empty list when the original is missing or private.
+ */
+export function useReferencedCard(cardId: string | undefined) {
+  return useSWR<CardsWithAuthors>(cardId ? `referencedCard:${cardId}` : null, async () => {
+    const card = await getCardById(cardId!);
+    return withAuthors(card ? [card] : []);
+  });
+}
+
+/**
+ * The signed-in viewer's own resonance card for a given original (draft or
+ * published), or null. Re-keys on the viewer so it refreshes on sign-in/out.
+ * Drives the「共振 / 修改」button and prefills the inline editor.
+ */
+export function useMyResonance(cardId: string | undefined) {
+  const { user, loading } = useAuth();
+  const key = cardId && user && !loading ? `myResonance:${cardId}:${user.id}` : null;
+  return useSWR<Card | null>(key, () => getMyResonanceCard(cardId!));
+}
+
+/**
+ * The people who resonated with a card, newest first — derived from the public
+ * resonance cards. Author-only surface, so the caller gates this on
+ * `viewer.id === authorId` by passing `undefined` otherwise.
  */
 export function useResonators(cardId: string | undefined) {
   return useSWR<User[]>(cardId ? `resonators:${cardId}` : null, async () => {
-    const ids = await listResonators(cardId!);
-    const authors = await getUsersByIds(ids);
-    return ids.map((id) => authors[id]).filter((u): u is User => Boolean(u));
+    const cards = await getResonanceCards(cardId!);
+    const authors = await getUsersByIds(cards.map((c) => c.authorId));
+    // One avatar per unique resonator, in card (newest-first) order.
+    const seen = new Set<string>();
+    const out: User[] = [];
+    for (const c of cards) {
+      if (seen.has(c.authorId)) continue;
+      seen.add(c.authorId);
+      const u = authors[c.authorId];
+      if (u) out.push(u);
+    }
+    return out;
   });
 }
 

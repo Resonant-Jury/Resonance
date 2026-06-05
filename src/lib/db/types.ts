@@ -46,6 +46,8 @@ export interface User {
   verified: boolean;
   phoneHash: string;
   avatarSeed: string;
+  /** uploaded avatar image URL (public R2 object); falls back to initials */
+  avatarUrl?: string;
   /** display initials (derived from handle) */
   initials: string;
   /** accent color token or oklch value */
@@ -80,17 +82,6 @@ export interface Resonance {
   createdAt: Date;
 }
 
-export interface Comment {
-  id: string;
-  cardId: string;
-  /** uid of the commenter. */
-  authorId: string;
-  /** Reserved for future threaded replies; always null in the current one-level design. */
-  parentId: string | null;
-  body: string;
-  createdAt: Date;
-}
-
 export interface CardLink {
   id: string;
   /** The viewer's own card doing the linking. */
@@ -113,7 +104,6 @@ export interface Notification {
     | 'translation_done'
     | 'invite_expired'
     | 'resonance'
-    | 'comment'
     | 'card_link';
   payload: Record<string, unknown>;
   readAt: Date | null;

@@ -89,22 +89,64 @@ export async function getRelatedCards(cardId: string, limit = 3): Promise<Card[]
   return cards.slice(0, limit);
 }
 
+/**
+ * Public cards that resonate with (reference) the given card, newest first.
+ * Anonymous-readable: every match is `visibility == "public"`, so the Firestore
+ * `list` rule allows signed-out viewers. Used for the card-detail resonance
+ * section and the author-only resonator avatar group.
+ */
+export async function getResonanceCards(cardId: string, limit = 30): Promise<Card[]> {
+  const snap = await getDocs(
+    query(
+      collection(getClientDb(), 'cards'),
+      where('referenceCardId', '==', cardId),
+      where('visibility', '==', 'public'),
+      where('publishedAt', '!=', null),
+      orderBy('publishedAt', 'desc'),
+      fbLimit(limit)
+    )
+  );
+  return snap.docs.map((d) => mapCard(d.id, d.data()));
+}
+
+/**
+ * The signed-in viewer's own resonance card for a given original (draft or
+ * published), or null. Pure-equality query — no composite index needed. Drives
+ * the「共振 / 修改」button and prefills the inline editor.
+ */
+export async function getMyResonanceCard(cardId: string): Promise<Card | null> {
+  const uid = getFirebaseClientAuth().currentUser?.uid;
+  if (!uid) return null;
+  const snap = await getDocs(
+    query(
+      collection(getClientDb(), 'cards'),
+      where('authorId', '==', uid),
+      where('referenceCardId', '==', cardId),
+      fbLimit(1)
+    )
+  );
+  const d = snap.docs[0];
+  return d ? mapCard(d.id, d.data()) : null;
+}
+
 /** Author's cards filtered by box tab. Mirrors FirestoreCardRepository.findByAuthor. */
 export async function getCardsByAuthor(authorId: string, tab: CardBoxTab): Promise<Card[]> {
   const db = getClientDb();
 
   if (tab === 'resonated') {
-    const resonances = await getDocs(
-      query(
-        collection(db, 'resonances'),
-        where('userId', '==', authorId),
-        orderBy('createdAt', 'desc'),
-        fbLimit(30)
+    // A "resonated" card now means an original I wrote a response card for: take
+    // my own cards that reference another card, then resolve those originals.
+    const mine = await getDocs(
+      query(collection(db, 'cards'), where('authorId', '==', authorId), fbLimit(60))
+    );
+    const refIds = Array.from(
+      new Set(
+        mine.docs
+          .map((d) => d.data().referenceCardId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
       )
     );
-    const cards = await Promise.all(
-      resonances.docs.map((r) => getCardById(String(r.data().cardId)))
-    );
+    const cards = await Promise.all(refIds.map((id) => getCardById(id)));
     return cards.filter((c): c is Card => Boolean(c));
   }
 
@@ -181,6 +223,13 @@ export async function getCurrentUserProfile(): Promise<User | null> {
 // --- connections ---
 
 export async function isConnected(a: string, b: string): Promise<boolean> {
-  const snap = await getDoc(doc(getClientDb(), 'connections', connectionId(a, b)));
-  return snap.exists();
+  try {
+    const snap = await getDoc(doc(getClientDb(), 'connections', connectionId(a, b)));
+    return snap.exists();
+  } catch {
+    // The connection-read rule references `resource.data.userIds`; for a doc that
+    // doesn't exist `resource` is null, so the rule denies rather than returning
+    // an empty snapshot. Treat "denied/missing" as simply not connected.
+    return false;
+  }
 }

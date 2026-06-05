@@ -49,6 +49,7 @@ export async function updateProfile(patch: {
   region?: string;
   primaryLocale?: Locale;
   autoTranslateTo?: Locale[];
+  avatarUrl?: string;
 }): Promise<void> {
   const uid = requireUid();
   const ref = doc(getClientDb(), 'users', uid);

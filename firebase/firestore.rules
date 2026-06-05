@@ -57,6 +57,7 @@ service cloud.firestore {
           "primaryLocale",
           "autoTranslateTo",
           "avatarSeed",
+          "avatarUrl",
           "initials",
           "accentColor",
           "handleChangedAt"
@@ -147,22 +148,6 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // --- comments ---
-    // One flat level (parentId reserved for future threading). Anyone who can
-    // see the card can read its comments; only signed-in users may post, and
-    // only as themselves. Commenters may delete their own comments.
-    match /comments/{commentId} {
-      allow read: if cardVisible(get(/databases/$(database)/documents/cards/$(resource.data.cardId)).data);
-      allow create: if signedIn()
-        && request.resource.data.authorId == request.auth.uid
-        && request.resource.data.parentId == null
-        && request.resource.data.body is string
-        && request.resource.data.body.size() > 0
-        && request.resource.data.body.size() <= 2000;
-      allow update: if false;
-      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
-    }
-
     // --- cardLinks ---
     // A public association from one of the viewer's own cards to a target card.
     // Doc id is deterministic: {sourceCardId}_{targetCardId} (idempotent).
@@ -202,7 +187,6 @@ service cloud.firestore {
         && (
           notificationIsInviteSender()
           || actorNotif("resonance")
-          || actorNotif("comment")
           || actorNotif("card_link")
         );
       allow update: if signedIn()

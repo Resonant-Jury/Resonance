@@ -6,7 +6,6 @@ import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAva
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Icon } from '@/components/atoms/Icon';
-import { Divider } from '@/components/atoms/Divider/Divider';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { PageShell } from '@/components/molecules/PageShell/PageShell';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
@@ -38,7 +37,16 @@ export default function PublicProfilePage() {
   if (isLoading) {
     return (
       <PageShell width="wide">
-        <FeedSkeleton count={6} />
+        <div className={styles.hero} role="status" aria-label="Loading profile">
+          <div className={`${styles.skelBlock} ${styles.skelAvatar}`} />
+          <div className={`${styles.skelBlock} ${styles.skelName}`} />
+          <div className={`${styles.skelBlock} ${styles.skelBio}`} />
+          <div className={`${styles.skelBlock} ${styles.skelBioShort}`} />
+          <div className={`${styles.skelBlock} ${styles.skelMeta}`} />
+        </div>
+        <div className={styles.section}>
+          <FeedSkeleton count={4} />
+        </div>
       </PageShell>
     );
   }
@@ -67,6 +75,7 @@ export default function PublicProfilePage() {
     <PageShell width="wide">
       <header className={styles.hero}>
         <HandDrawnAvatar
+          src={user.avatarUrl}
           initials={user.initials}
           size={96}
           color={user.accentColor}
@@ -118,8 +127,6 @@ export default function PublicProfilePage() {
           )}
         </div>
       </header>
-
-      <Divider seed={37} spacing={20} />
 
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>{t('publishedHeading')}</h2>

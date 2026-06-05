@@ -12,6 +12,7 @@ export function CardAuthorAside({ author, verifiedLabel }: { author: User; verif
     <div className={styles.aside}>
       <Link href={`/u/${author.handle}`} className={styles.avatarLink} aria-label={author.handle}>
         <HandDrawnAvatar
+          src={author.avatarUrl}
           initials={author.initials}
           size={56}
           color={author.accentColor}

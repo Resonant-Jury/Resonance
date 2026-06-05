@@ -178,6 +178,7 @@ export function SiteHeader() {
                   ) : (
                     <Link href="/me" aria-label="My Profile" style={{ textDecoration: 'none' }}>
                       <HandDrawnAvatar
+                        src={profile?.avatarUrl}
                         initials={profile?.initials || '··'}
                         size={36}
                         color={profile?.accentColor || 'var(--color-terracotta-light)'}

@@ -186,7 +186,15 @@ export async function remainingDailyQuota(): Promise<number> {
   const uid = getFirebaseClientAuth().currentUser?.uid;
   if (!uid) return 0;
   const ref = doc(getClientDb(), 'quotas', `${uid}_${todayKey()}`);
-  const snap = await getDoc(ref);
-  const used = snap.exists() ? Number(snap.data().inviteCount ?? 0) : 0;
-  return Math.max(0, DAILY_LIMIT - used);
+  try {
+    const snap = await getDoc(ref);
+    const used = snap.exists() ? Number(snap.data().inviteCount ?? 0) : 0;
+    return Math.max(0, DAILY_LIMIT - used);
+  } catch {
+    // The quota-read rule references `resource.data.userId`; for today's doc
+    // before any invite is sent it doesn't exist, so `resource` is null and the
+    // rule denies rather than returning an empty snapshot. No invites sent yet →
+    // the full daily quota is still available.
+    return DAILY_LIMIT;
+  }
 }

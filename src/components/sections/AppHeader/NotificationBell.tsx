@@ -132,9 +132,6 @@ export function NotificationBell() {
             } else if (n.type === 'resonance') {
               body = tApp('resonance', { handle: String(n.payload.fromHandle ?? '') });
               href = `/card/${n.payload.cardId}`;
-            } else if (n.type === 'comment') {
-              body = tApp('comment', { handle: String(n.payload.fromHandle ?? '') });
-              href = `/card/${n.payload.cardId}`;
             } else if (n.type === 'card_link') {
               body = tApp('cardLink', { handle: String(n.payload.fromHandle ?? '') });
               href = `/card/${n.payload.cardId}`;

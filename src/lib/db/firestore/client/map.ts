@@ -51,6 +51,7 @@ export function mapUser(id: string, data: Raw): User {
     verified: Boolean(data.verified),
     phoneHash: String(data.phoneHash ?? ''),
     avatarSeed: String(data.avatarSeed ?? '0'),
+    avatarUrl: data.avatarUrl as string | undefined,
     initials: String(data.initials ?? ''),
     accentColor: String(data.accentColor ?? 'oklch(88% 0.08 55)'),
     joinedAt: toDate(data.joinedAt),

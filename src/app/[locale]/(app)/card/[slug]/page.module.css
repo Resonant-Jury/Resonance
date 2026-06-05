@@ -57,6 +57,45 @@
   }
 }
 
+.resonanceSection {
+  position: relative;
+  background: var(--color-cream-dark);
+  padding: clamp(110px, 11vw, 150px) 0 clamp(80px, 8vw, 120px);
+  overflow: hidden;
+}
+
+.relatedSectionPrimary {
+  position: relative;
+  background: var(--color-cream-dark);
+  padding: clamp(110px, 11vw, 150px) 0 clamp(80px, 8vw, 120px);
+  overflow: hidden;
+}
+
+.relatedSectionSecondary {
+  position: relative;
+  background: var(--color-cream);
+  padding: clamp(110px, 11vw, 150px) 0 clamp(80px, 8vw, 120px);
+  overflow: hidden;
+}
+
+.sectionContainer {
+  max-width: var(--page-max-w-wide);
+  margin: 0 auto;
+  padding: 0 var(--page-pad-x);
+  position: relative;
+  z-index: 1;
+}
+
+.relatedHeading {
+  font-family: var(--font-heading);
+  font-size: clamp(22px, 2.6vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin: 0 0 clamp(28px, 3.5vw, 40px);
+  text-align: center;
+}
+
 /* "Cards linked to this one" heading (author-only section). */
 .linkedHeading {
   font-family: var(--font-heading);

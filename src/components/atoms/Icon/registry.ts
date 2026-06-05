@@ -14,7 +14,6 @@ import { GlobeIcon } from './icons/globe';
 import { WaveIcon } from './icons/wave';
 import { PenIcon } from './icons/pen';
 import { CardsIcon } from './icons/cards';
-import { CommentIcon } from './icons/comment';
 import { LogoutIcon } from './icons/logout';
 import type { IconRenderer } from './types';
 
@@ -49,7 +48,6 @@ export const ICONS = {
   wave: WaveIcon,
   pen: PenIcon,
   cards: CardsIcon,
-  comment: CommentIcon,
   logout: LogoutIcon,
 } satisfies Record<string, IconRenderer>;
 

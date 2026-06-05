@@ -80,6 +80,7 @@ export function MobileNavModal({ open, onClose }: MobileNavModalProps) {
             ) : (
               <Link href="/me" onClick={onClose} aria-label="My Profile" style={{ textDecoration: 'none' }}>
                 <HandDrawnAvatar
+                  src={profile?.avatarUrl}
                   initials={profile?.initials || '··'}
                   size={38}
                   color={profile?.accentColor || 'var(--color-terracotta-light)'}

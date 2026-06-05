@@ -14,6 +14,9 @@ const components: Components = {
       <div className={styles.blockquoteBody}>{children}</div>
     </blockquote>
   ),
+  // Replace the default flat rule with the theme's thin wavy pen line, with
+  // generous breathing room above and below.
+  hr: () => <Divider seed={23} spacing="clamp(28px, 4vw, 40px)" />,
 };
 
 /**

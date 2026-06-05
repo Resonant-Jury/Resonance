@@ -79,7 +79,6 @@
       "resonanceSummary": "{count} people resonated with you yesterday",
       "translationDone": "Translation complete",
       "resonance": "{handle} resonated with your card",
-      "comment": "{handle} commented on your card",
       "cardLink": "{handle} linked a card to your card",
       "viewAll": "View all"
     }
@@ -100,21 +99,22 @@
   "card": {
     "resonate": "Resonate",
     "resonated": "Resonated",
-    "writeResponse": "Write a card in response",
+    "modify": "Edit",
+    "publishResonance": "Publish",
+    "saveResonanceDraft": "Save draft",
     "initiateConnect": "Invite to connect",
-    "linkWithCard": "Link with a card",
     "linkedCards": "Cards linked to this",
     "resonatedBy": "Resonated by",
     "viewAllResonators": "View all",
     "noResonatorsYet": "No one has resonated with this card yet.",
     "noBio": "No bio yet.",
-    "comments": {
-      "title": "Comments",
-      "hint": "Comments are public to everyone.",
-      "placeholder": "Share your thoughts…",
-      "submit": "Post comment",
-      "empty": "No comments yet — be the first.",
-      "signInToComment": "Sign in to comment"
+    "resonance": {
+      "titlePrefill": "Reflections on \"{title}\""
+    },
+    "resonanceSection": {
+      "title": "Cards resonating with this",
+      "sourceTitle": "Resonating with",
+      "empty": "No one has resonated with this card yet — be the first."
     },
     "linkModal": {
       "title": "Link with a card",
@@ -315,7 +315,12 @@
       "handle": "Handle",
       "handleCooldown": "Editable once every 30 days",
       "bio": "One-line bio (≤ 80 chars)",
-      "region": "Region"
+      "region": "Region",
+      "avatar": "Profile photo",
+      "avatarHint": "Click or drag an image here · PNG, JPG, WebP",
+      "avatarChange": "Change profile photo",
+      "avatarUploading": "Sketching it in…",
+      "avatarError": "Upload failed. Please try again."
     },
     "account": {
       "email": "Email",

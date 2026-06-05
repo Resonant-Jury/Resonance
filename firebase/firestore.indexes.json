@@ -26,6 +26,15 @@
       ]
     },
     {
+      "collectionGroup": "cards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "referenceCardId", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "invites",
       "queryScope": "COLLECTION",
       "fields": [
@@ -64,14 +73,6 @@
       "fields": [
         { "fieldPath": "cardId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "comments",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "cardId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
     },
     {

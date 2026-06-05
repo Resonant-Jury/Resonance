@@ -97,6 +97,51 @@
   color: var(--color-text-muted);
 }
 
+/* --- loading skeleton (mirrors the hero masthead + card grid) --- */
+
+@keyframes profilePulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.skelBlock {
+  background: var(--color-surface-sunk, oklch(92% 0.01 80));
+  border-radius: 8px;
+  animation: profilePulse 1.4s ease-in-out infinite;
+}
+
+.skelAvatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+}
+
+.skelName {
+  width: min(220px, 60vw);
+  height: 34px;
+  border-radius: 10px;
+}
+
+.skelBio {
+  width: min(440px, 80vw);
+  height: 16px;
+}
+
+.skelBioShort {
+  width: min(300px, 60vw);
+  height: 16px;
+}
+
+.skelMeta {
+  width: min(280px, 70vw);
+  height: 13px;
+}
+
 /* --- not found --- */
 
 .notFound {

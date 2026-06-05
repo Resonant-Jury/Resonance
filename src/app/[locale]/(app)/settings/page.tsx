@@ -38,6 +38,9 @@ export default async function SettingsPage({
           region: user.region,
           primaryLocale: user.primaryLocale,
           autoTranslateTo: user.autoTranslateTo,
+          avatarUrl: user.avatarUrl,
+          initials: user.initials,
+          accentColor: user.accentColor,
         }}
       />
     </div>

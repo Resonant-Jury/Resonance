@@ -1,0 +1,20 @@
+/* Resonance sections echo the home page's section rhythm: a centered heading
+   over a card grid, separated from neighbours by generous vertical whitespace
+   instead of a hairline rule framing a tinted band. */
+.section {
+  margin-top: clamp(56px, 8vw, 88px);
+}
+
+.section:first-of-type {
+  margin-top: 0;
+}
+
+.heading {
+  font-family: var(--font-heading);
+  font-size: clamp(22px, 2.6vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin: 0 0 clamp(28px, 3.5vw, 40px);
+  text-align: center;
+}

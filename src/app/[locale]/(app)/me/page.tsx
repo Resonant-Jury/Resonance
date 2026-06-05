@@ -36,6 +36,7 @@ export default function MyCardBoxPage() {
         }}
       >
         <HandDrawnAvatar
+          src={user?.avatarUrl}
           initials={user?.initials ?? '··'}
           size={72}
           color={user?.accentColor ?? 'oklch(88% 0.08 55)'}

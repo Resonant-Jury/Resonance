@@ -9,10 +9,14 @@ import type { Card, User } from '@/lib/db/types';
 const mockUseCard = vi.fn();
 const mockUseRelated = vi.fn();
 const mockUseLinkedToCard = vi.fn();
+const mockUseResonanceCards = vi.fn();
+const mockUseReferencedCard = vi.fn();
 vi.mock('@/lib/data/hooks', () => ({
   useCard: () => mockUseCard(),
   useRelated: () => mockUseRelated(),
   useLinkedToCard: () => mockUseLinkedToCard(),
+  useResonanceCards: () => mockUseResonanceCards(),
+  useReferencedCard: () => mockUseReferencedCard(),
 }));
 vi.mock('@/components/providers/AuthProvider', () => ({
   useAuth: () => ({ user: null, loading: false }),
@@ -26,16 +30,17 @@ vi.mock('@/i18n/navigation', () => ({
   ),
 }));
 // The detail body composes leaf components that perform their own Firestore
-// reads (resonance state, author metrics, comments). They aren't the subject
-// here, so we stub them to keep the test focused on the page's data wiring.
+// reads (resonance state, author metrics, resonance cards). They aren't the
+// subject here, so we stub them to keep the test focused on the page's data
+// wiring.
 vi.mock('@/components/molecules/CardDetail/CardViewerActions', () => ({
   CardViewerActions: () => <div data-testid="viewer-actions" />,
 }));
 vi.mock('@/components/molecules/CardDetail/CardAuthorMetrics', () => ({
   CardAuthorMetrics: () => <div data-testid="author-metrics" />,
 }));
-vi.mock('@/components/molecules/CommentsSection/CommentsSection', () => ({
-  CommentsSection: () => <div data-testid="comments" />,
+vi.mock('@/components/molecules/CardDetail/ResonanceCards', () => ({
+  ResonanceCards: () => <div data-testid="resonance-cards" />,
 }));
 
 import CardDetailPage from './page';
@@ -76,6 +81,8 @@ function author(): User {
 beforeEach(() => {
   mockUseRelated.mockReturnValue({ data: { cards: [], authors: {} } });
   mockUseLinkedToCard.mockReturnValue({ data: { cards: [], authors: {} } });
+  mockUseResonanceCards.mockReturnValue({ data: { cards: [], authors: {} } });
+  mockUseReferencedCard.mockReturnValue({ data: { cards: [], authors: {} } });
 });
 afterEach(() => vi.clearAllMocks());
 

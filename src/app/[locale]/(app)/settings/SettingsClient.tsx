@@ -8,6 +8,7 @@ import { Divider } from '@/components/atoms/Divider/Divider';
 import { ToggleSwitch } from '@/components/atoms/ToggleSwitch/ToggleSwitch';
 import { OrganicSlider } from '@/components/atoms/OrganicSlider/OrganicSlider';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
+import { AvatarUpload } from '@/components/molecules/AvatarUpload/AvatarUpload';
 import { updateProfile } from '@/lib/db/firestore/client/profile';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useTweaks } from '@/components/providers/TweaksPanel';
@@ -44,6 +45,9 @@ export interface SettingsClientProps {
     region: string;
     primaryLocale: Locale;
     autoTranslateTo: Locale[];
+    avatarUrl?: string;
+    initials: string;
+    accentColor: string;
   };
 }
 
@@ -59,6 +63,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   const [handle, setHandle] = useState(initial.handle);
   const [bio, setBio] = useState(initial.bio);
   const [region, setRegion] = useState(initial.region);
+  const [avatarUrl, setAvatarUrl] = useState(initial.avatarUrl);
   const [primaryLocale, setPrimaryLocale] = useState<Locale>(initial.primaryLocale);
   const [savedTick, setSavedTick] = useState(false);
   const [pending, start] = useTransition();
@@ -94,6 +99,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
     start(async () => {
       const patch: Parameters<typeof updateProfile>[0] = { bio, region, primaryLocale };
       if (handle !== initial.handle) patch.handle = handle;
+      if (avatarUrl !== initial.avatarUrl) patch.avatarUrl = avatarUrl;
       await updateProfile(patch);
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 1800);
@@ -136,6 +142,18 @@ export function SettingsClient({ initial }: SettingsClientProps) {
       <section style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
         {active === 'profile' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <AvatarUpload
+              src={avatarUrl}
+              initials={initial.initials || handle.slice(0, 2).toUpperCase()}
+              accentColor={initial.accentColor}
+              seed={77}
+              onUploaded={(url) => {
+                setAvatarUrl(url);
+                // Persist immediately so the header avatar updates without
+                // waiting for the Save button.
+                void updateProfile({ avatarUrl: url });
+              }}
+            />
             <Field label={t('profile.handle')} hint={t('profile.handleCooldown')}>
               <Input
                 seed={31}

@@ -24,7 +24,7 @@ import {
   publishCard,
   updateCardDraft,
 } from '@/lib/db/firestore/client/cards';
-import type { CardMedia, Visibility, Locale } from '@/lib/db/types';
+import type { Card, CardMedia, Visibility, Locale } from '@/lib/db/types';
 import { useRouter } from '@/i18n/navigation';
 import styles from './CardEditor.module.css';
 
@@ -38,6 +38,22 @@ export interface CardEditorProps {
     media?: CardMedia;
   };
   locale: Locale;
+  /**
+   * When set, the created/updated card references this card (a "resonance"
+   * response card). Forwarded to {@link createCardDraft}.
+   */
+  referenceCardId?: string;
+  /**
+   * `'page'` (default) is the full Write page: outline buttons + slug redirect
+   * on publish. `'inline'` is the embedded resonance composer: hides the
+   * visibility selector (always public), shows a 公開發表 / 存草稿 segmented bar,
+   * and reports results via callbacks instead of navigating away.
+   */
+  mode?: 'page' | 'inline';
+  /** Called after a successful publish (inline mode). */
+  onPublished?: (card: Card) => void;
+  /** Called after a successful draft save (inline mode). */
+  onSavedDraft?: (card: Card) => void;
 }
 
 const SAMPLE_TAGS = ['脆弱性', '記憶', '成長', '家族', '陌生人', '夜晚', '和解', '書寫'];
@@ -54,11 +70,20 @@ const VISIBILITY_ICON: Record<Visibility, 'globe' | 'users' | 'lock'> = {
   private: 'lock',
 };
 
-export function CardEditor({ initial, locale }: CardEditorProps) {
+export function CardEditor({
+  initial,
+  locale,
+  referenceCardId,
+  mode = 'page',
+  onPublished,
+  onSavedDraft,
+}: CardEditorProps) {
   const t = useTranslations('write');
   const tVis = useTranslations('write.visibility');
+  const tCard = useTranslations('card');
   // const tAi = useTranslations('write.ai'); // AI 寫作夥伴：暫時停用
   const router = useRouter();
+  const inline = mode === 'inline';
 
   const [thoughtCore, setThoughtCore] = useState(initial?.thoughtCore ?? '');
   const [story, setStory] = useState(initial?.story ?? '');
@@ -124,6 +149,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
         visibility,
         originalLocale: locale,
         media,
+        referenceCardId,
       });
     setSavedAt(new Date());
     return card;
@@ -153,7 +179,13 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
       } catch {
         // keep the doc-id destination
       }
-      router.push(`/card/${destination}`);
+      // Inline (resonance) mode stays on the page so the resonance section can
+      // refresh in place; the page editor navigates to the new card.
+      if (inline) {
+        onPublished?.({ ...published, slug: destination === published.id ? published.slug : destination });
+      } else {
+        router.push(`/card/${destination}`);
+      }
     } catch (err) {
       console.error('Publish failed:', err);
       setPublishError(err instanceof Error ? err.message : String(err));
@@ -375,7 +407,8 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
           )}
         </Field>
 
-        {/* Visibility */}
+        {/* Visibility — page mode only; resonance cards are always public. */}
+        {!inline && (
         <Field label={t('visibility.label')}>
           {/* flex wrapper so the inline-flex bar shrinks to content instead of
               being stretched full-width by the Field's flex column */}
@@ -403,8 +436,46 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
             />
           </div>
         </Field>
+        )}
 
         {/* Actions */}
+        {inline ? (
+          <div className={styles.actions}>
+            <SegmentedActionBar
+              segments={[
+                {
+                  key: 'publish',
+                  icon: <Icon name="wave" size={16} color="var(--color-cream)" />,
+                  label: pending ? t('publishing') : tCard('publishResonance'),
+                  textColor: 'var(--color-cream)',
+                  fill: 'var(--color-terracotta)',
+                  hoverOverlay: 'oklch(0% 0 0 / 0.14)',
+                  onClick: () => void submit(),
+                },
+                {
+                  key: 'draft',
+                  icon: <Icon name="pen" size={16} color="var(--color-terracotta)" />,
+                  label: tCard('saveResonanceDraft'),
+                  onClick: () => {
+                    if (pending) return;
+                    setPending(true);
+                    setPublishError(null);
+                    saveDraft()
+                      .then((card) => onSavedDraft?.(card))
+                      .catch((err) => {
+                        console.error('Save draft failed:', err);
+                        setPublishError(err instanceof Error ? err.message : String(err));
+                      })
+                      .finally(() => setPending(false));
+                  },
+                },
+              ]}
+            />
+            {publishError && (
+              <span style={{ fontSize: 12, color: 'var(--color-terracotta)' }}>{publishError}</span>
+            )}
+          </div>
+        ) : (
         <div className={styles.actions}>
           <OrganicButton
             variant="outline"
@@ -438,6 +509,7 @@ export function CardEditor({ initial, locale }: CardEditorProps) {
             </span>
           )}
         </div>
+        )}
       </div>
 
       {/*
