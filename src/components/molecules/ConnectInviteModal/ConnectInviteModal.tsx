@@ -11,7 +11,14 @@ import { getCurrentUserHandle } from '@/lib/db/firestore/client/profile';
 export interface ConnectInviteModalProps {
   open: boolean;
   onClose: () => void;
-  target: { id: string; handle: string; initials: string; accentColor: string };
+  target: {
+    id: string;
+    handle: string;
+    initials: string;
+    accentColor: string;
+    avatarUrl?: string;
+    avatarSeed?: string;
+  };
   referenceCardId?: string;
   dailyRemaining: number;
   onSent?: () => void;
@@ -67,10 +74,11 @@ export function ConnectInviteModal({
       {sent ? (
         <div style={{ textAlign: 'center', padding: '16px 0' }}>
           <HandDrawnAvatar
+            src={target.avatarUrl}
             initials={target.initials}
             size={56}
             color={target.accentColor}
-            seed={19}
+            seed={Number(target.avatarSeed) || 19}
           />
           <h3
             style={{
@@ -93,10 +101,11 @@ export function ConnectInviteModal({
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
             <HandDrawnAvatar
+              src={target.avatarUrl}
               initials={target.initials}
               size={42}
               color={target.accentColor}
-              seed={19}
+              seed={Number(target.avatarSeed) || 19}
             />
             <div>
               <h3

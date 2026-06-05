@@ -9,7 +9,6 @@ import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { CardDetailSkeleton } from '@/components/molecules/CardDetail/CardDetailSkeleton';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
-import { CardAuthorMetrics } from '@/components/molecules/CardDetail/CardAuthorMetrics';
 import { CardAuthorAside } from '@/components/molecules/CardDetail/CardAuthorAside';
 import { CardToc, type TocHeading } from '@/components/molecules/CardDetail/CardToc';
 import { CardViewerActions } from '@/components/molecules/CardDetail/CardViewerActions';
@@ -182,8 +181,6 @@ export default function CardDetailPage() {
                 accentColor: author.accentColor,
               }}
             />
-
-            <CardAuthorMetrics cardId={card.id} authorId={author.id} />
 
             {isOwner && (linkedData?.cards.length ?? 0) > 0 && (
               <section style={{ marginBottom: 40 }}>

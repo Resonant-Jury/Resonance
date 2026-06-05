@@ -37,7 +37,13 @@ function buildHeaderPaths(seed: number) {
 }
 
 export interface AppHeaderProps {
-  user: { initials: string; handle: string; accentColor: string };
+  user: {
+    initials: string;
+    handle: string;
+    accentColor: string;
+    avatarUrl?: string;
+    avatarSeed?: string;
+  };
   activeKey?: 'home' | 'me' | 'write';
 }
 

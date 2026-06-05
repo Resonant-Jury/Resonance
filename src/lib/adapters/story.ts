@@ -6,7 +6,7 @@ import type { Story } from '@/components/molecules/StoryCard/StoryCard';
  * molecule.  The MVP uses the story card for Card rendering so the visual
  * identity stays consistent across marketing + app pages.
  */
-export function cardToStory(card: Card, author: Pick<User, 'handle' | 'initials'>): Story {
+export function cardToStory(card: Card, author: Pick<User, 'handle' | 'initials' | 'avatarUrl' | 'avatarSeed'>): Story {
   const wordCount = card.story.replace(/\s+/g, '').length;
   const minutes = Math.max(1, Math.round(wordCount / 320));
   const excerpt = card.story.replace(/\n+/g, ' ').slice(0, 96) + (card.story.length > 96 ? '…' : '');
@@ -15,6 +15,8 @@ export function cardToStory(card: Card, author: Pick<User, 'handle' | 'initials'
     excerpt,
     author: `@${author.handle}`,
     authorInitials: author.initials,
+    avatarUrl: author.avatarUrl,
+    avatarSeed: author.avatarSeed,
     readTime: `${minutes} min`,
     tags: card.tags,
     imageUrl: card.media?.url,

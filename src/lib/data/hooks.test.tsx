@@ -40,11 +40,13 @@ vi.mock('@/components/providers/AuthProvider', () => ({
 }));
 
 import {
+  getCardById,
   getCardBySlugOrId,
   getCardsByAuthor,
   getPublicCardsByAuthor,
   getLatestPublishedFeed,
   getRelatedCards,
+  getResonanceCards,
   getUserById,
   getUserByHandle,
   getUsersByIds,
@@ -52,7 +54,7 @@ import {
 } from '@/lib/db/firestore/client/reads';
 import { remainingDailyQuota } from '@/lib/db/firestore/client/invites';
 import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
-import { useCard, useFeed, useMyCardBox, useProfileByHandle, useRelated } from './hooks';
+import { useCard, useFeed, useMyCardBox, useProfileByHandle, useRelated, useResonators } from './hooks';
 
 // --- fixtures --------------------------------------------------------------
 function card(id: string, authorId: string, extra: Partial<Card> = {}): Card {
@@ -293,5 +295,33 @@ describe('useProfileByHandle', () => {
     expect(data.published.map((c) => c.id)).toEqual(['p1']);
     expect(isConnected).not.toHaveBeenCalled();
     expect(remainingDailyQuota).not.toHaveBeenCalled();
+  });
+});
+
+describe('useResonators', () => {
+  it('fetches resonators for the given card, including incoming cards and parent cards', async () => {
+    vi.mocked(getResonanceCards).mockResolvedValue([
+      card('c2', 'a2'),
+      card('c3', 'a3'),
+    ]);
+    vi.mocked(getUsersByIds).mockResolvedValue({
+      a2: user('a2'),
+      a3: user('a3'),
+    });
+
+    vi.mocked(getCardById).mockImplementation(async (id) => {
+      if (id === 'c0') return card('c0', 'a0');
+      return null;
+    });
+    vi.mocked(getUserById).mockImplementation(async (id) => {
+      if (id === 'a0') return user('a0');
+      return null;
+    });
+
+    const { result } = renderHook(() => useResonators('c1', 'c0'), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    const list = result.current.data!;
+    expect(list.map((u) => u.id)).toEqual(['a0', 'a2', 'a3']);
   });
 });

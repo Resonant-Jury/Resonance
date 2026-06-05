@@ -8,6 +8,7 @@ export interface AvatarGroupMember {
   initials: string;
   accentColor: string;
   avatarSeed: string;
+  avatarUrl?: string;
 }
 
 export interface AvatarGroupProps {
@@ -43,6 +44,7 @@ export function AvatarGroup({
       {shown.map((m, i) => (
         <span key={m.id} className={styles.item} style={{ zIndex: shown.length - i }}>
           <HandDrawnAvatar
+            src={m.avatarUrl}
             initials={m.initials}
             size={size}
             color={m.accentColor}

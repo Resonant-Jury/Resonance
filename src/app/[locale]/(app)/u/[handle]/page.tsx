@@ -119,6 +119,8 @@ export default function PublicProfilePage() {
                 handle: user.handle,
                 initials: user.initials,
                 accentColor: user.accentColor,
+                avatarUrl: user.avatarUrl,
+                avatarSeed: user.avatarSeed,
               }}
               dailyRemaining={dailyRemaining}
               variant="primary"

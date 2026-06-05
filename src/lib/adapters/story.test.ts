@@ -22,7 +22,12 @@ function makeCard(overrides: Partial<Card> = {}): Card {
   };
 }
 
-const author: Pick<User, 'handle' | 'initials'> = { handle: 'mei', initials: 'M' };
+const author: Pick<User, 'handle' | 'initials' | 'avatarUrl' | 'avatarSeed'> = {
+  handle: 'mei',
+  initials: 'M',
+  avatarUrl: 'https://example.com/avatar.png',
+  avatarSeed: '123',
+};
 
 describe('cardToStory', () => {
   it('maps core Card fields onto the Story shape the UI expects', () => {
@@ -30,6 +35,8 @@ describe('cardToStory', () => {
     expect(story.title).toBe('A small kindness');
     expect(story.author).toBe('@mei');
     expect(story.authorInitials).toBe('M');
+    expect(story.avatarUrl).toBe('https://example.com/avatar.png');
+    expect(story.avatarSeed).toBe('123');
     expect(story.tags).toEqual(['life', 'kindness']);
   });
 

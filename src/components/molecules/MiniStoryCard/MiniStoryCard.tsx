@@ -29,6 +29,7 @@ export interface MiniStoryCardProps {
   authorInitials: string;
   authorAccent?: string;
   authorSeed?: number;
+  authorAvatarUrl?: string;
   imageUrl?: string;
   imageLabel?: string;
   index?: number;
@@ -47,6 +48,7 @@ export function MiniStoryCard({
   authorInitials,
   authorAccent,
   authorSeed,
+  authorAvatarUrl,
   imageUrl,
   imageLabel,
   index = 0,
@@ -192,6 +194,7 @@ export function MiniStoryCard({
 
         <div className={styles.authorRow}>
           <HandDrawnAvatar
+            src={authorAvatarUrl}
             initials={authorInitials}
             size={30}
             color={accent}

@@ -157,13 +157,26 @@ export function useMyResonance(cardId: string | undefined) {
  * resonance cards. Author-only surface, so the caller gates this on
  * `viewer.id === authorId` by passing `undefined` otherwise.
  */
-export function useResonators(cardId: string | undefined) {
-  return useSWR<User[]>(cardId ? `resonators:${cardId}` : null, async () => {
+export function useResonators(cardId: string | undefined, referenceCardId?: string) {
+  return useSWR<User[]>(cardId ? `resonators:${cardId}:${referenceCardId ?? 'none'}` : null, async () => {
     const cards = await getResonanceCards(cardId!);
     const authors = await getUsersByIds(cards.map((c) => c.authorId));
     // One avatar per unique resonator, in card (newest-first) order.
     const seen = new Set<string>();
     const out: User[] = [];
+
+    // If there is a referenced card, add its author first (parent card is older/source)
+    if (referenceCardId) {
+      const refCard = await getCardById(referenceCardId);
+      if (refCard) {
+        const refAuthor = await getUserById(refCard.authorId);
+        if (refAuthor) {
+          seen.add(refAuthor.id);
+          out.push(refAuthor);
+        }
+      }
+    }
+
     for (const c of cards) {
       if (seen.has(c.authorId)) continue;
       seen.add(c.authorId);
@@ -173,6 +186,7 @@ export function useResonators(cardId: string | undefined) {
     return out;
   });
 }
+
 
 /** Cards that others linked to a specific card (author's card-detail view). */
 export function useLinkedToCard(cardId: string | undefined) {

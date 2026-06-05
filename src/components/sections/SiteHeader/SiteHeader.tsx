@@ -182,7 +182,7 @@ export function SiteHeader() {
                         initials={profile?.initials || '··'}
                         size={36}
                         color={profile?.accentColor || 'var(--color-terracotta-light)'}
-                        seed={77}
+                        seed={Number(profile?.avatarSeed) || 77}
                       />
                     </Link>
                   )}

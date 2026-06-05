@@ -84,7 +84,7 @@ export function MobileNavModal({ open, onClose }: MobileNavModalProps) {
                   initials={profile?.initials || '··'}
                   size={38}
                   color={profile?.accentColor || 'var(--color-terracotta-light)'}
-                  seed={77}
+                  seed={Number(profile?.avatarSeed) || 77}
                 />
               </Link>
             )}

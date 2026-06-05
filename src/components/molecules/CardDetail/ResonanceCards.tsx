@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { useReferencedCard, useResonanceCards } from '@/lib/data/hooks';
-import type { Card } from '@/lib/db/types';
+import type { Card, User } from '@/lib/db/types';
 import styles from './ResonanceCards.module.css';
 
 export interface ResonanceCardsProps {
@@ -30,23 +30,28 @@ export function ResonanceCards({ card }: ResonanceCardsProps) {
   const incomingCards = incoming.data?.cards ?? [];
   const sourceCards = source.data?.cards ?? [];
 
-  if (incomingCards.length === 0 && sourceCards.length === 0) return null;
+  // Combine and de-duplicate in case there are overlapping references
+  const seen = new Set<string>();
+  const mergedCards: Card[] = [];
+  const mergedAuthors: Record<string, User> = {};
+
+  for (const c of [...sourceCards, ...incomingCards]) {
+    if (!seen.has(c.id)) {
+      seen.add(c.id);
+      mergedCards.push(c);
+    }
+  }
+
+  const sourceAuthors = source.data?.authors ?? {};
+  const incomingAuthors = incoming.data?.authors ?? {};
+  Object.assign(mergedAuthors, sourceAuthors, incomingAuthors);
+
+  if (mergedCards.length === 0) return null;
 
   return (
-    <>
-      {sourceCards.length > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.heading}>{t('resonanceSection.sourceTitle')}</h2>
-          <MiniCardGrid cards={sourceCards} authors={source.data!.authors} />
-        </section>
-      )}
-
-      {incomingCards.length > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.heading}>{t('resonanceSection.title')}</h2>
-          <MiniCardGrid cards={incomingCards} authors={incoming.data!.authors} />
-        </section>
-      )}
-    </>
+    <section className={styles.section}>
+      <h2 className={styles.heading}>{t('resonanceSection.title')}</h2>
+      <MiniCardGrid cards={mergedCards} authors={mergedAuthors} />
+    </section>
   );
 }

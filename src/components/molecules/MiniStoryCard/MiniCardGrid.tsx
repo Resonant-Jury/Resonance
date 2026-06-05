@@ -27,6 +27,7 @@ export function MiniCardGrid({ cards, authors }: MiniCardGridProps) {
               authorInitials={author?.initials ?? '?'}
               authorAccent={author?.accentColor}
               authorSeed={author ? Number(author.avatarSeed) : undefined}
+              authorAvatarUrl={author?.avatarUrl}
               imageUrl={card.media?.url}
               imageLabel={card.media?.label ?? card.thoughtCore.slice(0, 24)}
               index={i}

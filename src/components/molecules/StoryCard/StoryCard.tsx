@@ -21,6 +21,8 @@ export interface Story {
   excerpt: string;
   author: string;
   authorInitials: string;
+  avatarUrl?: string;
+  avatarSeed?: string;
   readTime: string;
   tags: string[];
   imageUrl?: string;
@@ -314,10 +316,11 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
             <Skeleton width={30} height={30} circle />
           ) : (
             <HandDrawnAvatar
+              src={story!.avatarUrl}
               initials={story!.authorInitials}
               size={30}
               color={accentFill}
-              seed={story!.authorInitials.charCodeAt(0) * 13}
+              seed={Number(story!.avatarSeed) || story!.authorInitials.charCodeAt(0) * 13}
             />
           )}
           <div style={{ flex: 1 }}>

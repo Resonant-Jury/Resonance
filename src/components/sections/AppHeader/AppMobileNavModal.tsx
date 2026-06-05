@@ -9,7 +9,13 @@ import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 export interface AppMobileNavModalProps {
   open: boolean;
   onClose: () => void;
-  user: { initials: string; handle: string; accentColor: string };
+  user: {
+    initials: string;
+    handle: string;
+    accentColor: string;
+    avatarUrl?: string;
+    avatarSeed?: string;
+  };
   activeKey?: 'home' | 'me' | 'write';
 }
 
@@ -62,7 +68,13 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
           gap: 10,
         }}
       >
-        <HandDrawnAvatar initials={user.initials} size={32} color={user.accentColor} seed={77} />
+        <HandDrawnAvatar
+          src={user.avatarUrl}
+          initials={user.initials}
+          size={32}
+          color={user.accentColor}
+          seed={Number(user.avatarSeed) || 77}
+        />
         <span style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>{user.handle}</span>
       </div>
     </Modal>

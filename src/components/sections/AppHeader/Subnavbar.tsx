@@ -38,7 +38,13 @@ const ITEMS: MenuItem[] = [
 ];
 
 export interface SubnavbarProps {
-  user: { initials: string; handle: string; accentColor: string };
+  user: {
+    initials: string;
+    handle: string;
+    accentColor: string;
+    avatarUrl?: string;
+    avatarSeed?: string;
+  };
   /** Seed so the wobble of the dropped card is deterministic per-instance. */
   seed?: number;
 }
@@ -157,7 +163,13 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
         onMouseEnter={() => setInteractionMode('mouse')}
         onMouseDown={() => setInteractionMode('mouse')}
       >
-        <HandDrawnAvatar initials={user.initials} size={36} color={user.accentColor} seed={77} />
+        <HandDrawnAvatar
+          src={user.avatarUrl}
+          initials={user.initials}
+          size={36}
+          color={user.accentColor}
+          seed={Number(user.avatarSeed) || 77}
+        />
       </button>
 
       {open && (

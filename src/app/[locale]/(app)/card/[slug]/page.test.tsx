@@ -36,9 +36,6 @@ vi.mock('@/i18n/navigation', () => ({
 vi.mock('@/components/molecules/CardDetail/CardViewerActions', () => ({
   CardViewerActions: () => <div data-testid="viewer-actions" />,
 }));
-vi.mock('@/components/molecules/CardDetail/CardAuthorMetrics', () => ({
-  CardAuthorMetrics: () => <div data-testid="author-metrics" />,
-}));
 vi.mock('@/components/molecules/CardDetail/ResonanceCards', () => ({
   ResonanceCards: () => <div data-testid="resonance-cards" />,
 }));

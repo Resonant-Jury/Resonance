@@ -51,7 +51,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [loading, authUser, profileLoading, profile, pathname, router]);
 
   const headerUser = profile
-    ? { initials: profile.initials, handle: profile.handle, accentColor: profile.accentColor }
+    ? {
+        initials: profile.initials,
+        handle: profile.handle,
+        accentColor: profile.accentColor,
+        avatarUrl: profile.avatarUrl,
+        avatarSeed: profile.avatarSeed,
+      }
     : PLACEHOLDER_USER;
 
   return (
