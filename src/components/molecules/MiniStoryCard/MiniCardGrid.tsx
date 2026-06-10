@@ -23,7 +23,7 @@ export function MiniCardGrid({ cards, authors }: MiniCardGridProps) {
           >
             <MiniStoryCard
               title={card.thoughtCore}
-              author={author ? `@${author.handle}` : '—'}
+              author={author ? author.handle : '—'}
               authorInitials={author?.initials ?? '?'}
               authorAccent={author?.accentColor}
               authorSeed={author ? Number(author.avatarSeed) : undefined}

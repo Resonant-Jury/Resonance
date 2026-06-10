@@ -8,14 +8,14 @@ describe('MiniStoryCard', () => {
     render(
       <MiniStoryCard
         title="A quiet realization"
-        author="@friend"
+        author="friend"
         authorInitials="FR"
         imageLabel="cover"
         index={0}
       />,
     );
     expect(screen.getByRole('heading', { name: 'A quiet realization' })).toBeInTheDocument();
-    expect(screen.getByText('@friend')).toBeInTheDocument();
+    expect(screen.getByText('friend')).toBeInTheDocument();
     // The simplified card deliberately drops the excerpt/tags/read-time chrome.
     expect(screen.queryByText(/min/)).not.toBeInTheDocument();
   });
@@ -24,7 +24,7 @@ describe('MiniStoryCard', () => {
     render(
       <MiniStoryCard
         title="With a photo"
-        author="@friend"
+        author="friend"
         authorInitials="FR"
         imageUrl="https://example.com/x.jpg"
         index={1}

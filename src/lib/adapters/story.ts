@@ -13,7 +13,7 @@ export function cardToStory(card: Card, author: Pick<User, 'handle' | 'initials'
   return {
     title: card.thoughtCore,
     excerpt,
-    author: `@${author.handle}`,
+    author: author.handle,
     authorInitials: author.initials,
     avatarUrl: author.avatarUrl,
     avatarSeed: author.avatarSeed,
