@@ -92,7 +92,7 @@ export function OrganicTabs<K extends string = string>({
               R={12}
               strokeWidth={1.8}
               strokeColor="var(--color-terracotta)"
-              fillColor="oklch(92% 0.05 55 / 0.45)"
+              fillColor="color-mix(in oklch, var(--color-terracotta-light) 45%, transparent)"
               className={styles.activeSurface}
               inline={orientation === 'horizontal'}
               as={orientation === 'horizontal' ? 'span' : 'div'}

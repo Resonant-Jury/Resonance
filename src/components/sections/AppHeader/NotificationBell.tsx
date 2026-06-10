@@ -143,7 +143,7 @@ export function NotificationBell() {
                 style={{
                   padding: '10px 12px',
                   borderRadius: 12,
-                  background: isUnread ? 'oklch(92% 0.05 55 / 0.35)' : 'transparent',
+                  background: isUnread ? 'color-mix(in oklch, var(--color-terracotta-light) 35%, transparent)' : 'transparent',
                   fontSize: 14,
                   cursor: 'pointer',
                   color: 'var(--color-text)',
