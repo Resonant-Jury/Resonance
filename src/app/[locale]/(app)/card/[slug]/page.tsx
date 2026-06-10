@@ -182,7 +182,10 @@ export default function CardDetailPage() {
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 40 }}>
               {card.tags.map((tag) => (
-                <TagPill key={tag} color={`oklch(92% 0.06 ${hue})`}>
+                <TagPill
+                  key={tag}
+                  color={card.accentHue != null ? `oklch(92% 0.06 ${card.accentHue})` : 'var(--color-terracotta-light)'}
+                >
                   {tag}
                 </TagPill>
               ))}

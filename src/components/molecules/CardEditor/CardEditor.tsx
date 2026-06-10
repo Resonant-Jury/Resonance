@@ -275,7 +275,7 @@ export function CardEditor({
               <TagPill
                 key={tag}
                 size="lg"
-                color="oklch(92% 0.075 88)"
+                color="var(--color-terracotta-light)"
                 onRemove={() => removeTag(tag)}
               >
                 {tag}

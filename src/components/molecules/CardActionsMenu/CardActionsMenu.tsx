@@ -61,6 +61,7 @@ export function CardActionsMenu({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [panelSeed, setPanelSeed] = useState(seed);
   const rootRef = useRef<HTMLDivElement>(null);
   const uid = useId().replace(/:/g, '');
 
@@ -143,7 +144,13 @@ export function CardActionsMenu({
           // The trigger may sit over a Link-wrapped card — keep the click ours.
           e.preventDefault();
           e.stopPropagation();
-          setOpen((v) => !v);
+          setOpen((v) => {
+            const next = !v;
+            if (next) {
+              setPanelSeed(Math.floor(Math.random() * 10000));
+            }
+            return next;
+          });
         }}
       >
         <HandDrawnBorder
@@ -168,7 +175,7 @@ export function CardActionsMenu({
       {open && (
         <ActionsPanel
           uid={uid}
-          seed={seed}
+          seed={panelSeed}
           items={items}
           busy={busy}
           onChoose={(key) => void choose(key)}
@@ -240,7 +247,7 @@ function ActionsPanel({ uid, seed, items, busy, onChoose }: ActionsPanelProps) {
 
   const boundaries = useMemo<[number, number][][]>(() => {
     if (!w) return [];
-    return items.slice(1).map((_, i) => rowBoundary((i + 1) * ROW_H, w, seed + i * 31 + 7, 3, pad));
+    return items.slice(1).map((_, i) => rowBoundary((i + 1) * ROW_H, w, seed + i * 31 + 7, 2, pad));
   }, [w, items, seed, pad]);
 
   const ready = w > 0 && boundaries.length === items.length - 1;

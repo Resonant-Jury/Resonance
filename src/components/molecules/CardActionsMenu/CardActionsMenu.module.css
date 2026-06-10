@@ -38,7 +38,7 @@
   right: 0;
   z-index: 40;
   min-width: 160px;
-  background: var(--color-cream);
+  background: transparent;
   border-radius: var(--field-radius);
   padding: 0;
   transform-origin: top right;
@@ -89,7 +89,7 @@
   background: transparent;
   font-family: var(--font-body);
   font-size: 14px;
-  line-height: 1;
+  line-height: normal;
   color: var(--color-text);
   text-align: left;
   cursor: pointer;
