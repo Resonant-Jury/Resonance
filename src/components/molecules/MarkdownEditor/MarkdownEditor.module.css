@@ -97,7 +97,7 @@
    text can't slip through a gap between the two. */
 .toolbarWrap {
   position: sticky;
-  top: calc(var(--app-header-h) - 8px);
+  top: calc(var(--app-header-h) - 9px);
   z-index: 2;
   padding: 8px 10px 12px;
 }
@@ -130,7 +130,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 2px;
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
 
 .toolBtn {
