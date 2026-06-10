@@ -149,7 +149,7 @@
   "write": {
     "title": "寫一張新卡片",
     "editTitle": "編輯草稿",
-    "coreLabel": "一句話：這張卡的思維核心",
+    "coreLabel": "一句話標題",
     "corePlaceholder": "例：被看見，比被喜歡更難得。",
     "storyLabel": "故事本體",
     "storyPlaceholder": "把那個讓你忍不住寫下思維核心的時刻，寫出來⋯",
@@ -173,8 +173,12 @@
         "cancel": "取消"
       }
     },
-    "tagsLabel": "標籤（讓別人找得到你）",
+    "tagsLabel": "標籤",
     "tagsSuggest": "AI 幫你想 3–5 個",
+    "tagsSuggesting": "AI 思考中⋯",
+    "tagsSuggestError": "標籤建議失敗，請再試一次。",
+    "tagsPlaceholder": "輸入標籤⋯",
+    "tagsAdd": "新增",
     "mediaLabel": "搭配一張圖片（選填）",
     "mediaRemove": "移除圖片",
     "mediaPlaceholder": "點一下，或把圖片拖進來",

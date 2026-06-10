@@ -4,6 +4,7 @@
 
 import { chat, generateImage } from './openai';
 import { slugify } from './slugify';
+import { parseTagList } from './tags';
 
 /**
  * Translate a story title into an English slug *base* (not yet uniqueness-
@@ -22,6 +23,41 @@ export async function titleToSlugBase(title: string): Promise<string> {
     { role: 'user', content: clean },
   ]);
   return slugify(out);
+}
+
+export interface SuggestTagsInput {
+  title: string;
+  story: string;
+  /** Tags already on the card — the model must not repeat them. */
+  existingTags: string[];
+  /** The author's most-used past tags, most frequent first. */
+  historyTags: string[];
+}
+
+/**
+ * Suggest 3–5 tags for a card. The author's historical tags are passed in so
+ * the model reuses their existing vocabulary (「家庭」) instead of inventing a
+ * near-synonym (「家族」).
+ */
+export async function suggestStoryTags(input: SuggestTagsInput): Promise<string[]> {
+  const text = `${input.title.trim()}\n\n${input.story.trim()}`.trim().slice(0, MAX_STORY_CHARS);
+  if (!text) return [];
+  const system = [
+    'You suggest tags for a personal storytelling card. Read the card text and reply with ONLY 3 to 5 short tags (each 1–4 words), one per line, in the same language as the card. No numbering, no bullets, no # symbols, no explanations.',
+    input.historyTags.length > 0
+      ? `The author has tagged past cards with (most frequent first): ${input.historyTags.join(', ')}. When one of these fits, reuse it EXACTLY rather than inventing a near-synonym.`
+      : '',
+    input.existingTags.length > 0
+      ? `The card already has these tags — do not repeat them: ${input.existingTags.join(', ')}.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const out = await chat([
+    { role: 'system', content: system },
+    { role: 'user', content: text },
+  ]);
+  return parseTagList(out, 5).filter((tag) => !input.existingTags.includes(tag));
 }
 
 // Illustration / doodle style appended to every generated image. Tuned to the

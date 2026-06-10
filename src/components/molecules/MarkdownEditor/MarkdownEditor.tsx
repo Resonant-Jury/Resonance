@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { useEditor, EditorContent, type Editor } from '@tiptap/react';
+import { useEditor, EditorContent, useEditorState, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -134,6 +134,40 @@ export function MarkdownEditor({
     onBlur: () => setFocus(false),
   });
 
+  const activeStates = useEditorState({
+    editor,
+    selector: (ctx) => {
+      if (!ctx.editor) {
+        return {
+          bold: false,
+          italic: false,
+          h2: false,
+          h3: false,
+          bulletList: false,
+          orderedList: false,
+          blockquote: false,
+        };
+      }
+      return {
+        bold: ctx.editor.isActive('bold'),
+        italic: ctx.editor.isActive('italic'),
+        h2: ctx.editor.isActive('heading', { level: 2 }),
+        h3: ctx.editor.isActive('heading', { level: 3 }),
+        bulletList: ctx.editor.isActive('bulletList'),
+        orderedList: ctx.editor.isActive('orderedList'),
+        blockquote: ctx.editor.isActive('blockquote'),
+      };
+    },
+  }) ?? {
+    bold: false,
+    italic: false,
+    h2: false,
+    h3: false,
+    bulletList: false,
+    orderedList: false,
+    blockquote: false,
+  };
+
   const { toolbarMaskUrl, toolbarStrokeD } = useMemo(() => {
     const { maskD, strokeD } = buildToolbarPaths(seed + 5);
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${TOOLBAR_W} ${TOOLBAR_TOTAL_H}' preserveAspectRatio='none'><path d='${maskD}' fill='white'/></svg>`;
@@ -232,33 +266,33 @@ export function MarkdownEditor({
           </svg>
           <div className={styles.toolbar} role="toolbar" aria-label={t('toolbarLabel')}>
             {btn(t('bold'), t('bold'), () => editor.chain().focus().toggleBold().run(), {
-              active: editor.isActive('bold'),
+              active: activeStates.bold,
               seed: 21,
             })}
             {btn(t('italic'), t('italic'), () => editor.chain().focus().toggleItalic().run(), {
-              active: editor.isActive('italic'),
+              active: activeStates.italic,
               seed: 28,
             })}
             <Divider orientation="vertical" seed={seed + 3} amplitude={1.2} spacing={4} />
             {btn('H2', t('h2'), () => editor.chain().focus().toggleHeading({ level: 2 }).run(), {
-              active: editor.isActive('heading', { level: 2 }),
+              active: activeStates.h2,
               seed: 35,
             })}
             {btn('H3', t('h3'), () => editor.chain().focus().toggleHeading({ level: 3 }).run(), {
-              active: editor.isActive('heading', { level: 3 }),
+              active: activeStates.h3,
               seed: 42,
             })}
             <Divider orientation="vertical" seed={seed + 9} amplitude={1.2} spacing={4} />
             {btn(t('bulletList'), t('bulletList'), () => editor.chain().focus().toggleBulletList().run(), {
-              active: editor.isActive('bulletList'),
+              active: activeStates.bulletList,
               seed: 49,
             })}
             {btn(t('orderedList'), t('orderedList'), () => editor.chain().focus().toggleOrderedList().run(), {
-              active: editor.isActive('orderedList'),
+              active: activeStates.orderedList,
               seed: 56,
             })}
             {btn(t('quote'), t('quote'), () => editor.chain().focus().toggleBlockquote().run(), {
-              active: editor.isActive('blockquote'),
+              active: activeStates.blockquote,
               seed: 63,
             })}
             <Divider orientation="vertical" seed={seed + 15} amplitude={1.2} spacing={4} />
