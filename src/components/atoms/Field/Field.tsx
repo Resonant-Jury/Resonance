@@ -206,6 +206,7 @@ export function Select({
   );
 
   const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const [hover, setHover] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -218,6 +219,17 @@ export function Select({
   function openPanel() {
     if (disabled) return;
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const estimatedHeight = options.length * 54 + 20;
+      if (spaceBelow < estimatedHeight && spaceAbove > spaceBelow) {
+        setOpenUp(true);
+      } else {
+        setOpenUp(false);
+      }
+    }
     setOpen(true);
   }
   function choose(v: string) {
@@ -310,6 +322,7 @@ export function Select({
           activeIndex={activeIndex}
           onActivate={setActiveIndex}
           onChoose={choose}
+          openUp={openUp}
         />
       )}
     </div>
@@ -324,6 +337,7 @@ interface DropdownPanelProps {
   activeIndex: number;
   onActivate: (i: number) => void;
   onChoose: (value: string) => void;
+  openUp?: boolean;
 }
 
 // A gently wavy horizontal boundary between two option rows, as a point list so
@@ -408,6 +422,7 @@ function DropdownPanel({
   activeIndex,
   onActivate,
   onChoose,
+  openUp,
 }: DropdownPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const optRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -463,7 +478,11 @@ function DropdownPanel({
   const ready = w > 0 && h > 0 && boundaries.length === options.length - 1;
 
   return (
-    <div ref={ref} className={styles.dropdownPanel}>
+    <div
+      ref={ref}
+      className={styles.dropdownPanel}
+      style={openUp ? { top: 'auto', bottom: 0 } : undefined}
+    >
       {w > 0 && h > 0 && (
         <svg
           className={`${styles.dropdownBorder} res-shape-fade-in`}

@@ -67,7 +67,7 @@ export function ToggleSwitch({ checked, onChange, ariaLabel, seed = 9 }: ToggleS
         <path
           d={track}
           fill={checked ? 'var(--color-terracotta)' : 'oklch(86% 0.02 75)'}
-          stroke={checked ? 'oklch(45% 0.11 45)' : 'oklch(70% 0.03 70)'}
+          stroke={checked ? 'color-mix(in oklch, var(--color-terracotta), black 25%)' : 'oklch(70% 0.03 70)'}
           strokeWidth={INK}
           strokeLinejoin="round"
           style={{ transition: 'fill 160ms' }}

@@ -161,8 +161,8 @@ export default function CardDetailPage() {
               />
             )}
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <h1 className={styles.title} style={{ flex: 1, minWidth: 0 }}>
+            <div className={styles.titleRow}>
+              <h1 className={styles.title}>
                 {card.thoughtCore}
               </h1>
               {isOwner && (

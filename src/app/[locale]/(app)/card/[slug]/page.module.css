@@ -18,8 +18,17 @@
 }
 
 /* Article title — replaces the old quote-card chrome with a plain heading. */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
 .title {
-  margin: 0 0 28px;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-heading);
   font-size: clamp(28px, 4.4vw, 44px);
   font-weight: 700;

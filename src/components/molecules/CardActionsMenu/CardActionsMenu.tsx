@@ -154,21 +154,21 @@ export function CardActionsMenu({
         }}
       >
         <HandDrawnBorder
-          w={34}
-          h={34}
-          R={34 * 0.42}
+          w={38}
+          h={38}
+          R={38 * 0.42}
           seed={seed}
-          mag={34 * 0.03}
+          mag={38 * 0.03}
           fillColor="color-mix(in oklch, var(--color-cream) 90%, transparent)"
           strokeColor="var(--field-border-hover)"
-          strokeWidth={INK_LIGHT}
+          strokeWidth={INK}
           segmentsH={1}
           segmentsV={1}
           curve={1.4}
           cornerJitter={2.4}
         />
         <span className={styles.triggerIcon}>
-          <Icon name="dots" size={18} strokeWidth={1.8} />
+          <Icon name="dots" size={20} strokeWidth={2.0} />
         </span>
       </button>
 
