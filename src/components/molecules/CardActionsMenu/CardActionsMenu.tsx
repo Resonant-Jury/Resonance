@@ -29,6 +29,8 @@ export interface CardActionsMenuProps {
   card: { id: string; visibility: Visibility };
   /** Seed so the wobble of the trigger + dropped card is deterministic per card. */
   seed?: number;
+  /** The accent hue of the card. If omitted, we derive it or default to 55. */
+  hue?: number;
   /** Called after the visibility changed (the card-box cache is already revalidated). */
   onChanged?: () => void;
   /** Called after the card was deleted (e.g. navigate away from its detail page). */
@@ -49,6 +51,7 @@ type ActionKey = 'edit' | 'visibility' | 'delete';
 export function CardActionsMenu({
   card,
   seed = 7,
+  hue,
   onChanged,
   onDeleted,
   className,
@@ -130,8 +133,23 @@ export function CardActionsMenu({
     }
   }
 
+  const cardHue = hue ?? (seed && seed > 10 ? seed : 55);
+  const cardBorder = `oklch(52% 0.11 ${cardHue})`;
+  const cardBorderHover = `oklch(38% 0.09 ${cardHue})`;
+  const cardCream = `oklch(98% 0.01 ${cardHue})`;
+  const cardCreamDark = `oklch(93.5% 0.02 ${cardHue})`;
+
   return (
-    <div ref={rootRef} className={`${styles.root}${className ? ` ${className}` : ''}`}>
+    <div
+      ref={rootRef}
+      className={`${styles.root}${className ? ` ${className}` : ''}`}
+      style={{
+        '--card-border': cardBorder,
+        '--card-border-hover': cardBorderHover,
+        '--card-cream': cardCream,
+        '--card-cream-dark': cardCreamDark,
+      } as React.CSSProperties}
+    >
       <button
         type="button"
         className={styles.trigger}
@@ -159,8 +177,8 @@ export function CardActionsMenu({
           R={38 * 0.42}
           seed={seed}
           mag={38 * 0.03}
-          fillColor="color-mix(in oklch, var(--color-cream) 90%, transparent)"
-          strokeColor="var(--field-border-hover)"
+          fillColor="color-mix(in oklch, var(--card-cream) 90%, transparent)"
+          strokeColor="var(--card-border)"
           strokeWidth={INK}
           segmentsH={1}
           segmentsV={1}
@@ -176,6 +194,7 @@ export function CardActionsMenu({
         <ActionsPanel
           uid={uid}
           seed={panelSeed}
+          hue={cardHue}
           items={items}
           busy={busy}
           onChoose={(key) => void choose(key)}
@@ -211,6 +230,7 @@ export function CardActionsMenu({
 interface ActionsPanelProps {
   uid: string;
   seed: number;
+  hue: number;
   items: { key: ActionKey; icon: IconName; label: string }[];
   busy: boolean;
   onChoose: (key: ActionKey) => void;
@@ -218,7 +238,7 @@ interface ActionsPanelProps {
 
 const ROW_H = 42;
 
-function ActionsPanel({ uid, seed, items, busy, onChoose }: ActionsPanelProps) {
+function ActionsPanel({ uid, seed, hue, items, busy, onChoose }: ActionsPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const h = items.length * ROW_H;
   const [w, setW] = useState(0);
@@ -269,12 +289,12 @@ function ActionsPanel({ uid, seed, items, busy, onChoose }: ActionsPanelProps) {
             </clipPath>
           </defs>
           <g clipPath={`url(#cardactions-clip-${uid})`}>
-            <path d={outerPath} fill="var(--color-cream)" />
+            <path d={outerPath} fill="var(--card-cream)" />
             {/* warning wash under the delete row, before any hover */}
             {ready && dangerIndex >= 0 && (
               <path
                 d={rowRegion(dangerIndex, items.length, boundaries, w, h, pad)}
-                fill="color-mix(in oklch, var(--color-yellow) 25%, var(--color-cream))"
+                fill="color-mix(in oklch, var(--color-yellow) 25%, var(--card-cream))"
               />
             )}
             {/* hover wash for the active row */}
@@ -283,8 +303,8 @@ function ActionsPanel({ uid, seed, items, busy, onChoose }: ActionsPanelProps) {
                 d={rowRegion(hovered, items.length, boundaries, w, h, pad)}
                 fill={
                   hovered === dangerIndex
-                    ? 'color-mix(in oklch, var(--color-yellow) 45%, var(--color-cream))'
-                    : 'color-mix(in oklch, var(--color-terracotta) 13%, transparent)'
+                    ? 'color-mix(in oklch, var(--color-yellow) 45%, var(--card-cream))'
+                    : 'color-mix(in oklch, var(--card-border-hover) 15%, transparent)'
                 }
               />
             )}
@@ -295,7 +315,7 @@ function ActionsPanel({ uid, seed, items, busy, onChoose }: ActionsPanelProps) {
                 key={i}
                 d={dividerPath(pts)}
                 fill="none"
-                stroke="oklch(60% 0.04 60 / 0.45)"
+                stroke={`oklch(55% 0.04 ${hue} / 0.4)`}
                 strokeWidth={INK_LIGHT}
                 strokeLinecap="round"
                 clipPath={`url(#cardactions-clip-${uid})`}
@@ -304,7 +324,7 @@ function ActionsPanel({ uid, seed, items, busy, onChoose }: ActionsPanelProps) {
           <path
             d={outerPath}
             fill="none"
-            stroke="var(--field-border-hover)"
+            stroke="var(--card-border)"
             strokeWidth={INK}
             strokeLinecap="round"
             strokeLinejoin="round"

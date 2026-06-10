@@ -84,6 +84,7 @@ export function ProfileTabs({
                   <CardActionsMenu
                     card={{ id: c.id, visibility: c.visibility }}
                     seed={c.accentHue ?? 7}
+                    hue={c.accentHue ?? 55}
                   />
                 )
               : undefined

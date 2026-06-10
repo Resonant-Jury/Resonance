@@ -47,7 +47,7 @@ const CARD_BORDERS = [
   ['oklch(52% 0.09 18)',  'oklch(40% 0.08 18)'],
 ];
 
-const CARD_HUES = [55, 290, 140, 88, 215, 18];
+export const CARD_HUES = [55, 290, 140, 88, 215, 18];
 
 function StoryImage({ label, accentFill, imageUrl, seed }: { label: string; accentFill: string; imageUrl?: string; seed: number }) {
   const stripeFill = accentFill.replace(/(\d+)%/, (_, n) => `${Math.max(0, +n - 7)}%`);

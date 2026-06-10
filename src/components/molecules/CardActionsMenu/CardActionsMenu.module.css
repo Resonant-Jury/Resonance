@@ -17,14 +17,14 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--card-border);
   cursor: pointer;
   line-height: 0;
   transition: color 140ms ease;
 }
 .trigger:hover,
 .trigger[data-open] {
-  color: var(--color-terracotta);
+  color: var(--card-border-hover);
 }
 .triggerIcon {
   position: relative;
@@ -101,16 +101,16 @@
   cursor: progress;
 }
 .option[data-active] {
-  color: var(--color-terracotta);
+  color: var(--card-border-hover);
 }
 
 .optionIcon {
   flex-shrink: 0;
-  color: var(--color-text-muted);
+  color: var(--card-border);
   transition: color 120ms ease;
 }
 .option[data-active] .optionIcon {
-  color: var(--color-terracotta);
+  color: var(--card-border-hover);
 }
 
 .confirmTitle {
