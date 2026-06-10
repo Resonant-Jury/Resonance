@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -8,9 +8,12 @@ import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from 'tiptap-markdown';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
+import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Icon } from '@/components/atoms/Icon';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
+import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
+import { useElementSize } from '@/lib/hooks/useElementSize';
 import { uploadImageFile } from '@/lib/images/upload';
 import type { Card } from '@/lib/db/types';
 import { InsertCardModal } from './InsertCardModal';
@@ -22,6 +25,31 @@ function getMarkdown(editor: Editor): string {
 }
 
 const ACCEPTED_IMAGES = 'image/png,image/jpeg,image/webp,image/gif';
+
+// Same construction as AppHeader's wavy bottom edge: a stretchable mask that
+// fills the toolbar background down to a hand-drawn wave running the full
+// width, plus the matching pen stroke along that wave.
+const TOOLBAR_W = 800;
+const TOOLBAR_BODY_H = 42;
+const TOOLBAR_WAVE_H = 12;
+const TOOLBAR_TOTAL_H = TOOLBAR_BODY_H + TOOLBAR_WAVE_H;
+
+function buildToolbarPaths(seed: number) {
+  const baseY = TOOLBAR_BODY_H + TOOLBAR_WAVE_H * 0.35;
+  const pts = wavyPoints(TOOLBAR_W, baseY, 2, seed, 10);
+  const strokeD = pointsToBezier(pts);
+  const f = (n: number) => +n.toFixed(2);
+  const last = pts[pts.length - 1];
+  let maskD = `M 0,0 L ${TOOLBAR_W},0 L ${f(last[0])},${f(last[1])}`;
+  for (let i = pts.length - 2; i >= 0; i--) {
+    const [x0, y0] = pts[i + 1];
+    const [x1, y1] = pts[i];
+    const midX = (x0 + x1) / 2;
+    maskD += ` C ${f(midX)},${f(y0)} ${f(midX)},${f(y1)} ${f(x1)},${f(y1)}`;
+  }
+  maskD += ' Z';
+  return { maskD, strokeD };
+}
 
 function imageFiles(list: FileList | undefined | null): File[] {
   return Array.from(list ?? []).filter((f) => f.type.startsWith('image/'));
@@ -106,6 +134,15 @@ export function MarkdownEditor({
     onBlur: () => setFocus(false),
   });
 
+  const { toolbarMaskUrl, toolbarStrokeD } = useMemo(() => {
+    const { maskD, strokeD } = buildToolbarPaths(seed + 5);
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${TOOLBAR_W} ${TOOLBAR_TOTAL_H}' preserveAspectRatio='none'><path d='${maskD}' fill='white'/></svg>`;
+    return {
+      toolbarMaskUrl: `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`,
+      toolbarStrokeD: strokeD,
+    };
+  }, [seed]);
+
   insertImagesRef.current = (files, pos) => {
     void (async () => {
       if (!editor) return;
@@ -152,22 +189,16 @@ export function MarkdownEditor({
     label: ReactNode,
     aria: string,
     onClick: () => void,
-    opts: { active?: boolean; disabled?: boolean } = {}
+    opts: { active?: boolean; disabled?: boolean; seed?: number } = {}
   ) => (
-    <button
-      type="button"
-      className={styles.toolBtn}
-      data-active={opts.active || undefined}
-      disabled={opts.disabled}
-      aria-label={aria}
-      aria-pressed={opts.active}
-      title={aria}
-      // keep the selection / cursor while clicking the toolbar
-      onMouseDown={(e) => e.preventDefault()}
+    <ToolButton
+      label={label}
+      aria={aria}
       onClick={onClick}
-    >
-      {label}
-    </button>
+      active={opts.active}
+      disabled={opts.disabled}
+      seed={seed + (opts.seed ?? 0)}
+    />
   );
 
   return (
@@ -179,38 +210,66 @@ export function MarkdownEditor({
     >
       <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         <div className={styles.toolbarWrap}>
+          <div
+            aria-hidden
+            className={styles.toolbarBg}
+            style={{ WebkitMaskImage: toolbarMaskUrl, maskImage: toolbarMaskUrl }}
+          />
+          <svg
+            aria-hidden
+            className={styles.toolbarWave}
+            viewBox={`0 0 ${TOOLBAR_W} ${TOOLBAR_TOTAL_H}`}
+            preserveAspectRatio="none"
+          >
+            <path
+              d={toolbarStrokeD}
+              fill="none"
+              stroke="oklch(60% 0.04 60 / 0.45)"
+              strokeWidth={1.2}
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
           <div className={styles.toolbar} role="toolbar" aria-label={t('toolbarLabel')}>
             {btn(t('bold'), t('bold'), () => editor.chain().focus().toggleBold().run(), {
               active: editor.isActive('bold'),
+              seed: 21,
             })}
             {btn(t('italic'), t('italic'), () => editor.chain().focus().toggleItalic().run(), {
               active: editor.isActive('italic'),
+              seed: 28,
             })}
-            <span className={styles.toolSep} aria-hidden />
+            <Divider orientation="vertical" seed={seed + 3} amplitude={1.2} spacing={4} />
             {btn('H2', t('h2'), () => editor.chain().focus().toggleHeading({ level: 2 }).run(), {
               active: editor.isActive('heading', { level: 2 }),
+              seed: 35,
             })}
             {btn('H3', t('h3'), () => editor.chain().focus().toggleHeading({ level: 3 }).run(), {
               active: editor.isActive('heading', { level: 3 }),
+              seed: 42,
             })}
-            <span className={styles.toolSep} aria-hidden />
+            <Divider orientation="vertical" seed={seed + 9} amplitude={1.2} spacing={4} />
             {btn(t('bulletList'), t('bulletList'), () => editor.chain().focus().toggleBulletList().run(), {
               active: editor.isActive('bulletList'),
+              seed: 49,
             })}
             {btn(t('orderedList'), t('orderedList'), () => editor.chain().focus().toggleOrderedList().run(), {
               active: editor.isActive('orderedList'),
+              seed: 56,
             })}
             {btn(t('quote'), t('quote'), () => editor.chain().focus().toggleBlockquote().run(), {
               active: editor.isActive('blockquote'),
+              seed: 63,
             })}
-            <span className={styles.toolSep} aria-hidden />
+            <Divider orientation="vertical" seed={seed + 15} amplitude={1.2} spacing={4} />
             {btn(
               <span className={styles.toolBtnIconLabel}>
                 <Icon name="cards" size={15} />
                 {t('insertCard')}
               </span>,
               t('insertCard'),
-              () => setCardModalOpen(true)
+              () => setCardModalOpen(true),
+              { seed: 70 }
             )}
             {btn(
               <span className={styles.toolBtnIconLabel}>
@@ -223,10 +282,9 @@ export function MarkdownEditor({
               </span>,
               t('insertImage'),
               () => fileInputRef.current?.click(),
-              { disabled: uploadingCount > 0 }
+              { disabled: uploadingCount > 0, seed: 77 }
             )}
           </div>
-          <Divider seed={seed + 12} spacing={0} />
         </div>
 
         <EditorContent editor={editor} />
@@ -253,5 +311,54 @@ export function MarkdownEditor({
         />
       </div>
     </HandDrawnDashedSurface>
+  );
+}
+
+interface ToolButtonProps {
+  label: ReactNode;
+  aria: string;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  seed: number;
+}
+
+/** Toolbar button whose hover/active wash is a wobbly curved fill (same
+ *  hand-drawn chip language as the header's notification badge) instead of a
+ *  flat rounded rectangle. */
+function ToolButton({ label, aria, onClick, active, disabled, seed }: ToolButtonProps) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const { w, h } = useElementSize(ref);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={styles.toolBtn}
+      data-active={active || undefined}
+      disabled={disabled}
+      aria-label={aria}
+      aria-pressed={active}
+      title={aria}
+      // keep the selection / cursor while clicking the toolbar
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+    >
+      {w > 0 && h > 0 && (
+        <HandDrawnBorder
+          w={w}
+          h={h}
+          R={h * 0.4}
+          seed={seed}
+          mag={1.4}
+          segmentsH={2}
+          segmentsV={1}
+          curve={1.5}
+          cornerJitter={2.6}
+          cornerOffset={h * 0.05}
+          fillColor="var(--tool-btn-fill)"
+        />
+      )}
+      <span className={styles.toolBtnLabel}>{label}</span>
+    </button>
   );
 }

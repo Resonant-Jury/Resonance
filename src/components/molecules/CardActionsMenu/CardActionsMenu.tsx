@@ -134,6 +134,7 @@ export function CardActionsMenu({
   }
 
   const cardHue = hue ?? (seed && seed > 10 ? seed : 55);
+  console.log("CardActionsMenu renders with id:", card.id, "hue:", hue, "seed:", seed, "cardHue:", cardHue);
   const cardBorder = `oklch(52% 0.11 ${cardHue})`;
   const cardBorderHover = `oklch(38% 0.09 ${cardHue})`;
   const cardCream = `oklch(98% 0.01 ${cardHue})`;

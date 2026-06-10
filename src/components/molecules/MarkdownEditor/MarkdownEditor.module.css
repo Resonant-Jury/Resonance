@@ -3,6 +3,13 @@
   border-radius: var(--field-radius);
 }
 
+/* The wobbly surface border draws above the sticky toolbar (which sits at
+   z-index 2) so the toolbar background can never occlude the hand-drawn
+   frame. The border SVG is pointer-events: none, so interaction is unaffected. */
+.surface>svg {
+  z-index: 3;
+}
+
 /* The contenteditable surface (Tiptap applies this class to .ProseMirror). */
 .content {
   position: relative;
@@ -85,17 +92,40 @@
 }
 
 /* HackMD-style fixed toolbar pinned to the top of the writing surface. Sticky
-   so it stays reachable while scrolling a long story. */
+   so it stays reachable while scrolling a long story. Tucks in directly under
+   the header's wavy bottom edge (header total height minus its 14px wave) so
+   text can't slip through a gap between the two. */
 .toolbarWrap {
   position: sticky;
-  top: var(--app-header-h);
+  top: calc(var(--app-header-h) - 8px);
   z-index: 2;
+  padding: 8px 10px 12px;
+}
+
+/* Toolbar background masked to a full-bleed wavy bottom edge — same
+   construction as the AppHeader background. */
+.toolbarBg {
+  position: absolute;
+  inset: 0;
   background: var(--color-cream);
-  border-radius: var(--field-radius) var(--field-radius) 0 0;
-  padding: 8px 10px 0;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* The pen stroke along the wavy bottom edge, spanning edge to edge. */
+.toolbarWave {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
 }
 
 .toolbar {
+  position: relative;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -104,20 +134,23 @@
 }
 
 .toolBtn {
+  position: relative;
   border: none;
   background: transparent;
-  border-radius: 9px;
   padding: 5px 9px;
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 600;
   color: var(--color-text);
   cursor: pointer;
-  transition: background 120ms, color 120ms;
+  transition: color 120ms;
+  /* Hover/active wash is a wobbly curved fill (HandDrawnBorder) driven by
+     this variable rather than a flat rounded-rect background. */
+  --tool-btn-fill: transparent;
 }
 
 .toolBtn:hover:not(:disabled) {
-  background: oklch(0% 0 0 / 0.05);
+  --tool-btn-fill: oklch(0% 0 0 / 0.05);
 }
 
 .toolBtn:disabled {
@@ -126,21 +159,25 @@
 }
 
 .toolBtn[data-active] {
-  background: color-mix(in oklch, var(--color-terracotta-light) 70%, transparent);
+  --tool-btn-fill: color-mix(in oklch, var(--color-terracotta-light) 70%, transparent);
   color: var(--color-terracotta);
+}
+
+.toolBtn svg path {
+  transition: fill 120ms;
+}
+
+.toolBtnLabel {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .toolBtnIconLabel {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-}
-
-.toolSep {
-  width: 1px;
-  align-self: stretch;
-  margin: 3px 4px;
-  background: var(--field-border);
 }
 
 .imageError {

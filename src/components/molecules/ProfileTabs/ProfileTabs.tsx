@@ -7,6 +7,7 @@ import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
+import { CARD_HUES } from '@/components/molecules/StoryCard/StoryCard';
 import type { Card, User } from '@/lib/db/types';
 
 export type TabKey = 'published' | 'private' | 'draft' | 'resonated' | 'linked' | 'thoughtMap';
@@ -80,13 +81,16 @@ export function ProfileTabs({
           cardHref={managed && active === 'draft' ? (c) => `/write/${c.id}` : undefined}
           renderActions={
             managed
-              ? (c) => (
-                  <CardActionsMenu
-                    card={{ id: c.id, visibility: c.visibility }}
-                    seed={c.accentHue ?? 7}
-                    hue={c.accentHue ?? 55}
-                  />
-                )
+              ? (c, i) => {
+                  const cardHue = CARD_HUES[i % CARD_HUES.length];
+                  return (
+                    <CardActionsMenu
+                      card={{ id: c.id, visibility: c.visibility }}
+                      seed={cardHue}
+                      hue={cardHue}
+                    />
+                  );
+                }
               : undefined
           }
         />

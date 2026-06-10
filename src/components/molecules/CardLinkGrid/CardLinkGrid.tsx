@@ -15,7 +15,7 @@ export interface CardLinkGridProps {
    * (outside the Link, so its clicks never navigate). Hover-revealed on
    * pointer devices, always visible on touch.
    */
-  renderActions?: (card: Card) => ReactNode;
+  renderActions?: (card: Card, index: number) => ReactNode;
 }
 
 export function CardLinkGrid({ cards, authors, cardHref, renderActions }: CardLinkGridProps) {
@@ -38,7 +38,7 @@ export function CardLinkGrid({ cards, authors, cardHref, renderActions }: CardLi
             >
               <StoryCard story={story} index={i} isLast={i === cards.length - 1} />
             </Link>
-            {renderActions && <div className={styles.actions}>{renderActions(card)}</div>}
+            {renderActions && <div className={styles.actions}>{renderActions(card, i)}</div>}
           </div>
         );
       })}

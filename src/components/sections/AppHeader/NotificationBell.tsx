@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { Icon } from '@/components/atoms/Icon';
+import { Divider } from '@/components/atoms/Divider/Divider';
+import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import type { Notification } from '@/lib/db/types';
 import { useAuth } from '@/components/providers/AuthProvider';
 import {
@@ -59,6 +61,10 @@ export function NotificationBell() {
     setOpen(false);
   }
 
+  // Wobbly badge chip — same hand-drawn curve language as the avatar frame.
+  const badgeH = 18;
+  const badgeW = unreadCount > 9 ? 26 : 19;
+
   return (
     <>
       <button
@@ -74,6 +80,9 @@ export function NotificationBell() {
           cursor: 'pointer',
           padding: 6,
           color: 'var(--color-text)',
+          // The badge hangs off the top-right corner; sit the bell a touch
+          // lower so the pair reads vertically centered in the header row.
+          transform: 'translateY(3px)',
         }}
       >
         <Icon name="bell" size={22} />
@@ -81,13 +90,10 @@ export function NotificationBell() {
           <span
             style={{
               position: 'absolute',
-              top: 2,
-              right: 2,
-              minWidth: 16,
-              height: 16,
-              padding: '0 4px',
-              borderRadius: 999,
-              background: 'var(--color-terracotta)',
+              top: -2,
+              right: -3,
+              width: badgeW,
+              height: badgeH,
               color: 'var(--color-cream)',
               fontSize: 10,
               fontWeight: 700,
@@ -97,7 +103,20 @@ export function NotificationBell() {
               lineHeight: 1,
             }}
           >
-            {unreadCount}
+            <HandDrawnBorder
+              w={badgeW}
+              h={badgeH}
+              R={badgeH * 0.4}
+              seed={9}
+              mag={1.3}
+              segmentsH={1}
+              segmentsV={1}
+              curve={1.5}
+              cornerJitter={3}
+              cornerOffset={badgeH * 0.06}
+              fillColor="var(--color-terracotta)"
+            />
+            <span style={{ position: 'relative' }}>{unreadCount}</span>
           </span>
         )}
       </button>
@@ -116,8 +135,8 @@ export function NotificationBell() {
         {fetched && items.length === 0 && (
           <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>{tApp('empty')}</p>
         )}
-        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {items.map((n) => {
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
+          {items.map((n, i) => {
             const isUnread = n.readAt === null;
             let body = '';
             let href: string | null = null;
@@ -141,12 +160,10 @@ export function NotificationBell() {
             const inner = (
               <div
                 style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  background: isUnread ? 'color-mix(in oklch, var(--color-terracotta-light) 35%, transparent)' : 'transparent',
+                  padding: '13px 2px',
                   fontSize: 14,
                   cursor: 'pointer',
-                  color: 'var(--color-text)',
+                  color: isUnread ? 'var(--color-text)' : 'var(--color-text-muted)',
                 }}
               >
                 {body}
@@ -167,15 +184,18 @@ export function NotificationBell() {
               </div>
             );
             return (
-              <li key={n.id} onClick={() => handleClickItem(n)}>
-                {href ? (
-                  <Link href={href as '/me' | `/card/${string}`} style={{ textDecoration: 'none' }}>
-                    {inner}
-                  </Link>
-                ) : (
-                  inner
-                )}
-              </li>
+              <Fragment key={n.id}>
+                {i > 0 && <Divider seed={29 + i * 7} spacing={0} />}
+                <li onClick={() => handleClickItem(n)}>
+                  {href ? (
+                    <Link href={href as '/me' | `/card/${string}`} style={{ textDecoration: 'none' }}>
+                      {inner}
+                    </Link>
+                  ) : (
+                    inner
+                  )}
+                </li>
+              </Fragment>
             );
           })}
         </ul>
