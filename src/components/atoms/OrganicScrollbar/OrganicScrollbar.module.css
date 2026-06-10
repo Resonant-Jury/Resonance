@@ -1,0 +1,46 @@
+.rail {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 0;
+  cursor: pointer;
+  touch-action: none;
+  z-index: 2;
+}
+
+.rail[data-page] {
+  position: fixed;
+  top: 10px;
+  bottom: 10px;
+  right: 4px;
+  /* Under modal overlays — the backdrop dims it along with the page. */
+  z-index: 40;
+}
+
+.rail[data-hidden] {
+  display: none;
+}
+
+.thumb {
+  stroke: var(--color-terracotta-light);
+  /* The "wet ink catching up" lag: the dash window chases the scroll. */
+  transition:
+    stroke-dashoffset 150ms ease-out,
+    stroke-dasharray 150ms ease-out,
+    stroke 160ms ease;
+}
+
+.rail:hover .thumb,
+.rail[data-dragging] .thumb {
+  stroke: var(--color-terracotta);
+}
+
+.rail[data-dragging] .thumb {
+  transition: stroke 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumb {
+    transition: none;
+  }
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState, type MouseEvent } from 'react';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
@@ -58,7 +58,6 @@ export interface CardEditorProps {
   onSavedDraft?: (card: Card) => void;
 }
 
-const SAMPLE_TAGS = ['脆弱性', '記憶', '成長', '家族', '陌生人', '夜晚', '和解', '書寫'];
 // AI 寫作夥伴：暫時停用，未來會重新啟用
 // const SAMPLE_TITLES = [
 //   '有些話,寫下來,是為了自己先聽見。',
@@ -95,6 +94,8 @@ export function CardEditor({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [suggestingTags, setSuggestingTags] = useState(false);
+  const [tagError, setTagError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   // AI 寫作夥伴：暫時停用，未來會重新啟用
@@ -117,13 +118,34 @@ export function CardEditor({
     });
   }, [savedAt, locale, t]);
 
-  function suggestTags() {
-    const picked: string[] = [];
-    for (const x of SAMPLE_TAGS) {
-      if (picked.length >= 4) break;
-      if (!tags.includes(x)) picked.push(x);
+  async function suggestTags() {
+    if (suggestingTags) return;
+    setTagError(null);
+    setSuggestingTags(true);
+    try {
+      // The draft may be unsaved, so the editor state travels in the body. The
+      // server merges in the author's past tags before asking the model.
+      const res = await fetch('/api/cards/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thoughtCore, story, tags }),
+      });
+      if (!res.ok) throw new Error(`Tag suggestion failed: ${res.status}`);
+      const { tags: suggested } = (await res.json()) as { tags?: string[] };
+      const fresh = (suggested ?? []).filter((x) => !tags.includes(x));
+      if (fresh.length > 0) setTags([...tags, ...fresh]);
+    } catch (err) {
+      console.error('Tag suggestion failed:', err);
+      setTagError(t('tagsSuggestError'));
+    } finally {
+      setSuggestingTags(false);
     }
-    setTags([...tags, ...picked.slice(0, 4 - tags.length)]);
+  }
+
+  function addTag(raw: string) {
+    const tag = raw.trim();
+    if (!tag || tags.includes(tag)) return;
+    setTags([...tags, tag]);
   }
   // AI 寫作夥伴：暫時停用，未來會重新啟用
   // function suggestTitles() {
@@ -270,18 +292,29 @@ export function CardEditor({
 
         {/* Tags */}
         <Field label={t('tagsLabel')}>
-          <div className={styles.tagRow}>
-            {tags.map((tag) => (
-              <TagPill
-                key={tag}
-                size="lg"
-                color="var(--color-terracotta-light)"
-                onRemove={() => removeTag(tag)}
-              >
-                {tag}
-              </TagPill>
-            ))}
-            <AddTagButton label={t('tagsSuggest')} onClick={suggestTags} />
+          <div className={styles.tagBlock}>
+            <div className={styles.tagRow}>
+              {tags.map((tag) => (
+                <TagPill
+                  key={tag}
+                  size="lg"
+                  color="var(--color-terracotta-light)"
+                  onRemove={() => removeTag(tag)}
+                >
+                  {tag}
+                </TagPill>
+              ))}
+              <AddTagButton
+                label={suggestingTags ? t('tagsSuggesting') : t('tagsSuggest')}
+                onClick={() => void suggestTags()}
+              />
+            </div>
+            <TagInput
+              placeholder={t('tagsPlaceholder')}
+              addLabel={t('tagsAdd')}
+              onAdd={addTag}
+            />
+            {tagError && <div className={styles.tagError}>{tagError}</div>}
           </div>
         </Field>
 
@@ -545,6 +578,139 @@ function AddTagButton({ label, onClick }: { label: string; onClick: () => void }
         fillColor="transparent"
       />
       <span className={styles.addTagBody}>
+        <Icon name="plus" size={12} /> {label}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Search-box style tag input: the wobbly field holds the text input on the
+ * left and the add action on the right, split by a vertical pen rule.
+ */
+function TagInput({
+  placeholder,
+  addLabel,
+  onAdd,
+}: {
+  placeholder: string;
+  addLabel: string;
+  onAdd: (tag: string) => void;
+}) {
+  const [value, setValue] = useState('');
+  const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
+
+  function commit() {
+    if (!value.trim()) return;
+    onAdd(value);
+    setValue('');
+  }
+
+  return (
+    <HandDrawnDashedSurface
+      seed={53}
+      R={16}
+      strokeWidth={INK}
+      state={focus ? 'focus' : hover ? 'hover' : 'idle'}
+      className={styles.tagInputSurface}
+    >
+      <div
+        className={styles.tagInputRow}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+      >
+        <input
+          type="text"
+          className={styles.tagInputField}
+          value={value}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
+        />
+        <Divider orientation="vertical" spacing={0} strokeWidth={INK} />
+        <TagAddButton label={addLabel} disabled={!value.trim()} onClick={commit} />
+      </div>
+    </HandDrawnDashedSurface>
+  );
+}
+
+/**
+ * The add action inside the tag input — borderless (the surface owns the
+ * chrome) but with the same pour-paint hover wash as OrganicButton: a circle
+ * mask growing from the pointer's entry point.
+ */
+function TagAddButton({
+  label,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const { w, h } = useElementSize(ref, 76, 46);
+  const [hovered, setHovered] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const maskId = useId().replace(/:/g, '');
+
+  const recordPointer = (e: MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
+  };
+  const maxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 4;
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={styles.tagAddBtn}
+      disabled={disabled}
+      onClick={onClick}
+      onMouseEnter={(e) => { recordPointer(e); setHovered(true); }}
+      onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
+    >
+      {w > 0 && h > 0 && (
+        <svg
+          aria-hidden="true"
+          width={w}
+          height={h}
+          viewBox={`0 0 ${w} ${h}`}
+          className={styles.tagAddWash}
+        >
+          <defs>
+            <mask
+              id={`tag-add-${maskId}`}
+              maskUnits="userSpaceOnUse"
+              x={-w} y={-h} width={w * 3} height={h * 3}
+            >
+              <circle
+                cx={pos.x} cy={pos.y}
+                r={hovered && !disabled ? maxR : 0}
+                fill="white"
+                style={{ transition: 'r 340ms linear' }}
+              />
+            </mask>
+          </defs>
+          <g mask={`url(#tag-add-${maskId})`}>
+            {/* inset so the wash stays inside the surface's wobbly border */}
+            <rect
+              x={3} y={4} width={w - 6} height={h - 8} rx={10}
+              fill="color-mix(in oklch, var(--color-terracotta) 14%, transparent)"
+            />
+          </g>
+        </svg>
+      )}
+      <span className={styles.tagAddLabel}>
         <Icon name="plus" size={12} /> {label}
       </span>
     </button>

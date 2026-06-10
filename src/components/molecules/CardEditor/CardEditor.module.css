@@ -15,11 +15,80 @@
   min-width: 0;
 }
 
+.tagBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .tagRow {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+/* Search-box style tag input: text on the left, add action on the right,
+   split by a vertical pen rule, all inside one wobbly field surface. */
+.tagInputSurface {
+  width: 100%;
+  background: var(--color-cream);
+  border-radius: var(--field-radius);
+}
+.tagInputRow {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  z-index: 1;
+}
+.tagInputField {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--field-pad-y) var(--field-pad-x);
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-text);
+  outline: none;
+  border-radius: var(--field-radius);
+}
+.tagAddBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0 20px;
+  color: var(--color-terracotta);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tagAddBtn:disabled {
+  cursor: not-allowed;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+.tagAddWash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.tagAddLabel {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.tagError {
+  font-size: 12px;
+  color: var(--color-terracotta);
 }
 
 .addTag {
