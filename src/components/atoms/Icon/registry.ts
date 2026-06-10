@@ -15,6 +15,8 @@ import { WaveIcon } from './icons/wave';
 import { PenIcon } from './icons/pen';
 import { CardsIcon } from './icons/cards';
 import { LogoutIcon } from './icons/logout';
+import { DotsIcon } from './icons/dots';
+import { TrashIcon } from './icons/trash';
 import type { IconRenderer } from './types';
 
 /**
@@ -49,6 +51,8 @@ export const ICONS = {
   pen: PenIcon,
   cards: CardsIcon,
   logout: LogoutIcon,
+  dots: DotsIcon,
+  trash: TrashIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

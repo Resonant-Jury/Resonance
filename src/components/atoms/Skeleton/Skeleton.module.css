@@ -7,9 +7,9 @@
      instead of cold grey, so loading states sit in the OKLCH palette. */
   background: linear-gradient(
     90deg,
-    oklch(89% 0.022 60 / 0.85) 25%,
-    oklch(94% 0.04 55 / 0.95) 37%,
-    oklch(89% 0.022 60 / 0.85) 63%
+    color-mix(in oklch, color-mix(in oklch, var(--color-cream-dark) 94%, var(--color-text)) 85%, transparent) 25%,
+    color-mix(in oklch, var(--color-terracotta-light) 50%, var(--color-cream)) 37%,
+    color-mix(in oklch, color-mix(in oklch, var(--color-cream-dark) 94%, var(--color-text)) 85%, transparent) 63%
   );
   background-size: 400% 100%;
   animation: skeleton-shimmer 1.5s ease infinite;

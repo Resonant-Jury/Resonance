@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { getStorageProvider } from '@/lib/storage';
 import { generateStoryImage } from '@/lib/ai/tasks';
+import { convertToAvif } from '@/lib/storage/image';
 
 export const runtime = 'nodejs';
 // Image generation can take up to ~2 minutes for complex prompts.
@@ -30,15 +31,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Generation failed' }, { status: 502 });
   }
 
+  let avifBuffer: Buffer;
+  try {
+    avifBuffer = await convertToAvif(bytes);
+  } catch (err) {
+    console.error('AI generated image compression to AVIF failed:', err);
+    return NextResponse.json({ error: 'Failed to compress generated image' }, { status: 500 });
+  }
+
   const stored = await getStorageProvider().uploadObject(
     {
-      filename: 'generated.png',
-      contentType: 'image/png',
-      size: bytes.byteLength,
+      filename: 'generated.avif',
+      contentType: 'image/avif',
+      size: avifBuffer.byteLength,
       ownerId: user.id,
       kind: 'image',
     },
-    bytes,
+    avifBuffer,
   );
 
   return NextResponse.json({ publicUrl: stored.publicUrl, key: stored.key });

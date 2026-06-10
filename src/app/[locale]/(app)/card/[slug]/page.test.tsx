@@ -28,6 +28,7 @@ vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => (
     <a href={href}>{children}</a>
   ),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 // The detail body composes leaf components that perform their own Firestore
 // reads (resonance state, author metrics, resonance cards). They aren't the

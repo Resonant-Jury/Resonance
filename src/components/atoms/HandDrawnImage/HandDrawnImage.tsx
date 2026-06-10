@@ -9,6 +9,10 @@ import { useElementSize } from '@/lib/hooks/useElementSize';
 import { INK } from '@/lib/design/strokes';
 import styles from './HandDrawnImage.module.css';
 
+/** How far the image extends past the box on every side. Must cover the
+ *  wobble's outward swing (autoMag caps at 4px) plus half the ink stroke. */
+const BLEED = 6;
+
 export interface HandDrawnImageProps {
   src: string;
   alt?: string;
@@ -63,12 +67,15 @@ export function HandDrawnImage({
               <path d={path} />
             </clipPath>
           </defs>
+          {/* Overscan past the box so the wobble's outward bulges land on
+              image pixels instead of leaving a sliver of background between
+              the picture and the drawn outline (same trick as OrganicImage). */}
           <image
             href={src}
-            x={0}
-            y={0}
-            width={w}
-            height={h}
+            x={-BLEED}
+            y={-BLEED}
+            width={w + BLEED * 2}
+            height={h + BLEED * 2}
             preserveAspectRatio="xMidYMid slice"
             clipPath={`url(#hdimg-${uid})`}
           />

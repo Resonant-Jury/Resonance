@@ -153,9 +153,26 @@
     "corePlaceholder": "例：被看見，比被喜歡更難得。",
     "storyLabel": "故事本體",
     "storyPlaceholder": "把那個讓你忍不住寫下思維核心的時刻，寫出來⋯",
-    "storyMin": "再多一點點，讓它有份量（{count}/300）",
-    "storyOk": "剛剛好的厚度 ✿",
-    "storyLong": "這張卡有點長了，會拆開讀者的專注力",
+    "editor": {
+      "toolbarLabel": "編輯工具列",
+      "bold": "粗體",
+      "italic": "斜體",
+      "h2": "大標",
+      "h3": "小標",
+      "bulletList": "清單",
+      "orderedList": "編號",
+      "quote": "引言",
+      "insertCard": "插入卡片",
+      "insertImage": "插入圖片",
+      "imageUploading": "圖片上傳中⋯",
+      "imageUploadError": "圖片上傳失敗，請再試一次。",
+      "cardModal": {
+        "title": "插入卡片連結",
+        "subtitle": "選一張你公開發表過的卡片，連結會插入在游標位置。",
+        "empty": "你還沒有公開發表的卡片。",
+        "cancel": "取消"
+      }
+    },
     "tagsLabel": "標籤（讓別人找得到你）",
     "tagsSuggest": "AI 幫你想 3–5 個",
     "mediaLabel": "搭配一張圖片（選填）",
@@ -211,7 +228,18 @@
     "emptyPrivate": "還沒有私人卡片。",
     "emptyDraft": "沒有草稿。",
     "emptyResonated": "還沒共振過別人的卡片。",
-    "emptyLinked": "還沒有人用卡片連結你。"
+    "emptyLinked": "還沒有人用卡片連結你。",
+    "actions": {
+      "menuLabel": "管理卡片",
+      "edit": "編輯",
+      "makePublic": "轉為公開",
+      "makePrivate": "轉為私人",
+      "delete": "刪除",
+      "deleteConfirmTitle": "刪除這張卡片？",
+      "deleteConfirmBody": "刪除後無法復原，卡片的故事與共振連結都會消失。",
+      "deleteConfirm": "刪除卡片",
+      "deleteCancel": "先留著"
+    }
   },
   "profile": {
     "notConnected": "尚未連結",

@@ -9,22 +9,69 @@ const TWEAK_DEFAULTS = {
   grainIntensity: 2,
 };
 
+/**
+ * Each accent theme re-tints the whole neutral scale, not just the accent
+ * pair: paper (cream), card fill, text inks, field borders and placeholder
+ * all drift toward the accent's hue at low chroma, mirroring how the default
+ * terracotta theme keeps its neutrals warm (hue 60–80). Every entry sets the
+ * full token set so switching themes never leaves stale overrides behind —
+ * `terracotta` restores the tokens.css defaults verbatim.
+ * (`--field-border-focus` is var(--color-terracotta), so it follows for free.)
+ */
 export const ACCENT_MAP: Record<string, Record<string, string>> = {
+  // Warm terracotta — the tokens.css defaults.
   terracotta: {
     '--color-terracotta': 'oklch(62% 0.14 45)',
     '--color-terracotta-light': 'oklch(88% 0.08 55)',
+    '--color-cream': 'oklch(96.5% 0.015 75)',
+    '--color-cream-dark': 'oklch(93% 0.018 75)',
+    '--color-card-bg': 'oklch(97.5% 0.01 80)',
+    '--color-text': 'oklch(26% 0.03 60)',
+    '--color-text-muted': 'oklch(52% 0.04 70)',
+    '--field-border': 'oklch(80% 0.02 75)',
+    '--field-border-hover': 'oklch(60% 0.04 60)',
+    '--placeholder': 'oklch(64% 0.03 70)',
   },
+  // Sage — celadon paper, fir-green inks.
   sage: {
     '--color-terracotta': 'oklch(55% 0.13 140)',
-    '--color-terracotta-light': 'oklch(80% 0.09 140)',
+    '--color-terracotta-light': 'oklch(86% 0.07 140)',
+    '--color-cream': 'oklch(96.5% 0.013 140)',
+    '--color-cream-dark': 'oklch(93% 0.016 140)',
+    '--color-card-bg': 'oklch(97.5% 0.009 145)',
+    '--color-text': 'oklch(26% 0.025 150)',
+    '--color-text-muted': 'oklch(50% 0.035 145)',
+    '--field-border': 'oklch(80% 0.02 140)',
+    '--field-border-hover': 'oklch(58% 0.04 142)',
+    '--placeholder': 'oklch(63% 0.03 142)',
   },
+  // Lavender — cool lilac paper, plum-gray inks. Purple tints read strongly,
+  // so the neutrals carry slightly less chroma than the warm themes.
   lavender: {
     '--color-terracotta': 'oklch(58% 0.14 290)',
-    '--color-terracotta-light': 'oklch(83% 0.08 290)',
+    '--color-terracotta-light': 'oklch(87% 0.065 295)',
+    '--color-cream': 'oklch(96.5% 0.012 300)',
+    '--color-cream-dark': 'oklch(93.5% 0.015 300)',
+    '--color-card-bg': 'oklch(97.5% 0.008 305)',
+    '--color-text': 'oklch(26% 0.025 295)',
+    '--color-text-muted': 'oklch(50% 0.035 295)',
+    '--field-border': 'oklch(80% 0.02 295)',
+    '--field-border-hover': 'oklch(58% 0.04 292)',
+    '--placeholder': 'oklch(63% 0.03 295)',
   },
+  // Gold — honeyed paper, umber inks. The accent sits a touch deeper than the
+  // old 68%-lightness gold so cream text on primary buttons stays legible.
   yellow: {
-    '--color-terracotta': 'oklch(68% 0.15 80)',
-    '--color-terracotta-light': 'oklch(90% 0.10 85)',
+    '--color-terracotta': 'oklch(64% 0.13 78)',
+    '--color-terracotta-light': 'oklch(90% 0.09 90)',
+    '--color-cream': 'oklch(96.5% 0.02 95)',
+    '--color-cream-dark': 'oklch(93% 0.024 95)',
+    '--color-card-bg': 'oklch(97.5% 0.013 98)',
+    '--color-text': 'oklch(26% 0.03 80)',
+    '--color-text-muted': 'oklch(52% 0.045 88)',
+    '--field-border': 'oklch(80% 0.025 92)',
+    '--field-border-hover': 'oklch(60% 0.045 85)',
+    '--placeholder': 'oklch(64% 0.035 90)',
   },
 };
 

@@ -28,6 +28,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Image is too large' }, { status: 400 });
   }
 
+  // Compression happens client-side (src/lib/images/compress.ts) so the
+  // server only streams the already-small bytes to storage.
   const body = new Uint8Array(await file.arrayBuffer());
   const stored = await getStorageProvider().uploadObject(
     {

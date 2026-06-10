@@ -8,6 +8,27 @@
   /* mobile: cards stack flush, no gap */
 }
 
+/* Owner-management「⋯」anchored over the card's top-right corner. On pointer
+   devices it fades in on hover/focus; on touch it stays visible (there is no
+   hover to reveal it). */
+.actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+}
+@media (hover: hover) {
+  .actions {
+    opacity: 0;
+    transition: opacity 160ms ease;
+  }
+  .item:hover .actions,
+  .item:focus-within .actions,
+  .actions:has([aria-expanded='true']) {
+    opacity: 1;
+  }
+}
+
 /* tablet: two columns */
 @media (min-width: 640px) {
   .grid {

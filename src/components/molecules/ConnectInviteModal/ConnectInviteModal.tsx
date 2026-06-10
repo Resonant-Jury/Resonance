@@ -128,7 +128,7 @@ export function ConnectInviteModal({
               style={{
                 padding: '10px 12px',
                 borderRadius: 10,
-                background: 'oklch(94% 0.03 75 / 0.6)',
+                background: 'color-mix(in oklch, var(--color-cream-dark) 60%, transparent)',
                 fontSize: 13,
                 color: 'var(--color-text-muted)',
                 marginBottom: 14,

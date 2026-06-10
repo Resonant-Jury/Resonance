@@ -87,6 +87,7 @@ export default function MyCardBoxPage() {
 
       <ProfileTabs
         tabs={tabs}
+        manageable
         data={
           box
             ? {

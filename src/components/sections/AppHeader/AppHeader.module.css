@@ -10,7 +10,7 @@
 .bg {
   position: absolute;
   inset: 0;
-  background: oklch(96% 0.015 75 / 0.92);
+  background: color-mix(in oklch, var(--color-cream) 92%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   transition: opacity 300ms ease;

@@ -50,7 +50,7 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
                 color: activeKey === key ? 'var(--color-terracotta)' : 'var(--color-text)',
                 textDecoration: 'none',
                 borderRadius: 10,
-                background: activeKey === key ? 'oklch(92% 0.06 55 / 0.45)' : 'transparent',
+                background: activeKey === key ? 'color-mix(in oklch, var(--color-terracotta-light) 45%, transparent)' : 'transparent',
               }}
             >
               {t(key)}

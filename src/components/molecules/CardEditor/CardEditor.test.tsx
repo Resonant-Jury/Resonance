@@ -15,8 +15,8 @@ vi.mock('@/lib/db/firestore/client/cards', () => ({
 }));
 // The story field is a Tiptap (ProseMirror) editor that doesn't mount cleanly
 // in jsdom; mock it at the boundary with a plain textarea that preserves the
-// value/onChange/aria-label contract so the editor's surrounding logic (hint,
-// publish payload) stays testable.
+// value/onChange/aria-label contract so the editor's surrounding logic
+// (publish payload) stays testable.
 vi.mock('@/components/molecules/MarkdownEditor/MarkdownEditor', () => ({
   MarkdownEditor: ({
     value,
@@ -46,15 +46,15 @@ describe('CardEditor', () => {
     expect(screen.getByLabelText('Story')).toBeInTheDocument();
   });
 
-  it('moves the story hint from "needs more" to "right weight" as length crosses 300', () => {
+  it('shows no word-count suggestion for the story body', () => {
     renderWithIntl(<CardEditor locale="en" />);
     const story = screen.getByLabelText('Story');
 
     fireEvent.change(story, { target: { value: 'short start' } });
-    expect(screen.getByText(/\/300/)).toBeInTheDocument();
+    expect(screen.queryByText(/\/300/)).not.toBeInTheDocument();
 
     fireEvent.change(story, { target: { value: 'x'.repeat(350) } });
-    expect(screen.getByText('The right weight ✿')).toBeInTheDocument();
+    expect(screen.queryByText('The right weight ✿')).not.toBeInTheDocument();
   });
 
   it('adds suggested tags when the AI tag button is clicked', async () => {

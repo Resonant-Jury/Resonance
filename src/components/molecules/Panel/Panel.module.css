@@ -3,7 +3,7 @@
 }
 
 .surface {
-  background: oklch(96% 0.018 75 / 0.6);
+  background: color-mix(in oklch, var(--color-cream) 60%, transparent);
   border-radius: 22px;
 }
 
@@ -12,7 +12,7 @@
 }
 
 .panel[data-variant='soft'] {
-  background: oklch(94% 0.03 75 / 0.5);
+  background: color-mix(in oklch, var(--color-cream-dark) 50%, transparent);
   border-radius: 20px 24px 18px 22px;
 }
 

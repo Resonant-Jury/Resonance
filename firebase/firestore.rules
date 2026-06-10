@@ -84,9 +84,12 @@ service cloud.firestore {
       allow update: if signedIn()
         && resource.data.authorId == request.auth.uid
         && authorOnlyMetricsUnchanged();
+      // Authors may delete any of their cards (drafts and published alike) —
+      // the card box has a delete action. Dangling references (cardLinks,
+      // resonance referenceCardId) degrade gracefully: readers resolve the
+      // missing card to null and drop it.
       allow delete: if signedIn()
-        && resource.data.authorId == request.auth.uid
-        && resource.data.publishedAt == null;
+        && resource.data.authorId == request.auth.uid;
     }
 
     // --- connections ---

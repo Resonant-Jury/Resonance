@@ -13,7 +13,9 @@ import { HandDrawnImage } from '@/components/atoms/HandDrawnImage/HandDrawnImage
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { MarkdownEditor } from '@/components/molecules/MarkdownEditor/MarkdownEditor';
 import { useElementSize } from '@/lib/hooks/useElementSize';
+import { uploadImageFile } from '@/lib/images/upload';
 import { useRef } from 'react';
+import { INK } from '@/lib/design/strokes';
 // import { Panel } from '@/components/molecules/Panel/Panel'; // AI 寫作夥伴（暫停）
 import {
   SegmentedActionBar,
@@ -100,10 +102,6 @@ export function CardEditor({
   // const [polishPreview, setPolishPreview] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
-
-  const storyLen = story.length;
-  const storyState =
-    storyLen < 300 ? 'short' : storyLen > 1200 ? 'long' : 'ok';
 
   // Autosave stub — every 10s if dirty
   useEffect(() => {
@@ -228,16 +226,7 @@ export function CardEditor({
     setUploadError(null);
     setUploading(true);
     try {
-      // Send the file to our own API route; the server streams it to R2. The
-      // browser never contacts the R2 storage host directly.
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
-      if (!res.ok) {
-        setUploadError(t('mediaUploadError'));
-        return;
-      }
-      const { publicUrl } = (await res.json()) as { publicUrl: string };
+      const { publicUrl } = await uploadImageFile(file);
       setMedia({ type: 'image', url: publicUrl, label: file.name });
     } catch {
       setUploadError(t('mediaUploadError'));
@@ -268,17 +257,7 @@ export function CardEditor({
         </Field>
 
         {/* Story */}
-        <Field
-          label={t('storyLabel')}
-          hint={
-            storyState === 'short'
-              ? t('storyMin', { count: storyLen })
-              : storyState === 'ok'
-                ? t('storyOk')
-                : t('storyLong')
-          }
-          hintTone={storyState === 'ok' ? 'ok' : 'default'}
-        >
+        <Field label={t('storyLabel')}>
           <MarkdownEditor
             value={story}
             onChange={setStory}
@@ -380,7 +359,7 @@ export function CardEditor({
                   />
                 </label>
 
-                <Divider orientation="vertical" spacing={0} />
+                <Divider orientation="vertical" spacing={0} strokeWidth={INK} />
 
                 <button
                   type="button"
@@ -426,7 +405,7 @@ export function CardEditor({
                     />
                   ),
                   label: tVis(v),
-                  fill: active ? 'oklch(92% 0.06 55 / 0.6)' : 'transparent',
+                  fill: active ? 'color-mix(in oklch, var(--color-terracotta-light) 60%, transparent)' : 'transparent',
                   textColor: active ? 'var(--color-terracotta)' : 'var(--color-text-muted)',
                   hoverOverlay: 'oklch(0% 0 0 / 0.05)',
                   ariaLabel: tVis(v),

@@ -153,9 +153,26 @@
     "corePlaceholder": "e.g. Being seen matters more than being liked.",
     "storyLabel": "Story",
     "storyPlaceholder": "Write the moment that pulled that line out of you…",
-    "storyMin": "A little more, let it land ({count}/300)",
-    "storyOk": "The right weight ✿",
-    "storyLong": "This is getting long — it may split the reader’s attention",
+    "editor": {
+      "toolbarLabel": "Editor toolbar",
+      "bold": "Bold",
+      "italic": "Italic",
+      "h2": "Heading 2",
+      "h3": "Heading 3",
+      "bulletList": "List",
+      "orderedList": "Numbered",
+      "quote": "Quote",
+      "insertCard": "Insert card",
+      "insertImage": "Insert image",
+      "imageUploading": "Uploading image…",
+      "imageUploadError": "Image upload failed. Please try again.",
+      "cardModal": {
+        "title": "Insert a card link",
+        "subtitle": "Pick one of your public cards — the link lands at your cursor.",
+        "empty": "You have no public cards yet.",
+        "cancel": "Cancel"
+      }
+    },
     "tagsLabel": "Tags",
     "tagsSuggest": "AI: suggest 3–5",
     "mediaLabel": "Image (optional)",
@@ -211,7 +228,18 @@
     "emptyPrivate": "No private cards.",
     "emptyDraft": "No drafts.",
     "emptyLinked": "No one has linked a card to you yet.",
-    "emptyResonated": "No resonances yet."
+    "emptyResonated": "No resonances yet.",
+    "actions": {
+      "menuLabel": "Manage card",
+      "edit": "Edit",
+      "makePublic": "Make public",
+      "makePrivate": "Make private",
+      "delete": "Delete",
+      "deleteConfirmTitle": "Delete this card?",
+      "deleteConfirmBody": "This cannot be undone — the story and its resonance links will be gone.",
+      "deleteConfirm": "Delete card",
+      "deleteCancel": "Keep it"
+    }
   },
   "profile": {
     "notConnected": "Not connected",

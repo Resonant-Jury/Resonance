@@ -11,11 +11,13 @@ import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { CardAuthorAside } from '@/components/molecules/CardDetail/CardAuthorAside';
 import { CardToc, type TocHeading } from '@/components/molecules/CardDetail/CardToc';
+import { CardActionsMenu } from '@/components/molecules/CardActionsMenu/CardActionsMenu';
 import { CardViewerActions } from '@/components/molecules/CardDetail/CardViewerActions';
 import { ResonanceCards } from '@/components/molecules/CardDetail/ResonanceCards';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { StoryMarkdown } from '@/components/molecules/CardDetail/StoryMarkdown';
-import { Link } from '@/i18n/navigation';
+import { useSWRConfig } from 'swr';
+import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useCard, useLinkedToCard, useRelated, useResonanceCards, useReferencedCard } from '@/lib/data/hooks';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
@@ -35,6 +37,8 @@ export default function CardDetailPage() {
   const t = useTranslations('card');
 
   const { user } = useAuth();
+  const router = useRouter();
+  const { mutate } = useSWRConfig();
   const { data, isLoading } = useCard(slug);
   // Related cards key off the resolved doc id (the URL carries a slug now), so
   // they fetch once the card itself has loaded.
@@ -157,7 +161,20 @@ export default function CardDetailPage() {
               />
             )}
 
-            <h1 className={styles.title}>{card.thoughtCore}</h1>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <h1 className={styles.title} style={{ flex: 1, minWidth: 0 }}>
+                {card.thoughtCore}
+              </h1>
+              {isOwner && (
+                <CardActionsMenu
+                  card={{ id: card.id, visibility: card.visibility }}
+                  seed={hue + 3}
+                  // Re-read this card so the visibility chip/state reflects the change.
+                  onChanged={() => void mutate(`card:${slug}:${user!.id}`)}
+                  onDeleted={() => router.replace('/me')}
+                />
+              )}
+            </div>
 
             <div ref={storyRef} style={{ marginBottom: 32 }}>
               <StoryMarkdown source={card.story} />

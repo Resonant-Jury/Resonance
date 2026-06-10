@@ -48,7 +48,7 @@
 .description {
   font-family: var(--font-body);
   font-size: 17px;
-  color: oklch(96% 0.015 75 / 0.8);
+  color: color-mix(in oklch, var(--color-cream) 80%, transparent);
   margin: 0 0 40px;
   line-height: 1.65;
 }

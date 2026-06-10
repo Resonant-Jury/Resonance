@@ -41,7 +41,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: oklch(94% 0.03 75);
+  background: var(--color-cream-dark);
   box-shadow: 0 0 0 3px var(--color-card-bg, var(--color-cream)),
     inset 0 0 0 1.5px oklch(60% 0.05 60 / 0.45);
   font-family: var(--font-body);

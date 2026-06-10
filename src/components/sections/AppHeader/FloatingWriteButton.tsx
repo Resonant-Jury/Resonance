@@ -6,18 +6,29 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { INK } from '@/lib/design/strokes';
 
+// Where the floating write button belongs: browsing surfaces only — the feed
+// and card detail pages. Utility pages (settings, card box, profiles, the
+// write page itself) stay free of it. Paths are locale-stripped
+// (next-intl usePathname), e.g. "/home", "/card/abc".
+const VISIBLE_PREFIXES = ['/home', '/card'];
+
+function isWriteFabPath(pathname: string): boolean {
+  return VISIBLE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
 /**
- * The primary "write a card" affordance, anchored bottom-right on every
- * viewport (it replaced the old header button and now sits where the runtime
- * tweak toggle used to live). Keeps the organic rounded-square FAB look; uses
- * the hand-drawn pen icon.
+ * The primary "write a card" affordance, anchored bottom-right (it replaced
+ * the old header button and now sits where the runtime tweak toggle used to
+ * live). Shown only on browsing surfaces — see {@link isWriteFabPath}. Keeps
+ * the organic rounded-square FAB look; uses the hand-drawn pen icon.
  */
 export function FloatingWriteButton() {
   const pathname = usePathname();
   const isMobile = useIsMobile(720);
 
-  // Do not show the floating write button on the write/edit page itself.
-  if (pathname === '/write' || pathname.startsWith('/write/')) {
+  if (!isWriteFabPath(pathname)) {
     return null;
   }
 
