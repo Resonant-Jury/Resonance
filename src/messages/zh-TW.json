@@ -166,6 +166,8 @@
       "insertImage": "插入圖片",
       "imageUploading": "圖片上傳中⋯",
       "imageUploadError": "圖片上傳失敗，請再試一次。",
+      "removeImage": "移除圖片",
+      "removeCard": "移除卡片",
       "cardModal": {
         "title": "插入卡片連結",
         "subtitle": "選一張你公開發表過的卡片，連結會插入在游標位置。",

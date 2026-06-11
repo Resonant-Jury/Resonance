@@ -61,23 +61,71 @@
   margin: 0.2em 0;
 }
 
+/* Blockquote node view: same hand-drawn vertical curve as the article
+   (StoryMarkdown), the Divider stretching with the quote's height. */
 .content blockquote {
   margin: 0 0 0.9em;
-  padding-left: 0.9em;
-  border-left: 3px solid var(--color-terracotta-light);
   color: var(--color-text-muted);
   font-style: italic;
 }
 
-.content img {
-  max-width: 100%;
-  border-radius: 14px;
+.blockquoteNode {
+  display: flex;
+  align-items: stretch;
+  gap: 1em;
 }
 
-/* Tiptap marks a clicked image node with this global class. */
-.content :global(img.ProseMirror-selectednode) {
-  outline: 2px solid var(--color-terracotta);
-  outline-offset: 2px;
+.blockquoteBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.blockquoteBody > :last-child {
+  margin-bottom: 0;
+}
+
+.content img {
+  max-width: 100%;
+}
+
+/* Block image node view: the wrapper shrink-wraps the photo so the remove
+   button and curved selection frame sit on the image's own corners, not the
+   column's. The curve itself is drawn by OrganicStoryImage. */
+.imageNode {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 0.9em;
+}
+
+/* Embedded card node view (mini horizontal story card). The card draws its
+   own focus border, so no extra outline here. */
+.cardEmbedNode {
+  position: relative;
+  max-width: 360px;
+  margin: 0 0 0.9em;
+}
+
+.nodeRemoveBtn {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+}
+
+.nodeRemoveIcon {
+  position: relative;
+  display: grid;
+  place-items: center;
 }
 
 /* Placeholder (from @tiptap/extension-placeholder). `is-editor-empty` is a

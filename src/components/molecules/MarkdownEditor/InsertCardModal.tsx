@@ -1,15 +1,6 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent,
-} from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -84,12 +75,10 @@ function CardRowList({ cards, onPick }: { cards: Card[]; onPick: (card: Card) =>
   const scrollRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
-  const uid = useId().replace(/:/g, '');
 
   const [dims, setDims] = useState({ w: 0, h: 0 });
   const [rows, setRows] = useState<{ top: number; height: number }[]>([]);
   const [hovered, setHovered] = useState<number | null>(null);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
 
   const recompute = useCallback(() => {
     const wrap = wrapRef.current;
@@ -120,15 +109,6 @@ function CardRowList({ cards, onPick }: { cards: Card[]; onPick: (card: Card) =>
 
   const ready = dims.w > 0 && dims.h > 0 && rows.length === cards.length && boundaries.length === cards.length - 1;
 
-  const recordPointer = (e: MouseEvent<HTMLButtonElement>) => {
-    const r = wrapRef.current?.getBoundingClientRect();
-    if (!r) return;
-    setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
-  };
-
-  const hoverMaxR =
-    Math.hypot(Math.max(pos.x, dims.w - pos.x), Math.max(pos.y, dims.h - pos.y)) + 4;
-
   return (
     <div className={styles.listArea}>
       <div ref={scrollRef} className={styles.scroll}>
@@ -141,36 +121,17 @@ function CardRowList({ cards, onPick }: { cards: Card[]; onPick: (card: Card) =>
               viewBox={`0 0 ${dims.w} ${dims.h}`}
               aria-hidden
             >
-              <defs>
-                {/* one pointer-anchored reveal circle per row, so the wash
-                    grows from the cursor and shrinks back independently */}
-                {cards.map((c, i) => (
-                  <mask
-                    key={c.id}
-                    id={`icm-hover-${uid}-${i}`}
-                    maskUnits="userSpaceOnUse"
-                    x={-dims.w}
-                    y={-dims.h}
-                    width={dims.w * 3}
-                    height={dims.h * 3}
-                  >
-                    <circle
-                      cx={pos.x}
-                      cy={pos.y}
-                      r={hovered === i ? hoverMaxR : 0}
-                      fill="white"
-                      style={{ transition: 'r 340ms linear' }}
-                    />
-                  </mask>
-                ))}
-              </defs>
+              {/* Plain fade per row — the rows aren't curve-bounded on all
+                  four sides, so the pointer-anchored bloom reveal read oddly
+                  here. */}
               {cards.map((c, i) => (
-                <g key={c.id} mask={`url(#icm-hover-${uid}-${i})`}>
-                  <path
-                    d={rowRegion(i, cards.length, boundaries, dims.w, dims.h, PAD)}
-                    fill="color-mix(in oklch, var(--color-terracotta) 13%, transparent)"
-                  />
-                </g>
+                <path
+                  key={c.id}
+                  d={rowRegion(i, cards.length, boundaries, dims.w, dims.h, PAD)}
+                  fill="color-mix(in oklch, var(--color-terracotta) 13%, transparent)"
+                  opacity={hovered === i ? 1 : 0}
+                  style={{ transition: 'opacity 180ms ease' }}
+                />
               ))}
               {boundaries.map((pts, i) => (
                 <path
@@ -196,11 +157,7 @@ function CardRowList({ cards, onPick }: { cards: Card[]; onPick: (card: Card) =>
                   type="button"
                   className={styles.cardRow}
                   onClick={() => onPick(c)}
-                  onMouseEnter={(e) => {
-                    recordPointer(e);
-                    setHovered(i);
-                  }}
-                  onMouseMove={recordPointer}
+                  onMouseEnter={() => setHovered(i)}
                   onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
                 >
                   <span className={styles.thumb}>

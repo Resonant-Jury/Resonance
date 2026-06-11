@@ -4,7 +4,6 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { useEditor, EditorContent, useEditorState, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from 'tiptap-markdown';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
@@ -17,6 +16,9 @@ import { useElementSize } from '@/lib/hooks/useElementSize';
 import { uploadImageFile } from '@/lib/images/upload';
 import type { Card } from '@/lib/db/types';
 import { InsertCardModal } from './InsertCardModal';
+import { OrganicImageNode } from './OrganicImageNode';
+import { CardEmbedNode } from './CardEmbedNode';
+import { CurvedBlockquoteNode } from './CurvedBlockquoteNode';
 import styles from './MarkdownEditor.module.css';
 
 /** tiptap-markdown augments `editor.storage` at runtime; type it locally. */
@@ -96,8 +98,10 @@ export function MarkdownEditor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit,
-      Image,
+      StarterKit.configure({ blockquote: false }),
+      CurvedBlockquoteNode,
+      OrganicImageNode,
+      CardEmbedNode,
       Markdown.configure({ html: false, transformPastedText: true, transformCopiedText: true }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
     ],
@@ -211,10 +215,7 @@ export function MarkdownEditor({
     editor
       .chain()
       .focus()
-      .insertContent([
-        { type: 'text', text: card.thoughtCore, marks: [{ type: 'link', attrs: { href } }] },
-        { type: 'text', text: ' ' },
-      ])
+      .insertContent({ type: 'cardEmbed', attrs: { href, title: card.thoughtCore } })
       .run();
     setCardModalOpen(false);
   }

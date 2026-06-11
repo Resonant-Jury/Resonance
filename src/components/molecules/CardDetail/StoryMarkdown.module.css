@@ -64,7 +64,10 @@
   text-underline-offset: 2px;
 }
 
-.prose img {
-  max-width: 100%;
-  border-radius: 14px;
+/* Story images render through OrganicStoryImage (curved clip, natural size);
+   no extra img styling needed here. */
+
+/* A standalone card link, rendered as the mini embedded story card. */
+.prose .embedBlock {
+  margin: 0 0 1.1em;
 }

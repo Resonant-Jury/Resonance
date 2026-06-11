@@ -40,8 +40,12 @@ export function Divider({
   const W = 240;
   const isVertical = orientation === 'vertical';
   // Fraction trimmed off each end so the rule floats in the middle of the
-  // panel rather than touching its top/bottom (or left/right) edges.
+  // panel rather than touching its top/bottom (or left/right) edges. Once a
+  // vertical rule is measured the trim is capped to a few real pixels —
+  // otherwise a tall quote would lose 18% of its height at *each* end and the
+  // curve would read far shorter than the text beside it.
   const INSET = 0.18;
+  const INSET_MAX_PX = 6;
 
   // Vertical rules derive their turn count from the rendered height, so a
   // longer quote gets more turns at a constant density rather than the same
@@ -49,17 +53,19 @@ export function Divider({
   // for horizontal rules, which keep their explicit count).
   const ref = useRef<HTMLDivElement>(null);
   const { h: measuredH, measured } = useElementSize(ref);
+  const inset =
+    isVertical && measured ? Math.min(INSET, INSET_MAX_PX / Math.max(measuredH, 1)) : INSET;
   const effectiveSteps =
     isVertical && measured
-      ? Math.max(2, Math.round((measuredH * (1 - INSET * 2)) / PX_PER_STEP))
+      ? Math.max(2, Math.round((measuredH * (1 - inset * 2)) / PX_PER_STEP))
       : steps;
 
   const d = useMemo(
     () =>
       isVertical
-        ? wavyVertical(W * (1 - INSET * 2), seed, amplitude, effectiveSteps)
+        ? wavyVertical(W * (1 - inset * 2), seed, amplitude, effectiveSteps)
         : wavyLine(W, seed, amplitude, effectiveSteps),
-    [isVertical, seed, amplitude, effectiveSteps]
+    [isVertical, seed, amplitude, effectiveSteps, inset]
   );
   const h = amplitude * 2 + strokeWidth * 2;
 
@@ -85,7 +91,7 @@ export function Divider({
         >
           <path
             d={d}
-            transform={`translate(0, ${W * INSET})`}
+            transform={`translate(0, ${W * inset})`}
             fill="none"
             stroke={color}
             strokeWidth={strokeWidth}

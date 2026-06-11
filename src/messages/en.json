@@ -166,6 +166,8 @@
       "insertImage": "Insert image",
       "imageUploading": "Uploading image…",
       "imageUploadError": "Image upload failed. Please try again.",
+      "removeImage": "Remove image",
+      "removeCard": "Remove card",
       "cardModal": {
         "title": "Insert a card link",
         "subtitle": "Pick one of your public cards — the link lands at your cursor.",

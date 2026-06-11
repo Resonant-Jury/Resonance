@@ -11,7 +11,6 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { HandDrawnImage } from '@/components/atoms/HandDrawnImage/HandDrawnImage';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
-import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import { MarkdownEditor } from '@/components/molecules/MarkdownEditor/MarkdownEditor';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { uploadImageFile } from '@/lib/images/upload';
@@ -264,9 +263,6 @@ export function CardEditor({
 
   return (
     <div className={styles.grid}>
-      {/* Full-page editor scrolls the window; replace the native bar with the
-          hand-drawn pen rail. Inline (resonance composer) keeps the host page's. */}
-      {mode === 'page' && <OrganicScrollbar page seed={23} />}
       <div className={styles.column}>
         {/* Core */}
         <Field
