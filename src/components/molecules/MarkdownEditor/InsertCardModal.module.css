@@ -9,7 +9,7 @@
 .subtitle {
   font-size: 14px;
   color: var(--color-text-muted);
-  margin: 0 0 16px;
+  margin: 0 0 12px;
 }
 
 .muted {
@@ -18,15 +18,42 @@
   padding: 12px 0;
 }
 
-.list {
-  list-style: none;
+.listArea {
+  position: relative;
   margin: 0 0 18px;
-  padding: 0;
+}
+
+.scroll {
   max-height: 50vh;
   overflow-y: auto;
+  /* the hand-drawn rail replaces the native bar */
+  scrollbar-width: none;
+  /* keep rows clear of the rail */
+  padding-right: 18px;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.listWrap {
+  position: relative;
+}
+
+.washSvg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.list {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
 .cardRow {
@@ -34,17 +61,17 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 10px;
+  padding: 10px 6px;
   border: none;
-  border-radius: 14px;
   background: transparent;
   cursor: pointer;
   text-align: left;
-  transition: background 160ms ease;
 }
 
-.cardRow:hover {
-  background: color-mix(in oklch, var(--color-cream-dark) 60%, transparent);
+.cardRow:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: -2px;
+  border-radius: 10px;
 }
 
 .thumb {

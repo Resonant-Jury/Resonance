@@ -174,7 +174,7 @@
       }
     },
     "tagsLabel": "Tags",
-    "tagsSuggest": "AI: suggest 3–5",
+    "tagsSuggest": "AI: suggest 2–3",
     "tagsSuggesting": "Thinking…",
     "tagsSuggestError": "Couldn’t suggest tags. Please try again.",
     "tagsPlaceholder": "Type a tag…",

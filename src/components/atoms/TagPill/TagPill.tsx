@@ -68,20 +68,16 @@ export function TagPill({
           : undefined
       }
     >
+      {/* Wobble params (segments / curve / mag) and stroke width stay on the
+          auto defaults + INK pen — the same recipe as other small chips (e.g.
+          the editor's AI-suggest pill), so all pills read as one hand. */}
       <HandDrawnBorder
         w={w}
         h={h}
         R={R}
         seed={autoSeed}
-        mag={Math.min(w, h) * 0.055}
         fillColor={color}
         strokeColor="oklch(32% 0.05 60 / 0.45)"
-        strokeWidth={1.2}
-        segmentsH={[2, 3]}
-        segmentsV={[1, 2]}
-        curve={2.0}
-        cornerJitter={1.8}
-        cornerOffset={Math.min(w, h) * 0.04}
       />
       <span className={styles.label}>{children}</span>
       {onRemove && (

@@ -45,6 +45,11 @@
 .label {
   position: relative;
   z-index: 1;
+  /* Optical centering: CJK glyph ink sits ~0.04em above the line box's
+     geometric center (Noto Sans TC baseline metrics), so flex centering alone
+     leaves tag text riding high. Nudge the ink down; em-based so it scales
+     with the size variants. */
+  transform: translateY(0.04em);
 }
 
 .removeBtn {
@@ -60,6 +65,9 @@
   opacity: 0.55;
   padding: 0;
   margin-left: 2px;
+  /* Match the label's optical-centering nudge (smaller — the × ink is nearly
+     centered already). */
+  transform: translateY(0.02em);
 }
 
 .removeBtn:hover {

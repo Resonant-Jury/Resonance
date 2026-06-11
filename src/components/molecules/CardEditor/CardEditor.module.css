@@ -28,22 +28,27 @@
   align-items: center;
 }
 
-/* Search-box style tag input: text on the left, add action on the right,
-   split by a vertical pen rule, all inside one wobbly field surface. */
-.tagInputSurface {
-  width: 100%;
-  background: var(--color-cream);
-  border-radius: var(--field-radius);
-}
-.tagInputRow {
+/* Segmented-bar style tag input: text segment on the left, add action on the
+   right — one wobbly border with a wavy divider, drawn in the backdrop SVG. */
+.tagInputBar {
+  position: relative;
   display: flex;
   align-items: stretch;
-  position: relative;
-  z-index: 1;
+  width: 100%;
+}
+.tagInputBackdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
 }
 .tagInputField {
   flex: 1 1 auto;
   min-width: 0;
+  position: relative;
+  z-index: 1;
   padding: var(--field-pad-y) var(--field-pad-x);
   border: none;
   background: transparent;
@@ -54,36 +59,31 @@
   outline: none;
   border-radius: var(--field-radius);
 }
-.tagAddBtn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  border: none;
-  background: none;
-  padding: 0 20px;
-  color: var(--color-terracotta);
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.tagAddBtn:disabled {
-  cursor: not-allowed;
-  color: var(--color-text-muted);
-  opacity: 0.6;
-}
-.tagAddWash {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.tagAddLabel {
+.tagInputBtn {
   position: relative;
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 0 clamp(18px, 2.8vw, 26px);
+  color: var(--color-terracotta);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tagInputBtn:active {
+  opacity: 0.82;
+}
+.tagInputBtn:disabled {
+  cursor: not-allowed;
+  color: var(--color-text-muted);
+  opacity: 0.7;
 }
 
 .tagError {

@@ -174,7 +174,7 @@
       }
     },
     "tagsLabel": "標籤",
-    "tagsSuggest": "AI 幫你想 3–5 個",
+    "tagsSuggest": "AI 幫你想 2–3 個",
     "tagsSuggesting": "AI 思考中⋯",
     "tagsSuggestError": "標籤建議失敗，請再試一次。",
     "tagsPlaceholder": "輸入標籤⋯",

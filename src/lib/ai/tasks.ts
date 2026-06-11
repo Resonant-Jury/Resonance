@@ -35,7 +35,7 @@ export interface SuggestTagsInput {
 }
 
 /**
- * Suggest 3–5 tags for a card. The author's historical tags are passed in so
+ * Suggest 2–3 tags for a card. The author's historical tags are passed in so
  * the model reuses their existing vocabulary (「家庭」) instead of inventing a
  * near-synonym (「家族」).
  */
@@ -43,7 +43,7 @@ export async function suggestStoryTags(input: SuggestTagsInput): Promise<string[
   const text = `${input.title.trim()}\n\n${input.story.trim()}`.trim().slice(0, MAX_STORY_CHARS);
   if (!text) return [];
   const system = [
-    'You suggest tags for a personal storytelling card. Read the card text and reply with ONLY 3 to 5 short tags (each 1–4 words), one per line, in the same language as the card. No numbering, no bullets, no # symbols, no explanations.',
+    'You suggest tags for a personal storytelling card. Read the card text and reply with ONLY 2 to 3 short tags (each 1–4 words), one per line, in the same language as the card. No numbering, no bullets, no # symbols, no explanations.',
     input.historyTags.length > 0
       ? `The author has tagged past cards with (most frequent first): ${input.historyTags.join(', ')}. When one of these fits, reuse it EXACTLY rather than inventing a near-synonym.`
       : '',
@@ -57,7 +57,7 @@ export async function suggestStoryTags(input: SuggestTagsInput): Promise<string[
     { role: 'system', content: system },
     { role: 'user', content: text },
   ]);
-  return parseTagList(out, 5).filter((tag) => !input.existingTags.includes(tag));
+  return parseTagList(out, 3).filter((tag) => !input.existingTags.includes(tag));
 }
 
 // Illustration / doodle style appended to every generated image. Tuned to the

@@ -114,7 +114,9 @@ export function OrganicScrollbar({ targetRef, page = false, seed = 47 }: Organic
   }, [linePath]);
 
   const maxScroll = metrics.scrollHeight - metrics.clientHeight;
-  const scrollable = maxScroll > 1 && metrics.clientHeight > 0;
+  // A few px of overflow (divider overshoot, sub-pixel layout) isn't worth a
+  // scrollbar; only draw the rail for a real scroll range.
+  const scrollable = maxScroll > 6 && metrics.clientHeight > 0;
 
   const thumbLen = scrollable
     ? Math.max(pathLen * (metrics.clientHeight / metrics.scrollHeight), Math.min(MIN_THUMB, pathLen))
@@ -132,7 +134,8 @@ export function OrganicScrollbar({ targetRef, page = false, seed = 47 }: Organic
       if (usable <= 0) return;
       const p = Math.min(1, Math.max(0, (clientY - r.top - thumbPx / 2) / usable));
       const top = p * maxScroll;
-      if (page) window.scrollTo({ top });
+      // Instant, not the page's smooth behavior — a dragged thumb must track 1:1.
+      if (page) window.scrollTo({ top, behavior: 'instant' });
       else if (targetRef?.current) targetRef.current.scrollTop = top;
     },
     [scrollable, pathLen, thumbLen, maxScroll, page, targetRef],

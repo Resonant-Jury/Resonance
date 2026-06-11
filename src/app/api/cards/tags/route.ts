@@ -14,7 +14,7 @@ const HISTORY_CARDS_LIMIT = 200;
 const HISTORY_TAGS_LIMIT = 20;
 
 /**
- * Suggest 3–5 tags for the card being written. The draft may be unsaved, so the
+ * Suggest 2–3 tags for the card being written. The draft may be unsaved, so the
  * editor sends title/story/tags in the body (same shape of reasoning as
  * /api/generate-image). The author's past tags are read server-side and fed to
  * the LLM so suggestions match their existing vocabulary.

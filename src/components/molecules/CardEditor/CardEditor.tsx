@@ -11,6 +11,7 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { HandDrawnImage } from '@/components/atoms/HandDrawnImage/HandDrawnImage';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
+import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import { MarkdownEditor } from '@/components/molecules/MarkdownEditor/MarkdownEditor';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { uploadImageFile } from '@/lib/images/upload';
@@ -19,8 +20,11 @@ import { INK } from '@/lib/design/strokes';
 // import { Panel } from '@/components/molecules/Panel/Panel'; // AI 寫作夥伴（暫停）
 import {
   SegmentedActionBar,
+  boundaryPoints,
+  polyline,
   type SegmentSpec,
 } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
+import { wobRect } from '@/lib/design/wobRect';
 import {
   createCardDraft,
   publishCard,
@@ -96,6 +100,7 @@ export function CardEditor({
   const [generating, setGenerating] = useState(false);
   const [suggestingTags, setSuggestingTags] = useState(false);
   const [tagError, setTagError] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   // AI 寫作夥伴：暫時停用，未來會重新啟用
@@ -259,6 +264,9 @@ export function CardEditor({
 
   return (
     <div className={styles.grid}>
+      {/* Full-page editor scrolls the window; replace the native bar with the
+          hand-drawn pen rail. Inline (resonance composer) keeps the host page's. */}
+      {mode === 'page' && <OrganicScrollbar page seed={23} />}
       <div className={styles.column}>
         {/* Core */}
         <Field
@@ -304,12 +312,17 @@ export function CardEditor({
                   {tag}
                 </TagPill>
               ))}
-              <AddTagButton
-                label={suggestingTags ? t('tagsSuggesting') : t('tagsSuggest')}
-                onClick={() => void suggestTags()}
-              />
+              {/* The AI pill steps aside once the user starts typing their own tag. */}
+              {!tagDraft.trim() && (
+                <AddTagButton
+                  label={suggestingTags ? t('tagsSuggesting') : t('tagsSuggest')}
+                  onClick={() => void suggestTags()}
+                />
+              )}
             </div>
             <TagInput
+              value={tagDraft}
+              onChange={setTagDraft}
               placeholder={t('tagsPlaceholder')}
               addLabel={t('tagsAdd')}
               onAdd={addTag}
@@ -584,100 +597,92 @@ function AddTagButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
+// Seed for the tag input bar's wobble — module-scoped so the shape is stable
+// across renders and SSR/CSR.
+const TAG_BAR_SEED = 53;
+
 /**
- * Search-box style tag input: the wobbly field holds the text input on the
- * left and the add action on the right, split by a vertical pen rule.
+ * Tag input styled like a two-segment SegmentedActionBar: the left segment is
+ * the text input, the right segment is the add action — one shared wobbly
+ * border, a wavy vertical divider (same geometry helpers as the bar), the
+ * action segment washed with the light theme tint and a pointer-anchored
+ * pour-paint hover reveal.
  */
 function TagInput({
+  value,
+  onChange,
   placeholder,
   addLabel,
   onAdd,
 }: {
+  value: string;
+  onChange: (value: string) => void;
   placeholder: string;
   addLabel: string;
   onAdd: (tag: string) => void;
 }) {
-  const [value, setValue] = useState('');
+  const barRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const { w, h } = useElementSize(barRef, 480, 50);
+  const { w: btnW } = useElementSize(btnRef, 96, 50);
   const [hover, setHover] = useState(false);
   const [focus, setFocus] = useState(false);
-
-  function commit() {
-    if (!value.trim()) return;
-    onAdd(value);
-    setValue('');
-  }
-
-  return (
-    <HandDrawnDashedSurface
-      seed={53}
-      R={16}
-      strokeWidth={INK}
-      state={focus ? 'focus' : hover ? 'hover' : 'idle'}
-      className={styles.tagInputSurface}
-    >
-      <div
-        className={styles.tagInputRow}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-      >
-        <input
-          type="text"
-          className={styles.tagInputField}
-          value={value}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              commit();
-            }
-          }}
-          onFocus={() => setFocus(true)}
-          onBlur={() => setFocus(false)}
-        />
-        <Divider orientation="vertical" spacing={0} strokeWidth={INK} />
-        <TagAddButton label={addLabel} disabled={!value.trim()} onClick={commit} />
-      </div>
-    </HandDrawnDashedSurface>
-  );
-}
-
-/**
- * The add action inside the tag input — borderless (the surface owns the
- * chrome) but with the same pour-paint hover wash as OrganicButton: a circle
- * mask growing from the pointer's entry point.
- */
-function TagAddButton({
-  label,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const { w, h } = useElementSize(ref, 76, 46);
-  const [hovered, setHovered] = useState(false);
+  const [btnHover, setBtnHover] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const maskId = useId().replace(/:/g, '');
+  const canAdd = value.trim().length > 0;
+
+  function commit() {
+    if (!canAdd) return;
+    onAdd(value);
+    onChange('');
+  }
+
+  const pad = h > 0 ? Math.max(12, h * 0.3) : 0;
+  const outerPath = useMemo(() => {
+    if (!w || !h) return '';
+    // Same wobble recipe as SegmentedActionBar so both read as one family.
+    return wobRect(w, h, 16, TAG_BAR_SEED, Math.min(w, h) * 0.05, {
+      segmentsH: [7, 9],
+      segmentsV: [2, 3],
+      curve: 1.2,
+      cornerJitter: 1.2,
+      cornerOffset: h * 0.04,
+    });
+  }, [w, h]);
+  const boundary = useMemo(
+    () => (w && h && btnW ? boundaryPoints(w - btnW, h, TAG_BAR_SEED + 11, 1.6, pad) : null),
+    [w, h, btnW, pad],
+  );
+  // Action segment region: wavy left edge shared with the divider stroke,
+  // straight overshot outer edges trimmed flush by the clip.
+  const actionRegion = boundary
+    ? `M ${boundary[0][0]},${boundary[0][1]} ` +
+      boundary.slice(1).map((p) => `L ${p[0]},${p[1]}`).join(' ') +
+      ` L ${w + pad},${h + pad} L ${w + pad},${-pad} Z`
+    : '';
 
   const recordPointer = (e: MouseEvent<HTMLButtonElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
+    const r = barRef.current?.getBoundingClientRect();
+    if (!r) return;
     setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
   };
   const maxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 4;
 
+  // Still a form field: border follows the field state tokens; the divider
+  // matches the border so the bar reads as one drawn shape.
+  const stroke = focus
+    ? 'var(--field-border-focus)'
+    : hover
+    ? 'var(--field-border-hover)'
+    : 'var(--field-border)';
+
   return (
-    <button
-      ref={ref}
-      type="button"
-      className={styles.tagAddBtn}
-      disabled={disabled}
-      onClick={onClick}
-      onMouseEnter={(e) => { recordPointer(e); setHovered(true); }}
-      onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
+    <div
+      ref={barRef}
+      className={styles.tagInputBar}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
       {w > 0 && h > 0 && (
         <svg
@@ -685,35 +690,84 @@ function TagAddButton({
           width={w}
           height={h}
           viewBox={`0 0 ${w} ${h}`}
-          className={styles.tagAddWash}
+          className={`${styles.tagInputBackdrop} res-shape-fade-in`}
         >
           <defs>
+            <clipPath id={`tag-bar-clip-${maskId}`}>
+              <path d={outerPath} />
+            </clipPath>
             <mask
-              id={`tag-add-${maskId}`}
+              id={`tag-bar-hover-${maskId}`}
               maskUnits="userSpaceOnUse"
               x={-w} y={-h} width={w * 3} height={h * 3}
             >
               <circle
                 cx={pos.x} cy={pos.y}
-                r={hovered && !disabled ? maxR : 0}
+                r={btnHover && canAdd ? maxR : 0}
                 fill="white"
                 style={{ transition: 'r 340ms linear' }}
               />
             </mask>
           </defs>
-          <g mask={`url(#tag-add-${maskId})`}>
-            {/* inset so the wash stays inside the surface's wobbly border */}
-            <rect
-              x={3} y={4} width={w - 6} height={h - 8} rx={10}
-              fill="color-mix(in oklch, var(--color-terracotta) 14%, transparent)"
-            />
+          <g clipPath={`url(#tag-bar-clip-${maskId})`}>
+            <path d={outerPath} fill="var(--color-cream)" />
+            {actionRegion && (
+              <path
+                d={actionRegion}
+                fill="color-mix(in oklch, var(--color-terracotta-light) 60%, transparent)"
+              />
+            )}
+            {actionRegion && (
+              <g mask={`url(#tag-bar-hover-${maskId})`}>
+                <path
+                  d={actionRegion}
+                  fill="color-mix(in oklch, var(--color-terracotta) 13%, transparent)"
+                />
+              </g>
+            )}
           </g>
+          {boundary && (
+            <path
+              d={polyline(boundary)}
+              fill="none"
+              stroke={stroke}
+              strokeWidth={INK}
+              strokeLinecap="round"
+              clipPath={`url(#tag-bar-clip-${maskId})`}
+            />
+          )}
+          <path d={outerPath} fill="none" stroke={stroke} strokeWidth={INK} strokeLinejoin="round" />
         </svg>
       )}
-      <span className={styles.tagAddLabel}>
-        <Icon name="plus" size={12} /> {label}
-      </span>
-    </button>
+      <input
+        type="text"
+        className={styles.tagInputField}
+        value={value}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          }
+        }}
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
+      />
+      <button
+        ref={btnRef}
+        type="button"
+        className={styles.tagInputBtn}
+        disabled={!canAdd}
+        onClick={commit}
+        onMouseEnter={(e) => { recordPointer(e); setBtnHover(true); }}
+        onMouseMove={recordPointer}
+        onMouseLeave={() => setBtnHover(false)}
+      >
+        <Icon name="plus" size={12} /> {addLabel}
+      </button>
+    </div>
   );
 }
 

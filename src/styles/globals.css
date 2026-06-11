@@ -34,6 +34,11 @@ textarea::placeholder {
 ::-webkit-scrollbar-track { background: var(--color-cream-dark); }
 ::-webkit-scrollbar-thumb { background: var(--color-terracotta-light); border-radius: 99px; }
 
+/* OrganicScrollbar replaces the native bar with a hand-drawn rail; while it's
+   mounted in page mode the native one is hidden (scrolling stays native). */
+html.res-hide-scrollbar { scrollbar-width: none; }
+html.res-hide-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
+
 /* ── Organic shape entrance ──────────────────────────────────────────
    Hand-drawn SVGs only mount once their host has been measured, so they
    appear after the surrounding chrome. A short fade keeps that arrival from

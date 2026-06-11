@@ -38,7 +38,8 @@ interface Bound {
 // and the stroked divider share *identical* geometry (no bezier mismatch).
 // Runs from -pad to h+pad so the fill polygons overshoot the bar and the outer
 // clip trims them flush to the wobbly border (no slivers along top/bottom).
-function boundaryPoints(
+// Exported for segmented-bar lookalikes (e.g. the CardEditor tag input).
+export function boundaryPoints(
   x: number,
   h: number,
   seed: number,
@@ -60,7 +61,7 @@ function boundaryPoints(
   return pts;
 }
 
-const polyline = (pts: [number, number][]) =>
+export const polyline = (pts: [number, number][]) =>
   `M ${pts[0][0]},${pts[0][1]} ` + pts.slice(1).map((p) => `L ${p[0]},${p[1]}`).join(' ');
 
 /**
