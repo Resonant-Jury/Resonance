@@ -32,7 +32,7 @@ export function OrganicStoryImage({
   const ref = useRef<HTMLSpanElement>(null);
   const { w, h } = useElementSize(ref);
 
-  const mag = Math.min(w, h) * 0.05;
+  const mag = Math.min(w, h) * 0.025;
   // The wobble swings both inward and outward of the box edge, so the photo
   // is zoomed just enough that the outward bulges land on real pixels instead
   // of being clipped to nothing.
@@ -41,7 +41,7 @@ export function OrganicStoryImage({
 
   const clip = useMemo(() => {
     if (!w || !h) return undefined;
-    return wobRect(w, h, 18, seed, mag, {
+    return wobRect(w, h, 12, seed, mag, {
       segmentsH: [3, 4],
       segmentsV: [2, 3],
       curve: 0.4,
