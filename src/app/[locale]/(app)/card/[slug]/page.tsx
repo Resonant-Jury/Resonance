@@ -169,7 +169,6 @@ export default function CardDetailPage() {
                 <CardActionsMenu
                   card={{ id: card.id, visibility: card.visibility }}
                   seed={hue + 3}
-                  hue={hue}
                   // Re-read this card so the visibility chip/state reflects the change.
                   onChanged={() => void mutate(`card:${slug}:${user!.id}`)}
                   onDeleted={() => router.replace('/me')}

@@ -133,23 +133,31 @@ export function CardActionsMenu({
     }
   }
 
+  const isTheme = hue === undefined;
   const cardHue = hue ?? (seed && seed > 10 ? seed : 55);
-  console.log("CardActionsMenu renders with id:", card.id, "hue:", hue, "seed:", seed, "cardHue:", cardHue);
-  const cardBorder = `oklch(52% 0.11 ${cardHue})`;
-  const cardBorderHover = `oklch(38% 0.09 ${cardHue})`;
-  const cardCream = `oklch(98% 0.01 ${cardHue})`;
-  const cardCreamDark = `oklch(93.5% 0.02 ${cardHue})`;
+  console.log("CardActionsMenu renders with id:", card.id, "hue:", hue, "seed:", seed, "cardHue:", cardHue, "isTheme:", isTheme);
+
+  const styleOverrides = isTheme
+    ? ({
+        '--card-border': 'var(--color-terracotta)',
+        '--card-border-hover': 'color-mix(in oklch, var(--color-terracotta), black 25%)',
+        '--card-cream': 'var(--color-cream)',
+        '--card-cream-dark': 'var(--color-cream-dark)',
+        '--card-divider': 'color-mix(in oklch, var(--color-terracotta) 40%, transparent)',
+      } as React.CSSProperties)
+    : ({
+        '--card-border': `oklch(52% 0.11 ${cardHue})`,
+        '--card-border-hover': `oklch(38% 0.09 ${cardHue})`,
+        '--card-cream': `oklch(98% 0.01 ${cardHue})`,
+        '--card-cream-dark': `oklch(93.5% 0.02 ${cardHue})`,
+        '--card-divider': `oklch(55% 0.04 ${cardHue} / 0.4)`,
+      } as React.CSSProperties);
 
   return (
     <div
       ref={rootRef}
       className={`${styles.root}${className ? ` ${className}` : ''}`}
-      style={{
-        '--card-border': cardBorder,
-        '--card-border-hover': cardBorderHover,
-        '--card-cream': cardCream,
-        '--card-cream-dark': cardCreamDark,
-      } as React.CSSProperties}
+      style={styleOverrides}
     >
       <button
         type="button"
@@ -195,7 +203,6 @@ export function CardActionsMenu({
         <ActionsPanel
           uid={uid}
           seed={panelSeed}
-          hue={cardHue}
           items={items}
           busy={busy}
           onChoose={(key) => void choose(key)}
@@ -231,7 +238,6 @@ export function CardActionsMenu({
 interface ActionsPanelProps {
   uid: string;
   seed: number;
-  hue: number;
   items: { key: ActionKey; icon: IconName; label: string }[];
   busy: boolean;
   onChoose: (key: ActionKey) => void;
@@ -239,7 +245,7 @@ interface ActionsPanelProps {
 
 const ROW_H = 42;
 
-function ActionsPanel({ uid, seed, hue, items, busy, onChoose }: ActionsPanelProps) {
+function ActionsPanel({ uid, seed, items, busy, onChoose }: ActionsPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const h = items.length * ROW_H;
   const [w, setW] = useState(0);
@@ -316,7 +322,7 @@ function ActionsPanel({ uid, seed, hue, items, busy, onChoose }: ActionsPanelPro
                 key={i}
                 d={dividerPath(pts)}
                 fill="none"
-                stroke={`oklch(55% 0.04 ${hue} / 0.4)`}
+                stroke="var(--card-divider)"
                 strokeWidth={INK_LIGHT}
                 strokeLinecap="round"
                 clipPath={`url(#cardactions-clip-${uid})`}
