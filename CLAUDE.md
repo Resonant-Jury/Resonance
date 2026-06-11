@@ -16,23 +16,69 @@ npm run test:ui    # Vitest browser UI
 
 ## Architecture
 
-**Resonance** is a multilingual marketing/storytelling landing page built with Next.js 15 (App Router) + React 19 + TypeScript 5.7 (strict). No Tailwind — all styling uses CSS Modules + CSS custom properties defined in `src/styles/tokens.css`.
+**Resonance**（共振）is a multilingual social storytelling platform built around "story cards" — users write cards, respond to others by authoring a *resonance* (a response card with a `referenceCardId`, **not** a like), and form one-to-one connections via invites. Built with Next.js 15 (App Router) + React 19 + TypeScript 5.7 (strict). No Tailwind — all styling uses CSS Modules + CSS custom properties defined in `src/styles/tokens.css`. See `README.md` for the full architecture write-up (in Chinese).
+
+Stack: Firebase Auth + session cookies, Cloud Firestore, Cloudflare R2 (object storage), OpenAI (slugs/tags/illustrations), Tiptap 3 editor + react-markdown reader, SWR for client data fetching. Deployed on Vercel (region `hnd1`).
 
 ### Routing & i18n
 
-`middleware.ts` intercepts all requests and routes through `[locale]` (supports `en` and `zh-TW`). The `next-intl` plugin handles server-side translations; message files live in `src/messages/{locale}.json`. The path alias `@/*` maps to `src/*`.
+`src/middleware.ts` intercepts all requests and routes through `[locale]` (supports `en` and `zh-TW`, `localePrefix: 'always'`). The `next-intl` plugin handles server-side translations; message files live in `src/messages/{locale}.json`. The path alias `@/*` maps to `src/*`. Note: `next.config.ts` lists `firebase`/`firebase-admin` in `serverExternalPackages` to avoid Webpack vendor-chunk require errors.
+
+App routes under `src/app/[locale]/`:
+
+- `page.tsx` — marketing landing page (`SiteHeader → HeroSection → CardFeedSection → CTASection → SiteFooter`)
+- `(auth)/` — `signin`, `signup`
+- `(app)/` — `home` (feed), `me`, `settings`, `write/[id]` (editor), `card/[slug]` (card page), `u/[handle]` (public profile)
+
+### Authentication
+
+1. Browser signs in with the Firebase client SDK (Google / Email; phone OTP behind `NEXT_PUBLIC_ENABLE_PHONE_OTP`) and gets an ID token.
+2. `POST /api/auth/session` exchanges it for an httpOnly session cookie (`__session`, signed by firebase-admin); `DELETE` logs out.
+3. Server code verifies the cookie via `requireUser()` / `getCurrentUser()` in `src/lib/auth`.
+4. Client-side Firestore reads depend on Firebase Auth state restoration — hooks like `useCard` wait for auth to settle before querying, so anonymous-read rules (public cards/profiles) don't misfire.
+
+### Data Layer (dual-track Firestore)
+
+- **Server side**: `src/lib/db/firestore/*.ts` — repository classes (`FirestoreCardRepository`, `FirestoreUserRepository`, plus connection/invite/resonance/notification) using the admin SDK, enforcing visibility (`public` / `connections` / `private`) in code. Connections use a sorted `uid1_uid2` pair id.
+- **Client side**: `src/lib/db/firestore/client/*` — direct read/write modules (cards, feed reads, invites, resonances, notifications, profile, cardLinks) consumed by SWR hooks in `src/lib/data/hooks.ts`; security is enforced by `firebase/firestore.rules`.
+
+Core entities live in `src/lib/db/types.ts`: `Card` (with `translations`, `tags`, `slug`, counters), `User` (`handle`/`handleLower`), `Connection`, `Invite`, `Resonance`, `CardLink`, `Notification`. `src/lib/adapters/` converts Firestore data to UI models.
+
+After editing `firebase/firestore.rules` or `firestore.indexes.json`, deploy with `firebase deploy --only firestore:rules,firestore:indexes`.
+
+### API Routes (`src/app/api/`)
+
+| Route | Purpose |
+| --- | --- |
+| `POST/DELETE /api/auth/session` | ID token ↔ session cookie / logout |
+| `GET /api/cards/resolve?key=` | slug or legacy doc id → Firestore doc id (id only, no content) |
+| `POST /api/cards/slug` | generate an English slug on publish (LLM-translated title, collision-safe, idempotent) |
+| `POST /api/cards/tags` | LLM suggests 2–3 tags, informed by the author's tag history |
+| `POST /api/generate-image` | doodle-style illustration from story text → AVIF → R2 (`maxDuration: 120`) |
+| `POST /api/upload` | image upload proxy to R2 (works around client-to-R2 TLS issues), 8 MB limit |
+| `POST /api/revalidate` | authenticated `revalidatePath` on allowlisted paths (expands locale prefixes) |
+
+### AI (`src/lib/ai/`)
+
+Card URLs use English slugs (LLM translates the title, then slugify + handle/numeric-suffix collision handling). `openai.ts` wraps API calls, `tasks.ts` defines the tasks (slug base, tag suggestions, story illustration), `slugify.ts`/`tags.ts` are pure logic with tests. OpenAI is only called from server routes — the key never reaches the client.
+
+### Storage & Image Pipeline
+
+`src/lib/storage/` is an abstraction over Cloudflare R2 (S3-compatible API via `@aws-sdk/client-s3`). Images are compressed client-side (`src/lib/images/compress.ts`), uploaded through `/api/upload` or `/api/generate-image`, converted to AVIF with sharp (`src/lib/storage/image.ts`), and served from `R2_PUBLIC_BASE`. R2 CORS config is in `r2-cors.json`.
 
 ### Component Hierarchy
 
 Components follow a three-tier atomic structure:
 
 - **`atoms/`** — Primitive visual elements. Many generate procedural SVG shapes (e.g., `HandDrawnBorder`, `OrganiBlob`, `ShapeGrain`) using utilities in `src/lib/design/`.
-- **`molecules/`** — Composed components (`StoryCard`, `Modal`).
-- **`sections/`** — Full page sections assembled in `app/[locale]/page.tsx`: `SiteHeader → HeroSection → CardFeedSection → CTASection → SiteFooter`.
+- **`molecules/`** — Composed components (`StoryCard`, `CardEditor`, `CardDetail`, `EmbedStoryCard`, `Modal`, `Panel`, `PageShell`).
+- **`sections/`** — Full page sections (`AppHeader`, `HeroSection`, `CardFeedSection`, …).
+
+When building UI, reuse existing primitives (`OrganicButton`, `Panel`, `Field`, `Icon`, `TagPill`, `PageShell`) instead of inline styles or duplicated SVG.
 
 ### Design System
 
-All design tokens are CSS variables in `src/styles/tokens.css`, using the **OKLCH color space**. Fonts: Playfair Display (headings) + DM Sans (body). A runtime `TweaksPanel` provider (`src/components/providers/TweaksPanel.tsx`) exposes accent color, card density, and grain intensity as live CSS variable overrides — useful for design iteration.
+All design tokens are CSS variables in `src/styles/tokens.css`, using the **OKLCH color space**. Fonts: Playfair Display (headings) + DM Sans (body). Hand-drawn border stroke widths must use the `INK` / `INK_LIGHT` / `INK_STRONG` "one pen" tokens from `src/lib/design/strokes.ts` — never hardcode `strokeWidth`. A runtime `TweaksPanel` provider (`src/components/providers/TweaksPanel.tsx`) exposes accent color, card density, and grain intensity as live CSS variable overrides — useful for design iteration.
 
 ### Organic/Procedural SVG
 
@@ -40,13 +86,9 @@ The visual identity relies on hand-drawn aesthetics generated at runtime:
 
 - `src/lib/design/wobRect.ts` — wobbly rounded rectangles via seeded bezier curves
 - `src/lib/design/prng.ts` — seeded PRNG for deterministic per-element randomness
-- `src/lib/design/wavyPath.ts` — wavy SVG path generation
+- `src/lib/design/wavyPath.ts` — wavy SVG path generation (plus `wobCircle.ts`)
 
 Shapes use a `seed` prop so they render consistently across SSR and client hydration.
-
-### Data
-
-Currently all story data is mock (`src/lib/mock/stories.ts`). No API or database layer exists yet.
 
 ## Testing
 
