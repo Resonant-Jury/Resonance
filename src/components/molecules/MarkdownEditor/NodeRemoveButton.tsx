@@ -2,7 +2,7 @@
 
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { Icon } from '@/components/atoms/Icon';
-import { INK_LIGHT } from '@/lib/design/strokes';
+import { INK } from '@/lib/design/strokes';
 import styles from './MarkdownEditor.module.css';
 
 const SIZE = 26;
@@ -26,11 +26,17 @@ export function NodeRemoveButton({ onClick, label }: { onClick: () => void; labe
       <HandDrawnBorder
         w={SIZE}
         h={SIZE}
-        R={SIZE / 2}
+        R={SIZE * 0.4}
         seed={47}
+        mag={SIZE * 0.022}
         fillColor="var(--color-cream)"
         strokeColor="oklch(40% 0.06 60)"
-        strokeWidth={INK_LIGHT}
+        strokeWidth={INK}
+        segmentsH={1}
+        segmentsV={1}
+        curve={1.3}
+        cornerJitter={3.2}
+        cornerOffset={SIZE * 0.06}
       />
       <span className={styles.nodeRemoveIcon}>
         <Icon name="close" size={13} />
