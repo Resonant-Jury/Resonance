@@ -80,7 +80,12 @@
   min-width: 0;
 }
 
-.blockquoteBody > :last-child {
+/* Tiptap's React node view nests the editable content in an extra contentDOM
+   `<div>`, so the trailing paragraph isn't a *direct* child of the body — a
+   `> :last-child` rule (as the article uses) would miss it and leave the
+   curve overshooting the text by one paragraph's bottom margin. Match at any
+   depth so the body hugs its last line and the curve ends with the text. */
+.blockquoteBody :last-child {
   margin-bottom: 0;
 }
 
