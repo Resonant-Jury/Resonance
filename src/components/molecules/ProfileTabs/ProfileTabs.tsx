@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { CardActionsMenu } from '@/components/molecules/CardActionsMenu/CardActionsMenu';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
+import { ThoughtMapBoard } from '@/components/molecules/ThoughtMap/ThoughtMapBoard';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { CARD_HUES } from '@/components/molecules/StoryCard/StoryCard';
@@ -54,9 +55,7 @@ export function ProfileTabs({
       {loading ? (
         <FeedSkeleton count={6} />
       ) : active === 'thoughtMap' ? (
-        <p style={{ color: 'var(--color-text-muted)', padding: '40px 0', textAlign: 'center' }}>
-          {t('thoughtMapSoon')}
-        </p>
+        <ThoughtMapBoard />
       ) : list.length === 0 ? (
         <p style={{ color: 'var(--color-text-muted)', padding: '40px 0', textAlign: 'center' }}>
           {t(

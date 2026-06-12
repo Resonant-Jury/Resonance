@@ -95,6 +95,49 @@ export interface CardLink {
   createdAt: Date;
 }
 
+/**
+ * A card placed on the owner's thought map (Zettelkasten board). Doc id == the
+ * card id, so a card can sit on the map at most once. Stored under
+ * `thoughtMaps/{uid}/nodes` — owner-only.
+ */
+export interface ThoughtMapNode {
+  id: string;
+  cardId: string;
+  /** World-space position of the node's top-left corner. */
+  x: number;
+  y: number;
+  /** The group (category region) this node currently sits inside, if any. */
+  groupId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * A directed, labeled arrow between two cards on the thought map. Doc id is
+ * deterministic: `{sourceCardId}_{targetCardId}` (re-linking is idempotent).
+ */
+export interface ThoughtMapEdge {
+  id: string;
+  sourceCardId: string;
+  targetCardId: string;
+  /** What the relation means, e.g.「支持」「反例」「延伸自」. */
+  label: string;
+  createdAt: Date;
+}
+
+/** A named category region on the thought map that nodes can be filed into. */
+export interface ThoughtMapGroup {
+  id: string;
+  title: string;
+  /** OKLCH hue tinting the region (matches the card palette hues). */
+  hue: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  createdAt: Date;
+}
+
 export interface Notification {
   id: string;
   userId: string;

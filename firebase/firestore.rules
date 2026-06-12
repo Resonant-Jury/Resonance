@@ -164,6 +164,14 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.sourceAuthorId == request.auth.uid;
     }
 
+    // --- thoughtMaps ---
+    // Each user's private Zettelkasten board: node positions, labeled edges
+    // and category groups live in subcollections under their own uid. The map
+    // is a personal organizing surface, never visible to anyone else.
+    match /thoughtMaps/{userId}/{document=**} {
+      allow read, write: if isSelf(userId);
+    }
+
     // --- notifications ---
     // Recipients can read and mark their own notifications read.
     // Limited client-create is allowed for events the sender already has

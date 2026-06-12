@@ -2,8 +2,8 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { repos } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
-import { CardEditor } from '@/components/molecules/CardEditor/CardEditor';
-import { PageShell, PageTitle } from '@/components/molecules/PageShell/PageShell';
+import { PageShell } from '@/components/molecules/PageShell/PageShell';
+import { WriteWorkspace } from '@/components/sections/WriteWorkspace/WriteWorkspace';
 import type { Locale } from '@/lib/db/types';
 
 export default async function EditCardPage({
@@ -18,9 +18,10 @@ export default async function EditCardPage({
   const card = await repos.card.findById(id, user.id);
   if (!card || card.authorId !== user.id) notFound();
   return (
-    <PageShell width="narrow">
-      <PageTitle>{t('editTitle')}</PageTitle>
-      <CardEditor
+    <PageShell width="wide" style={{ maxWidth: 'min(1560px, 100%)' }}>
+      <WriteWorkspace
+        title={t('editTitle')}
+        locale={locale as Locale}
         initial={{
           id: card.id,
           thoughtCore: card.thoughtCore,
@@ -29,7 +30,6 @@ export default async function EditCardPage({
           visibility: card.visibility,
           media: card.media,
         }}
-        locale={locale as Locale}
       />
     </PageShell>
   );

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cardToStory } from './story';
+import { cardToStory, plainExcerpt } from './story';
 import type { Card, User } from '@/lib/db/types';
 
 // Builds a Card with sensible defaults; tests override only the fields they
@@ -83,5 +83,17 @@ describe('cardToStory', () => {
 
   it('leaves imageUrl undefined when the card has no media', () => {
     expect(cardToStory(makeCard({ media: undefined }), author).imageUrl).toBeUndefined();
+  });
+});
+
+describe('plainExcerpt', () => {
+  it('strips markdown syntax down to prose', () => {
+    const md = '# Title\n\n> a quote\n\nSome **bold** and _light_ text with a [link](https://x.y) and ![img](https://x.y/i.png).\n\n```js\ncode();\n```';
+    expect(plainExcerpt(md, 200)).toBe('Title a quote Some bold and light text with a link and .');
+  });
+
+  it('truncates with an ellipsis at the limit', () => {
+    expect(plainExcerpt('a'.repeat(100), 80)).toBe('a'.repeat(80) + '…');
+    expect(plainExcerpt('short', 80)).toBe('short');
   });
 });

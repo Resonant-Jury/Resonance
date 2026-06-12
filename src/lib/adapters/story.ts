@@ -6,6 +6,23 @@ import type { Story } from '@/components/molecules/StoryCard/StoryCard';
  * molecule.  The MVP uses the story card for Card rendering so the visual
  * identity stays consistent across marketing + app pages.
  */
+/**
+ * Plain-text excerpt of a markdown story — markdown syntax stripped so card
+ * surfaces (e.g. thought-map nodes) can preview the prose itself.
+ */
+export function plainExcerpt(markdown: string, max = 80): string {
+  const text = markdown
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^>\s?/gm, '')
+    .replace(/[*_~`]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > max ? text.slice(0, max) + '…' : text;
+}
+
 export function cardToStory(card: Card, author: Pick<User, 'handle' | 'initials' | 'avatarUrl' | 'avatarSeed'>): Story {
   const wordCount = card.story.replace(/\s+/g, '').length;
   const minutes = Math.max(1, Math.round(wordCount / 320));

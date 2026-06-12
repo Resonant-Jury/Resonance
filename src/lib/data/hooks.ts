@@ -20,6 +20,7 @@ import {
 } from '@/lib/db/firestore/client/reads';
 import { remainingDailyQuota } from '@/lib/db/firestore/client/invites';
 import { listLinksToAuthor, listLinksToCard } from '@/lib/db/firestore/client/cardLinks';
+import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
 
 export interface CardsWithAuthors {
   cards: Card[];
@@ -114,6 +115,30 @@ export function useMyCardBox() {
     const all = [...published, ...priv, ...draft, ...resonated, ...linked];
     const authors = await getUsersByIds(all.map((c) => c.authorId));
     return { published, private: priv, draft, resonated, linked, authors };
+  });
+}
+
+export interface MyThoughtMap extends ThoughtMapData {
+  /** Every card the viewer owns (published / private / draft), keyed by id —
+   * drives both node rendering and the "add a card" tray. */
+  cards: Record<string, Card>;
+}
+
+/** The signed-in viewer's thought map plus their own cards. */
+export function useMyThoughtMap() {
+  const { user } = useAuth();
+  return useSWR<MyThoughtMap>(user ? `thoughtmap:${user.id}` : null, async () => {
+    const uid = user!.id;
+    const [map, published, priv, draft] = await Promise.all([
+      loadMyThoughtMap(),
+      getCardsByAuthor(uid, 'published'),
+      getCardsByAuthor(uid, 'private'),
+      getCardsByAuthor(uid, 'draft'),
+    ]);
+    const cards: Record<string, Card> = {};
+    for (const c of [...published, ...priv, ...draft]) cards[c.id] = c;
+    // Drop nodes whose card has been deleted since being placed on the map.
+    return { ...map, nodes: map.nodes.filter((n) => cards[n.cardId]), cards };
   });
 }
 

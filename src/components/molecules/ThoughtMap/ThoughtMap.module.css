@@ -1,0 +1,363 @@
+.board {
+  position: relative;
+  width: 100%;
+}
+
+.viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  border-radius: 26px;
+  /* Dotted paper; the dot grid pans/zooms with the camera via inline
+     background-position/size so the ground feels physically attached. */
+  background-image: radial-gradient(oklch(82% 0.025 75) 1.2px, transparent 1.5px);
+}
+
+.viewport[data-panning='true'] {
+  cursor: grabbing;
+}
+
+.world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.edgeLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edgeHit {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.node {
+  position: absolute;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Re-enable inside the pointer-events:none group clip layer. */
+  pointer-events: auto;
+}
+
+/* Folder window: filed cards live inside and get cropped at the region's
+   boundary while being pulled out. Radius approximates the wobbly border. */
+.groupClip {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 30px;
+}
+
+.node:active {
+  cursor: grabbing;
+}
+
+.nodeContent {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nodeTitle {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.nodeExcerpt {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+  margin: 0;
+}
+
+.nodeMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  min-height: 18px;
+}
+
+.nodeTags {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.linkHandle {
+  position: absolute;
+  right: -15px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.6px dashed var(--field-border-hover);
+  background: var(--color-card-bg);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: crosshair;
+  opacity: 0;
+  transition: opacity 160ms ease, border-color 160ms ease, color 160ms ease;
+  z-index: 2;
+}
+
+.node:hover .linkHandle,
+.node[data-selected='true'] .linkHandle {
+  opacity: 1;
+}
+
+.linkHandle:hover {
+  border-color: var(--color-terracotta);
+  color: var(--color-terracotta);
+}
+
+.groupBox {
+  position: absolute;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.groupTitle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  padding: 12px 20px 10px;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: grab;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.groupResize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: nwse-resize;
+  z-index: 1;
+}
+
+.edgeLabelWrap {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  /* Absolute children shrink-to-fit against the container edge — pin the pill
+     to its content width so the label never wraps vertically. */
+  width: max-content;
+}
+
+.overlay {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.toolbar {
+  composes: overlay;
+  top: 16px;
+  right: 16px;
+}
+
+.zoomCluster {
+  composes: overlay;
+  left: 16px;
+  bottom: 16px;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--color-card-bg);
+  border-radius: 18px;
+}
+
+.zoomPct {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  min-width: 38px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.iconButton:hover {
+  color: var(--color-text);
+  background: var(--color-cream-dark);
+}
+
+.inspector {
+  position: absolute;
+  z-index: 6;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100% - 32px));
+  background: var(--color-card-bg);
+  border-radius: 18px;
+}
+
+.inspectorRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.inspectorTitle {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.inspectorInput {
+  width: 200px;
+}
+
+.tray {
+  position: absolute;
+  z-index: 6;
+  top: 70px;
+  right: 16px;
+  width: min(320px, calc(100% - 32px));
+}
+
+.trayInner {
+  max-height: min(440px, 60vh);
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.trayTitle {
+  font-family: var(--font-heading);
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--color-text);
+  padding: 4px 2px 10px;
+}
+
+.trayRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 4px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  color: var(--color-text);
+  border-radius: 10px;
+}
+
+.trayRow:hover {
+  background: var(--color-cream-dark);
+}
+
+.trayRowTitle {
+  flex: 1;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+}
+
+.trayEmpty {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: 14px 4px 18px;
+}
+
+.emptyState {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.emptyState > * {
+  pointer-events: auto;
+}
+
+.emptyText {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--color-text-muted);
+  max-width: 320px;
+  line-height: 1.7;
+}
+
+.skeleton {
+  width: 100%;
+  border: 1.6px solid var(--field-border);
+  border-radius: 26px;
+  background: var(--color-card-bg);
+}
