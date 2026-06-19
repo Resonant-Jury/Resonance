@@ -246,7 +246,8 @@
       "edgeLabelPlaceholder": "What does this connection mean?",
       "groupTitlePlaceholder": "Name this group",
       "linkHandle": "Draw a connection",
-      "resizeGroup": "Resize group"
+      "resizeGroup": "Resize group",
+      "back": "Back to profile"
     },
     "emptyPublished": "Nothing published yet.",
     "emptyPrivate": "No private cards.",

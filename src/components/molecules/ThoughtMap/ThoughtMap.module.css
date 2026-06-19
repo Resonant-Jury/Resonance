@@ -19,6 +19,17 @@
   cursor: grabbing;
 }
 
+/* Edge-to-edge mode: no rounded card frame, the dotted ground fills the whole
+   pane, and the top toolbar clears the fixed app header. */
+.board.flush .viewport {
+  border-radius: 0;
+  background-color: var(--color-card-bg);
+}
+
+.flush .toolbar {
+  top: calc(var(--app-header-h) + 16px);
+}
+
 .world {
   position: absolute;
   top: 0;

@@ -5,8 +5,8 @@ import { useTranslations } from 'next-intl';
 import { CardActionsMenu } from '@/components/molecules/CardActionsMenu/CardActionsMenu';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
-import { ThoughtMapBoard } from '@/components/molecules/ThoughtMap/ThoughtMapBoard';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
+import { useRouter } from '@/i18n/navigation';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { CARD_HUES } from '@/components/molecules/StoryCard/StoryCard';
 import type { Card, User } from '@/lib/db/types';
@@ -27,6 +27,12 @@ export interface ProfileTabsProps {
    * the editor instead of a detail page.
    */
   manageable?: boolean;
+  /**
+   * When set, the「thoughtMap」tab is a navigation jump rather than an in-page
+   * panel: clicking it routes here (the full-screen map editor) instead of
+   * switching the active tab.
+   */
+  thoughtMapHref?: string;
 }
 
 export function ProfileTabs({
@@ -35,11 +41,24 @@ export function ProfileTabs({
   authors = {},
   loading = false,
   manageable = false,
+  thoughtMapHref,
 }: ProfileTabsProps) {
   const [active, setActive] = useState<TabKey>(tabs[0]);
   const t = useTranslations('me');
+  const router = useRouter();
   const list = data[active] ?? [];
   const managed = manageable && OWNED_TABS.has(active);
+
+  // The thought map opens as its own full-screen editor; selecting that tab is
+  // a jump, not an in-place panel switch, so the active tab never lands on it.
+  const handleChange = (key: TabKey) => {
+    if (key === 'thoughtMap' && thoughtMapHref) {
+      router.push(thoughtMapHref);
+      return;
+    }
+    setActive(key);
+  };
+
   return (
     <div>
       <OrganicTabs
@@ -47,15 +66,13 @@ export function ProfileTabs({
         seed={23}
         tabs={tabs.map((key) => ({ key, label: t(`tabs.${key}`) }))}
         active={active}
-        onChange={setActive}
+        onChange={handleChange}
         className="profile-tabs"
         variant="surface"
       />
       <div style={{ marginBottom: 28 }} />
       {loading ? (
         <FeedSkeleton count={6} />
-      ) : active === 'thoughtMap' ? (
-        <ThoughtMapBoard />
       ) : list.length === 0 ? (
         <p style={{ color: 'var(--color-text-muted)', padding: '40px 0', textAlign: 'center' }}>
           {t(

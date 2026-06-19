@@ -102,6 +102,12 @@ const swallow = (err: unknown) => console.error('[thoughtMap] persist failed', e
 export interface ThoughtMapCanvasProps {
   data: MyThoughtMap;
   style?: CSSProperties;
+  /**
+   * Edge-to-edge mode: drops the rounded hand-drawn card frame so the dotted
+   * ground bleeds to the container's edges, and nudges the top toolbar below
+   * the app header. Used by the full-screen map page and the write workspace.
+   */
+  flush?: boolean;
 }
 
 /**
@@ -110,7 +116,7 @@ export interface ThoughtMapCanvasProps {
  * gesture that settles (drag end, label blur, …) writes through to the
  * owner's `thoughtMaps` subcollections.
  */
-export function ThoughtMapCanvas({ data, style }: ThoughtMapCanvasProps) {
+export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanvasProps) {
   const t = useTranslations('me.thoughtMap');
   const router = useRouter();
 
@@ -596,17 +602,23 @@ export function ThoughtMapCanvas({ data, style }: ThoughtMapCanvasProps) {
   const { w: boardW, h: boardH } = useElementSize(boardRef);
 
   return (
-    <div ref={boardRef} className={styles.board} style={style}>
-      <HandDrawnBorder
-        w={boardW}
-        h={boardH}
-        R={26}
-        seed={47}
-        fillColor="var(--color-card-bg)"
-        strokeColor="var(--field-border)"
-        strokeWidth={INK_LIGHT}
-        curve={0.6}
-      />
+    <div
+      ref={boardRef}
+      className={[styles.board, flush && styles.flush].filter(Boolean).join(' ')}
+      style={style}
+    >
+      {!flush && (
+        <HandDrawnBorder
+          w={boardW}
+          h={boardH}
+          R={26}
+          seed={47}
+          fillColor="var(--color-card-bg)"
+          strokeColor="var(--field-border)"
+          strokeWidth={INK_LIGHT}
+          curve={0.6}
+        />
+      )}
       <div
         ref={viewportRef}
         className={styles.viewport}

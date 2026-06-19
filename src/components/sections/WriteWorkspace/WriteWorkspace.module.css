@@ -1,7 +1,12 @@
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
+  /* Width of the fixed map pane on desktop; the editor reserves the same
+     amount of right margin so the two never overlap. */
+  --map-pane-w: clamp(480px, 50vw, 900px);
+}
+
+.editorArea {
+  padding: calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x)
+    var(--page-pad-bottom);
 }
 
 .editorCol {
@@ -13,9 +18,6 @@
 
 .rail {
   display: none;
-  position: relative;
-  align-self: stretch;
-  width: 14px;
 }
 
 .railSvg {
@@ -31,35 +33,34 @@
   min-width: 0;
 }
 
-.mapSticky {
-  position: sticky;
-  top: calc(var(--app-header-h) + 18px);
-}
-
-.mapHeading {
-  font-family: var(--font-heading);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--color-text);
-  margin: 0 0 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 @media (min-width: 1200px) {
-  .workspace {
-    grid-template-columns: minmax(0, 46fr) 14px minmax(0, 50fr);
-    column-gap: clamp(20px, 2.5vw, 40px);
+  .editorArea {
+    /* Leave room for the fixed map pane on the right, plus a gutter so the
+       editor never butts up against the divider. */
+    padding-right: calc(var(--map-pane-w) + clamp(24px, 3vw, 56px));
   }
 
-  .editorCol {
-    margin: 0;
-    max-width: none;
-  }
-
-  .rail,
   .mapCol {
     display: block;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--map-pane-w);
+    z-index: 10;
+  }
+
+  /* The divider sits on the pane's left edge and runs the full viewport
+     height — edge to edge, top to bottom. */
+  .rail {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 14px;
+    transform: translateX(-50%);
+    z-index: 1;
+    pointer-events: none;
   }
 }

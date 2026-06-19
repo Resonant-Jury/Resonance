@@ -246,7 +246,8 @@
       "edgeLabelPlaceholder": "這條連結代表什麼？",
       "groupTitlePlaceholder": "為這個分類命名",
       "linkHandle": "拉出一條連結",
-      "resizeGroup": "調整分類大小"
+      "resizeGroup": "調整分類大小",
+      "back": "回到個人頁面"
     },
     "emptyPublished": "還沒有發布任何卡片。",
     "emptyPrivate": "還沒有私人卡片。",

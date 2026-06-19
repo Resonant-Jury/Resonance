@@ -88,6 +88,7 @@ export default function MyCardBoxPage() {
       <ProfileTabs
         tabs={tabs}
         manageable
+        thoughtMapHref="/me/thought-map"
         data={
           box
             ? {
