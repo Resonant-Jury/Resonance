@@ -199,6 +199,9 @@ service cloud.firestore {
           notificationIsInviteSender()
           || actorNotif("resonance")
           || actorNotif("card_link")
+          // Accepting an invite notifies the original sender that the
+          // connection is live ("you're connected now").
+          || actorNotif("invite_accepted")
         );
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
@@ -220,6 +223,24 @@ service cloud.firestore {
         && request.resource.data.inviteCount <= 3
         && request.resource.data.inviteCount >= resource.data.inviteCount;
       allow delete: if false;
+    }
+
+    // --- recommendation engine (server-only) ---
+    // cardVectors / userProfiles / recommendations are written and read solely
+    // by the Admin SDK (which bypasses these rules). They hold the insight
+    // vectors, per-user profile centroids, and cached feeds — including data
+    // derived from PRIVATE cards. The client must never touch them: a private
+    // card's vector feeds only its own author's profile and is hard-filtered
+    // out of everyone else's retrieval at query time. Deny all client access so
+    // that boundary can't be probed.
+    match /cardVectors/{docId} {
+      allow read, write: if false;
+    }
+    match /userProfiles/{userId} {
+      allow read, write: if false;
+    }
+    match /recommendations/{userId} {
+      allow read, write: if false;
     }
   }
 }

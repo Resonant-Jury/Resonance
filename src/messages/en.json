@@ -74,12 +74,15 @@
       "signOut": "Sign out"
     },
     "notifications": {
-      "empty": "No new voices yet.",
+      "empty": "When someone resonates with your card — or sends you a little note — it will show up here.",
       "invite": "{handle} wants to connect",
+      "inviteAccepted": "{handle} accepted your invite — you're connected ✿",
       "resonanceSummary": "{count} people resonated with you yesterday",
       "translationDone": "Translation complete",
       "resonance": "{handle} resonated with your card",
       "cardLink": "{handle} linked a card to your card",
+      "connect": "Connect with them",
+      "alreadyConnected": "Connected",
       "viewAll": "View all"
     }
   },
@@ -94,7 +97,11 @@
       "subtitle": "Once published, it can appear in the latest public feed.",
       "cta": "Start writing"
     },
-    "matchReason": "because of “{reason}”"
+    "matchReason": "because of “{reason}”",
+    "recommended": {
+      "title": "Resonating with you",
+      "subtitle": "Cards that may echo what you have lived and learned."
+    }
   },
   "card": {
     "resonate": "Resonate",
@@ -102,7 +109,6 @@
     "modify": "Edit",
     "publishResonance": "Publish",
     "saveResonanceDraft": "Save draft",
-    "initiateConnect": "Invite to connect",
     "linkedCards": "Cards linked to this",
     "resonatedBy": "Resonated by",
     "viewAllResonators": "View all",
@@ -269,7 +275,6 @@
   "profile": {
     "notConnected": "Not connected",
     "connected": "Connected",
-    "initiateConnect": "Invite to connect",
     "message": "Message",
     "softLock": "More cards, saved for those who connect ✿",
     "linkedCards": "Cards linked to them",

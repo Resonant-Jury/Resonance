@@ -7,6 +7,7 @@ import { Modal } from '@/components/molecules/Modal/Modal';
 import { Icon } from '@/components/atoms/Icon';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { NotificationConnectAction } from '@/components/molecules/ConnectInviteModal/NotificationConnectAction';
 import type { Notification } from '@/lib/db/types';
 import { useAuth } from '@/components/providers/AuthProvider';
 import {
@@ -140,9 +141,16 @@ export function NotificationBell() {
             const isUnread = n.readAt === null;
             let body = '';
             let href: string | null = null;
+            // Interaction notifications double as the connect entry point
+            // (relationships grow from stories — see docs/TASKS.md): the
+            // recipient may answer a resonance (later: a note) with a
+            // connection invite right here.
+            let connectFromUserId: string | null = null;
             if (n.type === 'invite') {
               body = tApp('invite', { handle: String(n.payload.fromHandle ?? '') });
               href = '/me';
+            } else if (n.type === 'invite_accepted') {
+              body = tApp('inviteAccepted', { handle: String(n.payload.fromHandle ?? '') });
             } else if (n.type === 'resonance_summary') {
               body = tApp('resonanceSummary', { count: Number(n.payload.count ?? 0) });
             } else if (n.type === 'translation_done') {
@@ -151,6 +159,7 @@ export function NotificationBell() {
             } else if (n.type === 'resonance') {
               body = tApp('resonance', { handle: String(n.payload.fromHandle ?? '') });
               href = `/card/${n.payload.cardId}`;
+              connectFromUserId = n.payload.fromUserId ? String(n.payload.fromUserId) : null;
             } else if (n.type === 'card_link') {
               body = tApp('cardLink', { handle: String(n.payload.fromHandle ?? '') });
               href = `/card/${n.payload.cardId}`;
@@ -186,13 +195,25 @@ export function NotificationBell() {
             return (
               <Fragment key={n.id}>
                 {i > 0 && <Divider seed={29 + i * 7} spacing={0} />}
-                <li onClick={() => handleClickItem(n)}>
-                  {href ? (
-                    <Link href={href as '/me' | `/card/${string}`} style={{ textDecoration: 'none' }}>
-                      {inner}
-                    </Link>
-                  ) : (
-                    inner
+                <li>
+                  <div onClick={() => handleClickItem(n)}>
+                    {href ? (
+                      <Link href={href as '/me' | `/card/${string}`} style={{ textDecoration: 'none' }}>
+                        {inner}
+                      </Link>
+                    ) : (
+                      inner
+                    )}
+                  </div>
+                  {connectFromUserId && (
+                    <div style={{ padding: '0 2px 13px' }}>
+                      <NotificationConnectAction
+                        fromUserId={connectFromUserId}
+                        referenceCardId={
+                          n.payload.cardId ? String(n.payload.cardId) : undefined
+                        }
+                      />
+                    </div>
                   )}
                 </li>
               </Fragment>

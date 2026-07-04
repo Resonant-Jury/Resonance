@@ -16,9 +16,15 @@ export interface CardLinkGridProps {
    * pointer devices, always visible on touch.
    */
   renderActions?: (card: Card, index: number) => ReactNode;
+  /**
+   * Optional caption rendered directly under a card (e.g. the recommender's
+   * 「為什麼這篇可能對你有共鳴」line). Sits outside the Link so it doesn't
+   * become part of the navigable card surface.
+   */
+  renderCaption?: (card: Card, index: number) => ReactNode;
 }
 
-export function CardLinkGrid({ cards, authors, cardHref, renderActions }: CardLinkGridProps) {
+export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCaption }: CardLinkGridProps) {
   return (
     <div data-card-grid className={styles.grid}>
       {cards.map((card, i) => {
@@ -39,6 +45,7 @@ export function CardLinkGrid({ cards, authors, cardHref, renderActions }: CardLi
               <StoryCard story={story} index={i} isLast={i === cards.length - 1} />
             </Link>
             {renderActions && <div className={styles.actions}>{renderActions(card, i)}</div>}
+            {renderCaption && <div className={styles.caption}>{renderCaption(card, i)}</div>}
           </div>
         );
       })}

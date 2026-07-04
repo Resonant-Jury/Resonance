@@ -29,6 +29,16 @@
   }
 }
 
+/* Recommendation reason line under a card ("why this might resonate"). */
+.caption {
+  margin: 8px 14px 4px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
 /* tablet: two columns */
 @media (min-width: 640px) {
   .grid {

@@ -18,7 +18,6 @@ import {
   getUsersByIds,
   isConnected,
 } from '@/lib/db/firestore/client/reads';
-import { remainingDailyQuota } from '@/lib/db/firestore/client/invites';
 import { listLinksToAuthor, listLinksToCard } from '@/lib/db/firestore/client/cardLinks';
 import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
 
@@ -36,6 +35,31 @@ async function withAuthors(cards: Card[]): Promise<CardsWithAuthors> {
 async function cardsFromIds(ids: string[]): Promise<Card[]> {
   const cards = await Promise.all(ids.map((id) => getCardById(id)));
   return cards.filter((c): c is Card => Boolean(c));
+}
+
+export interface RecommendedFeed extends CardsWithAuthors {
+  /** cardId → 「為什麼這篇可能對你有共鳴」 one-liner from the funnel. */
+  reasons: Record<string, string>;
+}
+
+/**
+ * The signed-in viewer's personalized「為你共振」feed. Fetches the funnel's
+ * result (card ids + resonance reasons) from the server, then resolves each
+ * card through the visibility-enforced read path. Gated on a signed-in viewer —
+ * the API requires auth, and an anonymous user has no profile to match from.
+ */
+export function useRecommendedFeed() {
+  const { user, loading } = useAuth();
+  return useSWR<RecommendedFeed>(user && !loading ? `feed:recommended:${user.id}` : null, async () => {
+    const res = await fetch('/api/recommend/feed');
+    if (!res.ok) return { cards: [], authors: {}, reasons: {} };
+    const { items } = (await res.json()) as { items: { cardId: string; reason: string }[] };
+    const cards = await cardsFromIds(items.map((i) => i.cardId));
+    const reasons: Record<string, string> = {};
+    for (const item of items) reasons[item.cardId] = item.reason;
+    const { authors } = await withAuthors(cards);
+    return { cards, authors, reasons };
+  });
 }
 
 /** Latest public feed for the home page. */
@@ -231,7 +255,6 @@ export interface PublicProfile {
   /** Cards that other people linked to one of this user's cards. */
   linked: Card[];
   linkedAuthors: Record<string, User>;
-  dailyRemaining: number;
 }
 
 const emptyProfile: PublicProfile = {
@@ -241,7 +264,6 @@ const emptyProfile: PublicProfile = {
   published: [],
   linked: [],
   linkedAuthors: {},
-  dailyRemaining: 0,
 };
 
 /**
@@ -251,8 +273,8 @@ const emptyProfile: PublicProfile = {
  * its public cards are anonymous-readable, so the SWR key only waits for auth
  * to *settle* (not for a viewer to exist). It re-keys on the viewer id so
  * connection state and the self/visitor distinction refresh on sign-in/out.
- * Connection lookups and the daily invite quota are only fetched when a
- * non-owner viewer is signed in (those reads require auth).
+ * The connection lookup is only fetched when a non-owner viewer is signed in
+ * (that read requires auth).
  */
 export function useProfileByHandle(handle: string | undefined) {
   const { user: viewer, loading } = useAuth();
@@ -266,12 +288,9 @@ export function useProfileByHandle(handle: string | undefined) {
       getPublicCardsByAuthor(user.id),
       listLinksToAuthor(user.id),
     ]);
-    const [connected, dailyRemaining] =
-      viewer && !isSelf
-        ? await Promise.all([isConnected(viewer.id, user.id), remainingDailyQuota()])
-        : [false, 0];
+    const connected = viewer && !isSelf ? await isConnected(viewer.id, user.id) : false;
     const linked = await cardsFromIds(links.map((l) => l.sourceCardId));
     const linkedAuthors = await getUsersByIds(linked.map((c) => c.authorId));
-    return { user, isSelf, isConnected: connected, published, linked, linkedAuthors, dailyRemaining };
+    return { user, isSelf, isConnected: connected, published, linked, linkedAuthors };
   });
 }

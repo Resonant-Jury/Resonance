@@ -74,12 +74,15 @@
       "signOut": "登出"
     },
     "notifications": {
-      "empty": "還沒有新的聲音。",
+      "empty": "當有人共振你的卡片、或寄來一張小紙條，會出現在這裡。",
       "invite": "{handle} 想和你連結",
+      "inviteAccepted": "{handle} 接受了你的邀請，你們連上線了 ✿",
       "resonanceSummary": "昨天有 {count} 個人與你共振",
       "translationDone": "卡片翻譯完成",
       "resonance": "{handle} 與你的卡片共振了",
       "cardLink": "{handle} 用卡片連結了你的文章",
+      "connect": "與 Ta 建立連結",
+      "alreadyConnected": "已連結",
       "viewAll": "查看全部"
     }
   },
@@ -94,7 +97,11 @@
       "subtitle": "發布後，大家就能在最新公開 feed 看見你的故事。",
       "cta": "開始寫"
     },
-    "matchReason": "因為「{reason}」"
+    "matchReason": "因為「{reason}」",
+    "recommended": {
+      "title": "為你共振",
+      "subtitle": "可能和你的經歷與體悟產生迴響的卡片。"
+    }
   },
   "card": {
     "resonate": "共振",
@@ -102,7 +109,6 @@
     "modify": "修改",
     "publishResonance": "公開發表",
     "saveResonanceDraft": "存草稿",
-    "initiateConnect": "想和 Ta 連結",
     "linkedCards": "與 Ta 連結的文章",
     "resonatedBy": "與這張卡片共振的人",
     "viewAllResonators": "查看全部",
@@ -269,7 +275,6 @@
   "profile": {
     "notConnected": "尚未連結",
     "connected": "已連結",
-    "initiateConnect": "想和 Ta 連結",
     "message": "私訊",
     "softLock": "更多卡片，留給有緣人看 ✿",
     "linkedCards": "與 Ta 連結的文章",

@@ -2,7 +2,9 @@
  * High-level AI tasks composed from the low-level OpenAI helpers. Server-only.
  */
 
-import { chat, generateImage } from './openai';
+import type { InsightSignature } from '@/lib/db/types';
+import { parseSignature } from '@/lib/recommend/signature';
+import { chat, chatJSON, generateImage } from './openai';
 import { slugify } from './slugify';
 import { parseTagList } from './tags';
 
@@ -58,6 +60,41 @@ export async function suggestStoryTags(input: SuggestTagsInput): Promise<string[
     { role: 'user', content: text },
   ]);
   return parseTagList(out, 3).filter((tag) => !input.existingTags.includes(tag));
+}
+
+export interface ExtractSignatureInput {
+  title: string;
+  story: string;
+}
+
+/**
+ * Distill a card into its structured "insight signature" — the one expensive
+ * LLM call we run at write-time (each card, once, amortized over its whole
+ * life). The recommender embeds the signature's `coreInsight` / `situation`
+ * rather than the raw text, so pieces that share a *realization* connect even
+ * when their wording is far apart. Also scores how much transferable insight
+ * the piece carries, which gates whether it enters the candidate pool.
+ */
+export async function extractInsightSignature(input: ExtractSignatureInput): Promise<InsightSignature> {
+  const text = `${input.title.trim()}\n\n${input.story.trim()}`.trim().slice(0, MAX_STORY_CHARS);
+  const raw = await chatJSON<Record<string, unknown>>([
+    {
+      role: 'system',
+      content: [
+        'You analyze a personal storytelling card and distill its INSIGHT SIGNATURE.',
+        'Reply with ONLY a JSON object with these keys (values in the same language as the card, except insight_score):',
+        '- core_insight: the single transferable realization at the heart of the piece (one sentence). Capture the *lesson*, not the events.',
+        '- intent: why the author wrote it (e.g. to record a turning point, to comfort others, to vent).',
+        '- situation: the lived circumstance the insight arose from (one short phrase).',
+        '- life_domain: the coarse life area (e.g. 自我認同 / 職涯, 關係, 健康).',
+        '- emotional_register: the emotional colour (e.g. 釋懷中帶著不甘).',
+        '- insight_score: a number 0..1 — how much genuine, transferable insight the piece carries (a raw diary entry with no realization is low; a hard-won lesson is high).',
+        'Focus on the underlying realization so two very different situations that taught the same thing get similar core_insight wording.',
+      ].join('\n'),
+    },
+    { role: 'user', content: text },
+  ]);
+  return parseSignature(raw);
 }
 
 // Illustration / doodle style appended to every generated image. Tuned to the

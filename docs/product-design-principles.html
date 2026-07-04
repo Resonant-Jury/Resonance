@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>共振 Resonance — 產品設計準則與哲學</title>
+<style>
+  :root {
+    --paper: #faf6ef;
+    --ink: #33312b;
+    --ink-soft: #6b675d;
+    --accent: #c4623d;      /* 陶土橘 */
+    --accent-soft: #f0d9cd;
+    --sage: #6f8a68;        /* 鼠尾草綠 */
+    --sage-soft: #dfe7db;
+    --blue: #5b7a99;
+    --blue-soft: #dde6ee;
+    --line: #d8d2c4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.9;
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 72px 28px 96px;
+  }
+  h1, h2, h3 {
+    font-family: "Noto Serif TC", "Songti TC", serif;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+  }
+  h1 { font-size: 2rem; margin: 0.2em 0 0.3em; }
+  h2 {
+    font-size: 1.4rem;
+    margin: 3.2em 0 0.8em;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6em;
+  }
+  h3 { font-size: 1.05rem; margin: 2em 0 0.5em; color: var(--ink); }
+  p { margin: 0 0 1.1em; }
+  em { font-style: normal; color: var(--accent); font-weight: 600; }
+  .kicker {
+    color: var(--accent);
+    font-size: 0.85rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .subtitle { color: var(--ink-soft); font-size: 1rem; margin-top: 0; }
+  .num {
+    font-family: "Noto Serif TC", serif;
+    color: var(--accent);
+    font-size: 0.9em;
+  }
+  hr {
+    border: none;
+    border-top: 2px dotted var(--line);
+    margin: 3.5em auto;
+    width: 60%;
+  }
+  figure { margin: 2.2em 0; text-align: center; }
+  figure svg { max-width: 100%; height: auto; }
+  figcaption {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin-top: 10px;
+    line-height: 1.6;
+  }
+  .callout {
+    background: #fff;
+    border: 2px solid var(--ink);
+    border-radius: 14px 18px 15px 17px / 17px 14px 18px 15px;
+    padding: 18px 22px;
+    margin: 1.8em 0;
+    box-shadow: 4px 4px 0 var(--accent-soft);
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .label {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  ul { padding-left: 1.4em; margin: 0 0 1.1em; }
+  li { margin-bottom: 0.45em; }
+  li::marker { color: var(--accent); }
+  .principle-list {
+    list-style: none;
+    padding: 0;
+    counter-reset: pr;
+  }
+  .principle-list li {
+    counter-increment: pr;
+    padding-left: 2.4em;
+    position: relative;
+    margin-bottom: 0.7em;
+  }
+  .principle-list li::before {
+    content: counter(pr, cjk-ideographic);
+    position: absolute;
+    left: 0;
+    top: 0.1em;
+    width: 1.7em; height: 1.7em;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid var(--accent);
+    border-radius: 48% 52% 50% 50% / 52% 48% 52% 48%;
+    color: var(--accent);
+    font-size: 0.8em;
+    font-family: "Noto Serif TC", serif;
+  }
+  .quiet { color: var(--ink-soft); font-size: 0.92rem; }
+  footer {
+    margin-top: 5em;
+    padding-top: 2em;
+    border-top: 2px dotted var(--line);
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+  @media (max-width: 480px) {
+    body { font-size: 16px; }
+    main { padding: 48px 20px 72px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="kicker">Resonance · Product Principles</div>
+  <h1>共振的設計準則</h1>
+  <p class="subtitle">從兩個定位維度出發的功能哲學 —— 為什麼我們這樣做，以及為什麼我們不做那些。</p>
+</header>
+
+<!-- ═══════════════ 序：兩個維度 ═══════════════ -->
+
+<h2><span class="num">序</span>兩個定位維度</h2>
+
+<p>所有的功能爭論，最後都會回到兩個定位問題：<strong>使用者的身份要多真實？內容要限定在什麼範圍？</strong>我們的答案是——身份保留彈性，內容徹底鎖定。</p>
+
+<figure>
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="兩個定位維度的滑桿圖">
+  <!-- 維度一：身份 -->
+  <text x="40" y="46" font-size="17" font-weight="700" fill="#33312b" font-family="serif">維度一：使用者身份</text>
+  <path d="M60 92 C 180 89, 340 94, 580 91" stroke="#33312b" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <text x="60" y="126" font-size="13" fill="#6b675d" text-anchor="start">完全匿名</text>
+  <text x="580" y="126" font-size="13" fill="#6b675d" text-anchor="end">完全真實</text>
+  <!-- 彈性範圍帶 -->
+  <rect x="330" y="76" width="220" height="32" rx="16" fill="#f0d9cd" opacity="0.75"/>
+  <circle cx="440" cy="92" r="13" fill="#c4623d"/>
+  <circle cx="440" cy="92" r="13" fill="none" stroke="#33312b" stroke-width="2"/>
+  <text x="440" y="66" font-size="13.5" fill="#c4623d" font-weight="700" text-anchor="middle">保留彈性：帳號真實、展示自選</text>
+
+  <!-- 維度二：內容 -->
+  <text x="40" y="196" font-size="17" font-weight="700" fill="#33312b" font-family="serif">維度二：內容類型</text>
+  <path d="M60 242 C 200 245, 400 239, 580 242" stroke="#33312b" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <text x="60" y="276" font-size="13" fill="#6b675d" text-anchor="start">虛構・情緒抒發</text>
+  <text x="580" y="276" font-size="13" fill="#6b675d" text-anchor="end">真實故事＋體悟</text>
+  <!-- 鎖定點 -->
+  <circle cx="560" cy="242" r="13" fill="#6f8a68"/>
+  <circle cx="560" cy="242" r="13" fill="none" stroke="#33312b" stroke-width="2"/>
+  <!-- 鎖頭 -->
+  <rect x="553" y="238" width="14" height="10" rx="2" fill="#faf6ef"/>
+  <path d="M556 238 v-3 a4 4 0 0 1 8 0 v3" stroke="#faf6ef" stroke-width="2" fill="none"/>
+  <text x="628" y="216" font-size="13.5" fill="#6f8a68" font-weight="700" text-anchor="end">徹底鎖定：有體悟的真實故事</text>
+</svg>
+<figcaption>身份是一段可移動的範圍；內容是一個焊死的點。</figcaption>
+</figure>
+
+<p>值得所有人知道的一件事：<em>第二個維度已經不是口號，而是架構事實</em>。每張卡片發布時，系統會用 AI 萃取一份「體悟簽名」——這篇故事的核心領悟、它從什麼處境長出來、帶著什麼樣的情緒色彩——並給出一個體悟分數。<strong>只有帶著真正體悟的卡片才會進入推薦候選池</strong>；純流水帳不會被推薦給任何人。定位是用程式碼強制執行的（詳見文末附錄）。</p>
+
+<!-- ═══════════════ 核心哲學 ═══════════════ -->
+
+<h2><span class="num">〇</span>核心哲學：只獎勵高成本的真誠行為</h2>
+
+<p>我們的推薦系統裡，唯一被採用的互動訊號是：「這位讀者曾經為哪些作者<strong>寫過一張共振卡</strong>」。讚數、停留時間、點擊率——全部被明確拒絕，寫進了系統的 Not-Doing List。</p>
+
+<div class="callout">
+  <span class="label">為什麼</span>
+  <p>按讚是零成本的，停留可能只是分心。但為別人的故事<strong>寫下自己的回應</strong>，是深思熟慮、有代價的行為——它是我們能取得的、最強的真實共鳴證據。廉價的訊號一旦被收集，遲早會被優化；被優化的廉價訊號，就是每一個演算法社群走向表演化的起點。</p>
+</div>
+
+<p>接下來的每一條準則，都是這句話在不同功能上的展開。遇到新的功能爭論時，先問：<em>這個設計獎勵的行為，是有成本的真誠，還是無成本的表演？</em></p>
+
+<hr/>
+
+<!-- ═══════════════ 準則一：回應 ═══════════════ -->
+
+<h2><span class="num">一</span>公開的回應只有一種——成為作者</h2>
+
+<p>「要不要做留言區」的爭論，癥結其實不在留言區本身。FB / Threads 式的留言區之所以產生創作者與觀眾的主從關係，是因為它把兩種本質不同的行為混進了同一個公開空間：<strong>對作者說話</strong>（我很感動、我也經歷過），和<strong>對觀眾表演</strong>（搶樓、抖機靈、站隊）。留言區有觀眾，說話就會變成表演。</p>
+
+<p>所以我們不做二選一，而是<em>按「說話的對象」把回應拆成三層</em>：</p>
+
+<figure>
+<svg viewBox="0 0 640 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="三層回應的階梯圖">
+  <!-- 第一層：收藏 -->
+  <rect x="40" y="30" width="560" height="86" rx="14" fill="#fff" stroke="#d8d2c4" stroke-width="2"/>
+  <circle cx="88" cy="73" r="22" fill="#dde6ee"/>
+  <path d="M81 62 h14 v22 l-7 -6 -7 6 z" fill="none" stroke="#5b7a99" stroke-width="2.2" stroke-linejoin="round"/>
+  <text x="130" y="66" font-size="16" font-weight="700" fill="#33312b">收藏</text>
+  <text x="130" y="92" font-size="13.5" fill="#6b675d">對自己說。純私人、不顯示計數、不通知任何人。</text>
+  <text x="560" y="66" font-size="12" fill="#5b7a99" text-anchor="end" font-weight="700">成本：最低</text>
+
+  <!-- 第二層：私下回應 -->
+  <rect x="40" y="136" width="560" height="86" rx="14" fill="#fff" stroke="#d8d2c4" stroke-width="2"/>
+  <circle cx="88" cy="179" r="22" fill="#dfe7db"/>
+  <rect x="77" y="171" width="22" height="16" rx="2.5" fill="none" stroke="#6f8a68" stroke-width="2.2"/>
+  <path d="M77 173 l11 8 11 -8" fill="none" stroke="#6f8a68" stroke-width="2.2" stroke-linejoin="round"/>
+  <text x="130" y="172" font-size="16" font-weight="700" fill="#33312b">私下回應</text>
+  <text x="130" y="198" font-size="13.5" fill="#6b675d">對作者說。一張只有作者看得到的小紙條，沒有觀眾、不公開、不計數。</text>
+  <text x="560" y="172" font-size="12" fill="#6f8a68" text-anchor="end" font-weight="700">成本：低</text>
+
+  <!-- 第三層：共振 -->
+  <rect x="40" y="242" width="560" height="86" rx="14" fill="#fff" stroke="#33312b" stroke-width="2.5"/>
+  <rect x="40" y="242" width="560" height="86" rx="14" fill="#f0d9cd" opacity="0.35"/>
+  <circle cx="88" cy="285" r="22" fill="#f0d9cd"/>
+  <circle cx="88" cy="285" r="7" fill="none" stroke="#c4623d" stroke-width="2.2"/>
+  <circle cx="88" cy="285" r="13" fill="none" stroke="#c4623d" stroke-width="1.6" opacity="0.65"/>
+  <circle cx="88" cy="285" r="19" fill="none" stroke="#c4623d" stroke-width="1.2" opacity="0.35"/>
+  <text x="130" y="278" font-size="16" font-weight="700" fill="#33312b">共振</text>
+  <text x="130" y="304" font-size="13.5" fill="#6b675d">對世界說。唯一的公開回應：寫一張自己的卡片。回應者即作者。</text>
+  <text x="560" y="278" font-size="12" fill="#c4623d" text-anchor="end" font-weight="700">成本：高・唯一公開</text>
+</svg>
+<figcaption>三層回應：對自己說、對作者說、對世界說。公開層只有一種形式。</figcaption>
+</figure>
+
+<p>這個結構同時回答了三個原本各自為政的問題：</p>
+
+<ul>
+  <li><strong>「我很喜歡，已收藏」的出口</strong>——收藏與私下回應承接了所有輕量回饋，讀者不再被迫在「寫一張卡」和「沉默離開」之間二選一。</li>
+  <li><strong>主從關係</strong>——讀者對作者的話走私下通道，沒有觀眾就沒有表演，也就沒有台上台下。</li>
+  <li><strong>作者的安全</strong>——寫下脆弱真實故事的人，不必面對公開留言區裡的嘲諷、獵奇與審判。私下回應反而比公開留言更真誠。</li>
+</ul>
+
+<h3>共振的門檻，用編輯器解，不用留言區解</h3>
+
+<p>共振門檻高是事實，但解法不是增設低門檻的公開通道，而是<strong>降低寫作本身的門檻</strong>。點下共振的那一刻，系統早就擁有那張卡的核心體悟——可以讓 AI 用它起頭：「這張卡片的體悟是 X，你有過類似、或完全相反的經驗嗎？」並且允許共振卡很短——三五句話的「回聲」也是一張卡。門檻的本質不是「要寫字」，而是「面對空白編輯器不知從何說起」，而我們手上剛好有解決它的素材。</p>
+
+<p class="quiet">額外的機會：私下回應可以成為共振的前奏。作者收到紙條後回一句「這段經驗我很想聽，願意寫成卡片嗎？」——被邀請而寫的第一張卡，比自己鼓起勇氣發的容易得多。</p>
+
+<!-- ═══════════════ 準則二：身份 ═══════════════ -->
+
+<h2><span class="num">二</span>身份彈性下放到每一張卡</h2>
+
+<p>把兩個定位維度放在一起，會得到一個必然的推論：<strong>真實故事常常是脆弱的內容</strong>。一個平常願意用真名的人，寫到離婚、憂鬱症、家庭創傷時可能就不願意了。如果身份彈性只存在於帳號層級，這些體悟濃度最高的故事就不會被寫出來——或者使用者會去開小號，我們反而失去「背後有真實身份、糾紛可調解」的底層保證。</p>
+
+<figure>
+<svg viewBox="0 0 640 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="身份三層結構圖">
+  <!-- 底層：帳號 -->
+  <path d="M110 240 C 240 232, 420 246, 530 238 L 536 296 C 400 304, 230 292, 106 298 Z" fill="#33312b"/>
+  <text x="320" y="266" font-size="15.5" font-weight="700" fill="#faf6ef" text-anchor="middle">帳號層：真實</text>
+  <text x="320" y="288" font-size="12.5" fill="#d8d2c4" text-anchor="middle">註冊時完成真實身份環節・平台可追溯・糾紛可調解</text>
+
+  <!-- 中層：展示 -->
+  <path d="M140 138 C 260 132, 400 144, 500 137 L 506 196 C 390 203, 250 193, 136 199 Z" fill="#6f8a68"/>
+  <text x="320" y="164" font-size="15.5" font-weight="700" fill="#faf6ef" text-anchor="middle">展示層：自選</text>
+  <text x="320" y="186" font-size="12.5" fill="#dfe7db" text-anchor="middle">暱稱或真名・頭貼放不放・像 Facebook 一樣給選擇</text>
+
+  <!-- 頂層：卡片 -->
+  <path d="M136 40 C 250 34, 390 44, 502 38 L 508 96 C 392 103, 252 94, 132 100 Z" fill="#c4623d"/>
+  <text x="320" y="64" font-size="15.5" font-weight="700" fill="#faf6ef" text-anchor="middle">卡片層：可匿名</text>
+  <text x="320" y="86" font-size="12.5" fill="#f0d9cd" text-anchor="middle">單張卡片可選「以匿名發布」・不掛名、不進公開個人頁</text>
+
+  <!-- 連接虛線 -->
+  <path d="M320 100 L320 137" stroke="#6b675d" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round"/>
+  <path d="M320 199 L320 238" stroke="#6b675d" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round"/>
+</svg>
+<figcaption>越往下越真實、越往上越自由：信任建立在底層，勇氣發生在頂層。</figcaption>
+</figure>
+
+<ul class="principle-list">
+  <li><strong>帳號層真實</strong>——註冊時有真實身份認證環節。這是平台調解糾紛、維持信任的地基，永遠不對外展示。</li>
+  <li><strong>展示層自選</strong>——要用暱稱還是真名、要不要放頭貼，交給使用者。我們傾向真實，但不強迫。</li>
+  <li><strong>卡片層可匿名</strong>——單張卡片可以選擇匿名發布：不掛名、不出現在公開個人頁，但平台後端知道作者是誰。最脆弱的故事，往往就是最值得被寫出來的故事。</li>
+</ul>
+
+<p class="quiet">工程注意事項：匿名卡的向量照樣進作者自己的推薦畫像（私人內容本來就只影響本人的推薦），但公開候選池的記錄帶有作者 ID，「共振作者加分」等 join 路徑必須確保不會間接洩露匿名卡的作者身份。</p>
+
+<!-- ═══════════════ 準則三：關係 ═══════════════ -->
+
+<h2><span class="num">三</span>關係從故事裡長出來</h2>
+
+<p>「遇到心靈契合的人」是我們的目標之一，但<strong>無門檻的通用私訊是重災區</strong>——騷擾、搭訕、詐騙都從那裡開始，而我們的使用者剛剛在平台上袒露了人生最脆弱的部分。所以私訊不是一個平行蓋起來的聊天室，而是<em>要用故事賺來的東西</em>：</p>
+
+<figure>
+<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="從故事到私訊的路徑圖">
+  <!-- 步驟節點 -->
+  <!-- 1 讀到故事 -->
+  <ellipse cx="90" cy="90" rx="58" ry="42" fill="#fff" stroke="#33312b" stroke-width="2"/>
+  <text x="90" y="86" font-size="14" font-weight="700" fill="#33312b" text-anchor="middle">讀到一個</text>
+  <text x="90" y="105" font-size="14" font-weight="700" fill="#33312b" text-anchor="middle">打中你的故事</text>
+
+  <!-- 2 回應 -->
+  <ellipse cx="250" cy="90" rx="58" ry="42" fill="#dfe7db" stroke="#33312b" stroke-width="2"/>
+  <text x="250" y="86" font-size="14" font-weight="700" fill="#33312b" text-anchor="middle">私下回應</text>
+  <text x="250" y="105" font-size="14" font-weight="700" fill="#33312b" text-anchor="middle">或寫共振卡</text>
+
+  <!-- 3 邀請 -->
+  <ellipse cx="410" cy="90" rx="58" ry="42" fill="#f0d9cd" stroke="#33312b" stroke-width="2"/>
+  <text x="410" y="86" font-size="14" font-weight="700" fill="#33312b" text-anchor="middle">連結邀請</text>
+  <text x="410" y="105" font-size="14" font-weight="700" fill="#33312b" text-anchor="middle">雙方同意</text>
+
+  <!-- 4 私訊 -->
+  <ellipse cx="562" cy="90" rx="52" ry="42" fill="#c4623d" stroke="#33312b" stroke-width="2"/>
+  <text x="562" y="86" font-size="14" font-weight="700" fill="#faf6ef" text-anchor="middle">私訊</text>
+  <text x="562" y="105" font-size="13" fill="#f0d9cd" text-anchor="middle">開啟</text>
+
+  <!-- 箭頭 -->
+  <path d="M150 88 C 165 85, 175 91, 189 89" stroke="#33312b" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <path d="M183 83 l8 6 -9 5" stroke="#33312b" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M310 91 C 325 88, 335 93, 349 90" stroke="#33312b" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <path d="M343 85 l8 6 -9 5" stroke="#33312b" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M470 89 C 485 86, 493 92, 507 90" stroke="#33312b" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <path d="M501 84 l8 6 -9 5" stroke="#33312b" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="320" y="180" font-size="13" fill="#6b675d" text-anchor="middle">陌生人之間唯一的接觸路徑——每一段對話的開場白，都是一個具體的故事。</text>
+</svg>
+<figcaption>私訊藏在關係的最深處，而關係的入口永遠是作品。</figcaption>
+</figure>
+
+<p>這條路徑剛好搭在我們已有的一對一連結（invite / connection）機制上，不需要新的信任模型。它保證私訊的第一句話永遠有脈絡——不是「嗨，在嗎」，而是「你寫的那張卡」。</p>
+
+<h3>群組：先不做。想要「一群人」，用主題圈</h3>
+
+<p>群聊會把平台的重心從「寫」拉到「聊」，管理成本極高，而且即時訊息天然獎勵快與淺。如果之後想要群體感，更貼合定位的形態是<strong>主題圈／故事集</strong>：一個題目（「第一次送別」「離開穩定工作的那天」），大家各自投入卡片、圈內互相共振。它是非同步的、以作品為中心的聚集——不是聊天室，是一場不散的展覽。這同時也解決了冷啟動時期的內容組織問題。</p>
+
+<!-- ═══════════════ 準則四：冷啟動 ═══════════════ -->
+
+<h2><span class="num">四</span>冷啟動即宣言：先寫，才有讀</h2>
+
+<p>我們的推薦畫像是從「你寫過什麼」建立的，不是「你看過什麼」——一個從未寫過卡片的使用者，沒有個人化的 feed。<strong>別把這當成缺陷去修，把它做成入門儀式。</strong></p>
+
+<div class="callout">
+  <span class="label">產品含義</span>
+  <p>註冊後的第一件事不是滑 feed，而是用兩三個引導問題，陪新使用者寫出第一張卡。「人人都是創作者」在這裡不是標語，是架構事實：你寫下的第一個體悟，就是這個世界開始為你排列的起點。</p>
+</div>
+
+<!-- ═══════════════ 準則五：AI 的角色 ═══════════════ -->
+
+<h2><span class="num">五</span>AI 是鏡子，不是守門員</h2>
+
+<p>系統為每張卡萃取體悟簽名、為每次推薦產生理由。這些能力該怎麼露出，有兩條紅線一條機會：</p>
+
+<ul>
+  <li><strong>把推薦理由亮出來。</strong>選卡的模型本來就會寫下推薦理由——直接顯示在 feed 上：「推薦給你，因為你寫過的某個體悟和這篇呼應」。透明的推薦是對黑盒演算法最鮮明的差異化，也讓使用者理解「我寫什麼，決定我看到什麼」，反過來激勵寫作。</li>
+  <li><strong>把簽名回顯給作者。</strong>發布前告訴作者「我們讀到的核心體悟是：……」。寫作者常常自己都沒意識到寫出了什麼——這是一面鏡子，也是很動人的產品時刻。</li>
+  <li><strong>但永遠不顯示體悟分數、不說「體悟不足」。</strong>分數只在後台安靜地決定一張卡要不要進推薦池。AI 沒有資格公開裁判一個人的人生領悟。</li>
+</ul>
+
+<!-- ═══════════════ 準則六：指標 ═══════════════ -->
+
+<h2><span class="num">六</span>指標必須跟上價值觀</h2>
+
+<p>程式碼層面我們已經拒絕了讚數與停留時間，但如果營運指標還在看 DAU 和 time-spent，遲早會有壓力把讚數加回來。北極星指標應該量我們真正想要的東西：</p>
+
+<figure>
+<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="指標對照圖">
+  <!-- 不量 -->
+  <rect x="46" y="34" width="250" height="122" rx="14" fill="#fff" stroke="#d8d2c4" stroke-width="2"/>
+  <text x="171" y="66" font-size="14" font-weight="700" fill="#6b675d" text-anchor="middle">我們不量</text>
+  <line x1="96" y1="60" x2="118" y2="72" stroke="#c4623d" stroke-width="2" stroke-linecap="round"/>
+  <line x1="118" y1="60" x2="96" y2="72" stroke="#c4623d" stroke-width="2" stroke-linecap="round"/>
+  <text x="171" y="98" font-size="13.5" fill="#6b675d" text-anchor="middle">DAU・停留時間</text>
+  <text x="171" y="124" font-size="13.5" fill="#6b675d" text-anchor="middle">讚數・點擊率</text>
+
+  <!-- 我們量 -->
+  <rect x="344" y="34" width="250" height="122" rx="14" fill="#fff" stroke="#33312b" stroke-width="2.5"/>
+  <rect x="344" y="34" width="250" height="122" rx="14" fill="#dfe7db" opacity="0.4"/>
+  <text x="469" y="66" font-size="14" font-weight="700" fill="#6f8a68" text-anchor="middle">我們量</text>
+  <path d="M398 62 l6 8 12 -14" stroke="#6f8a68" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="469" y="98" font-size="13.5" fill="#33312b" text-anchor="middle">每位讀者每週寫出的共振卡數</text>
+  <text x="469" y="124" font-size="13.5" fill="#33312b" text-anchor="middle">私下回應 → 共振的轉化率</text>
+</svg>
+<figcaption>量表演，得到表演；量真誠，才有機會得到真誠。</figcaption>
+</figure>
+
+<hr/>
+
+<!-- ═══════════════ 附錄：推薦系統 ═══════════════ -->
+
+<h2><span class="num">附</span>附錄：體悟推薦系統現況</h2>
+
+<p>供還沒看過程式碼的成員參考——上述準則不是憑空的哲學，是從已經運作的架構裡長出來的。系統分成寫入端與讀取端，成本刻意壓在寫入端（每張卡一生只做一次）：</p>
+
+<figure>
+<svg viewBox="0 0 640 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="推薦系統管線圖">
+  <!-- 寫入端標題 -->
+  <text x="46" y="36" font-size="15" font-weight="700" fill="#c4623d" font-family="serif">寫入端（每張卡一次）</text>
+
+  <!-- 卡片發布 -->
+  <rect x="46" y="52" width="150" height="54" rx="10" fill="#fff" stroke="#33312b" stroke-width="2"/>
+  <text x="121" y="84" font-size="13.5" font-weight="700" fill="#33312b" text-anchor="middle">卡片發布</text>
+
+  <!-- 萃取簽名 -->
+  <rect x="240" y="52" width="170" height="54" rx="10" fill="#f0d9cd" stroke="#33312b" stroke-width="2"/>
+  <text x="325" y="74" font-size="13.5" font-weight="700" fill="#33312b" text-anchor="middle">AI 萃取體悟簽名</text>
+  <text x="325" y="94" font-size="11.5" fill="#6b675d" text-anchor="middle">核心體悟・處境・情緒・分數</text>
+
+  <!-- gate -->
+  <path d="M490 52 L560 79 L490 106 L448 79 Z" fill="#fff" stroke="#c4623d" stroke-width="2.2"/>
+  <text x="502" y="75" font-size="11.5" font-weight="700" fill="#c4623d" text-anchor="middle">體悟</text>
+  <text x="502" y="91" font-size="11.5" font-weight="700" fill="#c4623d" text-anchor="middle">門檻</text>
+
+  <path d="M196 79 h38" stroke="#33312b" stroke-width="2" stroke-linecap="round"/>
+  <path d="M227 74 l8 5 -8 5" stroke="#33312b" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M410 79 h32" stroke="#33312b" stroke-width="2" stroke-linecap="round"/>
+  <path d="M435 74 l8 5 -8 5" stroke="#33312b" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 通過 → 向量庫 -->
+  <path d="M502 106 v34" stroke="#6f8a68" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M497 132 l5 9 5 -9" stroke="#6f8a68" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="516" y="130" font-size="11.5" fill="#6f8a68" font-weight="700">通過</text>
+  <ellipse cx="502" cy="172" rx="86" ry="26" fill="#dfe7db" stroke="#33312b" stroke-width="2"/>
+  <text x="502" y="178" font-size="13" font-weight="700" fill="#33312b" text-anchor="middle">向量庫（候選池）</text>
+
+  <!-- 未通過 -->
+  <path d="M560 79 h28" stroke="#6b675d" stroke-width="2" stroke-dasharray="4 5" stroke-linecap="round"/>
+  <text x="592" y="70" font-size="11" fill="#6b675d">未通過：</text>
+  <text x="592" y="86" font-size="11" fill="#6b675d">不推薦給</text>
+  <text x="592" y="100" font-size="11" fill="#6b675d">任何人</text>
+
+  <!-- 分隔 -->
+  <path d="M46 232 C 220 228, 420 236, 594 231" stroke="#d8d2c4" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"/>
+
+  <!-- 讀取端 -->
+  <text x="46" y="268" font-size="15" font-weight="700" fill="#5b7a99" font-family="serif">讀取端（每次打開 feed）</text>
+
+  <!-- 漏斗 -->
+  <path d="M120 292 L520 292 L440 348 L200 348 Z" fill="#dde6ee" stroke="#33312b" stroke-width="2"/>
+  <text x="320" y="326" font-size="13" font-weight="700" fill="#33312b" text-anchor="middle">向量檢索：從你的體悟出發，撈 200 個候選</text>
+
+  <path d="M200 348 L440 348 L412 400 L228 400 Z" fill="#dfe7db" stroke="#33312b" stroke-width="2"/>
+  <text x="320" y="380" font-size="13" font-weight="700" fill="#33312b" text-anchor="middle">輕量模型重排，留 30</text>
+
+  <path d="M228 400 L412 400 L358 448 L282 448 Z" fill="#f0d9cd" stroke="#33312b" stroke-width="2"/>
+  <text x="320" y="428" font-size="12.5" font-weight="700" fill="#33312b" text-anchor="middle">強模型選 8 ＋附上理由</text>
+</svg>
+<figcaption>寫入端：發布 → 萃取簽名 → 過門檻才入池。讀取端：三層漏斗，越窄越貴。</figcaption>
+</figure>
+
+<p>幾個支撐前文準則的既有設計：</p>
+
+<ul>
+  <li><strong>使用者畫像來自書寫。</strong>把使用者自己所有卡片（含私人卡）的體悟向量聚成幾個中心點——一個人是一組體悟方向，不是一個平均值。私人卡只影響本人的推薦，永不外洩。</li>
+  <li><strong>唯一的互動加分是共振。</strong>你曾為哪些作者寫過共振卡，他們的新作會得到輕微加分。讚數、停留時間在 Not-Doing List 上。</li>
+  <li><strong>內建反同溫層旋鈕。</strong>系統預留了「相同處境、不同體悟」的檢索通道（v1 暫時關閉）——未來可以刻意引入有生產性的對照，而不是只餵相似的聲音。</li>
+</ul>
+
+<hr/>
+
+<p style="text-align:center; font-family:'Noto Serif TC',serif; font-size:1.1rem; line-height:2.1;">
+公開互動只有成為作者一途；<br/>
+輕的回饋轉為私下、無計數；<br/>
+身份的彈性下放到每一張卡；<br/>
+關係，必須經由故事建立。
+</p>
+
+<footer>
+  共振 Resonance · 產品設計準則 · 依據 2026 年 7 月的架構現況整理
+</footer>
+
+</main>
+</body>
+</html>

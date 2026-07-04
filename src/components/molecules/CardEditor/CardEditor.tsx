@@ -203,6 +203,15 @@ export function CardEditor({
       } catch {
         // keep the doc-id destination
       }
+      // Fire-and-forget: build the card's recommendation index (insight
+      // signature + vectors). Deliberately not awaited — publishing must never
+      // block on the AI step, and a failure here just means the card gets
+      // indexed on a later edit.
+      void fetch('/api/cards/index', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId: published.id }),
+      }).catch(() => {});
       // Inline (resonance) mode stays on the page so the resonance section can
       // refresh in place; the page editor navigates to the new card.
       if (inline) {

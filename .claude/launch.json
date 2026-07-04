@@ -10,6 +10,12 @@
       ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "docs-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4173", "-d", "docs"],
+      "port": 4173
     }
   ]
 }

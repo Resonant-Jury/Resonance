@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import type { Invite } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
+import { getCurrentUserHandle } from './profile';
 import { getClientDb } from './init';
 
 const DAILY_LIMIT = 3;
@@ -96,15 +97,20 @@ export async function sendInvite(input: {
 }
 
 /**
- * Accept an invite. Performs two writes in a transaction:
+ * Accept an invite. Performs three writes in a transaction:
  *   1. Flip the invite status to "accepted"
  *   2. Create the corresponding /connections/{sorted} doc
+ *   3. Create a /notifications/{auto} "invite_accepted" for the inviter, so
+ *      the sender learns the connection is live (closes the invite loop).
  *
  * Only the recipient (invite.toUserId) may accept.
  */
 export async function acceptInvite(inviteId: string): Promise<string> {
   const uid = requireUid();
   const db = getClientDb();
+  // Denormalized into the notification payload — same reason as sendInvite:
+  // notification rules cannot read other docs cheaply.
+  const myHandle = await getCurrentUserHandle().catch(() => null);
   return runTransaction(db, async (tx) => {
     const inviteRef = doc(db, 'invites', inviteId);
     const snap = await tx.get(inviteRef);
@@ -121,6 +127,13 @@ export async function acceptInvite(inviteId: string): Promise<string> {
     tx.set(connectionRef, {
       userIds: uid < otherUid ? [uid, otherUid] : [otherUid, uid],
       establishedAt: serverTimestamp(),
+    });
+    tx.set(doc(collection(db, 'notifications')), {
+      userId: otherUid,
+      type: 'invite_accepted',
+      payload: { inviteId, fromUserId: uid, fromHandle: myHandle ?? '' },
+      readAt: null,
+      createdAt: serverTimestamp(),
     });
 
     return connectionId;

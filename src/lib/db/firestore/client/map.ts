@@ -30,7 +30,6 @@ export function mapCard(id: string, data: Raw): Card {
     originalLocale: (data.originalLocale as Locale) ?? 'zh-TW',
     translations: (data.translations as Card['translations']) ?? {},
     visibility: (data.visibility as Card['visibility']) ?? 'public',
-    embedding: data.embedding as number[] | undefined,
     referenceCardId: data.referenceCardId as string | undefined,
     publishedAt: toNullableDate(data.publishedAt),
     readCount: Number(data.readCount ?? 0),

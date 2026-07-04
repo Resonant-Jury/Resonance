@@ -90,6 +90,18 @@
         { "fieldPath": "targetAuthorId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "cardVectors",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "channel", "order": "ASCENDING" },
+        {
+          "fieldPath": "vector",
+          "vectorConfig": { "dimension": 1536, "flat": {} }
+        }
+      ]
     }
   ],
   "fieldOverrides": []

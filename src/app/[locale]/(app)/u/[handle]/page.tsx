@@ -10,7 +10,6 @@ import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { PageShell } from '@/components/molecules/PageShell/PageShell';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
-import { ConnectInviteLauncher } from '@/components/molecules/ConnectInviteModal/ConnectInviteLauncher';
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
 import { useProfileByHandle } from '@/lib/data/hooks';
@@ -64,7 +63,7 @@ export default function PublicProfilePage() {
     );
   }
 
-  const { user, isSelf, isConnected, published, linked, linkedAuthors, dailyRemaining } = data;
+  const { user, isSelf, isConnected, published, linked, linkedAuthors } = data;
   const authors: Record<string, User> = { [user.id]: user };
   const joined = new Date(user.joinedAt).toLocaleDateString(locale, {
     year: 'numeric',
@@ -105,29 +104,20 @@ export default function PublicProfilePage() {
           <span className={styles.metaItem}>{t('joined', { date: joined })}</span>
         </div>
 
-        <div className={styles.actions}>
-          {isSelf ? (
-            <Link href="/settings" style={{ textDecoration: 'none' }}>
-              <OrganicButton variant="ghost">{t('editProfile')}</OrganicButton>
-            </Link>
-          ) : isConnected ? (
-            <span className={styles.connected}>✿ {t('connected')}</span>
-          ) : (
-            <ConnectInviteLauncher
-              targetUser={{
-                id: user.id,
-                handle: user.handle,
-                initials: user.initials,
-                accentColor: user.accentColor,
-                avatarUrl: user.avatarUrl,
-                avatarSeed: user.avatarSeed,
-              }}
-              dailyRemaining={dailyRemaining}
-              variant="primary"
-              label={t('initiateConnect')}
-            />
-          )}
-        </div>
+        {/* Relationships grow from stories (design principle 3): connections
+            start from a resonance/note notification, never from the profile
+            page — so visitors see no connect button here. */}
+        {(isSelf || isConnected) && (
+          <div className={styles.actions}>
+            {isSelf ? (
+              <Link href="/settings" style={{ textDecoration: 'none' }}>
+                <OrganicButton variant="ghost">{t('editProfile')}</OrganicButton>
+              </Link>
+            ) : (
+              <span className={styles.connected}>✿ {t('connected')}</span>
+            )}
+          </div>
+        )}
       </header>
 
       <section className={styles.section}>

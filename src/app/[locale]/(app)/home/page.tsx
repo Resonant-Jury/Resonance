@@ -5,13 +5,15 @@ import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Link } from '@/i18n/navigation';
-import { useFeed } from '@/lib/data/hooks';
+import { useFeed, useRecommendedFeed } from '@/lib/data/hooks';
 
 export default function HomeFeedPage() {
   const t = useTranslations('home');
   const { data, isLoading } = useFeed();
+  const { data: rec } = useRecommendedFeed();
   const cards = data?.cards ?? [];
   const authors = data?.authors ?? {};
+  const recCards = rec?.cards ?? [];
   const isEmpty = !isLoading && cards.length === 0;
 
   return (
@@ -48,6 +50,34 @@ export default function HomeFeedPage() {
           {t('subheading')}
         </p>
       </header>
+
+      {recCards.length > 0 && (
+        <section style={{ marginBottom: 56 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+            <h2
+              style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: 'clamp(22px, 3vw, 28px)',
+                fontWeight: 700,
+                color: 'var(--color-text)',
+              }}
+            >
+              {t('recommended.title')}
+            </h2>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: 'var(--color-text-muted)' }}>
+              {t('recommended.subtitle')}
+            </p>
+          </div>
+          <CardLinkGrid
+            cards={recCards}
+            authors={rec?.authors ?? {}}
+            renderCaption={(card) => {
+              const reason = rec?.reasons[card.id];
+              return reason ? t('matchReason', { reason }) : null;
+            }}
+          />
+        </section>
+      )}
 
       {isLoading ? (
         <FeedSkeleton count={6} />

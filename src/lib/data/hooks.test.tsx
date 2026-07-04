@@ -24,9 +24,6 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
   getUsersByIds: vi.fn(),
   isConnected: vi.fn(),
 }));
-vi.mock('@/lib/db/firestore/client/invites', () => ({
-  remainingDailyQuota: vi.fn(),
-}));
 vi.mock('@/lib/db/firestore/client/cardLinks', () => ({
   listLinksToAuthor: vi.fn(),
   listLinksToCard: vi.fn(),
@@ -52,7 +49,6 @@ import {
   getUsersByIds,
   isConnected,
 } from '@/lib/db/firestore/client/reads';
-import { remainingDailyQuota } from '@/lib/db/firestore/client/invites';
 import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
 import { useCard, useFeed, useMyCardBox, useProfileByHandle, useRelated, useResonators } from './hooks';
 
@@ -243,12 +239,11 @@ describe('useMyCardBox', () => {
 });
 
 describe('useProfileByHandle', () => {
-  it('assembles a public profile (connection state, public cards, quota) for another user', async () => {
+  it('assembles a public profile (connection state, public cards) for another user', async () => {
     vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'other'));
     vi.mocked(isConnected).mockResolvedValue(true);
     vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('p1', 'u2')]);
     vi.mocked(getUsersByIds).mockResolvedValue({});
-    vi.mocked(remainingDailyQuota).mockResolvedValue(2);
 
     const { result } = renderHook(() => useProfileByHandle('other'), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
@@ -258,11 +253,10 @@ describe('useProfileByHandle', () => {
     expect(data.isSelf).toBe(false);
     expect(data.isConnected).toBe(true);
     expect(data.published.map((c) => c.id)).toEqual(['p1']);
-    expect(data.dailyRemaining).toBe(2);
     expect(getPublicCardsByAuthor).toHaveBeenCalledWith('u2');
   });
 
-  it('shows the viewer their own public profile and skips connect/quota round-trips', async () => {
+  it('shows the viewer their own public profile and skips the connect round-trip', async () => {
     // The looked-up user IS the viewer.
     vi.mocked(getUserByHandle).mockResolvedValue(user('me', 'myself'));
     vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('p1', 'me')]);
@@ -275,12 +269,11 @@ describe('useProfileByHandle', () => {
     expect(data.user!.id).toBe('me');
     expect(data.isSelf).toBe(true);
     expect(data.published.map((c) => c.id)).toEqual(['p1']);
-    // self view never needs connection state or the invite quota
+    // self view never needs connection state
     expect(isConnected).not.toHaveBeenCalled();
-    expect(remainingDailyQuota).not.toHaveBeenCalled();
   });
 
-  it('renders for anonymous visitors (no viewer) without connect/quota reads', async () => {
+  it('renders for anonymous visitors (no viewer) without connect reads', async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'other'));
     vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('p1', 'u2')]);
@@ -294,7 +287,6 @@ describe('useProfileByHandle', () => {
     expect(data.isSelf).toBe(false);
     expect(data.published.map((c) => c.id)).toEqual(['p1']);
     expect(isConnected).not.toHaveBeenCalled();
-    expect(remainingDailyQuota).not.toHaveBeenCalled();
   });
 });
 

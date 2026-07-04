@@ -7,8 +7,10 @@ import type { Card, User } from '@/lib/db/types';
 // through its three states (loading / loaded-with-cards / empty) and assert
 // that entering the page renders the fetched feed.
 const mockUseFeed = vi.fn();
+const mockUseRecommendedFeed = vi.fn();
 vi.mock('@/lib/data/hooks', () => ({
   useFeed: () => mockUseFeed(),
+  useRecommendedFeed: () => mockUseRecommendedFeed(),
 }));
 // next-intl's Link needs routing config we don't stand up here; a plain anchor
 // is enough to assert the card links the page builds.
@@ -52,6 +54,11 @@ function user(id: string): User {
     handleChangedAt: new Date('2025-01-01'),
   };
 }
+
+// The personalized feed is incidental to these tests; default it to "no
+// recommendations" so the page renders only the latest feed. (clearAllMocks
+// keeps implementations, so this default survives across tests.)
+mockUseRecommendedFeed.mockReturnValue({ data: undefined });
 
 afterEach(() => vi.clearAllMocks());
 
