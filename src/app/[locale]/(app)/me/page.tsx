@@ -9,7 +9,7 @@ import { InvitesInbox } from '@/components/molecules/InvitesInbox/InvitesInbox';
 import { Link } from '@/i18n/navigation';
 import { useMyCardBox, useMyProfile } from '@/lib/data/hooks';
 
-const tabs: TabKey[] = ['published', 'private', 'draft', 'resonated', 'linked', 'thoughtMap'];
+const tabs: TabKey[] = ['published', 'private', 'draft', 'resonated', 'linked', 'bookmarks', 'thoughtMap'];
 
 export default function MyCardBoxPage() {
   const locale = useLocale();
@@ -97,6 +97,7 @@ export default function MyCardBoxPage() {
                 draft: box.draft,
                 resonated: box.resonated,
                 linked: box.linked,
+                bookmarks: box.bookmarks,
               }
             : undefined
         }

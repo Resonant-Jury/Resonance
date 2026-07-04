@@ -84,6 +84,28 @@ describe('cardToStory', () => {
   it('leaves imageUrl undefined when the card has no media', () => {
     expect(cardToStory(makeCard({ media: undefined }), author).imageUrl).toBeUndefined();
   });
+
+  it('replaces the byline on anonymous cards — nothing identifying survives', () => {
+    const story = cardToStory(makeCard({ anonymous: true }), author, {
+      anonymousLabel: 'Anonymous',
+    });
+    expect(story.author).toBe('Anonymous');
+    expect(story.authorInitials).toBe('·');
+    expect(story.avatarUrl).toBeUndefined();
+    // Avatar wobble seed derives from the card, not the author.
+    expect(story.avatarSeed).not.toBe(author.avatarSeed);
+    // Content itself is untouched.
+    expect(story.title).toBe('A small kindness');
+  });
+
+  it('keeps the real byline on anonymous cards only when explicitly deanonymized (owner card box)', () => {
+    const story = cardToStory(makeCard({ anonymous: true }), author, {
+      anonymousLabel: 'Anonymous',
+      deanonymize: true,
+    });
+    expect(story.author).toBe('mei');
+    expect(story.avatarUrl).toBe('https://example.com/avatar.png');
+  });
 });
 
 describe('plainExcerpt', () => {

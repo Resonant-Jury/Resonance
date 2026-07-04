@@ -80,6 +80,7 @@
       "resonanceSummary": "昨天有 {count} 個人與你共振",
       "translationDone": "卡片翻譯完成",
       "resonance": "{handle} 與你的卡片共振了",
+      "note": "{handle} 寄來一張小紙條",
       "cardLink": "{handle} 用卡片連結了你的文章",
       "connect": "與 Ta 建立連結",
       "alreadyConnected": "已連結",
@@ -100,7 +101,12 @@
     "matchReason": "因為「{reason}」",
     "recommended": {
       "title": "為你共振",
-      "subtitle": "可能和你的經歷與體悟產生迴響的卡片。"
+      "subtitle": "可能和你的經歷與體悟產生迴響的卡片。",
+      "hint": "你寫下的體悟，決定你會遇見哪些故事。"
+    },
+    "coldStart": {
+      "title": "你的第一張卡片，會成為這個世界為你排列的起點。",
+      "cta": "寫下一個故事"
     }
   },
   "card": {
@@ -115,7 +121,25 @@
     "noResonatorsYet": "還沒有人與這張卡片共振。",
     "noBio": "這個人還沒寫下自我介紹。",
     "resonance": {
-      "titlePrefill": "〈{title}〉有感而發"
+      "titlePrefill": "〈{title}〉有感而發",
+      "hint": "你的回應會成為一張自己的卡片。",
+      "downgrade": "還不想公開？把這段話寄給作者就好。",
+      "aiPrompt": "這張卡片的體悟是「{coreInsight}」。你有過類似、或完全相反的經驗嗎？"
+    },
+    "note": {
+      "entry": "寄一張小紙條給作者",
+      "label": "小紙條",
+      "placeholder": "想對作者說的話⋯",
+      "hint": "這段話只有作者看得到。",
+      "upgrade": "這段話想寫成一張共振卡嗎？",
+      "sent": "紙條寄出了。",
+      "send": "寄出",
+      "cancel": "取消",
+      "close": "關閉"
+    },
+    "bookmark": {
+      "add": "收藏",
+      "remove": "取消收藏"
     },
     "resonanceSection": {
       "title": "與此文共振的文章",
@@ -150,7 +174,9 @@
     "notFound": {
       "title": "找不到這張卡片",
       "back": "回到首頁"
-    }
+    },
+    "anonymousAuthor": "匿名",
+    "anonymousOwnerNote": "這張卡以匿名發布——只有你知道它是你的。"
   },
   "write": {
     "title": "寫一張新卡片",
@@ -221,7 +247,25 @@
     "saveDraft": "儲存草稿",
     "publish": "發布",
     "publishing": "發布中⋯",
-    "autosaved": "草稿已自動儲存 · {time}"
+    "autosaved": "草稿已自動儲存 · {time}",
+    "publishPanel": {
+      "title": "發布這張卡片",
+      "insightLoading": "正在讀你的故事⋯",
+      "insight": "你想說的，也許是——「{coreInsight}」",
+      "anonymousToggle": "以匿名發布",
+      "anonymousName": "匿名",
+      "anonymousHint": "匿名卡不會出現在你的個人頁。",
+      "publish": "發布",
+      "publishing": "發布中⋯",
+      "cancel": "再想想"
+    },
+    "firstCard": {
+      "title": "寫下你的第一張卡片",
+      "intro": "不知道從哪裡開始？挑一個問題，寫下浮現的畫面就好。",
+      "q1": "最近有沒有一件小事，改變了你看某件事情的方式？",
+      "q2": "有沒有一句話，你很想說給過去的自己聽？",
+      "q3": "哪一次失敗，教會了你一件別人沒教過的事？"
+    }
   },
   "me": {
     "joined": "{date} 加入",
@@ -233,6 +277,7 @@
       "draft": "草稿",
       "resonated": "我共振過的",
       "linked": "被連結",
+      "bookmarks": "收藏",
       "thoughtMap": "思想地圖"
     },
     "thoughtMap": {
@@ -255,11 +300,12 @@
       "resizeGroup": "調整分類大小",
       "back": "回到個人頁面"
     },
-    "emptyPublished": "還沒有發布任何卡片。",
+    "emptyPublished": "你的第一張卡片，會成為這個世界為你排列的起點。",
     "emptyPrivate": "還沒有私人卡片。",
     "emptyDraft": "沒有草稿。",
     "emptyResonated": "還沒共振過別人的卡片。",
     "emptyLinked": "還沒有人用卡片連結你。",
+    "emptyBookmarks": "讀到捨不得忘記的故事時，按下書籤——它們會安靜地待在這裡，只有你看得到。",
     "actions": {
       "menuLabel": "管理卡片",
       "edit": "編輯",
@@ -270,7 +316,9 @@
       "deleteConfirmBody": "刪除後無法復原，卡片的故事與共振連結都會消失。",
       "deleteConfirm": "刪除卡片",
       "deleteCancel": "先留著"
-    }
+    },
+    "anonymousBadge": "匿名發布",
+    "emptyPublishedCta": "寫下一個故事"
   },
   "profile": {
     "notConnected": "尚未連結",
@@ -291,7 +339,9 @@
     "editProfile": "編輯個人檔案",
     "cardCount": "{count, plural, other {# 篇公開卡片}}",
     "publishedHeading": "公開文章",
-    "emptyPublished": "目前還沒有公開的卡片。"
+    "emptyPublished": "目前還沒有公開的卡片。",
+    "emptyPublishedSelf": "你的第一張卡片，會成為這個世界為你排列的起點。",
+    "emptyPublishedCta": "寫下一個故事"
   },
   "invite": {
     "title": "想和 Ta 連結",

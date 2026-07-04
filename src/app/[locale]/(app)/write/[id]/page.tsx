@@ -27,6 +27,7 @@ export default async function EditCardPage({
         tags: card.tags,
         visibility: card.visibility,
         media: card.media,
+        anonymous: card.anonymous,
       }}
     />
   );

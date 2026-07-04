@@ -45,6 +45,15 @@ export interface Card {
    * (rerank, "why this resonates") don't re-run the LLM. See `src/lib/recommend`.
    */
   signature?: InsightSignature;
+  /**
+   * Published without attribution (ux §6). Rendering-level anonymity: every
+   * card surface hides the byline and the card never appears on the author's
+   * public profile; notes/resonance notifications still reach the author
+   * privately. NOTE: `authorId` stays on the doc (rules can't redact fields),
+   * so this shields identity from the UI and all API responses, not from
+   * someone reading raw Firestore documents.
+   */
+  anonymous?: boolean;
 }
 
 /**
@@ -91,6 +100,12 @@ export interface User {
   accentColor: string;
   joinedAt: Date;
   handleChangedAt: Date;
+  /**
+   * Just-in-time hint display counts, keyed by hint name (see `src/lib/hints.ts`).
+   * Synced from localStorage so hints stay dismissed across devices. The user
+   * doc is public, but these are only innocuous UI counters.
+   */
+  hintsSeen?: Record<string, number>;
 }
 
 export interface Connection {
@@ -116,6 +131,33 @@ export interface Resonance {
   cardId: string;
   userId: string;
   note?: string;
+  createdAt: Date;
+}
+
+/**
+ * A private note (小紙條) from a reader to a card's author — the "speak to the
+ * author" layer of the three-layer response structure. No audience, no counts,
+ * never a recommendation signal.
+ */
+export interface Note {
+  id: string;
+  /** The card the note responds to. */
+  cardId: string;
+  fromUserId: string;
+  /** The card's author — the only person who can read it besides the sender. */
+  toUserId: string;
+  text: string;
+  createdAt: Date;
+  readAt: Date | null;
+}
+
+/**
+ * A private bookmark (收藏) — the "speak to yourself" layer. Stored under
+ * `users/{uid}/bookmarks/{cardId}` (doc id == card id, so toggling is
+ * idempotent). Owner-only; never counted, never notified.
+ */
+export interface Bookmark {
+  cardId: string;
   createdAt: Date;
 }
 
@@ -185,6 +227,7 @@ export interface Notification {
     | 'translation_done'
     | 'invite_expired'
     | 'resonance'
+    | 'note'
     | 'card_link';
   payload: Record<string, unknown>;
   readAt: Date | null;

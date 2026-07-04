@@ -38,50 +38,61 @@
 - 對同一人重複送邀請的去重（現靠每日配額 + 對方婉拒擋住；紙條上線時一併做防濫用）
 - 通知分頁 / 全部已讀
 
-## Phase 1 — 讀後區重構（ux §1）
+## Phase 1 — 讀後區重構（ux §1）✅
 
-- [ ] `molecules/CardDetail/ReadAfterArea.tsx`：包住 `CardViewerActions`＋紙條入口＋收藏鈕；進 viewport 才淡入（IntersectionObserver）
-- [ ] 三動作視覺層級：共振＝primary 按鈕（不動）、紙條＝文字連結、收藏＝安靜圖示
-- [ ] 新圖示：信封（note）、書籤（bookmark），走 `atoms/Icon` registry
-- [ ] 狀態機（ux §1.3）：未登入導 signin；作者本人全部隱藏
+- [x] `molecules/CardDetail/ReadAfterArea.tsx`：包住 `CardViewerActions`＋紙條入口＋收藏鈕；進 viewport 才淡入（IntersectionObserver）
+- [x] 三動作視覺層級：共振＝primary 按鈕（不動）、紙條＝文字連結、收藏＝安靜圖示
+- [x] 新圖示：信封（note）、書籤（bookmark），走 `atoms/Icon` registry
+- [x] 狀態機（ux §1.3）：未登入導 signin；作者本人全部隱藏
+- [ ] （後續）收藏小圖示常駐卡片角落（目前只在讀後區）
 
-## Phase 2 — 收藏（ux §2.1）
+## Phase 2 — 收藏（ux §2.1）✅
 
-- [ ] `atoms/BookmarkButton/`：切換即存，無確認
-- [ ] 資料模型 `users/{uid}/bookmarks/{cardId}`＋owner-only rules（部署）
-- [ ] `me` 頁收藏分頁；空狀態文案（`me.bookmarks.empty`）
-- [ ] 不計數、不通知、不進推薦訊號（Not-Doing List）
+- [x] `atoms/BookmarkButton/`：切換即存，無確認（樂觀更新）
+- [x] 資料模型 `users/{uid}/bookmarks/{cardId}`＋owner-only rules（已部署）
+- [x] `me` 頁收藏分頁；空狀態文案（`me.emptyBookmarks`）
+- [x] 不計數、不通知、不進推薦訊號（Not-Doing List）
 
-## Phase 3 — 微說明系統（ux §3）
+## Phase 3 — 微說明系統（ux §3）✅
 
-- [ ] `lib/hints.ts`：`useHint(key)`，localStorage `hint:{name}`＋登入者同步 user doc `hintsSeen`
-- [ ] 顯示前 3 次後永久收起；就地行內、永不 modal
-- [ ] 初始清單：`note-privacy`、`resonance-becomes-card`、`feed-reason`、`anonymous-publish`
+- [x] `lib/hints.ts`：`useHint(key)`，localStorage `hint:{name}`＋登入者同步 user doc `hintsSeen`（rules 已加白名單並部署）
+- [x] 顯示前 3 次後永久收起；就地行內、永不 modal
+- [x] 已接上：`note-privacy`（紙條輸入框下）、`resonance-becomes-card`（共振編輯器上）
+- [x] `feed-reason`（home 推薦區）、`anonymous-publish`（發布面板）——Phase 6/7 時接上
 
-## Phase 4 — 小紙條（ux §2.2）
+## Phase 4 — 小紙條（ux §2.2）✅（兩項後續）
 
-- [ ] `molecules/NoteComposer/`：輕量行內 Panel，單一輸入框＋送出
-- [ ] 資料模型 `notes/{noteId}`＋rules（fromUid 建立、僅 to/from 可讀、不可 list 他人）＋部署
-- [ ] 通知新類型 `note`：**接上 Phase 0 的「與 Ta 建立連結」動作**（同一元件，通知即連結入口）
-- [ ] 作者接收端：顯示紙條內容＋一鍵邀請寫卡（`notifications.note.replyInvite`）
-- [ ] 防濫用：同人同卡頻率上限；沿用 connection 信任模型
+- [x] `molecules/NoteComposer/`：輕量行內 Panel，單一輸入框＋送出
+- [x] 資料模型 `notes/{noteId}`＋rules（fromUid 建立、僅 to/from 可讀、≤2000 字、recipient 只能改 readAt）＋部署
+- [x] 通知新類型 `note`：內文預覽直接顯示在通知裡，**並接上 Phase 0 的「與 Ta 建立連結」動作**（通知即連結入口）
+- [ ] 作者接收端進階：一鍵邀請寫卡（`notifications.note.replyInvite`）— 需要回信（作者→讀者）的紙條方向，留待與私訊整合時做
+- [ ] 防濫用：同人同卡頻率上限（目前僅長度上限；封鎖機制沿用 connection 信任模型時一併做）
 
-## Phase 5 — 升降級互通＋AI 起頭（ux §2.2–2.3）
+## Phase 5 — 升降級互通＋AI 起頭（ux §2.2–2.3）✅
 
-- [ ] 紙條 > 200 字 → 行內提示升級成共振卡（內容帶入編輯器）
-- [ ] 共振編輯器 → 「還不想公開？寄給作者就好」降級路徑
-- [ ] AI 起頭：以 `card.signature.coreInsight` 作編輯器引導語；允許三五句的「回聲」短共振
+- [x] 紙條 > 200 字 → 行內提示升級成共振卡（內容帶入編輯器，`NOTE_UPGRADE_THRESHOLD`）
+- [x] 共振編輯器 → 「還不想公開？寄給作者就好」降級路徑（`CardEditor.onStoryChange` 帶出草稿文字）
+- [x] AI 起頭：以 `card.signature.coreInsight` 作編輯器引導語（client `mapCard` 補上 signature；分數永不顯示）；編輯器無最低字數，回聲短共振本來就允許
 
-## Phase 6 — 匿名發布（ux §6）
+## Phase 6 — 匿名發布（ux §6）✅
 
-- [ ] `Card.anonymous: boolean`；發布面板切換＋卡頭所見即所得預覽
-- [ ] 匿名卡渲染：不掛 handle、不進公開個人頁；`me` 頁自己可見＋匿名徽章
-- [ ] 洩露 checklist：feed / card API 作者欄位、「共振作者加分」join 路徑
-- [ ] 發布面板單一畫面：AI 體悟回顯 → 可見性 → 匿名 → 發布鈕
+- [x] `Card.anonymous: boolean`（client `mapCard`＋server mapper 皆通；rules 免改——create 白名單容許額外欄位、update 只鎖 metrics）
+- [x] 發布面板單一畫面 `molecules/PublishPanel`：AI 體悟回顯（`POST /api/cards/insight`，只回 `coreInsight`、永不回分數、失敗不擋發布）→ 可見性（自編輯器本體移入）→ 匿名切換＋卡頭所見即所得預覽 → 發布鈕
+- [x] 匿名卡渲染：`cardToStory` 統一匿名化（feed / 相關卡 / 收藏）；`MiniCardGrid`（共振卡）、`CardEmbedLink`（文內嵌卡）、卡片頁卡頭與作者側欄（不掛 handle、不連個人頁）
+- [x] 不進公開個人頁：`getPublicCardsByAuthor` 過濾 `anonymous`；`me` 頁自己可見（`deanonymize`）＋「匿名發布」徽章
+- [x] `anonymous-publish` 微說明接上（Phase 3 遺留項）
+- [x] 洩露 checklist 過一輪：
+  - `/api/recommend/feed` 回應只有 `cardId / reason / channel / score`，無作者欄位 ✅
+  - 「共振作者加分」（`RESONANCE_AUTHOR_BOOST`）與向量記錄的 `authorId` 只存在 server-side funnel，從不出 API ✅
+  - slug 產生：匿名卡撞名時**不再**以作者 handle 消歧（直接進數字後綴）——本輪修補 ✅
+  - 共振者頭像列（`useResonators`）跳過匿名共振卡的作者 ✅
+  - `/api/cards/resolve` 只回 doc id ✅
+  - ⚠️ 已知界線：`authorId` 仍在卡片 doc 上（rules 無法遮欄位），匿名性擋的是 UI 與 API 層；要擋「直接讀 Firestore 原始文件」需改為 server 中介讀取，另立一輪
+- 先不做（記錄在案）：inline 共振編輯器的匿名選項（共振以身分回應是設計本意）；發布後在卡片頁切換匿名（可經 `write/[id]` 重發布達成）
 
-## Phase 7 — Onboarding 收尾（ux §5）
+## Phase 7 — Onboarding 收尾（ux §5）✅
 
-- [ ] 註冊後引導寫第一張卡（2–3 個引導問題）
-- [ ] 發布前 AI 體悟回顯（鏡子時刻；永不顯示分數）
-- [ ] feed 推薦卡顯示 `reason`＋`feed-reason` 微說明
-- [ ] 空狀態文案全面落地（ux §4）
+- [x] 註冊後引導寫第一張卡：signup 完成本就導向 `/write`；新增 `molecules/FirstCardGuide`（3 個引導問題，點選以引言帶入編輯器、引導收起）＋`useHasWrittenCards`，只對「一張卡都沒寫過」的人出現
+- [x] 發布前 AI 體悟回顯（鏡子時刻）＝ PublishPanel 第 1 區（與 Phase 6 同件）
+- [x] feed 推薦卡顯示 `reason`（前一輪已接）＋`feed-reason` 微說明（Phase 3 遺留項，本輪接上）
+- [x] 空狀態文案落地（ux §4）：feed 冷啟動不喊「沒有內容」、改邀請寫第一張卡（home coldStart 區塊）；`me` 已發布空狀態改為「排列的起點」＋寫卡 CTA；公開個人頁本人空狀態同文案＋CTA；通知／收藏空狀態前一輪已落地

@@ -4,14 +4,23 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { CardActionsMenu } from '@/components/molecules/CardActionsMenu/CardActionsMenu';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
+import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
-import { useRouter } from '@/i18n/navigation';
+import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { Link, useRouter } from '@/i18n/navigation';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { CARD_HUES } from '@/components/molecules/StoryCard/StoryCard';
 import type { Card, User } from '@/lib/db/types';
 
-export type TabKey = 'published' | 'private' | 'draft' | 'resonated' | 'linked' | 'thoughtMap';
+export type TabKey =
+  | 'published'
+  | 'private'
+  | 'draft'
+  | 'resonated'
+  | 'linked'
+  | 'bookmarks'
+  | 'thoughtMap';
 
 /** Tabs whose cards belong to the viewer and therefore carry the「⋯」menu. */
 const OWNED_TABS: ReadonlySet<TabKey> = new Set(['published', 'private', 'draft']);
@@ -74,25 +83,57 @@ export function ProfileTabs({
       {loading ? (
         <FeedSkeleton count={6} />
       ) : list.length === 0 ? (
-        <p style={{ color: 'var(--color-text-muted)', padding: '40px 0', textAlign: 'center' }}>
-          {t(
-            active === 'published'
-              ? 'emptyPublished'
-              : active === 'private'
-              ? 'emptyPrivate'
-              : active === 'draft'
-              ? 'emptyDraft'
-              : active === 'linked'
-              ? 'emptyLinked'
-              : 'emptyResonated'
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 18,
+            padding: '40px 0',
+          }}
+        >
+          <p style={{ color: 'var(--color-text-muted)', textAlign: 'center' }}>
+            {t(
+              active === 'published'
+                ? 'emptyPublished'
+                : active === 'private'
+                ? 'emptyPrivate'
+                : active === 'draft'
+                ? 'emptyDraft'
+                : active === 'linked'
+                ? 'emptyLinked'
+                : active === 'bookmarks'
+                ? 'emptyBookmarks'
+                : 'emptyResonated'
+            )}
+          </p>
+          {/* The empty card box is the teaching moment (ux §4) — point it at
+              the first story instead of leaving a dead end. */}
+          {manageable && active === 'published' && (
+            <Link href="/write" style={{ textDecoration: 'none' }}>
+              <OrganicButton variant="primary">{t('emptyPublishedCta')}</OrganicButton>
+            </Link>
           )}
-        </p>
+        </div>
       ) : active === 'linked' ? (
         <MiniCardGrid cards={list} authors={authors} />
       ) : (
         <CardLinkGrid
           cards={list}
           authors={authors}
+          // The owner's card box shows their own byline on anonymous cards —
+          // the badge below marks them instead (ux §6: visible to self only).
+          deanonymize={managed}
+          renderCaption={
+            managed
+              ? (c) =>
+                  c.anonymous ? (
+                    <TagPill size="sm" color="var(--color-cream-dark)">
+                      {t('anonymousBadge')}
+                    </TagPill>
+                  ) : null
+              : undefined
+          }
           // A draft has no public page yet — clicking it resumes writing.
           cardHref={managed && active === 'draft' ? (c) => `/write/${c.id}` : undefined}
           renderActions={

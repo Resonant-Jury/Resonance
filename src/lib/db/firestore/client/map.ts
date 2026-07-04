@@ -1,7 +1,7 @@
 'use client';
 
 import { Timestamp } from 'firebase/firestore';
-import type { Card, CardMedia, Locale, User } from '@/lib/db/types';
+import type { Card, CardMedia, InsightSignature, Locale, User } from '@/lib/db/types';
 
 type Raw = Record<string, unknown>;
 
@@ -35,6 +35,10 @@ export function mapCard(id: string, data: Raw): Card {
     readCount: Number(data.readCount ?? 0),
     resonanceCount: Number(data.resonanceCount ?? 0),
     inviteCount: Number(data.inviteCount ?? 0),
+    // The insight signature drives the resonance editor's AI opener
+    // (`coreInsight`); insightScore stays server-side policy — never shown.
+    signature: data.signature as InsightSignature | undefined,
+    anonymous: data.anonymous === true,
   };
 }
 
@@ -55,5 +59,6 @@ export function mapUser(id: string, data: Raw): User {
     accentColor: String(data.accentColor ?? 'oklch(88% 0.08 55)'),
     joinedAt: toDate(data.joinedAt),
     handleChangedAt: toDate(data.handleChangedAt),
+    hintsSeen: data.hintsSeen as Record<string, number> | undefined,
   };
 }

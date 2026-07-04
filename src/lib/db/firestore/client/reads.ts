@@ -172,6 +172,10 @@ export async function getCardsByAuthor(authorId: string, tab: CardBoxTab): Promi
  * `visibility == "public"` so it satisfies the Firestore `list` rule for
  * anonymous (signed-out) viewers — a logged-out visitor can read a blog-style
  * profile without tripping a permission error.
+ *
+ * Anonymous cards never surface here — the outward-facing profile is exactly
+ * the place they must not be attributable (ux §6). They stay reachable via
+ * their own card page and the feed, just without a byline.
  */
 export async function getPublicCardsByAuthor(authorId: string): Promise<Card[]> {
   const snap = await getDocs(
@@ -183,7 +187,23 @@ export async function getPublicCardsByAuthor(authorId: string): Promise<Card[]> 
       fbLimit(40)
     )
   );
-  return snap.docs.map((d) => mapCard(d.id, d.data())).filter((c) => c.publishedAt);
+  return snap.docs
+    .map((d) => mapCard(d.id, d.data()))
+    .filter((c) => c.publishedAt && !c.anonymous);
+}
+
+/**
+ * Whether the signed-in viewer has written any card at all (draft or
+ * published). Drives the guided-first-card moments (ux §5): the write page's
+ * question prompts and the feed's cold-start block.
+ */
+export async function hasAnyOwnCards(): Promise<boolean> {
+  const uid = getFirebaseClientAuth().currentUser?.uid;
+  if (!uid) return false;
+  const snap = await getDocs(
+    query(collection(getClientDb(), 'cards'), where('authorId', '==', uid), fbLimit(1))
+  );
+  return !snap.empty;
 }
 
 // --- users ---

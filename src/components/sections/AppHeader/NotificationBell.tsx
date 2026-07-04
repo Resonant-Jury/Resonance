@@ -160,6 +160,10 @@ export function NotificationBell() {
               body = tApp('resonance', { handle: String(n.payload.fromHandle ?? '') });
               href = `/card/${n.payload.cardId}`;
               connectFromUserId = n.payload.fromUserId ? String(n.payload.fromUserId) : null;
+            } else if (n.type === 'note') {
+              body = tApp('note', { handle: String(n.payload.fromHandle ?? '') });
+              href = `/card/${n.payload.cardId}`;
+              connectFromUserId = n.payload.fromUserId ? String(n.payload.fromUserId) : null;
             } else if (n.type === 'card_link') {
               body = tApp('cardLink', { handle: String(n.payload.fromHandle ?? '') });
               href = `/card/${n.payload.cardId}`;
@@ -176,6 +180,20 @@ export function NotificationBell() {
                 }}
               >
                 {body}
+                {/* A note's content IS the notification — the reader wrote to
+                    the author, so show the words right here (truncated). */}
+                {n.type === 'note' && !!n.payload.preview && (
+                  <div
+                    style={{
+                      marginTop: 5,
+                      fontSize: 13,
+                      color: 'var(--color-text-muted)',
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    「{String(n.payload.preview)}」
+                  </div>
+                )}
                 {isUnread && (
                   <span
                     aria-hidden

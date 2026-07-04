@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { StoryCard } from '@/components/molecules/StoryCard/StoryCard';
 import type { Card, User } from '@/lib/db/types';
 import { cardToStory } from '@/lib/adapters/story';
@@ -22,15 +23,21 @@ export interface CardLinkGridProps {
    * become part of the navigable card surface.
    */
   renderCaption?: (card: Card, index: number) => ReactNode;
+  /**
+   * Show real bylines on the viewer's own anonymous cards (me-page card box
+   * only — pair it with an explicit anonymous badge via `renderCaption`).
+   */
+  deanonymize?: boolean;
 }
 
-export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCaption }: CardLinkGridProps) {
+export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCaption, deanonymize }: CardLinkGridProps) {
+  const t = useTranslations('card');
   return (
     <div data-card-grid className={styles.grid}>
       {cards.map((card, i) => {
         const author = authors[card.authorId];
         const story = author
-          ? cardToStory(card, author)
+          ? cardToStory(card, author, { anonymousLabel: t('anonymousAuthor'), deanonymize })
           : { title: card.thoughtCore, excerpt: '', author: '—', authorInitials: '?', readTime: '—', tags: card.tags };
         return (
           <div key={card.id} className={styles.item} style={{ position: 'relative' }}>

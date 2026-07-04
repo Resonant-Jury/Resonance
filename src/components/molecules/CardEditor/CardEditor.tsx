@@ -21,8 +21,8 @@ import {
   SegmentedActionBar,
   boundaryPoints,
   polyline,
-  type SegmentSpec,
 } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
+import { PublishPanel } from '@/components/molecules/PublishPanel/PublishPanel';
 import { wobRect } from '@/lib/design/wobRect';
 import {
   createCardDraft,
@@ -41,6 +41,7 @@ export interface CardEditorProps {
     tags?: string[];
     visibility?: Visibility;
     media?: CardMedia;
+    anonymous?: boolean;
   };
   locale: Locale;
   /**
@@ -59,6 +60,12 @@ export interface CardEditorProps {
   onPublished?: (card: Card) => void;
   /** Called after a successful draft save (inline mode). */
   onSavedDraft?: (card: Card) => void;
+  /**
+   * Reports the story text as it is typed. Lets a wrapper offer exits that
+   * carry the draft along (e.g. the resonance editor's「寄給作者就好」downgrade
+   * into a private note).
+   */
+  onStoryChange?: (story: string) => void;
 }
 
 // AI 寫作夥伴：暫時停用，未來會重新啟用
@@ -68,12 +75,6 @@ export interface CardEditorProps {
 //   '停下來看一件小事,是一種慢慢的勇敢。',
 // ];
 
-const VISIBILITY_ICON: Record<Visibility, 'globe' | 'users' | 'lock'> = {
-  public: 'globe',
-  connections: 'users',
-  private: 'lock',
-};
-
 export function CardEditor({
   initial,
   locale,
@@ -81,9 +82,9 @@ export function CardEditor({
   mode = 'page',
   onPublished,
   onSavedDraft,
+  onStoryChange,
 }: CardEditorProps) {
   const t = useTranslations('write');
-  const tVis = useTranslations('write.visibility');
   const tCard = useTranslations('card');
   // const tAi = useTranslations('write.ai'); // AI 寫作夥伴：暫時停用
   const router = useRouter();
@@ -93,6 +94,8 @@ export function CardEditor({
   const [story, setStory] = useState(initial?.story ?? '');
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? 'public');
+  const [anonymous, setAnonymous] = useState(initial?.anonymous ?? false);
+  const [publishOpen, setPublishOpen] = useState(false);
   const [media, setMedia] = useState<CardMedia | undefined>(initial?.media);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -107,6 +110,11 @@ export function CardEditor({
   // const [polishPreview, setPolishPreview] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onStoryChange?.(story);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story]);
 
   // Autosave stub — every 10s if dirty
   useEffect(() => {
@@ -163,28 +171,37 @@ export function CardEditor({
     setTags(tags.filter((x) => x !== tag));
   }
 
-  async function saveDraft() {
+  /** Publish-time choices arrive from the publish panel, ahead of state. */
+  interface PublishChoices {
+    visibility?: Visibility;
+    anonymous?: boolean;
+  }
+
+  async function saveDraft(choices?: PublishChoices) {
+    const vis = choices?.visibility ?? visibility;
+    const anon = choices?.anonymous ?? anonymous;
     const card = initial?.id
-      ? await updateCardDraft(initial.id, { thoughtCore, story, tags, visibility, media })
+      ? await updateCardDraft(initial.id, { thoughtCore, story, tags, visibility: vis, media, anonymous: anon })
       : await createCardDraft({
         thoughtCore,
         story,
         tags,
-        visibility,
+        visibility: vis,
         originalLocale: locale,
         media,
         referenceCardId,
+        anonymous: anon,
       });
     setSavedAt(new Date());
     return card;
   }
 
-  async function submit() {
+  async function submit(choices?: PublishChoices) {
     if (pending) return;
     setPending(true);
     setPublishError(null);
     try {
-      const card = await saveDraft();
+      const card = await saveDraft(choices);
       const published = await publishCard(card.id);
       // Auto-generate the English URL slug (LLM translation of the title, made
       // collision-free server-side). Fall back to the doc id if it fails so
@@ -437,36 +454,9 @@ export function CardEditor({
           )}
         </Field>
 
-        {/* Visibility — page mode only; resonance cards are always public. */}
-        {!inline && (
-        <Field label={t('visibility.label')}>
-          {/* flex wrapper so the inline-flex bar shrinks to content instead of
-              being stretched full-width by the Field's flex column */}
-          <div style={{ display: 'flex' }}>
-            <SegmentedActionBar
-              segments={(['public', 'private'] as Visibility[]).map((v) => {
-                const active = visibility === v;
-                return {
-                  key: v,
-                  icon: (
-                    <Icon
-                      name={VISIBILITY_ICON[v]}
-                      size={16}
-                      color={active ? 'var(--color-terracotta)' : 'var(--color-text-muted)'}
-                    />
-                  ),
-                  label: tVis(v),
-                  fill: active ? 'color-mix(in oklch, var(--color-terracotta-light) 60%, transparent)' : 'transparent',
-                  textColor: active ? 'var(--color-terracotta)' : 'var(--color-text-muted)',
-                  hoverOverlay: 'oklch(0% 0 0 / 0.05)',
-                  ariaLabel: tVis(v),
-                  onClick: () => setVisibility(v),
-                } satisfies SegmentSpec;
-              })}
-            />
-          </div>
-        </Field>
-        )}
+        {/* Visibility now lives in the publish panel (ux §6) — the page editor
+            body stays about the writing; resonance (inline) cards are always
+            public and never see the panel. */}
 
         {/* Actions */}
         {inline ? (
@@ -524,11 +514,17 @@ export function CardEditor({
             {t('saveDraft')}
           </OrganicButton>
           <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
-            <OrganicButton variant="primary" onClick={submit}>
+            <OrganicButton
+              variant="primary"
+              onClick={() => {
+                setPublishError(null);
+                setPublishOpen(true);
+              }}
+            >
               {pending ? t('publishing') : t('publish')}
             </OrganicButton>
           </div>
-          {publishError && (
+          {publishError && !publishOpen && (
             <span style={{ fontSize: 12, color: 'var(--color-terracotta)' }}>
               {publishError}
             </span>
@@ -539,6 +535,26 @@ export function CardEditor({
             </span>
           )}
         </div>
+        )}
+
+        {!inline && (
+          <PublishPanel
+            open={publishOpen}
+            onClose={() => setPublishOpen(false)}
+            thoughtCore={thoughtCore}
+            story={story}
+            initialVisibility={visibility}
+            initialAnonymous={anonymous}
+            pending={pending}
+            error={publishError}
+            onPublish={(choices) => {
+              // Keep editor state in sync so a failed publish (panel stays
+              // open) retries with the same choices.
+              setVisibility(choices.visibility);
+              setAnonymous(choices.anonymous);
+              void submit(choices);
+            }}
+          />
         )}
       </div>
 

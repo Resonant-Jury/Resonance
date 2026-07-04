@@ -28,6 +28,9 @@ vi.mock('@/lib/db/firestore/client/cardLinks', () => ({
   listLinksToAuthor: vi.fn(),
   listLinksToCard: vi.fn(),
 }));
+vi.mock('@/lib/db/firestore/client/bookmarks', () => ({
+  listMyBookmarkIds: vi.fn(),
+}));
 
 // useAuth is mocked so each test controls the signed-in viewer directly,
 // instead of standing up the real AuthProvider + Firebase auth.
@@ -50,6 +53,7 @@ import {
   isConnected,
 } from '@/lib/db/firestore/client/reads';
 import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
+import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
 import { useCard, useFeed, useMyCardBox, useProfileByHandle, useRelated, useResonators } from './hooks';
 
 // --- fixtures --------------------------------------------------------------
@@ -98,9 +102,10 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   mockUseAuth.mockReturnValue({ user: { id: 'me' }, loading: false });
-  // Card-link lookups default to empty so existing tests (card box, profile)
-  // exercise their original branches without standing up link fixtures.
+  // Card-link / bookmark lookups default to empty so existing tests (card box,
+  // profile) exercise their original branches without standing up fixtures.
   vi.mocked(listLinksToAuthor).mockResolvedValue([]);
+  vi.mocked(listMyBookmarkIds).mockResolvedValue([]);
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -226,6 +231,20 @@ describe('useMyCardBox', () => {
     expect(box.resonated[0].id).toBe('res');
     // authors resolved across every tab's cards (me + the resonated author)
     expect(Object.keys(box.authors).sort()).toEqual(['me', 'other']);
+  });
+
+  it('resolves bookmarks through the visibility-enforced read path (hidden cards drop out)', async () => {
+    vi.mocked(getCardsByAuthor).mockResolvedValue([]);
+    vi.mocked(listMyBookmarkIds).mockResolvedValue(['b1', 'gone-private']);
+    vi.mocked(getCardById).mockImplementation(async (id) =>
+      id === 'b1' ? card('b1', 'other') : null,
+    );
+    vi.mocked(getUsersByIds).mockResolvedValue({ other: user('other') });
+
+    const { result } = renderHook(() => useMyCardBox(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    expect(result.current.data!.bookmarks.map((c) => c.id)).toEqual(['b1']);
   });
 
   it('stays idle (no fetch) when no viewer is signed in', async () => {

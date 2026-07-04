@@ -34,8 +34,8 @@ vi.mock('@/i18n/navigation', () => ({
 // reads (resonance state, author metrics, resonance cards). They aren't the
 // subject here, so we stub them to keep the test focused on the page's data
 // wiring.
-vi.mock('@/components/molecules/CardDetail/CardViewerActions', () => ({
-  CardViewerActions: () => <div data-testid="viewer-actions" />,
+vi.mock('@/components/molecules/CardDetail/ReadAfterArea', () => ({
+  ReadAfterArea: () => <div data-testid="read-after-area" />,
 }));
 vi.mock('@/components/molecules/CardDetail/ResonanceCards', () => ({
   ResonanceCards: () => <div data-testid="resonance-cards" />,

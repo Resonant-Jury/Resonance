@@ -60,9 +60,17 @@ service cloud.firestore {
           "avatarUrl",
           "initials",
           "accentColor",
-          "handleChangedAt"
+          "handleChangedAt",
+          "hintsSeen"
         ]);
       allow delete: if false;
+
+      // --- bookmarks (users/{uid}/bookmarks/{cardId}) ---
+      // Purely private "speak to yourself" layer: owner-only, never counted,
+      // never notified, never a recommendation signal.
+      match /bookmarks/{cardId} {
+        allow read, write: if isSelf(userId);
+      }
     }
 
     // --- cards ---
@@ -151,6 +159,30 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.userId == request.auth.uid;
     }
 
+    // --- notes (小紙條) ---
+    // A private note from a reader to a card's author. No audience: only the
+    // sender and the recipient can ever read it, and neither can list anyone
+    // else's notes (queries must constrain on their own uid, which these
+    // per-doc conditions enforce for every result).
+    match /notes/{noteId} {
+      allow read: if signedIn()
+        && (resource.data.fromUserId == request.auth.uid
+            || resource.data.toUserId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.toUserId is string
+        && request.resource.data.toUserId != request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.readAt == null;
+      // The recipient may mark it read; nothing else ever changes.
+      allow update: if signedIn()
+        && resource.data.toUserId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readAt"]);
+      allow delete: if false;
+    }
+
     // --- cardLinks ---
     // A public association from one of the viewer's own cards to a target card.
     // Doc id is deterministic: {sourceCardId}_{targetCardId} (idempotent).
@@ -202,6 +234,8 @@ service cloud.firestore {
           // Accepting an invite notifies the original sender that the
           // connection is live ("you're connected now").
           || actorNotif("invite_accepted")
+          // Sending a note notifies the card's author it arrived.
+          || actorNotif("note")
         );
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid

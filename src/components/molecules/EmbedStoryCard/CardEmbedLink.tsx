@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { seedFromString } from '@/lib/design/prng';
 import { EmbedStoryCard } from './EmbedStoryCard';
@@ -20,6 +21,7 @@ export interface CardEmbedLinkProps {
  * text link.
  */
 export function CardEmbedLink({ href, title }: CardEmbedLinkProps) {
+  const t = useTranslations('card');
   const data = useCardEmbed(href);
 
   if (data.status === 'error') {
@@ -38,7 +40,7 @@ export function CardEmbedLink({ href, title }: CardEmbedLinkProps) {
     <Link href={href} className={styles.link}>
       <EmbedStoryCard
         title={data.card.thoughtCore}
-        author={data.author?.handle}
+        author={data.card.anonymous ? t('anonymousAuthor') : data.author?.handle}
         imageUrl={data.card.media?.url}
         hue={data.card.accentHue}
         seed={seedFromString(href)}

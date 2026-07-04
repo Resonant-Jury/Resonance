@@ -14,11 +14,13 @@ import {
   getRelatedCards,
   getResonanceCards,
   getUserById,
+  hasAnyOwnCards,
   getUserByHandle,
   getUsersByIds,
   isConnected,
 } from '@/lib/db/firestore/client/reads';
 import { listLinksToAuthor, listLinksToCard } from '@/lib/db/firestore/client/cardLinks';
+import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
 import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
 
 export interface CardsWithAuthors {
@@ -109,6 +111,19 @@ export function useRelated(id: string | undefined) {
   });
 }
 
+/**
+ * Whether the signed-in viewer has written any card yet — `undefined` while
+ * loading, `false` only once we know they haven't. Anonymous viewers resolve
+ * to `true` (they get the sign-in prompt elsewhere, not the first-card guide).
+ */
+export function useHasWrittenCards() {
+  const { user, loading } = useAuth();
+  return useSWR<boolean>(
+    !loading ? `hasCards:${user?.id ?? 'anon'}` : null,
+    () => (user ? hasAnyOwnCards() : true)
+  );
+}
+
 /** The signed-in viewer's own profile. */
 export function useMyProfile() {
   const { user } = useAuth();
@@ -122,6 +137,8 @@ export interface MyCardBox {
   resonated: Card[];
   /** Cards that other people linked to one of my cards (via "link with a card"). */
   linked: Card[];
+  /** Cards the viewer bookmarked — purely private, visible only here. */
+  bookmarks: Card[];
   authors: Record<string, User>;
 }
 
@@ -131,14 +148,19 @@ export function useMyCardBox() {
   return useSWR<MyCardBox>(user ? `cardbox:${user.id}` : null, async () => {
     const uid = user!.id;
     const tabs: CardBoxTab[] = ['published', 'private', 'draft', 'resonated'];
-    const [[published, priv, draft, resonated], links] = await Promise.all([
+    const [[published, priv, draft, resonated], links, bookmarkIds] = await Promise.all([
       Promise.all(tabs.map((tab) => getCardsByAuthor(uid, tab))),
       listLinksToAuthor(uid),
+      listMyBookmarkIds(),
     ]);
-    const linked = await cardsFromIds(links.map((l) => l.sourceCardId));
-    const all = [...published, ...priv, ...draft, ...resonated, ...linked];
+    const [linked, bookmarks] = await Promise.all([
+      cardsFromIds(links.map((l) => l.sourceCardId)),
+      // A bookmarked card that has since gone private simply drops out.
+      cardsFromIds(bookmarkIds),
+    ]);
+    const all = [...published, ...priv, ...draft, ...resonated, ...linked, ...bookmarks];
     const authors = await getUsersByIds(all.map((c) => c.authorId));
-    return { published, private: priv, draft, resonated, linked, authors };
+    return { published, private: priv, draft, resonated, linked, bookmarks, authors };
   });
 }
 
@@ -217,7 +239,7 @@ export function useResonators(cardId: string | undefined, referenceCardId?: stri
     // If there is a referenced card, add its author first (parent card is older/source)
     if (referenceCardId) {
       const refCard = await getCardById(referenceCardId);
-      if (refCard) {
+      if (refCard && !refCard.anonymous) {
         const refAuthor = await getUserById(refCard.authorId);
         if (refAuthor) {
           seen.add(refAuthor.id);
@@ -227,6 +249,8 @@ export function useResonators(cardId: string | undefined, referenceCardId?: stri
     }
 
     for (const c of cards) {
+      // An anonymous resonance card must not put a face in the avatar row.
+      if (c.anonymous) continue;
       if (seen.has(c.authorId)) continue;
       seen.add(c.authorId);
       const u = authors[c.authorId];

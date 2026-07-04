@@ -17,6 +17,16 @@ vi.mock('@/lib/db/firestore/client/cards', () => ({
 // in jsdom; mock it at the boundary with a plain textarea that preserves the
 // value/onChange/aria-label contract so the editor's surrounding logic
 // (publish payload) stays testable.
+// The publish panel needs the viewer's profile (card-head preview) and the
+// hint system; both are conversation-level boundaries here.
+vi.mock('@/lib/data/hooks', () => ({
+  useMyProfile: () => ({
+    data: { id: 'me', handle: 'my-handle', initials: 'MH', avatarSeed: '3', accentColor: 'var(--accent)' },
+  }),
+}));
+vi.mock('@/lib/hints', () => ({
+  useHint: () => ({ visible: true, dismiss: vi.fn() }),
+}));
 vi.mock('@/components/molecules/MarkdownEditor/MarkdownEditor', () => ({
   MarkdownEditor: ({
     value,
@@ -92,21 +102,75 @@ describe('CardEditor', () => {
     expect(screen.getByRole('button', { name: 'AI: suggest 2–3' })).toBeInTheDocument();
   });
 
-  it('saves a draft then publishes and navigates to the new card', async () => {
-    renderWithIntl(<CardEditor locale="en" />);
+  it('opens the publish panel, then publishes and navigates to the new card', async () => {
+    // The panel fetches the insight echo; submit fetches slug + index. All are
+    // grace notes the flow must not depend on — fail them all.
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      renderWithIntl(<CardEditor locale="en" />);
 
-    await userEvent.type(screen.getByLabelText('One-line title'), 'A quiet thought');
-    fireEvent.change(screen.getByLabelText('Story'), {
-      target: { value: 'Once there was a long enough story to publish.' },
-    });
+      await userEvent.type(screen.getByLabelText('One-line title'), 'A quiet thought');
+      fireEvent.change(screen.getByLabelText('Story'), {
+        target: { value: 'Once there was a long enough story to publish.' },
+      });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+      // The editor's publish button opens the single-screen panel — nothing is
+      // saved yet.
+      await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+      expect(createCardDraft).not.toHaveBeenCalled();
+      expect(await screen.findByText('Publish this card')).toBeInTheDocument();
 
-    await waitFor(() => expect(createCardDraft).toHaveBeenCalled());
-    expect(createCardDraft).toHaveBeenCalledWith(
-      expect.objectContaining({ thoughtCore: 'A quiet thought', originalLocale: 'en' })
-    );
-    expect(publishCard).toHaveBeenCalledWith('draft-1');
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/card/pub-1'));
+      // Confirm inside the panel (two "Publish" buttons exist now; the panel's
+      // is the last one rendered).
+      const buttons = screen.getAllByRole('button', { name: 'Publish' });
+      await userEvent.click(buttons[buttons.length - 1]);
+
+      await waitFor(() => expect(createCardDraft).toHaveBeenCalled());
+      expect(createCardDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thoughtCore: 'A quiet thought',
+          originalLocale: 'en',
+          anonymous: false,
+          visibility: 'public',
+        })
+      );
+      expect(publishCard).toHaveBeenCalledWith('draft-1');
+      await waitFor(() => expect(push).toHaveBeenCalledWith('/card/pub-1'));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('publishes anonymously when the panel toggle is flipped', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      renderWithIntl(<CardEditor locale="en" />);
+      fireEvent.change(screen.getByLabelText('Story'), {
+        target: { value: 'A story I would rather not sign.' },
+      });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+      await screen.findByText('Publish this card');
+
+      // WYSIWYG preview: my handle shows until the toggle flips it to the
+      // anonymous byline.
+      expect(screen.getByText('my-handle')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('switch', { name: 'Publish anonymously' }));
+      expect(screen.queryByText('my-handle')).not.toBeInTheDocument();
+      expect(screen.getByText('Anonymous')).toBeInTheDocument();
+
+      const buttons = screen.getAllByRole('button', { name: 'Publish' });
+      await userEvent.click(buttons[buttons.length - 1]);
+
+      await waitFor(() =>
+        expect(createCardDraft).toHaveBeenCalledWith(
+          expect.objectContaining({ anonymous: true })
+        )
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

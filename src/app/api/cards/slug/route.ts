@@ -38,8 +38,13 @@ export async function POST(req: Request) {
   }
 
   const base = await titleToSlugBase(String(data.thoughtCore ?? ''));
-  const handleSnap = await db.collection('users').doc(user.id).get();
-  const handle = slugify(String(handleSnap.data()?.handle ?? ''));
+  // Leak checklist (ux §6): an anonymous card's public URL must not embed the
+  // author's handle — collisions fall straight through to the numeric suffix.
+  let handle = '';
+  if (data.anonymous !== true) {
+    const handleSnap = await db.collection('users').doc(user.id).get();
+    handle = slugify(String(handleSnap.data()?.handle ?? ''));
+  }
 
   const slug = await ensureUniqueSlug(base, handle, async (candidate) => {
     const dupes = await db.collection('cards').where('slug', '==', candidate).limit(1).get();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useSWRConfig } from 'swr';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -10,6 +10,7 @@ import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile, useMyResonance } from '@/lib/data/hooks';
 import { notifyResonance } from '@/lib/db/firestore/client/resonances';
+import { useHint } from '@/lib/hints';
 import type { Locale } from '@/lib/db/types';
 
 export interface CardViewerActionsProps {
@@ -17,6 +18,22 @@ export interface CardViewerActionsProps {
   /** The original card's title — used to prefill the resonance card's title. */
   cardTitle: string;
   author: { id: string; handle: string; initials: string; accentColor: string };
+  /**
+   * The original card's extracted core insight — powers the AI opener above
+   * the editor (「這張卡片的體悟是…你有過類似的經驗嗎？」). The score behind it is
+   * never surfaced.
+   */
+  coreInsight?: string;
+  /**
+   * A story draft handed up from the note composer (紙條 → 共振 upgrade).
+   * Changing `nonce` opens the editor seeded with `story`.
+   */
+  upgradeDraft?: { story: string; nonce: number };
+  /**
+   * When set, an exit link renders under the open editor:「還不想公開？把這段話
+   * 寄給作者就好。」— called with the current story text (共振 → 紙條 downgrade).
+   */
+  onDowngrade?: (story: string) => void;
 }
 
 /**
@@ -25,7 +42,14 @@ export interface CardViewerActionsProps {
  * the original. Once the viewer has a resonance card the button reads「修改」and
  * the editor reopens with their previous content.
  */
-export function CardViewerActions({ cardId, cardTitle, author }: CardViewerActionsProps) {
+export function CardViewerActions({
+  cardId,
+  cardTitle,
+  author,
+  coreInsight,
+  upgradeDraft,
+  onDowngrade,
+}: CardViewerActionsProps) {
   const t = useTranslations('card');
   const locale = useLocale() as Locale;
   const router = useRouter();
@@ -34,6 +58,15 @@ export function CardViewerActions({ cardId, cardTitle, author }: CardViewerActio
   const { data: mine, mutate: mutateMine } = useMyResonance(cardId);
   const { mutate } = useSWRConfig();
   const [open, setOpen] = useState(false);
+  const becomesCardHint = useHint('resonance-becomes-card');
+  // Live story text (via CardEditor.onStoryChange) so the downgrade exit can
+  // carry the draft into the note composer.
+  const storyRef = useRef('');
+
+  // 紙條 → 共振 upgrade: a new nonce re-seeds and opens the editor.
+  useEffect(() => {
+    if (upgradeDraft) setOpen(true);
+  }, [upgradeDraft?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return null;
   // The author of the original can't resonate with their own card.
@@ -58,7 +91,10 @@ export function CardViewerActions({ cardId, cardTitle, author }: CardViewerActio
         tags: mine.tags,
         media: mine.media,
       }
-    : { thoughtCore: t('resonance.titlePrefill', { title: cardTitle }) };
+    : {
+        thoughtCore: t('resonance.titlePrefill', { title: cardTitle }),
+        story: upgradeDraft?.story,
+      };
 
   function onTrigger() {
     if (!user) {
@@ -93,17 +129,64 @@ export function CardViewerActions({ cardId, cardTitle, author }: CardViewerActio
       </div>
 
       {open && user && (
-        <CardEditor
-          // Re-mount when switching between new/existing so the editor picks up
-          // the right initial content.
-          key={mine?.id ?? 'new'}
-          mode="inline"
-          locale={locale}
-          referenceCardId={cardId}
-          initial={initial}
-          onPublished={onPublished}
-          onSavedDraft={onSavedDraft}
-        />
+        <>
+          {/* The AI opener: the extracted insight as a writing prompt — solving
+              「面對空白編輯器不知從何說起」, not enforcing any minimum. A short
+              three-sentence echo is a perfectly good resonance card. */}
+          {!hasResonance && coreInsight && (
+            <p
+              style={{
+                fontSize: 14,
+                color: 'var(--color-text-muted)',
+                margin: '0 0 12px',
+                lineHeight: 1.7,
+              }}
+            >
+              {t('resonance.aiPrompt', { coreInsight })}
+            </p>
+          )}
+          {becomesCardHint.visible && (
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+              {t('resonance.hint')}
+            </p>
+          )}
+          <CardEditor
+            // Re-mount when switching between new/existing (or when an upgrade
+            // draft arrives) so the editor picks up the right initial content.
+            key={mine?.id ?? `new-${upgradeDraft?.nonce ?? 0}`}
+            mode="inline"
+            locale={locale}
+            referenceCardId={cardId}
+            initial={initial}
+            onPublished={onPublished}
+            onSavedDraft={onSavedDraft}
+            onStoryChange={(s) => {
+              storyRef.current = s;
+            }}
+          />
+          {!hasResonance && onDowngrade && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onDowngrade(storyRef.current);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '10px 2px',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                color: 'var(--color-text-muted)',
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+              }}
+            >
+              {t('resonance.downgrade')}
+            </button>
+          )}
+        </>
       )}
     </div>
   );

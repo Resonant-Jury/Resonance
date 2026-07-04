@@ -28,6 +28,7 @@ export async function createCardDraft(input: {
   originalLocale: Locale;
   media?: CardMedia;
   referenceCardId?: string;
+  anonymous?: boolean;
 }): Promise<Card> {
   const uid = requireUid();
   const data: Omit<NewCard, 'translations'> & {
@@ -45,6 +46,7 @@ export async function createCardDraft(input: {
     originalLocale: input.originalLocale,
     media: input.media,
     referenceCardId: input.referenceCardId,
+    anonymous: input.anonymous ?? false,
     translations: {},
     publishedAt: null,
     readCount: 0,
@@ -68,6 +70,7 @@ export async function updateCardDraft(
     tags?: string[];
     visibility?: Visibility;
     media?: CardMedia;
+    anonymous?: boolean;
   }
 ): Promise<Card> {
   requireUid();

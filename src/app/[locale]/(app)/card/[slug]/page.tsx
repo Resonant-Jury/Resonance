@@ -12,7 +12,7 @@ import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid'
 import { CardAuthorAside } from '@/components/molecules/CardDetail/CardAuthorAside';
 import { CardToc, type TocHeading } from '@/components/molecules/CardDetail/CardToc';
 import { CardActionsMenu } from '@/components/molecules/CardActionsMenu/CardActionsMenu';
-import { CardViewerActions } from '@/components/molecules/CardDetail/CardViewerActions';
+import { ReadAfterArea } from '@/components/molecules/CardDetail/ReadAfterArea';
 import { ResonanceCards } from '@/components/molecules/CardDetail/ResonanceCards';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { StoryMarkdown } from '@/components/molecules/CardDetail/StoryMarkdown';
@@ -116,32 +116,50 @@ export default function CardDetailPage() {
                 hidden there). */}
             <header className={styles.mobileAuthor}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <HandDrawnAvatar
-                  src={author.avatarUrl}
-                  initials={author.initials}
-                  size={44}
-                  color={author.accentColor}
-                  seed={Number(author.avatarSeed)}
-                />
+                {card.anonymous ? (
+                  <HandDrawnAvatar initials="·" size={44} color="var(--color-cream-dark)" seed={97} />
+                ) : (
+                  <HandDrawnAvatar
+                    src={author.avatarUrl}
+                    initials={author.initials}
+                    size={44}
+                    color={author.accentColor}
+                    seed={Number(author.avatarSeed)}
+                  />
+                )}
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Link
-                      href={`/u/${author.handle}`}
-                      style={{
-                        fontFamily: 'var(--font-body)',
-                        fontWeight: 600,
-                        color: 'var(--color-text)',
-                        textDecoration: 'none',
-                      }}
-                    >
-                      {author.handle}
-                    </Link>
-                    {author.verified && <HandDrawnCheckmark size={13} title={t('verified')} />}
+                    {card.anonymous ? (
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontWeight: 600,
+                          color: 'var(--color-text-muted)',
+                        }}
+                      >
+                        {t('anonymousAuthor')}
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/u/${author.handle}`}
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontWeight: 600,
+                          color: 'var(--color-text)',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        {author.handle}
+                      </Link>
+                    )}
+                    {!card.anonymous && author.verified && (
+                      <HandDrawnCheckmark size={13} title={t('verified')} />
+                    )}
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                    {author.region}
+                    {card.anonymous ? '' : author.region}
                     {card.publishedAt
-                      ? ` · ${new Date(card.publishedAt).toLocaleDateString(locale, {
+                      ? `${card.anonymous ? '' : ' · '}${new Date(card.publishedAt).toLocaleDateString(locale, {
                         month: 'short',
                         day: 'numeric',
                       })}`
@@ -191,7 +209,7 @@ export default function CardDetailPage() {
               ))}
             </div>
 
-            <CardViewerActions
+            <ReadAfterArea
               cardId={card.id}
               cardTitle={card.thoughtCore}
               author={{
@@ -200,6 +218,7 @@ export default function CardDetailPage() {
                 initials: author.initials,
                 accentColor: author.accentColor,
               }}
+              coreInsight={card.signature?.coreInsight}
             />
 
             {isOwner && (linkedData?.cards.length ?? 0) > 0 && (
@@ -212,7 +231,12 @@ export default function CardDetailPage() {
           </article>
 
           <aside className={styles.aside}>
-            <CardAuthorAside author={author} verifiedLabel={t('verified')} />
+            <CardAuthorAside
+              author={author}
+              verifiedLabel={t('verified')}
+              anonymous={card.anonymous}
+              isOwner={isOwner}
+            />
             <CardToc headings={headings} title={t('toc')} />
           </aside>
         </div>

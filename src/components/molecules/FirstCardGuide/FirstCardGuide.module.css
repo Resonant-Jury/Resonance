@@ -1,0 +1,34 @@
+.intro {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+
+.question {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-text);
+  transition: color 160ms ease;
+}
+
+.question:hover,
+.question:focus-visible {
+  color: var(--color-terracotta);
+}
+
+.mark {
+  flex-shrink: 0;
+  color: var(--color-terracotta);
+  font-family: var(--font-heading);
+}

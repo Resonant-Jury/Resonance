@@ -80,6 +80,7 @@
       "resonanceSummary": "{count} people resonated with you yesterday",
       "translationDone": "Translation complete",
       "resonance": "{handle} resonated with your card",
+      "note": "{handle} sent you a little note",
       "cardLink": "{handle} linked a card to your card",
       "connect": "Connect with them",
       "alreadyConnected": "Connected",
@@ -100,7 +101,12 @@
     "matchReason": "because of “{reason}”",
     "recommended": {
       "title": "Resonating with you",
-      "subtitle": "Cards that may echo what you have lived and learned."
+      "subtitle": "Cards that may echo what you have lived and learned.",
+      "hint": "The insights you write decide which stories find you."
+    },
+    "coldStart": {
+      "title": "Your first card becomes the point this world starts arranging itself around.",
+      "cta": "Write a story"
     }
   },
   "card": {
@@ -115,7 +121,25 @@
     "noResonatorsYet": "No one has resonated with this card yet.",
     "noBio": "No bio yet.",
     "resonance": {
-      "titlePrefill": "Reflections on \"{title}\""
+      "titlePrefill": "Reflections on \"{title}\"",
+      "hint": "Your response becomes a card of your own.",
+      "downgrade": "Not ready to go public? Send it to the author as a note instead.",
+      "aiPrompt": "The insight of this card is \"{coreInsight}\". Have you lived something similar — or the exact opposite?"
+    },
+    "note": {
+      "entry": "Send the author a little note",
+      "label": "A little note",
+      "placeholder": "Something you want to tell the author…",
+      "hint": "Only the author can see this.",
+      "upgrade": "Want to turn this into a resonance card?",
+      "sent": "Your note is on its way.",
+      "send": "Send",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "bookmark": {
+      "add": "Bookmark",
+      "remove": "Remove bookmark"
     },
     "resonanceSection": {
       "title": "Cards resonating with this",
@@ -150,7 +174,9 @@
     "notFound": {
       "title": "This card can't be found",
       "back": "Back to home"
-    }
+    },
+    "anonymousAuthor": "Anonymous",
+    "anonymousOwnerNote": "This card was published anonymously — only you know it's yours."
   },
   "write": {
     "title": "New card",
@@ -221,7 +247,25 @@
     "saveDraft": "Save draft",
     "publish": "Publish",
     "publishing": "Publishing…",
-    "autosaved": "Draft saved · {time}"
+    "autosaved": "Draft saved · {time}",
+    "publishPanel": {
+      "title": "Publish this card",
+      "insightLoading": "Reading your story…",
+      "insight": "What you seem to be saying — “{coreInsight}”",
+      "anonymousToggle": "Publish anonymously",
+      "anonymousName": "Anonymous",
+      "anonymousHint": "Anonymous cards never appear on your profile.",
+      "publish": "Publish",
+      "publishing": "Publishing…",
+      "cancel": "Not yet"
+    },
+    "firstCard": {
+      "title": "Write your first card",
+      "intro": "Not sure where to start? Pick a question and write what surfaces.",
+      "q1": "What small moment recently changed how you see something?",
+      "q2": "What is one thing you wish you could tell your past self?",
+      "q3": "Which failure taught you something nobody else ever did?"
+    }
   },
   "me": {
     "joined": "Joined {date}",
@@ -233,6 +277,7 @@
       "draft": "Drafts",
       "resonated": "Resonated",
       "linked": "Linked",
+      "bookmarks": "Bookmarks",
       "thoughtMap": "Thought map"
     },
     "thoughtMap": {
@@ -255,11 +300,12 @@
       "resizeGroup": "Resize group",
       "back": "Back to profile"
     },
-    "emptyPublished": "Nothing published yet.",
+    "emptyPublished": "Your first card becomes the point this world starts arranging itself around.",
     "emptyPrivate": "No private cards.",
     "emptyDraft": "No drafts.",
     "emptyLinked": "No one has linked a card to you yet.",
     "emptyResonated": "No resonances yet.",
+    "emptyBookmarks": "When a story is too good to forget, press the bookmark — it will wait here quietly, only for you.",
     "actions": {
       "menuLabel": "Manage card",
       "edit": "Edit",
@@ -270,7 +316,9 @@
       "deleteConfirmBody": "This cannot be undone — the story and its resonance links will be gone.",
       "deleteConfirm": "Delete card",
       "deleteCancel": "Keep it"
-    }
+    },
+    "anonymousBadge": "Anonymous",
+    "emptyPublishedCta": "Write a story"
   },
   "profile": {
     "notConnected": "Not connected",
@@ -291,7 +339,9 @@
     "editProfile": "Edit profile",
     "cardCount": "{count, plural, =0 {No public cards} one {# public card} other {# public cards}}",
     "publishedHeading": "Published",
-    "emptyPublished": "Nothing published yet."
+    "emptyPublished": "Nothing published yet.",
+    "emptyPublishedSelf": "Your first card becomes the point this world starts arranging itself around.",
+    "emptyPublishedCta": "Write a story"
   },
   "invite": {
     "title": "Invite to connect",

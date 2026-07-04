@@ -5,12 +5,18 @@ import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Link } from '@/i18n/navigation';
-import { useFeed, useRecommendedFeed } from '@/lib/data/hooks';
+import { useFeed, useHasWrittenCards, useRecommendedFeed } from '@/lib/data/hooks';
+import { useHint } from '@/lib/hints';
 
 export default function HomeFeedPage() {
   const t = useTranslations('home');
   const { data, isLoading } = useFeed();
   const { data: rec } = useRecommendedFeed();
+  // Cold start is a statement, not a defect (ux §5): with no cards of your own
+  // there is no personalized feed — the page invites the first card instead of
+  // apologizing for missing content.
+  const { data: hasWritten } = useHasWrittenCards();
+  const reasonHint = useHint('feed-reason');
   const cards = data?.cards ?? [];
   const authors = data?.authors ?? {};
   const recCards = rec?.cards ?? [];
@@ -43,13 +49,38 @@ export default function HomeFeedPage() {
             fontFamily: 'var(--font-body)',
             fontSize: 'clamp(15px, 1.8vw, 17px)',
             color: 'var(--color-text-muted)',
-            maxWidth: 560,
+            maxWidth: 650,
             lineHeight: 1.6,
           }}
         >
           {t('subheading')}
         </p>
       </header>
+
+      {hasWritten === false && (
+        <section
+          style={{
+            marginBottom: 56,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: 14,
+          }}
+        >
+          <p
+            style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: 'clamp(20px, 2.6vw, 24px)',
+              color: 'var(--color-text)',
+            }}
+          >
+            {t('coldStart.title')}
+          </p>
+          <Link href="/write" style={{ textDecoration: 'none' }}>
+            <OrganicButton variant="primary">{t('coldStart.cta')}</OrganicButton>
+          </Link>
+        </section>
+      )}
 
       {recCards.length > 0 && (
         <section style={{ marginBottom: 56 }}>
@@ -67,6 +98,11 @@ export default function HomeFeedPage() {
             <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: 'var(--color-text-muted)' }}>
               {t('recommended.subtitle')}
             </p>
+            {reasonHint.visible && (
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--color-terracotta)' }}>
+                {t('recommended.hint')}
+              </p>
+            )}
           </div>
           <CardLinkGrid
             cards={recCards}
