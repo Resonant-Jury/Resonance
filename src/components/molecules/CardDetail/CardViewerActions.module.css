@@ -26,7 +26,7 @@
   height: auto !important;
   min-height: 0 !important;
   width: auto !important;
-  text-decoration: underline;
+  text-decoration: none;
   color: var(--color-terracotta) !important;
   box-shadow: none !important;
   transition: color 0.2s ease;
@@ -34,7 +34,7 @@
 
 .mobileNoteButton:hover {
   color: color-mix(in oklch, var(--color-terracotta), black 15%) !important;
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 /* Hide wobbly hand-drawn borders, ShapeGrain, and other SVG decorations inside it */
