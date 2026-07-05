@@ -86,20 +86,13 @@ describe('ReadAfterArea', () => {
     expect(screen.queryByPlaceholderText('Something you want to tell the author…')).not.toBeInTheDocument();
   });
 
-  it('shows the AI opener (core insight) above a fresh resonance editor', async () => {
-    renderWithIntl(
-      <ReadAfterArea cardId="c1" cardTitle="Title" author={author} coreInsight="loss teaches" />,
-    );
+  it('navigates to the write page on clicking Resonate', async () => {
+    renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
     await user().click(screen.getByRole('button', { name: /Resonate/ }));
-    expect(screen.getByTestId('card-editor')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'The insight of this card is "loss teaches". Have you lived something similar — or the exact opposite?',
-      ),
-    ).toBeInTheDocument();
+    expect(mockPush).toHaveBeenCalledWith('/write?referenceCardId=c1');
   });
 
-  it('upgrades a long note into the resonance editor, carrying the text', async () => {
+  it('upgrades a long note by navigating to the write page with the text in searchParams', async () => {
     renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
     await user().click(screen.getByRole('button', { name: 'Send the author a little note' }));
 
@@ -111,28 +104,6 @@ describe('ReadAfterArea', () => {
       screen.getByRole('button', { name: 'Want to turn this into a resonance card?' }),
     );
 
-    // Note composer closes; resonance editor opens seeded with the note text.
-    expect(
-      screen.queryByPlaceholderText('Something you want to tell the author…'),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId('editor-initial-story')).toHaveTextContent(long);
-  });
-
-  it('downgrades an open resonance draft into the note composer, carrying the text', async () => {
-    renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
-    await user().click(screen.getByRole('button', { name: /Resonate/ }));
-
-    // Simulate typing in the (stubbed) editor, then take the quiet exit.
-    await user().click(screen.getByRole('button', { name: 'type-story' }));
-    await user().click(
-      screen.getByRole('button', {
-        name: 'Not ready to go public? Send it to the author as a note instead.',
-      }),
-    );
-
-    expect(screen.queryByTestId('card-editor')).not.toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText('Something you want to tell the author…'),
-    ).toHaveValue('an unfinished public draft');
+    expect(mockPush).toHaveBeenCalledWith(`/write?referenceCardId=c1&story=${encodeURIComponent(long)}`);
   });
 });

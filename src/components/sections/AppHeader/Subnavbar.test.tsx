@@ -37,8 +37,9 @@ describe('Subnavbar', () => {
     await userEvent.click(trigger);
 
     expect(screen.getByRole('menu')).toBeInTheDocument();
-    expect(screen.getAllByRole('menuitem')).toHaveLength(3);
+    expect(screen.getAllByRole('menuitem')).toHaveLength(4);
     expect(screen.getByText('My Card Box')).toBeInTheDocument();
+    expect(screen.getByText('Messages')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
     expect(screen.getByText('Sign out')).toBeInTheDocument();
   });

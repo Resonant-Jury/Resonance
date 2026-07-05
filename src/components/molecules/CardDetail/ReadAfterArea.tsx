@@ -35,7 +35,6 @@ export function ReadAfterArea({ cardId, cardTitle, author, coreInsight }: ReadAf
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState<string | undefined>(undefined);
   const [noteNonce, setNoteNonce] = useState(0);
-  const [upgradeDraft, setUpgradeDraft] = useState<{ story: string; nonce: number }>();
 
   // Fade in on first viewport entry (IntersectionObserver; shows immediately
   // where the API is unavailable, e.g. jsdom).
@@ -78,7 +77,7 @@ export function ReadAfterArea({ cardId, cardTitle, author, coreInsight }: ReadAf
   // 紙條 → 共振: hand the text up into the resonance editor.
   function handleUpgrade(text: string) {
     setNoteOpen(false);
-    setUpgradeDraft((prev) => ({ story: text, nonce: (prev?.nonce ?? 0) + 1 }));
+    router.push(`/write?referenceCardId=${cardId}&story=${encodeURIComponent(text)}`);
   }
 
   return (
@@ -94,10 +93,6 @@ export function ReadAfterArea({ cardId, cardTitle, author, coreInsight }: ReadAf
         cardId={cardId}
         cardTitle={cardTitle}
         author={author}
-        coreInsight={coreInsight}
-        upgradeDraft={upgradeDraft}
-        // 共振 → 紙條: carry the unfinished draft into the note composer.
-        onDowngrade={(story) => openNote(story || undefined)}
         // The quieter actions share the 共振 button's row: one gesture line,
         // descending in weight from card → note → bookmark.
         trailing={

@@ -21,6 +21,7 @@ import { MinusIcon } from './icons/minus';
 import { FrameIcon } from './icons/frame';
 import { NoteIcon } from './icons/note';
 import { BookmarkIcon } from './icons/bookmark';
+import { ChatIcon } from './icons/chat';
 import type { IconRenderer } from './types';
 
 /**
@@ -61,6 +62,7 @@ export const ICONS = {
   frame: FrameIcon,
   note: NoteIcon,
   bookmark: BookmarkIcon,
+  chat: ChatIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

@@ -19,10 +19,14 @@ export interface AppMobileNavModalProps {
   activeKey?: 'home' | 'me' | 'write';
 }
 
-const ITEMS: { key: 'home' | 'me' | 'write' | 'settings'; href: '/home' | '/me' | '/write' | '/settings' }[] = [
+const ITEMS: {
+  key: 'home' | 'me' | 'write' | 'messages' | 'settings';
+  href: '/home' | '/me' | '/write' | '/messages' | '/settings';
+}[] = [
   { key: 'home', href: '/home' },
   { key: 'me', href: '/me' },
   { key: 'write', href: '/write' },
+  { key: 'messages', href: '/messages' },
   { key: 'settings', href: '/settings' },
 ];
 

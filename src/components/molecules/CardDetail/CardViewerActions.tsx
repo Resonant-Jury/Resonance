@@ -52,28 +52,12 @@ export function CardViewerActions({
   cardId,
   cardTitle,
   author,
-  coreInsight,
-  upgradeDraft,
-  onDowngrade,
   trailing,
 }: CardViewerActionsProps) {
   const t = useTranslations('card');
-  const locale = useLocale() as Locale;
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { data: me } = useMyProfile();
-  const { data: mine, mutate: mutateMine } = useMyResonance(cardId);
-  const { mutate } = useSWRConfig();
-  const [open, setOpen] = useState(false);
-  const becomesCardHint = useHint('resonance-becomes-card');
-  // Live story text (via CardEditor.onStoryChange) so the downgrade exit can
-  // carry the draft into the note composer.
-  const storyRef = useRef('');
-
-  // 紙條 → 共振 upgrade: a new nonce re-seeds and opens the editor.
-  useEffect(() => {
-    if (upgradeDraft) setOpen(true);
-  }, [upgradeDraft?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: mine } = useMyResonance(cardId);
 
   if (loading) return null;
   // The author of the original can't resonate with their own card.
@@ -84,42 +68,16 @@ export function CardViewerActions({
   // wait so we don't accidentally start a second one.
   const loadingMine = !!user && mine === undefined;
 
-  const refresh = () => {
-    void mutateMine();
-    void mutate(`resonanceCards:${cardId}`);
-    void mutate(`resonators:${cardId}`);
-  };
-
-  const initial = mine
-    ? {
-        id: mine.id,
-        thoughtCore: mine.thoughtCore,
-        story: mine.story,
-        tags: mine.tags,
-        media: mine.media,
-      }
-    : {
-        thoughtCore: t('resonance.titlePrefill', { title: cardTitle }),
-        story: upgradeDraft?.story,
-      };
-
   function onTrigger() {
     if (!user) {
       router.push('/signin');
       return;
     }
-    setOpen((v) => !v);
-  }
-
-  function onPublished() {
-    if (me) void notifyResonance(cardId, { authorId: author.id, fromHandle: me.handle });
-    setOpen(false);
-    refresh();
-  }
-
-  function onSavedDraft() {
-    setOpen(false);
-    refresh();
+    if (hasResonance && mine) {
+      router.push(`/write/${mine.id}`);
+    } else {
+      router.push(`/write?referenceCardId=${cardId}`);
+    }
   }
 
   return (
@@ -141,67 +99,6 @@ export function CardViewerActions({
         </div>
         {trailing}
       </div>
-
-      {open && user && (
-        <>
-          {/* The AI opener: the extracted insight as a writing prompt — solving
-              「面對空白編輯器不知從何說起」, not enforcing any minimum. A short
-              three-sentence echo is a perfectly good resonance card. */}
-          {!hasResonance && coreInsight && (
-            <p
-              style={{
-                fontSize: 14,
-                color: 'var(--color-text-muted)',
-                margin: '0 0 12px',
-                lineHeight: 1.7,
-              }}
-            >
-              {t('resonance.aiPrompt', { coreInsight })}
-            </p>
-          )}
-          {becomesCardHint.visible && (
-            <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
-              {t('resonance.hint')}
-            </p>
-          )}
-          <CardEditor
-            // Re-mount when switching between new/existing (or when an upgrade
-            // draft arrives) so the editor picks up the right initial content.
-            key={mine?.id ?? `new-${upgradeDraft?.nonce ?? 0}`}
-            mode="inline"
-            locale={locale}
-            referenceCardId={cardId}
-            initial={initial}
-            onPublished={onPublished}
-            onSavedDraft={onSavedDraft}
-            onStoryChange={(s) => {
-              storyRef.current = s;
-            }}
-          />
-          {!hasResonance && onDowngrade && (
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                onDowngrade(storyRef.current);
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '10px 2px',
-                cursor: 'pointer',
-                fontFamily: 'var(--font-body)',
-                fontSize: 13,
-                color: 'var(--color-text-muted)',
-                textDecoration: 'underline',
-                textUnderlineOffset: 3,
-              }}
-            >
-              {t('resonance.downgrade')}
-            </button>
-          )}
-        </>
-      )}
     </div>
   );
 }

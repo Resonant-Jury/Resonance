@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { useAuth } from '@/components/providers/AuthProvider';
 import type { Card, CardBoxTab, User } from '@/lib/db';
@@ -18,10 +19,13 @@ import {
   getUserByHandle,
   getUsersByIds,
   isConnected,
+  listMyConnectionUids,
 } from '@/lib/db/firestore/client/reads';
 import { listLinksToAuthor, listLinksToCard } from '@/lib/db/firestore/client/cardLinks';
 import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
 import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
+import { listConversations, listenThread } from '@/lib/db/firestore/client/messages';
+import type { Conversation, Message } from '@/lib/db/types';
 
 export interface CardsWithAuthors {
   cards: Card[];
@@ -268,6 +272,75 @@ export function useLinkedToCard(cardId: string | undefined) {
     const cards = await cardsFromIds(links.map((l) => l.sourceCardId));
     return withAuthors(cards);
   });
+}
+
+export interface ConversationsData {
+  conversations: Conversation[];
+  /** The other participant of each conversation, keyed by uid. */
+  people: Record<string, User>;
+  /** Connected users with no conversation yet — the "start one" list. */
+  connectedWithoutConversation: User[];
+  /** Sum of the viewer's unread counters — drives the header badge. */
+  unreadTotal: number;
+}
+
+/**
+ * The signed-in viewer's conversation list plus connected people they haven't
+ * talked to yet. Polls at the caller-provided interval (the open thread itself
+ * is realtime via {@link useThread} — this only feeds the list and badges).
+ */
+export function useConversations(refreshInterval = 30_000) {
+  const { user, loading } = useAuth();
+  return useSWR<ConversationsData>(
+    user && !loading ? `conversations:${user.id}` : null,
+    async () => {
+      const uid = user!.id;
+      const [conversations, connectionUids] = await Promise.all([
+        listConversations(),
+        listMyConnectionUids(),
+      ]);
+      const otherUids = conversations.map((c) => c.participants.find((p) => p !== uid) ?? '');
+      const people = await getUsersByIds([...otherUids, ...connectionUids]);
+      const talked = new Set(otherUids);
+      const connectedWithoutConversation = connectionUids
+        .filter((id) => !talked.has(id))
+        .map((id) => people[id])
+        .filter((u): u is User => Boolean(u));
+      const unreadTotal = conversations.reduce((sum, c) => sum + (c.unread[uid] ?? 0), 0);
+      return { conversations, people, connectedWithoutConversation, unreadTotal };
+    },
+    { refreshInterval },
+  );
+}
+
+export interface ThreadState {
+  messages: Message[];
+  /** False until the first snapshot arrives. */
+  ready: boolean;
+  error: Error | null;
+}
+
+/**
+ * Realtime subscription to an open conversation's messages (oldest → newest).
+ * The project's only onSnapshot surface — deliberately scoped to the single
+ * thread the viewer has open; the conversation list and badges poll via SWR.
+ */
+export function useThread(pairId: string | undefined): ThreadState {
+  const { user, loading } = useAuth();
+  const [state, setState] = useState<ThreadState>({ messages: [], ready: false, error: null });
+
+  useEffect(() => {
+    if (!pairId || !user || loading) return;
+    setState({ messages: [], ready: false, error: null });
+    const unsubscribe = listenThread(
+      pairId,
+      (messages) => setState({ messages, ready: true, error: null }),
+      (error) => setState((prev) => ({ ...prev, ready: true, error })),
+    );
+    return unsubscribe;
+  }, [pairId, user, loading]);
+
+  return state;
 }
 
 export interface PublicProfile {

@@ -1,0 +1,179 @@
+.layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: clamp(24px, 3vw, 40px);
+  align-items: start;
+}
+
+.listPane {
+  min-width: 0;
+}
+
+.threadPane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* Keep the composer reachable without scrolling the page: the thread pane
+     owns its own scroll area under the fixed header. */
+  min-height: 420px;
+}
+
+/* One conversation row: avatar, name + preview, time + unread badge. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  font-family: var(--font-body);
+  color: var(--color-text);
+}
+
+.rowBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowHandle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.rowPreview {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.rowTime {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.row[data-active] .rowHandle {
+  color: var(--color-terracotta);
+}
+
+.startSectionTitle {
+  margin: 14px 0 2px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.emptyText {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+
+/* --- thread --- */
+
+.threadHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+
+.threadHandle {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.backLink {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  padding: 4px 0;
+}
+
+.scroller {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 2px;
+  /* Cap the thread height so the composer stays on screen on tall content. */
+  max-height: calc(100vh - var(--app-header-h) - 320px);
+  min-height: 240px;
+}
+
+.bubbleRow {
+  display: flex;
+}
+
+.bubbleRow[data-own] {
+  justify-content: flex-end;
+}
+
+.dayLabel {
+  align-self: center;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding: 6px 0 2px;
+}
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.composerField {
+  flex: 1;
+  min-width: 0;
+}
+
+.quietNote {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  /* Phone: list OR thread, never both. */
+  .layout[data-thread-open] .listPane {
+    display: none;
+  }
+  .layout:not([data-thread-open]) .threadPane {
+    display: none;
+  }
+  .backLink {
+    display: inline-flex;
+  }
+  .scroller {
+    max-height: none;
+    min-height: 0;
+    flex: 1;
+  }
+}

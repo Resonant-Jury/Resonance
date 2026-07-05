@@ -101,6 +101,9 @@
   .sectionEdgeDesktop {
     display: none;
   }
+  .relatedHeading {
+    margin-bottom: 44px;
+  }
 }
 
 .sectionContainer {

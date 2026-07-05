@@ -22,17 +22,18 @@ import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
 import { INK, INK_LIGHT } from '@/lib/design/strokes';
 import styles from './Subnavbar.module.css';
 
-type ItemKey = 'me' | 'settings' | 'signOut';
+type ItemKey = 'me' | 'messages' | 'settings' | 'signOut';
 
 interface MenuItem {
   key: ItemKey;
   icon: IconName;
-  href?: '/me' | '/settings';
+  href?: '/me' | '/messages' | '/settings';
   tone?: 'danger';
 }
 
 const ITEMS: MenuItem[] = [
   { key: 'me', icon: 'cards', href: '/me' },
+  { key: 'messages', icon: 'chat', href: '/messages' },
   { key: 'settings', icon: 'pen', href: '/settings' },
   { key: 'signOut', icon: 'logout', tone: 'danger' },
 ];

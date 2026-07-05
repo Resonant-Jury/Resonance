@@ -71,7 +71,8 @@
       "write": "+ 寫卡片",
       "notifications": "通知",
       "settings": "設定",
-      "signOut": "登出"
+      "signOut": "登出",
+      "messages": "私訊"
     },
     "notifications": {
       "empty": "當有人共振你的卡片、或寄來一張小紙條，會出現在這裡。",
@@ -179,9 +180,27 @@
     "anonymousAuthor": "匿名",
     "anonymousOwnerNote": "這張卡以匿名發布——只有你知道它是你的。"
   },
+  "messages": {
+    "title": "私訊",
+    "subtitle": "與你連結的人，安靜地把話說下去。",
+    "empty": "建立連結後，你們的對話會住在這裡。",
+    "startSection": "已連結、還沒說過話",
+    "pickOne": "從左邊選一段對話。",
+    "noMessagesYet": "還沒有訊息——說聲嗨吧。",
+    "placeholder": "想說的話⋯",
+    "send": "送出",
+    "sendError": "沒送出去，再試一次。",
+    "notConnected": "只能與已連結的人對話。",
+    "viewProfile": "看看個人頁",
+    "back": "所有對話",
+    "youPrefix": "你：",
+    "userNotFound": "找不到這個人。",
+    "threadWith": "與 {handle} 的對話"
+  },
   "write": {
     "title": "寫一張新卡片",
     "editTitle": "編輯草稿",
+    "referenceCard": "原文章",
     "coreLabel": "一句話標題",
     "corePlaceholder": "例：被看見，比被喜歡更難得。",
     "storyLabel": "故事本體",

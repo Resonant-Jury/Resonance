@@ -253,3 +253,15 @@ export async function isConnected(a: string, b: string): Promise<boolean> {
     return false;
   }
 }
+
+/** The uids the signed-in viewer is connected with. */
+export async function listMyConnectionUids(): Promise<string[]> {
+  const uid = getFirebaseClientAuth().currentUser?.uid;
+  if (!uid) return [];
+  const snap = await getDocs(
+    query(collection(getClientDb(), 'connections'), where('userIds', 'array-contains', uid)),
+  );
+  return snap.docs
+    .map((d) => (d.data().userIds as string[]).find((u) => u !== uid))
+    .filter((u): u is string => Boolean(u));
+}

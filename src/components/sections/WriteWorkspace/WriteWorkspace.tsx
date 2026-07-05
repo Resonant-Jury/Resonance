@@ -5,6 +5,7 @@ import { CardEditor, type CardEditorProps } from '@/components/molecules/CardEdi
 import { FirstCardGuide } from '@/components/molecules/FirstCardGuide/FirstCardGuide';
 import { PageTitle } from '@/components/molecules/PageShell/PageShell';
 import { ThoughtMapBoard } from '@/components/molecules/ThoughtMap/ThoughtMapBoard';
+import { OriginalCardPanel } from './OriginalCardPanel';
 import { useHasWrittenCards } from '@/lib/data/hooks';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wavyVertical } from '@/lib/design/wavyPath';
@@ -89,7 +90,11 @@ export function WriteWorkspace({ title, locale, initial, referenceCardId }: Writ
             </svg>
           )}
         </div>
-        <ThoughtMapBoard height="100%" flush />
+        {referenceCardId ? (
+          <OriginalCardPanel cardId={referenceCardId} />
+        ) : (
+          <ThoughtMapBoard height="100%" flush />
+        )}
       </aside>
     </div>
   );

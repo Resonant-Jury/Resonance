@@ -217,6 +217,43 @@ export interface ThoughtMapGroup {
   createdAt: Date;
 }
 
+/**
+ * A private conversation (私訊) between two connected users — the last rung of
+ * the response ladder (收藏 → 紙條 → 共振 → 連結 → 對話). Doc id is the
+ * connection's sorted pair id (`uid1_uid2`), so a connection maps to exactly
+ * one conversation and opening it is idempotent. Only participants can read;
+ * creating one requires the connection doc to exist.
+ */
+export interface Conversation {
+  /** Sorted `uid1_uid2` — identical to the Connection id. */
+  id: string;
+  participants: [string, string];
+  createdAt: Date;
+  updatedAt: Date;
+  /** Denormalized preview for list rendering (no subcollection read needed). */
+  lastMessage: {
+    text: string;
+    senderId: string;
+    sentAt: Date;
+  } | null;
+  /** Per-participant unread counters; sender increments the other side's. */
+  unread: Record<string, number>;
+  /** The card (or the card a note referenced) this conversation grew from. */
+  originCardId?: string;
+}
+
+/** One message inside a conversation (`conversations/{id}/messages`). */
+export interface Message {
+  id: string;
+  senderId: string;
+  text: string;
+  sentAt: Date;
+  /** A shared card (後期: renders as an EmbedStoryCard). */
+  cardRef?: string;
+  /** Set when the message quotes the 紙條 that seeded the conversation. */
+  noteRef?: { cardId: string; noteId: string };
+}
+
 export interface Notification {
   id: string;
   userId: string;

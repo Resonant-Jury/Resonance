@@ -20,6 +20,7 @@ export default async function EditCardPage({
     <WriteWorkspace
       title={t('editTitle')}
       locale={locale as Locale}
+      referenceCardId={card.referenceCardId}
       initial={{
         id: card.id,
         thoughtCore: card.thoughtCore,

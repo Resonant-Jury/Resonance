@@ -71,7 +71,8 @@
       "write": "+ Write",
       "notifications": "Notifications",
       "settings": "Settings",
-      "signOut": "Sign out"
+      "signOut": "Sign out",
+      "messages": "Messages"
     },
     "notifications": {
       "empty": "When someone resonates with your card — or sends you a little note — it will show up here.",
@@ -179,9 +180,27 @@
     "anonymousAuthor": "Anonymous",
     "anonymousOwnerNote": "This card was published anonymously — only you know it's yours."
   },
+  "messages": {
+    "title": "Messages",
+    "subtitle": "Quiet conversations with the people you're connected with.",
+    "empty": "Once you form a connection, your conversations will live here.",
+    "startSection": "Connected — no conversation yet",
+    "pickOne": "Pick a conversation from the left.",
+    "noMessagesYet": "No messages yet — say hello.",
+    "placeholder": "Write a message…",
+    "send": "Send",
+    "sendError": "Couldn't send — please try again.",
+    "notConnected": "You can only message people you're connected with.",
+    "viewProfile": "View profile",
+    "back": "All conversations",
+    "youPrefix": "You: ",
+    "userNotFound": "This person doesn't exist.",
+    "threadWith": "Conversation with {handle}"
+  },
   "write": {
     "title": "New card",
     "editTitle": "Edit draft",
+    "referenceCard": "Original Article",
     "coreLabel": "One-line title",
     "corePlaceholder": "e.g. Being seen matters more than being liked.",
     "storyLabel": "Story",

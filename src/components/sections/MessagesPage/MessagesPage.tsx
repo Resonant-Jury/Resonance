@@ -1,0 +1,168 @@
+'use client';
+
+import { Fragment, useEffect } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Divider } from '@/components/atoms/Divider/Divider';
+import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
+import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { PageShell, PageTitle } from '@/components/molecules/PageShell/PageShell';
+import { Panel } from '@/components/molecules/Panel/Panel';
+import { Link, useRouter } from '@/i18n/navigation';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { useConversations } from '@/lib/data/hooks';
+import type { Conversation, User } from '@/lib/db/types';
+import { ThreadView } from './ThreadView';
+import styles from './MessagesPage.module.css';
+
+export interface MessagesPageProps {
+  /** The handle of the open thread's other participant, when one is open. */
+  activeHandle?: string;
+}
+
+/**
+ * 私訊 — the last rung of the response ladder. Desktop is a two-pane layout
+ * (conversation list + open thread); phones show one pane at a time. The list
+ * also surfaces connected people without a conversation yet, so the page is
+ * self-sufficient as an entry point.
+ */
+export function MessagesPage({ activeHandle }: MessagesPageProps) {
+  const t = useTranslations('messages');
+  const locale = useLocale();
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const { data } = useConversations();
+
+  useEffect(() => {
+    if (!loading && !user) router.push('/signin');
+  }, [loading, user, router]);
+
+  if (loading || !user) return null;
+
+  const conversations = data?.conversations ?? [];
+  const people = data?.people ?? {};
+  const starters = data?.connectedWithoutConversation ?? [];
+  const empty = data && conversations.length === 0 && starters.length === 0;
+
+  const dayFmt = new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric' });
+  const timeFmt = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' });
+  const formatWhen = (d: Date) =>
+    d.toDateString() === new Date().toDateString() ? timeFmt.format(d) : dayFmt.format(d);
+
+  const rowFor = (person: User, convo?: Conversation) => {
+    const unread = convo ? (convo.unread[user.id] ?? 0) : 0;
+    const preview = convo?.lastMessage
+      ? (convo.lastMessage.senderId === user.id ? t('youPrefix') : '') + convo.lastMessage.text
+      : t('noMessagesYet');
+    return (
+      <Link
+        href={`/messages/${person.handle}`}
+        className={styles.row}
+        data-active={person.handle === activeHandle || undefined}
+      >
+        <HandDrawnAvatar
+          src={person.avatarUrl}
+          initials={person.initials}
+          size={40}
+          color={person.accentColor}
+          seed={Number(person.avatarSeed) || 5}
+        />
+        <span className={styles.rowBody}>
+          <span className={styles.rowHandle}>{person.handle}</span>
+          <span className={styles.rowPreview}>{preview}</span>
+        </span>
+        <span className={styles.rowMeta}>
+          {convo?.lastMessage && (
+            <span className={styles.rowTime}>{formatWhen(convo.lastMessage.sentAt)}</span>
+          )}
+          {unread > 0 && <UnreadBadge count={unread} />}
+        </span>
+      </Link>
+    );
+  };
+
+  return (
+    <PageShell width="wide">
+      <PageTitle subtitle={t('subtitle')}>{t('title')}</PageTitle>
+
+      <div className={styles.layout} data-thread-open={activeHandle || undefined}>
+        <aside className={styles.listPane}>
+          <Panel collapseOnMobile>
+            {empty && <p className={styles.emptyText}>{t('empty')}</p>}
+
+            {conversations.map((c, i) => {
+              const otherUid = c.participants.find((p) => p !== user.id) ?? '';
+              const person = people[otherUid];
+              if (!person) return null;
+              return (
+                <Fragment key={c.id}>
+                  {i > 0 && <Divider seed={53 + i * 7} spacing={0} />}
+                  {rowFor(person, c)}
+                </Fragment>
+              );
+            })}
+
+            {starters.length > 0 && (
+              <>
+                {conversations.length > 0 && <Divider seed={97} spacing={4} />}
+                <p className={styles.startSectionTitle}>{t('startSection')}</p>
+                {starters.map((person, i) => (
+                  <Fragment key={person.id}>
+                    {i > 0 && <Divider seed={131 + i * 7} spacing={0} />}
+                    {rowFor(person)}
+                  </Fragment>
+                ))}
+              </>
+            )}
+          </Panel>
+        </aside>
+
+        <section className={styles.threadPane}>
+          {activeHandle ? (
+            <ThreadView key={activeHandle} handle={activeHandle} />
+          ) : (
+            <p className={styles.quietNote} style={{ paddingTop: 8 }}>
+              {t('pickOne')}
+            </p>
+          )}
+        </section>
+      </div>
+    </PageShell>
+  );
+}
+
+/** Same wobbly badge chip as the header's NotificationBell. */
+function UnreadBadge({ count }: { count: number }) {
+  const h = 18;
+  const w = count > 9 ? 26 : 19;
+  return (
+    <span
+      style={{
+        position: 'relative',
+        width: w,
+        height: h,
+        color: 'var(--color-cream)',
+        fontSize: 10,
+        fontWeight: 700,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        lineHeight: 1,
+      }}
+    >
+      <HandDrawnBorder
+        w={w}
+        h={h}
+        R={h * 0.4}
+        seed={9}
+        mag={1.3}
+        segmentsH={1}
+        segmentsV={1}
+        curve={1.5}
+        cornerJitter={3}
+        cornerOffset={h * 0.06}
+        fillColor="var(--color-terracotta)"
+      />
+      <span style={{ position: 'relative' }}>{count}</span>
+    </span>
+  );
+}

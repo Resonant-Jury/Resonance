@@ -124,6 +124,57 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --- conversations (私訊) ---
+    // One conversation per connection: the doc id IS the connection's sorted
+    // pair id, and creating a conversation requires that connection to exist.
+    // Participants-only in both directions; a deleted connection leaves the
+    // conversation readable but frozen (message create re-checks the
+    // connection). Unread counters: the sender may only touch the *other*
+    // participant's counter (via lastMessage/updatedAt writes), and each
+    // participant may zero their own — enforced with affectedKeys diffs.
+    match /conversations/{conversationId} {
+      function isParticipant() {
+        return signedIn() && request.auth.uid in resource.data.participants;
+      }
+      allow read: if isParticipant();
+      allow create: if signedIn()
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() == 2
+        && request.auth.uid in request.resource.data.participants
+        && conversationId == sortedConnectionId(
+            request.resource.data.participants[0],
+            request.resource.data.participants[1]
+          )
+        && exists(/databases/$(database)/documents/connections/$(conversationId))
+        && request.resource.data.lastMessage == null
+        && request.resource.data.unread.keys().hasOnly(request.resource.data.participants)
+        && request.resource.data.unread.values().hasOnly([0]);
+      allow update: if isParticipant()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "lastMessage",
+          "unread",
+          "updatedAt"
+        ])
+        && request.resource.data.unread.keys().hasOnly(resource.data.participants);
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        function parentConvo() {
+          return get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+        }
+        allow read: if signedIn() && request.auth.uid in parentConvo().participants;
+        allow create: if signedIn()
+          && request.auth.uid in parentConvo().participants
+          && exists(/databases/$(database)/documents/connections/$(conversationId))
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000;
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+
     // --- invites ---
     // Sender creates; sender/recipient can read and update status.
     // The daily quota is enforced separately via /quotas (see below).

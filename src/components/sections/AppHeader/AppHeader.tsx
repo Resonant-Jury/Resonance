@@ -8,6 +8,7 @@ import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { INK } from '@/lib/design/strokes';
 import { Link } from '@/i18n/navigation';
 import { NotificationBell } from './NotificationBell';
+import { MessagesEntry } from './MessagesEntry';
 import { AppMobileNavModal } from './AppMobileNavModal';
 import { Subnavbar } from './Subnavbar';
 import styles from './AppHeader.module.css';
@@ -101,6 +102,7 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
 
         {isMobile ? (
           <div className={styles.account}>
+            <MessagesEntry />
             <NotificationBell />
             <button
               aria-label="Open menu"
@@ -113,6 +115,7 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
           </div>
         ) : (
           <div className={styles.account}>
+            <MessagesEntry />
             <NotificationBell />
             <Subnavbar user={user} />
           </div>
