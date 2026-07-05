@@ -68,7 +68,7 @@
     "nav": {
       "home": "Resonance Feed",
       "me": "My Card Box",
-      "write": "+ Write",
+      "write": "Write",
       "notifications": "Notifications",
       "settings": "Settings",
       "signOut": "Sign out",
@@ -94,7 +94,7 @@
     "subheading": "The newest public cards, in time order. Personalized AI discovery comes in the next phase.",
     "moreBtn": "Load more",
     "endOfDay": "You are caught up on the latest public cards",
-    "writeResponse": "Write a response",
+    "writeResponse": "Write a card",
     "empty": {
       "title": "Write your first card",
       "subtitle": "Once published, it can appear in the latest public feed.",

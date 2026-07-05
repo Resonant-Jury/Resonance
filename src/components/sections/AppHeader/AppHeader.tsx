@@ -109,8 +109,12 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
               className={styles.menuBtn}
+              style={{
+                padding: 6,
+                transform: 'translateY(3px)',
+              }}
             >
-              <HamburgerIcon size={26} />
+              <HamburgerIcon size={22} />
             </button>
           </div>
         ) : (

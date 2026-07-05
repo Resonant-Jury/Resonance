@@ -69,6 +69,7 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
           borderTop: '1px solid oklch(80% 0.02 75)',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'flex-end',
           gap: 10,
         }}
       >

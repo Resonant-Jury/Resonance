@@ -68,7 +68,7 @@
     "nav": {
       "home": "共振 Feed",
       "me": "我的卡片盒",
-      "write": "+ 寫卡片",
+      "write": "寫卡片",
       "notifications": "通知",
       "settings": "設定",
       "signOut": "登出",
@@ -94,7 +94,7 @@
     "subheading": "最新公開卡片正在這裡流動。先用時間順序看見彼此，推薦與 AI 留到下一階段。",
     "moreBtn": "載入更多",
     "endOfDay": "你已經看完最新公開卡片",
-    "writeResponse": "寫一張回應",
+    "writeResponse": "寫一張卡片",
     "empty": {
       "title": "先寫下你的第一張卡片，",
       "subtitle": "發布後，大家就能在最新公開 feed 看見你的故事。",
