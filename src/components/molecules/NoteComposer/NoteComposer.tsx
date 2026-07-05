@@ -26,6 +26,11 @@ export interface NoteComposerProps {
    */
   onUpgrade?: (text: string) => void;
   onClose?: () => void;
+  /**
+   * `soft` (default) draws its own tinted panel; `plain` renders chrome-free
+   * for hosts that already provide a surface (e.g. a Modal).
+   */
+  variant?: 'soft' | 'plain';
 }
 
 /**
@@ -40,6 +45,7 @@ export function NoteComposer({
   onSent,
   onUpgrade,
   onClose,
+  variant = 'soft',
 }: NoteComposerProps) {
   const t = useTranslations('card.note');
   const { data: me } = useMyProfile();
@@ -68,7 +74,7 @@ export function NoteComposer({
 
   if (sent) {
     return (
-      <Panel variant="soft" collapseOnMobile={false}>
+      <Panel variant={variant} collapseOnMobile={false}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Icon name="note" size={18} />
           <span style={{ fontSize: 14, color: 'var(--color-text)' }}>{t('sent')}</span>
@@ -95,7 +101,7 @@ export function NoteComposer({
   }
 
   return (
-    <Panel variant="soft" collapseOnMobile={false}>
+    <Panel variant={variant} collapseOnMobile={false}>
       <Field
         label={t('label')}
         hint={privacyHint.visible ? t('hint') : undefined}

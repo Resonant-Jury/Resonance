@@ -138,6 +138,7 @@
       "close": "Close"
     },
     "bookmark": {
+      "saved": "Saved",
       "add": "Bookmark",
       "remove": "Remove bookmark"
     },

@@ -138,6 +138,7 @@
       "close": "關閉"
     },
     "bookmark": {
+      "saved": "已收藏",
       "add": "收藏",
       "remove": "取消收藏"
     },

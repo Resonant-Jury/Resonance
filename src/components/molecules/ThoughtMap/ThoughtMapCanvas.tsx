@@ -839,11 +839,11 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
 
       {/* toolbar */}
       <div className={styles.toolbar}>
-        <OrganicButton variant="outline" onClick={() => void addGroup()}>
-          <Icon name="frame" size={16} /> {t('addGroup')}
+        <OrganicButton variant="outline" size="sm" onClick={() => void addGroup()}>
+          <Icon name="frame" size={15} /> {t('addGroup')}
         </OrganicButton>
-        <OrganicButton variant="primary" onClick={() => setTrayOpen((v) => !v)}>
-          <Icon name="plus" size={16} /> {t('addCard')}
+        <OrganicButton variant="primary" size="sm" onClick={() => setTrayOpen((v) => !v)}>
+          <Icon name="plus" size={15} /> {t('addCard')}
         </OrganicButton>
       </div>
 

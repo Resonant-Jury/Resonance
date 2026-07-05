@@ -22,9 +22,9 @@ export function ThoughtMapPage() {
       </div>
       <div className={styles.back}>
         <Link href="/me" style={{ textDecoration: 'none' }}>
-          <OrganicButton variant="outline">
+          <OrganicButton variant="outline" size="sm">
             <span className={styles.backIcon}>
-              <Icon name="arrow-right" size={16} />
+              <Icon name="arrow-right" size={15} />
             </span>
             {t('thoughtMap.back')}
           </OrganicButton>

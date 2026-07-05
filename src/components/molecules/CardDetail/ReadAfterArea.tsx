@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/atoms/Icon';
 import { BookmarkButton } from '@/components/atoms/BookmarkButton/BookmarkButton';
+import { Modal } from '@/components/molecules/Modal/Modal';
 import { NoteComposer } from '@/components/molecules/NoteComposer/NoteComposer';
 import { CardViewerActions } from './CardViewerActions';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -19,7 +20,8 @@ export interface ReadAfterAreaProps {
 /**
  * The「讀後區」— everything a reader can do after finishing a story, in one
  * container with a deliberate hierarchy: 共振 is the only primary button,
- * the note is a text link (a gentle aside), the bookmark is a quiet icon.
+ * the note is a text link (a gentle aside), the bookmark is a quiet icon —
+ * all three on one horizontal line, the note composer opening in a Modal.
  * It fades in only when scrolled to, so reading itself carries no pressure.
  *
  * Also the junction for the up/downgrade paths: note ↔ resonance drafts move
@@ -96,52 +98,54 @@ export function ReadAfterArea({ cardId, cardTitle, author, coreInsight }: ReadAf
         upgradeDraft={upgradeDraft}
         // 共振 → 紙條: carry the unfinished draft into the note composer.
         onDowngrade={(story) => openNote(story || undefined)}
+        // The quieter actions share the 共振 button's row: one gesture line,
+        // descending in weight from card → note → bookmark.
+        trailing={
+          <>
+            <button
+              type="button"
+              onClick={() => openNote()}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '6px 2px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                fontFamily: 'var(--font-body)',
+                fontSize: 14,
+                lineHeight: 1,
+                color: 'var(--color-text-muted)',
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+              }}
+            >
+              <Icon name="note" size={19} />
+              {t('entry')}
+            </button>
+            <BookmarkButton cardId={cardId} />
+          </>
+        }
       />
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-          marginTop: -24,
-          marginBottom: 40,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => openNote()}
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: '6px 2px',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 7,
-            fontFamily: 'var(--font-body)',
-            fontSize: 14,
-            color: 'var(--color-text-muted)',
-            textDecoration: 'underline',
-            textUnderlineOffset: 3,
-          }}
+      {user && (
+        <Modal
+          open={noteOpen}
+          onClose={() => setNoteOpen(false)}
+          maxWidth={520}
+          ariaLabel={t('label')}
         >
-          <Icon name="note" size={16} />
-          {t('entry')}
-        </button>
-        <BookmarkButton cardId={cardId} />
-      </div>
-
-      {noteOpen && user && (
-        <div style={{ marginBottom: 40, maxWidth: 560 }}>
           <NoteComposer
             key={noteNonce}
+            variant="plain"
             cardId={cardId}
             toUserId={author.id}
             initialText={noteDraft}
             onUpgrade={handleUpgrade}
             onClose={() => setNoteOpen(false)}
           />
-        </div>
+        </Modal>
       )}
     </div>
   );

@@ -259,7 +259,7 @@ export function MarkdownEditor({
             <path
               d={toolbarStrokeD}
               fill="none"
-              stroke="oklch(60% 0.04 60 / 0.45)"
+              stroke="color-mix(in oklch, var(--field-border-hover) 45%, transparent)"
               strokeWidth={1.2}
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"

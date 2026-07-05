@@ -17,4 +17,15 @@
 .label {
   position: relative;
   z-index: 1;
+  /* Center icon + text children vertically; the gap replaces whitespace
+     between an <Icon> and its label (whitespace-only text nodes are dropped
+     in flex layout, so plain-text buttons are unaffected). */
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sm {
+  padding: 9px 18px;
+  font-size: 14px;
 }

@@ -32,11 +32,13 @@ const BTN_SEG_H: [number, number] = [2, 3];
 export interface OrganicButtonProps {
   children: ReactNode;
   variant?: OrganicButtonVariant;
+  /** `sm` tightens padding + font for dense chrome (e.g. canvas toolbars). */
+  size?: 'md' | 'sm';
   onClick?: (e: MouseEvent<HTMLButtonElement>) => void;
   style?: CSSProperties & { fillColor?: string };
 }
 
-export function OrganicButton({ children, variant = 'primary', onClick, style = {} }: OrganicButtonProps) {
+export function OrganicButton({ children, variant = 'primary', size = 'md', onClick, style = {} }: OrganicButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const ref = useRef<HTMLButtonElement>(null);
@@ -76,7 +78,7 @@ export function OrganicButton({ children, variant = 'primary', onClick, style = 
       onClick={onClick}
       onMouseEnter={(e) => { recordPointer(e); setHovered(true); }}
       onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
-      className={styles.btn}
+      className={size === 'sm' ? `${styles.btn} ${styles.sm}` : styles.btn}
       style={{ color: v.text, ...restStyle }}
     >
       <HandDrawnBorder

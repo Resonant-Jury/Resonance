@@ -6,6 +6,8 @@ export interface IconProps {
   size?: number;
   color?: string;
   strokeWidth?: number;
+  /** Interior fill — only icons with a fillable body (e.g. bookmark) use it. */
+  fill?: string;
   ariaLabel?: string;
   style?: CSSProperties;
   className?: string;
@@ -26,6 +28,7 @@ export function Icon({
   size,
   color,
   strokeWidth,
+  fill,
   ariaLabel,
   style,
   className,
@@ -47,7 +50,7 @@ export function Icon({
         ...style,
       }}
     >
-      <Renderer size={resolvedSize} color={color} strokeWidth={resolvedStroke} />
+      <Renderer size={resolvedSize} color={color} strokeWidth={resolvedStroke} fill={fill} />
     </span>
   );
 }

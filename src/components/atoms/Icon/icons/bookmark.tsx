@@ -1,16 +1,15 @@
 import type { IconRenderProps } from '../types';
 
 // A ribbon bookmark — the quiet, private "keep this" gesture.
-// Pass `fill` via color on a wrapping element; the shape itself inherits
-// `currentColor` for its stroke and stays unfilled (the active state is
-// signaled by the BookmarkButton's fill overlay / color change).
-export function BookmarkIcon({ size = 22, strokeWidth = 1.5, color = 'currentColor' }: IconRenderProps) {
+// The shape inherits `currentColor` for its stroke; pass `fill` (e.g.
+// 'currentColor') to render the solid, active state.
+export function BookmarkIcon({ size = 22, strokeWidth = 1.5, color = 'currentColor', fill }: IconRenderProps) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={fill ?? 'none'}
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"

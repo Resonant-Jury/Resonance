@@ -33,7 +33,9 @@ export function Divider({
   amplitude = 1.4,
   steps = 7,
   strokeWidth = 1.2,
-  color = 'oklch(60% 0.04 60 / 0.35)',
+  // Derived from the field-border token (not a hardcoded oklch) so the rule
+  // follows the TweaksPanel accent themes instead of staying warm-brown.
+  color = 'color-mix(in oklch, var(--field-border-hover) 35%, transparent)',
   spacing = 'clamp(4px, 0.8vw, 8px)',
   width = '100%',
 }: DividerProps) {

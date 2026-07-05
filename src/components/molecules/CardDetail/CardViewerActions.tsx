@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useSWRConfig } from 'swr';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -34,6 +34,12 @@ export interface CardViewerActionsProps {
    * 寄給作者就好。」— called with the current story text (共振 → 紙條 downgrade).
    */
   onDowngrade?: (story: string) => void;
+  /**
+   * The quieter response actions (note link, bookmark) — rendered in the same
+   * horizontal row as the 共振 button so the three-level hierarchy reads as
+   * one gesture line.
+   */
+  trailing?: ReactNode;
 }
 
 /**
@@ -49,6 +55,7 @@ export function CardViewerActions({
   coreInsight,
   upgradeDraft,
   onDowngrade,
+  trailing,
 }: CardViewerActionsProps) {
   const t = useTranslations('card');
   const locale = useLocale() as Locale;
@@ -117,15 +124,22 @@ export function CardViewerActions({
 
   return (
     <div style={{ marginBottom: 40 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-start', padding: '24px 0' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '4px 18px',
+          padding: '24px 0',
+        }}
+      >
         <div style={{ opacity: loadingMine ? 0.6 : 1, pointerEvents: loadingMine ? 'none' : 'auto' }}>
           <OrganicButton variant={hasResonance ? 'outline' : 'primary'} onClick={onTrigger}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-              <Icon name={hasResonance ? 'pen' : 'wave'} size={16} />
-              {hasResonance ? t('modify') : t('resonate')}
-            </span>
+            <Icon name={hasResonance ? 'pen' : 'wave'} size={16} style={{ marginTop: 1 }} />
+            {hasResonance ? t('modify') : t('resonate')}
           </OrganicButton>
         </div>
+        {trailing}
       </div>
 
       {open && user && (
