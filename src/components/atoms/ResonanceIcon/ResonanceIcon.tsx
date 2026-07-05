@@ -43,7 +43,10 @@ export function ResonanceIcon({ size = 32, style = {} }: ResonanceIconProps) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      style={{ display: 'block', flexShrink: 0, ...style }}
+      // The wordmark's visual mass sits below the line's geometric center, so
+      // the flex-centered mark reads as floating high; a size-relative nudge
+      // (transform — no layout shift) rebalances every brand lockup at once.
+      style={{ display: 'block', flexShrink: 0, transform: 'translateY(7%)', ...style }}
     >
       <path d="M3.4,8.2 C5.4,5.9 7.3,5.8 9.2,8.0 C11.1,10.2 13.0,10.3 15.0,8.1 C16.9,6.0 18.8,5.9 20.7,8.1" />
       <path d="M3.0,12.1 C5.1,9.7 7.1,9.8 9.0,12.0 C10.9,14.2 12.9,14.3 14.9,12.1 C16.8,9.9 18.8,9.8 20.9,12.0" />

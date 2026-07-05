@@ -87,6 +87,22 @@
   overflow: hidden;
 }
 
+/* On phones the cards inside these sections already render as full-bleed
+   tinted blocks framed by wavy rules (the StoryCard mobile degrade), so the
+   extra tinted band + wavy section edge reads as double chrome — drop both
+   and let the section heading sit directly on the page. */
+@media (max-width: 640px) {
+  .resonanceSection,
+  .relatedSectionPrimary,
+  .relatedSectionSecondary {
+    background: transparent;
+    padding: 32px 0 16px;
+  }
+  .sectionEdgeDesktop {
+    display: none;
+  }
+}
+
 .sectionContainer {
   max-width: var(--page-max-w-wide);
   margin: 0 auto;

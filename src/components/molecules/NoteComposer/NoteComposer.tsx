@@ -144,7 +144,8 @@ export function NoteComposer({
         </p>
       )}
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+      {/* Breathing room between the char-count line and the action row. */}
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
         {onClose && (
           <OrganicButton variant="ghost" onClick={onClose}>
             {t('cancel')}

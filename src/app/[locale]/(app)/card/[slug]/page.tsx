@@ -244,15 +244,17 @@ export default function CardDetailPage() {
 
       {hasResonance && (
         <section className={styles.resonanceSection}>
-          <SectionEdge
-            topColor="var(--color-cream)"
-            seed={41}
-            height={90}
-            amplitude={0.14}
-            steps={14}
-            stroke="oklch(55% 0.05 60 / 0.28)"
-            strokeWidth={1.2}
-          />
+          <div className={styles.sectionEdgeDesktop}>
+            <SectionEdge
+              topColor="var(--color-cream)"
+              seed={41}
+              height={90}
+              amplitude={0.14}
+              steps={14}
+              stroke="oklch(55% 0.05 60 / 0.28)"
+              strokeWidth={1.2}
+            />
+          </div>
           <div className={styles.sectionContainer}>
             <ResonanceCards card={card} />
           </div>
@@ -261,15 +263,17 @@ export default function CardDetailPage() {
 
       {related.length > 0 && (
         <section className={hasResonance ? styles.relatedSectionSecondary : styles.relatedSectionPrimary}>
-          <SectionEdge
-            topColor={hasResonance ? "var(--color-cream-dark)" : "var(--color-cream)"}
-            seed={137}
-            height={90}
-            amplitude={0.14}
-            steps={14}
-            stroke="oklch(55% 0.05 60 / 0.28)"
-            strokeWidth={1.2}
-          />
+          <div className={styles.sectionEdgeDesktop}>
+            <SectionEdge
+              topColor={hasResonance ? "var(--color-cream-dark)" : "var(--color-cream)"}
+              seed={137}
+              height={90}
+              amplitude={0.14}
+              steps={14}
+              stroke="oklch(55% 0.05 60 / 0.28)"
+              strokeWidth={1.2}
+            />
+          </div>
           <div className={styles.sectionContainer}>
             <h2 className={styles.relatedHeading}>{t('related')}</h2>
             <CardLinkGrid cards={related} authors={relatedAuthors} />
