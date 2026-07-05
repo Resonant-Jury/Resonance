@@ -2,14 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Icon } from '@/components/atoms/Icon';
-import { BookmarkButton } from '@/components/atoms/BookmarkButton/BookmarkButton';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { NoteComposer } from '@/components/molecules/NoteComposer/NoteComposer';
 import { CardViewerActions } from './CardViewerActions';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useRouter } from '@/i18n/navigation';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 
 export interface ReadAfterAreaProps {
   cardId: string;
@@ -94,20 +91,7 @@ export function ReadAfterArea({ cardId, cardTitle, author, coreInsight }: ReadAf
         cardId={cardId}
         cardTitle={cardTitle}
         author={author}
-        // The quieter actions share the 共振 button's row: one gesture line,
-        // descending in weight from card → note → bookmark.
-        trailing={
-          <>
-            <OrganicButton
-              variant="secondaryOutline"
-              onClick={() => openNote()}
-            >
-              <Icon name="note" size={16} />
-              {t('entry')}
-            </OrganicButton>
-            <BookmarkButton cardId={cardId} />
-          </>
-        }
+        onOpenNote={() => openNote()}
       />
 
       {user && (

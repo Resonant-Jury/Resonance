@@ -1,0 +1,54 @@
+.container {
+  margin-bottom: 40px;
+}
+
+.desktopOnly {
+  display: inline-flex;
+}
+
+.mobileOnly {
+  display: none;
+}
+
+.mobileActionsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 16px; /* Suitable margin below the "共振" button */
+}
+
+/* Make the Send Note button look like a hyperlink on mobile */
+.mobileNoteButton {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  width: auto !important;
+  text-decoration: underline;
+  color: var(--color-terracotta) !important;
+  box-shadow: none !important;
+  transition: color 0.2s ease;
+}
+
+.mobileNoteButton:hover {
+  color: color-mix(in oklch, var(--color-terracotta), black 15%) !important;
+  text-decoration: underline;
+}
+
+/* Hide wobbly hand-drawn borders, ShapeGrain, and other SVG decorations inside it */
+.mobileNoteButton > svg {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .desktopOnly {
+    display: none;
+  }
+  .mobileOnly {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+}

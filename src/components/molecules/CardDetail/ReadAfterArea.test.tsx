@@ -65,11 +65,11 @@ describe('ReadAfterArea', () => {
     renderWithIntl(
       <ReadAfterArea cardId="c1" cardTitle="Title" author={author} coreInsight="ins" />,
     );
-    expect(screen.getByRole('button', { name: /Resonate/ })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Resonate/ })[0]).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Send the author a little note' }),
+      screen.getAllByRole('button', { name: 'Send the author a little note' })[0],
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Bookmark' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Bookmark' })[0]).toBeInTheDocument();
   });
 
   it('renders nothing at all for the card author', () => {
@@ -81,20 +81,20 @@ describe('ReadAfterArea', () => {
   it('sends signed-out visitors to /signin instead of opening the note composer', async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
-    await user().click(screen.getByRole('button', { name: 'Send the author a little note' }));
+    await user().click(screen.getAllByRole('button', { name: 'Send the author a little note' })[0]);
     expect(mockPush).toHaveBeenCalledWith('/signin');
     expect(screen.queryByPlaceholderText('Something you want to tell the author…')).not.toBeInTheDocument();
   });
 
   it('navigates to the write page on clicking Resonate', async () => {
     renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
-    await user().click(screen.getByRole('button', { name: /Resonate/ }));
+    await user().click(screen.getAllByRole('button', { name: /Resonate/ })[0]);
     expect(mockPush).toHaveBeenCalledWith('/write?referenceCardId=c1');
   });
 
   it('upgrades a long note by navigating to the write page with the text in searchParams', async () => {
     renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
-    await user().click(screen.getByRole('button', { name: 'Send the author a little note' }));
+    await user().click(screen.getAllByRole('button', { name: 'Send the author a little note' })[0]);
 
     const long = 'b'.repeat(220);
     fireEvent.change(screen.getByPlaceholderText('Something you want to tell the author…'), {

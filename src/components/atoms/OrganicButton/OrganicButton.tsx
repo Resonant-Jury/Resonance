@@ -18,7 +18,7 @@ const BTN_VARIANTS: Record<OrganicButtonVariant, {
   outline:          { fill: 'transparent',             text: 'var(--color-terracotta)', stroke: 'color-mix(in oklch, var(--color-terracotta), black 15%)', stroke2: 'color-mix(in oklch, var(--color-terracotta), black 35%)', hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)' },
   ctaLight:         { fill: 'var(--color-cream)',      text: 'var(--color-terracotta)', stroke: 'oklch(80% 0.04 75)', stroke2: 'oklch(70% 0.04 75)', hoverOverlay: 'oklch(0% 0 0 / 0.08)' },
   ctaGhost:         { fill: 'transparent',             text: 'var(--color-cream)',      stroke: 'oklch(88% 0.02 75 / 0.65)', stroke2: 'oklch(80% 0.02 75 / 0.38)', hoverOverlay: 'oklch(96% 0.015 75 / 0.18)' },
-  secondaryOutline: { fill: 'transparent',             text: 'oklch(50% 0.10 290)',     stroke: 'oklch(50% 0.10 290)', stroke2: 'oklch(40% 0.09 290)', hoverOverlay: 'color-mix(in oklch, oklch(50% 0.10 290) 14%, transparent)' },
+  secondaryOutline: { fill: 'transparent',             text: 'var(--color-terracotta)', stroke: 'var(--color-terracotta)', stroke2: 'color-mix(in oklch, var(--color-terracotta), black 20%)', hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)' },
 };
 
 const BTN_SEEDS: Record<OrganicButtonVariant, number> = {
@@ -37,9 +37,10 @@ export interface OrganicButtonProps {
   size?: 'md' | 'sm';
   onClick?: (e: MouseEvent<HTMLButtonElement>) => void;
   style?: CSSProperties & { fillColor?: string };
+  className?: string;
 }
 
-export function OrganicButton({ children, variant = 'primary', size = 'md', onClick, style = {} }: OrganicButtonProps) {
+export function OrganicButton({ children, variant = 'primary', size = 'md', onClick, style = {}, className }: OrganicButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const ref = useRef<HTMLButtonElement>(null);
@@ -79,7 +80,7 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', onCl
       onClick={onClick}
       onMouseEnter={(e) => { recordPointer(e); setHovered(true); }}
       onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
-      className={size === 'sm' ? `${styles.btn} ${styles.sm}` : styles.btn}
+      className={`${size === 'sm' ? `${styles.btn} ${styles.sm}` : styles.btn} ${className || ''}`}
       style={{ color: v.text, ...restStyle }}
     >
       <HandDrawnBorder
