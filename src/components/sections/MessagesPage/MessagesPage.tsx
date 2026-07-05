@@ -17,6 +17,8 @@ import styles from './MessagesPage.module.css';
 export interface MessagesPageProps {
   /** The handle of the open thread's other participant, when one is open. */
   activeHandle?: string;
+  /** A note being replied to (from the note notification's「回覆」exit). */
+  replyNote?: { noteId: string; cardId: string };
 }
 
 /**
@@ -25,7 +27,7 @@ export interface MessagesPageProps {
  * also surfaces connected people without a conversation yet, so the page is
  * self-sufficient as an entry point.
  */
-export function MessagesPage({ activeHandle }: MessagesPageProps) {
+export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
   const t = useTranslations('messages');
   const locale = useLocale();
   const router = useRouter();
@@ -118,7 +120,7 @@ export function MessagesPage({ activeHandle }: MessagesPageProps) {
 
         <section className={styles.threadPane}>
           {activeHandle ? (
-            <ThreadView key={activeHandle} handle={activeHandle} />
+            <ThreadView key={activeHandle} handle={activeHandle} replyNote={replyNote} />
           ) : (
             <p className={styles.quietNote} style={{ paddingTop: 8 }}>
               {t('pickOne')}

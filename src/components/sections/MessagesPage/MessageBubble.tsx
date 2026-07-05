@@ -1,7 +1,8 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { Icon } from '@/components/atoms/Icon';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 
 /** Deterministic per-message wobble seed from the Firestore doc id. */
@@ -17,14 +18,17 @@ export interface MessageBubbleProps {
   own: boolean;
   /** Full timestamp, surfaced as a tooltip. */
   title?: string;
+  /** A「回覆你的紙條」quote header rendered above the text (note-reply). */
+  quoteLabel?: ReactNode;
 }
 
 /**
  * One hand-drawn speech bubble. Measures itself (same pattern as the editor's
  * ToolButton) and wraps the text in a wobbly filled shape: the viewer's own
- * messages wash terracotta-light, the other voice sits on cream.
+ * messages wash terracotta-light, the other voice sits on cream. An optional
+ * quote header marks a message that replies to a note.
  */
-export function MessageBubble({ id, text, own, title }: MessageBubbleProps) {
+export function MessageBubble({ id, text, own, title, quoteLabel }: MessageBubbleProps) {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useElementSize(ref);
   const seed = seedFromId(id);
@@ -66,7 +70,24 @@ export function MessageBubble({ id, text, own, title }: MessageBubbleProps) {
           strokeWidth={own ? 0 : 1.1}
         />
       )}
-      <span style={{ position: 'relative' }}>{text}</span>
+      {quoteLabel && (
+        <span
+          style={{
+            position: 'relative',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            marginBottom: 5,
+            fontSize: 12,
+            color: 'var(--color-text-muted)',
+            fontStyle: 'italic',
+          }}
+        >
+          <Icon name="note" size={13} />
+          {quoteLabel}
+        </span>
+      )}
+      <span style={{ position: 'relative', display: 'block' }}>{text}</span>
     </div>
   );
 }

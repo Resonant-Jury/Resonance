@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -14,6 +14,12 @@ export interface NotificationConnectActionProps {
   fromUserId: string;
   /** The card that carried the interaction; becomes the invite's context. */
   referenceCardId?: string;
+  /**
+   * Rendered in place of the passive「已連結」mark once the pair is connected.
+   * Lets a note notification offer a「回覆」exit into the conversation instead
+   * of a dead-end status line.
+   */
+  connectedAction?: ReactNode;
 }
 
 /**
@@ -30,6 +36,7 @@ export interface NotificationConnectActionProps {
 export function NotificationConnectAction({
   fromUserId,
   referenceCardId,
+  connectedAction,
 }: NotificationConnectActionProps) {
   const { user: viewer } = useAuth();
   const t = useTranslations('app.notifications');
@@ -59,10 +66,14 @@ export function NotificationConnectAction({
   if (state === 'checking') return null;
 
   if (state === 'connected') {
+    // Already connected: a note can offer a「回覆」exit; everything else falls
+    // back to the quiet status mark.
     return (
-      <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-        ✿ {t('alreadyConnected')}
-      </span>
+      connectedAction ?? (
+        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+          ✿ {t('alreadyConnected')}
+        </span>
+      )
     );
   }
 

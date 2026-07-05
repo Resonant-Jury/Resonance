@@ -198,7 +198,14 @@
     "userNotFound": "This person doesn't exist.",
     "threadWith": "Conversation with {handle}",
     "messageLink": "Message",
-    "startChat": "Start chatting"
+    "startChat": "Start chatting",
+    "replyToNote": "Reply",
+    "quotedNote": "In reply to your note",
+    "attachCard": "Attach a card",
+    "removeCard": "Remove card",
+    "cardShared": "Shared a card",
+    "pickCard": "Share one of your cards",
+    "pickCardSubtitle": "Share one of your published cards in this conversation."
   },
   "write": {
     "title": "New card",

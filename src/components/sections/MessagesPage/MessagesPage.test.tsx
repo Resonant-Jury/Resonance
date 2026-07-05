@@ -55,6 +55,28 @@ vi.mock('@/lib/db/firestore/client/messages', () => ({
   sendMessage: (...args: unknown[]) => mockSendMessage(...args),
 }));
 
+// The card picker + the shared-card embed touch further read paths; stub them
+// down to their contract so the thread tests stay about attach/send/render.
+vi.mock('@/components/molecules/MarkdownEditor/InsertCardModal', () => ({
+  InsertCardModal: ({
+    open,
+    onPick,
+  }: {
+    open: boolean;
+    onPick: (card: { id: string; thoughtCore: string }) => void;
+  }) =>
+    open ? (
+      <button onClick={() => onPick({ id: 'card-42', thoughtCore: 'A shared thought' })}>
+        pick-card
+      </button>
+    ) : null,
+}));
+vi.mock('./MessageCardRef', () => ({
+  MessageCardRef: ({ cardId }: { cardId: string }) => (
+    <div data-testid="shared-card">{cardId}</div>
+  ),
+}));
+
 function person(id: string, handle: string): User {
   return {
     id,
@@ -144,7 +166,9 @@ describe('MessagesPage thread', () => {
     await userEvent.setup({ pointerEventsCheck: 0 }).click(
       screen.getByRole('button', { name: 'Send' }),
     );
-    await waitFor(() => expect(mockSendMessage).toHaveBeenCalledWith('alice_me', 'a reply'));
+    await waitFor(() =>
+      expect(mockSendMessage).toHaveBeenCalledWith('alice_me', 'a reply', expect.anything()),
+    );
     // Lazy-create runs before every send (idempotent no-op afterwards).
     expect(mockOpenConversation).toHaveBeenCalledWith('alice');
     // The conversation already has messages — no bell ping for replies.
@@ -164,7 +188,9 @@ describe('MessagesPage thread', () => {
     await userEvent.setup({ pointerEventsCheck: 0 }).click(
       screen.getByRole('button', { name: 'Send' }),
     );
-    await waitFor(() => expect(mockSendMessage).toHaveBeenCalledWith('alice_me', 'first hello'));
+    await waitFor(() =>
+      expect(mockSendMessage).toHaveBeenCalledWith('alice_me', 'first hello', expect.anything()),
+    );
     expect(mockNotifyStarted).toHaveBeenCalledWith('alice', 'me-handle');
   });
 
@@ -178,5 +204,67 @@ describe('MessagesPage thread', () => {
       ).toBeInTheDocument(),
     );
     expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument();
+  });
+
+  it('carries a note reply as a quoted reference on the sent message', async () => {
+    renderPage(
+      <MessagesPage
+        activeHandle="alice"
+        replyNote={{ noteId: 'note-1', cardId: 'card-1' }}
+      />,
+    );
+    // The quote chip appears above the composer, ready to ride the next send.
+    await waitFor(() => expect(screen.getByText('In reply to your note')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText('Write a message…'), {
+      target: { value: 'thanks for the note' },
+    });
+    await userEvent.setup({ pointerEventsCheck: 0 }).click(
+      screen.getByRole('button', { name: 'Send' }),
+    );
+    await waitFor(() =>
+      expect(mockSendMessage).toHaveBeenCalledWith(
+        'alice_me',
+        'thanks for the note',
+        expect.objectContaining({ noteRef: { noteId: 'note-1', cardId: 'card-1' } }),
+      ),
+    );
+  });
+
+  it('attaches a picked card and sends it as a cardRef', async () => {
+    renderPage(<MessagesPage activeHandle="alice" />);
+    const u = userEvent.setup({ pointerEventsCheck: 0 });
+    await waitFor(() => expect(screen.getByLabelText('Attach a card')).toBeInTheDocument());
+
+    await u.click(screen.getByLabelText('Attach a card'));
+    await u.click(await screen.findByRole('button', { name: 'pick-card' }));
+    // The attached card shows as a chip before sending.
+    expect(screen.getByText('A shared thought')).toBeInTheDocument();
+
+    await u.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(mockSendMessage).toHaveBeenCalledWith(
+        'alice_me',
+        '',
+        expect.objectContaining({ cardRef: 'card-42' }),
+      ),
+    );
+  });
+
+  it('renders a shared card and a note-reply quote in the thread', async () => {
+    const messages: Message[] = [
+      { id: 'm1', senderId: 'alice', text: '', sentAt: new Date(), cardRef: 'card-77' },
+      {
+        id: 'm2',
+        senderId: 'me',
+        text: 'replying',
+        sentAt: new Date(),
+        noteRef: { cardId: 'card-9', noteId: 'note-9' },
+      },
+    ];
+    mockUseThread.mockReturnValue({ messages, ready: true, error: null });
+    renderPage(<MessagesPage activeHandle="alice" />);
+    await waitFor(() => expect(screen.getByTestId('shared-card')).toHaveTextContent('card-77'));
+    expect(screen.getByText('In reply to your note')).toBeInTheDocument();
   });
 });

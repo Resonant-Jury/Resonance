@@ -198,7 +198,14 @@
     "userNotFound": "找不到這個人。",
     "threadWith": "與 {handle} 的對話",
     "messageLink": "傳訊息",
-    "startChat": "開始聊天"
+    "startChat": "開始聊天",
+    "replyToNote": "回覆",
+    "quotedNote": "回覆你的紙條",
+    "attachCard": "附上一張卡片",
+    "removeCard": "移除卡片",
+    "cardShared": "分享了一張卡片",
+    "pickCard": "分享你的一張卡片",
+    "pickCardSubtitle": "在這段對話裡分享你公開發表過的一張卡片。"
   },
   "write": {
     "title": "寫一張新卡片",

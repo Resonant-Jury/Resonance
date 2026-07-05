@@ -116,4 +116,28 @@ describe('sendMessage', () => {
       expect.objectContaining({ text: long }),
     );
   });
+
+  it('attaches a shared card and a note reply, with a preview fallback', async () => {
+    await sendMessage('aaa_bbb', '', {
+      cardRef: 'card-1',
+      noteRef: { cardId: 'card-9', noteId: 'note-9' },
+      previewFallback: 'Untitled thought',
+    });
+    expect(batch.set).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        text: '',
+        cardRef: 'card-1',
+        noteRef: { cardId: 'card-9', noteId: 'note-9' },
+      }),
+    );
+    // A bodyless card share borrows the fallback for the list preview.
+    const update = vi.mocked(batch.update).mock.calls[0][1] as { lastMessage: { text: string } };
+    expect(update.lastMessage.text).toBe('Untitled thought');
+  });
+
+  it('allows an empty body only when a card is attached', async () => {
+    await expect(sendMessage('aaa_bbb', '   ')).rejects.toThrow();
+    await expect(sendMessage('aaa_bbb', '   ', { cardRef: 'card-1' })).resolves.toBeTruthy();
+  });
 });

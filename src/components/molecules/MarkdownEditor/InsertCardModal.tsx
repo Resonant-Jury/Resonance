@@ -18,14 +18,19 @@ export interface InsertCardModalProps {
   onClose: () => void;
   /** Called with the chosen card; the caller inserts the link and closes. */
   onPick: (card: Card) => void;
+  /** Override the heading (e.g. the DM「分享卡片」context vs. editor insert). */
+  title?: string;
+  /** Override the subtitle line. */
+  subtitle?: string;
 }
 
 /**
- * Picker for the editor's "insert card link" action: lists the author's own
- * published public cards; clicking one inserts a markdown link at the cursor.
- * Public-only because the link lands in a story any reader may open.
+ * Picker for the author's own published public cards. Used both by the editor's
+ * "insert card link" action and by the DM composer's "share a card" — the
+ * caller supplies the copy and decides what to do with the pick. Public-only
+ * because the reference lands somewhere the recipient can open.
  */
-export function InsertCardModal({ open, onClose, onPick }: InsertCardModalProps) {
+export function InsertCardModal({ open, onClose, onPick, title, subtitle }: InsertCardModalProps) {
   const t = useTranslations('write.editor.cardModal');
   const { user } = useAuth();
   const [cards, setCards] = useState<Card[] | null>(null);
@@ -42,10 +47,12 @@ export function InsertCardModal({ open, onClose, onPick }: InsertCardModalProps)
     };
   }, [open, user]);
 
+  const heading = title ?? t('title');
+
   return (
-    <Modal open={open} onClose={onClose} maxWidth={480} seed={53} padding="26px 24px 22px" ariaLabel={t('title')}>
-      <h3 className={styles.title}>{t('title')}</h3>
-      <p className={styles.subtitle}>{t('subtitle')}</p>
+    <Modal open={open} onClose={onClose} maxWidth={480} seed={53} padding="26px 24px 22px" ariaLabel={heading}>
+      <h3 className={styles.title}>{heading}</h3>
+      <p className={styles.subtitle}>{subtitle ?? t('subtitle')}</p>
 
       {cards === null ? (
         <p className={styles.muted}>…</p>

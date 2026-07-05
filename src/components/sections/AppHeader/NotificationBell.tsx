@@ -150,6 +150,9 @@ export function NotificationBell() {
             // Set when the notification should offer the「開始聊天」exit —
             // the connection is live, the conversation is one click away.
             let chatWithHandle: string | null = null;
+            // Set for a note from a connected sender: the「回覆」exit carries
+            // the note reference into the conversation as a quoted reply.
+            let noteReplyHref: string | null = null;
             if (n.type === 'invite') {
               body = tApp('invite', { handle: String(n.payload.fromHandle ?? '') });
               href = '/me';
@@ -172,6 +175,13 @@ export function NotificationBell() {
               body = tApp('note', { handle: String(n.payload.fromHandle ?? '') });
               href = `/card/${n.payload.cardId}`;
               connectFromUserId = n.payload.fromUserId ? String(n.payload.fromUserId) : null;
+              if (n.payload.fromHandle && n.payload.noteId && n.payload.cardId) {
+                const params = new URLSearchParams({
+                  note: String(n.payload.noteId),
+                  card: String(n.payload.cardId),
+                });
+                noteReplyHref = `/messages/${n.payload.fromHandle}?${params.toString()}`;
+              }
             } else if (n.type === 'card_link') {
               body = tApp('cardLink', { handle: String(n.payload.fromHandle ?? '') });
               href = `/card/${n.payload.cardId}`;
@@ -240,6 +250,29 @@ export function NotificationBell() {
                         fromUserId={connectFromUserId}
                         referenceCardId={
                           n.payload.cardId ? String(n.payload.cardId) : undefined
+                        }
+                        // A note from a connected sender turns the passive
+                        //「已連結」mark into a「回覆」exit into the conversation.
+                        connectedAction={
+                          noteReplyHref ? (
+                            <Link
+                              href={noteReplyHref as `/messages/${string}`}
+                              onClick={() => handleClickItem(n)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                fontSize: 13,
+                                fontFamily: 'var(--font-body)',
+                                color: 'var(--color-terracotta)',
+                                textDecoration: 'underline',
+                                textUnderlineOffset: 3,
+                              }}
+                            >
+                              <Icon name="chat" size={15} />
+                              {tMsg('replyToNote')}
+                            </Link>
+                          ) : undefined
                         }
                       />
                     </div>

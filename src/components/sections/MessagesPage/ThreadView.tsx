@@ -8,6 +8,7 @@ import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAva
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Divider } from '@/components/atoms/Divider/Divider';
+import { InsertCardModal } from '@/components/molecules/MarkdownEditor/InsertCardModal';
 import { Link } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile, useThread } from '@/lib/data/hooks';
@@ -21,11 +22,15 @@ import {
   openConversation,
   sendMessage,
 } from '@/lib/db/firestore/client/messages';
+import type { Card } from '@/lib/db/types';
 import { MessageBubble } from './MessageBubble';
+import { MessageCardRef } from './MessageCardRef';
 import styles from './MessagesPage.module.css';
 
 export interface ThreadViewProps {
   handle: string;
+  /** A note being replied to — the first message quotes it as a reply. */
+  replyNote?: { noteId: string; cardId: string };
 }
 
 /**
@@ -34,7 +39,7 @@ export interface ThreadViewProps {
  * litters either list with empty conversations. Messages stream in realtime
  * via {@link useThread} once the doc exists.
  */
-export function ThreadView({ handle }: ThreadViewProps) {
+export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const t = useTranslations('messages');
   const locale = useLocale();
   const { user } = useAuth();
@@ -62,6 +67,11 @@ export function ThreadView({ handle }: ThreadViewProps) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [cardModalOpen, setCardModalOpen] = useState(false);
+  const [pendingCard, setPendingCard] = useState<Card | null>(null);
+  // The note-reply quote rides the next message; dismissable if reconsidered.
+  const [noteRef, setNoteRef] = useState(replyNote);
+  useEffect(() => setNoteRef(replyNote), [replyNote?.noteId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Entering (or receiving into) a thread clears the viewer's unread counter.
   // The `convo` snapshot goes stale while the realtime thread is open (SWR
@@ -88,11 +98,14 @@ export function ThreadView({ handle }: ThreadViewProps) {
   }, [thread.messages.length]);
 
   const trimmed = text.trim();
-  const valid = trimmed.length > 0 && trimmed.length <= MESSAGE_MAX_LENGTH && !!pairId;
+  const hasBody = trimmed.length > 0 || !!pendingCard;
+  const valid = hasBody && trimmed.length <= MESSAGE_MAX_LENGTH && !!pairId;
 
   function send() {
     if (!valid || pending || !other || !pairId) return;
     setError(null);
+    const card = pendingCard;
+    const quotedNote = noteRef;
     start(async () => {
       try {
         // The very first message rings the recipient's bell once; after that
@@ -100,9 +113,16 @@ export function ThreadView({ handle }: ThreadViewProps) {
         const isFirst = !convo?.lastMessage;
         // Idempotent: creates the doc on the first message, no-ops after.
         await openConversation(other.id);
-        await sendMessage(pairId, trimmed);
+        await sendMessage(pairId, trimmed, {
+          cardRef: card?.id,
+          noteRef: quotedNote,
+          // A bodyless card share borrows the card title for the list preview.
+          previewFallback: card?.thoughtCore,
+        });
         if (isFirst && me) void notifyConversationStarted(other.id, me.handle);
         setText('');
+        setPendingCard(null);
+        setNoteRef(undefined);
         if (!convo) await mutateConvo();
         if (user) void globalMutate(`conversations:${user.id}`);
       } catch {
@@ -169,23 +189,73 @@ export function ThreadView({ handle }: ThreadViewProps) {
             {thread.messages.map((m, i) => {
               const prev = thread.messages[i - 1];
               const newDay = !prev || prev.sentAt.toDateString() !== m.sentAt.toDateString();
+              const own = m.senderId === user?.id;
               return (
                 <div key={m.id} style={{ display: 'contents' }}>
                   {newDay && <span className={styles.dayLabel}>{dayFmt.format(m.sentAt)}</span>}
-                  <div className={styles.bubbleRow} data-own={m.senderId === user?.id || undefined}>
-                    <MessageBubble
-                      id={m.id}
-                      text={m.text}
-                      own={m.senderId === user?.id}
-                      title={fullFmt.format(m.sentAt)}
-                    />
+                  <div className={styles.bubbleRow} data-own={own || undefined}>
+                    <div className={styles.messageStack} data-own={own || undefined}>
+                      {m.cardRef && <MessageCardRef cardId={m.cardRef} />}
+                      {(m.text || m.noteRef) && (
+                        <MessageBubble
+                          id={m.id}
+                          text={m.text}
+                          own={own}
+                          title={fullFmt.format(m.sentAt)}
+                          quoteLabel={m.noteRef ? t('quotedNote') : undefined}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
 
+          {/* Pending attachments ride the next message. */}
+          {(noteRef || pendingCard) && (
+            <div className={styles.attachments}>
+              {noteRef && (
+                <span className={styles.attachChip}>
+                  <Icon name="note" size={14} />
+                  {t('quotedNote')}
+                  <button
+                    type="button"
+                    aria-label={t('removeCard')}
+                    className={styles.attachRemove}
+                    onClick={() => setNoteRef(undefined)}
+                  >
+                    <Icon name="close" size={13} />
+                  </button>
+                </span>
+              )}
+              {pendingCard && (
+                <span className={styles.attachChip}>
+                  <Icon name="cards" size={14} />
+                  <span className={styles.attachCardTitle}>{pendingCard.thoughtCore}</span>
+                  <button
+                    type="button"
+                    aria-label={t('removeCard')}
+                    className={styles.attachRemove}
+                    onClick={() => setPendingCard(null)}
+                  >
+                    <Icon name="close" size={13} />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
+
           <div className={styles.composer}>
+            <button
+              type="button"
+              className={styles.attachBtn}
+              aria-label={t('attachCard')}
+              title={t('attachCard')}
+              onClick={() => setCardModalOpen(true)}
+            >
+              <Icon name="cards" size={18} />
+            </button>
             <div className={styles.composerField}>
               <Textarea
                 value={text}
@@ -211,6 +281,17 @@ export function ThreadView({ handle }: ThreadViewProps) {
           {error && (
             <p style={{ fontSize: 12, color: 'var(--color-terracotta)', margin: '6px 0 0' }}>{error}</p>
           )}
+
+          <InsertCardModal
+            open={cardModalOpen}
+            onClose={() => setCardModalOpen(false)}
+            title={t('pickCard')}
+            subtitle={t('pickCardSubtitle')}
+            onPick={(card) => {
+              setPendingCard(card);
+              setCardModalOpen(false);
+            }}
+          />
         </>
       )}
     </>

@@ -168,8 +168,10 @@ service cloud.firestore {
           && exists(/databases/$(database)/documents/connections/$(conversationId))
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= 2000;
+          && request.resource.data.text.size() <= 2000
+          // A message needs a body: text, or a shared card standing in for it.
+          && (request.resource.data.text.size() > 0
+              || request.resource.data.cardRef is string);
         allow update: if false;
         allow delete: if false;
       }

@@ -115,14 +115,32 @@ export async function openConversation(otherUid: string, originCardId?: string):
   return id;
 }
 
+export interface MessageExtras {
+  /** A shared card (renders as an EmbedStoryCard in the thread). */
+  cardRef?: string;
+  /** The 紙條 this message replies to (quote header in the thread). */
+  noteRef?: { cardId: string; noteId: string };
+  /**
+   * List-preview text used when the message has no body of its own (e.g. a
+   * bare card share) — typically the card's title.
+   */
+  previewFallback?: string;
+}
+
 /**
  * Send a message: one batch writes the message doc and updates the parent's
- * denormalized preview + the recipient's unread counter.
+ * denormalized preview + the recipient's unread counter. A message may carry a
+ * shared card (`cardRef`) and/or reply to a note (`noteRef`); text is optional
+ * only when a card is attached.
  */
-export async function sendMessage(pairId: string, text: string): Promise<string> {
+export async function sendMessage(
+  pairId: string,
+  text: string,
+  extras: MessageExtras = {},
+): Promise<string> {
   const uid = requireUid();
   const trimmed = text.trim();
-  if (!trimmed) throw new Error('Message is empty');
+  if (!trimmed && !extras.cardRef) throw new Error('Message is empty');
   if (trimmed.length > MESSAGE_MAX_LENGTH) throw new Error('Message too long');
 
   const db = getClientDb();
@@ -132,10 +150,13 @@ export async function sendMessage(pairId: string, text: string): Promise<string>
     senderId: uid,
     text: trimmed,
     sentAt: serverTimestamp(),
+    ...(extras.cardRef ? { cardRef: extras.cardRef } : {}),
+    ...(extras.noteRef ? { noteRef: extras.noteRef } : {}),
   });
+  const preview = (trimmed || extras.previewFallback || '').slice(0, LAST_MESSAGE_PREVIEW);
   batch.update(doc(db, 'conversations', pairId), {
     lastMessage: {
-      text: trimmed.slice(0, LAST_MESSAGE_PREVIEW),
+      text: preview,
       senderId: uid,
       sentAt: serverTimestamp(),
     },
