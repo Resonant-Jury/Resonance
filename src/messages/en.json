@@ -85,7 +85,8 @@
       "cardLink": "{handle} linked a card to your card",
       "connect": "Connect with them",
       "alreadyConnected": "Connected",
-      "viewAll": "View all"
+      "viewAll": "View all",
+      "message": "{handle} sent you a message."
     }
   },
   "home": {
@@ -195,7 +196,9 @@
     "back": "All conversations",
     "youPrefix": "You: ",
     "userNotFound": "This person doesn't exist.",
-    "threadWith": "Conversation with {handle}"
+    "threadWith": "Conversation with {handle}",
+    "messageLink": "Message",
+    "startChat": "Start chatting"
   },
   "write": {
     "title": "New card",
@@ -263,6 +266,12 @@
       "keep": "Keep mine",
       "regenerate": "Try again",
       "stubNotice": "(MVP AI is a stub; real model in Phase 3)"
+    },
+    "discard": {
+      "title": "Discard unsaved changes?",
+      "message": "You have unsaved changes. Leaving this page will discard them.",
+      "confirm": "Discard",
+      "cancel": "Keep editing"
     },
     "saveDraft": "Save draft",
     "publish": "Publish",

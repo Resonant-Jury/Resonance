@@ -23,6 +23,7 @@ import {
   polyline,
 } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
 import { PublishPanel } from '@/components/molecules/PublishPanel/PublishPanel';
+import { Modal } from '@/components/molecules/Modal/Modal';
 import { wobRect } from '@/lib/design/wobRect';
 import {
   createCardDraft,
@@ -110,6 +111,98 @@ export function CardEditor({
   // const [polishPreview, setPolishPreview] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [pendingLeaveUrl, setPendingLeaveUrl] = useState<string | undefined>(undefined);
+  const [isBrowserBack, setIsBrowserBack] = useState(false);
+  const allowLeaveRef = useRef(false);
+
+  const isDirty = useMemo(() => {
+    if (inline) return false;
+    const isCoreChanged = thoughtCore !== (initial?.thoughtCore ?? '');
+    const isStoryChanged = story !== (initial?.story ?? '');
+    const isTagsChanged = JSON.stringify(tags) !== JSON.stringify(initial?.tags ?? []);
+    const isVisibilityChanged = visibility !== (initial?.visibility ?? 'public');
+    const isAnonymousChanged = anonymous !== (initial?.anonymous ?? false);
+    const isMediaChanged = JSON.stringify(media) !== JSON.stringify(initial?.media);
+    return isCoreChanged || isStoryChanged || isTagsChanged || isVisibilityChanged || isAnonymousChanged || isMediaChanged;
+  }, [thoughtCore, story, tags, visibility, anonymous, media, initial, inline]);
+
+  useEffect(() => {
+    if (inline) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty && !allowLeaveRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isDirty, inline]);
+
+  useEffect(() => {
+    if (inline) return;
+    const handleAnchorClick = (e: globalThis.MouseEvent) => {
+      if (!isDirty || allowLeaveRef.current) return;
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a');
+      if (anchor) {
+        const href = anchor.getAttribute('href');
+        if (href && (href.startsWith('/') || href.startsWith(window.location.origin))) {
+          const targetAttr = anchor.getAttribute('target');
+          if (targetAttr === '_blank') return;
+          e.preventDefault();
+          e.stopPropagation();
+          setPendingLeaveUrl(href);
+          setIsBrowserBack(false);
+          setShowLeaveConfirm(true);
+        }
+      }
+    };
+    document.addEventListener('click', handleAnchorClick, true);
+    return () => {
+      document.removeEventListener('click', handleAnchorClick, true);
+    };
+  }, [isDirty, inline]);
+
+  useEffect(() => {
+    if (inline || !isDirty) return;
+    window.history.pushState({ guard: true }, '', window.location.href);
+    const handlePopState = () => {
+      if (allowLeaveRef.current) return;
+      if (isDirty) {
+        window.history.pushState({ guard: true }, '', window.location.href);
+        setIsBrowserBack(true);
+        setPendingLeaveUrl(undefined);
+        setShowLeaveConfirm(true);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state && window.history.state.guard) {
+        allowLeaveRef.current = true;
+        window.history.back();
+      }
+    };
+  }, [isDirty, inline]);
+
+  const onConfirmLeave = () => {
+    allowLeaveRef.current = true;
+    setShowLeaveConfirm(false);
+    if (isBrowserBack) {
+      window.history.go(-2);
+    } else if (pendingLeaveUrl) {
+      router.push(pendingLeaveUrl);
+    }
+  };
+
+  const onCancelLeave = () => {
+    setShowLeaveConfirm(false);
+  };
 
   useEffect(() => {
     onStoryChange?.(story);
@@ -234,6 +327,7 @@ export function CardEditor({
       if (inline) {
         onPublished?.({ ...published, slug: destination === published.id ? published.slug : destination });
       } else {
+        allowLeaveRef.current = true;
         router.push(`/card/${destination}`);
       }
     } catch (err) {
@@ -504,6 +598,12 @@ export function CardEditor({
               setPending(true);
               setPublishError(null);
               saveDraft()
+                .then((card) => {
+                  if (!initial?.id && mode === 'page') {
+                    allowLeaveRef.current = true;
+                    router.replace(`/write/${card.id}`);
+                  }
+                })
                 .catch((err) => {
                   console.error('Save draft failed:', err);
                   setPublishError(err instanceof Error ? err.message : String(err));
@@ -576,6 +676,31 @@ export function CardEditor({
           <AiRow icon="plus" title={tAi('tags')} hint={tAi('tagsHint')} onClick={suggestTags} />
         </Panel>
       */}
+      {showLeaveConfirm && (
+        <Modal
+          open={showLeaveConfirm}
+          onClose={onCancelLeave}
+          maxWidth={400}
+          ariaLabel={t('discard.title')}
+        >
+          <div style={{ textAlign: 'center', padding: '10px 0' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, marginBottom: 12 }}>
+              {t('discard.title')}
+            </h3>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: 14, marginBottom: 24 }}>
+              {t('discard.message')}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
+              <OrganicButton variant="outline" onClick={onCancelLeave}>
+                {t('discard.cancel')}
+              </OrganicButton>
+              <OrganicButton variant="primary" onClick={onConfirmLeave}>
+                {t('discard.confirm')}
+              </OrganicButton>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

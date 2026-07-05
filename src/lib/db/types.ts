@@ -265,7 +265,8 @@ export interface Notification {
     | 'invite_expired'
     | 'resonance'
     | 'note'
-    | 'card_link';
+    | 'card_link'
+    | 'message';
   payload: Record<string, unknown>;
   readAt: Date | null;
   createdAt: Date;

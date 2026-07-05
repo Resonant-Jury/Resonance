@@ -287,6 +287,9 @@ service cloud.firestore {
           || actorNotif("invite_accepted")
           // Sending a note notifies the card's author it arrived.
           || actorNotif("note")
+          // A conversation's FIRST message notifies the recipient once —
+          // subsequent messages ride the unread counter, never the bell.
+          || actorNotif("message")
         );
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid

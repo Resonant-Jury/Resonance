@@ -27,9 +27,11 @@ vi.mock('@/i18n/navigation', () => ({
 
 const mockUseConversations = vi.fn();
 const mockUseThread = vi.fn();
+const mockUseMyProfile = vi.fn();
 vi.mock('@/lib/data/hooks', () => ({
   useConversations: () => mockUseConversations(),
   useThread: (pairId: string | undefined) => mockUseThread(pairId),
+  useMyProfile: () => mockUseMyProfile(),
 }));
 
 const mockGetUserByHandle = vi.fn();
@@ -42,11 +44,13 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
 const mockOpenConversation = vi.fn();
 const mockSendMessage = vi.fn();
 const mockGetConversation = vi.fn();
+const mockNotifyStarted = vi.fn();
 vi.mock('@/lib/db/firestore/client/messages', () => ({
   MESSAGE_MAX_LENGTH: 2000,
   conversationId: (a: string, b: string) => [a, b].sort().join('_'),
   getConversation: () => mockGetConversation(),
   markConversationRead: vi.fn().mockResolvedValue(undefined),
+  notifyConversationStarted: (...args: unknown[]) => mockNotifyStarted(...args),
   openConversation: (...args: unknown[]) => mockOpenConversation(...args),
   sendMessage: (...args: unknown[]) => mockSendMessage(...args),
 }));
@@ -85,6 +89,7 @@ function conversation(overrides: Partial<Conversation> = {}): Conversation {
 }
 
 beforeEach(() => {
+  mockUseMyProfile.mockReturnValue({ data: viewer });
   mockUseAuth.mockReturnValue({ user: viewer, loading: false });
   mockUseConversations.mockReturnValue({
     data: {
@@ -142,6 +147,25 @@ describe('MessagesPage thread', () => {
     await waitFor(() => expect(mockSendMessage).toHaveBeenCalledWith('alice_me', 'a reply'));
     // Lazy-create runs before every send (idempotent no-op afterwards).
     expect(mockOpenConversation).toHaveBeenCalledWith('alice');
+    // The conversation already has messages — no bell ping for replies.
+    expect(mockNotifyStarted).not.toHaveBeenCalled();
+  });
+
+  it('rings the recipient bell exactly on the first message of a conversation', async () => {
+    mockGetConversation.mockResolvedValue(null);
+    mockUseThread.mockReturnValue({ messages: [], ready: false, error: null });
+
+    renderPage(<MessagesPage activeHandle="alice" />);
+    await waitFor(() => expect(screen.getByPlaceholderText('Write a message…')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText('Write a message…'), {
+      target: { value: 'first hello' },
+    });
+    await userEvent.setup({ pointerEventsCheck: 0 }).click(
+      screen.getByRole('button', { name: 'Send' }),
+    );
+    await waitFor(() => expect(mockSendMessage).toHaveBeenCalledWith('alice_me', 'first hello'));
+    expect(mockNotifyStarted).toHaveBeenCalledWith('alice', 'me-handle');
   });
 
   it('blocks the composer for strangers and offers the profile instead', async () => {

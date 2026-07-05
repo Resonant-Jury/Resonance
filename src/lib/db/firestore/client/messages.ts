@@ -146,6 +146,25 @@ export async function sendMessage(pairId: string, text: string): Promise<string>
   return msgRef.id;
 }
 
+/**
+ * Notify the other participant that a conversation has opened. Called only for
+ * the FIRST message (the plan's "no per-message pings" rule): afterwards the
+ * unread badge carries the weight, never the bell.
+ */
+export async function notifyConversationStarted(
+  toUserId: string,
+  fromHandle: string,
+): Promise<void> {
+  const uid = requireUid();
+  await setDoc(doc(collection(getClientDb(), 'notifications')), {
+    userId: toUserId,
+    type: 'message',
+    payload: { fromUserId: uid, fromHandle },
+    readAt: null,
+    createdAt: serverTimestamp(),
+  });
+}
+
 /** Zero the viewer's own unread counter on a conversation. */
 export async function markConversationRead(pairId: string): Promise<void> {
   const uid = requireUid();

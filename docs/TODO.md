@@ -49,10 +49,5 @@
 
 - [ ] 阻擋 back 寫文章時
 
-- [ ] 卡片心智圖 miro + 書寫塊右邊也有 
+- [x] 卡片心智圖 miro + 書寫塊右邊也有 
 
-- [ ] Header 兩側的 Margin 減少：
-1. Brand 的左側空間減少
-2. Profile icon 右側的空間減少
-
-以符合編輯文章頁面的內容 Margin 設定

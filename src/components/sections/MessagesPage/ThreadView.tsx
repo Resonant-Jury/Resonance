@@ -10,13 +10,14 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Link } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { useThread } from '@/lib/data/hooks';
+import { useMyProfile, useThread } from '@/lib/data/hooks';
 import { getUserByHandle, isConnected } from '@/lib/db/firestore/client/reads';
 import {
   MESSAGE_MAX_LENGTH,
   conversationId,
   getConversation,
   markConversationRead,
+  notifyConversationStarted,
   openConversation,
   sendMessage,
 } from '@/lib/db/firestore/client/messages';
@@ -37,6 +38,7 @@ export function ThreadView({ handle }: ThreadViewProps) {
   const t = useTranslations('messages');
   const locale = useLocale();
   const { user } = useAuth();
+  const { data: me } = useMyProfile();
   const { mutate: globalMutate } = useSWRConfig();
 
   const { data: other, isLoading: loadingOther } = useSWR(
@@ -93,9 +95,13 @@ export function ThreadView({ handle }: ThreadViewProps) {
     setError(null);
     start(async () => {
       try {
+        // The very first message rings the recipient's bell once; after that
+        // only the unread badge speaks (no per-message pings).
+        const isFirst = !convo?.lastMessage;
         // Idempotent: creates the doc on the first message, no-ops after.
         await openConversation(other.id);
         await sendMessage(pairId, trimmed);
+        if (isFirst && me) void notifyConversationStarted(other.id, me.handle);
         setText('');
         if (!convo) await mutateConvo();
         if (user) void globalMutate(`conversations:${user.id}`);

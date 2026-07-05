@@ -7,21 +7,22 @@ import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wobRect } from '@/lib/design/wobRect';
 import styles from './OrganicButton.module.css';
 
-export type OrganicButtonVariant = 'primary' | 'secondary' | 'ghost' | 'outline' | 'ctaLight' | 'ctaGhost';
+export type OrganicButtonVariant = 'primary' | 'secondary' | 'ghost' | 'outline' | 'ctaLight' | 'ctaGhost' | 'secondaryOutline';
 
 const BTN_VARIANTS: Record<OrganicButtonVariant, {
   fill: string; text: string; stroke: string; stroke2: string; hoverOverlay: string;
 }> = {
-  primary:   { fill: 'var(--color-terracotta)', text: 'var(--color-cream)',      stroke: 'color-mix(in oklch, var(--color-terracotta), black 35%)', stroke2: 'color-mix(in oklch, var(--color-terracotta), black 50%)', hoverOverlay: 'oklch(0% 0 0 / 0.14)' },
-  secondary: { fill: 'var(--color-lavender)',   text: 'var(--color-cream)',      stroke: 'oklch(50% 0.10 290)', stroke2: 'oklch(40% 0.09 290)', hoverOverlay: 'oklch(0% 0 0 / 0.12)' },
-  ghost:     { fill: 'transparent',             text: 'var(--color-text)',       stroke: 'oklch(44% 0.04 70)', stroke2: 'oklch(34% 0.04 70)', hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)' },
-  outline:   { fill: 'transparent',             text: 'var(--color-terracotta)', stroke: 'color-mix(in oklch, var(--color-terracotta), black 15%)', stroke2: 'color-mix(in oklch, var(--color-terracotta), black 35%)', hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)' },
-  ctaLight:  { fill: 'var(--color-cream)',      text: 'var(--color-terracotta)', stroke: 'oklch(80% 0.04 75)', stroke2: 'oklch(70% 0.04 75)', hoverOverlay: 'oklch(0% 0 0 / 0.08)' },
-  ctaGhost:  { fill: 'transparent',             text: 'var(--color-cream)',      stroke: 'oklch(88% 0.02 75 / 0.65)', stroke2: 'oklch(80% 0.02 75 / 0.38)', hoverOverlay: 'oklch(96% 0.015 75 / 0.18)' },
+  primary:          { fill: 'var(--color-terracotta)', text: 'var(--color-cream)',      stroke: 'color-mix(in oklch, var(--color-terracotta), black 35%)', stroke2: 'color-mix(in oklch, var(--color-terracotta), black 50%)', hoverOverlay: 'oklch(0% 0 0 / 0.14)' },
+  secondary:        { fill: 'var(--color-lavender)',   text: 'var(--color-cream)',      stroke: 'oklch(50% 0.10 290)', stroke2: 'oklch(40% 0.09 290)', hoverOverlay: 'oklch(0% 0 0 / 0.12)' },
+  ghost:            { fill: 'transparent',             text: 'var(--color-text)',       stroke: 'oklch(44% 0.04 70)', stroke2: 'oklch(34% 0.04 70)', hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)' },
+  outline:          { fill: 'transparent',             text: 'var(--color-terracotta)', stroke: 'color-mix(in oklch, var(--color-terracotta), black 15%)', stroke2: 'color-mix(in oklch, var(--color-terracotta), black 35%)', hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)' },
+  ctaLight:         { fill: 'var(--color-cream)',      text: 'var(--color-terracotta)', stroke: 'oklch(80% 0.04 75)', stroke2: 'oklch(70% 0.04 75)', hoverOverlay: 'oklch(0% 0 0 / 0.08)' },
+  ctaGhost:         { fill: 'transparent',             text: 'var(--color-cream)',      stroke: 'oklch(88% 0.02 75 / 0.65)', stroke2: 'oklch(80% 0.02 75 / 0.38)', hoverOverlay: 'oklch(96% 0.015 75 / 0.18)' },
+  secondaryOutline: { fill: 'transparent',             text: 'oklch(50% 0.10 290)',     stroke: 'oklch(50% 0.10 290)', stroke2: 'oklch(40% 0.09 290)', hoverOverlay: 'color-mix(in oklch, oklch(50% 0.10 290) 14%, transparent)' },
 };
 
 const BTN_SEEDS: Record<OrganicButtonVariant, number> = {
-  primary: 3, secondary: 201, ghost: 401, outline: 601, ctaLight: 801, ctaGhost: 1001,
+  primary: 3, secondary: 201, ghost: 401, outline: 601, ctaLight: 801, ctaGhost: 1001, secondaryOutline: 1201,
 };
 
 // Buttons are small — keep the wobble gentle (few turns, low bow) so the

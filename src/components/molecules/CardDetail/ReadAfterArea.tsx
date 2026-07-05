@@ -9,6 +9,7 @@ import { NoteComposer } from '@/components/molecules/NoteComposer/NoteComposer';
 import { CardViewerActions } from './CardViewerActions';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useRouter } from '@/i18n/navigation';
+import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 
 export interface ReadAfterAreaProps {
   cardId: string;
@@ -97,28 +98,13 @@ export function ReadAfterArea({ cardId, cardTitle, author, coreInsight }: ReadAf
         // descending in weight from card → note → bookmark.
         trailing={
           <>
-            <button
-              type="button"
+            <OrganicButton
+              variant="secondaryOutline"
               onClick={() => openNote()}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '6px 2px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                fontFamily: 'var(--font-body)',
-                fontSize: 14,
-                lineHeight: 1,
-                color: 'var(--color-text-muted)',
-                textDecoration: 'underline',
-                textUnderlineOffset: 3,
-              }}
             >
-              <Icon name="note" size={19} />
+              <Icon name="note" size={16} />
               {t('entry')}
-            </button>
+            </OrganicButton>
             <BookmarkButton cardId={cardId} />
           </>
         }

@@ -85,7 +85,8 @@
       "cardLink": "{handle} 用卡片連結了你的文章",
       "connect": "與 Ta 建立連結",
       "alreadyConnected": "已連結",
-      "viewAll": "查看全部"
+      "viewAll": "查看全部",
+      "message": "{handle} 傳了一則訊息給你。"
     }
   },
   "home": {
@@ -195,7 +196,9 @@
     "back": "所有對話",
     "youPrefix": "你：",
     "userNotFound": "找不到這個人。",
-    "threadWith": "與 {handle} 的對話"
+    "threadWith": "與 {handle} 的對話",
+    "messageLink": "傳訊息",
+    "startChat": "開始聊天"
   },
   "write": {
     "title": "寫一張新卡片",
@@ -263,6 +266,12 @@
       "keep": "保留",
       "regenerate": "再試一次",
       "stubNotice": "（MVP 階段 AI 是示意，Phase 3 接入真模型）"
+    },
+    "discard": {
+      "title": "確定要捨棄變更嗎？",
+      "message": "您有尚未儲存的變更，離開後將會遺失。",
+      "confirm": "確定捨棄",
+      "cancel": "繼續編輯"
     },
     "saveDraft": "儲存草稿",
     "publish": "發布",

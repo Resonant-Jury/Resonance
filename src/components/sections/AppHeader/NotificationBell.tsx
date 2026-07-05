@@ -23,6 +23,7 @@ export function NotificationBell() {
 
   const tApp = useTranslations('app.notifications');
   const tNav = useTranslations('app.nav');
+  const tMsg = useTranslations('messages');
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -146,11 +147,18 @@ export function NotificationBell() {
             // recipient may answer a resonance (later: a note) with a
             // connection invite right here.
             let connectFromUserId: string | null = null;
+            // Set when the notification should offer the「開始聊天」exit —
+            // the connection is live, the conversation is one click away.
+            let chatWithHandle: string | null = null;
             if (n.type === 'invite') {
               body = tApp('invite', { handle: String(n.payload.fromHandle ?? '') });
               href = '/me';
             } else if (n.type === 'invite_accepted') {
               body = tApp('inviteAccepted', { handle: String(n.payload.fromHandle ?? '') });
+              chatWithHandle = String(n.payload.fromHandle ?? '') || null;
+            } else if (n.type === 'message') {
+              body = tApp('message', { handle: String(n.payload.fromHandle ?? '') });
+              href = `/messages/${n.payload.fromHandle}`;
             } else if (n.type === 'resonance_summary') {
               body = tApp('resonanceSummary', { count: Number(n.payload.count ?? 0) });
             } else if (n.type === 'translation_done') {
@@ -216,7 +224,10 @@ export function NotificationBell() {
                 <li>
                   <div onClick={() => handleClickItem(n)}>
                     {href ? (
-                      <Link href={href as '/me' | `/card/${string}`} style={{ textDecoration: 'none' }}>
+                      <Link
+                        href={href as '/me' | `/card/${string}` | `/messages/${string}`}
+                        style={{ textDecoration: 'none' }}
+                      >
                         {inner}
                       </Link>
                     ) : (
@@ -231,6 +242,27 @@ export function NotificationBell() {
                           n.payload.cardId ? String(n.payload.cardId) : undefined
                         }
                       />
+                    </div>
+                  )}
+                  {chatWithHandle && (
+                    <div style={{ padding: '0 2px 13px' }}>
+                      <Link
+                        href={`/messages/${chatWithHandle}`}
+                        onClick={() => handleClickItem(n)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: 13,
+                          fontFamily: 'var(--font-body)',
+                          color: 'var(--color-terracotta)',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 3,
+                        }}
+                      >
+                        <Icon name="chat" size={15} />
+                        {tMsg('startChat')}
+                      </Link>
                     </div>
                   )}
                 </li>

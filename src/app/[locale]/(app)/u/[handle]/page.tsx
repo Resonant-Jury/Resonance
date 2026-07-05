@@ -31,6 +31,7 @@ export default function PublicProfilePage() {
   const handle = decodeHandle(params?.handle);
   const locale = useLocale();
   const t = useTranslations('profile');
+  const tMsg = useTranslations('messages');
   const { data, isLoading } = useProfileByHandle(handle);
 
   if (isLoading) {
@@ -114,7 +115,16 @@ export default function PublicProfilePage() {
                 <OrganicButton variant="ghost">{t('editProfile')}</OrganicButton>
               </Link>
             ) : (
-              <span className={styles.connected}>✿ {t('connected')}</span>
+              <>
+                <span className={styles.connected}>✿ {t('connected')}</span>
+                {/* The connection is live — the conversation is one click away. */}
+                <Link href={`/messages/${user.handle}`} style={{ textDecoration: 'none' }}>
+                  <OrganicButton variant="ghost" size="sm">
+                    <Icon name="chat" size={15} />
+                    {tMsg('messageLink')}
+                  </OrganicButton>
+                </Link>
+              </>
             )}
           </div>
         )}

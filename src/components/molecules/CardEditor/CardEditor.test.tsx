@@ -173,4 +173,44 @@ describe('CardEditor', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  describe('Navigation Guard', () => {
+    it('does not trigger confirmation dialog if editor is clean', () => {
+      renderWithIntl(<CardEditor locale="en" />);
+      
+      const anchor = document.createElement('a');
+      anchor.setAttribute('href', '/home');
+      document.body.appendChild(anchor);
+      
+      fireEvent.click(anchor);
+      expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
+      document.body.removeChild(anchor);
+    });
+
+    it('intercepts anchor click and shows confirmation modal when dirty', async () => {
+      renderWithIntl(<CardEditor locale="en" />);
+      
+      // Make it dirty by typing
+      fireEvent.change(screen.getByLabelText('One-line title'), { target: { value: 'Dirty title' } });
+
+      const anchor = document.createElement('a');
+      anchor.setAttribute('href', '/home');
+      document.body.appendChild(anchor);
+
+      fireEvent.click(anchor);
+      expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument();
+
+      // Click cancel should close modal
+      await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+      expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
+
+      // Click discard should close modal and navigate (which pushes to router)
+      fireEvent.click(anchor);
+      expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+      expect(push).toHaveBeenCalledWith('/home');
+
+      document.body.removeChild(anchor);
+    });
+  });
 });

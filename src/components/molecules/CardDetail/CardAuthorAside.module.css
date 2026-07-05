@@ -48,3 +48,21 @@
   line-height: 1.6;
   color: var(--color-text-muted);
 }
+
+/* Quiet「傳訊息」exit — only rendered for connected viewers. */
+.messageLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  width: fit-content;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.messageLink:hover {
+  color: var(--color-terracotta);
+}
