@@ -93,8 +93,16 @@ export async function openConversation(otherUid: string, originCardId?: string):
   const id = conversationId(uid, otherUid);
   const db = getClientDb();
   const ref = doc(db, 'conversations', id);
-  const existing = await getDoc(ref);
-  if (existing.exists()) return id;
+  // Reading a *nonexistent* conversation is denied (the read rule dereferences
+  // resource.data), not returned as missing — treat denial as "not created yet"
+  // and let the create rule be the arbiter.
+  let exists = false;
+  try {
+    exists = (await getDoc(ref)).exists();
+  } catch {
+    exists = false;
+  }
+  if (exists) return id;
   const participants = [uid, otherUid].sort();
   await setDoc(ref, {
     participants,

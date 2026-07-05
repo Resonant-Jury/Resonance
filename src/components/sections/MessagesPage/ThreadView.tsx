@@ -62,9 +62,14 @@ export function ThreadView({ handle }: ThreadViewProps) {
   const [pending, start] = useTransition();
 
   // Entering (or receiving into) a thread clears the viewer's unread counter.
+  // The `convo` snapshot goes stale while the realtime thread is open (SWR
+  // doesn't know the other side wrote), so a fresh incoming message — the last
+  // one isn't ours — also triggers the reset (writing 0 is idempotent).
   useEffect(() => {
     if (!convo || !user || !pairId) return;
-    if ((convo.unread[user.id] ?? 0) > 0) {
+    const last = thread.messages[thread.messages.length - 1];
+    const incoming = !!last && last.senderId !== user.id;
+    if (incoming || (convo.unread[user.id] ?? 0) > 0) {
       void markConversationRead(pairId).then(() => {
         void mutateConvo();
         void globalMutate(`conversations:${user.id}`);
