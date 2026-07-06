@@ -38,12 +38,8 @@ function buildHeaderPaths(seed: number) {
   return { maskD, strokeD, W };
 }
 
-export const NAV_KEYS = ['about', 'explore', 'stories'] as const;
-const NAV_TARGETS: Record<(typeof NAV_KEYS)[number], string> = {
-  about: 'about',
-  explore: 'explore',
-  stories: 'stories',
-};
+export const NAV_KEYS = [] as const;
+const NAV_TARGETS: Record<(typeof NAV_KEYS)[number], string> = {};
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -145,18 +141,20 @@ export function SiteHeader() {
           </div>
         ) : (
           <>
-            <nav className={styles.nav}>
-              {NAV_KEYS.map((key) => (
-                <a
-                  key={key}
-                  href={`/${locale}/#${NAV_TARGETS[key]}`}
-                  onClick={(e) => handleNavClick(e, NAV_TARGETS[key])}
-                  className={styles.navLink}
-                >
-                  {t(key)}
-                </a>
-              ))}
-            </nav>
+            {NAV_KEYS.length > 0 && (
+              <nav className={styles.nav}>
+                {NAV_KEYS.map((key) => (
+                  <a
+                    key={key}
+                    href={`/${locale}/#${NAV_TARGETS[key]}`}
+                    onClick={(e) => handleNavClick(e, NAV_TARGETS[key])}
+                    className={styles.navLink}
+                  >
+                    {t(key)}
+                  </a>
+                ))}
+              </nav>
+            )}
 
             <div className={styles.account}>
               <Link

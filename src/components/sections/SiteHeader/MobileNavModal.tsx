@@ -36,25 +36,27 @@ export function MobileNavModal({ open, onClose }: MobileNavModalProps) {
         <span className={styles.brandText}>Resonance</span>
       </div>
 
-      <nav className={styles.nav}>
-        {NAV_KEYS.map((key) => (
-          <a
-            key={key}
-            href={`/${locale}/#${key}`}
-            onClick={(e) => {
-              const el = document.getElementById(key);
-              if (el && window.location.pathname.replace(/\/$/, '') === `/${locale}`) {
-                e.preventDefault();
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }
-              onClose();
-            }}
-            className={styles.navLink}
-          >
-            {t(key)}
-          </a>
-        ))}
-      </nav>
+      {NAV_KEYS.length > 0 && (
+        <nav className={styles.nav}>
+          {NAV_KEYS.map((key) => (
+            <a
+              key={key}
+              href={`/${locale}/#${key}`}
+              onClick={(e) => {
+                const el = document.getElementById(key);
+                if (el && window.location.pathname.replace(/\/$/, '') === `/${locale}`) {
+                  e.preventDefault();
+                  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                onClose();
+              }}
+              className={styles.navLink}
+            >
+              {t(key)}
+            </a>
+          ))}
+        </nav>
+      )}
 
       <svg viewBox="0 0 260 6" preserveAspectRatio="none" aria-hidden="true" className={styles.divider}>
         <path
