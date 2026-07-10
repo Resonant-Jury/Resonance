@@ -20,6 +20,15 @@ describe('rectAnchor', () => {
     expect(high.y).toBeGreaterThanOrEqual(14);
     expect(low.y).toBeLessThanOrEqual(130 - 14);
   });
+
+  it('anchors a cursor-sized rect at its center, not offset by the corner margin', () => {
+    // While a link is being dragged, the target is a 2×2 rect around the
+    // pointer. A 14px corner margin larger than the half-side used to invert
+    // the clamp and pull the anchor ~13px off the cursor.
+    const cursor: RectLike = { x: 99, y: 49, w: 2, h: 2 };
+    expect(rectAnchor(cursor, { x: -400, y: 50 })).toMatchObject({ x: 99, y: 50 });
+    expect(rectAnchor(cursor, { x: 100, y: -400 })).toMatchObject({ x: 100, y: 49 });
+  });
 });
 
 describe('organicEdgePath', () => {

@@ -10,7 +10,7 @@ import { useHint } from '@/lib/hints';
 
 export default function HomeFeedPage() {
   const t = useTranslations('home');
-  const { data, isLoading } = useFeed();
+  const { data, isLoading, isLoadingMore, hasMore, loadMore } = useFeed();
   const { data: rec } = useRecommendedFeed();
   // Cold start is a statement, not a defect (ux §5): with no cards of your own
   // there is no personalized feed — the page invites the first card instead of
@@ -155,7 +155,11 @@ export default function HomeFeedPage() {
               {t('endOfDay')}
             </p>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <OrganicButton variant="outline">{t('moreBtn')}</OrganicButton>
+              {hasMore && (
+                <OrganicButton variant="outline" onClick={loadMore}>
+                  {isLoadingMore ? t('moreLoading') : t('moreBtn')}
+                </OrganicButton>
+              )}
               <Link href="/write" style={{ textDecoration: 'none' }}>
                 <OrganicButton variant="primary">{t('writeResponse')}</OrganicButton>
               </Link>

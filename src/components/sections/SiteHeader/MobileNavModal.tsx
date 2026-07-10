@@ -12,6 +12,7 @@ import { useMyProfile } from '@/lib/data/hooks';
 import { Link } from '@/i18n/navigation';
 import { NAV_KEYS } from './SiteHeader';
 import styles from './MobileNavModal.module.css';
+import { INK_LIGHT } from '@/lib/design/strokes';
 
 export interface MobileNavModalProps {
   open: boolean;
@@ -63,7 +64,7 @@ export function MobileNavModal({ open, onClose }: MobileNavModalProps) {
           d={dividerD}
           transform="translate(0,3)"
           stroke="oklch(55% 0.05 60 / 0.35)"
-          strokeWidth="1.1"
+          strokeWidth={INK_LIGHT}
           fill="none"
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"

@@ -195,7 +195,7 @@ export function CardActionsMenu({
           cornerJitter={2.4}
         />
         <span className={styles.triggerIcon}>
-          <Icon name="dots" size={20} strokeWidth={2.0} />
+          <Icon name="dots" size={20} strokeWidth={INK} />
         </span>
       </button>
 
@@ -355,7 +355,7 @@ function ActionsPanel({ uid, seed, items, busy, onChoose }: ActionsPanelProps) {
             onMouseEnter={() => setHovered(i)}
             onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
           >
-            <Icon name={item.icon} size={17} strokeWidth={1.8} className={styles.optionIcon} />
+            <Icon name={item.icon} size={17} strokeWidth={INK} className={styles.optionIcon} />
             <span>{item.label}</span>
           </button>
         ))}

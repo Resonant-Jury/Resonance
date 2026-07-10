@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev        # Start Next.js dev server
 npm run build      # Production build
-npm run lint       # ESLint via Next.js
+npm run lint       # ESLint (flat config, plain `eslint .`)
 npm run typecheck  # tsc --noEmit
 npm test           # Vitest, single run (CI mode)
 npm run test:watch # Vitest in watch mode
@@ -28,7 +28,7 @@ App routes under `src/app/[locale]/`:
 
 - `page.tsx` — marketing landing page (`SiteHeader → HeroSection → CardFeedSection → CTASection → SiteFooter`)
 - `(auth)/` — `signin`, `signup`
-- `(app)/` — `home` (feed), `me`, `settings`, `write/[id]` (editor), `card/[slug]` (card page), `u/[handle]` (public profile)
+- `(app)/` — `home` (feed), `me`, `settings`, `messages` (DMs), `write/[id]` (editor), `card/[slug]` (card page), `u/[handle]` (public profile)
 
 ### Authentication
 
@@ -44,7 +44,7 @@ App routes under `src/app/[locale]/`:
 
 Core entities live in `src/lib/db/types.ts`: `Card` (with `translations`, `tags`, `slug`, counters), `User` (`handle`/`handleLower`), `Connection`, `Invite`, `Resonance`, `CardLink`, `Notification`. `src/lib/adapters/` converts Firestore data to UI models.
 
-After editing `firebase/firestore.rules` or `firestore.indexes.json`, deploy with `firebase deploy --only firestore:rules,firestore:indexes`.
+After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, deploy from the `firebase/` directory (that's where `firebase.json` lives — the command fails at repo root): `cd firebase && firebase deploy --only firestore:rules,firestore:indexes`.
 
 ### API Routes (`src/app/api/`)
 
@@ -54,6 +54,9 @@ After editing `firebase/firestore.rules` or `firestore.indexes.json`, deploy wit
 | `GET /api/cards/resolve?key=` | slug or legacy doc id → Firestore doc id (id only, no content) |
 | `POST /api/cards/slug` | generate an English slug on publish (LLM-translated title, collision-safe, idempotent) |
 | `POST /api/cards/tags` | LLM suggests 2–3 tags, informed by the author's tag history |
+| `POST /api/cards/insight` | pre-publish "mirror moment": distills the draft's core insight for the publish panel (returns only `coreInsight`) |
+| `POST /api/cards/index` | builds/refreshes a card's recommendation index entry (insight signature + vectors); fire-and-forget after publish, owner-gated |
+| `GET /api/recommend/feed` | reader's recommended feed — daily cached result, LLM funnel only on cache miss; returns card ids + reasons |
 | `POST /api/generate-image` | doodle-style illustration from story text → AVIF → R2 (`maxDuration: 120`) |
 | `POST /api/upload` | image upload proxy to R2 (works around client-to-R2 TLS issues), 8 MB limit |
 | `POST /api/revalidate` | authenticated `revalidatePath` on allowlisted paths (expands locale prefixes) |
@@ -118,6 +121,13 @@ Default env is **node** (fast – suits pure-logic suites). Any test that render
 - **Query by role / label / text**, asserting the behavior a user sees – avoid implementation details.
 - **Component gotchas**: for a control gated by a `pointer-events: none` wrapper, use `userEvent.setup({ pointerEventsCheck: 0 })` to test the component's own validity gate. For long text input, prefer `fireEvent.change` over `userEvent.type`. Await async effects (e.g. a `useEffect` data load) before a test ends to avoid `act()` warnings.
 - **Determinism**: seeded design utils (`prng`, `wobRect`, `wavyPath`) are tested for same-seed stability – this is what guarantees SSR/CSR hydration parity.
+
+### Verification (hard rules)
+
+These are non-negotiable — both rules exist because their violation has already shipped regressions:
+
+- **UI changes**: before calling the work done, verify in the browser preview at **both desktop and mobile** widths (`preview_resize`). Mobile-only fixes have silently broken the desktop layout before (and vice versa), and a fix to one organic component must be checked against its siblings (buttons, inputs, selects, toggles share the same border language).
+- **Data-layer changes** (repositories, `client/*` read-write modules, adapters, page data fetching): ship with an integration-style test that fails without the change. A Server-Render→Firestore migration once broke the home feed and card pages while the whole suite stayed green.
 
 ## Deployment & CLI Tooling
 

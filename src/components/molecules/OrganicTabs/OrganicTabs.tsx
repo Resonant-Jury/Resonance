@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from 'react';
 import { wavyLine } from '@/lib/design/wavyPath';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import styles from './OrganicTabs.module.css';
+import { INK, INK_STRONG } from '@/lib/design/strokes';
 
 export interface OrganicTabItem<K extends string = string> {
   key: K;
@@ -73,7 +74,7 @@ export function OrganicTabs<K extends string = string>({
                     d={underline}
                     fill="none"
                     stroke="var(--color-terracotta)"
-                    strokeWidth={2.4}
+                    strokeWidth={INK_STRONG}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     vectorEffect="non-scaling-stroke"
@@ -90,7 +91,7 @@ export function OrganicTabs<K extends string = string>({
               key={tab.key}
               seed={seed + tab.key.length * 7}
               R={12}
-              strokeWidth={1.8}
+              strokeWidth={INK}
               strokeColor="var(--color-terracotta)"
               fillColor="color-mix(in oklch, var(--color-terracotta-light) 45%, transparent)"
               className={styles.activeSurface}

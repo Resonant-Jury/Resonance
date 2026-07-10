@@ -149,6 +149,15 @@
   opacity: 1;
 }
 
+/* While an arrow is being dragged out, every dashed link handle hides — the
+   draft arrow itself is the guide until the pointer is released. */
+.board[data-linking] .node .linkHandle,
+.board[data-linking] .node:hover .linkHandle,
+.board[data-linking] .node[data-selected='true'] .linkHandle {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .linkHandle:hover {
   border-color: var(--color-terracotta);
   color: var(--color-terracotta);
@@ -283,12 +292,38 @@
   width: 200px;
 }
 
-.tray {
+/* Contextual actions hovering above the selected card node. */
+.nodeActions {
   position: absolute;
   z-index: 6;
-  top: 70px;
-  right: 16px;
-  width: min(320px, calc(100% - 32px));
+  transform: translate(-50%, calc(-100% - 10px));
+  background: var(--color-card-bg);
+  border-radius: 16px;
+  width: max-content;
+}
+
+.nodeActionsRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+}
+
+/* Dim scrim behind the centered card picker; a tap on it closes the picker. */
+.trayBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: oklch(30% 0.02 75 / 0.16);
+}
+
+.tray {
+  width: min(340px, calc(100% - 32px));
+  background: var(--color-card-bg);
+  border-radius: 18px;
 }
 
 .trayInner {

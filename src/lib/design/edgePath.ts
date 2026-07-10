@@ -46,12 +46,17 @@ export function rectAnchor(rect: RectLike, toward: { x: number; y: number }): Ed
   const dx = toward.x - cx;
   const dy = toward.y - cy;
   if (Math.abs(dx) >= Math.abs(dy)) {
-    const slide = clamp(dy * 0.25, -rect.h / 2 + 14, rect.h / 2 - 14);
+    // The 14px corner margin must never exceed the half-side, or the clamp
+    // bounds invert and pin the anchor off-center (the cursor-sized rect used
+    // while dragging out a new link would anchor 13px away from the pointer).
+    const m = Math.min(14, rect.h / 2);
+    const slide = clamp(dy * 0.25, -rect.h / 2 + m, rect.h / 2 - m);
     return dx >= 0
       ? { x: rect.x + rect.w, y: cy + slide, nx: 1, ny: 0 }
       : { x: rect.x, y: cy + slide, nx: -1, ny: 0 };
   }
-  const slide = clamp(dx * 0.25, -rect.w / 2 + 14, rect.w / 2 - 14);
+  const m = Math.min(14, rect.w / 2);
+  const slide = clamp(dx * 0.25, -rect.w / 2 + m, rect.w / 2 - m);
   return dy >= 0
     ? { x: cx + slide, y: rect.y + rect.h, nx: 0, ny: 1 }
     : { x: cx + slide, y: rect.y, nx: 0, ny: -1 };

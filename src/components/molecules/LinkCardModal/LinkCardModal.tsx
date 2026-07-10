@@ -12,6 +12,7 @@ import { getCardsByAuthor } from '@/lib/db/firestore/client/reads';
 import { createCardLink } from '@/lib/db/firestore/client/cardLinks';
 import type { Card } from '@/lib/db/types';
 import styles from './LinkCardModal.module.css';
+import { INK_STRONG } from '@/lib/design/strokes';
 
 export interface LinkCardModalProps {
   open: boolean;
@@ -110,7 +111,7 @@ export function LinkCardModal({ open, onClose, targetCardId, targetAuthorId, onL
                     </span>
                     <span className={styles.cardTitle}>{c.thoughtCore}</span>
                     {selected === c.id && (
-                      <Icon name="check" size={18} strokeWidth={2.4} color="var(--color-terracotta)" />
+                      <Icon name="check" size={18} strokeWidth={INK_STRONG} color="var(--color-terracotta)" />
                     )}
                   </button>
                 </li>

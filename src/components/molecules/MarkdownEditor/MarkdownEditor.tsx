@@ -20,6 +20,7 @@ import { OrganicImageNode } from './OrganicImageNode';
 import { CardEmbedNode } from './CardEmbedNode';
 import { CurvedBlockquoteNode } from './CurvedBlockquoteNode';
 import styles from './MarkdownEditor.module.css';
+import { INK_LIGHT } from '@/lib/design/strokes';
 
 /** tiptap-markdown augments `editor.storage` at runtime; type it locally. */
 function getMarkdown(editor: Editor): string {
@@ -260,7 +261,7 @@ export function MarkdownEditor({
               d={toolbarStrokeD}
               fill="none"
               stroke="color-mix(in oklch, var(--field-border-hover) 45%, transparent)"
-              strokeWidth={1.2}
+              strokeWidth={INK_LIGHT}
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
             />

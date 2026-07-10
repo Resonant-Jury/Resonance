@@ -8,6 +8,7 @@ import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
+import { INK_LIGHT } from '@/lib/design/strokes';
 
 export function AuthCard({ children, title }: { children: ReactNode; title: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -47,7 +48,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
         <GrainOverlay opacity={0.04} />
 
         <div style={{ position: 'absolute', top: -3, left: 0, right: 0, pointerEvents: 'none', zIndex: 5 }}>
-          <Divider seed={seed} spacing={0} color="oklch(52% 0.13 55)" strokeWidth={1.4} />
+          <Divider seed={seed} spacing={0} color="oklch(52% 0.13 55)" strokeWidth={INK_LIGHT} />
         </div>
 
         <div style={{ position: 'relative', zIndex: 1 }}>
@@ -66,7 +67,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
         </div>
 
         <div style={{ position: 'absolute', bottom: -3, left: 0, right: 0, pointerEvents: 'none', zIndex: 5 }}>
-          <Divider seed={seed + 11} spacing={0} color="oklch(52% 0.13 55)" strokeWidth={1.4} />
+          <Divider seed={seed + 11} spacing={0} color="oklch(52% 0.13 55)" strokeWidth={INK_LIGHT} />
         </div>
       </section>
     );

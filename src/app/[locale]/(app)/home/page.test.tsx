@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { renderWithIntl, screen } from '@/../test/render';
+import { renderWithIntl, screen, userEvent } from '@/../test/render';
 import type { Card, User } from '@/lib/db/types';
 
 // The page's data boundary is the SWR hook. We mock it to drive the page
@@ -114,6 +114,33 @@ describe('HomeFeedPage', () => {
       screen.getByText('Your first card becomes the point this world starts arranging itself around.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Write a story')).toBeInTheDocument();
+  });
+
+  it('offers "load more" only while the feed has more pages', async () => {
+    const loadMore = vi.fn();
+    mockUseFeed.mockReturnValue({
+      data: { cards: [card('c1', 'a1', 'A thought')], authors: { a1: user('a1') } },
+      isLoading: false,
+      hasMore: true,
+      loadMore,
+    });
+
+    const { unmount } = renderWithIntl(<HomeFeedPage />);
+    const btn = screen.getByRole('button', { name: 'Load more' });
+    await userEvent.setup().click(btn);
+    expect(loadMore).toHaveBeenCalled();
+    unmount();
+
+    // Exhausted feed: the button disappears; the write CTA remains.
+    mockUseFeed.mockReturnValue({
+      data: { cards: [card('c1', 'a1', 'A thought')], authors: { a1: user('a1') } },
+      isLoading: false,
+      hasMore: false,
+      loadMore,
+    });
+    renderWithIntl(<HomeFeedPage />);
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+    expect(screen.getByText('Write a card')).toBeInTheDocument();
   });
 
   it('shows the reason micro-hint above the personalized feed', () => {

@@ -5,6 +5,7 @@ import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { Link } from '@/i18n/navigation';
 import styles from './SiteFooter.module.css';
+import { INK_LIGHT } from '@/lib/design/strokes';
 
 const LINK_KEYS = ['about', 'contact', 'privacy', 'terms'] as const;
 const HREFS: Record<(typeof LINK_KEYS)[number], string> = {
@@ -25,7 +26,7 @@ export function SiteFooter() {
         amplitude={0.14}
         steps={14}
         stroke="oklch(20% 0.03 60 / 0.5)"
-        strokeWidth={1.3}
+        strokeWidth={INK_LIGHT}
       />
       <div className={styles.container}>
         <div className={styles.brand}>

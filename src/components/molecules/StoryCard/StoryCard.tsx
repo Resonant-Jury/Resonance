@@ -2,7 +2,7 @@
 
 import { MouseEvent, useId, useMemo, useRef, useState } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
-import { INK } from '@/lib/design/strokes';
+import { INK, INK_LIGHT } from '@/lib/design/strokes';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
@@ -75,7 +75,7 @@ function StoryImage({ label, accentFill, imageUrl, seed }: { label: string; acce
               x2={i * 22 + 160}
               y2="200"
               stroke={stripeFill}
-              strokeWidth="1.5"
+              strokeWidth={INK_LIGHT}
               strokeOpacity="0.28"
             />
           ))}
@@ -175,7 +175,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
               d={dividerPath}
               transform="translate(0,3)"
               stroke={bc1}
-              strokeWidth="1.4"
+              strokeWidth={INK_LIGHT}
               fill="none"
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
@@ -193,7 +193,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
                 d={dividerPath}
                 transform="translate(0,3)"
                 stroke={bc1}
-                strokeWidth="1.4"
+                strokeWidth={INK_LIGHT}
                 fill="none"
                 strokeLinecap="round"
                 vectorEffect="non-scaling-stroke"
@@ -305,7 +305,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
             d={separatorPath}
             transform="translate(0, 3)"
             stroke={`oklch(55% 0.04 ${hue} / 0.4)`}
-            strokeWidth="1.1"
+            strokeWidth={INK_LIGHT}
             fill="none"
             strokeLinecap="round"
           />
@@ -342,7 +342,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
             <Icon
               name="arrow-right"
               size={18}
-              strokeWidth={1.7}
+              strokeWidth={INK}
               style={{ opacity: hovered ? 0.7 : 0.28, transition: 'opacity 180ms' }}
             />
           )}

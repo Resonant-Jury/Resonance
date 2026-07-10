@@ -51,7 +51,7 @@ import {
   NODE_W,
   type Camera,
 } from './mapMath';
-import { ThoughtMapNode } from './ThoughtMapNode';
+import { ThoughtMapNode, nodeHue } from './ThoughtMapNode';
 import styles from './ThoughtMap.module.css';
 
 const GROUP_HUES = [88, 215, 290, 140, 55, 18];
@@ -449,6 +449,9 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
       groupRects,
     );
     setNodes((prev) => ({ ...prev, [card.id]: { cardId: card.id, ...pos, groupId } }));
+    // Close the picker so the freshly placed card (it lands at the viewport
+    // center, right where the picker sits) is immediately visible.
+    setTrayOpen(false);
     addMapNode(card.id, pos.x, pos.y)
       .then(() => (groupId ? setNodeGroups([{ cardId: card.id, groupId }]) : undefined))
       .catch(swallow);
@@ -578,7 +581,15 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
   }, [linkDraft, nodes]);
 
   const selectedCard = selection?.kind === 'node' ? data.cards[selection.id] : undefined;
+  const selectedNode = selection?.kind === 'node' ? nodes[selection.id] : undefined;
   const isEmpty = Object.keys(nodes).length === 0 && Object.keys(groups).length === 0;
+
+  // The draft arrow inherits its source card's hue, so the stroke you pull out
+  // visibly belongs to that card (matches the node's own border color).
+  const linkSourceCard = linkDraft ? data.cards[linkDraft.sourceId] : undefined;
+  const linkColor = linkSourceCard
+    ? `oklch(52% 0.11 ${nodeHue(linkSourceCard)})`
+    : 'var(--color-terracotta)';
 
   const renderNode = (n: NodeState, x: number, y: number) => {
     const card = data.cards[n.cardId];
@@ -605,6 +616,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
     <div
       ref={boardRef}
       className={[styles.board, flush && styles.flush].filter(Boolean).join(' ')}
+      data-linking={linkDraft ? true : undefined}
       style={style}
     >
       {!flush && (
@@ -652,7 +664,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
                   R={34}
                   seed={seedFromString(g.id)}
                   fillColor={`oklch(96.5% 0.032 ${g.hue} / ${hot ? 0.92 : 0.78})`}
-                  strokeColor={sel || hot ? 'var(--color-terracotta)' : `oklch(60% 0.085 ${g.hue})`}
+                  strokeColor={sel || hot ? `oklch(45% 0.1 ${g.hue})` : `oklch(60% 0.085 ${g.hue})`}
                   strokeWidth={sel || hot ? INK_STRONG : INK_LIGHT}
                   curve={0.6}
                   cornerOffset={5}
@@ -685,7 +697,8 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
               const seed = seedFromString(edge.id);
               const geo = organicEdgePath(nodeRect(s), nodeRect(target), seed);
               const sel = selection?.kind === 'edge' && selection.id === edge.id;
-              const color = sel ? 'var(--color-terracotta)' : 'oklch(46% 0.045 60)';
+              // Selection darkens the ink rather than jumping to the accent.
+              const color = sel ? 'oklch(28% 0.05 60)' : 'oklch(46% 0.045 60)';
               return (
                 <g key={edge.id}>
                   <path
@@ -734,7 +747,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
               >
                 <TagPill
                   size="sm"
-                  color={sel ? 'var(--color-terracotta-light)' : 'oklch(94% 0.02 75)'}
+                  color={sel ? 'oklch(88% 0.03 60)' : 'oklch(94% 0.02 75)'}
                   onClick={() => setSelection({ kind: 'edge', id: edge.id })}
                 >
                   {edge.label || t('edgeLabelPlaceholder')}
@@ -786,7 +799,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
                   <g>
                     <path
                       d={geo.d}
-                      stroke="var(--color-terracotta)"
+                      stroke={linkColor}
                       strokeWidth={INK_STRONG}
                       strokeDasharray={linkTargetId ? undefined : '7 6'}
                       fill="none"
@@ -794,7 +807,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
                     />
                     <path
                       d={arrowHeadPath(geo.end, geo.endAngle, 15, seed + 7)}
-                      stroke="var(--color-terracotta)"
+                      stroke={linkColor}
                       strokeWidth={INK_STRONG}
                       fill="none"
                       strokeLinecap="round"
@@ -827,8 +840,8 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
                       cx={cx}
                       cy={cy}
                       r={docked ? 7 : 5.5}
-                      fill={docked ? 'var(--color-terracotta)' : 'var(--color-card-bg)'}
-                      stroke="var(--color-terracotta)"
+                      fill={docked ? linkColor : 'var(--color-card-bg)'}
+                      stroke={linkColor}
                       strokeWidth={INK}
                     />
                   ));
@@ -861,27 +874,39 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
         </button>
       </div>
 
-      {/* inspector for the current selection */}
-      {selection && (
+      {/* Node actions float right above the selected card (screen-space, so
+          they keep their size at any zoom) instead of a detached bottom bar. */}
+      {selectedCard && selectedNode && !dragNodeId && (
+        <div
+          className={styles.nodeActions}
+          style={{
+            left: camera.x + (selectedNode.x + NODE_W / 2) * camera.s,
+            top: camera.y + selectedNode.y * camera.s,
+          }}
+        >
+          <HandDrawnDashedSurface seed={61} state="idle">
+            <div className={styles.nodeActionsRow}>
+              <OrganicButton variant="ghost" size="sm" onClick={() => openCard(selectedCard)}>
+                {t('open')}
+              </OrganicButton>
+              <button
+                type="button"
+                className={styles.iconButton}
+                aria-label={t('removeFromMap')}
+                onClick={removeSelection}
+              >
+                <Icon name="trash" size={16} />
+              </button>
+            </div>
+          </HandDrawnDashedSurface>
+        </div>
+      )}
+
+      {/* inspector for the selected arrow / region (label editing lives here) */}
+      {selection && selection.kind !== 'node' && (
         <div className={styles.inspector}>
           <HandDrawnDashedSurface seed={61} state="idle">
             <div className={styles.inspectorRow}>
-              {selection.kind === 'node' && selectedCard && (
-                <>
-                  <span className={styles.inspectorTitle}>{selectedCard.thoughtCore}</span>
-                  <OrganicButton variant="ghost" onClick={() => openCard(selectedCard)}>
-                    {t('open')}
-                  </OrganicButton>
-                  <button
-                    type="button"
-                    className={styles.iconButton}
-                    aria-label={t('removeFromMap')}
-                    onClick={removeSelection}
-                  >
-                    <Icon name="trash" size={16} />
-                  </button>
-                </>
-              )}
               {selection.kind === 'edge' && (
                 <>
                   <Input
@@ -934,8 +959,14 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
         </div>
       )}
 
-      {/* card tray */}
+      {/* card picker — centered over the board, dismissed by the backdrop */}
       {trayOpen && (
+        <div
+          className={styles.trayBackdrop}
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) setTrayOpen(false);
+          }}
+        >
         <div className={styles.tray}>
           <HandDrawnDashedSurface seed={29} state="idle">
             <div className={styles.trayInner}>
@@ -955,9 +986,10 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
             </div>
           </HandDrawnDashedSurface>
         </div>
+        </div>
       )}
 
-      {isEmpty && (
+      {isEmpty && !trayOpen && (
         <div className={styles.emptyState}>
           <p className={styles.emptyText}>{t('empty')}</p>
           <OrganicButton variant="primary" onClick={() => setTrayOpen(true)}>

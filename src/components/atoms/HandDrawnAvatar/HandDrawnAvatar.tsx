@@ -3,6 +3,7 @@
 import { useId, useMemo } from 'react';
 import { wobRect } from '@/lib/design/wobRect';
 import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
+import { INK } from '@/lib/design/strokes';
 
 export interface HandDrawnAvatarProps {
   initials?: string;
@@ -81,7 +82,7 @@ export function HandDrawnAvatar({
             d={path}
             fill="none"
             stroke="oklch(36% 0.06 60 / 0.55)"
-            strokeWidth={1.5}
+            strokeWidth={INK}
             strokeLinejoin="round"
           />
         </svg>
@@ -95,7 +96,7 @@ export function HandDrawnAvatar({
             mag={mag}
             fillColor={color}
             strokeColor="oklch(36% 0.06 60 / 0.55)"
-            strokeWidth={1.5}
+            strokeWidth={INK}
             segmentsH={1}
             segmentsV={1}
             curve={1.3}

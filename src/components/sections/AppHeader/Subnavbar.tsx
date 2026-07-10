@@ -387,7 +387,7 @@ function SubnavPanel({
             onMouseMove={recordPointer}
             onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
           >
-            <Icon name={item.icon} size={18} strokeWidth={1.8} className={styles.optionIcon} />
+            <Icon name={item.icon} size={18} strokeWidth={INK} className={styles.optionIcon} />
             <span className={styles.optionLabel}>
               {item.key === 'signOut' && signingOut ? '…' : label(item.key)}
             </span>

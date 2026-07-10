@@ -7,6 +7,7 @@ import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wobRect } from '@/lib/design/wobRect';
 import styles from './Modal.module.css';
+import { INK } from '@/lib/design/strokes';
 
 export interface ModalProps {
   open: boolean;
@@ -92,12 +93,12 @@ export function Modal({
         <HandDrawnBorder
           w={w} h={h} R={R} seed={seed} mag={mag}
           strokeColor={borderColor}
-          strokeWidth={1.8}
+          strokeWidth={INK}
           segmentsH={[3, 4]} segmentsV={[5, 6]}
           curve={0.6} cornerJitter={0.9} cornerOffset={5}
         />
         <button onClick={onClose} aria-label="Close" className={styles.closeBtn}>
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={INK} strokeLinecap="round">
             <path d="M4,4.2 C7,6.4 11.8,7.2 13.8,13.9" />
             <path d="M13.9,4.1 C11.6,7 7.1,10.2 4.1,13.8" />
           </svg>

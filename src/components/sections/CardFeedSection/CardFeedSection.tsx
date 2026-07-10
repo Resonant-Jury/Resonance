@@ -9,6 +9,7 @@ import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { Link } from '@/i18n/navigation';
 import type { Card, User } from '@/lib/db/types';
 import styles from './CardFeedSection.module.css';
+import { INK_LIGHT } from '@/lib/design/strokes';
 
 export interface CardFeedSectionProps {
   cards: Card[];
@@ -26,7 +27,7 @@ export function CardFeedSection({ cards, authors }: CardFeedSectionProps) {
         amplitude={0.14}
         steps={14}
         stroke="oklch(55% 0.05 60 / 0.28)"
-        strokeWidth={1.2}
+        strokeWidth={INK_LIGHT}
       />
 
       <div className={styles.blob}>

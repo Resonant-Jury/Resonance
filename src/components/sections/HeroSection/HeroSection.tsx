@@ -7,6 +7,7 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { Link } from '@/i18n/navigation';
 import styles from './HeroSection.module.css';
+import { INK_STRONG } from '@/lib/design/strokes';
 
 const AVATARS: { ini: string; color: string }[] = [
   { ini: 'AC', color: 'var(--color-terracotta-light)' },
@@ -35,7 +36,7 @@ export function HeroSection() {
         </div>
 
         <h1 className={styles.headline}>
-          {t('headlinePrefix')}<span className={styles.accentWrap}><span className={styles.accent}>{t('headlineAccent')}</span><svg viewBox="0 0 200 12" className={styles.squiggle}><path d="M2,8 C30,2 60,12 90,6 C120,0 150,10 198,6" stroke="var(--color-terracotta)" strokeWidth="2.5" fill="none" strokeLinecap="round" opacity="0.6" /></svg></span>{t('headlineSuffix')}
+          {t('headlinePrefix')}<span className={styles.accentWrap}><span className={styles.accent}>{t('headlineAccent')}</span><svg viewBox="0 0 200 12" className={styles.squiggle}><path d="M2,8 C30,2 60,12 90,6 C120,0 150,10 198,6" stroke="var(--color-terracotta)" strokeWidth={INK_STRONG} fill="none" strokeLinecap="round" opacity="0.6" /></svg></span>{t('headlineSuffix')}
         </h1>
 
         <p className={styles.description}>{t('description')}</p>

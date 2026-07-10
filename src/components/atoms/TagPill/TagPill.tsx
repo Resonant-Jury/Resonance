@@ -4,6 +4,7 @@ import { ReactNode, useMemo, useRef } from 'react';
 import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import styles from './TagPill.module.css';
+import { INK } from '@/lib/design/strokes';
 
 export type TagSize = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -94,14 +95,14 @@ export function TagPill({
             <path
               d="M 1.6 1.8 C 3 3 5.2 5.2 8.2 8.4"
               stroke="currentColor"
-              strokeWidth="1.6"
+              strokeWidth={INK}
               strokeLinecap="round"
               fill="none"
             />
             <path
               d="M 8.2 1.8 C 7 3 4.8 5.2 1.6 8.4"
               stroke="currentColor"
-              strokeWidth="1.6"
+              strokeWidth={INK}
               strokeLinecap="round"
               fill="none"
             />

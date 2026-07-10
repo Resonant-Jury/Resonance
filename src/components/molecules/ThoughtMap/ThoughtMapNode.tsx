@@ -66,13 +66,15 @@ export const ThoughtMapNode = memo(function ThoughtMapNode({
       role="button"
       tabIndex={-1}
     >
+      {/* Selection deepens the card's own hue (fill + stroke) rather than
+          switching to the accent color, so a blue card selects as darker blue. */}
       <HandDrawnBorder
         w={NODE_W}
         h={NODE_H}
         R={18}
         seed={seed}
-        fillColor={emphasized ? `oklch(94.5% 0.025 ${hue})` : `oklch(97.5% 0.012 ${hue})`}
-        strokeColor={emphasized ? 'var(--color-terracotta)' : `oklch(52% 0.11 ${hue})`}
+        fillColor={emphasized ? `oklch(92.5% 0.045 ${hue})` : `oklch(97.5% 0.012 ${hue})`}
+        strokeColor={emphasized ? `oklch(38% 0.13 ${hue})` : `oklch(52% 0.11 ${hue})`}
         strokeWidth={emphasized ? INK_STRONG : INK}
         chalkSeed={seed % 6}
         segmentsH={[3, 4]}

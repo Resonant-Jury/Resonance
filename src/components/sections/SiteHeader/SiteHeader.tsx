@@ -13,6 +13,7 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile } from '@/lib/data/hooks';
 import { MobileNavModal } from './MobileNavModal';
 import styles from './SiteHeader.module.css';
+import { INK_LIGHT } from '@/lib/design/strokes';
 
 const HEADER_BODY_H = 68;
 const HEADER_WAVE_H = 14;
@@ -108,7 +109,7 @@ export function SiteHeader() {
           d={strokeD}
           fill="none"
           stroke="oklch(55% 0.05 60 / 0.38)"
-          strokeWidth="1.1"
+          strokeWidth={INK_LIGHT}
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
         />

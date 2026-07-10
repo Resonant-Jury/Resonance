@@ -22,7 +22,7 @@ import { Icon } from '@/components/atoms/Icon';
 import { wobRect } from '@/lib/design/wobRect';
 import { makePrng } from '@/lib/design/prng';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
-import { INK, INK_LIGHT } from '@/lib/design/strokes';
+import { INK, INK_LIGHT, INK_STRONG } from '@/lib/design/strokes';
 import styles from './Field.module.css';
 
 type Variant = 'default' | 'subtle';
@@ -309,7 +309,7 @@ export function Select({
           onBlur={() => setHover(false)}
         >
           <span className={styles.dropdownValue}>{selectedLabel}</span>
-          <Icon name="chevron-down" size={20} strokeWidth={2.4} className={styles.dropdownChevron} />
+          <Icon name="chevron-down" size={20} strokeWidth={INK_STRONG} className={styles.dropdownChevron} />
         </button>
       </HandDrawnDashedSurface>
 
@@ -549,7 +549,7 @@ function DropdownPanel({
           >
             <span>{opt.label}</span>
             {opt.value === value && (
-              <Icon name="check" size={18} strokeWidth={2.4} color="var(--color-terracotta)" />
+              <Icon name="check" size={18} strokeWidth={INK_STRONG} color="var(--color-terracotta)" />
             )}
           </button>
         ))}

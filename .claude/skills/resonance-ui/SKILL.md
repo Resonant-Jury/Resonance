@@ -23,7 +23,7 @@ When building UI in this repo, **always reach for these primitives before writin
 | Show a busy / loading state (e.g. while uploading) | `<SketchLoader>` (from `atoms/SketchLoader`) — wobbly rings that continuously re-sketch themselves |
 | Separate stacked rows/sections | `<Divider seed={N} spacing={6} />` — wavy pen rule, never a flat 1px border |
 | Group related controls into a side panel | one `<Panel>` with `<Divider />` between sub-sections |
-| Show a status icon (bell, star, sparkle, check, close, plus, arrow-right, chevron-down, image, eye, lock, users, globe, wave, pen, cards, logout) | `<Icon name="…" size=… />` |
+| Show a status icon | `<Icon name="…" size=… />` — full name list lives in `src/components/atoms/Icon/registry.ts` (don't trust any hand-copied list here; it goes stale) |
 | Show a tag / chip | `<TagPill size="sm|md|lg|xl" onRemove? onClick?>` |
 | Primary action | `<OrganicButton variant="primary|outline|ghost">` |
 | Vertical/horizontal separator | `<Divider seed={N} />` |
@@ -100,7 +100,7 @@ When building UI in this repo, **always reach for these primitives before writin
 // Tags
 <TagPill size="lg" color="oklch(92% 0.075 88)" onRemove={() => …}>記憶</TagPill>
 
-// Icons (defaults: size 26, strokeWidth 2.1)
+// Icons (defaults: size 26, strokeWidth INK_STRONG)
 <Icon name="bell" size={22} ariaLabel="Notifications" />
 
 // Hand-drawn surface (auto-sized wobble — short edge few points, long edge many)
@@ -160,6 +160,16 @@ Two intuitions baked in:
 - Page rhythm: `--app-header-h`, `--page-pad-top`, `--page-pad-bottom`, `--page-pad-x`, `--page-max-w`, `--page-max-w-wide`
 - Forms: `--field-pad-y/x`, `--field-radius`, `--field-border`, `--field-border-hover`, `--field-border-focus`, `--placeholder`, `--label-size`, `--label-tracking`, `--hint-size`
 - Color / typography: see DESIGN.md §2–§4
+
+## Pre-ship checklist
+
+Run through this before declaring any UI change done — every line exists because it has been corrected repeatedly in past sessions:
+
+1. **One pen**: every stroke width is `INK` / `INK_LIGHT` / `INK_STRONG` from `src/lib/design/strokes.ts` — no numeric `strokeWidth` anywhere (the only sanctioned exception: invisible pointer hit-areas, e.g. `ThoughtMapCanvas`'s transparent 16px edge-hit stroke).
+2. **Fix the family, not the instance**: a border/line/curve tweak on one organic surface must be checked against its siblings (Button, Segmented Action Bar, image upload box, Input, Select, ToggleSwitch) — they share the same border language and users notice when one drifts.
+3. **Spacing breathes**: helper text, counters, and hints never sit flush against buttons or edges — give them margin. Spacing values come from tokens/CSS modules, not inline styles.
+4. **Both viewports**: verify desktop **and** mobile in the preview (`preview_resize`). Mobile fixes have silently broken the desktop masonry before, and vice versa. Remember rule 13: cards degrade to full-bleed wavy-divider blocks on mobile.
+5. **Organic, not flat**: no flat 1px borders, no plain rectangles — dividers are wavy (`<Divider>`), surfaces are wobbly, textures use `<GrainOverlay>`. When unsure, compare against DESIGN.md.
 
 ## When in doubt
 

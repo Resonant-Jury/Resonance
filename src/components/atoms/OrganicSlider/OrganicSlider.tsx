@@ -5,6 +5,7 @@ import { wavyLine } from '@/lib/design/wavyPath';
 import { wobCircle } from '@/lib/design/wobCircle';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import styles from './OrganicSlider.module.css';
+import { INK } from '@/lib/design/strokes';
 
 export interface OrganicSliderProps {
   value: number;
@@ -103,7 +104,7 @@ export function OrganicSlider({
               d={knobPath}
               fill="var(--color-cream)"
               stroke="var(--color-terracotta)"
-              strokeWidth={2}
+              strokeWidth={INK}
               strokeLinejoin="round"
             />
           </g>

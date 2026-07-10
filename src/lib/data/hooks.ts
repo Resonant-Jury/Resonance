@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
 import { useAuth } from '@/components/providers/AuthProvider';
 import type { Card, CardBoxTab, User } from '@/lib/db';
 import {
@@ -68,15 +69,52 @@ export function useRecommendedFeed() {
   });
 }
 
-/** Latest public feed for the home page. */
-export function useFeed() {
+const FEED_PAGE_SIZE = 12;
+
+export interface FeedState {
+  data?: CardsWithAuthors;
+  isLoading: boolean;
+  /** A further page is currently being fetched (the "load more" spinner). */
+  isLoadingMore: boolean;
+  /** False once the newest fetch came back short — the feed is exhausted. */
+  hasMore: boolean;
+  loadMore: () => void;
+}
+
+/** Latest public feed for the home page, paginated by publishedAt cursor. */
+export function useFeed(): FeedState {
   // The feed lists only public cards, which Firestore rules allow anonymously,
   // so it can fetch immediately regardless of auth state — no need to wait on
   // the client SDK's async auth restoration.
-  return useSWR<CardsWithAuthors>('feed:latest', async () => {
-    const cards = await getLatestPublishedFeed(12);
-    return withAuthors(cards);
-  });
+  const { data, isLoading, size, setSize } = useSWRInfinite<CardsWithAuthors>(
+    (index, prev: CardsWithAuthors | null) => {
+      // A short page means Firestore ran out — stop asking for more.
+      if (prev && prev.cards.length < FEED_PAGE_SIZE) return null;
+      if (index === 0) return ['feed:latest', null];
+      const last = prev!.cards[prev!.cards.length - 1];
+      return ['feed:latest', last.publishedAt!.getTime()];
+    },
+    async ([, cursorMs]: [string, number | null]) => {
+      const cursor = cursorMs === null ? undefined : new Date(cursorMs);
+      return withAuthors(await getLatestPublishedFeed(FEED_PAGE_SIZE, cursor));
+    },
+  );
+
+  const pages = data ?? [];
+  const merged: CardsWithAuthors | undefined =
+    pages.length > 0
+      ? {
+          cards: pages.flatMap((p) => p.cards),
+          authors: Object.assign({}, ...pages.map((p) => p.authors)),
+        }
+      : undefined;
+  return {
+    data: merged,
+    isLoading,
+    isLoadingMore: size > pages.length,
+    hasMore: pages.length > 0 && pages[pages.length - 1].cards.length === FEED_PAGE_SIZE,
+    loadMore: () => void setSize((s) => s + 1),
+  };
 }
 
 /**

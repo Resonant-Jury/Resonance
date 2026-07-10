@@ -10,7 +10,7 @@ import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
 import { wavyLine } from '@/lib/design/wavyPath';
-import { INK } from '@/lib/design/strokes';
+import { INK, INK_LIGHT } from '@/lib/design/strokes';
 import styles from './MiniStoryCard.module.css';
 
 const CARD_BORDERS = [
@@ -114,7 +114,7 @@ export function MiniStoryCard({
             className={styles.mobileDivider}
             style={{ top: -3 }}
           >
-            <path d={dividerPath} transform="translate(0,3)" stroke={bc1} strokeWidth="1.4" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <path d={dividerPath} transform="translate(0,3)" stroke={bc1} strokeWidth={INK_LIGHT} fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
           {isLast && (
             <svg
@@ -124,7 +124,7 @@ export function MiniStoryCard({
               className={styles.mobileDivider}
               style={{ bottom: -3 }}
             >
-              <path d={dividerPath} transform="translate(0,3)" stroke={bc1} strokeWidth="1.4" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+              <path d={dividerPath} transform="translate(0,3)" stroke={bc1} strokeWidth={INK_LIGHT} fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
           )}
         </>

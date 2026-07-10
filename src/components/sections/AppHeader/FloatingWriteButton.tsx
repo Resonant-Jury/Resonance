@@ -4,7 +4,7 @@ import { Link, usePathname } from '@/i18n/navigation';
 import { Icon } from '@/components/atoms/Icon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
-import { INK } from '@/lib/design/strokes';
+import { INK, INK_STRONG } from '@/lib/design/strokes';
 
 // Where the floating write button belongs: browsing surfaces only — the feed
 // and card detail pages. Utility pages (settings, card box, profiles, the
@@ -66,7 +66,7 @@ export function FloatingWriteButton() {
         cornerOffset={56 * 0.06}
       />
       <span style={{ position: 'relative', zIndex: 1, display: 'flex' }}>
-        <Icon name="pen" size={24} strokeWidth={2.2} ariaLabel="Write a card" />
+        <Icon name="pen" size={24} strokeWidth={INK_STRONG} ariaLabel="Write a card" />
       </span>
     </Link>
   );

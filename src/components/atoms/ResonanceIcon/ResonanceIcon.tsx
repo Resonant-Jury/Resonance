@@ -1,6 +1,7 @@
 'use client';
 
 import { CSSProperties, useEffect, useState } from 'react';
+import { INK } from '@/lib/design/strokes';
 
 function useAccentColor() {
   const [color, setColor] = useState('#6F8F72');
@@ -39,7 +40,7 @@ export function ResonanceIcon({ size = 32, style = {} }: ResonanceIconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke={accent}
-      strokeWidth={2}
+      strokeWidth={INK}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

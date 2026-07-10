@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { INK_STRONG } from '@/lib/design/strokes';
 import { ICONS, type IconName } from './registry';
 
 export interface IconProps {
@@ -35,7 +36,7 @@ export function Icon({
 }: IconProps) {
   const Renderer = ICONS[name];
   const resolvedSize = size ?? 26;
-  const resolvedStroke = strokeWidth ?? 2.1;
+  const resolvedStroke = strokeWidth ?? INK_STRONG;
   return (
     <span
       role={ariaLabel ? 'img' : undefined}

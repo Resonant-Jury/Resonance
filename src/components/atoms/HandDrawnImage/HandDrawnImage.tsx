@@ -105,7 +105,7 @@ export function HandDrawnImage({
             mag={34 * 0.022}
             fillColor="oklch(30% 0.02 70 / 0.7)"
             strokeColor="oklch(96% 0.02 75 / 0.75)"
-            strokeWidth={1.5}
+            strokeWidth={INK}
             segmentsH={1}
             segmentsV={1}
             curve={1.3}

@@ -6,6 +6,7 @@ import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Link } from '@/i18n/navigation';
 import styles from './CTASection.module.css';
+import { INK_LIGHT } from '@/lib/design/strokes';
 
 export function CTASection() {
   const t = useTranslations('cta');
@@ -18,7 +19,7 @@ export function CTASection() {
         amplitude={0.13}
         steps={14}
         stroke="oklch(40% 0.12 45 / 0.35)"
-        strokeWidth={1.3}
+        strokeWidth={INK_LIGHT}
       />
 
       <div className={styles.blobTop}>

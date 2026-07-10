@@ -20,7 +20,7 @@
     "description": "A space for real life stories from around the world to connect. Read, share, and resonate with the experiences that shape us.",
     "explore": "Explore stories",
     "share": "Share your story",
-    "proof": "Join 12,000+ storytellers worldwide"
+    "proof": "Be among the first storytellers here"
   },
   "feed": {
     "tag": "Latest stories",
@@ -90,9 +90,10 @@
     }
   },
   "home": {
-    "heading": "Latest resonances",
-    "subheading": "The newest public cards, in time order. Personalized AI discovery comes in the next phase.",
+    "heading": "Stories picked for you",
+    "subheading": "Chosen from the insights you have written, alongside the newest public cards.",
     "moreBtn": "Load more",
+    "moreLoading": "Loading…",
     "endOfDay": "You are caught up on the latest public cards",
     "writeResponse": "Write a card",
     "empty": {
