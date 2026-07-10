@@ -30,6 +30,10 @@ import {
   publishCard,
   updateCardDraft,
 } from '@/lib/db/firestore/client/cards';
+import { ensureConnection } from '@/lib/db/firestore/client/connections';
+import { getCurrentUserHandle } from '@/lib/db/firestore/client/profile';
+import { getCardById } from '@/lib/db/firestore/client/reads';
+import { notifyResonance } from '@/lib/db/firestore/client/resonances';
 import type { Card, CardMedia, Visibility, Locale } from '@/lib/db/types';
 import { useRouter } from '@/i18n/navigation';
 import styles from './CardEditor.module.css';
@@ -322,6 +326,18 @@ export function CardEditor({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cardId: published.id }),
       }).catch(() => {});
+      // 共振 reaches out: connect the two authors right away and ring the
+      // original author's bell. Skipped for anonymous resonances — a
+      // connection doc names both uids, which would unmask the author.
+      if (referenceCardId && !(choices?.anonymous ?? anonymous)) {
+        void (async () => {
+          const original = await getCardById(referenceCardId);
+          if (!original) return;
+          await ensureConnection(original.authorId).catch(() => {});
+          const fromHandle = (await getCurrentUserHandle().catch(() => null)) ?? '';
+          await notifyResonance(referenceCardId, { authorId: original.authorId, fromHandle });
+        })().catch(() => {});
+      }
       // Inline (resonance) mode stays on the page so the resonance section can
       // refresh in place; the page editor navigates to the new card.
       if (inline) {

@@ -158,6 +158,9 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
   /** Card being dragged right now — its group lights up like a drop folder. */
   const [dragNodeId, setDragNodeId] = useState<string | null>(null);
   const [labelDraft, setLabelDraft] = useState('');
+  /** Group whose title is being edited in place (on the region itself). */
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupTitleDraft, setGroupTitleDraft] = useState('');
 
   const dragRef = useRef<Drag | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -199,7 +202,6 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
   // Sync the inspector's text field whenever the selection changes.
   useEffect(() => {
     if (selection?.kind === 'edge') setLabelDraft(edges[selection.id]?.label ?? '');
-    else if (selection?.kind === 'group') setLabelDraft(groups[selection.id]?.title ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection]);
 
@@ -378,7 +380,10 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
       }
       case 'group': {
         if (!drag.moved) {
+          // A plain click on the title starts renaming right on the region.
           setSelection({ kind: 'group', id: drag.id });
+          setGroupTitleDraft(groups[drag.id]?.title ?? '');
+          setEditingGroupId(drag.id);
           break;
         }
         const g = { x: w.x - drag.dx, y: w.y - drag.dy };
@@ -471,50 +476,67 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
       const id = await createMapGroup(input);
       setGroups((prev) => ({ ...prev, [id]: { id, ...input } }));
       setSelection({ kind: 'group', id });
+      // A fresh region starts in rename mode — the name is the first decision.
+      setGroupTitleDraft(input.title);
+      setEditingGroupId(id);
     } catch (err) {
       swallow(err);
     }
   };
 
+  const clearSelectionOf = (kind: 'node' | 'edge' | 'group', id: string) =>
+    setSelection((s) => (s?.kind === kind && s.id === id ? null : s));
+
+  const removeNodeById = (id: string) => {
+    clearSelectionOf('node', id);
+    setNodes((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setEdges((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).filter(([, e]) => e.sourceCardId !== id && e.targetCardId !== id),
+      ),
+    );
+    removeMapNode(id).catch(swallow);
+  };
+
+  const removeEdgeById = (id: string) => {
+    clearSelectionOf('edge', id);
+    setEdges((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    removeMapEdge(id).catch(swallow);
+  };
+
+  const removeGroupById = (id: string) => {
+    clearSelectionOf('group', id);
+    if (editingGroupId === id) setEditingGroupId(null);
+    setGroups((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setNodes((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).map(([k, n]) => [
+          k,
+          n.groupId === id ? { ...n, groupId: null } : n,
+        ]),
+      ),
+    );
+    removeMapGroup(id).catch(swallow);
+  };
+
   const removeSelection = () => {
     if (!selection) return;
     const { kind, id } = selection;
-    setSelection(null);
-    if (kind === 'node') {
-      setNodes((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-      setEdges((prev) =>
-        Object.fromEntries(
-          Object.entries(prev).filter(([, e]) => e.sourceCardId !== id && e.targetCardId !== id),
-        ),
-      );
-      removeMapNode(id).catch(swallow);
-    } else if (kind === 'edge') {
-      setEdges((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-      removeMapEdge(id).catch(swallow);
-    } else {
-      setGroups((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-      setNodes((prev) =>
-        Object.fromEntries(
-          Object.entries(prev).map(([k, n]) => [
-            k,
-            n.groupId === id ? { ...n, groupId: null } : n,
-          ]),
-        ),
-      );
-      removeMapGroup(id).catch(swallow);
-    }
+    if (kind === 'node') removeNodeById(id);
+    else if (kind === 'edge') removeEdgeById(id);
+    else removeGroupById(id);
   };
 
   // Delete/Backspace removes the selected node/arrow/region — unless the user
@@ -538,11 +560,18 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
       const v = labelDraft.trim();
       setEdges((prev) => ({ ...prev, [selection.id]: { ...prev[selection.id], label: v } }));
       updateMapEdgeLabel(selection.id, v).catch(swallow);
-    } else if (selection?.kind === 'group') {
-      const v = labelDraft.trim() || t('newGroup');
-      setGroups((prev) => ({ ...prev, [selection.id]: { ...prev[selection.id], title: v } }));
-      updateMapGroup(selection.id, { title: v }).catch(swallow);
     }
+  };
+
+  /** Commit the in-place group rename (blur / Enter). */
+  const commitGroupTitle = () => {
+    const id = editingGroupId;
+    if (!id) return;
+    setEditingGroupId(null);
+    if (!groups[id]) return;
+    const v = groupTitleDraft.trim() || t('newGroup');
+    setGroups((prev) => ({ ...prev, [id]: { ...prev[id], title: v } }));
+    updateMapGroup(id, { title: v }).catch(swallow);
   };
 
   const openCard = (card: Card) => {
@@ -580,8 +609,6 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
     );
   }, [linkDraft, nodes]);
 
-  const selectedCard = selection?.kind === 'node' ? data.cards[selection.id] : undefined;
-  const selectedNode = selection?.kind === 'node' ? nodes[selection.id] : undefined;
   const isEmpty = Object.keys(nodes).length === 0 && Object.keys(groups).length === 0;
 
   // The draft arrow inherits its source card's hue, so the stroke you pull out
@@ -602,10 +629,14 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
         y={y}
         selected={selection?.kind === 'node' && selection.id === n.cardId}
         linkTarget={linkTargetId === n.cardId}
+        dragging={dragNodeId === n.cardId}
         onPointerDown={startNodeDrag(n.cardId)}
         onStartLink={startLink(n.cardId)}
         onOpen={() => openCard(card)}
+        onRemove={() => removeNodeById(n.cardId)}
         linkHandleLabel={t('linkHandle')}
+        openLabel={t('open')}
+        removeLabel={t('removeFromMap')}
       />
     );
   };
@@ -669,13 +700,42 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
                   curve={0.6}
                   cornerOffset={5}
                 />
-                <div
-                  className={styles.groupTitle}
+                {editingGroupId === g.id ? (
+                  <input
+                    className={styles.groupTitleInput}
+                    style={{ pointerEvents: 'auto' }}
+                    value={groupTitleDraft}
+                    placeholder={t('groupTitlePlaceholder')}
+                    autoFocus
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setGroupTitleDraft(e.target.value)}
+                    onBlur={commitGroupTitle}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                      else if (e.key === 'Escape') setEditingGroupId(null);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <div
+                    className={styles.groupTitle}
+                    style={{ pointerEvents: 'auto' }}
+                    onPointerDown={startGroupDrag(g.id)}
+                  >
+                    {g.title}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className={styles.groupDelete}
                   style={{ pointerEvents: 'auto' }}
-                  onPointerDown={startGroupDrag(g.id)}
+                  aria-label={t('deleteGroup')}
+                  title={t('deleteGroup')}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => removeGroupById(g.id)}
                 >
-                  {g.title}
-                </div>
+                  <Icon name="trash" size={15} />
+                </button>
                 <button
                   type="button"
                   className={styles.groupResize}
@@ -874,86 +934,31 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
         </button>
       </div>
 
-      {/* Node actions float right above the selected card (screen-space, so
-          they keep their size at any zoom) instead of a detached bottom bar. */}
-      {selectedCard && selectedNode && !dragNodeId && (
-        <div
-          className={styles.nodeActions}
-          style={{
-            left: camera.x + (selectedNode.x + NODE_W / 2) * camera.s,
-            top: camera.y + selectedNode.y * camera.s,
-          }}
-        >
-          <HandDrawnDashedSurface seed={61} state="idle">
-            <div className={styles.nodeActionsRow}>
-              <OrganicButton variant="ghost" size="sm" onClick={() => openCard(selectedCard)}>
-                {t('open')}
-              </OrganicButton>
+      {/* inspector for the selected arrow (label editing lives here) */}
+      {selection && selection.kind === 'edge' && (
+        <div className={styles.inspector}>
+          <HandDrawnDashedSurface seed={61} state="idle" fillColor="var(--color-card-bg)">
+            <div className={styles.inspectorRow}>
+              <Input
+                variant="subtle"
+                className={styles.inspectorInput}
+                value={labelDraft}
+                placeholder={t('edgeLabelPlaceholder')}
+                onChange={(e) => setLabelDraft(e.target.value)}
+                onBlur={commitLabel}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                }}
+                autoFocus
+              />
               <button
                 type="button"
                 className={styles.iconButton}
-                aria-label={t('removeFromMap')}
+                aria-label={t('deleteEdge')}
                 onClick={removeSelection}
               >
                 <Icon name="trash" size={16} />
               </button>
-            </div>
-          </HandDrawnDashedSurface>
-        </div>
-      )}
-
-      {/* inspector for the selected arrow / region (label editing lives here) */}
-      {selection && selection.kind !== 'node' && (
-        <div className={styles.inspector}>
-          <HandDrawnDashedSurface seed={61} state="idle">
-            <div className={styles.inspectorRow}>
-              {selection.kind === 'edge' && (
-                <>
-                  <Input
-                    variant="subtle"
-                    className={styles.inspectorInput}
-                    value={labelDraft}
-                    placeholder={t('edgeLabelPlaceholder')}
-                    onChange={(e) => setLabelDraft(e.target.value)}
-                    onBlur={commitLabel}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                    }}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    className={styles.iconButton}
-                    aria-label={t('deleteEdge')}
-                    onClick={removeSelection}
-                  >
-                    <Icon name="trash" size={16} />
-                  </button>
-                </>
-              )}
-              {selection.kind === 'group' && (
-                <>
-                  <Input
-                    variant="subtle"
-                    className={styles.inspectorInput}
-                    value={labelDraft}
-                    placeholder={t('groupTitlePlaceholder')}
-                    onChange={(e) => setLabelDraft(e.target.value)}
-                    onBlur={commitLabel}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className={styles.iconButton}
-                    aria-label={t('deleteGroup')}
-                    onClick={removeSelection}
-                  >
-                    <Icon name="trash" size={16} />
-                  </button>
-                </>
-              )}
             </div>
           </HandDrawnDashedSurface>
         </div>
@@ -968,7 +973,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
           }}
         >
         <div className={styles.tray}>
-          <HandDrawnDashedSurface seed={29} state="idle">
+          <HandDrawnDashedSurface seed={29} state="idle" fillColor="var(--color-card-bg)">
             <div className={styles.trayInner}>
               <div className={styles.trayTitle}>{t('trayTitle')}</div>
               <Divider seed={31} spacing={4} />

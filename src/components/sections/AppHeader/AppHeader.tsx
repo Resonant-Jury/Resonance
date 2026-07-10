@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { HamburgerIcon } from '@/components/atoms/HamburgerIcon/HamburgerIcon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { INK } from '@/lib/design/strokes';
-import { Link } from '@/i18n/navigation';
+import { Link, usePathname } from '@/i18n/navigation';
 import { NotificationBell } from './NotificationBell';
 import { MessagesEntry } from './MessagesEntry';
 import { AppMobileNavModal } from './AppMobileNavModal';
@@ -52,6 +53,11 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile(720);
+  const tNav = useTranslations('app.nav');
+  const pathname = usePathname();
+  // The messages surface borrows the brand slot as its page title — the
+  // two-pane layout owns the full height, so no in-page heading exists.
+  const onMessages = pathname === '/messages' || pathname.startsWith('/messages/');
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -97,7 +103,7 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
       <div className={styles.row} style={{ height: HEADER_BODY_H }}>
         <Link href="/home" className={styles.logo}>
           <ResonanceIcon size={38} />
-          <span className={styles.brand}>Resonance</span>
+          <span className={styles.brand}>{onMessages ? tNav('messages') : 'Resonance'}</span>
         </Link>
 
         {isMobile ? (

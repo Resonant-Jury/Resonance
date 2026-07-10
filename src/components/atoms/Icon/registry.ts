@@ -22,6 +22,8 @@ import { FrameIcon } from './icons/frame';
 import { NoteIcon } from './icons/note';
 import { BookmarkIcon } from './icons/bookmark';
 import { ChatIcon } from './icons/chat';
+import { FlagTwIcon } from './icons/flag-tw';
+import { FlagEnIcon } from './icons/flag-en';
 import type { IconRenderer } from './types';
 
 /**
@@ -63,6 +65,8 @@ export const ICONS = {
   note: NoteIcon,
   bookmark: BookmarkIcon,
   chat: ChatIcon,
+  'flag-tw': FlagTwIcon,
+  'flag-en': FlagEnIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

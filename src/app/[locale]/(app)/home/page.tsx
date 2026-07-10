@@ -5,17 +5,13 @@ import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Link } from '@/i18n/navigation';
-import { useFeed, useHasWrittenCards, useRecommendedFeed } from '@/lib/data/hooks';
+import { useFeed, useRecommendedFeed } from '@/lib/data/hooks';
 import { useHint } from '@/lib/hints';
 
 export default function HomeFeedPage() {
   const t = useTranslations('home');
   const { data, isLoading, isLoadingMore, hasMore, loadMore } = useFeed();
   const { data: rec } = useRecommendedFeed();
-  // Cold start is a statement, not a defect (ux §5): with no cards of your own
-  // there is no personalized feed — the page invites the first card instead of
-  // apologizing for missing content.
-  const { data: hasWritten } = useHasWrittenCards();
   const reasonHint = useHint('feed-reason');
   const cards = data?.cards ?? [];
   const authors = data?.authors ?? {};
@@ -56,31 +52,6 @@ export default function HomeFeedPage() {
           {t('subheading')}
         </p>
       </header>
-
-      {hasWritten === false && (
-        <section
-          style={{
-            marginBottom: 56,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            gap: 14,
-          }}
-        >
-          <p
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: 'clamp(20px, 2.6vw, 24px)',
-              color: 'var(--color-text)',
-            }}
-          >
-            {t('coldStart.title')}
-          </p>
-          <Link href="/write" style={{ textDecoration: 'none' }}>
-            <OrganicButton variant="primary">{t('coldStart.cta')}</OrganicButton>
-          </Link>
-        </section>
-      )}
 
       {recCards.length > 0 && (
         <section style={{ marginBottom: 56 }}>

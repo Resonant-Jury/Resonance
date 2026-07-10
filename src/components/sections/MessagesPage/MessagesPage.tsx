@@ -1,12 +1,12 @@
 'use client';
 
-import { Fragment, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
-import { PageShell, PageTitle } from '@/components/molecules/PageShell/PageShell';
-import { Panel } from '@/components/molecules/Panel/Panel';
+import { useElementSize } from '@/lib/hooks/useElementSize';
+import { seedFromString } from '@/lib/design/prng';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useConversations } from '@/lib/data/hooks';
@@ -22,10 +22,11 @@ export interface MessagesPageProps {
 }
 
 /**
- * 私訊 — the last rung of the response ladder. Desktop is a two-pane layout
- * (conversation list + open thread); phones show one pane at a time. The list
- * also surfaces connected people without a conversation yet, so the page is
- * self-sufficient as an entry point.
+ * 私訊 — a Messenger-style two-pane surface: the people you're connected with
+ * on the left (avatar, name, last-message time), the open thread on the right,
+ * split 3:7 by a hand-drawn vertical rule that runs from the header to the
+ * bottom of the viewport. The page title lives in the AppHeader brand slot, so
+ * the panes get the full height. Phones show one pane at a time.
  */
 export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
   const t = useTranslations('messages');
@@ -57,10 +58,12 @@ export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
       : t('noMessagesYet');
     return (
       <Link
+        key={person.id}
         href={`/messages/${person.handle}`}
         className={styles.row}
         data-active={person.handle === activeHandle || undefined}
       >
+        <RowWash seed={seedFromString(person.id)} />
         <HandDrawnAvatar
           src={person.avatarUrl}
           initials={person.initials}
@@ -83,52 +86,67 @@ export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
   };
 
   return (
-    <PageShell width="wide">
-      <PageTitle subtitle={t('subtitle')}>{t('title')}</PageTitle>
+    <div className={styles.page} data-thread-open={activeHandle || undefined}>
+      <aside className={styles.listPane}>
+        {empty && <p className={styles.emptyText}>{t('empty')}</p>}
 
-      <div className={styles.layout} data-thread-open={activeHandle || undefined}>
-        <aside className={styles.listPane}>
-          <Panel collapseOnMobile>
-            {empty && <p className={styles.emptyText}>{t('empty')}</p>}
+        {conversations.map((c) => {
+          const otherUid = c.participants.find((p) => p !== user.id) ?? '';
+          const person = people[otherUid];
+          return person ? rowFor(person, c) : null;
+        })}
 
-            {conversations.map((c, i) => {
-              const otherUid = c.participants.find((p) => p !== user.id) ?? '';
-              const person = people[otherUid];
-              if (!person) return null;
-              return (
-                <Fragment key={c.id}>
-                  {i > 0 && <Divider seed={53 + i * 7} spacing={0} />}
-                  {rowFor(person, c)}
-                </Fragment>
-              );
-            })}
+        {starters.length > 0 && (
+          <>
+            <p className={styles.startSectionTitle}>{t('startSection')}</p>
+            {starters.map((person) => rowFor(person))}
+          </>
+        )}
+      </aside>
 
-            {starters.length > 0 && (
-              <>
-                {conversations.length > 0 && <Divider seed={97} spacing={4} />}
-                <p className={styles.startSectionTitle}>{t('startSection')}</p>
-                {starters.map((person, i) => (
-                  <Fragment key={person.id}>
-                    {i > 0 && <Divider seed={131 + i * 7} spacing={0} />}
-                    {rowFor(person)}
-                  </Fragment>
-                ))}
-              </>
-            )}
-          </Panel>
-        </aside>
-
-        <section className={styles.threadPane}>
-          {activeHandle ? (
-            <ThreadView key={activeHandle} handle={activeHandle} replyNote={replyNote} />
-          ) : (
-            <p className={styles.quietNote} style={{ paddingTop: 8 }}>
-              {t('pickOne')}
-            </p>
-          )}
-        </section>
+      <div className={styles.vRule} aria-hidden>
+        <Divider orientation="vertical" seed={71} amplitude={2} strokeWidth={1.3} spacing={0} />
       </div>
-    </PageShell>
+
+      <section className={styles.threadPane}>
+        {activeHandle ? (
+          <ThreadView key={activeHandle} handle={activeHandle} replyNote={replyNote} />
+        ) : (
+          <p className={styles.quietNote} style={{ paddingTop: 26 }}>
+            {t('pickOne')}
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/**
+ * The row's hover/selected wash — a wobbly curved fill (the markdown toolbar's
+ * hand-drawn chip language) driven by the row's `--row-fill` variable, instead
+ * of a flat rounded rectangle or a border.
+ */
+function RowWash({ seed }: { seed: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const { w, h } = useElementSize(ref);
+  return (
+    <span ref={ref} className={styles.rowWash} aria-hidden>
+      {w > 0 && h > 0 && (
+        <HandDrawnBorder
+          w={w}
+          h={h}
+          R={h * 0.28}
+          seed={seed}
+          mag={2.4}
+          segmentsH={3}
+          segmentsV={1}
+          curve={1.3}
+          cornerJitter={2.4}
+          cornerOffset={h * 0.05}
+          fillColor="var(--row-fill)"
+        />
+      )}
+    </span>
   );
 }
 

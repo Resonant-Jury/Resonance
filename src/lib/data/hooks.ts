@@ -95,8 +95,11 @@ export function useFeed(): FeedState {
       return ['feed:latest', last.publishedAt!.getTime()];
     },
     async ([, cursorMs]: [string, number | null]) => {
-      const cursor = cursorMs === null ? undefined : new Date(cursorMs);
-      return withAuthors(await getLatestPublishedFeed(FEED_PAGE_SIZE, cursor));
+      const cards =
+        cursorMs === null
+          ? await getLatestPublishedFeed(FEED_PAGE_SIZE)
+          : await getLatestPublishedFeed(FEED_PAGE_SIZE, new Date(cursorMs));
+      return withAuthors(cards);
     },
   );
 

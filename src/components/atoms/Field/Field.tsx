@@ -160,7 +160,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   );
 });
 
-interface SelectOption {
+export interface SelectOption {
   value: string;
   label: ReactNode;
 }
@@ -176,6 +176,11 @@ export interface SelectProps {
   ariaLabel?: string;
   disabled?: boolean;
   className?: string;
+  /**
+   * Custom closed-state content (e.g. a leading icon + short label) in place
+   * of echoing the selected option's label. Receives the selected option.
+   */
+  renderValue?: (selected: SelectOption | undefined) => ReactNode;
 }
 
 /**
@@ -194,6 +199,7 @@ export function Select({
   ariaLabel,
   disabled,
   className,
+  renderValue,
 }: SelectProps) {
   const options = useMemo<SelectOption[]>(
     () =>
@@ -308,7 +314,9 @@ export function Select({
           onMouseLeave={() => setHover(false)}
           onBlur={() => setHover(false)}
         >
-          <span className={styles.dropdownValue}>{selectedLabel}</span>
+          <span className={styles.dropdownValue}>
+            {renderValue ? renderValue(selectedIndex >= 0 ? options[selectedIndex] : undefined) : selectedLabel}
+          </span>
           <Icon name="chevron-down" size={20} strokeWidth={INK_STRONG} className={styles.dropdownChevron} />
         </button>
       </HandDrawnDashedSurface>
@@ -547,7 +555,7 @@ function DropdownPanel({
             onClick={() => onChoose(opt.value)}
             onMouseEnter={() => onActivate(i)}
           >
-            <span>{opt.label}</span>
+            <span className={styles.dropdownOptionLabel}>{opt.label}</span>
             {opt.value === value && (
               <Icon name="check" size={18} strokeWidth={INK_STRONG} color="var(--color-terracotta)" />
             )}

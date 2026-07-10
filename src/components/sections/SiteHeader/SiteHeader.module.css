@@ -93,3 +93,20 @@
   align-items: center;
   gap: 12px;
 }
+
+/* Compact header sizing for the organic language dropdown: narrower box,
+   tighter rows, smaller type than the settings-page original. */
+.langSelect {
+  width: 152px;
+  font-size: 14px;
+}
+
+.langSelect button[role='combobox'] {
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.langSelect button[role='option'] {
+  padding: 11px 8px;
+  font-size: 14px;
+}

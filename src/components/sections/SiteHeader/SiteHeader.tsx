@@ -12,6 +12,7 @@ import { Link, usePathname } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile } from '@/lib/data/hooks';
 import { MobileNavModal } from './MobileNavModal';
+import { LanguageSelect } from './LanguageSelect';
 import styles from './SiteHeader.module.css';
 import { INK_LIGHT } from '@/lib/design/strokes';
 
@@ -49,7 +50,6 @@ export function SiteHeader() {
   const t = useTranslations('nav');
   const locale = useLocale();
   const pathname = usePathname();
-  const otherLocale = locale === 'en' ? 'zh-TW' : 'en';
 
   const { user, loading } = useAuth();
   const { data: profile } = useMyProfile();
@@ -123,14 +123,7 @@ export function SiteHeader() {
 
         {isMobile ? (
           <div className={styles.account}>
-            <Link
-              href={pathname}
-              locale={otherLocale}
-              className={styles.navLink}
-              aria-label="Switch language"
-            >
-              {t('languageSwitch')}
-            </Link>
+            <LanguageSelect />
             <button
               aria-label={t('openMenu')}
               aria-expanded={menuOpen}
@@ -158,14 +151,7 @@ export function SiteHeader() {
             )}
 
             <div className={styles.account}>
-              <Link
-                href={pathname}
-                locale={otherLocale}
-                className={styles.navLink}
-                aria-label="Switch language"
-              >
-                {t('languageSwitch')}
-              </Link>
+              <LanguageSelect />
               {mounted && !loading && (
                 <>
                   {!user ? (

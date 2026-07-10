@@ -110,6 +110,10 @@ textarea.field {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Room for a leading icon (e.g. the language selector's globe). */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .dropdownChevron {
   flex-shrink: 0;
@@ -170,6 +174,13 @@ textarea.field {
 .dropdownOption[data-selected] {
   color: var(--color-terracotta);
   font-weight: 600;
+}
+/* Option label with a possible leading icon (e.g. a flag). */
+.dropdownOptionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 /* Variant: subtle — borderless underline-only inputs */

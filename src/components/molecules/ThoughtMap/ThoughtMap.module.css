@@ -173,7 +173,8 @@
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
+  /* Clear the delete button in the opposite corner. */
+  right: 44px;
   z-index: 1;
   padding: 12px 20px 10px;
   font-family: var(--font-heading);
@@ -184,6 +185,49 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* In-place rename input — same footprint/typography as the static title. */
+.groupTitleInput {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 44px;
+  z-index: 1;
+  margin: 8px 0 0 16px;
+  padding: 4px;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  background: transparent;
+  border: none;
+  border-bottom: 1.6px dashed var(--field-border-hover);
+  outline: none;
+}
+
+/* Region delete — quiet icon in the top-right corner, opposite the title. */
+.groupDelete {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.groupDelete:hover {
+  color: var(--color-terracotta);
+  background: oklch(0% 0 0 / 0.06);
 }
 
 .groupResize {
@@ -267,8 +311,6 @@
   left: 50%;
   transform: translateX(-50%);
   max-width: min(520px, calc(100% - 32px));
-  background: var(--color-card-bg);
-  border-radius: 18px;
 }
 
 .inspectorRow {
@@ -292,21 +334,55 @@
   width: 200px;
 }
 
-/* Contextual actions hovering above the selected card node. */
-.nodeActions {
+/* The selected card's action tab — grows out of the card's top edge, sharing
+   its fill/stroke so the pair reads as one hand-drawn surface. */
+.nodeTab {
   position: absolute;
-  z-index: 6;
-  transform: translate(-50%, calc(-100% - 10px));
-  background: var(--color-card-bg);
-  border-radius: 16px;
-  width: max-content;
+  z-index: 2;
+  left: 14px;
+  top: -30px;
+  width: 118px;
+  height: 30px;
 }
 
-.nodeActionsRow {
+.nodeTabChrome {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.nodeTabRow {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  padding: 0 6px;
+}
+
+/* Borderless organic buttons, same language as the markdown toolbar's tools:
+   no chrome of their own, just a soft irregular wash on hover. */
+.nodeTabBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  border-radius: 9px 11px 10px 12px;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.nodeTabBtn:hover {
+  background: oklch(0% 0 0 / 0.07);
 }
 
 /* Dim scrim behind the centered card picker; a tap on it closes the picker. */
@@ -320,10 +396,11 @@
   background: oklch(30% 0.02 75 / 0.16);
 }
 
+/* The picker card's opaque fill comes from the wobbly border itself
+   (HandDrawnDashedSurface fillColor) — a CSS background here would paint a
+   straight-edged rectangle sticking out past the hand-drawn outline. */
 .tray {
   width: min(340px, calc(100% - 32px));
-  background: var(--color-card-bg);
-  border-radius: 18px;
 }
 
 .trayInner {

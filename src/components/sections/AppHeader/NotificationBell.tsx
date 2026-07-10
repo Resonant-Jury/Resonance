@@ -7,7 +7,6 @@ import { Modal } from '@/components/molecules/Modal/Modal';
 import { Icon } from '@/components/atoms/Icon';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
-import { NotificationConnectAction } from '@/components/molecules/ConnectInviteModal/NotificationConnectAction';
 import type { Notification } from '@/lib/db/types';
 import { useAuth } from '@/components/providers/AuthProvider';
 import {
@@ -23,7 +22,6 @@ export function NotificationBell() {
 
   const tApp = useTranslations('app.notifications');
   const tNav = useTranslations('app.nav');
-  const tMsg = useTranslations('messages');
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -142,23 +140,15 @@ export function NotificationBell() {
             const isUnread = n.readAt === null;
             let body = '';
             let href: string | null = null;
-            // Interaction notifications double as the connect entry point
-            // (relationships grow from stories — see docs/TASKS.md): the
-            // recipient may answer a resonance (later: a note) with a
-            // connection invite right here.
-            let connectFromUserId: string | null = null;
-            // Set when the notification should offer the「開始聊天」exit —
-            // the connection is live, the conversation is one click away.
-            let chatWithHandle: string | null = null;
-            // Set for a note from a connected sender: the「回覆」exit carries
-            // the note reference into the conversation as a quoted reply.
-            let noteReplyHref: string | null = null;
+            // A resonance or note auto-connects the pair at send time, so the
+            // notification is purely informational — clicking it lands in the
+            // conversation (私訊), not on an in-place connect flow.
             if (n.type === 'invite') {
               body = tApp('invite', { handle: String(n.payload.fromHandle ?? '') });
               href = '/me';
             } else if (n.type === 'invite_accepted') {
               body = tApp('inviteAccepted', { handle: String(n.payload.fromHandle ?? '') });
-              chatWithHandle = String(n.payload.fromHandle ?? '') || null;
+              if (n.payload.fromHandle) href = `/messages/${n.payload.fromHandle}`;
             } else if (n.type === 'message') {
               body = tApp('message', { handle: String(n.payload.fromHandle ?? '') });
               href = `/messages/${n.payload.fromHandle}`;
@@ -169,18 +159,19 @@ export function NotificationBell() {
               href = `/card/${n.payload.cardId}`;
             } else if (n.type === 'resonance') {
               body = tApp('resonance', { handle: String(n.payload.fromHandle ?? '') });
-              href = `/card/${n.payload.cardId}`;
-              connectFromUserId = n.payload.fromUserId ? String(n.payload.fromUserId) : null;
+              if (n.payload.fromHandle) href = `/messages/${n.payload.fromHandle}`;
             } else if (n.type === 'note') {
               body = tApp('note', { handle: String(n.payload.fromHandle ?? '') });
-              href = `/card/${n.payload.cardId}`;
-              connectFromUserId = n.payload.fromUserId ? String(n.payload.fromUserId) : null;
-              if (n.payload.fromHandle && n.payload.noteId && n.payload.cardId) {
-                const params = new URLSearchParams({
-                  note: String(n.payload.noteId),
-                  card: String(n.payload.cardId),
-                });
-                noteReplyHref = `/messages/${n.payload.fromHandle}?${params.toString()}`;
+              if (n.payload.fromHandle) {
+                // Carry the note reference along so the reply can quote it.
+                const params =
+                  n.payload.noteId && n.payload.cardId
+                    ? `?${new URLSearchParams({
+                        note: String(n.payload.noteId),
+                        card: String(n.payload.cardId),
+                      }).toString()}`
+                    : '';
+                href = `/messages/${n.payload.fromHandle}${params}`;
               }
             } else if (n.type === 'card_link') {
               body = tApp('cardLink', { handle: String(n.payload.fromHandle ?? '') });
@@ -244,60 +235,6 @@ export function NotificationBell() {
                       inner
                     )}
                   </div>
-                  {connectFromUserId && (
-                    <div style={{ padding: '0 2px 13px' }}>
-                      <NotificationConnectAction
-                        fromUserId={connectFromUserId}
-                        referenceCardId={
-                          n.payload.cardId ? String(n.payload.cardId) : undefined
-                        }
-                        // A note from a connected sender turns the passive
-                        //「已連結」mark into a「回覆」exit into the conversation.
-                        connectedAction={
-                          noteReplyHref ? (
-                            <Link
-                              href={noteReplyHref as `/messages/${string}`}
-                              onClick={() => handleClickItem(n)}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                fontSize: 13,
-                                fontFamily: 'var(--font-body)',
-                                color: 'var(--color-terracotta)',
-                                textDecoration: 'underline',
-                                textUnderlineOffset: 3,
-                              }}
-                            >
-                              <Icon name="chat" size={15} />
-                              {tMsg('replyToNote')}
-                            </Link>
-                          ) : undefined
-                        }
-                      />
-                    </div>
-                  )}
-                  {chatWithHandle && (
-                    <div style={{ padding: '0 2px 13px' }}>
-                      <Link
-                        href={`/messages/${chatWithHandle}`}
-                        onClick={() => handleClickItem(n)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          fontSize: 13,
-                          fontFamily: 'var(--font-body)',
-                          color: 'var(--color-terracotta)',
-                          textDecoration: 'underline',
-                          textUnderlineOffset: 3,
-                        }}
-                      >
-                        <Icon name="chat" size={15} />
-                        {tMsg('startChat')}
-                      </Link>
-                    </div>
-                  )}
                 </li>
               </Fragment>
             );

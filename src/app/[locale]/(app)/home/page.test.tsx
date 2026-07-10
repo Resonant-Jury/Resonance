@@ -8,11 +8,9 @@ import type { Card, User } from '@/lib/db/types';
 // that entering the page renders the fetched feed.
 const mockUseFeed = vi.fn();
 const mockUseRecommendedFeed = vi.fn();
-const mockUseHasWrittenCards = vi.fn();
 vi.mock('@/lib/data/hooks', () => ({
   useFeed: () => mockUseFeed(),
   useRecommendedFeed: () => mockUseRecommendedFeed(),
-  useHasWrittenCards: () => mockUseHasWrittenCards(),
 }));
 vi.mock('@/lib/hints', () => ({
   useHint: () => ({ visible: true, dismiss: vi.fn() }),
@@ -64,8 +62,6 @@ function user(id: string): User {
 // recommendations" so the page renders only the latest feed. (clearAllMocks
 // keeps implementations, so this default survives across tests.)
 mockUseRecommendedFeed.mockReturnValue({ data: undefined });
-// Default: still resolving whether the viewer has written — cold-start hidden.
-mockUseHasWrittenCards.mockReturnValue({ data: undefined });
 
 afterEach(() => vi.clearAllMocks());
 
@@ -99,21 +95,6 @@ describe('HomeFeedPage', () => {
     mockUseFeed.mockReturnValue({ data: undefined, isLoading: true });
     renderWithIntl(<HomeFeedPage />);
     expect(screen.queryByText('Write your first card')).not.toBeInTheDocument();
-  });
-
-  it('invites the first card (cold start) when the viewer has written nothing', () => {
-    mockUseFeed.mockReturnValue({
-      data: { cards: [card('c1', 'a1', 'Someone else’s story')], authors: { a1: user('a1') } },
-      isLoading: false,
-    });
-    mockUseHasWrittenCards.mockReturnValue({ data: false });
-
-    renderWithIntl(<HomeFeedPage />);
-
-    expect(
-      screen.getByText('Your first card becomes the point this world starts arranging itself around.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Write a story')).toBeInTheDocument();
   });
 
   it('offers "load more" only while the feed has more pages', async () => {

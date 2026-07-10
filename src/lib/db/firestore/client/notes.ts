@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import type { Note } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
+import { ensureConnection } from './connections';
 import { getClientDb } from './init';
 
 /** Hard cap mirrored in firestore.rules — keep the two in sync. */
@@ -47,6 +48,9 @@ function mapNote(id: string, data: Record<string, unknown>): Note {
  * the note itself and a "note" notification for the recipient (with a short
  * preview denormalized into the payload so the bell can render it without a
  * second read). No audience, no counts — the author is the only reader.
+ *
+ * Reaching out with a note also establishes the connection right away, so the
+ * exchange can continue in 私訊 without an invite round-trip.
  */
 export async function sendNote(input: {
   cardId: string;
@@ -86,6 +90,8 @@ export async function sendNote(input: {
     createdAt: serverTimestamp(),
   });
   await batch.commit();
+  // Best-effort: the note must never fail because the connection write did.
+  await ensureConnection(input.toUserId).catch(() => {});
   return noteRef.id;
 }
 
