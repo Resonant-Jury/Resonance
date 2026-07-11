@@ -38,9 +38,10 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  /* Just enough right inset that bubbles and the composer don't kiss the
-     viewport edge. */
-  padding: 18px 14px 14px 0;
+  /* No right padding on the pane itself: this side is a split (divider), not
+     a card, so the scroller's scrollbar should sit flush at the viewport
+     edge. Content insets live on the scroller / composer rows instead. */
+  padding: 10px 0 14px;
 }
 
 /* One conversation row: avatar, name + preview, time + unread badge. No
@@ -136,11 +137,18 @@
 
 /* --- thread --- */
 
+/* Symmetric vertical padding so the avatar + name block reads centered
+   between the app header above and the divider below (the pane's own top
+   padding stays small on purpose). */
 .threadHeader {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-bottom: 10px;
+  padding: 8px 14px 8px 0;
+}
+
+.threadHeaderSpacer {
+  flex: 1;
 }
 
 /* The rule under the thread header stretches left across the column gap so
@@ -169,14 +177,15 @@
 
 .scroller {
   /* The thread pane owns the viewport height, so the scroller simply takes
-     the leftover space between header and composer. */
+     the leftover space between header and composer. The right content inset
+     lives here (not on the pane) so the scrollbar hugs the viewport edge. */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 2px;
+  padding: 14px 14px 14px 2px;
 }
 
 .bubbleRow {
@@ -212,7 +221,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 10px 2px 0;
+  padding: 10px 14px 0 2px;
 }
 
 .attachChip {
@@ -253,7 +262,7 @@
   /* Stretch so the send button grows in step with the auto-growing field. */
   align-items: stretch;
   gap: 10px;
-  padding-top: 12px;
+  padding: 12px 14px 0 0;
 }
 
 /* Attach-a-card button — sits left of the textarea, centered on its
@@ -289,6 +298,13 @@
   max-height: 168px;
   overflow-y: auto;
   resize: none;
+  /* The field still scrolls past its max height, but without a visible
+     scrollbar inside the hand-drawn border. */
+  scrollbar-width: none;
+}
+
+.composer textarea.composerInput::-webkit-scrollbar {
+  display: none;
 }
 
 /* The send button fills the composer's (= field's) height; its organic
@@ -305,6 +321,96 @@
   line-height: 1.7;
 }
 
+/* --- header「⋯」menu surfaces --- */
+
+/* In-thread search: a quiet row right under the header divider. */
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 4px 2px;
+  color: var(--color-text-muted);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.searchCount {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.mediaTitle {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 8px;
+}
+
+.mediaSubtitle {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  margin: 0 0 18px;
+}
+
+.mediaBody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-height: min(420px, 55vh);
+  overflow-y: auto;
+}
+
+.mediaSection {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 10px;
+}
+
+.mediaCards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mediaLinkList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+
+.mediaLinkList a {
+  color: var(--color-terracotta);
+  text-underline-offset: 3px;
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 @media (max-width: 900px) {
   .page {
     grid-template-columns: 1fr;
@@ -312,6 +418,20 @@
     padding: var(--app-header-h) 14px 0;
   }
   .threadPane {
+    padding-right: 0;
+  }
+  /* The page's own 14px side padding supplies the inset on single-pane
+     phones — drop the per-row right insets so content isn't double-inset. */
+  .scroller {
+    padding-right: 2px;
+  }
+  .composer {
+    padding-right: 0;
+  }
+  .attachments {
+    padding-right: 2px;
+  }
+  .threadHeader {
     padding-right: 0;
   }
   .listPane {

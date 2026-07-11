@@ -9,14 +9,18 @@ import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { InsertCardModal } from '@/components/molecules/MarkdownEditor/InsertCardModal';
+import { Modal } from '@/components/molecules/Modal/Modal';
+import { OrganicMenu } from '@/components/molecules/OrganicMenu/OrganicMenu';
 import { INK } from '@/lib/design/strokes';
-import { Link } from '@/i18n/navigation';
+import { seedFromString } from '@/lib/design/prng';
+import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile, useThread } from '@/lib/data/hooks';
 import { getUserByHandle, isConnected } from '@/lib/db/firestore/client/reads';
 import {
   MESSAGE_MAX_LENGTH,
   conversationId,
+  deleteConversation,
   getConversation,
   markConversationRead,
   notifyConversationStarted,
@@ -43,6 +47,7 @@ export interface ThreadViewProps {
 export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const t = useTranslations('messages');
   const locale = useLocale();
+  const router = useRouter();
   const { user } = useAuth();
   const { data: me } = useMyProfile();
   const { mutate: globalMutate } = useSWRConfig();
@@ -70,6 +75,13 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const [pending, start] = useTransition();
   const [cardModalOpen, setCardModalOpen] = useState(false);
   const [pendingCard, setPendingCard] = useState<Card | null>(null);
+  // Header「⋯」menu surfaces: in-thread search, the shared cards/links list,
+  // and delete-with-confirm.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mediaOpen, setMediaOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // The note-reply quote rides the next message; dismissable if reconsidered.
   const [noteRef, setNoteRef] = useState(replyNote);
   useEffect(() => setNoteRef(replyNote), [replyNote?.noteId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -142,6 +154,22 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     });
   }
 
+  function confirmDelete() {
+    if (deleting || !pairId || !user) return;
+    setDeleting(true);
+    void deleteConversation(pairId)
+      .then(() => {
+        void globalMutate(`conversations:${user.id}`);
+        void globalMutate(`conversation:${pairId}`, null, { revalidate: false });
+        router.push('/messages');
+      })
+      .catch(() => {
+        setError(t('deleteError'));
+        setDeleting(false);
+        setConfirmingDelete(false);
+      });
+  }
+
   if (loadingOther) return null;
   if (!other || (user && other.id === user.id)) {
     return <p className={styles.quietNote}>{t('userNotFound')}</p>;
@@ -152,6 +180,19 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const fullFmt = new Intl.DateTimeFormat(locale, {
     month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
+
+  // In-thread search narrows the scroller to matching messages (a card-only
+  // message matches on nothing and hides while a query is active).
+  const query = searchOpen ? searchQuery.trim().toLowerCase() : '';
+  const visibleMessages = query
+    ? thread.messages.filter((m) => m.text.toLowerCase().includes(query))
+    : thread.messages;
+
+  // Everything shareable in this thread: card embeds and links found in text.
+  const sharedCardIds = [...new Set(thread.messages.flatMap((m) => (m.cardRef ? [m.cardRef] : [])))];
+  const sharedLinks = [
+    ...new Set(thread.messages.flatMap((m) => m.text.match(/https?:\/\/[^\s)]+/g) ?? [])),
+  ];
 
   return (
     <>
@@ -175,10 +216,65 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
         <Link href={profileHref} className={styles.threadHandle}>
           {other.handle}
         </Link>
+        <span className={styles.threadHeaderSpacer} />
+        {convo && (
+          <OrganicMenu
+            label={t('moreMenu')}
+            seed={seedFromString(convo.id)}
+            triggerSize={34}
+            busy={deleting}
+            items={[
+              { key: 'search', icon: 'search', label: t('menuSearch') },
+              { key: 'media', icon: 'cards', label: t('menuMedia') },
+              { key: 'delete', icon: 'trash', label: t('menuDelete'), danger: true },
+            ]}
+            onChoose={(key) => {
+              if (key === 'search') setSearchOpen(true);
+              else if (key === 'media') setMediaOpen(true);
+              else if (key === 'delete') setConfirmingDelete(true);
+            }}
+          />
+        )}
       </div>
       <div className={styles.threadDivider}>
         <Divider seed={41} spacing={0} strokeWidth={INK} />
       </div>
+
+      {searchOpen && (
+        <div className={styles.searchBar}>
+          <Icon name="search" size={16} />
+          <input
+            className={styles.searchInput}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+            aria-label={t('menuSearch')}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }
+            }}
+          />
+          {query && (
+            <span className={styles.searchCount}>
+              {t('searchCount', { count: visibleMessages.length })}
+            </span>
+          )}
+          <button
+            type="button"
+            className={styles.attachRemove}
+            aria-label={t('searchClose')}
+            onClick={() => {
+              setSearchOpen(false);
+              setSearchQuery('');
+            }}
+          >
+            <Icon name="close" size={15} />
+          </button>
+        </div>
+      )}
 
       {connected === false ? (
         <div style={{ padding: '20px 2px' }}>
@@ -199,8 +295,11 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
             {convo === null && !thread.ready && (
               <p className={styles.quietNote}>{t('noMessagesYet')}</p>
             )}
-            {thread.messages.map((m, i) => {
-              const prev = thread.messages[i - 1];
+            {query && visibleMessages.length === 0 && (
+              <p className={styles.quietNote}>{t('searchCount', { count: 0 })}</p>
+            )}
+            {visibleMessages.map((m, i) => {
+              const prev = visibleMessages[i - 1];
               const newDay = !prev || prev.sentAt.toDateString() !== m.sentAt.toDateString();
               const own = m.senderId === user?.id;
               return (
@@ -310,6 +409,70 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               setCardModalOpen(false);
             }}
           />
+
+          {/* Everything shared in this thread: card embeds and plain links. */}
+          <Modal
+            open={mediaOpen}
+            onClose={() => setMediaOpen(false)}
+            seed={53}
+            maxWidth={480}
+            ariaLabel={t('mediaTitle')}
+          >
+            <h3 className={styles.mediaTitle}>{t('mediaTitle')}</h3>
+            <p className={styles.mediaSubtitle}>{t('mediaSubtitle')}</p>
+            {sharedCardIds.length === 0 && sharedLinks.length === 0 ? (
+              <p className={styles.quietNote}>{t('mediaEmpty')}</p>
+            ) : (
+              <div className={styles.mediaBody}>
+                {sharedCardIds.length > 0 && (
+                  <section>
+                    <h4 className={styles.mediaSection}>{t('mediaCards')}</h4>
+                    <div className={styles.mediaCards}>
+                      {sharedCardIds.map((id) => (
+                        <MessageCardRef key={id} cardId={id} />
+                      ))}
+                    </div>
+                  </section>
+                )}
+                {sharedLinks.length > 0 && (
+                  <section>
+                    <h4 className={styles.mediaSection}>{t('mediaLinks')}</h4>
+                    <ul className={styles.mediaLinkList}>
+                      {sharedLinks.map((url) => (
+                        <li key={url}>
+                          <a href={url} target="_blank" rel="noopener noreferrer">
+                            {url}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
+            )}
+          </Modal>
+
+          <Modal
+            open={confirmingDelete}
+            onClose={() => (deleting ? undefined : setConfirmingDelete(false))}
+            seed={59}
+            maxWidth={400}
+            ariaLabel={t('deleteConfirmTitle')}
+          >
+            <h3 className={styles.mediaTitle}>{t('deleteConfirmTitle')}</h3>
+            <p className={styles.mediaSubtitle}>{t('deleteConfirmBody')}</p>
+            <div
+              className={styles.confirmActions}
+              style={deleting ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
+            >
+              <OrganicButton variant="ghost" onClick={() => setConfirmingDelete(false)}>
+                {t('deleteCancel')}
+              </OrganicButton>
+              <OrganicButton variant="primary" onClick={confirmDelete}>
+                {deleting ? '…' : t('deleteConfirm')}
+              </OrganicButton>
+            </div>
+          </Modal>
         </>
       )}
     </>

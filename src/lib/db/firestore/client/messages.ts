@@ -246,6 +246,26 @@ export function listenThread(
   );
 }
 
+/**
+ * Delete a conversation and its messages, for both participants. Firestore
+ * doesn't cascade subcollection deletes, so the messages go first (in batched
+ * chunks under the 500-write limit) and the parent doc last — a crash midway
+ * leaves a still-listable conversation rather than orphaned messages.
+ */
+export async function deleteConversation(pairId: string): Promise<void> {
+  requireUid();
+  const db = getClientDb();
+  const msgs = await getDocs(collection(db, 'conversations', pairId, 'messages'));
+  for (let i = 0; i < msgs.docs.length; i += 450) {
+    const batch = writeBatch(db);
+    for (const d of msgs.docs.slice(i, i + 450)) batch.delete(d.ref);
+    await batch.commit();
+  }
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'conversations', pairId));
+  await batch.commit();
+}
+
 /** Total unread across all conversations — drives the header badge. */
 export async function countUnreadMessages(): Promise<number> {
   const uid = getFirebaseClientAuth().currentUser?.uid;

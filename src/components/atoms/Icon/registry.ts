@@ -23,6 +23,7 @@ import { NoteIcon } from './icons/note';
 import { BookmarkIcon } from './icons/bookmark';
 import { ChatIcon } from './icons/chat';
 import { UserCheckIcon } from './icons/user-check';
+import { SearchIcon } from './icons/search';
 import type { IconRenderer } from './types';
 
 /**
@@ -65,6 +66,7 @@ export const ICONS = {
   bookmark: BookmarkIcon,
   chat: ChatIcon,
   'user-check': UserCheckIcon,
+  search: SearchIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

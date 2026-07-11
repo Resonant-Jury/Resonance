@@ -65,3 +65,49 @@ export function buildCardMetadata(opts: {
     },
   };
 }
+
+/**
+ * Build Open Graph / Twitter metadata for a public profile page.
+ *
+ * Profiles are anonymous-readable, so there's nothing to gate here. The caller
+ * resolves the user by handle and passes localized `title`/`description`
+ * (the user's bio, or a fallback) in.
+ *
+ * Share thumbnail: the user's avatar when they have one — shown as a square
+ * `summary` card so it isn't awkwardly cropped — otherwise the platform cover
+ * as a wide `summary_large_image`.
+ */
+export function buildProfileMetadata(opts: {
+  user: User;
+  locale: Locale;
+  base: string;
+  title: string;
+  description: string;
+}): Metadata {
+  const { user, locale, base, title, description } = opts;
+  const hasAvatar = Boolean(user.avatarUrl);
+  const image = hasAvatar ? user.avatarUrl! : `${base}${OG_COVER_PATH}`;
+  const url = `${base}/${locale}/u/${encodeURIComponent(user.handle)}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: 'profile',
+      title,
+      description,
+      url,
+      siteName: 'Resonance',
+      locale,
+      username: user.handle,
+      images: [{ url: image, alt: user.handle }],
+    },
+    twitter: {
+      card: hasAvatar ? 'summary' : 'summary_large_image',
+      title,
+      description,
+      images: [image],
+    },
+  };
+}

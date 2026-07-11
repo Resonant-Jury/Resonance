@@ -16,17 +16,19 @@ export default function HomeFeedPage() {
   const reasonHint = useHint('feed-reason');
   // One feed, two stages: the recommender's picks first (no section header —
   // the page heading already says it), and「載入更多」reveals the latest
-  // public cards beneath, deduped against the picks. Readers never face two
-  // competing blocks.
+  // public cards deduped against the picks. Everything renders in a single
+  // grid so revealed cards continue after the picks — filling to the right of
+  // the last card, not starting a second block below.
   const [showLatest, setShowLatest] = useState(false);
   const recCards = rec?.cards ?? [];
   const hasRec = recCards.length > 0;
   const recIds = new Set(recCards.map((c) => c.id));
   const cards = (data?.cards ?? []).filter((c) => !recIds.has(c.id));
-  const authors = data?.authors ?? {};
   const latestVisible = !hasRec || showLatest;
   const loading = isLoading || recLoading;
   const isEmpty = !loading && !hasRec && cards.length === 0;
+  const feedCards = latestVisible ? [...recCards, ...cards] : recCards;
+  const feedAuthors = { ...(data?.authors ?? {}), ...(rec?.authors ?? {}) };
 
   return (
     <div
@@ -83,32 +85,28 @@ export default function HomeFeedPage() {
         </div>
       ) : (
         <>
-          {hasRec && (
-            <section style={{ marginBottom: latestVisible ? 56 : 0 }}>
-              {reasonHint.visible && (
-                <p
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontSize: 13,
-                    color: 'var(--color-terracotta)',
-                    marginBottom: 16,
-                  }}
-                >
-                  {t('recommended.hint')}
-                </p>
-              )}
-              <CardLinkGrid
-                cards={recCards}
-                authors={rec?.authors ?? {}}
-                renderCaption={(card) => {
-                  const reason = rec?.reasons[card.id];
-                  return reason ? t('matchReason', { reason }) : null;
-                }}
-              />
-            </section>
+          {hasRec && reasonHint.visible && (
+            <p
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                color: 'var(--color-terracotta)',
+                marginBottom: 16,
+              }}
+            >
+              {t('recommended.hint')}
+            </p>
           )}
-
-          {latestVisible && cards.length > 0 && <CardLinkGrid cards={cards} authors={authors} />}
+          {feedCards.length > 0 && (
+            <CardLinkGrid
+              cards={feedCards}
+              authors={feedAuthors}
+              renderCaption={(card) => {
+                const reason = rec?.reasons[card.id];
+                return reason ? t('matchReason', { reason }) : null;
+              }}
+            />
+          )}
 
           <footer
             style={{

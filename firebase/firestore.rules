@@ -156,7 +156,9 @@ service cloud.firestore {
           "updatedAt"
         ])
         && request.resource.data.unread.keys().hasOnly(resource.data.participants);
-      allow delete: if false;
+      // Either participant may delete the whole conversation (the client
+      // deletes the message docs first — Firestore doesn't cascade).
+      allow delete: if isParticipant();
 
       match /messages/{messageId} {
         function parentConvo() {
@@ -173,7 +175,9 @@ service cloud.firestore {
           && (request.resource.data.text.size() > 0
               || request.resource.data.cardRef is string);
         allow update: if false;
-        allow delete: if false;
+        // Deletable only as part of deleting the whole conversation — by
+        // either participant, not just the sender.
+        allow delete: if signedIn() && request.auth.uid in parentConvo().participants;
       }
     }
 

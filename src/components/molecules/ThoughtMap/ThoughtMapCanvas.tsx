@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -20,6 +21,8 @@ import { Input } from '@/components/atoms/Field/Field';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { arrowHeadPath, organicEdgePath } from '@/lib/design/edgePath';
 import { seedFromString } from '@/lib/design/prng';
+import { wavyLine } from '@/lib/design/wavyPath';
+import { wobCircle } from '@/lib/design/wobCircle';
 import { INK, INK_LIGHT, INK_STRONG } from '@/lib/design/strokes';
 import type { Card } from '@/lib/db/types';
 import type { MyThoughtMap } from '@/lib/data/hooks';
@@ -93,6 +96,8 @@ type Drag =
       px: number;
       py: number;
       moved: boolean;
+      /** Press began on the title — a second stationary click there renames. */
+      fromTitle: boolean;
     }
   | { kind: 'resize'; id: string; px: number; py: number; moved: boolean }
   | { kind: 'link'; sourceId: string };
@@ -259,7 +264,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
     capture(e);
   };
 
-  const startGroupDrag = (id: string) => (e: ReactPointerEvent<HTMLDivElement>) => {
+  const startGroupDrag = (id: string, fromTitle = false) => (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
@@ -269,7 +274,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
     const members = Object.values(nodes)
       .filter((n) => n.groupId === id)
       .map((n) => ({ id: n.cardId, dx: w.x - n.x, dy: w.y - n.y }));
-    dragRef.current = { kind: 'group', id, dx: w.x - g.x, dy: w.y - g.y, members, px, py, moved: false };
+    dragRef.current = { kind: 'group', id, dx: w.x - g.x, dy: w.y - g.y, members, px, py, moved: false, fromTitle };
     capture(e);
   };
 
@@ -380,10 +385,16 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
       }
       case 'group': {
         if (!drag.moved) {
-          // A plain click on the title starts renaming right on the region.
+          // First stationary click anywhere on the region selects (focuses)
+          // it — dragging is then obviously live. Renaming asks for a second
+          // click on the title of an already-selected region, so a click
+          // meant to grab the region never traps the pointer in an input.
+          const wasSelected = selection?.kind === 'group' && selection.id === drag.id;
           setSelection({ kind: 'group', id: drag.id });
-          setGroupTitleDraft(groups[drag.id]?.title ?? '');
-          setEditingGroupId(drag.id);
+          if (wasSelected && drag.fromTitle) {
+            setGroupTitleDraft(groups[drag.id]?.title ?? '');
+            setEditingGroupId(drag.id);
+          }
           break;
         }
         const g = { x: w.x - drag.dx, y: w.y - drag.dy };
@@ -687,7 +698,15 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
               <div
                 key={g.id}
                 className={styles.groupBox}
-                style={{ left: g.x, top: g.y, width: g.w, height: g.h, pointerEvents: 'none' }}
+                data-selected={sel || undefined}
+                style={{
+                  left: g.x,
+                  top: g.y,
+                  width: g.w,
+                  height: g.h,
+                  pointerEvents: 'none',
+                  '--group-hue': g.hue,
+                } as CSSProperties}
               >
                 <HandDrawnBorder
                   w={g.w}
@@ -700,27 +719,29 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
                   curve={0.6}
                   cornerOffset={5}
                 />
+                {/* Whole-region grab surface: a click selects (focuses) the
+                    region, press-and-move drags it with its cards. Cards and
+                    arrows stay interactive — they render in later layers. */}
+                <div
+                  className={styles.groupHit}
+                  style={{ pointerEvents: 'auto' }}
+                  onPointerDown={startGroupDrag(g.id)}
+                />
                 {editingGroupId === g.id ? (
-                  <input
-                    className={styles.groupTitleInput}
-                    style={{ pointerEvents: 'auto' }}
+                  <GroupTitleEditor
                     value={groupTitleDraft}
                     placeholder={t('groupTitlePlaceholder')}
-                    autoFocus
-                    onFocus={(e) => e.target.select()}
-                    onChange={(e) => setGroupTitleDraft(e.target.value)}
-                    onBlur={commitGroupTitle}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                      else if (e.key === 'Escape') setEditingGroupId(null);
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
+                    hue={g.hue}
+                    seed={seedFromString(g.id)}
+                    onChange={setGroupTitleDraft}
+                    onCommit={commitGroupTitle}
+                    onCancel={() => setEditingGroupId(null)}
                   />
                 ) : (
                   <div
                     className={styles.groupTitle}
                     style={{ pointerEvents: 'auto' }}
-                    onPointerDown={startGroupDrag(g.id)}
+                    onPointerDown={startGroupDrag(g.id, true)}
                   >
                     {g.title}
                   </div>
@@ -734,7 +755,20 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => removeGroupById(g.id)}
                 >
-                  <Icon name="trash" size={15} />
+                  {/* Hand-drawn hover ring in the region's own hue — the same
+                      ink as the region border, not the theme accent. */}
+                  <svg className={styles.groupDeleteRing} width={28} height={28} viewBox="0 0 28 28" aria-hidden>
+                    <path
+                      d={wobCircle(14, 14, 12, seedFromString(g.id) + 9, { segments: 7, mag: 1.1 })}
+                      fill={`oklch(96.5% 0.032 ${g.hue})`}
+                      stroke="currentColor"
+                      strokeWidth={INK_LIGHT}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className={styles.groupDeleteIcon}>
+                    <Icon name="trash" size={15} />
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -1002,6 +1036,77 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
           </OrganicButton>
         </div>
       )}
+    </div>
+  );
+}
+
+interface GroupTitleEditorProps {
+  value: string;
+  placeholder: string;
+  hue: number;
+  seed: number;
+  onChange: (v: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * In-place region rename. Instead of an input-wide dotted rule, a hand-drawn
+ * wavy underline follows the text itself: a hidden mirror span measures the
+ * typed width, and the curve is redrawn to match — the pen stops where the
+ * words stop.
+ */
+function GroupTitleEditor({ value, placeholder, hue, seed, onChange, onCommit, onCancel }: GroupTitleEditorProps) {
+  const mirrorRef = useRef<HTMLSpanElement>(null);
+  const [textW, setTextW] = useState(0);
+  useLayoutEffect(() => {
+    setTextW(mirrorRef.current?.offsetWidth ?? 0);
+  }, [value, placeholder]);
+
+  const w = Math.max(32, textW + 8);
+  const underline = useMemo(
+    () => wavyLine(w, seed + 17, 1.7, Math.max(3, Math.round(w / 46))),
+    [w, seed],
+  );
+
+  return (
+    <div
+      className={styles.groupTitleEdit}
+      style={{ pointerEvents: 'auto' }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <input
+        className={styles.groupTitleInput}
+        value={value}
+        placeholder={placeholder}
+        autoFocus
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onCommit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          else if (e.key === 'Escape') onCancel();
+        }}
+      />
+      <span ref={mirrorRef} className={styles.groupTitleMirror} aria-hidden>
+        {value || placeholder}
+      </span>
+      <svg
+        className={styles.groupTitleUnderline}
+        width={w}
+        height={6}
+        viewBox={`0 0 ${w} 6`}
+        aria-hidden
+      >
+        <path
+          d={underline}
+          transform="translate(0,3)"
+          fill="none"
+          stroke={`oklch(48% 0.09 ${hue})`}
+          strokeWidth={INK_LIGHT}
+          strokeLinecap="round"
+        />
+      </svg>
     </div>
   );
 }

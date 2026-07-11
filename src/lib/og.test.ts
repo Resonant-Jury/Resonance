@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCardMetadata } from './og';
+import { buildCardMetadata, buildProfileMetadata } from './og';
 import type { Card, User } from '@/lib/db/types';
 
 const baseCard: Card = {
@@ -78,5 +78,50 @@ describe('buildCardMetadata', () => {
     const card: Card = { ...baseCard, anonymous: true };
     const meta = buildCardMetadata({ card, author, locale: 'en', base, anonymousLabel: 'Anonymous' });
     expect((meta.openGraph as { authors?: string[] }).authors).toBeUndefined();
+  });
+});
+
+describe('buildProfileMetadata', () => {
+  it('uses the avatar as a square summary card when the user has one', () => {
+    const user2: User = { ...author, avatarUrl: 'https://cdn.r2.dev/avatar.avif' };
+    const meta = buildProfileMetadata({
+      user: user2,
+      locale: 'en',
+      base,
+      title: 'mira · Resonance',
+      description: 'writes about slow mornings',
+    });
+
+    expect(meta.title).toBe('mira · Resonance');
+    expect((meta.openGraph as { type?: string }).type).toBe('profile');
+    expect((meta.openGraph as { username?: string }).username).toBe('mira');
+    expect((meta.openGraph?.images as { url: string }[])[0].url).toBe('https://cdn.r2.dev/avatar.avif');
+    // Avatar is square → summary card so it isn't cropped.
+    expect((meta.twitter as { card?: string }).card).toBe('summary');
+    expect(meta.alternates?.canonical).toBe('https://resonance.example/en/u/mira');
+  });
+
+  it('falls back to the platform cover (wide card) when the user has no avatar', () => {
+    const meta = buildProfileMetadata({
+      user: author,
+      locale: 'zh-TW',
+      base,
+      title: 'mira · Resonance',
+      description: 'mira 在 Resonance 分享的生命故事',
+    });
+    expect((meta.openGraph?.images as { url: string }[])[0].url).toBe('https://resonance.example/og-cover.jpg');
+    expect((meta.twitter as { card?: string }).card).toBe('summary_large_image');
+  });
+
+  it('percent-encodes a CJK handle in the canonical URL', () => {
+    const user2: User = { ...author, handle: '念誠' };
+    const meta = buildProfileMetadata({
+      user: user2,
+      locale: 'zh-TW',
+      base,
+      title: '念誠 · Resonance',
+      description: 'bio',
+    });
+    expect(meta.alternates?.canonical).toBe(`https://resonance.example/zh-TW/u/${encodeURIComponent('念誠')}`);
   });
 });

@@ -82,6 +82,28 @@
   gap: 8px;
 }
 
+/* Title/excerpt on the left, optional thumbnail on the right. */
+.nodeBody {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.nodeText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nodeThumb {
+  flex-shrink: 0;
+  margin-top: 2px;
+  overflow: visible;
+}
+
 .nodeTitle {
   font-family: var(--font-heading);
   font-size: 15px;
@@ -158,15 +180,29 @@
   pointer-events: none;
 }
 
+/* Hover deepens the card's own hue (set as --node-hue on the node), not the
+   theme accent — a blue card's handle glows blue. */
 .linkHandle:hover {
-  border-color: var(--color-terracotta);
-  color: var(--color-terracotta);
+  border-color: oklch(45% 0.13 var(--node-hue, 55));
+  color: oklch(45% 0.13 var(--node-hue, 55));
 }
 
 .groupBox {
   position: absolute;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* Whole-region grab surface: click focuses, press-and-move drags (with the
+   filed cards — they render in later layers so they stay interactive). */
+.groupHit {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+}
+
+.groupHit:active {
+  cursor: grabbing;
 }
 
 .groupTitle {
@@ -187,26 +223,51 @@
   text-overflow: ellipsis;
 }
 
-/* In-place rename input — same footprint/typography as the static title. */
-.groupTitleInput {
+/* In-place rename: the input carries no rule of its own — the wavy svg
+   underline below tracks the text width instead. */
+.groupTitleEdit {
   position: absolute;
   top: 0;
   left: 0;
   right: 44px;
   z-index: 1;
-  margin: 8px 0 0 16px;
-  padding: 4px;
+  padding: 8px 0 0 16px;
+}
+
+.groupTitleInput {
+  display: block;
+  width: 100%;
+  padding: 4px 4px 1px;
   font-family: var(--font-heading);
   font-size: 16px;
   font-weight: 700;
   color: var(--color-text);
   background: transparent;
   border: none;
-  border-bottom: 1.6px dashed var(--field-border-hover);
   outline: none;
 }
 
-/* Region delete — quiet icon in the top-right corner, opposite the title. */
+/* Invisible twin of the input's text, for measuring the underline's reach. */
+.groupTitleMirror {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  white-space: pre;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.groupTitleUnderline {
+  display: block;
+  margin-left: 4px;
+  overflow: visible;
+}
+
+/* Region delete — quiet icon in the top-right corner, opposite the title.
+   Hover reveals a hand-drawn ring in the region's own hue (--group-hue set
+   on the groupBox), not a flat accent circle. */
 .groupDelete {
   position: absolute;
   top: 8px;
@@ -218,16 +279,31 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 50%;
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: color 140ms ease, background 140ms ease;
+  transition: color 140ms ease;
+}
+
+.groupDeleteRing {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.groupDeleteIcon {
+  position: relative;
+  display: flex;
 }
 
 .groupDelete:hover {
-  color: var(--color-terracotta);
-  background: oklch(0% 0 0 / 0.06);
+  color: oklch(42% 0.1 var(--group-hue, 55));
+}
+
+.groupDelete:hover .groupDeleteRing {
+  opacity: 1;
 }
 
 .groupResize {
@@ -334,22 +410,16 @@
   width: 200px;
 }
 
-/* The selected card's action tab — grows out of the card's top edge, sharing
-   its fill/stroke so the pair reads as one hand-drawn surface. */
+/* The selected card's action tab — a bump on the card's own outline (the
+   chrome is part of the border path, drawn in ThoughtMapNode), left-aligned
+   to the card like a file folder tab. This box only hosts the buttons. */
 .nodeTab {
   position: absolute;
   z-index: 2;
-  left: 14px;
+  left: 12px;
   top: -30px;
   width: 118px;
   height: 30px;
-}
-
-.nodeTabChrome {
-  position: absolute;
-  inset: 0;
-  overflow: visible;
-  pointer-events: none;
 }
 
 .nodeTabRow {
@@ -359,7 +429,9 @@
   justify-content: center;
   gap: 2px;
   height: 100%;
-  padding: 0 6px;
+  /* Nudge the buttons down a touch: the bump's stroke arcs over them, so the
+     optical midpoint sits slightly below the geometric one. */
+  padding: 4px 6px 0;
 }
 
 /* Borderless organic buttons, same language as the markdown toolbar's tools:
