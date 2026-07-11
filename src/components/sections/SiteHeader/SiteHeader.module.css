@@ -110,3 +110,14 @@
   padding: 11px 8px;
   font-size: 14px;
 }
+
+/* Mobile: collapse the closed trigger to just the globe icon. The open panel
+   still lists the full language names (kept readable via menuMinWidth). */
+.langSelectCompact {
+  width: auto;
+}
+
+.langSelectCompact button[role='combobox'] {
+  padding: 8px 10px;
+  gap: 4px;
+}

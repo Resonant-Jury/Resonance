@@ -123,7 +123,7 @@ export function SiteHeader() {
 
         {isMobile ? (
           <div className={styles.account}>
-            <LanguageSelect />
+            <LanguageSelect compact />
             <button
               aria-label={t('openMenu')}
               aria-expanded={menuOpen}

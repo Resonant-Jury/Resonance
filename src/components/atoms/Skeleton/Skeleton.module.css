@@ -3,12 +3,17 @@
   /* Slightly irregular corners so placeholders read as hand-drawn rather than
      mechanical. Circle / explicit-radius callers override this inline. */
   border-radius: 8px 10px 7px 11px;
-  /* Warm, theme-tinted shimmer (sand base → terracotta-tinted highlight)
-     instead of cold grey, so loading states sit in the OKLCH palette. */
+  /* Warm, theme-tinted shimmer (sand base → hue-tinted highlight) instead of
+     cold grey, so loading states sit in the OKLCH palette.
+     The highlight hue comes from --skeleton-hue, which a coloured card sets to
+     its own hue so the shimmer reads as a lighter version of that card. We read
+     it via a var() fallback (55, the warm terracotta hue) rather than declaring
+     --skeleton-hue on .block — a local declaration would shadow the value
+     inherited from the card and pin every skeleton to orange. */
   background: linear-gradient(
     90deg,
     color-mix(in oklch, color-mix(in oklch, var(--color-cream-dark) 94%, var(--color-text)) 85%, transparent) 25%,
-    color-mix(in oklch, var(--color-terracotta-light) 50%, var(--color-cream)) 37%,
+    color-mix(in oklch, oklch(88% 0.08 var(--skeleton-hue, 55)) 50%, var(--color-cream)) 37%,
     color-mix(in oklch, color-mix(in oklch, var(--color-cream-dark) 94%, var(--color-text)) 85%, transparent) 63%
   );
   background-size: 400% 100%;

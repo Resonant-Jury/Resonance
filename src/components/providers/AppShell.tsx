@@ -62,9 +62,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <AppHeader user={headerUser} />
+      <AppHeader user={headerUser} signedIn={!!authUser} authReady={!loading} />
       <main style={{ minHeight: '100vh' }}>{children}</main>
-      <FloatingWriteButton />
+      {authUser && <FloatingWriteButton />}
     </>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { MouseEvent, useId, useMemo, useRef, useState } from 'react';
+import { CSSProperties, MouseEvent, useId, useMemo, useRef, useState } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { INK, INK_LIGHT } from '@/lib/design/strokes';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
@@ -157,7 +157,9 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
         marginLeft: isMobile ? `calc(-1 * ${mobileBleed})` : 0,
         marginRight: isMobile ? `calc(-1 * ${mobileBleed})` : 0,
         background: isMobile ? cardInterior : 'transparent',
-      }}
+        // Tint every placeholder shimmer inside with this card's own hue.
+        '--skeleton-hue': hue,
+      } as CSSProperties}
     >
       {loading ? (
         <div className={styles.skeletonChrome} aria-hidden style={{ background: cardInterior }} />

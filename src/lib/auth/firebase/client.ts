@@ -6,6 +6,7 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
+  onIdTokenChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -91,6 +92,34 @@ export class FirebaseClientAuthProvider implements IAuthProvider {
         off();
         resolve(user ? mapFirebaseUser(user) : null);
       });
+    });
+  }
+
+  /**
+   * Subscribe to auth changes and keep the server session cookie in sync.
+   *
+   * The `__session` cookie is minted with a fixed lifetime and is otherwise
+   * never refreshed, whereas the client SDK holds a long-lived refresh token
+   * and rotates the ID token roughly hourly. Left alone, the cookie lapses
+   * while the SDK still considers the user signed in — so protected routes
+   * bounce the user to /signin ("self logout"). `onIdTokenChanged` fires on
+   * initial restore, on every token refresh, and on sign-out; re-persisting
+   * the session cookie on each tick keeps it alive as long as the SDK does.
+   *
+   * @returns an unsubscribe function.
+   */
+  subscribe(onChange: (user: AuthUser | null) => void): () => void {
+    const auth = getFirebaseClientAuth();
+    return onIdTokenChanged(auth, async (user) => {
+      if (user) {
+        try {
+          await persistSession(user);
+        } catch {
+          // Transient network/session error — keep the UI signed in; the next
+          // token tick (or a manual reload) will retry the cookie refresh.
+        }
+      }
+      onChange(user ? mapFirebaseUser(user) : null);
     });
   }
 

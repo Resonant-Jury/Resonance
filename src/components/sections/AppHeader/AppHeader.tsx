@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { HamburgerIcon } from '@/components/atoms/HamburgerIcon/HamburgerIcon';
+import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { INK } from '@/lib/design/strokes';
@@ -46,10 +47,17 @@ export interface AppHeaderProps {
     avatarUrl?: string;
     avatarSeed?: string;
   };
+  /** Whether a viewer is signed in. When false the account slot shows 登入. */
+  signedIn?: boolean;
+  /**
+   * Whether client auth has resolved. While false we render no account
+   * controls, so the avatar/登入 toggle never flashes the wrong state.
+   */
+  authReady?: boolean;
   activeKey?: 'home' | 'me' | 'write';
 }
 
-export function AppHeader({ user, activeKey }: AppHeaderProps) {
+export function AppHeader({ user, signedIn = true, authReady = true, activeKey }: AppHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile(720);
@@ -106,7 +114,19 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
           <span className={styles.brand}>{onMessages ? tNav('messages') : 'Resonance'}</span>
         </Link>
 
-        {isMobile ? (
+        {/* Hold the slot until auth resolves so the avatar/登入 toggle never
+            flashes the wrong state on first paint. */}
+        {!authReady ? (
+          <div className={styles.account} />
+        ) : !signedIn ? (
+          <div className={styles.account}>
+            <Link href="/signin" style={{ textDecoration: 'none' }}>
+              <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: 14 }}>
+                {tNav('signIn')}
+              </OrganicButton>
+            </Link>
+          </div>
+        ) : isMobile ? (
           <div className={styles.account}>
             <MessagesEntry />
             <NotificationBell />
@@ -132,12 +152,14 @@ export function AppHeader({ user, activeKey }: AppHeaderProps) {
         )}
       </div>
 
-      <AppMobileNavModal
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        user={user}
-        activeKey={activeKey}
-      />
+      {signedIn && (
+        <AppMobileNavModal
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          user={user}
+          activeKey={activeKey}
+        />
+      )}
     </header>
   );
 }

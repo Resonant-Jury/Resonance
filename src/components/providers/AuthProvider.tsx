@@ -20,18 +20,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let alive = true;
-    firebaseClientAuthProvider
-      .currentUser()
-      .then((current) => {
-        if (alive) setUser(current);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
+    // Subscribe (rather than a one-shot read) so the UI tracks token refreshes
+    // and sign-out across tabs, and so the server session cookie is kept fresh
+    // on every token tick — see FirebaseClientAuthProvider.subscribe.
+    const unsubscribe = firebaseClientAuthProvider.subscribe((next) => {
+      setUser(next);
+      setLoading(false);
+    });
+    return unsubscribe;
   }, []);
 
   const value = useMemo<AuthContextValue>(

@@ -16,8 +16,12 @@ const LOCALE_LABELS: Record<string, string> = { en: 'English', 'zh-TW': '繁體�
  * page, compacted for header chrome. Closed it shows a globe + the current
  * language; the open panel lists each locale behind its square flag, cropped
  * by the same hand-drawn mask as avatars.
+ *
+ * `compact` (used on mobile) collapses the closed trigger to just the globe
+ * icon — the open panel still lists the full language names, kept readable via
+ * `menuMinWidth`.
  */
-export function LanguageSelect() {
+export function LanguageSelect({ compact = false }: { compact?: boolean }) {
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
@@ -27,14 +31,19 @@ export function LanguageSelect() {
       seed={53}
       value={locale}
       ariaLabel="Language"
-      className={styles.langSelect}
+      className={compact ? `${styles.langSelect} ${styles.langSelectCompact}` : styles.langSelect}
+      menuMinWidth={compact ? 172 : undefined}
       onChange={(v) => router.replace(pathname, { locale: v as Locale })}
-      renderValue={() => (
-        <>
-          <Icon name="globe" size={17} />
-          {LOCALE_LABELS[locale] ?? locale}
-        </>
-      )}
+      renderValue={() =>
+        compact ? (
+          <Icon name="globe" size={19} />
+        ) : (
+          <>
+            <Icon name="globe" size={17} />
+            {LOCALE_LABELS[locale] ?? locale}
+          </>
+        )
+      }
     >
       <option value="zh-TW">
         <SquareFlag code="tw" size={18} />

@@ -181,6 +181,12 @@ export interface SelectProps {
    * of echoing the selected option's label. Receives the selected option.
    */
   renderValue?: (selected: SelectOption | undefined) => ReactNode;
+  /**
+   * Force the open panel to at least this width, right-aligned to the trigger.
+   * Lets the closed box shrink (e.g. an icon-only trigger) while the menu stays
+   * wide enough to read the option labels.
+   */
+  menuMinWidth?: number | string;
 }
 
 /**
@@ -200,6 +206,7 @@ export function Select({
   disabled,
   className,
   renderValue,
+  menuMinWidth,
 }: SelectProps) {
   const options = useMemo<SelectOption[]>(
     () =>
@@ -339,6 +346,7 @@ export function Select({
           onActivate={setActiveIndex}
           onChoose={choose}
           openUp={openUp}
+          menuMinWidth={menuMinWidth}
         />
       )}
     </div>
@@ -354,6 +362,7 @@ interface DropdownPanelProps {
   onActivate: (i: number) => void;
   onChoose: (value: string) => void;
   openUp?: boolean;
+  menuMinWidth?: number | string;
 }
 
 // A gently wavy horizontal boundary between two option rows, as a point list so
@@ -439,6 +448,7 @@ function DropdownPanel({
   onActivate,
   onChoose,
   openUp,
+  menuMinWidth,
 }: DropdownPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const optRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -497,7 +507,14 @@ function DropdownPanel({
     <div
       ref={ref}
       className={styles.dropdownPanel}
-      style={openUp ? { top: 'auto', bottom: 0 } : undefined}
+      style={{
+        ...(openUp ? { top: 'auto', bottom: 0 } : null),
+        // Right-anchor and grow to fit the labels when the closed trigger is
+        // narrower than the menu needs to be (e.g. an icon-only trigger).
+        ...(menuMinWidth != null
+          ? { left: 'auto', right: 0, width: 'max-content', minWidth: menuMinWidth }
+          : null),
+      }}
     >
       {w > 0 && h > 0 && (
         <svg
