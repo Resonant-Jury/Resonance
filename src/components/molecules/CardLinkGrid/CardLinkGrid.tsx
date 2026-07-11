@@ -30,6 +30,11 @@ export interface CardLinkGridProps {
    * only — pair it with an explicit anonymous badge via `renderCaption`).
    */
   deanonymize?: boolean;
+  /**
+   * System annotation shown inside the card as a hand-drawn blockquote
+   * (e.g. the recommender's「因為…」reason). Return null/undefined to omit.
+   */
+  quoteFor?: (card: Card, index: number) => string | null | undefined;
 }
 
 /**
@@ -57,7 +62,7 @@ function useFeedColumns(): number | null {
  * column count is known (SSR / first paint) a CSS-columns version renders so
  * the landing page still ships cards in its HTML.
  */
-export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCaption, deanonymize }: CardLinkGridProps) {
+export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCaption, deanonymize, quoteFor }: CardLinkGridProps) {
   const t = useTranslations('card');
   const cols = useFeedColumns();
 
@@ -76,7 +81,12 @@ export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCa
             display: 'block',
           }}
         >
-          <StoryCard story={story} index={i} isLast={i === cards.length - 1} />
+          <StoryCard
+            story={story}
+            index={i}
+            isLast={i === cards.length - 1}
+            quote={quoteFor ? quoteFor(card, i) ?? undefined : undefined}
+          />
         </Link>
         {renderActions && <div className={styles.actions}>{renderActions(card, i)}</div>}
         {renderCaption && <div className={styles.caption}>{renderCaption(card, i)}</div>}

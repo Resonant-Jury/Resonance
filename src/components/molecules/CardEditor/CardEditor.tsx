@@ -14,6 +14,7 @@ import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { MarkdownEditor } from '@/components/molecules/MarkdownEditor/MarkdownEditor';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { uploadImageFile } from '@/lib/images/upload';
+import { extractAccentHue } from '@/lib/images/accentHue';
 import { useRef } from 'react';
 import { INK } from '@/lib/design/strokes';
 // import { Panel } from '@/components/molecules/Panel/Panel'; // AI 寫作夥伴（暫停）
@@ -46,6 +47,7 @@ export interface CardEditorProps {
     tags?: string[];
     visibility?: Visibility;
     media?: CardMedia;
+    accentHue?: number;
     anonymous?: boolean;
   };
   locale: Locale;
@@ -102,6 +104,9 @@ export function CardEditor({
   const [anonymous, setAnonymous] = useState(initial?.anonymous ?? false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [media, setMedia] = useState<CardMedia | undefined>(initial?.media);
+  // Cover-image dominant hue (snapped to the card palette). Recomputed when a
+  // cover is uploaded/generated, cleared when removed — see setCover below.
+  const [accentHue, setAccentHue] = useState<number | null>(initial?.accentHue ?? null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -278,7 +283,7 @@ export function CardEditor({
     const vis = choices?.visibility ?? visibility;
     const anon = choices?.anonymous ?? anonymous;
     const card = initial?.id
-      ? await updateCardDraft(initial.id, { thoughtCore, story, tags, visibility: vis, media, anonymous: anon })
+      ? await updateCardDraft(initial.id, { thoughtCore, story, tags, visibility: vis, media, accentHue, anonymous: anon })
       : await createCardDraft({
         thoughtCore,
         story,
@@ -286,6 +291,7 @@ export function CardEditor({
         visibility: vis,
         originalLocale: locale,
         media,
+        accentHue,
         referenceCardId,
         anonymous: anon,
       });
@@ -376,6 +382,7 @@ export function CardEditor({
       }
       const { publicUrl } = (await res.json()) as { publicUrl: string };
       setMedia({ type: 'image', url: publicUrl, label: t('mediaGeneratedLabel') });
+      setAccentHue(await extractAccentHue(publicUrl));
     } catch {
       setUploadError(t('mediaGenerateError'));
     } finally {
@@ -390,6 +397,8 @@ export function CardEditor({
     try {
       const { publicUrl } = await uploadImageFile(file);
       setMedia({ type: 'image', url: publicUrl, label: file.name });
+      // Read the hue from the local file — no extra fetch, no CORS involved.
+      setAccentHue(await extractAccentHue(file));
     } catch {
       setUploadError(t('mediaUploadError'));
     } finally {
@@ -472,7 +481,7 @@ export function CardEditor({
               seed={31}
               R={16}
               curve={0.8}
-              onRemove={() => setMedia(undefined)}
+              onRemove={() => { setMedia(undefined); setAccentHue(null); }}
               removeLabel={t('mediaRemove')}
             />
           ) : mediaBusy ? (
@@ -707,10 +716,10 @@ export function CardEditor({
               {t('discard.message')}
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
-              <OrganicButton variant="outline" onClick={onCancelLeave}>
+              <OrganicButton variant="outline" size="sm" onClick={onCancelLeave}>
                 {t('discard.cancel')}
               </OrganicButton>
-              <OrganicButton variant="primary" onClick={onConfirmLeave}>
+              <OrganicButton variant="primary" size="sm" onClick={onConfirmLeave}>
                 {t('discard.confirm')}
               </OrganicButton>
             </div>

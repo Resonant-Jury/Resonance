@@ -63,7 +63,7 @@ export function InsertCardModal({ open, onClose, onPick, title, subtitle }: Inse
       )}
 
       <div className={styles.actions}>
-        <OrganicButton variant="ghost" onClick={onClose}>
+        <OrganicButton variant="ghost" size="sm" onClick={onClose}>
           {t('cancel')}
         </OrganicButton>
       </div>

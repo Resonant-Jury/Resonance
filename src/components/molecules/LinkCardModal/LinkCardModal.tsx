@@ -79,7 +79,7 @@ export function LinkCardModal({ open, onClose, targetCardId, targetAuthorId, onL
         <div className={styles.doneWrap}>
           <Icon name="cards" size={40} color="var(--color-terracotta)" />
           <h3 className={styles.doneTitle}>{t('linkModal.linked')}</h3>
-          <OrganicButton variant="outline" onClick={onClose}>
+          <OrganicButton variant="outline" size="sm" onClick={onClose}>
             {t('linkModal.close')}
           </OrganicButton>
         </div>
@@ -122,11 +122,11 @@ export function LinkCardModal({ open, onClose, targetCardId, targetAuthorId, onL
           {error && <div className={styles.error}>{error}</div>}
 
           <div className={styles.actions}>
-            <OrganicButton variant="ghost" onClick={onClose}>
+            <OrganicButton variant="ghost" size="sm" onClick={onClose}>
               {t('linkModal.cancel')}
             </OrganicButton>
             <div style={{ opacity: selected && !pending ? 1 : 0.5, pointerEvents: selected && !pending ? 'auto' : 'none' }}>
-              <OrganicButton variant="primary" onClick={confirm}>
+              <OrganicButton variant="primary" size="sm" onClick={confirm}>
                 {pending ? '…' : t('linkModal.confirm')}
               </OrganicButton>
             </div>

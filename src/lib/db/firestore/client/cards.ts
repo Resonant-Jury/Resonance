@@ -27,6 +27,8 @@ export async function createCardDraft(input: {
   visibility: Visibility;
   originalLocale: Locale;
   media?: CardMedia;
+  /** Cover-image dominant hue, pre-snapped to the card palette (null = none). */
+  accentHue?: number | null;
   referenceCardId?: string;
   anonymous?: boolean;
 }): Promise<Card> {
@@ -45,6 +47,7 @@ export async function createCardDraft(input: {
     visibility: input.visibility,
     originalLocale: input.originalLocale,
     media: input.media,
+    accentHue: input.accentHue ?? undefined,
     referenceCardId: input.referenceCardId,
     anonymous: input.anonymous ?? false,
     translations: {},
@@ -70,6 +73,7 @@ export async function updateCardDraft(
     tags?: string[];
     visibility?: Visibility;
     media?: CardMedia;
+    accentHue?: number | null;
     anonymous?: boolean;
   }
 ): Promise<Card> {

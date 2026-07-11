@@ -27,6 +27,7 @@ export function mapCard(id: string, data: Raw): Card {
     story: String(data.story ?? ''),
     tags: (data.tags as string[]) ?? [],
     media: data.media as CardMedia | undefined,
+    accentHue: typeof data.accentHue === 'number' ? data.accentHue : undefined,
     originalLocale: (data.originalLocale as Locale) ?? 'zh-TW',
     translations: (data.translations as Card['translations']) ?? {},
     visibility: (data.visibility as Card['visibility']) ?? 'public',

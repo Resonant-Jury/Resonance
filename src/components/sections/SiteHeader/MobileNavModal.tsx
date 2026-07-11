@@ -19,6 +19,18 @@ export interface MobileNavModalProps {
   onClose: () => void;
 }
 
+/** Signed-in viewers get the app navigation (same items as AppMobileNavModal). */
+const APP_ITEMS: {
+  key: 'home' | 'me' | 'write' | 'messages' | 'settings';
+  href: '/home' | '/me' | '/write' | '/messages' | '/settings';
+}[] = [
+  { key: 'home', href: '/home' },
+  { key: 'me', href: '/me' },
+  { key: 'write', href: '/write' },
+  { key: 'messages', href: '/messages' },
+  { key: 'settings', href: '/settings' },
+];
+
 export function MobileNavModal({ open, onClose }: MobileNavModalProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -27,9 +39,11 @@ export function MobileNavModal({ open, onClose }: MobileNavModalProps) {
 
   const dividerD = useMemo(() => wavyLine(260, 53, 1.3, 7), []);
   const t = useTranslations('nav');
+  const tApp = useTranslations('app.nav');
   const locale = useLocale();
   const { user, loading } = useAuth();
   const { data: profile } = useMyProfile();
+  const signedIn = mounted && !loading && !!user;
   return (
     <Modal open={open} onClose={onClose} maxWidth={380} seed={53} ariaLabel={t('siteNav')} padding="24px 28px 28px">
       <div className={styles.brandRow}>
@@ -37,26 +51,36 @@ export function MobileNavModal({ open, onClose }: MobileNavModalProps) {
         <span className={styles.brandText}>Resonance</span>
       </div>
 
-      {NAV_KEYS.length > 0 && (
+      {signedIn ? (
         <nav className={styles.nav}>
-          {NAV_KEYS.map((key) => (
-            <a
-              key={key}
-              href={`/${locale}/#${key}`}
-              onClick={(e) => {
-                const el = document.getElementById(key);
-                if (el && window.location.pathname.replace(/\/$/, '') === `/${locale}`) {
-                  e.preventDefault();
-                  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-                onClose();
-              }}
-              className={styles.navLink}
-            >
-              {t(key)}
-            </a>
+          {APP_ITEMS.map(({ key, href }) => (
+            <Link key={key} href={href} onClick={onClose} className={styles.navLink}>
+              {tApp(key)}
+            </Link>
           ))}
         </nav>
+      ) : (
+        NAV_KEYS.length > 0 && (
+          <nav className={styles.nav}>
+            {NAV_KEYS.map((key) => (
+              <a
+                key={key}
+                href={`/${locale}/#${key}`}
+                onClick={(e) => {
+                  const el = document.getElementById(key);
+                  if (el && window.location.pathname.replace(/\/$/, '') === `/${locale}`) {
+                    e.preventDefault();
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                  onClose();
+                }}
+                className={styles.navLink}
+              >
+                {t(key)}
+              </a>
+            ))}
+          </nav>
+        )
       )}
 
       <svg viewBox="0 0 260 6" preserveAspectRatio="none" aria-hidden="true" className={styles.divider}>

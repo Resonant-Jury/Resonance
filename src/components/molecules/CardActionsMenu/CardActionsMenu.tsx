@@ -127,10 +127,10 @@ export function CardActionsMenu({
           className={styles.confirmActions}
           style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
         >
-          <OrganicButton variant="ghost" onClick={() => setConfirming(false)}>
+          <OrganicButton variant="ghost" size="sm" onClick={() => setConfirming(false)}>
             {t('deleteCancel')}
           </OrganicButton>
-          <OrganicButton variant="primary" onClick={() => void confirmDelete()}>
+          <OrganicButton variant="primary" size="sm" onClick={() => void confirmDelete()}>
             {busy ? '…' : t('deleteConfirm')}
           </OrganicButton>
         </div>

@@ -13,7 +13,8 @@ import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
-import { wavyLine } from '@/lib/design/wavyPath';
+import { wavyLine, wavyVertical } from '@/lib/design/wavyPath';
+import { CARD_HUES, cardHueIndex, nearestCardHue } from '@/lib/design/dominantHue';
 import styles from './StoryCard.module.css';
 
 export interface Story {
@@ -27,6 +28,8 @@ export interface Story {
   tags: string[];
   imageUrl?: string;
   imageLabel?: string;
+  /** Cover-image dominant hue snapped to the card palette (see lib/design/dominantHue). */
+  accentHue?: number;
 }
 
 const CARD_FILLS = [
@@ -47,7 +50,9 @@ const CARD_BORDERS = [
   ['oklch(52% 0.09 18)',  'oklch(40% 0.08 18)'],
 ];
 
-export const CARD_HUES = [55, 290, 140, 88, 215, 18];
+// Canonical hue list lives in lib/design/dominantHue (shared with the
+// cover-image dominant-colour extraction); re-exported for existing consumers.
+export { CARD_HUES };
 
 function StoryImage({ label, accentFill, imageUrl, seed }: { label: string; accentFill: string; imageUrl?: string; seed: number }) {
   const stripeFill = accentFill.replace(/(\d+)%/, (_, n) => `${Math.max(0, +n - 7)}%`);
@@ -104,9 +109,15 @@ export interface StoryCardProps {
   isLast?: boolean;
   /** Render the real card chrome (border, fills, colours) but swap text/image/icons for grey blocks. */
   loading?: boolean;
+  /**
+   * System annotation (e.g. the recommender's「因為…」line) rendered inside
+   * the card as a hand-drawn blockquote — wavy left rule + sparkle — so it
+   * reads as marginalia from Resonance, not as part of the author's story.
+   */
+  quote?: string;
 }
 
-export function StoryCard({ story, index = 0, isLast = false, loading = false }: StoryCardProps) {
+export function StoryCard({ story, index = 0, isLast = false, loading = false, quote }: StoryCardProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const cardRef = useRef<HTMLElement>(null);
@@ -120,9 +131,13 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
   };
   const maxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 6;
 
-  const accentFill = CARD_FILLS[index % CARD_FILLS.length];
-  const [bc1] = CARD_BORDERS[index % CARD_BORDERS.length];
-  const hue = CARD_HUES[index % CARD_HUES.length];
+  // Palette family: the cover image's dominant hue when known (snapped to the
+  // designed families), otherwise the legacy position-based rotation.
+  const hueIdx = story?.accentHue != null ? cardHueIndex(nearestCardHue(story.accentHue)) : -1;
+  const paletteIdx = hueIdx >= 0 ? hueIdx : index % CARD_FILLS.length;
+  const accentFill = CARD_FILLS[paletteIdx];
+  const [bc1] = CARD_BORDERS[paletteIdx];
+  const hue = CARD_HUES[paletteIdx];
   const seed = index * 77 + 13;
   const R = 22;
   const mag = Math.min(w, h) * 0.025;
@@ -132,6 +147,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
 
   const dividerPath = useMemo(() => wavyLine(200, seed + 17, 1.4, 7), [seed]);
   const separatorPath = useMemo(() => wavyLine(200, seed + 91, 1.2, 6), [seed]);
+  const quoteRulePath = useMemo(() => wavyVertical(40, seed + 47, 1.6, 4), [seed]);
 
   const borderPath = useMemo(() => {
     if (!w || !h) return '';
@@ -295,6 +311,36 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false }:
           </div>
         ) : (
           <p className={styles.excerpt}>{story!.excerpt}</p>
+        )}
+
+        {!loading && quote && (
+          <aside className={styles.quote} style={{ color: `oklch(46% 0.07 ${hue})` }}>
+            <svg
+              viewBox="0 0 6 40"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+              className={styles.quoteRule}
+            >
+              <path
+                d={quoteRulePath}
+                transform="translate(3,0)"
+                stroke={bc1}
+                strokeWidth={INK_LIGHT}
+                fill="none"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            <p className={styles.quoteText}>
+              <Icon
+                name="sparkle"
+                size={13}
+                strokeWidth={INK_LIGHT}
+                style={{ flexShrink: 0, marginTop: 3 }}
+              />
+              <span>{quote}</span>
+            </p>
+          </aside>
         )}
 
         <svg

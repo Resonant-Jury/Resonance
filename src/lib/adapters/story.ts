@@ -72,5 +72,6 @@ export function cardToStory(
     tags: card.tags,
     imageUrl: card.media?.url,
     imageLabel: card.media?.label ?? card.thoughtCore.slice(0, 24),
+    accentHue: card.accentHue,
   };
 }

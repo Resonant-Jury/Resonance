@@ -85,6 +85,11 @@ describe('cardToStory', () => {
     expect(cardToStory(makeCard({ media: undefined }), author).imageUrl).toBeUndefined();
   });
 
+  it('carries the cover-image accentHue through to the Story (and omits it when absent)', () => {
+    expect(cardToStory(makeCard({ accentHue: 215 }), author).accentHue).toBe(215);
+    expect(cardToStory(makeCard(), author).accentHue).toBeUndefined();
+  });
+
   it('replaces the byline on anonymous cards — nothing identifying survives', () => {
     const story = cardToStory(makeCard({ anonymous: true }), author, {
       anonymousLabel: 'Anonymous',

@@ -67,6 +67,36 @@
   margin: 0;
 }
 
+/* System annotation (recommendation reason) — a hand-drawn blockquote. The
+   wavy left rule + sparkle + italic hue-tinted text mark it as Resonance's
+   marginalia, visually apart from the author's excerpt above it. */
+.quote {
+  display: flex;
+  gap: 10px;
+  margin-top: -2px;
+}
+
+.quoteRule {
+  width: 6px;
+  align-self: stretch;
+  height: auto;
+  flex-shrink: 0;
+  overflow: visible;
+  opacity: 0.55;
+}
+
+.quoteText {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-style: italic;
+  margin: 0;
+  padding: 2px 0;
+}
+
 .separator {
   display: block;
   width: 100%;

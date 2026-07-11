@@ -246,11 +246,11 @@ export function PublishPanel({
         {/* 4 — publish */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
-            <OrganicButton variant="primary" onClick={() => onPublish({ visibility, anonymous })}>
+            <OrganicButton variant="primary" size="sm" onClick={() => onPublish({ visibility, anonymous })}>
               {pending ? t('publishing') : t('publish')}
             </OrganicButton>
           </div>
-          <OrganicButton variant="ghost" onClick={onClose}>
+          <OrganicButton variant="ghost" size="sm" onClick={onClose}>
             {t('cancel')}
           </OrganicButton>
           {error && (

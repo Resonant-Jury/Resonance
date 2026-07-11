@@ -465,10 +465,10 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               className={styles.confirmActions}
               style={deleting ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
             >
-              <OrganicButton variant="ghost" onClick={() => setConfirmingDelete(false)}>
+              <OrganicButton variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>
                 {t('deleteCancel')}
               </OrganicButton>
-              <OrganicButton variant="primary" onClick={confirmDelete}>
+              <OrganicButton variant="primary" size="sm" onClick={confirmDelete}>
                 {deleting ? '…' : t('deleteConfirm')}
               </OrganicButton>
             </div>

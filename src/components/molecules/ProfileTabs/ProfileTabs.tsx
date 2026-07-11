@@ -11,6 +11,7 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Link, useRouter } from '@/i18n/navigation';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { CARD_HUES } from '@/components/molecules/StoryCard/StoryCard';
+import { nearestCardHue } from '@/lib/design/dominantHue';
 import type { Card, User } from '@/lib/db/types';
 
 export type TabKey =
@@ -139,7 +140,10 @@ export function ProfileTabs({
           renderActions={
             managed
               ? (c, i) => {
-                  const cardHue = CARD_HUES[i % CARD_HUES.length];
+                  // Match the card's own palette family (cover-image hue when
+                  // known, else StoryCard's position-based rotation).
+                  const cardHue =
+                    c.accentHue != null ? nearestCardHue(c.accentHue) : CARD_HUES[i % CARD_HUES.length];
                   return (
                     <CardActionsMenu
                       card={{ id: c.id, visibility: c.visibility }}

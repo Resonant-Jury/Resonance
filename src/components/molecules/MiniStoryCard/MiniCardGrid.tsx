@@ -41,6 +41,7 @@ export function MiniCardGrid({ cards, authors }: MiniCardGridProps) {
               authorAvatarUrl={byline.avatarUrl}
               imageUrl={card.media?.url}
               imageLabel={card.media?.label ?? card.thoughtCore.slice(0, 24)}
+              accentHue={card.accentHue}
               index={i}
               isLast={i === cards.length - 1}
             />

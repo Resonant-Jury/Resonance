@@ -11,6 +11,7 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
 import { wavyLine } from '@/lib/design/wavyPath';
 import { INK, INK_LIGHT } from '@/lib/design/strokes';
+import { cardHueIndex, nearestCardHue } from '@/lib/design/dominantHue';
 import styles from './MiniStoryCard.module.css';
 
 const CARD_BORDERS = [
@@ -32,6 +33,8 @@ export interface MiniStoryCardProps {
   authorAvatarUrl?: string;
   imageUrl?: string;
   imageLabel?: string;
+  /** Cover-image dominant hue snapped to the card palette (see lib/design/dominantHue). */
+  accentHue?: number;
   index?: number;
   isLast?: boolean;
 }
@@ -51,6 +54,7 @@ export function MiniStoryCard({
   authorAvatarUrl,
   imageUrl,
   imageLabel,
+  accentHue,
   index = 0,
   isLast = false,
 }: MiniStoryCardProps) {
@@ -67,8 +71,11 @@ export function MiniStoryCard({
   };
   const maxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 6;
 
-  const bc1 = CARD_BORDERS[index % CARD_BORDERS.length];
-  const hue = CARD_HUES[index % CARD_HUES.length];
+  // Cover-image hue family when known, else the position-based rotation.
+  const hueIdx = accentHue != null ? cardHueIndex(nearestCardHue(accentHue)) : -1;
+  const paletteIdx = hueIdx >= 0 ? hueIdx : index % CARD_HUES.length;
+  const bc1 = CARD_BORDERS[paletteIdx];
+  const hue = CARD_HUES[paletteIdx];
   const accent = authorAccent ?? `oklch(90% 0.06 ${hue})`;
   const seed = index * 71 + 19;
   const R = 20;

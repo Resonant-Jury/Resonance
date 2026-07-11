@@ -147,12 +147,12 @@ export function NoteComposer({
       {/* Breathing room between the char-count line and the action row. */}
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
         {onClose && (
-          <OrganicButton variant="ghost" onClick={onClose}>
+          <OrganicButton variant="ghost" size="sm" onClick={onClose}>
             {t('cancel')}
           </OrganicButton>
         )}
         <div style={{ opacity: valid ? 1 : 0.5, pointerEvents: valid ? 'auto' : 'none' }}>
-          <OrganicButton variant="outline" onClick={submit}>
+          <OrganicButton variant="outline" size="sm" onClick={submit}>
             {pending ? '…' : t('send')}
           </OrganicButton>
         </div>

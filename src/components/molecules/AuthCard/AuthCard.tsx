@@ -16,7 +16,11 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
   const isMobile = useIsMobile(640);
   const seed = 313;
   const R = 22;
-  const interior = 'oklch(97.5% 0.012 60)';
+  // Derive the card colours from the accent token so the TweaksPanel themes
+  // (sage / lavender / gold …) re-tint the auth card instead of it staying
+  // locked to the default terracotta.
+  const interior = 'color-mix(in oklch, var(--color-terracotta-light) 14%, var(--color-card-bg))';
+  const borderColor = 'color-mix(in oklch, var(--color-terracotta), black 18%)';
   const mag = Math.min(w, h) * 0.025;
 
   const borderPath = useMemo(() => {
@@ -48,7 +52,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
         <GrainOverlay opacity={0.04} />
 
         <div style={{ position: 'absolute', top: -3, left: 0, right: 0, pointerEvents: 'none', zIndex: 5 }}>
-          <Divider seed={seed} spacing={0} color="oklch(52% 0.13 55)" strokeWidth={INK_LIGHT} />
+          <Divider seed={seed} spacing={0} color={borderColor} strokeWidth={INK_LIGHT} />
         </div>
 
         <div style={{ position: 'relative', zIndex: 1 }}>
@@ -67,7 +71,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
         </div>
 
         <div style={{ position: 'absolute', bottom: -3, left: 0, right: 0, pointerEvents: 'none', zIndex: 5 }}>
-          <Divider seed={seed + 11} spacing={0} color="oklch(52% 0.13 55)" strokeWidth={INK_LIGHT} />
+          <Divider seed={seed + 11} spacing={0} color={borderColor} strokeWidth={INK_LIGHT} />
         </div>
       </section>
     );
@@ -106,7 +110,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
         R={R}
         seed={seed}
         mag={mag}
-        strokeColor="oklch(52% 0.13 55)"
+        strokeColor={borderColor}
         segmentsH={[3, 4]}
         segmentsV={[5, 6]}
         curve={0.55}

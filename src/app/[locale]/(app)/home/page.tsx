@@ -101,7 +101,7 @@ export default function HomeFeedPage() {
             <CardLinkGrid
               cards={feedCards}
               authors={feedAuthors}
-              renderCaption={(card) => {
+              quoteFor={(card) => {
                 const reason = rec?.reasons[card.id];
                 return reason ? t('matchReason', { reason }) : null;
               }}
