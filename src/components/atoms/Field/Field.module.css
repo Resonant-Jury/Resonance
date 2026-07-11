@@ -105,6 +105,15 @@ textarea.field {
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* Frameless icon-button trigger: no wobbly surface, no chevron — sizes to its
+   icon and sits inline like any other header control (e.g. the hamburger). */
+.dropdownTrigger[data-bare] {
+  width: auto;
+  justify-content: center;
+  gap: 0;
+  padding: 8px;
+  border-radius: 10px;
+}
 .dropdownValue {
   min-width: 0;
   overflow: hidden;

@@ -187,6 +187,13 @@ export interface SelectProps {
    * wide enough to read the option labels.
    */
   menuMinWidth?: number | string;
+  /**
+   * Strip the closed trigger down to a plain icon button: no hand-drawn frame,
+   * no chevron — reads like any other icon control in a header (e.g. the mobile
+   * language picker sitting beside the hamburger). The open panel still draws
+   * its own border. Pair with `renderValue` returning a single icon.
+   */
+  bare?: boolean;
 }
 
 /**
@@ -207,6 +214,7 @@ export function Select({
   className,
   renderValue,
   menuMinWidth,
+  bare,
 }: SelectProps) {
   const options = useMemo<SelectOption[]>(
     () =>
@@ -291,50 +299,61 @@ export function Select({
     }
   }
 
+  const trigger = (
+    <button
+      ref={triggerRef}
+      type="button"
+      role="combobox"
+      className={styles.dropdownTrigger}
+      data-open={open || undefined}
+      data-bare={bare || undefined}
+      disabled={disabled}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-controls={`${uid}-listbox`}
+      aria-label={ariaLabel}
+      aria-activedescendant={open ? `${uid}-opt-${activeIndex}` : undefined}
+      onClick={() => (open ? setOpen(false) : openPanel())}
+      onKeyDown={onKeyDown}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onBlur={() => setHover(false)}
+    >
+      <span className={styles.dropdownValue}>
+        {renderValue ? renderValue(selectedIndex >= 0 ? options[selectedIndex] : undefined) : selectedLabel}
+      </span>
+      {!bare && (
+        <Icon name="chevron-down" size={20} strokeWidth={INK_STRONG} className={styles.dropdownChevron} />
+      )}
+    </button>
+  );
+
   return (
     <div ref={rootRef} className={[styles.dropdownRoot, className].filter(Boolean).join(' ')}>
-      <HandDrawnDashedSurface
-        seed={seed}
-        R={16}
-        strokeWidth={INK}
-        // Denser than the auto per-95px segments: the closed box is the one
-        // surface users stare at before interacting, and at header/select
-        // widths the auto count (2–3 turns) read as a lazy bow rather than a
-        // drawn line. Extra turning points keep it visibly hand-made; with
-        // more of them the per-segment bow is dialed below the small-surface
-        // auto value (~1.6) so the line stays calm rather than busy.
-        segmentsH={[4, 5]}
-        curve={1.15}
-        state={open ? 'focus' : hover ? 'hover' : 'idle'}
-        // When open, the covering panel draws its own border — hide this one so
-        // the two wobbly outlines don't stack on top of each other.
-        strokeColor={open ? 'transparent' : undefined}
-        className={styles.surface}
-      >
-        <button
-          ref={triggerRef}
-          type="button"
-          role="combobox"
-          className={styles.dropdownTrigger}
-          data-open={open || undefined}
-          disabled={disabled}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={`${uid}-listbox`}
-          aria-label={ariaLabel}
-          aria-activedescendant={open ? `${uid}-opt-${activeIndex}` : undefined}
-          onClick={() => (open ? setOpen(false) : openPanel())}
-          onKeyDown={onKeyDown}
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
-          onBlur={() => setHover(false)}
+      {bare ? (
+        trigger
+      ) : (
+        <HandDrawnDashedSurface
+          seed={seed}
+          R={16}
+          strokeWidth={INK}
+          // Denser than the auto per-95px segments: the closed box is the one
+          // surface users stare at before interacting, and at header/select
+          // widths the auto count (2–3 turns) read as a lazy bow rather than a
+          // drawn line. Extra turning points keep it visibly hand-made; with
+          // more of them the per-segment bow is dialed below the small-surface
+          // auto value (~1.6) so the line stays calm rather than busy.
+          segmentsH={[4, 5]}
+          curve={1.15}
+          state={open ? 'focus' : hover ? 'hover' : 'idle'}
+          // When open, the covering panel draws its own border — hide this one so
+          // the two wobbly outlines don't stack on top of each other.
+          strokeColor={open ? 'transparent' : undefined}
+          className={styles.surface}
         >
-          <span className={styles.dropdownValue}>
-            {renderValue ? renderValue(selectedIndex >= 0 ? options[selectedIndex] : undefined) : selectedLabel}
-          </span>
-          <Icon name="chevron-down" size={20} strokeWidth={INK_STRONG} className={styles.dropdownChevron} />
-        </button>
-      </HandDrawnDashedSurface>
+          {trigger}
+        </HandDrawnDashedSurface>
+      )}
 
       {open && (
         <DropdownPanel

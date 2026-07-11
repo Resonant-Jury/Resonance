@@ -32,11 +32,12 @@ export function LanguageSelect({ compact = false }: { compact?: boolean }) {
       value={locale}
       ariaLabel="Language"
       className={compact ? `${styles.langSelect} ${styles.langSelectCompact}` : styles.langSelect}
+      bare={compact}
       menuMinWidth={compact ? 172 : undefined}
       onChange={(v) => router.replace(pathname, { locale: v as Locale })}
       renderValue={() =>
         compact ? (
-          <Icon name="globe" size={19} />
+          <Icon name="globe" size={22} />
         ) : (
           <>
             <Icon name="globe" size={17} />

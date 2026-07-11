@@ -111,13 +111,9 @@
   font-size: 14px;
 }
 
-/* Mobile: collapse the closed trigger to just the globe icon. The open panel
-   still lists the full language names (kept readable via menuMinWidth). */
+/* Mobile: collapse the trigger to a frameless globe icon button (via the
+   Select `bare` prop), sitting beside the hamburger. The open panel still lists
+   the full language names, kept readable via menuMinWidth. */
 .langSelectCompact {
   width: auto;
-}
-
-.langSelectCompact button[role='combobox'] {
-  padding: 8px 10px;
-  gap: 4px;
 }
