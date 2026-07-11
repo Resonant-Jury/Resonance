@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
-import { wavyLine, wavyVertical } from '@/lib/design/wavyPath';
+import { wavyLine } from '@/lib/design/wavyPath';
 import { CARD_HUES, cardHueIndex, nearestCardHue } from '@/lib/design/dominantHue';
 import styles from './StoryCard.module.css';
 
@@ -110,9 +110,9 @@ export interface StoryCardProps {
   /** Render the real card chrome (border, fills, colours) but swap text/image/icons for grey blocks. */
   loading?: boolean;
   /**
-   * System annotation (e.g. the recommender's「因為…」line) rendered inside
-   * the card as a hand-drawn blockquote — wavy left rule + sparkle — so it
-   * reads as marginalia from Resonance, not as part of the author's story.
+   * System annotation (e.g. the recommender's「因為…」line) rendered at the
+   * very bottom of the card, after the byline, in the handwritten font — a
+   * scribbled margin note from Resonance, unmistakably not the author's story.
    */
   quote?: string;
 }
@@ -147,7 +147,6 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
 
   const dividerPath = useMemo(() => wavyLine(200, seed + 17, 1.4, 7), [seed]);
   const separatorPath = useMemo(() => wavyLine(200, seed + 91, 1.2, 6), [seed]);
-  const quoteRulePath = useMemo(() => wavyVertical(40, seed + 47, 1.6, 4), [seed]);
 
   const borderPath = useMemo(() => {
     if (!w || !h) return '';
@@ -173,8 +172,9 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
         marginLeft: isMobile ? `calc(-1 * ${mobileBleed})` : 0,
         marginRight: isMobile ? `calc(-1 * ${mobileBleed})` : 0,
         background: isMobile ? cardInterior : 'transparent',
-        // Tint every placeholder shimmer inside with this card's own hue.
-        '--skeleton-hue': hue,
+        // Tint every placeholder shimmer inside with this card's own hue
+        // (a lighter shade of the card family), overriding the theme accent.
+        '--skeleton-highlight': `oklch(88% 0.08 ${hue})`,
       } as CSSProperties}
     >
       {loading ? (
@@ -313,36 +313,6 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
           <p className={styles.excerpt}>{story!.excerpt}</p>
         )}
 
-        {!loading && quote && (
-          <aside className={styles.quote} style={{ color: `oklch(46% 0.07 ${hue})` }}>
-            <svg
-              viewBox="0 0 6 40"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-              className={styles.quoteRule}
-            >
-              <path
-                d={quoteRulePath}
-                transform="translate(3,0)"
-                stroke={bc1}
-                strokeWidth={INK_LIGHT}
-                fill="none"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-            <p className={styles.quoteText}>
-              <Icon
-                name="sparkle"
-                size={13}
-                strokeWidth={INK_LIGHT}
-                style={{ flexShrink: 0, marginTop: 3 }}
-              />
-              <span>{quote}</span>
-            </p>
-          </aside>
-        )}
-
         <svg
           viewBox="0 0 200 6"
           preserveAspectRatio="none"
@@ -395,6 +365,18 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
             />
           )}
         </div>
+
+        {!loading && quote && (
+          <aside className={styles.systemNote} style={{ color: `oklch(44% 0.08 ${hue})` }}>
+            <Icon
+              name="sparkle"
+              size={13}
+              strokeWidth={INK_LIGHT}
+              style={{ flexShrink: 0, marginTop: 5 }}
+            />
+            <span>{quote}</span>
+          </aside>
+        )}
       </div>
     </article>
   );

@@ -3,17 +3,21 @@
   /* Slightly irregular corners so placeholders read as hand-drawn rather than
      mechanical. Circle / explicit-radius callers override this inline. */
   border-radius: 8px 10px 7px 11px;
-  /* Warm, theme-tinted shimmer (sand base → hue-tinted highlight) instead of
+  /* Warm, theme-tinted shimmer (sand base → accent-tinted highlight) instead of
      cold grey, so loading states sit in the OKLCH palette.
-     The highlight hue comes from --skeleton-hue, which a coloured card sets to
-     its own hue so the shimmer reads as a lighter version of that card. We read
-     it via a var() fallback (55, the warm terracotta hue) rather than declaring
-     --skeleton-hue on .block — a local declaration would shadow the value
-     inherited from the card and pin every skeleton to orange. */
+     The highlight comes from --skeleton-highlight. By default it resolves to the
+     active theme's light accent (--color-terracotta-light, which every accent
+     theme re-tints — green for sage, gold for yellow, lilac for lavender), so a
+     hueless skeleton like the article page shimmers in the current theme colour.
+     A coloured card overrides --skeleton-highlight with its own hue so the
+     shimmer reads as a lighter version of that specific card. We read it via a
+     var() fallback rather than declaring --skeleton-highlight on .block — a local
+     declaration would shadow the value inherited from the card and pin every
+     skeleton to the theme accent. */
   background: linear-gradient(
     90deg,
     color-mix(in oklch, color-mix(in oklch, var(--color-cream-dark) 94%, var(--color-text)) 85%, transparent) 25%,
-    color-mix(in oklch, oklch(88% 0.08 var(--skeleton-hue, 55)) 50%, var(--color-cream)) 37%,
+    color-mix(in oklch, var(--skeleton-highlight, var(--color-terracotta-light)) 50%, var(--color-cream)) 37%,
     color-mix(in oklch, color-mix(in oklch, var(--color-cream-dark) 94%, var(--color-text)) 85%, transparent) 63%
   );
   background-size: 400% 100%;

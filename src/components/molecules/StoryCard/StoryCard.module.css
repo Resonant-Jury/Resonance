@@ -67,34 +67,19 @@
   margin: 0;
 }
 
-/* System annotation (recommendation reason) — a hand-drawn blockquote. The
-   wavy left rule + sparkle + italic hue-tinted text mark it as Resonance's
-   marginalia, visually apart from the author's excerpt above it. */
-.quote {
+/* System annotation (recommendation reason) — a handwritten margin note at
+   the very bottom of the card, after the byline. The handwriting register +
+   sparkle + hue-tinted ink make it read as Resonance's scribble, never the
+   author's prose (which is set in the body font above). */
+.systemNote {
   display: flex;
-  gap: 10px;
-  margin-top: -2px;
-}
-
-.quoteRule {
-  width: 6px;
-  align-self: stretch;
-  height: auto;
-  flex-shrink: 0;
-  overflow: visible;
-  opacity: 0.55;
-}
-
-.quoteText {
-  display: flex;
-  gap: 6px;
+  gap: 7px;
   align-items: flex-start;
-  font-family: var(--font-body);
-  font-size: 12.5px;
-  line-height: 1.55;
-  font-style: italic;
-  margin: 0;
-  padding: 2px 0;
+  margin-top: -4px;
+  font-family: var(--font-handwritten);
+  font-size: 17px;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
 }
 
 .separator {
