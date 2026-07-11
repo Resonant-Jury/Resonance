@@ -103,8 +103,6 @@
     },
     "matchReason": "因為「{reason}」",
     "recommended": {
-      "title": "為你共振",
-      "subtitle": "可能和你的經歷與體悟產生迴響的卡片。",
       "hint": "你寫下的體悟，決定你會遇見哪些故事。"
     },
     "coldStart": {

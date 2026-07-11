@@ -67,13 +67,6 @@
   margin-top: 4px;
 }
 
-.connected {
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-sage, oklch(55% 0.13 140));
-}
-
 /* --- sections --- */
 
 .section {

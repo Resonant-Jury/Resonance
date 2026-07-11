@@ -2,7 +2,6 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
-import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { ProfileTabs, type TabKey } from '@/components/molecules/ProfileTabs/ProfileTabs';
 import { InvitesInbox } from '@/components/molecules/InvitesInbox/InvitesInbox';
@@ -54,7 +53,6 @@ export default function MyCardBoxPage() {
             >
               {user?.handle ?? ' '}
             </h1>
-            {user?.verified && <HandDrawnCheckmark size={16} />}
           </div>
           <p
             style={{

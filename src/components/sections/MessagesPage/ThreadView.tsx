@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import useSWR, { useSWRConfig } from 'swr';
 import { Textarea } from '@/components/atoms/Field/Field';
@@ -9,6 +9,7 @@ import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { InsertCardModal } from '@/components/molecules/MarkdownEditor/InsertCardModal';
+import { INK } from '@/lib/design/strokes';
 import { Link } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile, useThread } from '@/lib/data/hooks';
@@ -97,6 +98,16 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [thread.messages.length]);
 
+  // Auto-grow: the input rests at one line and takes its height from the
+  // content (the CSS max-height caps it, after which it scrolls).
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
+
   const trimmed = text.trim();
   const hasBody = trimmed.length > 0 || !!pendingCard;
   const valid = hasBody && trimmed.length <= MESSAGE_MAX_LENGTH && !!pairId;
@@ -165,7 +176,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
           {other.handle}
         </Link>
       </div>
-      <Divider seed={41} spacing={0} />
+      <div className={styles.threadDivider}>
+        <Divider seed={41} spacing={0} strokeWidth={INK} />
+      </div>
 
       {connected === false ? (
         <div style={{ padding: '20px 2px' }}>
@@ -258,6 +271,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
             </button>
             <div className={styles.composerField}>
               <Textarea
+                ref={inputRef}
+                className={styles.composerInput}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
@@ -268,12 +283,15 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 }}
                 placeholder={t('placeholder')}
                 aria-label={t('threadWith', { handle: other.handle })}
-                rows={2}
+                rows={1}
                 maxLength={MESSAGE_MAX_LENGTH}
               />
             </div>
-            <div style={{ opacity: valid && !pending ? 1 : 0.5, pointerEvents: valid && !pending ? 'auto' : 'none' }}>
-              <OrganicButton variant="primary" size="sm" onClick={send}>
+            <div
+              className={styles.sendWrap}
+              style={{ opacity: valid && !pending ? 1 : 0.5, pointerEvents: valid && !pending ? 'auto' : 'none' }}
+            >
+              <OrganicButton variant="primary" size="sm" onClick={send} style={{ height: '100%' }}>
                 {pending ? '…' : t('send')}
               </OrganicButton>
             </div>

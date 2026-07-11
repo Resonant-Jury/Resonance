@@ -3,6 +3,7 @@
 import { useLocale } from 'next-intl';
 import { Select } from '@/components/atoms/Field/Field';
 import { Icon } from '@/components/atoms/Icon';
+import { SquareFlag } from '@/components/atoms/SquareFlag/SquareFlag';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import type { Locale } from '@/lib/db/types';
 import styles from './SiteHeader.module.css';
@@ -13,7 +14,8 @@ const LOCALE_LABELS: Record<string, string> = { en: 'English', 'zh-TW': '繁體�
 /**
  * The header's language picker: the same organic dropdown as the settings
  * page, compacted for header chrome. Closed it shows a globe + the current
- * language; the open panel lists each locale behind its hand-drawn flag.
+ * language; the open panel lists each locale behind its square flag, cropped
+ * by the same hand-drawn mask as avatars.
  */
 export function LanguageSelect() {
   const locale = useLocale();
@@ -35,11 +37,11 @@ export function LanguageSelect() {
       )}
     >
       <option value="zh-TW">
-        <Icon name="flag-tw" size={17} />
+        <SquareFlag code="tw" size={18} />
         {LOCALE_LABELS['zh-TW']}
       </option>
       <option value="en">
-        <Icon name="flag-en" size={17} />
+        <SquareFlag code="gb" size={18} />
         {LOCALE_LABELS.en}
       </option>
     </Select>

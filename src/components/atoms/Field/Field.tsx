@@ -290,6 +290,14 @@ export function Select({
         seed={seed}
         R={16}
         strokeWidth={INK}
+        // Denser than the auto per-95px segments: the closed box is the one
+        // surface users stare at before interacting, and at header/select
+        // widths the auto count (2–3 turns) read as a lazy bow rather than a
+        // drawn line. Extra turning points keep it visibly hand-made; with
+        // more of them the per-segment bow is dialed below the small-surface
+        // auto value (~1.6) so the line stays calm rather than busy.
+        segmentsH={[4, 5]}
+        curve={1.15}
         state={open ? 'focus' : hover ? 'hover' : 'idle'}
         // When open, the covering panel draws its own border — hide this one so
         // the two wobbly outlines don't stack on top of each other.

@@ -3,9 +3,9 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
-import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Icon } from '@/components/atoms/Icon';
+import { SquareFlag } from '@/components/atoms/SquareFlag/SquareFlag';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { PageShell } from '@/components/molecules/PageShell/PageShell';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
@@ -13,6 +13,7 @@ import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid'
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
 import { useProfileByHandle } from '@/lib/data/hooks';
+import { regionDisplayName } from '@/lib/regionName';
 import styles from './page.module.css';
 
 /** Route segments arrive percent-encoded (e.g. a CJK handle like `念誠` →
@@ -84,7 +85,6 @@ export default function PublicProfilePage() {
 
         <div className={styles.nameRow}>
           <h1 className={styles.name}>{user.handle}</h1>
-          {user.verified && <HandDrawnCheckmark size={18} />}
         </div>
 
         <p className={`${styles.bio} ${user.bio ? '' : styles.bioEmpty}`}>
@@ -94,8 +94,8 @@ export default function PublicProfilePage() {
         <div className={styles.meta}>
           {user.region && (
             <span className={styles.metaItem}>
-              <Icon name="globe" size={14} />
-              {user.region}
+              <SquareFlag code={user.region.toLowerCase()} size={16} />
+              {regionDisplayName(user.region, locale)}
             </span>
           )}
           <span className={styles.metaItem}>
@@ -103,6 +103,18 @@ export default function PublicProfilePage() {
             {t('cardCount', { count: published.length })}
           </span>
           <span className={styles.metaItem}>{t('joined', { date: joined })}</span>
+          {/* Relationship mark: a person + tick instead of a "Connected" label —
+              the icon states the fact, the tooltip explains it. */}
+          {!isSelf && isConnected && (
+            <span className={styles.metaItem} title={t('connected')}>
+              <Icon
+                name="user-check"
+                size={16}
+                color="var(--color-terracotta)"
+                ariaLabel={t('connected')}
+              />
+            </span>
+          )}
         </div>
 
         {/* Relationships grow from stories (design principle 3): connections
@@ -115,16 +127,13 @@ export default function PublicProfilePage() {
                 <OrganicButton variant="ghost">{t('editProfile')}</OrganicButton>
               </Link>
             ) : (
-              <>
-                <span className={styles.connected}>✿ {t('connected')}</span>
-                {/* The connection is live — the conversation is one click away. */}
-                <Link href={`/messages/${user.handle}`} style={{ textDecoration: 'none' }}>
-                  <OrganicButton variant="ghost" size="sm">
-                    <Icon name="chat" size={15} />
-                    {tMsg('messageLink')}
-                  </OrganicButton>
-                </Link>
-              </>
+              /* The connection is live — the conversation is one click away. */
+              <Link href={`/messages/${user.handle}`} style={{ textDecoration: 'none' }}>
+                <OrganicButton variant="ghost" size="sm">
+                  <Icon name="chat" size={15} />
+                  {tMsg('messageLink')}
+                </OrganicButton>
+              </Link>
             )}
           </div>
         )}

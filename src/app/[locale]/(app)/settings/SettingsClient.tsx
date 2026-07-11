@@ -4,6 +4,8 @@ import { Fragment, useState, useTransition } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Field, Input, Select } from '@/components/atoms/Field/Field';
+import { SquareFlag } from '@/components/atoms/SquareFlag/SquareFlag';
+import { regionDisplayName } from '@/lib/regionName';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { ToggleSwitch } from '@/components/atoms/ToggleSwitch/ToggleSwitch';
 import { OrganicSlider } from '@/components/atoms/OrganicSlider/OrganicSlider';
@@ -25,6 +27,10 @@ type Section =
   | 'ai'
   | 'terms'
   | 'delete';
+
+/** Selectable home regions — each renders its masked square flag plus the
+ *  country's full name localized to the current UI language. */
+const REGIONS = ['TW', 'JP', 'US', 'KR'] as const;
 
 const SECTIONS: Section[] = [
   'profile',
@@ -170,10 +176,12 @@ export function SettingsClient({ initial }: SettingsClientProps) {
             </Field>
             <Field label={t('profile.region')}>
               <Select seed={43} value={region} onChange={setRegion}>
-                <option value="TW">🇹🇼 Taiwan</option>
-                <option value="JP">🇯🇵 Japan</option>
-                <option value="US">🇺🇸 United States</option>
-                <option value="KR">🇰🇷 Korea</option>
+                {REGIONS.map((r) => (
+                  <option key={r} value={r}>
+                    <SquareFlag code={r.toLowerCase()} size={18} />
+                    {regionDisplayName(r, locale)}
+                  </option>
+                ))}
               </Select>
             </Field>
           </div>
@@ -236,8 +244,14 @@ export function SettingsClient({ initial }: SettingsClientProps) {
                 value={locale}
                 onChange={(v) => router.replace(pathname, { locale: v as Locale })}
               >
-                <option value="zh-TW">繁體中文</option>
-                <option value="en">English</option>
+                <option value="zh-TW">
+                  <SquareFlag code="tw" size={18} />
+                  繁體中文
+                </option>
+                <option value="en">
+                  <SquareFlag code="gb" size={18} />
+                  English
+                </option>
               </Select>
             </Field>
             <Field label={t('language.original')}>

@@ -103,8 +103,6 @@
     },
     "matchReason": "because of “{reason}”",
     "recommended": {
-      "title": "Resonating with you",
-      "subtitle": "Cards that may echo what you have lived and learned.",
       "hint": "The insights you write decide which stories find you."
     },
     "coldStart": {

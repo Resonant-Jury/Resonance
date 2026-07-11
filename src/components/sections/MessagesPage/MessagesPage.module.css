@@ -3,24 +3,34 @@
    rule runs from the header's bottom edge to the bottom of the screen. */
 .page {
   display: grid;
-  grid-template-columns: minmax(250px, 3fr) auto minmax(0, 7fr);
-  column-gap: clamp(14px, 2vw, 28px);
+  /* The roster column owns a fixed list width; the thread takes everything
+     else. No page max-width and no horizontal page padding — the chat area
+     runs (nearly) edge to edge. */
+  grid-template-columns: 300px auto minmax(0, 1fr);
+  /* One shared inset between the panes and the vertical rule — the thread's
+     horizontal divider reaches back across it to meet the rule. */
+  --msg-gap: 12px;
+  column-gap: var(--msg-gap);
   height: 100vh;
-  max-width: var(--page-max-w-wide);
-  margin: 0 auto;
-  padding: var(--app-header-h) var(--page-pad-x) 0;
+  padding: var(--app-header-h) 0 0;
+  /* The vertical rule deliberately runs past the viewport bottom. */
+  overflow: hidden;
 }
 
 .listPane {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 2px 16px;
+  padding: 18px 4px 16px 14px;
 }
 
 .vRule {
   display: flex;
   align-self: stretch;
+  /* Overshoot both ends: tuck under the header's wavy border above and run
+     past the viewport below, so the rule connects instead of floating. */
+  margin-top: -12px;
+  margin-bottom: -20px;
 }
 
 .threadPane {
@@ -28,7 +38,9 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 18px 0 14px;
+  /* Just enough right inset that bubbles and the composer don't kiss the
+     viewport edge. */
+  padding: 18px 14px 14px 0;
 }
 
 /* One conversation row: avatar, name + preview, time + unread badge. No
@@ -129,6 +141,12 @@
   align-items: center;
   gap: 10px;
   padding-bottom: 10px;
+}
+
+/* The rule under the thread header stretches left across the column gap so
+   it meets (slightly crosses) the vertical rule instead of floating apart. */
+.threadDivider {
+  margin-left: calc(-1 * var(--msg-gap) - 6px);
 }
 
 .threadHandle {
@@ -232,16 +250,19 @@
 
 .composer {
   display: flex;
-  align-items: flex-end;
+  /* Stretch so the send button grows in step with the auto-growing field. */
+  align-items: stretch;
   gap: 10px;
   padding-top: 12px;
 }
 
-/* Attach-a-card button — sits left of the textarea, aligned to its bottom. */
+/* Attach-a-card button — sits left of the textarea, centered on its
+   vertical midpoint. */
 .attachBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
   flex-shrink: 0;
   width: 40px;
   height: 40px;
@@ -260,6 +281,24 @@
   min-width: 0;
 }
 
+/* Chat input: one line by default, grows with content (height driven from
+   scrollHeight in ThreadView), then scrolls past ~6 lines. The element+class
+   selector outranks the base `textarea.field` rule's min-height. */
+.composer textarea.composerInput {
+  min-height: 0;
+  max-height: 168px;
+  overflow-y: auto;
+  resize: none;
+}
+
+/* The send button fills the composer's (= field's) height; its organic
+   border re-measures itself as the row grows. */
+.sendWrap {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
 .quietNote {
   font-size: 13px;
   color: var(--color-text-muted);
@@ -269,6 +308,18 @@
 @media (max-width: 900px) {
   .page {
     grid-template-columns: 1fr;
+    /* Single-pane phones get their side padding back. */
+    padding: var(--app-header-h) 14px 0;
+  }
+  .threadPane {
+    padding-right: 0;
+  }
+  .listPane {
+    padding-left: 2px;
+  }
+  /* No vertical rule to meet on single-pane phones. */
+  .threadDivider {
+    margin-left: 0;
   }
   .vRule {
     display: none;

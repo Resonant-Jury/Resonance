@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
@@ -11,12 +12,21 @@ import { useHint } from '@/lib/hints';
 export default function HomeFeedPage() {
   const t = useTranslations('home');
   const { data, isLoading, isLoadingMore, hasMore, loadMore } = useFeed();
-  const { data: rec } = useRecommendedFeed();
+  const { data: rec, isLoading: recLoading } = useRecommendedFeed();
   const reasonHint = useHint('feed-reason');
-  const cards = data?.cards ?? [];
-  const authors = data?.authors ?? {};
+  // One feed, two stages: the recommender's picks first (no section header —
+  // the page heading already says it), and「載入更多」reveals the latest
+  // public cards beneath, deduped against the picks. Readers never face two
+  // competing blocks.
+  const [showLatest, setShowLatest] = useState(false);
   const recCards = rec?.cards ?? [];
-  const isEmpty = !isLoading && cards.length === 0;
+  const hasRec = recCards.length > 0;
+  const recIds = new Set(recCards.map((c) => c.id));
+  const cards = (data?.cards ?? []).filter((c) => !recIds.has(c.id));
+  const authors = data?.authors ?? {};
+  const latestVisible = !hasRec || showLatest;
+  const loading = isLoading || recLoading;
+  const isEmpty = !loading && !hasRec && cards.length === 0;
 
   return (
     <div
@@ -53,40 +63,7 @@ export default function HomeFeedPage() {
         </p>
       </header>
 
-      {recCards.length > 0 && (
-        <section style={{ marginBottom: 56 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-            <h2
-              style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: 'clamp(22px, 3vw, 28px)',
-                fontWeight: 700,
-                color: 'var(--color-text)',
-              }}
-            >
-              {t('recommended.title')}
-            </h2>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: 'var(--color-text-muted)' }}>
-              {t('recommended.subtitle')}
-            </p>
-            {reasonHint.visible && (
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--color-terracotta)' }}>
-                {t('recommended.hint')}
-              </p>
-            )}
-          </div>
-          <CardLinkGrid
-            cards={recCards}
-            authors={rec?.authors ?? {}}
-            renderCaption={(card) => {
-              const reason = rec?.reasons[card.id];
-              return reason ? t('matchReason', { reason }) : null;
-            }}
-          />
-        </section>
-      )}
-
-      {isLoading ? (
+      {loading ? (
         <FeedSkeleton count={6} />
       ) : isEmpty ? (
         <div
@@ -106,7 +83,33 @@ export default function HomeFeedPage() {
         </div>
       ) : (
         <>
-          <CardLinkGrid cards={cards} authors={authors} />
+          {hasRec && (
+            <section style={{ marginBottom: latestVisible ? 56 : 0 }}>
+              {reasonHint.visible && (
+                <p
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 13,
+                    color: 'var(--color-terracotta)',
+                    marginBottom: 16,
+                  }}
+                >
+                  {t('recommended.hint')}
+                </p>
+              )}
+              <CardLinkGrid
+                cards={recCards}
+                authors={rec?.authors ?? {}}
+                renderCaption={(card) => {
+                  const reason = rec?.reasons[card.id];
+                  return reason ? t('matchReason', { reason }) : null;
+                }}
+              />
+            </section>
+          )}
+
+          {latestVisible && cards.length > 0 && <CardLinkGrid cards={cards} authors={authors} />}
+
           <footer
             style={{
               marginTop: 64,
@@ -116,18 +119,23 @@ export default function HomeFeedPage() {
               gap: 14,
             }}
           >
-            <p
-              style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: 22,
-                color: 'var(--color-text)',
-              }}
-            >
-              {t('endOfDay')}
-            </p>
+            {latestVisible && (
+              <p
+                style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: 22,
+                  color: 'var(--color-text)',
+                }}
+              >
+                {t('endOfDay')}
+              </p>
+            )}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-              {hasMore && (
-                <OrganicButton variant="outline" onClick={loadMore}>
+              {(!latestVisible || hasMore) && (
+                <OrganicButton
+                  variant="outline"
+                  onClick={() => (latestVisible ? loadMore() : setShowLatest(true))}
+                >
                   {isLoadingMore ? t('moreLoading') : t('moreBtn')}
                 </OrganicButton>
               )}

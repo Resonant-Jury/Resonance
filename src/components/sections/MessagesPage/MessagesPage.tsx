@@ -7,6 +7,7 @@ import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAva
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { seedFromString } from '@/lib/design/prng';
+import { INK } from '@/lib/design/strokes';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useConversations } from '@/lib/data/hooks';
@@ -105,7 +106,7 @@ export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
       </aside>
 
       <div className={styles.vRule} aria-hidden>
-        <Divider orientation="vertical" seed={71} amplitude={2} strokeWidth={1.3} spacing={0} />
+        <Divider orientation="vertical" seed={71} amplitude={2} strokeWidth={INK} spacing={0} />
       </div>
 
       <section className={styles.threadPane}>
