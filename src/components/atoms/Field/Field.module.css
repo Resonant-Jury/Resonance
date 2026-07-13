@@ -141,8 +141,12 @@ textarea.field {
   left: 0;
   right: 0;
   z-index: 40;
-  background: var(--color-cream);
-  border-radius: var(--field-radius);
+  /* No CSS background or border-radius here: the SVG below paints an opaque
+     cream fill clipped to the *exact* wobbly border path. A CSS rounded-rect
+     background would poke out past the organic stroke wherever the wobble
+     curves inward, so the border looked detached from the panel edge. Letting
+     the SVG own the fill keeps edge + fill perfectly aligned. */
+  background: transparent;
   /* No vertical padding: the first/last rows then match the interior rows
      exactly (each row's own padding is the only spacing), so every option
      reads as evenly centred rather than the ends having extra whitespace. */

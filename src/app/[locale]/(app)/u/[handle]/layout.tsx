@@ -7,6 +7,20 @@ import { siteUrl } from '@/lib/site';
 
 export const runtime = 'nodejs';
 
+// ISR, same treatment as the card page: the profile shell + share metadata
+// render once on demand and get served from the CDN cache. Freshness is
+// event-driven — SettingsClient revalidates /u/{handle} when the profile
+// (handle, bio, avatar) is saved. The long interval is only a self-healing
+// backstop for dropped best-effort revalidate calls.
+export const revalidate = 86400;
+
+// No handles at build time — an empty list opts the segment into on-demand
+// static generation (without it, every request renders dynamically and the
+// `revalidate` above never engages).
+export function generateStaticParams(): { handle: string }[] {
+  return [];
+}
+
 /**
  * Server-rendered <head> for a public profile page. The page component is a
  * client component (SWR-driven), so this sibling layout supplies the per-profile

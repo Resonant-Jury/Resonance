@@ -13,6 +13,32 @@
   gap: 4px;
 }
 
+/* Scrollable horizontal strip (phones): one line, sideways scroll, no visible
+   scrollbar — the standard mobile section-switcher pattern. */
+.list.horizontal.scrollable {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* The scroll container clips overflow on every side, so the active tab's
+     wobbly hand-drawn surface (which bleeds a few px past the tab box) was
+     getting shaved top/bottom and at the first/last tab. Pad the strip to give
+     the wobble room, then pull that padding back with a negative inline margin
+     so the tabs still line up with the content below. */
+  padding: 7px 6px;
+  margin-inline: -6px;
+}
+
+.list.horizontal.scrollable::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollable .tab,
+.scrollable .activeSurface {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .tab {
   position: relative;
   border: none;

@@ -35,6 +35,7 @@ import { ensureConnection } from '@/lib/db/firestore/client/connections';
 import { getCurrentUserHandle } from '@/lib/db/firestore/client/profile';
 import { getCardById } from '@/lib/db/firestore/client/reads';
 import { notifyResonance } from '@/lib/db/firestore/client/resonances';
+import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import type { Card, CardMedia, Visibility, Locale } from '@/lib/db/types';
 import { useRouter } from '@/i18n/navigation';
 import styles from './CardEditor.module.css';
@@ -332,6 +333,9 @@ export function CardEditor({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cardId: published.id }),
       }).catch(() => {});
+      // Bust the card page's ISR cache so the shell + share metadata reflect
+      // this publish/edit right away — freshness is event-driven, not polled.
+      void requestRevalidate([`/card/${destination}`]);
       // 共振 reaches out: connect the two authors right away and ring the
       // original author's bell. Skipped for anonymous resonances — a
       // connection doc names both uids, which would unmask the author.

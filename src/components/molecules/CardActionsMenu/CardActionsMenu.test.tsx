@@ -19,6 +19,11 @@ vi.mock('@/lib/db/firestore/client/cards', () => ({
   deleteCardDraft: (...args: unknown[]) => mockDelete(...args),
 }));
 
+const mockRevalidate = vi.fn().mockResolvedValue(undefined);
+vi.mock('@/lib/db/firestore/client/revalidate', () => ({
+  requestRevalidate: (...args: unknown[]) => mockRevalidate(...args),
+}));
+
 describe('CardActionsMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,10 +42,13 @@ describe('CardActionsMenu', () => {
     expect(mockPush).toHaveBeenCalledWith('/write/c1');
   });
 
-  it('toggles a public card to private', async () => {
+  it('toggles a public card to private and busts the card page cache', async () => {
     const onChanged = vi.fn();
     renderWithIntl(
-      <CardActionsMenu card={{ id: 'c1', visibility: 'public' }} onChanged={onChanged} />
+      <CardActionsMenu
+        card={{ id: 'c1', visibility: 'public', slug: 'my-card' }}
+        onChanged={onChanged}
+      />
     );
 
     await userEvent.click(screen.getByRole('button', { name: 'Manage card' }));
@@ -48,6 +56,9 @@ describe('CardActionsMenu', () => {
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith('c1', { visibility: 'private' }));
     expect(onChanged).toHaveBeenCalled();
+    // Visibility decides what the share metadata may reveal — the ISR entry
+    // for the card page (keyed by slug) must be revalidated on the spot.
+    expect(mockRevalidate).toHaveBeenCalledWith(['/card/my-card']);
     // The menu closes after the change lands.
     expect(screen.queryByRole('menu')).toBeNull();
   });
@@ -78,6 +89,8 @@ describe('CardActionsMenu', () => {
     await userEvent.click(screen.getByText('Delete card'));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('c3'));
     expect(onDeleted).toHaveBeenCalled();
+    // Without a slug the cache path falls back to the doc id.
+    expect(mockRevalidate).toHaveBeenCalledWith(['/card/c3']);
   });
 
   it('keeps the card when the confirm dialog is cancelled', async () => {

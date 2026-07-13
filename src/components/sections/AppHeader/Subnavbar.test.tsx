@@ -56,7 +56,7 @@ describe('Subnavbar', () => {
     expect(mockPush).toHaveBeenCalledWith('/me');
   });
 
-  it('calls signOut on Sign out click', async () => {
+  it('asks for confirmation before signing out, then signs out on confirm', async () => {
     const originalLocation = window.location;
     // We temp mock location.href assignment
     const locationMock = { href: '' };
@@ -72,7 +72,14 @@ describe('Subnavbar', () => {
     const trigger = screen.getByRole('combobox', { name: 'ncchen' });
     await userEvent.click(trigger);
 
+    // Choosing 登出 opens the confirm dialog — nothing signs out yet.
     await userEvent.click(screen.getByText('Sign out'));
+    expect(mockSignOut).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: 'Sign out?' });
+    expect(dialog).toBeInTheDocument();
+
+    // Confirming actually signs out and lands on /signin.
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(mockSignOut).toHaveBeenCalled();
     expect(locationMock.href).toBe('/en/signin');
 
@@ -82,5 +89,15 @@ describe('Subnavbar', () => {
       writable: true,
       configurable: true,
     });
+  });
+
+  it('keeps the session when the sign-out confirm is cancelled', async () => {
+    renderWithIntl(<Subnavbar user={user} />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'ncchen' }));
+    await userEvent.click(screen.getByText('Sign out'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

@@ -185,7 +185,7 @@ export default function CardDetailPage() {
               </h1>
               {isOwner && (
                 <CardActionsMenu
-                  card={{ id: card.id, visibility: card.visibility }}
+                  card={{ id: card.id, visibility: card.visibility, slug: card.slug }}
                   seed={hue + 3}
                   // Re-read this card so the visibility chip/state reflects the change.
                   onChanged={() => void mutate(`card:${slug}:${user!.id}`)}

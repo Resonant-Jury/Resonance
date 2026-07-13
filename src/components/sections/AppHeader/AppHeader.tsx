@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { HamburgerIcon } from '@/components/atoms/HamburgerIcon/HamburgerIcon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { Icon } from '@/components/atoms/Icon';
+import { useAppChrome } from '@/components/providers/AppChrome';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { INK } from '@/lib/design/strokes';
@@ -61,11 +63,16 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile(720);
+  // Matches MessagesPage's single-pane CSS breakpoint (900px), not the
+  // hamburger breakpoint — the two must flip together.
+  const isSinglePane = useIsMobile(900);
   const tNav = useTranslations('app.nav');
+  const { mobileHeader } = useAppChrome();
   const pathname = usePathname();
   // The messages surface borrows the brand slot as its page title — the
   // two-pane layout owns the full height, so no in-page heading exists.
   const onMessages = pathname === '/messages' || pathname.startsWith('/messages/');
+  const onThread = pathname.startsWith('/messages/');
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -83,9 +90,14 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
     return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
   }, [maskD, W]);
 
+  // Single-pane phones give an open conversation the whole screen: the app
+  // header steps aside and the thread's own header (back + person) takes over.
+  if (isSinglePane && onThread) return null;
 
-  return (
-    <header className={styles.header} style={{ height: HEADER_TOTAL_H }}>
+  // Shared wavy backdrop + bottom stroke — reused by the normal header and the
+  // mobile takeover so they read as the exact same chrome.
+  const chromeBg = (
+    <>
       <div
         aria-hidden="true"
         className={styles.bg}
@@ -107,6 +119,35 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
           vectorEffect="non-scaling-stroke"
         />
       </svg>
+    </>
+  );
+
+  // A page (e.g. a settings detail screen) can claim the header on phones: just
+  // a back control + the current screen's title, no brand or account controls.
+  if (mobileHeader) {
+    return (
+      <header className={styles.header} style={{ height: HEADER_TOTAL_H }}>
+        {chromeBg}
+        <div className={`${styles.row} ${styles.takeoverRow}`} style={{ height: HEADER_BODY_H }}>
+          <button
+            type="button"
+            className={styles.backBtn}
+            aria-label={tNav('back')}
+            onClick={mobileHeader.onBack}
+          >
+            <span style={{ display: 'inline-flex', transform: 'scaleX(-1)' }}>
+              <Icon name="arrow-right" size={18} />
+            </span>
+          </button>
+          <span className={styles.brand}>{mobileHeader.title}</span>
+        </div>
+      </header>
+    );
+  }
+
+  return (
+    <header className={styles.header} style={{ height: HEADER_TOTAL_H }}>
+      {chromeBg}
 
       <div className={styles.row} style={{ height: HEADER_BODY_H }}>
         <Link href="/home" className={styles.logo}>

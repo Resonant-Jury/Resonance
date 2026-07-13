@@ -31,6 +31,9 @@ vi.mock('@/lib/db/firestore/client/cardLinks', () => ({
 vi.mock('@/lib/db/firestore/client/bookmarks', () => ({
   listMyBookmarkIds: vi.fn(),
 }));
+vi.mock('@/lib/db/firestore/client/thoughtMap', () => ({
+  loadMyThoughtMap: vi.fn(),
+}));
 
 // useAuth is mocked so each test controls the signed-in viewer directly,
 // instead of standing up the real AuthProvider + Firebase auth.
@@ -54,7 +57,16 @@ import {
 } from '@/lib/db/firestore/client/reads';
 import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
 import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
-import { useCard, useFeed, useMyCardBox, useProfileByHandle, useRelated, useResonators } from './hooks';
+import { loadMyThoughtMap } from '@/lib/db/firestore/client/thoughtMap';
+import {
+  useCard,
+  useFeed,
+  useMyCardBox,
+  useMyThoughtMap,
+  useProfileByHandle,
+  useRelated,
+  useResonators,
+} from './hooks';
 
 // --- fixtures --------------------------------------------------------------
 function card(id: string, authorId: string, extra: Partial<Card> = {}): Card {
@@ -254,6 +266,48 @@ describe('useMyCardBox', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(result.current.data).toBeUndefined();
     expect(getCardsByAuthor).not.toHaveBeenCalled();
+  });
+});
+
+describe('useMyThoughtMap', () => {
+  it('includes resonated originals as placeable cards and keeps their nodes alive', async () => {
+    vi.mocked(getCardsByAuthor).mockImplementation(async (_uid, tab) => {
+      const byTab: Record<string, Card[]> = {
+        published: [card('own', 'me')],
+        private: [],
+        draft: [],
+        // An original by someone else that the viewer resonated with.
+        resonated: [card('theirs', 'other')],
+      };
+      return byTab[tab] ?? [];
+    });
+    const node = (cardId: string) => ({
+      id: cardId,
+      cardId,
+      x: 0,
+      y: 0,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    });
+    vi.mocked(loadMyThoughtMap).mockResolvedValue({
+      nodes: [
+        node('own'),
+        // Placed from the tray earlier — must survive the reload filter.
+        node('theirs'),
+        // A card deleted since being placed drops out.
+        node('gone'),
+      ],
+      edges: [],
+      groups: [],
+    });
+
+    const { result } = renderHook(() => useMyThoughtMap(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    const map = result.current.data!;
+    expect(Object.keys(map.cards).sort()).toEqual(['own', 'theirs']);
+    expect(map.resonatedIds).toEqual(['theirs']);
+    expect(map.nodes.map((n) => n.cardId).sort()).toEqual(['own', 'theirs']);
   });
 });
 

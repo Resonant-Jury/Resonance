@@ -14,6 +14,7 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { Icon, type IconName } from '@/components/atoms/Icon';
+import { SignOutConfirmModal } from '@/components/molecules/SignOutConfirmModal/SignOutConfirmModal';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useRouter } from '@/i18n/navigation';
 import { wobRect } from '@/lib/design/wobRect';
@@ -66,6 +67,7 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [interactionMode, setInteractionMode] = useState<'mouse' | 'keyboard'>('keyboard');
   const [signingOut, setSigningOut] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const uid = useId().replace(/:/g, '');
@@ -87,19 +89,25 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
         return;
       }
       if (item.key === 'signOut') {
-        if (signingOut) return;
-        setSigningOut(true);
-        try {
-          await auth.signOut();
-          window.location.href = `/${locale}/signin`;
-        } catch {
-          setSigningOut(false);
-          setOpen(false);
-        }
+        // Ask first — the modal owns the actual sign-out.
+        setOpen(false);
+        setConfirmingSignOut(true);
       }
     },
-    [router, auth, locale, signingOut],
+    [router],
   );
+
+  const confirmSignOut = useCallback(async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await auth.signOut();
+      window.location.href = `/${locale}/signin`;
+    } catch {
+      setSigningOut(false);
+      setConfirmingSignOut(false);
+    }
+  }, [auth, locale, signingOut]);
 
   // Close on outside pointer-down.
   useEffect(() => {
@@ -186,6 +194,13 @@ export function Subnavbar({ user, seed = 91 }: SubnavbarProps) {
           label={(key) => t(key)}
         />
       )}
+
+      <SignOutConfirmModal
+        open={confirmingSignOut}
+        busy={signingOut}
+        onCancel={() => setConfirmingSignOut(false)}
+        onConfirm={() => void confirmSignOut()}
+      />
     </div>
   );
 }

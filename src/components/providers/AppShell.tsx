@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { AppHeader } from '@/components/sections/AppHeader/AppHeader';
+import { AppChromeProvider } from '@/components/providers/AppChrome';
 import { FloatingWriteButton } from '@/components/sections/AppHeader/FloatingWriteButton';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile } from '@/lib/data/hooks';
@@ -61,10 +62,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     : PLACEHOLDER_USER;
 
   return (
-    <>
+    <AppChromeProvider>
       <AppHeader user={headerUser} signedIn={!!authUser} authReady={!loading} />
       <main style={{ minHeight: '100vh' }}>{children}</main>
       {authUser && <FloatingWriteButton />}
-    </>
+    </AppChromeProvider>
   );
 }

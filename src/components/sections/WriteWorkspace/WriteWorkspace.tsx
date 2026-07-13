@@ -1,15 +1,19 @@
 'use client';
 
 import { useRef, useState, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { CardEditor, type CardEditorProps } from '@/components/molecules/CardEditor/CardEditor';
 import { FirstCardGuide } from '@/components/molecules/FirstCardGuide/FirstCardGuide';
 import { PageTitle } from '@/components/molecules/PageShell/PageShell';
 import { ThoughtMapBoard } from '@/components/molecules/ThoughtMap/ThoughtMapBoard';
+import { Icon } from '@/components/atoms/Icon';
 import { OriginalCardPanel } from './OriginalCardPanel';
 import { useHasWrittenCards } from '@/lib/data/hooks';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wavyVertical } from '@/lib/design/wavyPath';
 import { INK_LIGHT } from '@/lib/design/strokes';
+import { useRouter } from '@/i18n/navigation';
+import type { Card } from '@/lib/db/types';
 import styles from './WriteWorkspace.module.css';
 
 export interface WriteWorkspaceProps {
@@ -33,6 +37,8 @@ export interface WriteWorkspaceProps {
  * read-after area) and the guide steps aside.
  */
 export function WriteWorkspace({ title, locale, initial, referenceCardId }: WriteWorkspaceProps) {
+  const t = useTranslations('write');
+  const router = useRouter();
   const railRef = useRef<HTMLDivElement>(null);
   const { h: railH } = useElementSize(railRef);
   // ~1 turning point per 130px keeps the long rule calm, not noodly.
@@ -40,6 +46,9 @@ export function WriteWorkspace({ title, locale, initial, referenceCardId }: Writ
 
   const { data: hasWritten } = useHasWrittenCards();
   const [seed, setSeed] = useState<{ story: string; nonce: number } | null>(null);
+  // A card opened from the map shows *in this pane*, over the map (which stays
+  // mounted so its camera survives), instead of navigating away mid-draft.
+  const [openCardId, setOpenCardId] = useState<string | null>(null);
   // Only the very first card, started fresh (not edits, not resonances).
   const showGuide = hasWritten === false && !seed && !initial && !referenceCardId;
 
@@ -93,7 +102,32 @@ export function WriteWorkspace({ title, locale, initial, referenceCardId }: Writ
         {referenceCardId ? (
           <OriginalCardPanel cardId={referenceCardId} />
         ) : (
-          <ThoughtMapBoard height="100%" flush />
+          <div className={styles.mapStack}>
+            <ThoughtMapBoard
+              height="100%"
+              flush
+              onOpenCard={(card: Card) => {
+                // Published cards read fine in the pane; a draft's「開啟」
+                // means "edit it", which needs the editor route.
+                if (card.publishedAt) setOpenCardId(card.id);
+                else router.push(`/write/${card.id}`);
+              }}
+            />
+            {openCardId && (
+              <div className={styles.cardOverlay}>
+                <OriginalCardPanel cardId={openCardId} />
+                <button
+                  type="button"
+                  className={styles.overlayClose}
+                  aria-label={t('closePreview')}
+                  title={t('closePreview')}
+                  onClick={() => setOpenCardId(null)}
+                >
+                  <Icon name="close" size={17} />
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </aside>
     </div>

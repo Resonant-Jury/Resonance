@@ -1,8 +1,10 @@
 'use client';
 
-import { Fragment, useState, useTransition } from 'react';
+import { Fragment, useEffect, useState, useTransition, type CSSProperties } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { Icon, type IconName } from '@/components/atoms/Icon';
+import { useAppChrome } from '@/components/providers/AppChrome';
 import { Field, Input, Select } from '@/components/atoms/Field/Field';
 import { SquareFlag } from '@/components/atoms/SquareFlag/SquareFlag';
 import { regionDisplayName } from '@/lib/regionName';
@@ -12,8 +14,11 @@ import { OrganicSlider } from '@/components/atoms/OrganicSlider/OrganicSlider';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { AvatarUpload } from '@/components/molecules/AvatarUpload/AvatarUpload';
 import { updateProfile } from '@/lib/db/firestore/client/profile';
+import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
+import { SignOutConfirmModal } from '@/components/molecules/SignOutConfirmModal/SignOutConfirmModal';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useTweaks } from '@/components/providers/TweaksPanel';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import type { Locale } from '@/lib/db/types';
 
@@ -44,6 +49,19 @@ const SECTIONS: Section[] = [
   'delete',
 ];
 
+/** Hand-drawn glyph leading each row in the phone settings menu. */
+const SECTION_ICONS: Record<Section, IconName> = {
+  profile: 'user',
+  account: 'key',
+  privacy: 'lock',
+  notifications: 'bell',
+  language: 'globe',
+  appearance: 'palette',
+  ai: 'sparkle',
+  terms: 'document',
+  delete: 'trash',
+};
+
 export interface SettingsClientProps {
   initial: {
     handle: string;
@@ -64,8 +82,13 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const auth = useAuth();
+  const { setMobileHeader } = useAppChrome();
   const { state: tweaks, update: updateTweaks } = useTweaks();
   const [active, setActive] = useState<Section>('profile');
+  // Phones use a two-level master/detail flow: 'menu' lists the sections as
+  // tappable rows, 'detail' shows one section's controls. Desktop ignores this
+  // and renders the side-nav + content grid.
+  const [mobileView, setMobileView] = useState<'menu' | 'detail'>('menu');
   const [handle, setHandle] = useState(initial.handle);
   const [bio, setBio] = useState(initial.bio);
   const [region, setRegion] = useState(initial.region);
@@ -74,6 +97,21 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   const [savedTick, setSavedTick] = useState(false);
   const [pending, start] = useTransition();
   const [signingOut, setSigningOut] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  // Below this width the layout switches to the phone master/detail flow.
+  const isMobile = useIsMobile(760);
+
+  // In the phone detail view the app header takes over as the screen chrome:
+  // a back control + the current section's name, nothing else. Cleared whenever
+  // we're on the menu, on desktop, or when leaving settings entirely.
+  useEffect(() => {
+    if (!(isMobile && mobileView === 'detail')) {
+      setMobileHeader(null);
+      return;
+    }
+    setMobileHeader({ title: t(`sections.${active}`), onBack: () => setMobileView('menu') });
+    return () => setMobileHeader(null);
+  }, [isMobile, mobileView, active, t, setMobileHeader]);
 
   async function signOut() {
     if (signingOut) return;
@@ -83,6 +121,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
       window.location.href = `/${locale}/signin`;
     } catch {
       setSigningOut(false);
+      setConfirmingSignOut(false);
     }
   }
 
@@ -101,12 +140,22 @@ export function SettingsClient({ initial }: SettingsClientProps) {
     setPrefs((p) => ({ ...p, [k]: !p[k] }));
   }
 
+  // The public profile page (/u/{handle}) is ISR-cached; its share metadata
+  // only changes when the profile is saved, so bust the cache here instead of
+  // polling. CJK handles live at a percent-encoded URL — revalidate both forms.
+  function profilePaths(...handles: string[]): string[] {
+    return [...new Set(handles.flatMap((h) => [`/u/${h}`, `/u/${encodeURIComponent(h)}`]))];
+  }
+
   function save() {
     start(async () => {
       const patch: Parameters<typeof updateProfile>[0] = { bio, region, primaryLocale };
       if (handle !== initial.handle) patch.handle = handle;
       if (avatarUrl !== initial.avatarUrl) patch.avatarUrl = avatarUrl;
       await updateProfile(patch);
+      // Old handle too when it changed — that cached page must stop serving
+      // the profile under its former name.
+      void requestRevalidate(profilePaths(handle, initial.handle));
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 1800);
       // If the UI locale needs to change, navigate (next-intl Link handles
@@ -121,31 +170,14 @@ export function SettingsClient({ initial }: SettingsClientProps) {
     });
   }
 
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '220px minmax(0, 1fr)',
-        gap: 40,
-      }}
-      className="settings-grid"
-    >
-      <style>{`
-        @media (max-width: 760px) {
-          .settings-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
-        }
-      `}</style>
-      <OrganicTabs
-        aria-label={t('sections.profile')}
-        orientation="vertical"
-        seed={41}
-        className="settings-nav"
-        tabs={SECTIONS.map((s) => ({ key: s, label: t(`sections.${s}`) }))}
-        active={active}
-        onChange={setActive}
-      />
+  const titleStyle: CSSProperties = {
+    fontFamily: 'var(--font-heading)',
+    fontSize: 'clamp(28px, 4vw, 36px)',
+    fontWeight: 700,
+  };
 
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+  const sectionContent = (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
         {active === 'profile' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <AvatarUpload
@@ -156,8 +188,11 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               onUploaded={(url) => {
                 setAvatarUrl(url);
                 // Persist immediately so the header avatar updates without
-                // waiting for the Save button.
-                void updateProfile({ avatarUrl: url });
+                // waiting for the Save button; the public profile is saved
+                // under the *current* handle, so bust that cache entry.
+                void updateProfile({ avatarUrl: url }).then(() =>
+                  requestRevalidate(profilePaths(initial.handle)),
+                );
               }}
             />
             <Field label={t('profile.handle')} hint={t('profile.handleCooldown')}>
@@ -205,7 +240,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               />
             </Field>
             <div style={{ marginTop: 4 }}>
-              <OrganicButton variant="outline" onClick={signOut}>
+              <OrganicButton variant="outline" onClick={() => setConfirmingSignOut(true)}>
                 {signingOut ? '…' : t('account.signOut')}
               </OrganicButton>
             </div>
@@ -369,7 +404,109 @@ export function SettingsClient({ initial }: SettingsClientProps) {
             )}
           </div>
         )}
-      </section>
+    </section>
+  );
+
+  const modal = (
+    <SignOutConfirmModal
+      open={confirmingSignOut}
+      busy={signingOut}
+      onCancel={() => setConfirmingSignOut(false)}
+      onConfirm={() => void signOut()}
+    />
+  );
+
+  // Phone layout: a settings menu (rows → detail) that mirrors how native OS
+  // settings work, so the sections read as tappable destinations rather than a
+  // sideways-scrolling strip whose overflow was invisible.
+  if (isMobile) {
+    if (mobileView === 'menu') {
+      return (
+        <div>
+          <h1 style={{ ...titleStyle, marginBottom: 18 }}>{t('title')}</h1>
+          <div>
+            {SECTIONS.map((s, i) => {
+              const danger = s === 'delete';
+              const tint = danger
+                ? 'var(--color-danger, oklch(58% 0.16 25))'
+                : 'var(--color-terracotta)';
+              return (
+                <Fragment key={s}>
+                  {i > 0 && <Divider seed={40 + i * 6} spacing={2} />}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActive(s);
+                      setMobileView('detail');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 16,
+                      width: '100%',
+                      padding: '18px 4px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 16,
+                      textAlign: 'left',
+                      color: danger ? tint : 'var(--color-text)',
+                    }}
+                  >
+                    <Icon name={SECTION_ICONS[s]} size={22} color={tint} />
+                    <span style={{ flex: 1, minWidth: 0 }}>{t(`sections.${s}`)}</span>
+                    <Icon
+                      name="chevron-down"
+                      size={18}
+                      color="var(--color-text-muted)"
+                      style={{ transform: 'rotate(-90deg)' }}
+                    />
+                  </button>
+                </Fragment>
+              );
+            })}
+          </div>
+          {modal}
+        </div>
+      );
+    }
+
+    // Back control + section title live in the app header (takeover, set
+    // above), so the detail body is just the controls.
+    return (
+      <div>
+        {sectionContent}
+        {modal}
+      </div>
+    );
+  }
+
+  // Desktop: title + vertical section nav in the left column, content on the
+  // right, level with the title.
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '220px minmax(0, 1fr)',
+        columnGap: 40,
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <h1 style={{ ...titleStyle, marginBottom: 28 }}>{t('title')}</h1>
+        <OrganicTabs
+          aria-label={t('sections.profile')}
+          orientation="vertical"
+          seed={41}
+          tabs={SECTIONS.map((s) => ({ key: s, label: t(`sections.${s}`) }))}
+          active={active}
+          onChange={setActive}
+        />
+      </div>
+
+      {sectionContent}
+
+      {modal}
     </div>
   );
 }

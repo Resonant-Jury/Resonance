@@ -40,8 +40,11 @@
   flex-direction: column;
   /* No right padding on the pane itself: this side is a split (divider), not
      a card, so the scroller's scrollbar should sit flush at the viewport
-     edge. Content insets live on the scroller / composer rows instead. */
-  padding: 10px 0 14px;
+     edge. Content insets live on the scroller / composer rows instead. No top
+     padding either: the header carries its own symmetric vertical padding, so
+     an extra strip above it would push the header content low against the
+     divider (it read as vertically off-centre). */
+  padding: 0 0 14px;
 }
 
 /* One conversation row: avatar, name + preview, time + unread badge. No
@@ -139,12 +142,23 @@
 
 /* Symmetric vertical padding so the avatar + name block reads centered
    between the app header above and the divider below (the pane's own top
-   padding stays small on purpose). */
+   padding stays small on purpose). The fixed min-height keeps the row from
+   shifting when search mode swaps the contents. */
 .threadHeader {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px 8px 0;
+  min-height: 38px;
+  /* Symmetric vertical padding now that the pane adds none — this is what
+     centres the avatar/name/menu between the top of the pane and the divider. */
+  padding: 10px 14px 10px 0;
+}
+
+/* Flex, not inline: an inline link keeps text baseline metrics and floats the
+   avatar a few px low in the centered row. */
+.threadAvatarLink {
+  display: flex;
+  text-decoration: none;
 }
 
 .threadHeaderSpacer {
@@ -161,18 +175,30 @@
   font-family: var(--font-heading);
   font-size: 18px;
   font-weight: 700;
+  line-height: 1.2;
   color: var(--color-text);
   text-decoration: none;
 }
 
-.backLink {
+/* Back to the roster — leads the thread header on single-pane phones, where
+   the app header is hidden and this row IS the page chrome. Same 34px quiet-
+   tool footprint as the header search close. */
+.headerBack {
   display: none;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--color-text-muted);
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  margin-left: -6px;
+  border-radius: 11px 13px 12px 14px;
+  color: var(--color-text);
   text-decoration: none;
-  padding: 4px 0;
+  transition: background 120ms ease;
+}
+
+.headerBack:hover {
+  background: oklch(0% 0 0 / 0.07);
 }
 
 .scroller {
@@ -323,18 +349,18 @@
 
 /* --- header「⋯」menu surfaces --- */
 
-/* In-thread search: a quiet row right under the header divider. */
-.searchBar {
+/* In-thread search lives in the thread header itself: the icon + input swap
+   in for avatar/name, and the close button takes the「⋯」trigger's spot. */
+.headerSearchIcon {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px 4px 2px;
   color: var(--color-text-muted);
 }
 
 .searchInput {
   flex: 1;
   min-width: 0;
+  height: 38px;
   border: none;
   background: transparent;
   outline: none;
@@ -347,6 +373,28 @@
   flex-shrink: 0;
   font-size: 12px;
   color: var(--color-text-muted);
+}
+
+/* Same 34px footprint as the menu trigger it covers; borderless dark-wash
+   hover (the shared quiet-tool language). */
+.headerSearchClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 11px 13px 12px 14px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.headerSearchClose:hover {
+  background: oklch(0% 0 0 / 0.07);
+  color: var(--color-text);
 }
 
 .mediaTitle {
@@ -365,12 +413,25 @@
   margin: 0 0 18px;
 }
 
+/* Scrollable divider-row list (notification modal language) with the
+   hand-drawn rail in place of the native scrollbar. */
+.mediaArea {
+  position: relative;
+}
+
 .mediaBody {
   display: flex;
   flex-direction: column;
   gap: 18px;
   max-height: min(420px, 55vh);
   overflow-y: auto;
+  scrollbar-width: none;
+  padding-right: 18px;
+}
+
+.mediaBody::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .mediaSection {
@@ -380,27 +441,51 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-text-muted);
-  margin: 0 0 10px;
+  margin: 0 0 4px;
 }
 
-.mediaCards {
+.mediaRow {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  text-decoration: none;
 }
 
-.mediaLinkList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.mediaThumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.mediaThumbFallback {
+  position: absolute;
+  inset: 0;
+}
+
+.mediaRowTitle {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  transition: color 120ms ease;
+}
+
+.mediaRow:hover .mediaRowTitle {
+  color: var(--color-terracotta);
+}
+
+.mediaLinkRow {
+  display: block;
+  padding: 10px 4px;
   font-size: 13.5px;
   overflow-wrap: anywhere;
-}
-
-.mediaLinkList a {
   color: var(--color-terracotta);
   text-underline-offset: 3px;
 }
@@ -416,6 +501,11 @@
     grid-template-columns: 1fr;
     /* Single-pane phones get their side padding back. */
     padding: var(--app-header-h) 14px 0;
+  }
+  /* An open thread hides the app header (see AppHeader), so the thread's own
+     header moves to the top of the screen. */
+  .page[data-thread-open] {
+    padding-top: max(6px, env(safe-area-inset-top));
   }
   .threadPane {
     padding-right: 0;
@@ -451,7 +541,7 @@
   .page:not([data-thread-open]) .threadPane {
     display: none;
   }
-  .backLink {
+  .headerBack {
     display: inline-flex;
   }
 }

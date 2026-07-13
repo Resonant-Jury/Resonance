@@ -52,8 +52,10 @@ export interface ThoughtMapNodeProps {
 
 /* The selected card's action tab: a bump on the card's own outline (drawn by
    wobTabRect as one closed path with the border), left-aligned like a file
-   folder tab. */
-const TAB_X = 12;
+   folder tab. TAB_X must clear the card's top-left corner arc (R=18 plus up
+   to ~2px of jitter) — starting inside the arc makes the outline double back
+   on itself and the joint reads as a gap. */
+const TAB_X = 24;
 const TAB_W = 118;
 const TAB_H = 30;
 

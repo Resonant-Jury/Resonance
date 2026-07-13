@@ -33,6 +33,46 @@
   min-width: 0;
 }
 
+/* Map + card-preview stack: the map stays mounted (camera intact) while an
+   opened card covers it. */
+.mapStack {
+  position: relative;
+  height: 100%;
+}
+
+.cardOverlay {
+  position: absolute;
+  inset: 0;
+  /* Above every board surface (toolbar 5, tray/inspector 6) — the opened
+     card must fully cover the map's own controls. */
+  z-index: 7;
+}
+
+/* Back-to-map close — same borderless dark-wash language as the map's own
+   tool buttons. */
+.overlayClose {
+  position: absolute;
+  top: calc(var(--app-header-h) + 16px);
+  right: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 11px 13px 12px 14px;
+  background: oklch(0% 0 0 / 0.05);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.overlayClose:hover {
+  background: oklch(0% 0 0 / 0.09);
+  color: var(--color-text);
+}
+
 @media (min-width: 1200px) {
   .editorArea {
     /* Leave room for the fixed map pane on the right, plus a gutter so the

@@ -73,7 +73,8 @@
       "settings": "Settings",
       "signIn": "Sign in",
       "signOut": "Sign out",
-      "messages": "Messages"
+      "messages": "Messages",
+      "back": "Back"
     },
     "notifications": {
       "empty": "When someone resonates with your card — or sends you a little note — it will show up here.",
@@ -88,6 +89,12 @@
       "alreadyConnected": "Connected",
       "viewAll": "View all",
       "message": "{handle} sent you a message."
+    },
+    "signOutConfirm": {
+      "title": "Sign out?",
+      "body": "You'll need to sign in again to get back to your card box.",
+      "confirm": "Sign out",
+      "cancel": "Cancel"
     }
   },
   "home": {
@@ -227,6 +234,7 @@
   "write": {
     "title": "New card",
     "editTitle": "Edit draft",
+    "closePreview": "Close card preview",
     "referenceCard": "Original Article",
     "coreLabel": "One-line title",
     "corePlaceholder": "e.g. Being seen matters more than being liked.",
@@ -323,6 +331,7 @@
   "me": {
     "joined": "Joined {date}",
     "editProfile": "Edit profile",
+    "viewPublicProfile": "View public profile",
     "bioEmpty": "No bio yet.",
     "tabs": {
       "published": "Published",
@@ -336,9 +345,11 @@
     "thoughtMap": {
       "empty": "Bring your cards onto the map and start weaving your thoughts together.",
       "addCard": "Add card",
+      "addCardShort": "Card",
       "addGroup": "New group",
+      "addGroupShort": "Group",
       "newGroup": "Untitled group",
-      "trayTitle": "My cards",
+      "trayTitle": "Pick a card to add",
       "trayEmpty": "Every card is already on the map.",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
@@ -371,7 +382,8 @@
       "deleteCancel": "Keep it"
     },
     "anonymousBadge": "Anonymous",
-    "emptyPublishedCta": "Write a story"
+    "emptyPublishedCta": "Write a story",
+    "filterLabel": "Show"
   },
   "profile": {
     "notConnected": "Not connected",

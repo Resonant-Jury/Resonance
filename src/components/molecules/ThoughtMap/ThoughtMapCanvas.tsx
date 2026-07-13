@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -19,10 +20,10 @@ import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Input } from '@/components/atoms/Field/Field';
 import { useElementSize } from '@/lib/hooks/useElementSize';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { arrowHeadPath, organicEdgePath } from '@/lib/design/edgePath';
 import { seedFromString } from '@/lib/design/prng';
 import { wavyLine } from '@/lib/design/wavyPath';
-import { wobCircle } from '@/lib/design/wobCircle';
 import { INK, INK_LIGHT, INK_STRONG } from '@/lib/design/strokes';
 import type { Card } from '@/lib/db/types';
 import type { MyThoughtMap } from '@/lib/data/hooks';
@@ -113,6 +114,12 @@ export interface ThoughtMapCanvasProps {
    * the app header. Used by the full-screen map page and the write workspace.
    */
   flush?: boolean;
+  /**
+   * Takes over「開啟卡片」: the host decides where the card opens (the write
+   * workspace shows it in its own right pane). Without it the canvas
+   * navigates to the card page / editor.
+   */
+  onOpenCard?: (card: Card) => void;
 }
 
 /**
@@ -121,9 +128,10 @@ export interface ThoughtMapCanvasProps {
  * gesture that settles (drag end, label blur, …) writes through to the
  * owner's `thoughtMaps` subcollections.
  */
-export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanvasProps) {
+export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: ThoughtMapCanvasProps) {
   const t = useTranslations('me.thoughtMap');
   const router = useRouter();
+  const isMobile = useIsMobile(640);
 
   const [nodes, setNodes] = useState<Record<string, NodeState>>(() =>
     Object.fromEntries(
@@ -586,6 +594,10 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
   };
 
   const openCard = (card: Card) => {
+    if (onOpenCard) {
+      onOpenCard(card);
+      return;
+    }
     router.push(card.publishedAt ? `/card/${card.slug ?? card.id}` : `/write/${card.id}`);
   };
 
@@ -609,6 +621,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
         ),
     [data.cards, nodes],
   );
+  const resonatedIds = useMemo(() => new Set(data.resonatedIds), [data.resonatedIds]);
 
   const linkTargetId = useMemo(() => {
     if (!linkDraft) return null;
@@ -755,20 +768,7 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => removeGroupById(g.id)}
                 >
-                  {/* Hand-drawn hover ring in the region's own hue — the same
-                      ink as the region border, not the theme accent. */}
-                  <svg className={styles.groupDeleteRing} width={28} height={28} viewBox="0 0 28 28" aria-hidden>
-                    <path
-                      d={wobCircle(14, 14, 12, seedFromString(g.id) + 9, { segments: 7, mag: 1.1 })}
-                      fill={`oklch(96.5% 0.032 ${g.hue})`}
-                      stroke="currentColor"
-                      strokeWidth={INK_LIGHT}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <span className={styles.groupDeleteIcon}>
-                    <Icon name="trash" size={15} />
-                  </span>
+                  <Icon name="trash" size={15} />
                 </button>
                 <button
                   type="button"
@@ -944,13 +944,14 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
         </div>
       </div>
 
-      {/* toolbar */}
+      {/* toolbar — phones drop to one-word labels so the pair fits beside the
+          zoom cluster without crowding the board */}
       <div className={styles.toolbar}>
         <OrganicButton variant="outline" size="sm" onClick={() => void addGroup()}>
-          <Icon name="frame" size={15} /> {t('addGroup')}
+          <Icon name="frame" size={15} /> {isMobile ? t('addGroupShort') : t('addGroup')}
         </OrganicButton>
         <OrganicButton variant="primary" size="sm" onClick={() => setTrayOpen((v) => !v)}>
-          <Icon name="plus" size={15} /> {t('addCard')}
+          <Icon name="plus" size={15} /> {isMobile ? t('addCardShort') : t('addCard')}
         </OrganicButton>
       </div>
 
@@ -1014,12 +1015,20 @@ export function ThoughtMapCanvas({ data, style, flush = false }: ThoughtMapCanva
               {trayCards.length === 0 ? (
                 <p className={styles.trayEmpty}>{t('trayEmpty')}</p>
               ) : (
-                trayCards.map((c) => (
-                  <button key={c.id} type="button" className={styles.trayRow} onClick={() => addCard(c)}>
-                    <Icon name={c.publishedAt ? 'cards' : 'pen'} size={15} />
-                    <span className={styles.trayRowTitle}>{c.thoughtCore}</span>
-                    <Icon name="plus" size={14} />
-                  </button>
+                trayCards.map((c, i) => (
+                  <Fragment key={c.id}>
+                    {/* Notification-modal language: rows part with a wavy pen
+                        rule, no boxed hover region. */}
+                    {i > 0 && <Divider seed={31 + i * 7} spacing={0} />}
+                    <button type="button" className={styles.trayRow} onClick={() => addCard(c)}>
+                      <Icon
+                        name={resonatedIds.has(c.id) ? 'wave' : c.publishedAt ? 'cards' : 'pen'}
+                        size={15}
+                      />
+                      <span className={styles.trayRowTitle}>{c.thoughtCore}</span>
+                      <Icon name="plus" size={14} />
+                    </button>
+                  </Fragment>
                 ))
               )}
             </div>

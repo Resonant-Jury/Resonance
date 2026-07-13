@@ -7,13 +7,11 @@ import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Link } from '@/i18n/navigation';
 import { useFeed, useRecommendedFeed } from '@/lib/data/hooks';
-import { useHint } from '@/lib/hints';
 
 export default function HomeFeedPage() {
   const t = useTranslations('home');
   const { data, isLoading, isLoadingMore, hasMore, loadMore } = useFeed();
   const { data: rec, isLoading: recLoading } = useRecommendedFeed();
-  const reasonHint = useHint('feed-reason');
   // One feed, two stages: the recommender's picks first (no section header —
   // the page heading already says it), and「載入更多」reveals the latest
   // public cards deduped against the picks. Everything renders in a single
@@ -85,28 +83,9 @@ export default function HomeFeedPage() {
         </div>
       ) : (
         <>
-          {hasRec && reasonHint.visible && (
-            <p
-              style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: 13,
-                color: 'var(--color-terracotta)',
-                marginBottom: 16,
-              }}
-            >
-              {t('recommended.hint')}
-            </p>
-          )}
-          {feedCards.length > 0 && (
-            <CardLinkGrid
-              cards={feedCards}
-              authors={feedAuthors}
-              quoteFor={(card) => {
-                const reason = rec?.reasons[card.id];
-                return reason ? t('matchReason', { reason }) : null;
-              }}
-            />
-          )}
+          {/* The recommender's reasons are deliberately not shown — an
+              unexplained pick keeps the surprise of opening the card. */}
+          {feedCards.length > 0 && <CardLinkGrid cards={feedCards} authors={feedAuthors} />}
 
           <footer
             style={{

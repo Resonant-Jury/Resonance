@@ -62,7 +62,11 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
           </li>
         ))}
       </ul>
-      <div
+      {/* The identity block doubles as the shortcut into the viewer's card
+          box (their public profile lives one more tap away, on /me). */}
+      <Link
+        href="/me"
+        onClick={onClose}
         style={{
           marginTop: 16,
           paddingTop: 14,
@@ -71,6 +75,7 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
           alignItems: 'center',
           justifyContent: 'flex-end',
           gap: 10,
+          textDecoration: 'none',
         }}
       >
         <HandDrawnAvatar
@@ -81,7 +86,7 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
           seed={Number(user.avatarSeed) || 77}
         />
         <span style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>{user.handle}</span>
-      </div>
+      </Link>
     </Modal>
   );
 }

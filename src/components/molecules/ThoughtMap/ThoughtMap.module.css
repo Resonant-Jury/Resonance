@@ -266,8 +266,8 @@
 }
 
 /* Region delete — quiet icon in the top-right corner, opposite the title.
-   Hover reveals a hand-drawn ring in the region's own hue (--group-hue set
-   on the groupBox), not a flat accent circle. */
+   Hover washes in the same soft irregular dark region as the node tab's
+   buttons (no ring, no border — the shared borderless-tool language). */
 .groupDelete {
   position: absolute;
   top: 8px;
@@ -282,28 +282,13 @@
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: color 140ms ease;
-}
-
-.groupDeleteRing {
-  position: absolute;
-  inset: 0;
-  overflow: visible;
-  opacity: 0;
-  transition: opacity 140ms ease;
-}
-
-.groupDeleteIcon {
-  position: relative;
-  display: flex;
+  border-radius: 9px 11px 10px 12px;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .groupDelete:hover {
   color: oklch(42% 0.1 var(--group-hue, 55));
-}
-
-.groupDelete:hover .groupDeleteRing {
-  opacity: 1;
+  background: oklch(0% 0 0 / 0.07);
 }
 
 .groupResize {
@@ -416,7 +401,8 @@
 .nodeTab {
   position: absolute;
   z-index: 2;
-  left: 12px;
+  /* Matches TAB_X in ThoughtMapNode — past the card's top-left corner arc. */
+  left: 24px;
   top: -30px;
   width: 118px;
   height: 30px;
@@ -489,12 +475,14 @@
   padding: 4px 2px 10px;
 }
 
+/* Rows separated by wavy dividers (the notification modal's language) — no
+   boxed hover wash; hover speaks through the ink color instead. */
 .trayRow {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 4px;
+  padding: 12px 4px;
   border: none;
   background: transparent;
   text-align: left;
@@ -502,11 +490,11 @@
   font-family: var(--font-body);
   font-size: 13.5px;
   color: var(--color-text);
-  border-radius: 10px;
+  transition: color 120ms ease;
 }
 
 .trayRow:hover {
-  background: var(--color-cream-dark);
+  color: var(--color-terracotta);
 }
 
 .trayRowTitle {

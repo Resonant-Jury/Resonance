@@ -24,6 +24,10 @@ import { BookmarkIcon } from './icons/bookmark';
 import { ChatIcon } from './icons/chat';
 import { UserCheckIcon } from './icons/user-check';
 import { SearchIcon } from './icons/search';
+import { UserIcon } from './icons/user';
+import { KeyIcon } from './icons/key';
+import { PaletteIcon } from './icons/palette';
+import { DocumentIcon } from './icons/document';
 import type { IconRenderer } from './types';
 
 /**
@@ -67,6 +71,10 @@ export const ICONS = {
   chat: ChatIcon,
   'user-check': UserCheckIcon,
   search: SearchIcon,
+  user: UserIcon,
+  key: KeyIcon,
+  palette: PaletteIcon,
+  document: DocumentIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

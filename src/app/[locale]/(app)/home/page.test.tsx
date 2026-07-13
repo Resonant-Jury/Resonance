@@ -124,7 +124,7 @@ describe('HomeFeedPage', () => {
     expect(screen.getByText('Write a card')).toBeInTheDocument();
   });
 
-  it('shows the reason micro-hint above the personalized feed', () => {
+  it('renders recommended cards without surfacing their match reasons', () => {
     mockUseFeed.mockReturnValue({ data: { cards: [], authors: {} }, isLoading: false });
     mockUseRecommendedFeed.mockReturnValue({
       data: {
@@ -136,12 +136,15 @@ describe('HomeFeedPage', () => {
 
     renderWithIntl(<HomeFeedPage />);
 
+    // The pick itself shows…
+    expect(screen.getAllByText('A resonant match').length).toBeGreaterThan(0);
+    // …but neither the hint line nor the per-card reason caption does — the
+    // reason is deliberately hidden to keep the surprise of opening the card.
     expect(
-      screen.getByText('The insights you write decide which stories find you.'),
-    ).toBeInTheDocument();
-    // The per-card reason caption still renders under the card.
+      screen.queryByText('The insights you write decide which stories find you.'),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByText('because of “you both wrote about letting go”'),
-    ).toBeInTheDocument();
+      screen.queryByText('because of “you both wrote about letting go”'),
+    ).not.toBeInTheDocument();
   });
 });

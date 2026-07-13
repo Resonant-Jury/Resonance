@@ -19,6 +19,11 @@ export interface OrganicTabsProps<K extends string = string> {
   orientation?: 'horizontal' | 'vertical';
   /** Style variant for the active tab indicator. Defaults to 'surface' for vertical and 'underline' for horizontal. */
   variant?: 'underline' | 'surface';
+  /**
+   * Horizontal only: keep every tab on one line and scroll sideways instead
+   * of wrapping — the standard phone pattern for section switchers.
+   */
+  scrollable?: boolean;
   /** Base seed so each tab's wobble is deterministic but distinct. */
   seed?: number;
   className?: string;
@@ -37,6 +42,7 @@ export function OrganicTabs<K extends string = string>({
   onChange,
   orientation = 'horizontal',
   variant,
+  scrollable = false,
   seed = 5,
   className,
   'aria-label': ariaLabel,
@@ -49,7 +55,14 @@ export function OrganicTabs<K extends string = string>({
       role="tablist"
       aria-label={ariaLabel}
       aria-orientation={orientation}
-      className={[styles.list, styles[orientation], className].filter(Boolean).join(' ')}
+      className={[
+        styles.list,
+        styles[orientation],
+        scrollable && orientation === 'horizontal' ? styles.scrollable : '',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       {tabs.map((tab) => {
         const isActive = tab.key === active;

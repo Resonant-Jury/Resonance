@@ -73,7 +73,8 @@
       "settings": "設定",
       "signIn": "登入",
       "signOut": "登出",
-      "messages": "私訊"
+      "messages": "私訊",
+      "back": "返回"
     },
     "notifications": {
       "empty": "當有人共振你的卡片、或寄來一張小紙條，會出現在這裡。",
@@ -88,6 +89,12 @@
       "alreadyConnected": "已連結",
       "viewAll": "查看全部",
       "message": "{handle} 傳了一則訊息給你。"
+    },
+    "signOutConfirm": {
+      "title": "確定要登出嗎？",
+      "body": "登出後需要重新登入，才能繼續使用你的卡片盒。",
+      "confirm": "登出",
+      "cancel": "取消"
     }
   },
   "home": {
@@ -227,6 +234,7 @@
   "write": {
     "title": "寫一張新卡片",
     "editTitle": "編輯草稿",
+    "closePreview": "關閉卡片預覽",
     "referenceCard": "原文章",
     "coreLabel": "一句話標題",
     "corePlaceholder": "例：被看見，比被喜歡更難得...",
@@ -323,6 +331,7 @@
   "me": {
     "joined": "{date} 加入",
     "editProfile": "編輯個人檔案",
+    "viewPublicProfile": "查看公開個人頁面",
     "bioEmpty": "還沒寫下一句話關於自己。",
     "tabs": {
       "published": "已發布",
@@ -334,11 +343,13 @@
       "thoughtMap": "思想地圖"
     },
     "thoughtMap": {
-      "empty": "把卡片放上地圖，開始把想法織在一起。",
+      "empty": "把卡片放上地圖，開始把想法織在一起",
       "addCard": "加入卡片",
+      "addCardShort": "卡片",
       "addGroup": "新增分類",
+      "addGroupShort": "分類",
       "newGroup": "未命名分類",
-      "trayTitle": "我的卡片",
+      "trayTitle": "選一張卡片加入",
       "trayEmpty": "所有卡片都已經在地圖上了",
       "zoomIn": "放大",
       "zoomOut": "縮小",
@@ -371,7 +382,8 @@
       "deleteCancel": "先留著"
     },
     "anonymousBadge": "匿名發布",
-    "emptyPublishedCta": "寫下一個故事"
+    "emptyPublishedCta": "寫下一個故事",
+    "filterLabel": "顯示"
   },
   "profile": {
     "notConnected": "尚未連結",

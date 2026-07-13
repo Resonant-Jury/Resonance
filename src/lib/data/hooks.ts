@@ -210,26 +210,34 @@ export function useMyCardBox() {
 }
 
 export interface MyThoughtMap extends ThoughtMapData {
-  /** Every card the viewer owns (published / private / draft), keyed by id —
-   * drives both node rendering and the "add a card" tray. */
+  /** Every card placeable on the map (own published / private / draft, plus
+   * the originals the viewer resonated with), keyed by id — drives both node
+   * rendering and the "add a card" tray. */
   cards: Record<string, Card>;
+  /** Ids of cards the viewer doesn't own but resonated with — the tray marks
+   * these with the resonance glyph instead of the card/pen icon. */
+  resonatedIds: string[];
 }
 
-/** The signed-in viewer's thought map plus their own cards. */
+/** The signed-in viewer's thought map plus their own + resonated cards. */
 export function useMyThoughtMap() {
   const { user } = useAuth();
   return useSWR<MyThoughtMap>(user ? `thoughtmap:${user.id}` : null, async () => {
     const uid = user!.id;
-    const [map, published, priv, draft] = await Promise.all([
+    const [map, published, priv, draft, resonated] = await Promise.all([
       loadMyThoughtMap(),
       getCardsByAuthor(uid, 'published'),
       getCardsByAuthor(uid, 'private'),
       getCardsByAuthor(uid, 'draft'),
+      getCardsByAuthor(uid, 'resonated'),
     ]);
     const cards: Record<string, Card> = {};
-    for (const c of [...published, ...priv, ...draft]) cards[c.id] = c;
+    // Resonated originals first so an own card by the same id (self-reference)
+    // keeps its own-card entry.
+    for (const c of [...resonated, ...published, ...priv, ...draft]) cards[c.id] = c;
+    const resonatedIds = resonated.map((c) => c.id).filter((id) => cards[id].authorId !== uid);
     // Drop nodes whose card has been deleted since being placed on the map.
-    return { ...map, nodes: map.nodes.filter((n) => cards[n.cardId]), cards };
+    return { ...map, nodes: map.nodes.filter((n) => cards[n.cardId]), cards, resonatedIds };
   });
 }
 

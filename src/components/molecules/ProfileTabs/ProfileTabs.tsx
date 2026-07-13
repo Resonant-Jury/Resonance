@@ -8,6 +8,9 @@ import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { Select } from '@/components/atoms/Field/Field';
+import { Icon } from '@/components/atoms/Icon';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { Link, useRouter } from '@/i18n/navigation';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { CARD_HUES } from '@/components/molecules/StoryCard/StoryCard';
@@ -56,6 +59,7 @@ export function ProfileTabs({
   const [active, setActive] = useState<TabKey>(tabs[0]);
   const t = useTranslations('me');
   const router = useRouter();
+  const isMobile = useIsMobile(640);
   const list = data[active] ?? [];
   const managed = manageable && OWNED_TABS.has(active);
 
@@ -69,17 +73,55 @@ export function ProfileTabs({
     setActive(key);
   };
 
+  // The tabs are two different kinds of control: six *filters* over the card
+  // box, and the thought map, which is a jump to its own page. On phones a flat
+  // strip of seven hid that difference and left the off-screen filters
+  // undiscoverable — so there the filters collapse into one dropdown and the
+  // thought map sits beside it as its own button.
+  const filterKeys = tabs.filter((k) => k !== 'thoughtMap');
+  const showThoughtMap = tabs.includes('thoughtMap') && Boolean(thoughtMapHref);
+
   return (
     <div>
-      <OrganicTabs
-        aria-label={t('tabs.published')}
-        seed={23}
-        tabs={tabs.map((key) => ({ key, label: t(`tabs.${key}`) }))}
-        active={active}
-        onChange={handleChange}
-        className="profile-tabs"
-        variant="surface"
-      />
+      {isMobile ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Select
+              seed={23}
+              value={active}
+              onChange={(v) => setActive(v as TabKey)}
+              ariaLabel={t('filterLabel')}
+            >
+              {filterKeys.map((key) => (
+                <option key={key} value={key}>
+                  {t(`tabs.${key}`)}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {showThoughtMap && (
+            <Link href={thoughtMapHref!} style={{ textDecoration: 'none', flexShrink: 0 }}>
+              <OrganicButton variant="outline">
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                  <Icon name="frame" size={16} ariaLabel={t('tabs.thoughtMap')} />
+                  {t('tabs.thoughtMap')}
+                </span>
+              </OrganicButton>
+            </Link>
+          )}
+        </div>
+      ) : (
+        <OrganicTabs
+          aria-label={t('tabs.published')}
+          seed={23}
+          tabs={tabs.map((key) => ({ key, label: t(`tabs.${key}`) }))}
+          active={active}
+          onChange={handleChange}
+          className="profile-tabs"
+          variant="surface"
+          scrollable
+        />
+      )}
       <div style={{ marginBottom: 28 }} />
       {loading ? (
         <FeedSkeleton count={6} />
@@ -146,7 +188,7 @@ export function ProfileTabs({
                     c.accentHue != null ? nearestCardHue(c.accentHue) : CARD_HUES[i % CARD_HUES.length];
                   return (
                     <CardActionsMenu
-                      card={{ id: c.id, visibility: c.visibility }}
+                      card={{ id: c.id, visibility: c.visibility, slug: c.slug }}
                       seed={cardHue}
                       hue={cardHue}
                     />

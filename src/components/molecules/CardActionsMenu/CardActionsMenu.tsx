@@ -9,11 +9,13 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useRouter } from '@/i18n/navigation';
 import { deleteCardDraft, updateCardDraft } from '@/lib/db/firestore/client/cards';
+import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import type { Visibility } from '@/lib/db/types';
 import styles from './CardActionsMenu.module.css';
 
 export interface CardActionsMenuProps {
-  card: { id: string; visibility: Visibility };
+  /** `slug` locates the card page's ISR cache entry (falls back to the id). */
+  card: { id: string; visibility: Visibility; slug?: string };
   /** Seed so the wobble of the trigger + dropped card is deterministic per card. */
   seed?: number;
   /** The accent hue of the card. If omitted, the menu rides the theme terracotta. */
@@ -77,6 +79,9 @@ export function CardActionsMenu({
       setBusy(true);
       try {
         await updateCardDraft(card.id, { visibility: isPrivate ? 'public' : 'private' });
+        // Visibility decides whether the share metadata carries real content —
+        // bust the card page's ISR cache right away.
+        void requestRevalidate([`/card/${card.slug ?? card.id}`]);
         refreshBox();
         onChanged?.();
       } finally {
@@ -93,6 +98,8 @@ export function CardActionsMenu({
     setBusy(true);
     try {
       await deleteCardDraft(card.id);
+      // The cached page would keep serving the deleted card's metadata.
+      void requestRevalidate([`/card/${card.slug ?? card.id}`]);
       refreshBox();
       setConfirming(false);
       onDeleted?.();

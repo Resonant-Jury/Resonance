@@ -79,8 +79,11 @@ export function wobTabRect(
   const Rtl = jr(R), Rtr = jr(R), Rbr = jr(R), Rbl = jr(R);
   const rTl = jr(tabR), rTr = jr(tabR);
 
-  const tabL = tabX;
-  const tabRt = tabX + tabW;
+  // The tab's base must sit on the straight run of the top edge. If it starts
+  // inside a corner arc the outline doubles back on itself and the joint tears
+  // open — clamp both ends clear of the card's top corners.
+  const tabL = Math.max(tabX, Rtl + 1);
+  const tabRt = Math.min(tabX + tabW, W - Rtr - 1);
 
   const parts: string[] = [`M ${f(0)},${f(T + Rtl)}`];
 

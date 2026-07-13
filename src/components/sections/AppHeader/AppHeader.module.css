@@ -69,6 +69,32 @@
   border-radius: 10px;
 }
 
+/* Mobile takeover header (e.g. settings detail): back control + title, left
+   aligned, no space-between since there's nothing on the right. */
+.takeoverRow {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  margin-left: -8px;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  pointer-events: auto;
+  transition: background 120ms ease;
+}
+
+.backBtn:hover {
+  background: oklch(0% 0 0 / 0.06);
+}
+
 .nav {
   display: flex;
   align-items: center;
@@ -96,4 +122,16 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* Very narrow devices (below the common 375px phones): the three action
+   icons already carry ~6px of their own padding, so the flex gap collapses
+   to keep the trio from spreading apart. */
+@media (max-width: 360px) {
+  .account {
+    gap: 2px;
+  }
+  .row {
+    gap: 12px;
+  }
 }

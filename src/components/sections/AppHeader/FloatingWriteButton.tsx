@@ -39,7 +39,7 @@ export function FloatingWriteButton() {
       style={{
         position: 'fixed',
         right: isMobile ? 20 : 24,
-        bottom: isMobile ? 88 : 24,
+        bottom: isMobile ? 20 : 24,
         width: 56,
         height: 56,
         color: 'var(--color-cream)',

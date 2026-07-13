@@ -1,16 +1,19 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import useSWR, { useSWRConfig } from 'swr';
 import { Textarea } from '@/components/atoms/Field/Field';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
+import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { InsertCardModal } from '@/components/molecules/MarkdownEditor/InsertCardModal';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { OrganicMenu } from '@/components/molecules/OrganicMenu/OrganicMenu';
+import { useCardEmbed } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
 import { INK } from '@/lib/design/strokes';
 import { seedFromString } from '@/lib/design/prng';
 import { Link, useRouter } from '@/i18n/navigation';
@@ -105,6 +108,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
 
   // Keep the newest message in view.
   const scrollerRef = useRef<HTMLDivElement>(null);
+  // The「卡片與連結」modal's scroll area (hand-drawn rail replaces the native bar).
+  const mediaScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = scrollerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -196,85 +201,91 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
 
   return (
     <>
-      <Link href="/messages" className={styles.backLink}>
-        <span style={{ display: 'inline-flex', transform: 'scaleX(-1)' }}>
-          <Icon name="arrow-right" size={14} />
-        </span>
-        {t('back')}
-      </Link>
-
+      {/* In-thread search lives *in* the header: opening it swaps the
+          avatar/name/menu for the input, and the close button sits exactly
+          where the「⋯」trigger was. On single-pane phones the app header is
+          gone, so a back control leads this row instead. */}
       <div className={styles.threadHeader}>
-        <Link href={profileHref} style={{ textDecoration: 'none' }} title={t('viewProfile')}>
-          <HandDrawnAvatar
-            src={other.avatarUrl}
-            initials={other.initials}
-            size={38}
-            color={other.accentColor}
-            seed={Number(other.avatarSeed) || 3}
-          />
-        </Link>
-        <Link href={profileHref} className={styles.threadHandle}>
-          {other.handle}
-        </Link>
-        <span className={styles.threadHeaderSpacer} />
-        {convo && (
-          <OrganicMenu
-            label={t('moreMenu')}
-            seed={seedFromString(convo.id)}
-            triggerSize={34}
-            busy={deleting}
-            items={[
-              { key: 'search', icon: 'search', label: t('menuSearch') },
-              { key: 'media', icon: 'cards', label: t('menuMedia') },
-              { key: 'delete', icon: 'trash', label: t('menuDelete'), danger: true },
-            ]}
-            onChoose={(key) => {
-              if (key === 'search') setSearchOpen(true);
-              else if (key === 'media') setMediaOpen(true);
-              else if (key === 'delete') setConfirmingDelete(true);
-            }}
-          />
+        {searchOpen ? (
+          <>
+            <span className={styles.headerSearchIcon}>
+              <Icon name="search" size={17} />
+            </span>
+            <input
+              className={styles.searchInput}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('searchPlaceholder')}
+              aria-label={t('menuSearch')}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearchOpen(false);
+                  setSearchQuery('');
+                }
+              }}
+            />
+            {query && (
+              <span className={styles.searchCount}>
+                {t('searchCount', { count: visibleMessages.length })}
+              </span>
+            )}
+            <button
+              type="button"
+              className={styles.headerSearchClose}
+              aria-label={t('searchClose')}
+              onClick={() => {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          </>
+        ) : (
+          <>
+            <Link href="/messages" className={styles.headerBack} aria-label={t('back')}>
+              <span style={{ display: 'inline-flex', transform: 'scaleX(-1)' }}>
+                <Icon name="arrow-right" size={16} />
+              </span>
+            </Link>
+            <Link href={profileHref} className={styles.threadAvatarLink} title={t('viewProfile')}>
+              <HandDrawnAvatar
+                src={other.avatarUrl}
+                initials={other.initials}
+                size={38}
+                color={other.accentColor}
+                seed={Number(other.avatarSeed) || 3}
+              />
+            </Link>
+            <Link href={profileHref} className={styles.threadHandle}>
+              {other.handle}
+            </Link>
+            <span className={styles.threadHeaderSpacer} />
+            {convo && (
+              <OrganicMenu
+                label={t('moreMenu')}
+                seed={seedFromString(convo.id)}
+                triggerSize={34}
+                busy={deleting}
+                items={[
+                  { key: 'search', icon: 'search', label: t('menuSearch') },
+                  { key: 'media', icon: 'cards', label: t('menuMedia') },
+                  { key: 'delete', icon: 'trash', label: t('menuDelete'), danger: true },
+                ]}
+                onChoose={(key) => {
+                  if (key === 'search') setSearchOpen(true);
+                  else if (key === 'media') setMediaOpen(true);
+                  else if (key === 'delete') setConfirmingDelete(true);
+                }}
+              />
+            )}
+          </>
         )}
       </div>
       <div className={styles.threadDivider}>
         <Divider seed={41} spacing={0} strokeWidth={INK} />
       </div>
-
-      {searchOpen && (
-        <div className={styles.searchBar}>
-          <Icon name="search" size={16} />
-          <input
-            className={styles.searchInput}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('searchPlaceholder')}
-            aria-label={t('menuSearch')}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setSearchOpen(false);
-                setSearchQuery('');
-              }
-            }}
-          />
-          {query && (
-            <span className={styles.searchCount}>
-              {t('searchCount', { count: visibleMessages.length })}
-            </span>
-          )}
-          <button
-            type="button"
-            className={styles.attachRemove}
-            aria-label={t('searchClose')}
-            onClick={() => {
-              setSearchOpen(false);
-              setSearchQuery('');
-            }}
-          >
-            <Icon name="close" size={15} />
-          </button>
-        </div>
-      )}
 
       {connected === false ? (
         <div style={{ padding: '20px 2px' }}>
@@ -423,31 +434,39 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
             {sharedCardIds.length === 0 && sharedLinks.length === 0 ? (
               <p className={styles.quietNote}>{t('mediaEmpty')}</p>
             ) : (
-              <div className={styles.mediaBody}>
-                {sharedCardIds.length > 0 && (
-                  <section>
-                    <h4 className={styles.mediaSection}>{t('mediaCards')}</h4>
-                    <div className={styles.mediaCards}>
-                      {sharedCardIds.map((id) => (
-                        <MessageCardRef key={id} cardId={id} />
+              <div className={styles.mediaArea}>
+                <div ref={mediaScrollRef} className={styles.mediaBody}>
+                  {sharedCardIds.length > 0 && (
+                    <section>
+                      <h4 className={styles.mediaSection}>{t('mediaCards')}</h4>
+                      {sharedCardIds.map((id, i) => (
+                        <Fragment key={id}>
+                          {i > 0 && <Divider seed={53 + i * 7} spacing={0} />}
+                          <SharedCardRow cardId={id} />
+                        </Fragment>
                       ))}
-                    </div>
-                  </section>
-                )}
-                {sharedLinks.length > 0 && (
-                  <section>
-                    <h4 className={styles.mediaSection}>{t('mediaLinks')}</h4>
-                    <ul className={styles.mediaLinkList}>
-                      {sharedLinks.map((url) => (
-                        <li key={url}>
-                          <a href={url} target="_blank" rel="noopener noreferrer">
+                    </section>
+                  )}
+                  {sharedLinks.length > 0 && (
+                    <section>
+                      <h4 className={styles.mediaSection}>{t('mediaLinks')}</h4>
+                      {sharedLinks.map((url, i) => (
+                        <Fragment key={url}>
+                          {i > 0 && <Divider seed={97 + i * 11} spacing={0} />}
+                          <a
+                            className={styles.mediaLinkRow}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
                             {url}
                           </a>
-                        </li>
+                        </Fragment>
                       ))}
-                    </ul>
-                  </section>
-                )}
+                    </section>
+                  )}
+                </div>
+                <OrganicScrollbar targetRef={mediaScrollRef} seed={71} />
               </div>
             )}
           </Modal>
@@ -476,5 +495,35 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
         </>
       )}
     </>
+  );
+}
+
+/**
+ * One shared card as a compact row in the「卡片與連結」list: organic thumb +
+ * title, linking to the card page. Resolved through the same visibility-
+ * enforced path as an in-thread embed — a card the viewer can no longer see
+ * simply renders nothing.
+ */
+function SharedCardRow({ cardId }: { cardId: string }) {
+  const data = useCardEmbed(`/card/${cardId}`);
+  if (data.status !== 'ready') return null;
+  const { card } = data;
+  return (
+    <Link
+      href={`/card/${card.slug ?? card.id}` as `/card/${string}`}
+      className={styles.mediaRow}
+    >
+      <span className={styles.mediaThumb}>
+        <OrganicImage src={card.media?.url} alt={card.thoughtCore} seed={7} ratio={1}>
+          {!card.media?.url && (
+            <span
+              className={styles.mediaThumbFallback}
+              style={{ background: `oklch(90% 0.06 ${card.accentHue ?? 55})` }}
+            />
+          )}
+        </OrganicImage>
+      </span>
+      <span className={styles.mediaRowTitle}>{card.thoughtCore}</span>
+    </Link>
   );
 }

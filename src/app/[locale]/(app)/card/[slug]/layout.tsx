@@ -9,6 +9,21 @@ import { siteUrl } from '@/lib/site';
 
 export const runtime = 'nodejs';
 
+// ISR: each card page (shell + share metadata) is rendered once on demand and
+// served from the CDN cache. Freshness is event-driven, not polled: every
+// mutation that can change the metadata (publish/edit in CardEditor,
+// visibility/delete in CardActionsMenu) calls /api/revalidate for this card's
+// path. The long interval below is only a self-healing backstop in case a
+// best-effort revalidate call was dropped (offline, closed tab).
+export const revalidate = 86400;
+
+// No slugs at build time — an empty list opts the segment into on-demand
+// static generation (without it, Next renders every request dynamically and
+// the `revalidate` above never engages).
+export function generateStaticParams(): { slug: string }[] {
+  return [];
+}
+
 /**
  * Server-rendered <head> for a card page. The page component itself is a client
  * component (SWR-driven), so this sibling layout is where per-card Open Graph /

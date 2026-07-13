@@ -1,0 +1,18 @@
+/* Scrollable notification list inside the bell modal — same language as the
+   thread's「卡片與連結」modal: capped height, hidden native scrollbar, the
+   hand-drawn rail alongside. */
+.scrollArea {
+  position: relative;
+}
+
+.scrollBody {
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-right: 16px;
+}
+
+.scrollBody::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
