@@ -245,7 +245,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
         ) : (
           <>
             <Link href="/messages" className={styles.headerBack} aria-label={t('back')}>
-              <span style={{ display: 'inline-flex', transform: 'scaleX(-1)' }}>
+              {/* translateY optically centres the arrow against the serif name,
+                  whose ink sits a hair below its line-box centre. */}
+              <span style={{ display: 'inline-flex', transform: 'scaleX(-1) translateY(1px)' }}>
                 <Icon name="arrow-right" size={16} />
               </span>
             </Link>
