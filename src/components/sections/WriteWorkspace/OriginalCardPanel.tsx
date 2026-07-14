@@ -15,7 +15,6 @@ interface OriginalCardPanelProps {
 }
 
 export function OriginalCardPanel({ cardId }: OriginalCardPanelProps) {
-  const t = useTranslations('write');
   const tCard = useTranslations('card');
   const locale = useLocale();
   const { data, isLoading } = useCard(cardId);

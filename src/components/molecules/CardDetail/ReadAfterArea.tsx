@@ -25,7 +25,7 @@ export interface ReadAfterAreaProps {
  * Also the junction for the up/downgrade paths: note ↔ resonance drafts move
  * in both directions, so choosing the wrong door costs nothing.
  */
-export function ReadAfterArea({ cardId, cardTitle, author, coreInsight }: ReadAfterAreaProps) {
+export function ReadAfterArea({ cardId, cardTitle, author }: ReadAfterAreaProps) {
   const t = useTranslations('card.note');
   const router = useRouter();
   const { user, loading } = useAuth();
