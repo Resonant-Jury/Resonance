@@ -35,7 +35,11 @@ export function Modal({
   const ref = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const { w, h } = useElementSize(ref, 0, 0, [open]);
+  // `mounted` must be a measurement dep: when the Modal mounts with `open`
+  // already true (conditionally rendered confirms), the first measure effect
+  // runs before the portal exists (ref is null) and `open` never changes — so
+  // without `mounted` the size stays 0×0 and the wobbly background never draws.
+  const { w, h } = useElementSize(ref, 0, 0, [open, mounted]);
   const R = 26;
   const mag = Math.min(w, h) * 0.025;
 

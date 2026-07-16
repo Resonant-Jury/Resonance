@@ -92,23 +92,34 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  /* Box-centered isn't optically centered here: the globe icon and the round
+     avatar are both compact, high-contrast shapes that read a hair above the
+     header's true visual middle next to the serif brand wordmark. Nudge the
+     whole account cluster down slightly rather than the logo. */
+  transform: translateY(2.5px);
 }
 
-/* Compact header sizing for the organic language dropdown: narrower box,
-   tighter rows, smaller type than the settings-page original. */
+/* Compact header sizing for the organic language dropdown. The closed trigger
+   is frameless (Select `bare`) — globe + current language, no box, no chevron —
+   so it sizes to its content; only the open panel draws a border. */
 .langSelect {
-  width: 152px;
+  width: auto;
   font-size: 14px;
 }
 
 .langSelect button[role='combobox'] {
   padding: 8px 12px;
   font-size: 14px;
+  /* Tighter than the base 1.6: at this font-size, DM Sans/Noto Sans TC's
+     line-box padding sits asymmetric above/below the glyphs, which reads as
+     the label floating a hair above the globe icon it sits beside. */
+  line-height: 1;
 }
 
 .langSelect button[role='option'] {
   padding: 11px 8px;
   font-size: 14px;
+  line-height: 1;
 }
 
 /* Mobile: collapse the trigger to a frameless globe icon button (via the

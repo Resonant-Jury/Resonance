@@ -30,8 +30,10 @@ export function MessagesEntry() {
         padding: 6,
         color: 'var(--color-text)',
         textDecoration: 'none',
-        // Match the bell's optical centering (its badge hangs off the top).
-        transform: 'translateY(3px)',
+        // Optically centered against the bell: the chat icon's own glyph
+        // sits lower in its box than the bell's, so it needs less of a
+        // downward nudge to land on the same visual line.
+        transform: 'translateY(1.25px)',
       }}
     >
       <Icon name="chat" size={22} />

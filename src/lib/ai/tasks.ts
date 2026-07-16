@@ -4,7 +4,7 @@
 
 import type { InsightSignature } from '@/lib/db/types';
 import { parseSignature } from '@/lib/recommend/signature';
-import { chat, chatJSON, generateImage } from './openai';
+import { chat, chatJSON, generateImage, generateImageStream } from './openai';
 import { slugify } from './slugify';
 import { parseTagList } from './tags';
 
@@ -132,4 +132,19 @@ export async function generateStoryImage(story: string): Promise<Uint8Array> {
   const concept = await storyToImageConcept(story);
   const prompt = `${concept}\n\nStyle: ${STYLE_SUFFIX} Keep the composition simple with a single clear subject and minimal background. No text or lettering.`;
   return generateImage(prompt, { size: '1536x1024', quality: 'low' });
+}
+
+/**
+ * Streaming variant of {@link generateStoryImage}: same concept → prompt →
+ * image pipeline, but in-progress previews are forwarded to `onPartial` (as
+ * base64 PNG payloads) so the editor can show the illustration taking shape
+ * instead of a blind spinner. Resolves to the final image bytes.
+ */
+export async function generateStoryImageStream(
+  story: string,
+  onPartial?: (b64: string, index: number) => void,
+): Promise<Uint8Array> {
+  const concept = await storyToImageConcept(story);
+  const prompt = `${concept}\n\nStyle: ${STYLE_SUFFIX} Keep the composition simple with a single clear subject and minimal background. No text or lettering.`;
+  return generateImageStream(prompt, { size: '1536x1024', quality: 'low', partialImages: 2 }, onPartial);
 }

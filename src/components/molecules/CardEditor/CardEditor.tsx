@@ -24,7 +24,7 @@ import {
   polyline,
 } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
 import { PublishPanel } from '@/components/molecules/PublishPanel/PublishPanel';
-import { Modal } from '@/components/molecules/Modal/Modal';
+import { ConfirmModal } from '@/components/molecules/ConfirmModal/ConfirmModal';
 import { wobRect } from '@/lib/design/wobRect';
 import {
   createCardDraft,
@@ -37,7 +37,10 @@ import { getCardById } from '@/lib/db/firestore/client/reads';
 import { notifyResonance } from '@/lib/db/firestore/client/resonances';
 import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import type { Card, CardMedia, Visibility, Locale } from '@/lib/db/types';
+import type { GenerateImageEvent } from '@/app/api/generate-image/route';
+import { ndjsonValues } from '@/lib/streams/ndjson';
 import { useRouter } from '@/i18n/navigation';
+import { useRouter as useNextRouter } from 'next/navigation';
 import styles from './CardEditor.module.css';
 
 export interface CardEditorProps {
@@ -96,6 +99,7 @@ export function CardEditor({
   const tCard = useTranslations('card');
   // const tAi = useTranslations('write.ai'); // AI 寫作夥伴：暫時停用
   const router = useRouter();
+  const nextRouter = useNextRouter();
   const inline = mode === 'inline';
 
   const [thoughtCore, setThoughtCore] = useState(initial?.thoughtCore ?? '');
@@ -111,6 +115,9 @@ export function CardEditor({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // In-progress AI illustration (data URL) — the model streams 1–2 rough
+  // passes before the final image, shown inside the busy media box.
+  const [partialPreview, setPartialPreview] = useState<string | null>(null);
   const [suggestingTags, setSuggestingTags] = useState(false);
   const [tagError, setTagError] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState('');
@@ -126,6 +133,9 @@ export function CardEditor({
   const [pendingLeaveUrl, setPendingLeaveUrl] = useState<string | undefined>(undefined);
   const [isBrowserBack, setIsBrowserBack] = useState(false);
   const allowLeaveRef = useRef(false);
+  // The popstate listener is registered once (at mount) but must always see the
+  // *current* dirty flag — a ref instead of re-subscribing on every keystroke.
+  const isDirtyRef = useRef(false);
 
   const isDirty = useMemo(() => {
     if (inline) return false;
@@ -140,8 +150,10 @@ export function CardEditor({
 
   useEffect(() => {
     if (inline) return;
+    // Reads the refs (not closure state) so a confirmed discard/publish can
+    // release the guard synchronously, before any cross-document traversal.
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirty && !allowLeaveRef.current) {
+      if (isDirtyRef.current && !allowLeaveRef.current) {
         e.preventDefault();
         e.returnValue = '';
         return '';
@@ -151,7 +163,7 @@ export function CardEditor({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isDirty, inline]);
+  }, [inline]);
 
   useEffect(() => {
     if (inline) return;
@@ -179,34 +191,61 @@ export function CardEditor({
   }, [isDirty, inline]);
 
   useEffect(() => {
-    if (inline || !isDirty) return;
-    window.history.pushState({ guard: true }, '', window.location.href);
-    const handlePopState = () => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  // Back-navigation guard. A sentinel history entry is pushed at *mount* (not
+  // on first edit — mobile browsers are unreliable about pushState issued while
+  // the virtual keyboard is up, and the entry must exist before any gesture).
+  // The entry under the sentinel is tagged `__writeGuardBase`, so the popstate
+  // handler knows precisely "the user backed out of the editor" as opposed to
+  // any other traversal: dirty → re-push the sentinel and ask; clean → fall
+  // straight through with one more back() so the sentinel is unobservable.
+  // Next's own state is spread into both entries — the router reads its tree
+  // from history.state, and replacing it wholesale would break its traversals.
+  useEffect(() => {
+    if (inline) return;
+    const base = (window.history.state ?? {}) as Record<string, unknown>;
+    window.history.replaceState({ ...base, __writeGuardBase: true }, '');
+    window.history.pushState({ ...base, __writeGuard: true }, '', window.location.href);
+    const handlePopState = (e: PopStateEvent) => {
       if (allowLeaveRef.current) return;
-      if (isDirty) {
-        window.history.pushState({ guard: true }, '', window.location.href);
+      const state = (e.state ?? null) as { __writeGuardBase?: boolean } | null;
+      if (!state?.__writeGuardBase) return;
+      if (isDirtyRef.current) {
+        const { __writeGuardBase: _omit, ...rest } = state;
+        window.history.pushState({ ...rest, __writeGuard: true }, '', window.location.href);
         setIsBrowserBack(true);
         setPendingLeaveUrl(undefined);
         setShowLeaveConfirm(true);
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      if (window.history.state && window.history.state.guard) {
-        allowLeaveRef.current = true;
+      } else {
         window.history.back();
       }
     };
-  }, [isDirty, inline]);
+    window.addEventListener('popstate', handlePopState);
+    // No history unwinding in the cleanup: a remount (guide seed, dev double
+    // invoke) may leave an extra tagged entry behind, and the clean-case
+    // fall-through above walks past any number of them, so phantom entries are
+    // unobservable — while an async back() here would race the next mount's
+    // pushState and could chain right off the page.
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [inline]);
 
   const onConfirmLeave = () => {
-    allowLeaveRef.current = true;
     setShowLeaveConfirm(false);
     if (isBrowserBack) {
-      window.history.go(-2);
+      // Discard confirmed: mark the draft clean and resume the interrupted
+      // back. The popstate handler now falls through every guard-tagged entry
+      // (however many a remount left behind), landing on the real previous one.
+      isDirtyRef.current = false;
+      window.history.back();
     } else if (pendingLeaveUrl) {
-      router.push(pendingLeaveUrl);
+      allowLeaveRef.current = true;
+      isDirtyRef.current = false;
+      // The intercepted anchor's href is already locale-prefixed — the i18n
+      // router would prefix it again (/zh-TW/zh-TW/… → 404), so navigate with
+      // the bare Next router.
+      nextRouter.push(pendingLeaveUrl);
     }
   };
 
@@ -371,26 +410,44 @@ export function CardEditor({
     if (mediaBusy || story.trim().length === 0) return;
     setUploadError(null);
     setGenerating(true);
+    setPartialPreview(null);
     try {
       // The story body lives only in editor state here (the draft may be
       // unsaved), so send it to the server, which distills it into an imagery
-      // prompt, renders the doodle, stores it in R2, and returns the URL.
+      // prompt, renders the doodle, stores it in R2, and returns the URL. The
+      // response is an NDJSON stream: in-progress previews arrive as `partial`
+      // events while the model paints, then `done` carries the stored URL.
       const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ story }),
       });
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         setUploadError(t('mediaGenerateError'));
         return;
       }
-      const { publicUrl } = (await res.json()) as { publicUrl: string };
-      setMedia({ type: 'image', url: publicUrl, label: t('mediaGeneratedLabel') });
-      setAccentHue(await extractAccentHue(publicUrl));
+      let finalUrl: string | null = null;
+      for await (const event of ndjsonValues<GenerateImageEvent>(res.body)) {
+        if (event.type === 'partial') {
+          setPartialPreview(`data:image/png;base64,${event.b64}`);
+        } else if (event.type === 'done') {
+          finalUrl = event.publicUrl;
+        } else if (event.type === 'error') {
+          setUploadError(t('mediaGenerateError'));
+          return;
+        }
+      }
+      if (!finalUrl) {
+        setUploadError(t('mediaGenerateError'));
+        return;
+      }
+      setMedia({ type: 'image', url: finalUrl, label: t('mediaGeneratedLabel') });
+      setAccentHue(await extractAccentHue(finalUrl));
     } catch {
       setUploadError(t('mediaGenerateError'));
     } finally {
       setGenerating(false);
+      setPartialPreview(null);
     }
   }
 
@@ -496,16 +553,30 @@ export function CardEditor({
               state="focus"
               className={styles.fileInputWrap}
             >
-              <span className={styles.uploadInner}>
-                <SketchLoader
-                  size={64}
-                  seed={31}
-                  ariaLabel={generating ? t('mediaGenerating') : t('mediaUploading')}
-                />
-                <span className={styles.uploadText}>
-                  {generating ? t('mediaGenerating') : t('mediaUploading')}
+              {partialPreview ? (
+                // The model's in-progress pass, still being painted: shown
+                // under a soft wash with the sketch loader riding on top.
+                <span className={styles.generatingShot}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- transient base64 data URL; next/image can't optimize it */}
+                  <img src={partialPreview} alt="" aria-hidden className={styles.generatingImg} />
+                  <span className={styles.generatingVeil} aria-hidden />
+                  <span className={styles.generatingOverlay}>
+                    <SketchLoader size={64} seed={31} ariaLabel={t('mediaGenerating')} />
+                    <span className={styles.uploadText}>{t('mediaGenerating')}</span>
+                  </span>
                 </span>
-              </span>
+              ) : (
+                <span className={styles.uploadInner}>
+                  <SketchLoader
+                    size={64}
+                    seed={31}
+                    ariaLabel={generating ? t('mediaGenerating') : t('mediaUploading')}
+                  />
+                  <span className={styles.uploadText}>
+                    {generating ? t('mediaGenerating') : t('mediaUploading')}
+                  </span>
+                </span>
+              )}
             </HandDrawnDashedSurface>
           ) : (
             // Split surface: drag/click upload on the left, AI generation on the
@@ -705,31 +776,16 @@ export function CardEditor({
           <AiRow icon="plus" title={tAi('tags')} hint={tAi('tagsHint')} onClick={suggestTags} />
         </Panel>
       */}
-      {showLeaveConfirm && (
-        <Modal
-          open={showLeaveConfirm}
-          onClose={onCancelLeave}
-          maxWidth={400}
-          ariaLabel={t('discard.title')}
-        >
-          <div style={{ textAlign: 'center', padding: '10px 0' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, marginBottom: 12 }}>
-              {t('discard.title')}
-            </h3>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 14, marginBottom: 24 }}>
-              {t('discard.message')}
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
-              <OrganicButton variant="outline" size="sm" onClick={onCancelLeave}>
-                {t('discard.cancel')}
-              </OrganicButton>
-              <OrganicButton variant="primary" size="sm" onClick={onConfirmLeave}>
-                {t('discard.confirm')}
-              </OrganicButton>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <ConfirmModal
+        open={showLeaveConfirm}
+        title={t('discard.title')}
+        body={t('discard.message')}
+        cancelLabel={t('discard.cancel')}
+        confirmLabel={t('discard.confirm')}
+        onCancel={onCancelLeave}
+        onConfirm={onConfirmLeave}
+        seed={41}
+      />
     </div>
   );
 }

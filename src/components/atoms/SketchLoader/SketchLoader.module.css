@@ -4,25 +4,40 @@
   justify-content: center;
 }
 
+/* The comet mask: an alpha ramp around the circle — fully opaque ink right
+   at the leading edge (just below 360deg), decaying continuously to nothing
+   behind it. The mask is painted on the element itself, so it rotates with
+   the spin: the pen tip travels forever and the trail always trails.
+   The eased stops (slow start, steep finish) keep the tail long and airy
+   while the tip stays crisp and dark. */
 .svg {
   display: block;
   overflow: visible;
-  /* slow lazy spin so the repeated passes drift, like a hand moving */
-  animation: sketchSpin 5200ms linear infinite;
-}
-
-.ring {
-  stroke-dasharray: 1 1;
-  animation: sketchDraw 1400ms ease-in-out infinite;
-}
-
-/* Draw the ring on, hold a beat, then sweep it off from the far end — a
-   continuous "re-sketching" loop. */
-@keyframes sketchDraw {
-  0%   { stroke-dashoffset: 1; }
-  45%  { stroke-dashoffset: 0; }
-  55%  { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: -1; }
+  -webkit-mask-image: conic-gradient(
+    from 0deg,
+    rgb(0 0 0 / 0) 0deg,
+    rgb(0 0 0 / 0.07) 80deg,
+    rgb(0 0 0 / 0.2) 170deg,
+    rgb(0 0 0 / 0.45) 260deg,
+    rgb(0 0 0 / 0.8) 330deg,
+    rgb(0 0 0 / 1) 356deg
+  );
+  mask-image: conic-gradient(
+    from 0deg,
+    rgb(0 0 0 / 0) 0deg,
+    rgb(0 0 0 / 0.07) 80deg,
+    rgb(0 0 0 / 0.2) 170deg,
+    rgb(0 0 0 / 0.45) 260deg,
+    rgb(0 0 0 / 0.8) 330deg,
+    rgb(0 0 0 / 1) 356deg
+  );
+  /* Spin is one continuous linear rotation — no restart seam. The dry-out
+     cycle is exactly two spins long: quick re-ink (0–10%), then a slow fade
+     that reaches 0 as the second lap completes, so the loop point is
+     invisible. */
+  animation:
+    sketchSpin 1500ms linear infinite,
+    inkDry 3000ms ease-in-out infinite;
 }
 
 @keyframes sketchSpin {
@@ -30,12 +45,18 @@
   to   { transform: rotate(360deg); }
 }
 
+@keyframes inkDry {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  45%  { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .svg { animation: none; }
-  .ring {
+  .svg {
     animation: none;
-    stroke-dasharray: none;
-    stroke-dashoffset: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
     opacity: 0.7;
   }
 }

@@ -121,6 +121,37 @@
   width: 100%;
   border-radius: var(--field-radius);
 }
+/* Streamed in-progress AI illustration: the rough pass fills the busy box
+   under a cream wash, with the sketch loader + label riding on top. */
+.generatingShot {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--field-radius);
+}
+.generatingImg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+.generatingVeil {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklch, var(--color-cream) 55%, transparent);
+}
+.generatingOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.generatingOverlay .uploadText {
+  color: var(--color-text);
+}
 /* Two equal halves — upload (left) and AI generate (right) — split by a
    vertical pen rule. */
 .mediaSplit {

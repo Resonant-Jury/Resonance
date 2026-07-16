@@ -19,10 +19,14 @@ import { INK_LIGHT } from '@/lib/design/strokes';
 const HEADER_BODY_H = 68;
 const HEADER_WAVE_H = 14;
 const HEADER_TOTAL_H = HEADER_BODY_H + HEADER_WAVE_H;
+// Y of the wavy bottom stroke — the visible bottom edge of the header chrome.
+// Centering content within 0…HEADER_STROKE_Y puts it on the visible bar's
+// midpoint (rather than the top HEADER_BODY_H, which reads a couple px high).
+const HEADER_STROKE_Y = HEADER_BODY_H + HEADER_WAVE_H * 0.35;
 
 function buildHeaderPaths(seed: number) {
   const W = 1440;
-  const baseY = HEADER_BODY_H + HEADER_WAVE_H * 0.35;
+  const baseY = HEADER_STROKE_Y;
   const amp = 1.4;
   const steps = 12;
   const pts = wavyPoints(W, baseY, amp, seed, steps);

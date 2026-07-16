@@ -199,11 +199,10 @@ export default function CardDetailPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 40 }}>
+              {/* Tags are app furniture, not card content — they stay in the
+                  theme color even when the card carries its own accent hue. */}
               {card.tags.map((tag) => (
-                <TagPill
-                  key={tag}
-                  color={card.accentHue != null ? `oklch(92% 0.06 ${card.accentHue})` : 'var(--color-terracotta-light)'}
-                >
+                <TagPill key={tag} color="var(--color-terracotta-light)">
                   {tag}
                 </TagPill>
               ))}

@@ -13,13 +13,14 @@ const LOCALE_LABELS: Record<string, string> = { en: 'English', 'zh-TW': '繁體�
 
 /**
  * The header's language picker: the same organic dropdown as the settings
- * page, compacted for header chrome. Closed it shows a globe + the current
- * language; the open panel lists each locale behind its square flag, cropped
- * by the same hand-drawn mask as avatars.
+ * page, compacted for header chrome. The closed trigger is frameless (`bare`)
+ * on every viewport — a header already carries enough hand-drawn lines, so no
+ * wobbly box and no chevron, just the globe (+ the current language name on
+ * desktop). The open panel still draws its own border and lists each locale
+ * behind its square flag, cropped by the same hand-drawn mask as avatars.
  *
  * `compact` (used on mobile) collapses the closed trigger to just the globe
- * icon — the open panel still lists the full language names, kept readable via
- * `menuMinWidth`.
+ * icon — the open panel stays readable via `menuMinWidth`.
  */
 export function LanguageSelect({ compact = false }: { compact?: boolean }) {
   const locale = useLocale();
@@ -32,8 +33,8 @@ export function LanguageSelect({ compact = false }: { compact?: boolean }) {
       value={locale}
       ariaLabel="Language"
       className={compact ? `${styles.langSelect} ${styles.langSelectCompact}` : styles.langSelect}
-      bare={compact}
-      menuMinWidth={compact ? 172 : undefined}
+      bare
+      menuMinWidth={172}
       onChange={(v) => router.replace(pathname, { locale: v as Locale })}
       renderValue={() =>
         compact ? (

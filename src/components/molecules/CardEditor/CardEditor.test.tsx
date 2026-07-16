@@ -7,6 +7,12 @@ const push = vi.fn();
 vi.mock('@/i18n/navigation', () => ({
   useRouter: () => ({ push }),
 }));
+// The confirmed link-leave path navigates with the bare Next router (the
+// intercepted href is already locale-prefixed) — same spy, one assertion story.
+const nextPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: nextPush }),
+}));
 vi.mock('@/lib/db/firestore/client/cards', () => ({
   createCardDraft: vi.fn(),
   updateCardDraft: vi.fn(),
@@ -204,11 +210,12 @@ describe('CardEditor', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
       expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
 
-      // Click discard should close modal and navigate (which pushes to router)
+      // Click discard should close modal and navigate. The intercepted href is
+      // already locale-prefixed, so it goes through the bare Next router.
       fireEvent.click(anchor);
       expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument();
       await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
-      expect(push).toHaveBeenCalledWith('/home');
+      expect(nextPush).toHaveBeenCalledWith('/home');
 
       document.body.removeChild(anchor);
     });

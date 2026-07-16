@@ -115,6 +115,87 @@ function normalizeVector(v: number[]): number[] {
   return v.map((x) => x / norm);
 }
 
+export interface ImageStreamOptions {
+  size?: string;
+  quality?: 'low' | 'medium' | 'high' | 'auto';
+  /** How many in-progress previews to emit (0–3). */
+  partialImages?: number;
+}
+
+/**
+ * Generate one image with streaming: the API emits 1–3 in-progress previews
+ * (`image_generation.partial_image` SSE events) before the final image. Each
+ * partial's base64 payload is handed to `onPartial` as-is (the browser can use
+ * it directly in a data URL — no decode/re-encode round trip); the resolved
+ * value is the final image's raw bytes, same contract as {@link generateImage}.
+ */
+export async function generateImageStream(
+  prompt: string,
+  opts: ImageStreamOptions = {},
+  onPartial?: (b64: string, index: number) => void,
+): Promise<Uint8Array> {
+  const res = await fetch(`${API_BASE}/images/generations`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: imageModel(),
+      prompt,
+      size: opts.size ?? '1536x1024',
+      quality: opts.quality ?? 'low',
+      stream: true,
+      partial_images: opts.partialImages ?? 2,
+    }),
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`OpenAI image failed: ${res.status} ${await res.text()}`);
+  }
+
+  // Minimal SSE parse: events are separated by a blank line; the JSON payload
+  // lives on `data:` lines and carries its own `type` discriminator.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalB64: string | undefined;
+
+  const handleEvent = (raw: string) => {
+    const data = raw
+      .split('\n')
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trim())
+      .join('');
+    if (!data || data === '[DONE]') return;
+    const event = JSON.parse(data) as {
+      type?: string;
+      b64_json?: string;
+      partial_image_index?: number;
+    };
+    if (event.type === 'image_generation.partial_image' && event.b64_json) {
+      onPartial?.(event.b64_json, event.partial_image_index ?? 0);
+    } else if (event.type === 'image_generation.completed' && event.b64_json) {
+      finalB64 = event.b64_json;
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buffer.indexOf('\n\n')) !== -1) {
+      const raw = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      handleEvent(raw);
+    }
+  }
+  if (buffer.trim()) handleEvent(buffer);
+
+  if (!finalB64) throw new Error('OpenAI image stream ended without a final image');
+  return new Uint8Array(Buffer.from(finalB64, 'base64'));
+}
+
 /**
  * Generate one image from a prompt. Returns the raw PNG bytes (decoded from the
  * API's base64 payload) so the caller can stream it straight to storage.

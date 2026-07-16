@@ -13,11 +13,14 @@ export interface SketchLoaderProps {
 }
 
 /**
- * An organic "being sketched" loader: a couple of wobbly hand-drawn rings that
- * continuously draw themselves on and sweep off, as if someone is doodling the
- * same circle over and over. The stroke is animated via `stroke-dashoffset`
- * with `pathLength={1}`, so the draw timing is independent of the real path
- * length. Used while an image upload is in flight.
+ * An organic "being inked" loader: a wobbly hand-drawn ring swept by a comet
+ * of ink. The pen tip (the leading edge) is darkest and the trail fades
+ * continuously behind it — the gradient comes from a conic-gradient alpha
+ * mask that rotates together with the artwork, so the tip travels forever
+ * instead of re-drawing a fresh pass each lap. Layered on top, the whole
+ * mark slowly dries: over roughly two revolutions it fades to nothing, then
+ * a quick re-ink starts the next cycle (the restart lands while opacity is
+ * 0, so it never pops).
  */
 export function SketchLoader({
   size = 64,
@@ -31,8 +34,8 @@ export function SketchLoader({
   // overlap reads as quick repeated pencil passes rather than one clean circle.
   const rings = useMemo(
     () => [
-      { d: wobCircle(c, c, size * 0.34, seed, { segments: 9, mag: size * 0.03, cpJitter: 0.7 }), delay: '0ms' },
-      { d: wobCircle(c, c, size * 0.27, seed + 4, { segments: 8, mag: size * 0.035, cpJitter: 0.8 }), delay: '-700ms' },
+      { d: wobCircle(c, c, size * 0.34, seed, { segments: 9, mag: size * 0.03, cpJitter: 0.7 }), width: size * 0.04 },
+      { d: wobCircle(c, c, size * 0.27, seed + 4, { segments: 8, mag: size * 0.035, cpJitter: 0.8 }), width: size * 0.032 },
     ],
     [c, size, seed],
   );
@@ -56,14 +59,11 @@ export function SketchLoader({
           <path
             key={i}
             d={ring.d}
-            pathLength={1}
             fill="none"
             stroke={color}
-            strokeWidth={size * 0.035}
+            strokeWidth={ring.width}
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={styles.ring}
-            style={{ animationDelay: ring.delay }}
           />
         ))}
       </svg>
