@@ -234,7 +234,7 @@
   "write": {
     "title": "寫一張新卡片",
     "editTitle": "編輯草稿",
-    "closePreview": "關閉卡片預覽",
+    "backToCard": "回到文章頁面",
     "closeEditor": "關閉編輯區",
     "resizeDivider": "拖曳調整左右比例",
     "referenceCard": "原文章",

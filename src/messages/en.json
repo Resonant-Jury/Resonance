@@ -234,7 +234,7 @@
   "write": {
     "title": "New card",
     "editTitle": "Edit draft",
-    "closePreview": "Close card preview",
+    "backToCard": "Back to the story",
     "closeEditor": "Close editor",
     "resizeDivider": "Drag to resize panes",
     "referenceCard": "Original Article",

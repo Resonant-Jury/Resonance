@@ -152,7 +152,9 @@
   position: sticky;
   top: calc(var(--app-header-h) - 9px);
   z-index: 2;
-  padding: 8px 10px 12px;
+  /* Extra top padding keeps a breath of whitespace above the buttons while
+     stuck (the sticky top overshoots 9px to tuck under the header wave). */
+  padding: 20px 10px 12px;
 }
 
 /* Toolbar background masked to a full-bleed wavy bottom edge — same

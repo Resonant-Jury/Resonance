@@ -5,11 +5,10 @@ import { useTranslations } from 'next-intl';
 import { CardEditor, type CardEditorProps } from '@/components/molecules/CardEditor/CardEditor';
 import { FirstCardGuide } from '@/components/molecules/FirstCardGuide/FirstCardGuide';
 import { PageTitle } from '@/components/molecules/PageShell/PageShell';
-import { Icon } from '@/components/atoms/Icon';
+import { OpenedCardPane } from './OpenedCardPane';
 import { OriginalCardPanel } from './OriginalCardPanel';
 import { WorkspaceShell } from './WorkspaceShell';
 import { useHasWrittenCards } from '@/lib/data/hooks';
-import { useRouter } from '@/i18n/navigation';
 import type { Card } from '@/lib/db/types';
 import styles from './WriteWorkspace.module.css';
 
@@ -18,80 +17,81 @@ export interface WriteWorkspaceProps {
   locale: CardEditorProps['locale'];
   initial?: CardEditorProps['initial'];
   referenceCardId?: string;
+  /** Slug-or-id of the card page this editor was entered from (the original
+   * card of a resonance, or the edited card's own page once published) —
+   * Back then returns there instead of the profile page. */
+  backCardKey?: string;
 }
 
 /**
  * Write mode inside the unified workspace: thought map on the left, this
  * draft's editor in the right pane (closable — the map then runs full bleed).
- * Writing a resonance swaps the map for the original card.
+ * Writing a resonance swaps the map for the original card.「開啟卡片」on the
+ * map opens that card in the same right pane (never anywhere else).
  *
  * For a brand-new writer (no cards at all) a small guide with 2–3 questions
  * sits above the editor (ux §5); picking one seeds it into the story as a
  * quote (remounting the editor via a nonce key, same hand-off pattern as the
  * read-after area) and the guide steps aside.
  */
-export function WriteWorkspace({ title, locale, initial, referenceCardId }: WriteWorkspaceProps) {
+export function WriteWorkspace({
+  title,
+  locale,
+  initial,
+  referenceCardId,
+  backCardKey,
+}: WriteWorkspaceProps) {
   const t = useTranslations('write');
-  const router = useRouter();
 
   const { data: hasWritten } = useHasWrittenCards();
   const [seed, setSeed] = useState<{ story: string; nonce: number } | null>(null);
   const [editorOpen, setEditorOpen] = useState(true);
-  // A published card opened from the map shows over the map (which stays
-  // mounted so its camera survives) — the draft keeps its pane.
-  const [previewCardId, setPreviewCardId] = useState<string | null>(null);
+  // A card opened from the map takes over the pane (in-memory Card → no
+  // loading); the same card as this route's draft keeps the live editor.
+  const [openedCard, setOpenedCard] = useState<Card | null>(null);
+  const showOpened = openedCard != null && openedCard.id !== initial?.id;
   // Only the very first card, started fresh (not edits, not resonances).
   const showGuide = hasWritten === false && !seed && !initial && !referenceCardId;
 
   return (
     <WorkspaceShell
       open={editorOpen}
-      onClose={() => setEditorOpen(false)}
+      onClose={() => {
+        setEditorOpen(false);
+        setOpenedCard(null);
+      }}
       leftOverride={referenceCardId ? <OriginalCardPanel cardId={referenceCardId} /> : undefined}
       onOpenCard={(card: Card) => {
-        // Published cards read fine over the map; a draft's「開啟」means
-        // "edit it", which needs its own editor route.
-        if (card.publishedAt) setPreviewCardId(card.id);
-        else router.push(`/write/${card.id}`);
+        setOpenedCard(card);
+        setEditorOpen(true);
       }}
-      mapOverlay={
-        previewCardId && (
-          <div className={styles.cardOverlay}>
-            <OriginalCardPanel cardId={previewCardId} />
-            <button
-              type="button"
-              className={styles.overlayClose}
-              aria-label={t('closePreview')}
-              title={t('closePreview')}
-              onClick={() => setPreviewCardId(null)}
-            >
-              <Icon name="close" size={17} />
-            </button>
-          </div>
-        )
-      }
+      back={backCardKey ? { href: `/card/${backCardKey}`, label: t('backToCard') } : undefined}
     >
-      <div className={styles.editorCol}>
-        <PageTitle>{title}</PageTitle>
-        {showGuide && (
-          <div style={{ marginBottom: 28 }}>
-            <FirstCardGuide
-              onPick={(question) =>
-                setSeed((prev) => ({
-                  story: `> ${question}\n\n`,
-                  nonce: (prev?.nonce ?? 0) + 1,
-                }))
-              }
-            />
-          </div>
-        )}
-        <CardEditor
-          key={seed?.nonce ?? 0}
-          initial={seed ? { story: seed.story } : initial}
-          locale={locale}
-          referenceCardId={referenceCardId}
-        />
-      </div>
+      {showOpened ? (
+        <OpenedCardPane card={openedCard} />
+      ) : (
+        <div className={styles.editorCol}>
+          <PageTitle>{title}</PageTitle>
+          {showGuide && (
+            <div style={{ marginBottom: 28 }}>
+              <FirstCardGuide
+                onPick={(question) =>
+                  setSeed((prev) => ({
+                    story: `> ${question}\n\n`,
+                    nonce: (prev?.nonce ?? 0) + 1,
+                  }))
+                }
+              />
+            </div>
+          )}
+          <CardEditor
+            key={seed?.nonce ?? 0}
+            initial={seed ? { story: seed.story } : initial}
+            locale={locale}
+            referenceCardId={referenceCardId}
+          />
+        </div>
+      )}
     </WorkspaceShell>
   );
 }

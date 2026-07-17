@@ -15,7 +15,14 @@ function WritePageInner() {
   const locale = useLocale() as Locale;
   const search = useSearchParams();
   const referenceCardId = search.get('referenceCardId') ?? undefined;
-  return <WriteWorkspace title={t('title')} locale={locale} referenceCardId={referenceCardId} />;
+  return (
+    <WriteWorkspace
+      title={t('title')}
+      locale={locale}
+      referenceCardId={referenceCardId}
+      backCardKey={referenceCardId}
+    />
+  );
 }
 
 export default function WritePage() {

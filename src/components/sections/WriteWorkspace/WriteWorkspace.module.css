@@ -17,6 +17,13 @@
   min-width: 0;
 }
 
+/* When a document (the resonance original) replaces the map, restore some
+   header clearance for its subtree so the floating Back button doesn't sit
+   on the panel's author line. */
+.mapPaneDoc {
+  --app-header-h: 44px;
+}
+
 /* Single Back control over the map — the workspace's only chrome. */
 .back {
   position: absolute;
@@ -30,46 +37,58 @@
   transform: scaleX(-1);
 }
 
-/* The wavy divider doubles as the resize handle: drag to re-balance the
-   panes. The editor may grow to 1:1 at most — the map keeps ≥ half. */
+/* The boundary is the editor pane's own straight edge (so line and background
+   edge always coincide); this zero-width rail rides exactly on it as the drag
+   hit strip. Drag re-balances the panes — editor 1:1 at most, map keeps ≥ half. */
 .rail {
   position: relative;
   flex: none;
-  width: 14px;
+  width: 0;
   cursor: col-resize;
   touch-action: none;
-  z-index: 2;
+  z-index: 4;
   user-select: none;
   -webkit-user-select: none;
 }
 
-.railSvg {
+/* Invisible grab strip straddling the boundary line. */
+.rail::before {
+  content: '';
   position: absolute;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  overflow: visible;
-  pointer-events: none;
+  bottom: 0;
+  left: -7px;
+  width: 14px;
 }
 
-/* Grab affordance riding mid-stroke; darkens under the hand. */
+/* Grab affordance floating on the line: a small hand-inked chip whose fill
+   interrupts the stroke behind it; darkens under the hand. */
 .railGrip {
   position: absolute;
   top: 50%;
-  left: 50%;
+  left: 0;
   transform: translate(-50%, -50%);
-  width: 6px;
-  height: 46px;
-  border-radius: 4px 5px 4px 6px;
-  background: var(--field-border);
-  opacity: 0.75;
-  transition: background 120ms ease, opacity 120ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 34px;
+  border: 1px solid var(--field-border);
+  border-radius: 11px 13px 12px 14px;
+  background: var(--color-cream);
+  color: var(--color-text-muted);
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.railGripIcon {
+  display: inline-flex;
+  transform: rotate(90deg);
 }
 
 .rail:hover .railGrip,
 .rail:active .railGrip {
-  background: var(--field-border-hover);
-  opacity: 1;
+  border-color: var(--field-border-hover);
+  color: var(--color-text);
 }
 
 .editorPane {
@@ -77,6 +96,7 @@
   flex: none;
   width: calc(var(--editor-frac, 0.5) * 100%);
   min-width: 0;
+  border-left: 1px solid var(--field-border);
 }
 
 .paneScroll {
@@ -93,11 +113,13 @@
 }
 
 /* Close (✕) pinned to the pane's top-right, above its scrolling content —
-   the same borderless dark-wash language as the map's tool buttons. */
+   the same borderless dark-wash language as the map's tool buttons. Offsets
+   mirror the map's Back button (top 16px + centered on its 38px height) so
+   the two corners read as one line. */
 .paneClose {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 18px;
+  right: clamp(16px, 3vw, 32px);
   z-index: 8;
   display: flex;
   align-items: center;
@@ -117,22 +139,6 @@
   color: var(--color-text);
 }
 
-/* Published-card preview: covers the map (which stays mounted, camera
-   intact) while the draft keeps its pane. */
-.cardOverlay {
-  position: absolute;
-  inset: 0;
-  /* Above every board surface (toolbar 5, tray/inspector 6). */
-  z-index: 7;
-}
-
-.overlayClose {
-  composes: paneClose;
-  top: 16px;
-  right: 16px;
-  z-index: 3;
-}
-
 /* Below the desktop split the open pane simply owns the viewport; the map
    waits (mounted) underneath and returns on ✕. */
 @media (max-width: 1199px) {
@@ -146,5 +152,6 @@
     width: auto;
     z-index: 12;
     background: var(--color-cream);
+    border-left: none;
   }
 }

@@ -20,6 +20,14 @@ export interface HandDrawnDashedBorderProps {
   fillColor?: string;
   segmentsH?: SegValue;
   segmentsV?: SegValue;
+  /**
+   * Floor on the *auto-derived* turn count (ignored when `segmentsH`/`segmentsV`
+   * pin an explicit value). Keeps width-scaling while guaranteeing a minimum
+   * density on surfaces users stare at (e.g. the closed Select box), so a short
+   * one never collapses to a lazy 2-turn bow yet a wide one still gains turns.
+   */
+  minSegmentsH?: number;
+  minSegmentsV?: number;
   curve?: number;
   className?: string;
 }
@@ -37,13 +45,17 @@ export function HandDrawnDashedBorder({
   fillColor,
   segmentsH,
   segmentsV,
+  minSegmentsH,
+  minSegmentsV,
   curve,
   className,
 }: HandDrawnDashedBorderProps) {
   const m = mag != null ? mag : autoMag(w, h);
   const c = curve != null ? curve : autoCurve(w, h);
-  const segH: SegValue = segmentsH != null ? segmentsH : autoSegments(w);
-  const segV: SegValue = segmentsV != null ? segmentsV : autoSegments(h);
+  const segH: SegValue =
+    segmentsH != null ? segmentsH : Math.max(autoSegments(w), minSegmentsH ?? 0);
+  const segV: SegValue =
+    segmentsV != null ? segmentsV : Math.max(autoSegments(h), minSegmentsV ?? 0);
   const path = useMemo(
     () => wobRect(w, h, R, seed, m, { segmentsH: segH, segmentsV: segV, curve: c }),
     [w, h, R, seed, m, segH, segV, c],
@@ -86,6 +98,9 @@ export interface HandDrawnDashedSurfaceProps {
   curve?: number;
   segmentsH?: SegValue;
   segmentsV?: SegValue;
+  /** Floor on the auto-derived turn count. See {@link HandDrawnDashedBorderProps}. */
+  minSegmentsH?: number;
+  minSegmentsV?: number;
   fillColor?: string;
   className?: string;
   style?: CSSProperties;
@@ -112,6 +127,8 @@ export function HandDrawnDashedSurface({
   curve,
   segmentsH,
   segmentsV,
+  minSegmentsH,
+  minSegmentsV,
   fillColor,
   className,
   style,
@@ -148,6 +165,8 @@ export function HandDrawnDashedSurface({
         curve={curve}
         segmentsH={segmentsH}
         segmentsV={segmentsV}
+        minSegmentsH={minSegmentsH}
+        minSegmentsV={minSegmentsV}
         fillColor={fillColor}
       />
       <span className={styles.content}>{children}</span>
