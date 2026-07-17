@@ -51,6 +51,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [loading, authUser, profileLoading, profile, pathname, router]);
 
+  // Full-bleed workspaces (the thought map and the draft editor beside it)
+  // own the whole viewport: no header, no floating write button — each shows
+  // its own top-left Back control instead.
+  const bareChrome =
+    pathname === '/me/thought-map' || pathname === '/write' || pathname.startsWith('/write/');
+
   const headerUser = profile
     ? {
         initials: profile.initials,
@@ -63,9 +69,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AppChromeProvider>
-      <AppHeader user={headerUser} signedIn={!!authUser} authReady={!loading} />
+      {!bareChrome && <AppHeader user={headerUser} signedIn={!!authUser} authReady={!loading} />}
       <main style={{ minHeight: '100vh' }}>{children}</main>
-      {authUser && <FloatingWriteButton />}
+      {authUser && !bareChrome && <FloatingWriteButton />}
     </AppChromeProvider>
   );
 }

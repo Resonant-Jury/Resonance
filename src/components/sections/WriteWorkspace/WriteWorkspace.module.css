@@ -1,23 +1,46 @@
-.workspace {
-  /* Width of the fixed map pane on desktop; the editor reserves the same
-     amount of right margin so the two never overlap. */
-  --map-pane-w: clamp(480px, 50vw, 900px);
+/* The unified workspace owns the whole viewport: map pane left, editor pane
+   right, a draggable wavy rail between. No app header lives above it — zeroing
+   the header token lets every embedded surface (map toolbar, sticky editor
+   toolbar, card panel padding) sit correctly without special cases. */
+.shell {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  --app-header-h: 0px;
+  background: var(--color-cream);
 }
 
-.editorArea {
-  padding: calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x)
-    var(--page-pad-bottom);
-}
-
-.editorCol {
+.mapPane {
+  position: relative;
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: var(--page-max-w-narrow);
-  margin: 0 auto;
-  width: 100%;
 }
 
+/* Single Back control over the map — the workspace's only chrome. */
+.back {
+  position: absolute;
+  z-index: 7;
+  top: 16px;
+  left: clamp(16px, 3vw, 32px);
+}
+
+.backIcon {
+  display: inline-flex;
+  transform: scaleX(-1);
+}
+
+/* The wavy divider doubles as the resize handle: drag to re-balance the
+   panes. The editor may grow to 1:1 at most — the map keeps ≥ half. */
 .rail {
-  display: none;
+  position: relative;
+  flex: none;
+  width: 14px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 2;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .railSvg {
@@ -26,35 +49,56 @@
   left: 50%;
   transform: translateX(-50%);
   overflow: visible;
+  pointer-events: none;
 }
 
-.mapCol {
-  display: none;
+/* Grab affordance riding mid-stroke; darkens under the hand. */
+.railGrip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 46px;
+  border-radius: 4px 5px 4px 6px;
+  background: var(--field-border);
+  opacity: 0.75;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+
+.rail:hover .railGrip,
+.rail:active .railGrip {
+  background: var(--field-border-hover);
+  opacity: 1;
+}
+
+.editorPane {
+  position: relative;
+  flex: none;
+  width: calc(var(--editor-frac, 0.5) * 100%);
   min-width: 0;
 }
 
-/* Map + card-preview stack: the map stays mounted (camera intact) while an
-   opened card covers it. */
-.mapStack {
-  position: relative;
-  height: 100%;
-}
-
-.cardOverlay {
+.paneScroll {
   position: absolute;
   inset: 0;
-  /* Above every board surface (toolbar 5, tray/inspector 6) — the opened
-     card must fully cover the map's own controls. */
-  z-index: 7;
+  overflow-y: auto;
 }
 
-/* Back-to-map close — same borderless dark-wash language as the map's own
-   tool buttons. */
-.overlayClose {
+.editorCol {
+  width: 100%;
+  max-width: var(--page-max-w-narrow);
+  margin: 0 auto;
+  padding: clamp(28px, 5vh, 48px) var(--page-pad-x) var(--page-pad-bottom);
+}
+
+/* Close (✕) pinned to the pane's top-right, above its scrolling content —
+   the same borderless dark-wash language as the map's tool buttons. */
+.paneClose {
   position: absolute;
-  top: calc(var(--app-header-h) + 16px);
-  right: 16px;
-  z-index: 3;
+  top: 14px;
+  right: 14px;
+  z-index: 8;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -68,39 +112,39 @@
   transition: background 120ms ease, color 120ms ease;
 }
 
-.overlayClose:hover {
+.paneClose:hover {
   background: oklch(0% 0 0 / 0.09);
   color: var(--color-text);
 }
 
-@media (min-width: 1200px) {
-  .editorArea {
-    /* Leave room for the fixed map pane on the right, plus a gutter so the
-       editor never butts up against the divider. */
-    padding-right: calc(var(--map-pane-w) + clamp(24px, 3vw, 56px));
-  }
+/* Published-card preview: covers the map (which stays mounted, camera
+   intact) while the draft keeps its pane. */
+.cardOverlay {
+  position: absolute;
+  inset: 0;
+  /* Above every board surface (toolbar 5, tray/inspector 6). */
+  z-index: 7;
+}
 
-  .mapCol {
-    display: block;
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: var(--map-pane-w);
-    z-index: 10;
-  }
+.overlayClose {
+  composes: paneClose;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+}
 
-  /* The divider sits on the pane's left edge and runs the full viewport
-     height — edge to edge, top to bottom. */
+/* Below the desktop split the open pane simply owns the viewport; the map
+   waits (mounted) underneath and returns on ✕. */
+@media (max-width: 1199px) {
   .rail {
-    display: block;
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 14px;
-    transform: translateX(-50%);
-    z-index: 1;
-    pointer-events: none;
+    display: none;
+  }
+
+  .editorPane {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    z-index: 12;
+    background: var(--color-cream);
   }
 }

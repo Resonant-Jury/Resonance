@@ -98,6 +98,7 @@ export const ThoughtMapNode = memo(function ThoughtMapNode({
     <div
       className={styles.node}
       data-selected={selected || undefined}
+      data-dragging={dragging || undefined}
       style={{ left: x, top: y, width: NODE_W, height: NODE_H, '--node-hue': hue } as CSSProperties}
       onPointerDown={onPointerDown}
       onDoubleClick={onOpen}
@@ -150,12 +151,13 @@ export const ThoughtMapNode = memo(function ThoughtMapNode({
         />
       )}
       <div className={styles.nodeContent}>
+        {/* The thumbnail floats top-right and the title + excerpt wrap around
+            it — no dead column under the image. The body crops overflow with
+            a soft fade instead of a hard mid-line cut. */}
         <div className={styles.nodeBody}>
-          <div className={styles.nodeText}>
-            <div className={styles.nodeTitle}>{card.thoughtCore}</div>
-            <p className={styles.nodeExcerpt}>{plainExcerpt(card.story, thumb ? 48 : 72)}</p>
-          </div>
           {thumb && <NodeThumb src={thumb} seed={seed} hue={hue} />}
+          <div className={styles.nodeTitle}>{card.thoughtCore}</div>
+          <p className={styles.nodeExcerpt}>{plainExcerpt(card.story, thumb ? 80 : 100)}</p>
         </div>
         <div className={styles.nodeMeta}>
           <Icon name={isDraft ? 'pen' : VISIBILITY_ICON[card.visibility]} size={14} />
@@ -192,10 +194,10 @@ export const ThoughtMapNode = memo(function ThoughtMapNode({
   );
 });
 
-/** 46px organic-clipped thumbnail, top-right of the node body. */
+/** Organic-clipped thumbnail; floats top-right so the text wraps around it. */
 function NodeThumb({ src, seed, hue }: { src: string; seed: number; hue: number }) {
   const uid = useId().replace(/:/g, '');
-  const S = 46;
+  const S = 56;
   const path = useMemo(
     () => wobRect(S, S, 12, seed + 3, 1.8, { segmentsH: 2, segmentsV: 2, curve: 1.3, cornerJitter: 1.4 }),
     [seed],

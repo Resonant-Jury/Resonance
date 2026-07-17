@@ -72,6 +72,13 @@
   cursor: grabbing;
 }
 
+/* The card in hand rides above its resting siblings (but still under the
+   region rims and edge labels — the folder edge stays visible). */
+.node[data-dragging='true'] {
+  z-index: 2;
+  cursor: grabbing;
+}
+
 .nodeContent {
   position: relative;
   z-index: 1;
@@ -82,25 +89,20 @@
   gap: 8px;
 }
 
-/* Title/excerpt on the left, optional thumbnail on the right. */
+/* The thumbnail floats top-right; title and excerpt wrap around it, so the
+   whole body is text real estate. Overflow crops behind a soft fade instead
+   of a hard mid-line cut. */
 .nodeBody {
-  display: flex;
-  gap: 10px;
   flex: 1;
   min-height: 0;
-}
-
-.nodeText {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
 }
 
 .nodeThumb {
-  flex-shrink: 0;
-  margin-top: 2px;
+  float: right;
+  margin: 2px 0 6px 8px;
   overflow: visible;
 }
 
@@ -110,10 +112,6 @@
   font-weight: 600;
   line-height: 1.4;
   color: var(--color-text);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .nodeExcerpt {
@@ -121,12 +119,7 @@
   font-size: 11.5px;
   line-height: 1.6;
   color: var(--color-text-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  flex: 1;
-  margin: 0;
+  margin: 6px 0 0;
 }
 
 .nodeMeta {
@@ -304,13 +297,91 @@
   z-index: 1;
 }
 
+/* Region rims re-drawn (stroke only) above every card layer — see the canvas
+   render order. Sits under the edge labels so pills stay readable. */
+.groupOutline {
+  position: absolute;
+  pointer-events: none;
+  z-index: 3;
+}
+
 .edgeLabelWrap {
   position: absolute;
   transform: translate(-50%, -50%);
-  z-index: 3;
+  z-index: 4;
   /* Absolute children shrink-to-fit against the container edge — pin the pill
      to its content width so the label never wraps vertically. */
   width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* In-place arrow rename: one tap grows the pill into a larger badge holding
+   input + delete together inside the hand-drawn outline. Typography stays in
+   the TagPill family, one step up in size. */
+.edgeLabelEdit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 6px 0 10px;
+}
+
+.edgeLabelInput {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  color: var(--color-text);
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+/* Delete lives inside the badge, on the right — the same borderless
+   dark-wash tool language as the node tab's buttons. */
+.edgeBadgeDelete {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: 8px 10px 9px 11px;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.edgeBadgeDelete:hover {
+  color: oklch(40% 0.09 30);
+  background: oklch(0% 0 0 / 0.07);
+}
+
+/* Invisible twin of the input's text, for measuring the badge's reach. */
+.edgeLabelMirror {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  white-space: pre;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .overlay {
@@ -363,36 +434,6 @@
 .iconButton:hover {
   color: var(--color-text);
   background: var(--color-cream-dark);
-}
-
-.inspector {
-  position: absolute;
-  z-index: 6;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: min(520px, calc(100% - 32px));
-}
-
-.inspectorRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-}
-
-.inspectorTitle {
-  font-family: var(--font-body);
-  font-size: 13.5px;
-  color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 220px;
-}
-
-.inspectorInput {
-  width: 200px;
 }
 
 /* The selected card's action tab — a bump on the card's own outline (the

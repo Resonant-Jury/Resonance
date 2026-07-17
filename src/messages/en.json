@@ -235,6 +235,8 @@
     "title": "New card",
     "editTitle": "Edit draft",
     "closePreview": "Close card preview",
+    "closeEditor": "Close editor",
+    "resizeDivider": "Drag to resize panes",
     "referenceCard": "Original Article",
     "coreLabel": "One-line title",
     "corePlaceholder": "e.g. Being seen matters more than being liked.",

@@ -18,7 +18,6 @@ import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { Divider } from '@/components/atoms/Divider/Divider';
-import { Input } from '@/components/atoms/Field/Field';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { arrowHeadPath, organicEdgePath } from '@/lib/design/edgePath';
@@ -42,13 +41,12 @@ import {
   updateMapGroup,
 } from '@/lib/db/firestore/client/thoughtMap';
 import {
-  containingGroupId,
-  dragMembership,
   fitCamera,
   inflateRect,
+  majorityGroupId,
   nodeRect,
-  rectCenter,
   rectContains,
+  resolveOverlap,
   screenToWorld,
   zoomAt,
   NODE_H,
@@ -171,6 +169,8 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
   /** Card being dragged right now — its group lights up like a drop folder. */
   const [dragNodeId, setDragNodeId] = useState<string | null>(null);
   const [labelDraft, setLabelDraft] = useState('');
+  /** Edge whose label is being edited in place (on the arrow's own pill). */
+  const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
   /** Group whose title is being edited in place (on the region itself). */
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupTitleDraft, setGroupTitleDraft] = useState('');
@@ -211,12 +211,6 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
-
-  // Sync the inspector's text field whenever the selection changes.
-  useEffect(() => {
-    if (selection?.kind === 'edge') setLabelDraft(edges[selection.id]?.label ?? '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection]);
 
   const groupRects = useMemo(() => Object.values(groups), [groups]);
 
@@ -312,13 +306,9 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
         setNodes((prev) => {
           const cur = prev[drag.id];
           const pos = { x: w.x - drag.dx, y: w.y - drag.dy };
-          // Folder hysteresis: stay filed (and clipped) while overlapping the
-          // region, adopt a region only once fully inside it.
-          const groupId = dragMembership(
-            { ...pos, w: NODE_W, h: NODE_H },
-            cur.groupId,
-            groupRects,
-          );
+          // Majority rule: the card files into (and clips against) a region
+          // only while more than half of it sits inside — half out means out.
+          const groupId = majorityGroupId({ ...pos, w: NODE_W, h: NODE_H }, groupRects);
           return { ...prev, [drag.id]: { ...cur, ...pos, groupId } };
         });
         break;
@@ -379,14 +369,15 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
           break;
         }
         const n = nodes[drag.id];
-        const pos = { x: w.x - drag.dx, y: w.y - drag.dy };
-        // The live membership was maintained move-by-move; resolve once more
-        // from the final position and persist.
-        const groupId = dragMembership(
-          { ...pos, w: NODE_W, h: NODE_H },
-          n?.groupId ?? null,
-          groupRects,
+        // Translucent cards must not rest on top of each other: settle the
+        // drop into the nearest clear spot, then re-file from where it landed.
+        const pos = resolveOverlap(
+          { x: w.x - drag.dx, y: w.y - drag.dy, w: NODE_W, h: NODE_H },
+          Object.values(nodes)
+            .filter((o) => o.cardId !== drag.id)
+            .map(nodeRect),
         );
+        const groupId = majorityGroupId({ ...pos, w: NODE_W, h: NODE_H }, groupRects);
         setNodes((prev) => ({ ...prev, [drag.id]: { ...prev[drag.id], ...pos, groupId } }));
         if (n) moveMapNode(drag.id, pos.x, pos.y, groupId).catch(swallow);
         break;
@@ -436,6 +427,10 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
           [id]: { id, sourceCardId: drag.sourceId, targetCardId: target.cardId, label: '' },
         }));
         setSelection({ kind: 'edge', id });
+        // A fresh arrow starts in label-edit mode right on the arrow itself —
+        // naming the relation is the first decision (same as a new region).
+        setLabelDraft('');
+        setEditingEdgeId(id);
         createMapEdge(drag.sourceId, target.cardId).catch(swallow);
         break;
       }
@@ -448,7 +443,7 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
       const changes: { cardId: string; groupId: string | null }[] = [];
       const next = { ...prev };
       for (const n of Object.values(prev)) {
-        const gid = containingGroupId(rectCenter(nodeRect(n)), Object.values(groups));
+        const gid = majorityGroupId(nodeRect(n), Object.values(groups));
         if (gid !== n.groupId) {
           next[n.cardId] = { ...n, groupId: gid };
           changes.push({ cardId: n.cardId, groupId: gid });
@@ -464,14 +459,18 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
   const addCard = (card: Card) => {
     const center = screenToWorld(cameraRef.current, vw / 2, vh / 2);
     const count = Object.keys(nodes).length;
-    const pos = {
-      x: center.x - NODE_W / 2 + (count % 5) * 28,
-      y: center.y - NODE_H / 2 + (count % 5) * 22,
-    };
-    const groupId = containingGroupId(
-      { x: pos.x + NODE_W / 2, y: pos.y + NODE_H / 2 },
-      groupRects,
+    // Stagger from the viewport center, then shove out of any card already
+    // sitting there — new cards never land on top of existing ones.
+    const pos = resolveOverlap(
+      {
+        x: center.x - NODE_W / 2 + (count % 5) * 28,
+        y: center.y - NODE_H / 2 + (count % 5) * 22,
+        w: NODE_W,
+        h: NODE_H,
+      },
+      Object.values(nodes).map(nodeRect),
     );
+    const groupId = majorityGroupId({ ...pos, w: NODE_W, h: NODE_H }, groupRects);
     setNodes((prev) => ({ ...prev, [card.id]: { cardId: card.id, ...pos, groupId } }));
     // Close the picker so the freshly placed card (it lands at the viewport
     // center, right where the picker sits) is immediately visible.
@@ -523,6 +522,7 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
 
   const removeEdgeById = (id: string) => {
     clearSelectionOf('edge', id);
+    if (editingEdgeId === id) setEditingEdgeId(null);
     setEdges((prev) => {
       const next = { ...prev };
       delete next[id];
@@ -574,12 +574,22 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection, nodes, edges, groups]);
 
-  const commitLabel = () => {
-    if (selection?.kind === 'edge') {
-      const v = labelDraft.trim();
-      setEdges((prev) => ({ ...prev, [selection.id]: { ...prev[selection.id], label: v } }));
-      updateMapEdgeLabel(selection.id, v).catch(swallow);
-    }
+  /** Begin renaming an arrow in place, on its own label pill. */
+  const startEdgeEdit = (id: string) => {
+    setSelection({ kind: 'edge', id });
+    setLabelDraft(edges[id]?.label ?? '');
+    setEditingEdgeId(id);
+  };
+
+  /** Commit the in-place arrow label (blur / Enter). */
+  const commitEdgeLabel = () => {
+    const id = editingEdgeId;
+    if (!id) return;
+    setEditingEdgeId(null);
+    if (!edges[id]) return;
+    const v = labelDraft.trim();
+    setEdges((prev) => ({ ...prev, [id]: { ...prev[id], label: v } }));
+    updateMapEdgeLabel(id, v).catch(swallow);
   };
 
   /** Commit the in-place group rename (blur / Enter). */
@@ -809,14 +819,14 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
                   <path
                     d={geo.d}
                     stroke={color}
-                    strokeWidth={sel ? INK_STRONG : INK_LIGHT}
+                    strokeWidth={sel ? INK_STRONG : INK}
                     fill="none"
                     strokeLinecap="round"
                   />
                   <path
                     d={arrowHeadPath(geo.end, geo.endAngle, 13, seed + 7)}
                     stroke={color}
-                    strokeWidth={sel ? INK_STRONG : INK_LIGHT}
+                    strokeWidth={sel ? INK_STRONG : INK}
                     fill="none"
                     strokeLinecap="round"
                   />
@@ -830,7 +840,8 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
             const target = nodes[edge.targetCardId];
             if (!s || !target) return null;
             const sel = selection?.kind === 'edge' && selection.id === edge.id;
-            if (!edge.label && !sel) return null;
+            const editing = editingEdgeId === edge.id;
+            if (!edge.label && !sel && !editing) return null;
             const geo = organicEdgePath(nodeRect(s), nodeRect(target), seedFromString(edge.id));
             return (
               <div
@@ -839,13 +850,28 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
                 style={{ left: geo.mid.x, top: geo.mid.y }}
                 onPointerDown={(e) => e.stopPropagation()}
               >
-                <TagPill
-                  size="sm"
-                  color={sel ? 'oklch(88% 0.03 60)' : 'oklch(94% 0.02 75)'}
-                  onClick={() => setSelection({ kind: 'edge', id: edge.id })}
-                >
-                  {edge.label || t('edgeLabelPlaceholder')}
-                </TagPill>
+                {editing ? (
+                  <EdgeLabelEditor
+                    value={labelDraft}
+                    placeholder={t('edgeLabelPlaceholder')}
+                    deleteLabel={t('deleteEdge')}
+                    seed={seedFromString(edge.id)}
+                    onChange={setLabelDraft}
+                    onCommit={commitEdgeLabel}
+                    onCancel={() => setEditingEdgeId(null)}
+                    onDelete={() => removeEdgeById(edge.id)}
+                  />
+                ) : (
+                  /* One tap on the pill grows it into the editing badge —
+                     input focused, delete riding inside on the right. */
+                  <TagPill
+                    size="sm"
+                    color={sel ? 'oklch(88% 0.03 60)' : 'oklch(94% 0.02 75)'}
+                    onClick={() => startEdgeEdit(edge.id)}
+                  >
+                    {edge.label || t('edgeLabelPlaceholder')}
+                  </TagPill>
+                )}
               </div>
             );
           })}
@@ -869,6 +895,32 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
           {Object.values(nodes)
             .filter((n) => !n.groupId || !groups[n.groupId])
             .map((n) => renderNode(n, n.x, n.y))}
+
+          {/* Region rims re-inked above the cards: the same wobbly path drawn
+              stroke-only, so a card resting against (or sliding across) the
+              boundary tucks under the folder's edge instead of covering it. */}
+          {Object.values(groups).map((g) => {
+            const sel = selection?.kind === 'group' && selection.id === g.id;
+            const hot = dragNodeId != null && nodes[dragNodeId]?.groupId === g.id;
+            return (
+              <div
+                key={`outline-${g.id}`}
+                className={styles.groupOutline}
+                style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
+              >
+                <HandDrawnBorder
+                  w={g.w}
+                  h={g.h}
+                  R={34}
+                  seed={seedFromString(g.id)}
+                  strokeColor={sel || hot ? `oklch(45% 0.1 ${g.hue})` : `oklch(60% 0.085 ${g.hue})`}
+                  strokeWidth={sel || hot ? INK_STRONG : INK_LIGHT}
+                  curve={0.6}
+                  cornerOffset={5}
+                />
+              </div>
+            );
+          })}
 
           {/* Topmost hint layer: the live draft arrow and docking points. */}
           {/* 1×1, not 0×0 — Chrome skips painting a zero-sized svg entirely,
@@ -969,36 +1021,6 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
         </button>
       </div>
 
-      {/* inspector for the selected arrow (label editing lives here) */}
-      {selection && selection.kind === 'edge' && (
-        <div className={styles.inspector}>
-          <HandDrawnDashedSurface seed={61} state="idle" fillColor="var(--color-card-bg)">
-            <div className={styles.inspectorRow}>
-              <Input
-                variant="subtle"
-                className={styles.inspectorInput}
-                value={labelDraft}
-                placeholder={t('edgeLabelPlaceholder')}
-                onChange={(e) => setLabelDraft(e.target.value)}
-                onBlur={commitLabel}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                }}
-                autoFocus
-              />
-              <button
-                type="button"
-                className={styles.iconButton}
-                aria-label={t('deleteEdge')}
-                onClick={removeSelection}
-              >
-                <Icon name="trash" size={16} />
-              </button>
-            </div>
-          </HandDrawnDashedSurface>
-        </div>
-      )}
-
       {/* card picker — centered over the board, dismissed by the backdrop */}
       {trayOpen && (
         <div
@@ -1045,6 +1067,83 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
           </OrganicButton>
         </div>
       )}
+    </div>
+  );
+}
+
+interface EdgeLabelEditorProps {
+  value: string;
+  placeholder: string;
+  deleteLabel: string;
+  seed: number;
+  onChange: (v: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}
+
+/**
+ * In-place arrow rename: one tap grows the label pill into a slightly larger
+ * badge holding both the text field and the delete button — everything about
+ * the connection lives inside its own outline. A hidden mirror span measures
+ * the typed width and the hand-drawn badge is redrawn to hug it.
+ */
+function EdgeLabelEditor({
+  value,
+  placeholder,
+  deleteLabel,
+  seed,
+  onChange,
+  onCommit,
+  onCancel,
+  onDelete,
+}: EdgeLabelEditorProps) {
+  const mirrorRef = useRef<HTMLSpanElement>(null);
+  const [textW, setTextW] = useState(0);
+  useLayoutEffect(() => {
+    setTextW(mirrorRef.current?.offsetWidth ?? 0);
+  }, [value, placeholder]);
+
+  const h = 28;
+  const w = Math.max(72, textW + 16) + 26 + 12;
+  return (
+    <div className={styles.edgeLabelEdit} style={{ width: w, height: h }}>
+      <HandDrawnBorder
+        w={w}
+        h={h}
+        R={h / 2}
+        seed={seed + 5}
+        fillColor="oklch(88% 0.03 60)"
+        strokeColor="oklch(46% 0.045 60)"
+        strokeWidth={INK_LIGHT}
+      />
+      <input
+        className={styles.edgeLabelInput}
+        value={value}
+        placeholder={placeholder}
+        autoFocus
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onCommit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          else if (e.key === 'Escape') onCancel();
+        }}
+      />
+      {/* preventDefault keeps the input's blur-commit from racing the delete. */}
+      <button
+        type="button"
+        className={styles.edgeBadgeDelete}
+        aria-label={deleteLabel}
+        title={deleteLabel}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onDelete}
+      >
+        <Icon name="trash" size={13} />
+      </button>
+      <span ref={mirrorRef} className={styles.edgeLabelMirror} aria-hidden>
+        {value || placeholder}
+      </span>
     </div>
   );
 }

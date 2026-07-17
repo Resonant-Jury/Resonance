@@ -1,38 +1,57 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { Icon } from '@/components/atoms/Icon';
-import { ThoughtMapBoard } from '@/components/molecules/ThoughtMap/ThoughtMapBoard';
-import { useIsMobile } from '@/lib/hooks/useIsMobile';
-import { Link } from '@/i18n/navigation';
-import styles from './ThoughtMapPage.module.css';
+import { useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { CardEditor } from '@/components/molecules/CardEditor/CardEditor';
+import { PageTitle } from '@/components/molecules/PageShell/PageShell';
+import { OriginalCardPanel } from '@/components/sections/WriteWorkspace/OriginalCardPanel';
+import { WorkspaceShell } from '@/components/sections/WriteWorkspace/WorkspaceShell';
+import type { Card, Locale } from '@/lib/db/types';
+import styles from '@/components/sections/WriteWorkspace/WriteWorkspace.module.css';
+
+type Pane = { kind: 'editor'; card: Card } | { kind: 'card'; cardId: string } | null;
 
 /**
- * Full-screen, Miro-style thought-map editor. The dotted ground bleeds to the
- * viewport edges and a single Back control returns to the profile — the work
- * here is involved enough to deserve a page of its own rather than an inline
- * panel under the card box.
+ * The standalone thought-map page, in the unified workspace shell: the map
+ * opens full bleed;「開啟卡片」slides the right pane in — a draft opens its
+ * editor, a published card opens the reading panel — and ✕ hands the whole
+ * viewport back to the map.
  */
 export function ThoughtMapPage() {
-  const t = useTranslations('me');
-  // Phones keep just the arrow — the label would crowd the board's toolbar row.
-  const isMobile = useIsMobile(640);
+  const t = useTranslations('write');
+  const locale = useLocale() as Locale;
+  const [pane, setPane] = useState<Pane>(null);
+
   return (
-    <div className={styles.page}>
-      <div className={styles.board}>
-        <ThoughtMapBoard height="100%" flush />
-      </div>
-      <div className={styles.back}>
-        <Link href="/me" style={{ textDecoration: 'none' }} title={t('thoughtMap.back')}>
-          <OrganicButton variant="outline" size="sm">
-            <span className={styles.backIcon}>
-              <Icon name="arrow-right" size={15} ariaLabel={isMobile ? t('thoughtMap.back') : undefined} />
-            </span>
-            {!isMobile && t('thoughtMap.back')}
-          </OrganicButton>
-        </Link>
-      </div>
-    </div>
+    <WorkspaceShell
+      open={pane != null}
+      onClose={() => setPane(null)}
+      onOpenCard={(card: Card) =>
+        setPane(
+          card.publishedAt ? { kind: 'card', cardId: card.id } : { kind: 'editor', card },
+        )
+      }
+    >
+      {pane?.kind === 'card' && <OriginalCardPanel cardId={pane.cardId} />}
+      {pane?.kind === 'editor' && (
+        <div className={styles.editorCol}>
+          <PageTitle>{t('editTitle')}</PageTitle>
+          <CardEditor
+            key={pane.card.id}
+            locale={locale}
+            referenceCardId={pane.card.referenceCardId}
+            initial={{
+              id: pane.card.id,
+              thoughtCore: pane.card.thoughtCore,
+              story: pane.card.story,
+              tags: pane.card.tags,
+              visibility: pane.card.visibility,
+              media: pane.card.media,
+              anonymous: pane.card.anonymous,
+            }}
+          />
+        </div>
+      )}
+    </WorkspaceShell>
   );
 }

@@ -39,10 +39,6 @@ export function nodeRect(n: { x: number; y: number }): RectLike {
   return { x: n.x, y: n.y, w: NODE_W, h: NODE_H };
 }
 
-export function rectCenter(r: RectLike): { x: number; y: number } {
-  return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
-}
-
 export function rectContains(r: RectLike, p: { x: number; y: number }): boolean {
   return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 }
@@ -51,55 +47,63 @@ export function rectsIntersect(a: RectLike, b: RectLike): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-/** True when `inner` sits entirely within `outer`. */
-export function rectInside(inner: RectLike, outer: RectLike): boolean {
-  return (
-    inner.x >= outer.x &&
-    inner.y >= outer.y &&
-    inner.x + inner.w <= outer.x + outer.w &&
-    inner.y + inner.h <= outer.y + outer.h
-  );
-}
-
 /** Grow a rect by `pad` on every side (used for "near a card" hit zones). */
 export function inflateRect(r: RectLike, pad: number): RectLike {
   return { x: r.x - pad, y: r.y - pad, w: r.w + pad * 2, h: r.h + pad * 2 };
 }
 
+/** Fraction of `rect`'s area covered by `outer` (0..1). */
+export function coverage(rect: RectLike, outer: RectLike): number {
+  const ox = Math.min(rect.x + rect.w, outer.x + outer.w) - Math.max(rect.x, outer.x);
+  const oy = Math.min(rect.y + rect.h, outer.y + outer.h) - Math.max(rect.y, outer.y);
+  if (ox <= 0 || oy <= 0) return 0;
+  return (ox * oy) / (rect.w * rect.h);
+}
+
 /**
- * Folder-style membership while a node is being dragged, with hysteresis:
- * a filed card stays in its group while any part of it still overlaps the
- * region (it renders clipped at the boundary); only once fully outside does
- * it leave. An unfiled card joins a group only when it slides fully inside —
- * overlapping groups resolve to the tightest one.
+ * Majority-rule membership: a card belongs to the region covering more than
+ * half of it — the moment half slides out, it's out (and un-clips). Symmetric
+ * on the way in, so a card straddling the boundary never gets stuck filed but
+ * mostly hidden. Overlapping regions resolve to the tightest one.
  */
-export function dragMembership(
-  rect: RectLike,
-  currentGroupId: string | null,
-  groups: GroupRect[],
-): string | null {
-  const current = currentGroupId ? groups.find((g) => g.id === currentGroupId) : undefined;
-  if (current && rectsIntersect(rect, current)) return current.id;
+export function majorityGroupId(rect: RectLike, groups: GroupRect[]): string | null {
   let best: GroupRect | null = null;
   for (const g of groups) {
-    if (!rectInside(rect, g)) continue;
+    if (coverage(rect, g) <= 0.5) continue;
     if (!best || g.w * g.h < best.w * best.h) best = g;
   }
   return best?.id ?? null;
 }
 
 /**
- * Which group a point falls in. Overlapping groups resolve to the smallest
- * (tightest) region, so a card dropped into a group drawn inside a bigger one
- * files into the inner category.
+ * Nudge `rect` to the nearest clear spot: cards are translucent, so resting
+ * overlap is never allowed. Every obstacle still intersecting (inflated by
+ * `gap` breathing room) pushes the rect out along whichever axis needs the
+ * smaller move, iterating until the position settles.
  */
-export function containingGroupId(p: { x: number; y: number }, groups: GroupRect[]): string | null {
-  let best: GroupRect | null = null;
-  for (const g of groups) {
-    if (!rectContains(g, p)) continue;
-    if (!best || g.w * g.h < best.w * best.h) best = g;
+export function resolveOverlap(
+  rect: RectLike,
+  obstacles: RectLike[],
+  gap = 12,
+): { x: number; y: number } {
+  let x = rect.x;
+  let y = rect.y;
+  for (let iter = 0; iter < 16; iter++) {
+    let moved = false;
+    for (const o of obstacles) {
+      const ox = Math.min(x + rect.w, o.x + o.w + gap) - Math.max(x, o.x - gap);
+      const oy = Math.min(y + rect.h, o.y + o.h + gap) - Math.max(y, o.y - gap);
+      if (ox <= 0 || oy <= 0) continue;
+      if (ox <= oy) {
+        x += x + rect.w / 2 >= o.x + o.w / 2 ? ox : -ox;
+      } else {
+        y += y + rect.h / 2 >= o.y + o.h / 2 ? oy : -oy;
+      }
+      moved = true;
+    }
+    if (!moved) return { x, y };
   }
-  return best?.id ?? null;
+  return { x, y };
 }
 
 /**

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  containingGroupId,
-  dragMembership,
+  coverage,
   fitCamera,
+  majorityGroupId,
   MAX_SCALE,
   MIN_SCALE,
+  rectsIntersect,
+  resolveOverlap,
   screenToWorld,
   zoomAt,
   type Camera,
@@ -34,42 +36,71 @@ describe('camera math', () => {
   });
 });
 
-describe('containingGroupId', () => {
-  const groups = [
-    { id: 'big', x: 0, y: 0, w: 1000, h: 800 },
-    { id: 'inner', x: 100, y: 100, w: 300, h: 200 },
-  ];
+describe('coverage', () => {
+  const outer = { x: 0, y: 0, w: 100, h: 100 };
 
-  it('returns null outside every group', () => {
-    expect(containingGroupId({ x: -50, y: -50 }, groups)).toBeNull();
+  it('is 1 when fully inside, 0 when fully outside', () => {
+    expect(coverage({ x: 10, y: 10, w: 20, h: 20 }, outer)).toBe(1);
+    expect(coverage({ x: 200, y: 0, w: 20, h: 20 }, outer)).toBe(0);
   });
 
-  it('prefers the tightest containing region when groups overlap', () => {
-    expect(containingGroupId({ x: 200, y: 150 }, groups)).toBe('inner');
-    expect(containingGroupId({ x: 700, y: 500 }, groups)).toBe('big');
+  it('reports the covered fraction across a boundary', () => {
+    // Left half inside, right half out.
+    expect(coverage({ x: 90, y: 0, w: 20, h: 20 }, outer)).toBeCloseTo(0.5);
   });
 });
 
-describe('dragMembership', () => {
+describe('majorityGroupId', () => {
   const groups = [
     { id: 'g1', x: 0, y: 0, w: 600, h: 400 },
     { id: 'inner', x: 50, y: 50, w: 300, h: 300 },
   ];
   const node = (x: number, y: number) => ({ x, y, w: 224, h: 136 });
 
-  it('files an unfiled card only when it is fully inside a region', () => {
-    // Half-overlapping the boundary → still free.
-    expect(dragMembership(node(-100, 100), null, groups)).toBeNull();
-    // Fully inside → adopted, tightest region wins.
-    expect(dragMembership(node(60, 60), null, groups)).toBe('inner');
-    expect(dragMembership(node(360, 200), null, groups)).toBe('g1');
+  it('files a card once more than half of it sits inside a region', () => {
+    // Just over half inside past the left boundary → filed.
+    expect(majorityGroupId(node(-100, 100), groups)).toBe('g1');
+    // More than half outside → free.
+    expect(majorityGroupId(node(-120, 100), groups)).toBeNull();
+    // Exactly half is not a majority — half out means out.
+    expect(majorityGroupId(node(-112, 100), groups)).toBeNull();
   });
 
-  it('keeps a filed card while any part still overlaps its region', () => {
-    // Sticking out past the right edge but still overlapping → stays (clipped).
-    expect(dragMembership(node(500, 100), 'g1', groups)).toBe('g1');
-    // Fully beyond the boundary → released.
-    expect(dragMembership(node(700, 100), 'g1', groups)).toBeNull();
+  it('prefers the tightest region when groups overlap', () => {
+    expect(majorityGroupId(node(60, 60), groups)).toBe('inner');
+    expect(majorityGroupId(node(360, 200), groups)).toBe('g1');
+  });
+
+  it('releases a card once more than half slides out', () => {
+    // Sticking out past the right edge but majority still inside → stays.
+    expect(majorityGroupId(node(450, 100), groups)).toBe('g1');
+    // Majority beyond the boundary → released, even while still overlapping.
+    expect(majorityGroupId(node(520, 100), groups)).toBeNull();
+  });
+});
+
+describe('resolveOverlap', () => {
+  const size = { w: 224, h: 136 };
+  const at = (x: number, y: number) => ({ x, y, ...size });
+
+  it('leaves an already-clear position untouched', () => {
+    const pos = resolveOverlap(at(1000, 1000), [at(0, 0)]);
+    expect(pos).toEqual({ x: 1000, y: 1000 });
+  });
+
+  it('pushes a dropped card out of every obstacle (plus breathing room)', () => {
+    const obstacles = [at(0, 0), at(260, 0)];
+    const pos = resolveOverlap(at(40, 10), obstacles, 12);
+    for (const o of obstacles) {
+      expect(rectsIntersect({ ...pos, ...size }, o)).toBe(false);
+    }
+  });
+
+  it('moves along the axis needing the smaller nudge', () => {
+    // Slight vertical offset over an obstacle → resolves downward, keeping x.
+    const pos = resolveOverlap(at(0, 120), [at(0, 0)], 12);
+    expect(pos.x).toBe(0);
+    expect(pos.y).toBe(148);
   });
 });
 
