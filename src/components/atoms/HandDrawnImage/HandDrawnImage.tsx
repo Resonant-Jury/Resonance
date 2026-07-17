@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useRef } from 'react';
+import { useId, useMemo, useRef, type ReactNode } from 'react';
 import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
 import { Icon } from '../Icon/Icon';
 import { wobRect } from '@/lib/design/wobRect';
@@ -22,6 +22,15 @@ export interface HandDrawnImageProps {
   /** Show a hand-drawn close button (top-right) wired to this handler. */
   onRemove?: () => void;
   removeLabel?: string;
+  /** Gaussian-blur the picture (px) inside the still-crisp hand-drawn clip —
+   *  used for in-progress previews that aren't a settled image yet. */
+  blur?: number;
+  /** Wash color painted over the picture, clipped to the same wobbly shape
+   *  (e.g. a translucent cream veil under a busy overlay). */
+  wash?: string;
+  /** Overlay content; the wrap is position:relative, so children can pin
+   *  themselves with position:absolute; inset:0. */
+  children?: ReactNode;
 }
 
 /**
@@ -37,10 +46,17 @@ export function HandDrawnImage({
   curve,
   onRemove,
   removeLabel,
+  blur,
+  wash,
+  children,
 }: HandDrawnImageProps) {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useElementSize(ref, 480, 300);
   const uid = useId().replace(/:/g, '');
+
+  // Blur samples pixels past the image edge; overscan further so the clip
+  // region never shows the blur's transparent falloff.
+  const bleed = BLEED + (blur ?? 0) * 2;
 
   const path = useMemo(() => {
     if (!w || !h) return '';
@@ -72,13 +88,15 @@ export function HandDrawnImage({
               the picture and the drawn outline (same trick as OrganicImage). */}
           <image
             href={src}
-            x={-BLEED}
-            y={-BLEED}
-            width={w + BLEED * 2}
-            height={h + BLEED * 2}
+            x={-bleed}
+            y={-bleed}
+            width={w + bleed * 2}
+            height={h + bleed * 2}
             preserveAspectRatio="xMidYMid slice"
             clipPath={`url(#hdimg-${uid})`}
+            style={blur ? { filter: `blur(${blur}px)` } : undefined}
           />
+          {wash && <path d={path} fill={wash} stroke="none" />}
           <path
             d={path}
             fill="none"
@@ -89,6 +107,8 @@ export function HandDrawnImage({
           />
         </svg>
       )}
+
+      {children}
 
       {onRemove && (
         <button

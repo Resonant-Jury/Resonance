@@ -546,26 +546,32 @@ export function CardEditor({
               removeLabel={t('mediaRemove')}
             />
           ) : mediaBusy ? (
-            <HandDrawnDashedSurface
-              seed={31}
-              R={16}
-              curve={0.8}
-              state="focus"
-              className={styles.fileInputWrap}
-            >
-              {partialPreview ? (
-                // The model's in-progress pass, still being painted: shown
-                // under a soft wash with the sketch loader riding on top.
-                <span className={styles.generatingShot}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- transient base64 data URL; next/image can't optimize it */}
-                  <img src={partialPreview} alt="" aria-hidden className={styles.generatingImg} />
-                  <span className={styles.generatingVeil} aria-hidden />
-                  <span className={styles.generatingOverlay}>
-                    <SketchLoader size={64} seed={31} ariaLabel={t('mediaGenerating')} />
-                    <span className={styles.uploadText}>{t('mediaGenerating')}</span>
-                  </span>
+            partialPreview ? (
+              // The model's in-progress pass: shown straight inside the same
+              // hand-drawn frame (identical seed/geometry + final aspect
+              // ratio) the stored image will land in, gaussian-blurred and
+              // washed because it isn't a settled picture yet.
+              <HandDrawnImage
+                src={partialPreview}
+                seed={31}
+                R={16}
+                curve={0.8}
+                blur={14}
+                wash="color-mix(in oklch, var(--color-cream) 45%, transparent)"
+              >
+                <span className={styles.generatingOverlay}>
+                  <SketchLoader size={64} seed={31} ariaLabel={t('mediaGenerating')} />
+                  <span className={styles.uploadText}>{t('mediaGenerating')}</span>
                 </span>
-              ) : (
+              </HandDrawnImage>
+            ) : (
+              <HandDrawnDashedSurface
+                seed={31}
+                R={16}
+                curve={0.8}
+                state="focus"
+                className={styles.fileInputWrap}
+              >
                 <span className={styles.uploadInner}>
                   <SketchLoader
                     size={64}
@@ -576,8 +582,8 @@ export function CardEditor({
                     {generating ? t('mediaGenerating') : t('mediaUploading')}
                   </span>
                 </span>
-              )}
-            </HandDrawnDashedSurface>
+              </HandDrawnDashedSurface>
+            )
           ) : (
             // Split surface: drag/click upload on the left, AI generation on the
             // right, divided by a vertical pen rule.

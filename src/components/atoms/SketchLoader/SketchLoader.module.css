@@ -4,59 +4,41 @@
   justify-content: center;
 }
 
-/* The comet mask: an alpha ramp around the circle — fully opaque ink right
-   at the leading edge (just below 360deg), decaying continuously to nothing
-   behind it. The mask is painted on the element itself, so it rotates with
-   the spin: the pen tip travels forever and the trail always trails.
-   The eased stops (slow start, steep finish) keep the tail long and airy
-   while the tip stays crisp and dark. */
 .svg {
   display: block;
   overflow: visible;
-  -webkit-mask-image: conic-gradient(
-    from 0deg,
-    rgb(0 0 0 / 0) 0deg,
-    rgb(0 0 0 / 0.07) 80deg,
-    rgb(0 0 0 / 0.2) 170deg,
-    rgb(0 0 0 / 0.45) 260deg,
-    rgb(0 0 0 / 0.8) 330deg,
-    rgb(0 0 0 / 1) 356deg
-  );
-  mask-image: conic-gradient(
-    from 0deg,
-    rgb(0 0 0 / 0) 0deg,
-    rgb(0 0 0 / 0.07) 80deg,
-    rgb(0 0 0 / 0.2) 170deg,
-    rgb(0 0 0 / 0.45) 260deg,
-    rgb(0 0 0 / 0.8) 330deg,
-    rgb(0 0 0 / 1) 356deg
-  );
-  /* Spin is one continuous linear rotation — no restart seam. The dry-out
-     cycle is exactly two spins long: quick re-ink (0–10%), then a slow fade
-     that reaches 0 as the second lap completes, so the loop point is
-     invisible. */
-  animation:
-    sketchSpin 1500ms linear infinite,
-    inkDry 3000ms ease-in-out infinite;
 }
 
-@keyframes sketchSpin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+/* Every caravan link runs this one sweep, staggered only by inline negative
+   animation-delay. The dash pattern's period equals the path length
+   (pathLength = 1), so sliding the offset by exactly −1 per iteration lands
+   on an identical state: the loop point is invisible, the pen simply keeps
+   travelling around the two-lap loop forever. Keyframe numbers are literal on
+   purpose — var() inside @keyframes silently fails to animate
+   stroke-dashoffset in Chromium. Keep the duration in sync with LOOP_MS in
+   SketchLoader.tsx. */
+
+.trail {
+  animation: sweep 2600ms linear infinite;
 }
 
-@keyframes inkDry {
-  0%   { opacity: 0; }
-  10%  { opacity: 1; }
-  45%  { opacity: 0.85; }
-  100% { opacity: 0; }
+@keyframes sweep {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .svg {
+  .trail {
     animation: none;
-    -webkit-mask-image: none;
-    mask-image: none;
-    opacity: 0.7;
+  }
+  /* Keep only the tip link, un-dashed: the full two-lap loop reads as the
+     calm double-ring sketch. */
+  .trail:not(.tip) {
+    display: none;
+  }
+  .tip {
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
+    stroke-opacity: 0.7 !important;
   }
 }

@@ -121,25 +121,9 @@
   width: 100%;
   border-radius: var(--field-radius);
 }
-/* Streamed in-progress AI illustration: the rough pass fills the busy box
-   under a cream wash, with the sketch loader + label riding on top. */
-.generatingShot {
-  position: relative;
-  display: block;
-  overflow: hidden;
-  border-radius: var(--field-radius);
-}
-.generatingImg {
-  display: block;
-  width: 100%;
-  aspect-ratio: 3 / 2;
-  object-fit: cover;
-}
-.generatingVeil {
-  position: absolute;
-  inset: 0;
-  background: color-mix(in oklch, var(--color-cream) 55%, transparent);
-}
+/* Streamed in-progress AI illustration: the blurred rough pass sits inside
+   the final hand-drawn frame (HandDrawnImage renders clip + wash), with the
+   sketch loader + label riding on top. */
 .generatingOverlay {
   position: absolute;
   inset: 0;
