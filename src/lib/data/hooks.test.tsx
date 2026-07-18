@@ -361,6 +361,39 @@ describe('useProfileByHandle', () => {
     expect(data.published.map((c) => c.id)).toEqual(['p1']);
     expect(isConnected).not.toHaveBeenCalled();
   });
+
+  // The profile page renders "user not found" whenever it is not loading and has
+  // no user. While auth restores the SWR key is null, so plain SWR would report
+  // isLoading=false with no data — flashing not-found before the skeleton.
+  it('reports loading (not not-found) while auth is still restoring', async () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: true });
+    vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'other'));
+    vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('p1', 'u2')]);
+    vi.mocked(getUsersByIds).mockResolvedValue({});
+
+    const { result, rerender } = renderHook(() => useProfileByHandle('other'), { wrapper });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(getUserByHandle).not.toHaveBeenCalled();
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isLoading).toBe(true);
+
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
+    rerender();
+
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.data!.user!.id).toBe('u2');
+  });
+
+  it('still reports not-loading + empty profile for a handle that does not exist', async () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
+    vi.mocked(getUserByHandle).mockResolvedValue(null);
+
+    const { result } = renderHook(() => useProfileByHandle('ghost'), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.data!.user).toBeNull();
+  });
 });
 
 describe('useResonators', () => {

@@ -425,7 +425,7 @@ const emptyProfile: PublicProfile = {
 export function useProfileByHandle(handle: string | undefined) {
   const { user: viewer, loading } = useAuth();
   const key = handle && !loading ? `pubprofile:${handle}:${viewer?.id ?? 'anon'}` : null;
-  return useSWR<PublicProfile>(key, async () => {
+  const swr = useSWR<PublicProfile>(key, async () => {
     const user = await getUserByHandle(handle!);
     if (!user) return emptyProfile;
 
@@ -439,4 +439,8 @@ export function useProfileByHandle(handle: string | undefined) {
     const linkedAuthors = await getUsersByIds(linked.map((c) => c.authorId));
     return { user, isSelf, isConnected: connected, published, linked, linkedAuthors };
   });
+  // Same pre-fetch window as useCard: with a null key SWR reports
+  // isLoading=false / data=undefined, which would flash "user not found" before
+  // auth settles and the real read starts. Count that window as loading.
+  return { ...swr, isLoading: swr.isLoading || (!!handle && key === null) };
 }
