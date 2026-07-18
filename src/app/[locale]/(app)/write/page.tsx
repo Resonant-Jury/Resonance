@@ -20,7 +20,6 @@ function WritePageInner() {
       title={t('title')}
       locale={locale}
       referenceCardId={referenceCardId}
-      backCardKey={referenceCardId}
     />
   );
 }

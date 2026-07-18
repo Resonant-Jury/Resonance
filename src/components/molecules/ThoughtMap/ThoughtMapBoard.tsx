@@ -12,6 +12,8 @@ export interface ThoughtMapBoardProps {
   flush?: boolean;
   /** Host override for「開啟卡片」(see {@link ThoughtMapCanvas}). */
   onOpenCard?: (card: Card) => void;
+  /** Whether the host's editor pane is open — drives the camera recenter. */
+  paneOpen?: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ export function ThoughtMapBoard({
   height = 'clamp(480px, 64vh, 760px)',
   flush = false,
   onOpenCard,
+  paneOpen = false,
 }: ThoughtMapBoardProps) {
   const { data } = useMyThoughtMap();
   if (!data)
@@ -33,5 +36,13 @@ export function ThoughtMapBoard({
         aria-busy="true"
       />
     );
-  return <ThoughtMapCanvas data={data} style={{ height }} flush={flush} onOpenCard={onOpenCard} />;
+  return (
+    <ThoughtMapCanvas
+      data={data}
+      style={{ height }}
+      flush={flush}
+      onOpenCard={onOpenCard}
+      paneOpen={paneOpen}
+    />
+  );
 }

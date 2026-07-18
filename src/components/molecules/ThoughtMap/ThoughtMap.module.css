@@ -26,8 +26,14 @@
   background-color: var(--color-card-bg);
 }
 
+/* Full-bleed (workspace / full-screen map): the toolbar's right inset matches
+   the editor column's horizontal padding (--page-pad-x) so「新增分類 / 加入卡片」
+   line up with the draft's text edge and the Back control's left margin; its
+   top lands on the「編輯草稿」title's line (--editor-pad-top, set on the
+   workspace shell) so all the floating chrome shares one top line. */
 .flush .toolbar {
-  top: calc(var(--app-header-h) + 16px);
+  top: calc(var(--app-header-h) + var(--editor-pad-top, clamp(28px, 5vh, 48px)));
+  right: var(--page-pad-x);
 }
 
 .world {

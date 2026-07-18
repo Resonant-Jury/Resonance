@@ -234,7 +234,6 @@
   "write": {
     "title": "寫一張新卡片",
     "editTitle": "編輯草稿",
-    "backToCard": "回到文章頁面",
     "closeEditor": "關閉編輯區",
     "resizeDivider": "拖曳調整左右比例",
     "referenceCard": "原文章",
@@ -364,7 +363,8 @@
       "groupTitlePlaceholder": "為這個分類命名",
       "linkHandle": "拉出一條連結",
       "resizeGroup": "調整分類大小",
-      "back": "回到個人頁面"
+      "back": "回到個人頁面",
+      "leave": "離開"
     },
     "emptyPublished": "你的第一張卡片，會成為這個世界為你排列的起點。",
     "emptyPrivate": "還沒有私人卡片。",

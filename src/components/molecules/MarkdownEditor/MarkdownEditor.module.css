@@ -150,11 +150,11 @@
    text can't slip through a gap between the two. */
 .toolbarWrap {
   position: sticky;
-  top: calc(var(--app-header-h) - 9px);
+  top: calc(var(--app-header-h) - 3px);
   z-index: 2;
   /* Extra top padding keeps a breath of whitespace above the buttons while
      stuck (the sticky top overshoots 9px to tuck under the header wave). */
-  padding: 20px 10px 12px;
+  padding: 10px 10px 12px;
 }
 
 /* Toolbar background masked to a full-bleed wavy bottom edge — same

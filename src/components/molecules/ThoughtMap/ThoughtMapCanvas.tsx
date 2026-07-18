@@ -118,6 +118,13 @@ export interface ThoughtMapCanvasProps {
    * navigates to the card page / editor.
    */
   onOpenCard?: (card: Card) => void;
+  /**
+   * Whether the host's editor pane is open. Toggling it changes the map's
+   * width, which moves where "center" sits — the canvas pans to keep the same
+   * world point centered (see the recenter effect). Dragging the divider does
+   * NOT toggle this, so a manual resize leaves the content anchored in place.
+   */
+  paneOpen?: boolean;
 }
 
 /**
@@ -126,7 +133,13 @@ export interface ThoughtMapCanvasProps {
  * gesture that settles (drag end, label blur, …) writes through to the
  * owner's `thoughtMaps` subcollections.
  */
-export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: ThoughtMapCanvasProps) {
+export function ThoughtMapCanvas({
+  data,
+  style,
+  flush = false,
+  onOpenCard,
+  paneOpen = false,
+}: ThoughtMapCanvasProps) {
   const t = useTranslations('me.thoughtMap');
   const router = useRouter();
   const isMobile = useIsMobile(640);
@@ -192,6 +205,37 @@ export function ThoughtMapCanvas({ data, style, flush = false, onOpenCard }: Tho
     setCamera(fitCamera(rects, vw, vh));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vw, vh]);
+
+  // Keep the same world point centered when the editor pane opens or closes.
+  // That toggle changes the map's width, so the visual center shifts; we pan
+  // the camera by half the width delta to compensate. Keyed on `paneOpen` (not
+  // the measured width) because a manual divider drag also changes the width
+  // but must NOT recenter — dragging leaves paneOpen untouched, so it's exempt
+  // for free.
+  //
+  // `widthRef` holds the width the map was laid out at before the toggle. It's
+  // fed from `vw` (which reliably fires on the initial 0 -> real measurement
+  // and on window resizes) and is re-stamped on every toggle from the DOM. We
+  // read the *new* width straight off the DOM: this layout effect runs after
+  // React commits the pane removal/insertion, so offsetWidth already reflects
+  // the post-toggle layout — whereas the ResizeObserver-backed `vw` can lag a
+  // programmatic pane resize, so it can't be trusted for the new width.
+  const widthRef = useRef(0);
+  useLayoutEffect(() => {
+    if (vw) widthRef.current = vw;
+  }, [vw]);
+  const prevPaneOpenRef = useRef(paneOpen);
+  useLayoutEffect(() => {
+    if (paneOpen === prevPaneOpenRef.current) return;
+    prevPaneOpenRef.current = paneOpen;
+    const w = viewportRef.current?.offsetWidth ?? 0;
+    const prev = widthRef.current;
+    widthRef.current = w || prev;
+    if (!prev || !w || !fittedRef.current) return;
+    const delta = (w - prev) / 2;
+    if (Math.abs(delta) < 0.5) return;
+    setCamera((cam) => ({ ...cam, x: cam.x + delta }));
+  }, [paneOpen]);
 
   // Wheel: trackpad/wheel pans, ctrl/cmd (and pinch) zooms about the cursor.
   useEffect(() => {

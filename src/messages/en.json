@@ -234,7 +234,6 @@
   "write": {
     "title": "New card",
     "editTitle": "Edit draft",
-    "backToCard": "Back to the story",
     "closeEditor": "Close editor",
     "resizeDivider": "Drag to resize panes",
     "referenceCard": "Original Article",
@@ -364,7 +363,8 @@
       "groupTitlePlaceholder": "Name this group",
       "linkHandle": "Draw a connection",
       "resizeGroup": "Resize group",
-      "back": "Back to profile"
+      "back": "Back to profile",
+      "leave": "Leave"
     },
     "emptyPublished": "Your first card becomes the point this world starts arranging itself around.",
     "emptyPrivate": "No private cards.",

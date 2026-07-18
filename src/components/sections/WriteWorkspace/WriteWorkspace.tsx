@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { useTranslations } from 'next-intl';
 import { CardEditor, type CardEditorProps } from '@/components/molecules/CardEditor/CardEditor';
 import { FirstCardGuide } from '@/components/molecules/FirstCardGuide/FirstCardGuide';
 import { PageTitle } from '@/components/molecules/PageShell/PageShell';
@@ -17,10 +16,6 @@ export interface WriteWorkspaceProps {
   locale: CardEditorProps['locale'];
   initial?: CardEditorProps['initial'];
   referenceCardId?: string;
-  /** Slug-or-id of the card page this editor was entered from (the original
-   * card of a resonance, or the edited card's own page once published) —
-   * Back then returns there instead of the profile page. */
-  backCardKey?: string;
 }
 
 /**
@@ -39,10 +34,7 @@ export function WriteWorkspace({
   locale,
   initial,
   referenceCardId,
-  backCardKey,
 }: WriteWorkspaceProps) {
-  const t = useTranslations('write');
-
   const { data: hasWritten } = useHasWrittenCards();
   const [seed, setSeed] = useState<{ story: string; nonce: number } | null>(null);
   const [editorOpen, setEditorOpen] = useState(true);
@@ -65,7 +57,6 @@ export function WriteWorkspace({
         setOpenedCard(card);
         setEditorOpen(true);
       }}
-      back={backCardKey ? { href: `/card/${backCardKey}`, label: t('backToCard') } : undefined}
     >
       {showOpened ? (
         <OpenedCardPane card={openedCard} />

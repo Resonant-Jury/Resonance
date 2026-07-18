@@ -8,6 +8,10 @@
   z-index: 10;
   display: flex;
   --app-header-h: 0px;
+  /* The editor column's top padding — the whitespace above its「編輯草稿」title.
+     Shared so the floating chrome (Back, map toolbar, ✕) can sit on the same
+     top line as that title. */
+  --editor-pad-top: clamp(28px, 5vh, 48px);
   background: var(--color-cream);
 }
 
@@ -24,12 +28,15 @@
   --app-header-h: 44px;
 }
 
-/* Single Back control over the map — the workspace's only chrome. */
+/* Single Back control over the map — the workspace's only chrome. Its inset
+   matches the editor column's horizontal padding (--page-pad-x) so the left
+   chrome lines up with the draft's text edge on the other side; its top lands
+   on the「編輯草稿」title's line (--editor-pad-top). */
 .back {
   position: absolute;
   z-index: 7;
-  top: 16px;
-  left: clamp(16px, 3vw, 32px);
+  top: var(--editor-pad-top);
+  left: var(--page-pad-x);
 }
 
 .backIcon {
@@ -82,7 +89,6 @@
 
 .railGripIcon {
   display: inline-flex;
-  transform: rotate(90deg);
 }
 
 .rail:hover .railGrip,
@@ -109,33 +115,35 @@
   width: 100%;
   max-width: var(--page-max-w-narrow);
   margin: 0 auto;
-  padding: clamp(28px, 5vh, 48px) var(--page-pad-x) var(--page-pad-bottom);
+  padding: var(--editor-pad-top) var(--page-pad-x) var(--page-pad-bottom);
 }
 
-/* Close (✕) pinned to the pane's top-right, above its scrolling content —
-   the same borderless dark-wash language as the map's tool buttons. Offsets
-   mirror the map's Back button (top 16px + centered on its 38px height) so
-   the two corners read as one line. */
+/* Close (✕) pinned to the pane's top-right, above its scrolling content. A
+   proper bordered chip (not a bare hover-wash) so it clearly reads as a
+   button. Its right inset matches --page-pad-x — the same margin the Back
+   control keeps on the left — and its top sits on the「編輯草稿」title's line
+   (--editor-pad-top), matching the Back button and the map toolbar. */
 .paneClose {
   position: absolute;
-  top: 18px;
-  right: clamp(16px, 3vw, 32px);
+  top: calc(var(--editor-pad-top) + 8px);
+  right: calc(var(--page-pad-x) + 12px);
   z-index: 8;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--field-border);
   border-radius: 11px 13px 12px 14px;
-  background: oklch(0% 0 0 / 0.05);
+  background: var(--color-cream);
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
 }
 
 .paneClose:hover {
-  background: oklch(0% 0 0 / 0.09);
+  border-color: var(--field-border-hover);
+  background: var(--color-cream-dark);
   color: var(--color-text);
 }
 

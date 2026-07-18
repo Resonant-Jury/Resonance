@@ -12,7 +12,7 @@ import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { ThoughtMapBoard } from '@/components/molecules/ThoughtMap/ThoughtMapBoard';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
-import { Link } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 import type { Card } from '@/lib/db/types';
 import styles from './WriteWorkspace.module.css';
 
@@ -30,9 +30,6 @@ export interface WorkspaceShellProps {
   onOpenCard?: (card: Card) => void;
   /** Replaces the map entirely (resonance writing shows the original card). */
   leftOverride?: ReactNode;
-  /** Where Back leads; defaults to the profile page. Hosts entered from a
-   * card page point it back at that card instead. */
-  back?: { href: string; label: string };
   children: ReactNode;
 }
 
@@ -47,19 +44,18 @@ export function WorkspaceShell({
   onClose,
   onOpenCard,
   leftOverride,
-  back,
   children,
 }: WorkspaceShellProps) {
   const t = useTranslations('write');
   const tMap = useTranslations('me.thoughtMap');
   const isMobile = useIsMobile(640);
+  const router = useRouter();
 
   const shellRef = useRef<HTMLDivElement>(null);
   const [editorFrac, setEditorFrac] = useState(MAX_EDITOR_FRAC);
   const draggingRef = useRef(false);
 
-  const backHref = back?.href ?? '/me';
-  const backLabel = back?.label ?? tMap('back');
+  const leaveLabel = tMap('leave');
 
   const onRailPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -85,20 +81,25 @@ export function WorkspaceShell({
       style={{ '--editor-frac': editorFrac } as CSSProperties}
     >
       <div className={leftOverride ? `${styles.mapPane} ${styles.mapPaneDoc}` : styles.mapPane}>
-        {leftOverride ?? <ThoughtMapBoard height="100%" flush onOpenCard={onOpenCard} />}
+        {leftOverride ?? (
+          <ThoughtMapBoard
+            height="100%"
+            flush
+            onOpenCard={onOpenCard}
+            paneOpen={open}
+          />
+        )}
         <div className={styles.back}>
-          <Link href={backHref} style={{ textDecoration: 'none' }} title={backLabel}>
-            <OrganicButton variant="outline" size="sm">
-              <span className={styles.backIcon}>
-                <Icon
-                  name="arrow-right"
-                  size={15}
-                  ariaLabel={isMobile ? backLabel : undefined}
-                />
-              </span>
-              {!isMobile && backLabel}
-            </OrganicButton>
-          </Link>
+          <OrganicButton variant="outline" size="sm" onClick={() => router.back()}>
+            <span className={styles.backIcon}>
+              <Icon
+                name="arrow-right"
+                size={15}
+                ariaLabel={isMobile ? leaveLabel : undefined}
+              />
+            </span>
+            {!isMobile && leaveLabel}
+          </OrganicButton>
         </div>
       </div>
 
@@ -117,7 +118,7 @@ export function WorkspaceShell({
           >
             <div className={styles.railGrip} aria-hidden="true">
               <span className={styles.railGripIcon}>
-                <Icon name="dots" size={15} />
+                <Icon name="arrows-horizontal" size={16} />
               </span>
             </div>
           </div>

@@ -28,6 +28,7 @@ import { UserIcon } from './icons/user';
 import { KeyIcon } from './icons/key';
 import { PaletteIcon } from './icons/palette';
 import { DocumentIcon } from './icons/document';
+import { ArrowsHorizontalIcon } from './icons/arrows-horizontal';
 import type { IconRenderer } from './types';
 
 /**
@@ -75,6 +76,7 @@ export const ICONS = {
   key: KeyIcon,
   palette: PaletteIcon,
   document: DocumentIcon,
+  'arrows-horizontal': ArrowsHorizontalIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

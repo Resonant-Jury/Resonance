@@ -66,9 +66,6 @@ export default function EditCardPage() {
       title={t('editTitle')}
       locale={locale}
       referenceCardId={card.referenceCardId}
-      backCardKey={
-        card.publishedAt ? (card.slug ?? card.id) : card.referenceCardId
-      }
       initial={{
         id: card.id,
         thoughtCore: card.thoughtCore,
