@@ -162,4 +162,13 @@
     background: var(--color-cream);
     border-left: none;
   }
+
+  /* Single pane: the desktop nudges (+8px down to sit on the wider layout's
+     title line, +12px in from the divider) have nothing to align with here —
+     the ✕ sits square on the title line and the text column's right edge,
+     mirroring the Back control's insets on the left. */
+  .paneClose {
+    top: var(--editor-pad-top);
+    right: var(--page-pad-x);
+  }
 }

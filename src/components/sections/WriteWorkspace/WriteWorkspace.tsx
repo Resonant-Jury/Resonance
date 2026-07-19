@@ -8,6 +8,7 @@ import { OpenedCardPane } from './OpenedCardPane';
 import { OriginalCardPanel } from './OriginalCardPanel';
 import { WorkspaceShell } from './WorkspaceShell';
 import { useHasWrittenCards } from '@/lib/data/hooks';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import type { Card } from '@/lib/db/types';
 import styles from './WriteWorkspace.module.css';
 
@@ -44,11 +45,23 @@ export function WriteWorkspace({
   const showOpened = openedCard != null && openedCard.id !== initial?.id;
   // Only the very first card, started fresh (not edits, not resonances).
   const showGuide = hasWritten === false && !seed && !initial && !referenceCardId;
+  // Below the desktop split the editor covers the whole viewport (see the
+  // module CSS breakpoint) — the map behind it isn't where the user came from.
+  const isSinglePane = useIsMobile(1199);
 
   return (
     <WorkspaceShell
       open={editorOpen}
       onClose={() => {
+        // Phones: ✕ on this route's own draft leaves the page the user
+        // arrived from (profile, home, …) instead of unveiling the map —
+        // history.back() pops CardEditor's sentinel, so its dirty-draft
+        // confirm still intercepts before anything is lost. A card opened
+        // *from the map* keeps the map hand-back, on every width.
+        if (isSinglePane && !showOpened) {
+          window.history.back();
+          return;
+        }
         setEditorOpen(false);
         setOpenedCard(null);
       }}

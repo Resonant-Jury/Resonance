@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { CardActionsMenu } from '@/components/molecules/CardActionsMenu/CardActionsMenu';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
@@ -46,6 +46,12 @@ export interface ProfileTabsProps {
    * switching the active tab.
    */
   thoughtMapHref?: string;
+  /**
+   * sessionStorage key remembering the active tab across a leave-and-return
+   * (e.g. profile → edit a draft → ✕ back): the viewer lands on the tab they
+   * left, not the first one.
+   */
+  persistKey?: string;
 }
 
 export function ProfileTabs({
@@ -55,11 +61,26 @@ export function ProfileTabs({
   loading = false,
   manageable = false,
   thoughtMapHref,
+  persistKey,
 }: ProfileTabsProps) {
-  const [active, setActive] = useState<TabKey>(tabs[0]);
+  const [active, setActiveState] = useState<TabKey>(tabs[0]);
   const t = useTranslations('me');
   const router = useRouter();
   const isMobile = useIsMobile(640);
+
+  // Restore after mount (not in the initializer) so SSR and the first client
+  // render agree; write-through on every change.
+  useEffect(() => {
+    if (!persistKey) return;
+    const saved = sessionStorage.getItem(persistKey) as TabKey | null;
+    if (saved && saved !== 'thoughtMap' && tabs.includes(saved)) setActiveState(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistKey]);
+  const setActive = (key: TabKey) => {
+    setActiveState(key);
+    if (persistKey) sessionStorage.setItem(persistKey, key);
+  };
+
   const list = data[active] ?? [];
   const managed = manageable && OWNED_TABS.has(active);
 

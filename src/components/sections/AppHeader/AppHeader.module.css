@@ -124,6 +124,18 @@
   gap: 12px;
 }
 
+/* Phones: fully opaque, no blur. The PWA paints the status-bar strip in the
+   solid theme color, and a translucent blurred header directly beneath it
+   reads as two mismatched bands — so the mobile header is plain cream.
+   (The always-1 opacity is set inline from AppHeader's isMobile.) */
+@media (max-width: 720px) {
+  .bg {
+    background: var(--color-cream);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 /* Very narrow devices (below the common 375px phones): the three action
    icons already carry ~6px of their own padding, so the flex gap collapses
    to keep the trio from spreading apart. */

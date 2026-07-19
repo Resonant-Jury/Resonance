@@ -120,25 +120,68 @@ export type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   tone?: Tone;
   seed?: number;
   curve?: number;
+  /**
+   * Height follows the content: the box grows and shrinks with the text and
+   * never scrolls internally (`rows` still sets the resting minimum).
+   */
+  autoGrow?: boolean;
 };
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
-  { variant = 'default', tone = 'default', className, rows = 6, seed = 17, curve, onFocus, onBlur, onMouseEnter, onMouseLeave, ...rest },
+  { variant = 'default', tone = 'default', className, rows = 6, seed = 17, curve, autoGrow = false, onFocus, onBlur, onMouseEnter, onMouseLeave, ...rest },
   ref,
 ) {
   const [hover, setHover] = useState(false);
   const [focus, setFocus] = useState(false);
 
+  const innerRef = useRef<HTMLTextAreaElement | null>(null);
+  const setRefs = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      innerRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
+
+  // Collapse-then-measure so the box also *shrinks* when lines are deleted.
+  const fitHeight = useCallback(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+  useLayoutEffect(() => {
+    if (autoGrow) fitHeight();
+  }, [autoGrow, fitHeight, rest.value]);
+  // Re-fit when the box's *width* changes (pane resize, fonts settling): the
+  // text re-wraps, so a height measured at another width is stale. Watching
+  // width only — the fit itself changes the height, which must not loop.
+  useEffect(() => {
+    if (!autoGrow) return;
+    const el = innerRef.current;
+    if (!el) return;
+    let lastW = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth !== lastW) {
+        lastW = el.clientWidth;
+        fitHeight();
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [autoGrow, fitHeight]);
+
   const el = (
     <textarea
-      ref={ref}
+      ref={setRefs}
       rows={rows}
       {...rest}
       onFocus={(e) => { setFocus(true); onFocus?.(e); }}
       onBlur={(e) => { setFocus(false); onBlur?.(e); }}
       onMouseEnter={(e) => { setHover(true); onMouseEnter?.(e); }}
       onMouseLeave={(e) => { setHover(false); onMouseLeave?.(e); }}
-      className={[styles.field, className].filter(Boolean).join(' ')}
+      className={[styles.field, autoGrow && styles.autoGrow, className].filter(Boolean).join(' ')}
       data-variant={variant === 'default' ? undefined : variant}
       data-tone={tone === 'default' ? undefined : tone}
     />

@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useState, useTransition, type CSSProperties } from 'react';
+import { Fragment, useEffect, useRef, useState, useTransition, type CSSProperties } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Icon, type IconName } from '@/components/atoms/Icon';
@@ -101,6 +101,28 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   // Below this width the layout switches to the phone master/detail flow.
   const isMobile = useIsMobile(760);
 
+  // The phone detail view exists as a real history entry, so the hardware /
+  // browser Back key steps detail → menu instead of leaving /settings.
+  // Opening a section pushes a sentinel entry (Next's own state spread in —
+  // the router reads its tree from history.state); the popstate that consumes
+  // it folds the view back to the menu. The header's ← is history.back(), so
+  // both back affordances travel the same path and the sentinel never leaks.
+  const mobileViewRef = useRef(mobileView);
+  mobileViewRef.current = mobileView;
+  const openSection = (s: Section) => {
+    setActive(s);
+    setMobileView('detail');
+    const base = (window.history.state ?? {}) as Record<string, unknown>;
+    window.history.pushState({ ...base, __settingsDetail: true }, '', window.location.href);
+  };
+  useEffect(() => {
+    const onPop = () => {
+      if (mobileViewRef.current === 'detail') setMobileView('menu');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   // In the phone detail view the app header takes over as the screen chrome:
   // a back control + the current section's name, nothing else. Cleared whenever
   // we're on the menu, on desktop, or when leaving settings entirely.
@@ -109,7 +131,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
       setMobileHeader(null);
       return;
     }
-    setMobileHeader({ title: t(`sections.${active}`), onBack: () => setMobileView('menu') });
+    setMobileHeader({ title: t(`sections.${active}`), onBack: () => window.history.back() });
     return () => setMobileHeader(null);
   }, [isMobile, mobileView, active, t, setMobileHeader]);
 
@@ -435,10 +457,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
                   {i > 0 && <Divider seed={40 + i * 6} spacing={2} />}
                   <button
                     type="button"
-                    onClick={() => {
-                      setActive(s);
-                      setMobileView('detail');
-                    }}
+                    onClick={() => openSection(s)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',

@@ -484,6 +484,7 @@ export function CardEditor({
             rows={2}
             tone="display"
             curve={0.8}
+            autoGrow
           />
           {/* AI 寫作夥伴：標題建議暫時停用，未來會重新啟用 */}
         </Field>

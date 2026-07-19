@@ -20,14 +20,16 @@
   gap: 4px;
 }
 
+/* Same voice as AppMobileNavModal's rows — body face at list size, so the
+   landing menu doesn't shout in display type while every other menu whispers. */
 .navLink {
-  font-family: var(--font-heading);
-  font-size: 22px;
-  font-weight: 600;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 500;
   color: var(--color-text);
   text-decoration: none;
-  padding: 10px 4px;
-  letter-spacing: -0.01em;
+  padding: 10px 12px;
+  border-radius: 10px;
   transition: color 150ms;
 }
 

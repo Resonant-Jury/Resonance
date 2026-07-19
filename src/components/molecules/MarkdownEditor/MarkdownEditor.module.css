@@ -10,11 +10,14 @@
   z-index: 3;
 }
 
-/* The contenteditable surface (Tiptap applies this class to .ProseMirror). */
+/* The contenteditable surface (Tiptap applies this class to .ProseMirror).
+   Height follows the content in both directions (same contract as the
+   auto-grow Textarea): the floor is only a comfortable empty-state target,
+   not a fixed editor height, and nothing ever scrolls inside the border. */
 .content {
   position: relative;
   z-index: 1;
-  min-height: 320px;
+  min-height: 120px;
   padding: var(--field-pad-y) var(--field-pad-x);
   font-family: var(--font-body);
   font-size: 16px;

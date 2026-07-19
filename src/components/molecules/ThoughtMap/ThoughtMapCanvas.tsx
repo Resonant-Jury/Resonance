@@ -277,10 +277,43 @@ export function ThoughtMapCanvas({
     if (!drag.moved && Math.hypot(px - drag.px, py - drag.py) > 4) drag.moved = true;
   };
 
+  // --- two-finger pinch (touch) --------------------------------------------
+
+  /** Live touch points on the viewport, screen-local. */
+  const touchesRef = useRef(new Map<number, { px: number; py: number }>());
+  /** Previous pinch frame — finger distance + midpoint (screen-local). */
+  const pinchRef = useRef<{ dist: number; cx: number; cy: number } | null>(null);
+
+  const pinchFrame = () => {
+    const [a, b] = [...touchesRef.current.values()];
+    return {
+      dist: Math.max(1, Math.hypot(a.px - b.px, a.py - b.py)),
+      cx: (a.px + b.px) / 2,
+      cy: (a.py + b.py) / 2,
+    };
+  };
+
+  // Registered in the *capture* phase so a finger landing on a card (whose own
+  // pointerdown stops propagation) still counts toward a pinch. The moment a
+  // second finger arrives, whatever one-finger gesture was underway yields to
+  // camera control — same rule as every touch canvas.
+  const onPointerDownCapture = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'touch') return;
+    touchesRef.current.set(e.pointerId, localPoint(e));
+    if (touchesRef.current.size === 2) {
+      pinchRef.current = pinchFrame();
+      dragRef.current = null;
+      setPanning(false);
+      setDragNodeId(null);
+      setLinkDraft(null);
+      capture(e);
+    }
+  };
+
   // --- gesture starts -------------------------------------------------------
 
   const startPan = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || pinchRef.current) return;
     const { px, py } = localPoint(e);
     dragRef.current = { kind: 'pan', px, py, camX: camera.x, camY: camera.y, moved: false };
     capture(e);
@@ -288,7 +321,7 @@ export function ThoughtMapCanvas({
   };
 
   const startNodeDrag = (id: string) => (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || pinchRef.current) return;
     e.stopPropagation();
     e.preventDefault();
     const { px, py } = localPoint(e);
@@ -300,7 +333,7 @@ export function ThoughtMapCanvas({
   };
 
   const startLink = (id: string) => (e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || pinchRef.current) return;
     e.stopPropagation();
     e.preventDefault();
     const { px, py } = localPoint(e);
@@ -311,7 +344,7 @@ export function ThoughtMapCanvas({
   };
 
   const startGroupDrag = (id: string, fromTitle = false) => (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || pinchRef.current) return;
     e.stopPropagation();
     e.preventDefault();
     const { px, py } = localPoint(e);
@@ -325,7 +358,7 @@ export function ThoughtMapCanvas({
   };
 
   const startResize = (id: string) => (e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || pinchRef.current) return;
     e.stopPropagation();
     e.preventDefault();
     const { px, py } = localPoint(e);
@@ -336,6 +369,21 @@ export function ThoughtMapCanvas({
   // --- gesture progress / end -----------------------------------------------
 
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch' && touchesRef.current.has(e.pointerId)) {
+      touchesRef.current.set(e.pointerId, localPoint(e));
+      const prev = pinchRef.current;
+      if (prev && touchesRef.current.size >= 2) {
+        // Zoom about the finger midpoint, then pan with the midpoint's drift —
+        // the world point between the fingers stays pinned under them.
+        const frame = pinchFrame();
+        setCamera((cam) => {
+          const z = zoomAt(cam, frame.cx, frame.cy, frame.dist / prev.dist);
+          return { ...z, x: z.x + (frame.cx - prev.cx), y: z.y + (frame.cy - prev.cy) };
+        });
+        pinchRef.current = frame;
+        return;
+      }
+    }
     const drag = dragRef.current;
     if (!drag) return;
     const { px, py } = localPoint(e);
@@ -392,6 +440,16 @@ export function ThoughtMapCanvas({
   };
 
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') {
+      touchesRef.current.delete(e.pointerId);
+      if (pinchRef.current) {
+        // Two fingers left: re-baseline on the surviving pair (a third finger
+        // may have been holding one slot); fewer: the pinch is over. Either
+        // way a pinch finger never falls through to click/select.
+        pinchRef.current = touchesRef.current.size >= 2 ? pinchFrame() : null;
+        return;
+      }
+    }
     const drag = dragRef.current;
     dragRef.current = null;
     setPanning(false);
@@ -748,6 +806,7 @@ export function ThoughtMapCanvas({
           backgroundPosition: `${camera.x}px ${camera.y}px`,
           backgroundSize: `${GRID * camera.s}px ${GRID * camera.s}px`,
         }}
+        onPointerDownCapture={onPointerDownCapture}
         onPointerDown={startPan}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

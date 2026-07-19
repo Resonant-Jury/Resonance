@@ -139,24 +139,27 @@ export default function PublicProfilePage() {
         )}
       </header>
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionHeading}>{t('publishedHeading')}</h2>
-        {published.length > 0 ? (
-          <CardLinkGrid cards={published} authors={authors} />
-        ) : isSelf ? (
-          // The owner's empty profile teaches instead of apologizing (ux §4).
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
-            <p className={styles.empty} style={{ padding: 0 }}>
-              {t('emptyPublishedSelf')}
-            </p>
-            <Link href="/write" style={{ textDecoration: 'none' }}>
-              <OrganicButton variant="primary">{t('emptyPublishedCta')}</OrganicButton>
-            </Link>
-          </div>
-        ) : (
-          <p className={styles.empty}>{t('emptyPublished')}</p>
-        )}
-      </section>
+      {/* Visitors with nothing to browse see no section at all — the hero's
+          card-count line already states the fact, so a heading over an empty
+          state would just restate it. The owner keeps the teaching moment. */}
+      {(published.length > 0 || isSelf) && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionHeading}>{t('publishedHeading')}</h2>
+          {published.length > 0 ? (
+            <CardLinkGrid cards={published} authors={authors} />
+          ) : (
+            // The owner's empty profile teaches instead of apologizing (ux §4).
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
+              <p className={styles.empty} style={{ padding: 0 }}>
+                {t('emptyPublishedSelf')}
+              </p>
+              <Link href="/write" style={{ textDecoration: 'none' }}>
+                <OrganicButton variant="primary">{t('emptyPublishedCta')}</OrganicButton>
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
 
       {linked.length > 0 && (
         <section className={styles.section}>

@@ -120,6 +120,7 @@ export default function MyCardBoxPage() {
         tabs={tabs}
         manageable
         thoughtMapHref="/me/thought-map"
+        persistKey="me:cardbox-tab"
         data={
           box
             ? {

@@ -527,9 +527,12 @@
   .listPane {
     padding-left: 2px;
   }
-  /* No vertical rule to meet on single-pane phones. */
+  /* No vertical rule to meet on single-pane phones — instead the rule runs
+     edge to edge like the app header's own wavy bottom stroke (the 14px is
+     the page's single-pane side padding, pulled back out). */
   .threadDivider {
-    margin-left: 0;
+    margin-left: -14px;
+    margin-right: -14px;
   }
   .vRule {
     display: none;

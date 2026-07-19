@@ -76,6 +76,14 @@ textarea.field {
   min-height: 96px;
 }
 
+/* Auto-grow: the JS height (from scrollHeight) is the whole story — no manual
+   resize grip, no internal scrollbar, no fixed floor beyond `rows`. */
+textarea.field.autoGrow {
+  resize: none;
+  overflow: hidden;
+  min-height: 0;
+}
+
 /* ── Organic dropdown (Select) ──────────────────────────────────────
    Closed box reuses .surface; clicking expands .dropdownPanel directly
    beneath, drawn with an open-top wobbly border (no top edge). */

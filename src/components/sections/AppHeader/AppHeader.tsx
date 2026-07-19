@@ -105,7 +105,13 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
       <div
         aria-hidden="true"
         className={styles.bg}
-        style={{ opacity: scrolled ? 1 : 0.82, WebkitMaskImage: maskUrl, maskImage: maskUrl }}
+        style={{
+          // Phones keep the header fully opaque — see the media query in the
+          // module CSS for why the PWA wants a solid band here.
+          opacity: isMobile || scrolled ? 1 : 0.82,
+          WebkitMaskImage: maskUrl,
+          maskImage: maskUrl,
+        }}
       />
       <svg
         aria-hidden="true"
@@ -172,13 +178,26 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
                 {tNav('signIn')}
               </OrganicButton>
             </Link>
+            {/* Signed-out phones still get the menu — the 共振 Feed entry
+                (and the 登入 shortcut) live in the same modal as always. */}
+            {isMobile && (
+              <button
+                aria-label={tNav('openMenu')}
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen(true)}
+                className={styles.menuBtn}
+                style={{ padding: 6, transform: 'translateY(3px)' }}
+              >
+                <HamburgerIcon size={22} />
+              </button>
+            )}
           </div>
         ) : isMobile ? (
           <div className={styles.account}>
             <MessagesEntry />
             <NotificationBell />
             <button
-              aria-label="Open menu"
+              aria-label={tNav('openMenu')}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
               className={styles.menuBtn}
@@ -199,14 +218,12 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
         )}
       </div>
 
-      {signedIn && (
-        <AppMobileNavModal
-          open={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          user={user}
-          activeKey={activeKey}
-        />
-      )}
+      <AppMobileNavModal
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        user={signedIn ? user : undefined}
+        activeKey={activeKey}
+      />
     </header>
   );
 }
