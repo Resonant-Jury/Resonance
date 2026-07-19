@@ -11,7 +11,7 @@ import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { Link, usePathname } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile } from '@/lib/data/hooks';
-import { MobileNavModal } from './MobileNavModal';
+import { AppMobileNavModal } from '@/components/sections/AppHeader/AppMobileNavModal';
 import { LanguageSelect } from './LanguageSelect';
 import styles from './SiteHeader.module.css';
 import { INK_LIGHT } from '@/lib/design/strokes';
@@ -182,7 +182,21 @@ export function SiteHeader() {
         )}
       </div>
 
-      <MobileNavModal open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <AppMobileNavModal
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        user={
+          mounted && !loading && user && profile
+            ? {
+                initials: profile.initials || '··',
+                handle: profile.handle || '',
+                accentColor: profile.accentColor || 'var(--color-terracotta-light)',
+                avatarUrl: profile.avatarUrl,
+                avatarSeed: profile.avatarSeed,
+              }
+            : undefined
+        }
+      />
     </header>
   );
 }

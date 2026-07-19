@@ -173,11 +173,15 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
           <div className={styles.account} />
         ) : !signedIn ? (
           <div className={styles.account}>
-            <Link href="/signin" style={{ textDecoration: 'none' }}>
-              <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: 14 }}>
-                {tNav('signIn')}
-              </OrganicButton>
-            </Link>
+            {/* Desktop: login button visible directly (no hamburger menu).
+                Mobile: login lives inside the hamburger modal instead. */}
+            {!isMobile && (
+              <Link href="/signin" style={{ textDecoration: 'none' }}>
+                <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: 14 }}>
+                  {tNav('signIn')}
+                </OrganicButton>
+              </Link>
+            )}
             {/* Signed-out phones still get the menu — the 共振 Feed entry
                 (and the 登入 shortcut) live in the same modal as always. */}
             {isMobile && (
