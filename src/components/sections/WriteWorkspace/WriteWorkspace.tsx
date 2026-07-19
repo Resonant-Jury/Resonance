@@ -54,9 +54,9 @@ export function WriteWorkspace({
       open={editorOpen}
       onClose={() => {
         // Phones: ✕ on this route's own draft leaves the page the user
-        // arrived from (profile, home, …) instead of unveiling the map —
-        // history.back() pops CardEditor's sentinel, so its dirty-draft
-        // confirm still intercepts before anything is lost. A card opened
+        // arrived from (profile, home, …) instead of unveiling the map.
+        // Leaving is always safe — CardEditor autosaves, and its unmount
+        // flush persists any edits younger than the debounce. A card opened
         // *from the map* keeps the map hand-back, on every width.
         if (isSinglePane && !showOpened) {
           window.history.back();

@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState, useTransition, type CSSProperties } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Icon, type IconName } from '@/components/atoms/Icon';
@@ -49,6 +49,13 @@ const SECTIONS: Section[] = [
   'delete',
 ];
 
+/** The public profile page (/u/{handle}) is ISR-cached; its share metadata
+ *  only changes when the profile is saved, so bust the cache on save instead
+ *  of polling. CJK handles live at a percent-encoded URL — revalidate both. */
+function profilePaths(...handles: string[]): string[] {
+  return [...new Set(handles.flatMap((h) => [`/u/${h}`, `/u/${encodeURIComponent(h)}`]))];
+}
+
 /** Hand-drawn glyph leading each row in the phone settings menu. */
 const SECTION_ICONS: Record<Section, IconName> = {
   profile: 'user',
@@ -94,8 +101,6 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   const [region, setRegion] = useState(initial.region);
   const [avatarUrl, setAvatarUrl] = useState(initial.avatarUrl);
   const [primaryLocale, setPrimaryLocale] = useState<Locale>(initial.primaryLocale);
-  const [savedTick, setSavedTick] = useState(false);
-  const [pending, start] = useTransition();
   const [signingOut, setSigningOut] = useState(false);
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   // Below this width the layout switches to the phone master/detail flow.
@@ -162,35 +167,52 @@ export function SettingsClient({ initial }: SettingsClientProps) {
     setPrefs((p) => ({ ...p, [k]: !p[k] }));
   }
 
-  // The public profile page (/u/{handle}) is ISR-cached; its share metadata
-  // only changes when the profile is saved, so bust the cache here instead of
-  // polling. CJK handles live at a percent-encoded URL — revalidate both forms.
-  function profilePaths(...handles: string[]): string[] {
-    return [...new Set(handles.flatMap((h) => [`/u/${h}`, `/u/${encodeURIComponent(h)}`]))];
-  }
+  // Autosave: profile fields persist on their own a moment after editing stops
+  // (no Save button). Values travel through refs so the debounce timer, the
+  // unmount flush, and the UI-locale switch (which remounts this component)
+  // all save the same latest state. Only fields that differ from the last
+  // successful save are written; a failed save keeps them marked dirty so the
+  // next edit retries.
+  const savedProfileRef = useRef({
+    handle: initial.handle,
+    bio: initial.bio,
+    region: initial.region,
+    primaryLocale: initial.primaryLocale,
+  });
+  const profileRef = useRef({ handle, bio, region, primaryLocale });
+  profileRef.current = { handle, bio, region, primaryLocale };
 
-  function save() {
-    start(async () => {
-      const patch: Parameters<typeof updateProfile>[0] = { bio, region, primaryLocale };
-      if (handle !== initial.handle) patch.handle = handle;
-      if (avatarUrl !== initial.avatarUrl) patch.avatarUrl = avatarUrl;
-      await updateProfile(patch);
-      // Old handle too when it changed — that cached page must stop serving
-      // the profile under its former name.
-      void requestRevalidate(profilePaths(handle, initial.handle));
-      setSavedTick(true);
-      setTimeout(() => setSavedTick(false), 1800);
-      // If the UI locale needs to change, navigate (next-intl Link handles
-      // locale prefix). Saving primaryLocale does not change the URL locale
-      // automatically — user must confirm switch.
-      if (
-        (primaryLocale === 'en' || primaryLocale === 'zh-TW') &&
-        primaryLocale !== locale
-      ) {
-        router.replace('/settings', { locale: primaryLocale });
-      }
-    });
-  }
+  const flushProfile = useCallback(() => {
+    const prev = savedProfileRef.current;
+    const cur = profileRef.current;
+    const patch: Parameters<typeof updateProfile>[0] = {};
+    // An emptied handle is never saved — the field stays dirty until it holds
+    // a real name again.
+    if (cur.handle !== prev.handle && cur.handle.trim()) patch.handle = cur.handle;
+    if (cur.bio !== prev.bio) patch.bio = cur.bio;
+    if (cur.region !== prev.region) patch.region = cur.region;
+    if (cur.primaryLocale !== prev.primaryLocale) patch.primaryLocale = cur.primaryLocale;
+    if (Object.keys(patch).length === 0) return;
+    const next = { ...cur, handle: patch.handle ? cur.handle : prev.handle };
+    void updateProfile(patch)
+      .then(() => {
+        savedProfileRef.current = next;
+        // Old handle too when it changed — that cached page must stop serving
+        // the profile under its former name.
+        void requestRevalidate(profilePaths(next.handle, prev.handle));
+      })
+      .catch((err) => console.error('Profile autosave failed:', err));
+  }, []);
+
+  useEffect(() => {
+    const h = setTimeout(flushProfile, 800);
+    return () => clearTimeout(h);
+  }, [handle, bio, region, primaryLocale, flushProfile]);
+
+  // Edits younger than the debounce would be lost when the component unmounts
+  // (leaving /settings, or the UI-locale switch remounting the tree) — flush
+  // them; the async write outlives the component.
+  useEffect(() => () => flushProfile(), [flushProfile]);
 
   const titleStyle: CSSProperties = {
     fontFamily: 'var(--font-heading)',
@@ -209,11 +231,11 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               seed={77}
               onUploaded={(url) => {
                 setAvatarUrl(url);
-                // Persist immediately so the header avatar updates without
-                // waiting for the Save button; the public profile is saved
-                // under the *current* handle, so bust that cache entry.
+                // Persist immediately so the header avatar updates right away;
+                // the public profile lives under the last-saved handle, so
+                // bust that cache entry.
                 void updateProfile({ avatarUrl: url }).then(() =>
-                  requestRevalidate(profilePaths(initial.handle)),
+                  requestRevalidate(profilePaths(savedProfileRef.current.handle)),
                 );
               }}
             />
@@ -412,19 +434,6 @@ export function SettingsClient({ initial }: SettingsClientProps) {
             </p>
             <OrganicButton variant="outline">{t('delete.button')}</OrganicButton>
           </>
-        )}
-
-        {(active === 'profile' || active === 'account' || active === 'language') && (
-          <div style={{ marginTop: 4, display: 'flex', gap: 12, alignItems: 'center' }}>
-            <OrganicButton variant="primary" onClick={save}>
-              {pending ? '…' : t('save')}
-            </OrganicButton>
-            {savedTick && (
-              <span style={{ color: 'var(--color-sage, oklch(55% 0.13 140))', fontSize: 13 }}>
-                {t('saved')}
-              </span>
-            )}
-          </div>
         )}
     </section>
   );

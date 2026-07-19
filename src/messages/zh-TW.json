@@ -301,13 +301,6 @@
       "regenerate": "再試一次",
       "stubNotice": "（MVP 階段 AI 是示意，Phase 3 接入真模型）"
     },
-    "discard": {
-      "title": "確定要捨棄變更嗎？",
-      "message": "您有尚未儲存的變更，離開後將會遺失。",
-      "confirm": "確定捨棄",
-      "cancel": "繼續編輯"
-    },
-    "saveDraft": "儲存草稿",
     "publish": "發布",
     "publishing": "發布中⋯",
     "autosaved": "草稿已自動儲存 · {time}",
@@ -533,8 +526,6 @@
       "title": "刪除帳號",
       "warn": "刪除後 7 天內可反悔。我們會幫你匯出一份備份。",
       "button": "開始刪除流程"
-    },
-    "save": "儲存變更",
-    "saved": "已儲存 ✿"
+    }
   }
 }

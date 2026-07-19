@@ -24,7 +24,6 @@ import {
   polyline,
 } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
 import { PublishPanel } from '@/components/molecules/PublishPanel/PublishPanel';
-import { ConfirmModal } from '@/components/molecules/ConfirmModal/ConfirmModal';
 import { wobRect } from '@/lib/design/wobRect';
 import {
   createCardDraft,
@@ -40,7 +39,6 @@ import type { Card, CardMedia, Visibility, Locale } from '@/lib/db/types';
 import type { GenerateImageEvent } from '@/app/api/generate-image/route';
 import { ndjsonValues } from '@/lib/streams/ndjson';
 import { useRouter } from '@/i18n/navigation';
-import { useRouter as useNextRouter } from 'next/navigation';
 import styles from './CardEditor.module.css';
 
 export interface CardEditorProps {
@@ -86,6 +84,38 @@ export interface CardEditorProps {
 //   '停下來看一件小事,是一種慢慢的勇敢。',
 // ];
 
+/** Everything a draft save writes, in one comparable shape. */
+interface DraftValues {
+  thoughtCore: string;
+  story: string;
+  tags: string[];
+  visibility: Visibility;
+  anonymous: boolean;
+  media?: CardMedia;
+  accentHue: number | null;
+}
+
+/** Canonical serialization — key order is fixed so equality is comparable. */
+function draftSnapshot(v: DraftValues): string {
+  return JSON.stringify({
+    thoughtCore: v.thoughtCore,
+    story: v.story,
+    tags: v.tags,
+    visibility: v.visibility,
+    anonymous: v.anonymous,
+    media: v.media,
+    accentHue: v.accentHue,
+  });
+}
+
+/** A draft with no content yet — autosave won't create a document for it. */
+function isEmptyDraft(v: DraftValues): boolean {
+  return !v.thoughtCore.trim() && !v.story.trim() && v.tags.length === 0 && !v.media;
+}
+
+/** How long editing must pause before the draft autosaves. */
+const AUTOSAVE_DELAY_MS = 1500;
+
 export function CardEditor({
   initial,
   locale,
@@ -99,7 +129,6 @@ export function CardEditor({
   const tCard = useTranslations('card');
   // const tAi = useTranslations('write.ai'); // AI 寫作夥伴：暫時停用
   const router = useRouter();
-  const nextRouter = useNextRouter();
   const inline = mode === 'inline';
 
   const [thoughtCore, setThoughtCore] = useState(initial?.thoughtCore ?? '');
@@ -129,141 +158,35 @@ export function CardEditor({
   const [pending, setPending] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
 
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-  const [pendingLeaveUrl, setPendingLeaveUrl] = useState<string | undefined>(undefined);
-  const [isBrowserBack, setIsBrowserBack] = useState(false);
-  const allowLeaveRef = useRef(false);
-  // The popstate listener is registered once (at mount) but must always see the
-  // *current* dirty flag — a ref instead of re-subscribing on every keystroke.
-  const isDirtyRef = useRef(false);
-
-  const isDirty = useMemo(() => {
-    if (inline) return false;
-    const isCoreChanged = thoughtCore !== (initial?.thoughtCore ?? '');
-    const isStoryChanged = story !== (initial?.story ?? '');
-    const isTagsChanged = JSON.stringify(tags) !== JSON.stringify(initial?.tags ?? []);
-    const isVisibilityChanged = visibility !== (initial?.visibility ?? 'public');
-    const isAnonymousChanged = anonymous !== (initial?.anonymous ?? false);
-    const isMediaChanged = JSON.stringify(media) !== JSON.stringify(initial?.media);
-    return isCoreChanged || isStoryChanged || isTagsChanged || isVisibilityChanged || isAnonymousChanged || isMediaChanged;
-  }, [thoughtCore, story, tags, visibility, anonymous, media, initial, inline]);
-
-  useEffect(() => {
-    if (inline) return;
-    // Reads the refs (not closure state) so a confirmed discard/publish can
-    // release the guard synchronously, before any cross-document traversal.
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirtyRef.current && !allowLeaveRef.current) {
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [inline]);
-
-  useEffect(() => {
-    if (inline) return;
-    const handleAnchorClick = (e: globalThis.MouseEvent) => {
-      if (!isDirty || allowLeaveRef.current) return;
-      const target = e.target as HTMLElement;
-      const anchor = target.closest('a');
-      if (anchor) {
-        const href = anchor.getAttribute('href');
-        if (href && (href.startsWith('/') || href.startsWith(window.location.origin))) {
-          const targetAttr = anchor.getAttribute('target');
-          if (targetAttr === '_blank') return;
-          e.preventDefault();
-          e.stopPropagation();
-          setPendingLeaveUrl(href);
-          setIsBrowserBack(false);
-          setShowLeaveConfirm(true);
-        }
-      }
-    };
-    document.addEventListener('click', handleAnchorClick, true);
-    return () => {
-      document.removeEventListener('click', handleAnchorClick, true);
-    };
-  }, [isDirty, inline]);
-
-  useEffect(() => {
-    isDirtyRef.current = isDirty;
-  }, [isDirty]);
-
-  // Back-navigation guard. A sentinel history entry is pushed at *mount* (not
-  // on first edit — mobile browsers are unreliable about pushState issued while
-  // the virtual keyboard is up, and the entry must exist before any gesture).
-  // The entry under the sentinel is tagged `__writeGuardBase`, so the popstate
-  // handler knows precisely "the user backed out of the editor" as opposed to
-  // any other traversal: dirty → re-push the sentinel and ask; clean → fall
-  // straight through with one more back() so the sentinel is unobservable.
-  // Next's own state is spread into both entries — the router reads its tree
-  // from history.state, and replacing it wholesale would break its traversals.
-  useEffect(() => {
-    if (inline) return;
-    const base = (window.history.state ?? {}) as Record<string, unknown>;
-    window.history.replaceState({ ...base, __writeGuardBase: true }, '');
-    window.history.pushState({ ...base, __writeGuard: true }, '', window.location.href);
-    const handlePopState = (e: PopStateEvent) => {
-      if (allowLeaveRef.current) return;
-      const state = (e.state ?? null) as { __writeGuardBase?: boolean } | null;
-      if (!state?.__writeGuardBase) return;
-      if (isDirtyRef.current) {
-        const { __writeGuardBase: _omit, ...rest } = state;
-        window.history.pushState({ ...rest, __writeGuard: true }, '', window.location.href);
-        setIsBrowserBack(true);
-        setPendingLeaveUrl(undefined);
-        setShowLeaveConfirm(true);
-      } else {
-        window.history.back();
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    // No history unwinding in the cleanup: a remount (guide seed, dev double
-    // invoke) may leave an extra tagged entry behind, and the clean-case
-    // fall-through above walks past any number of them, so phantom entries are
-    // unobservable — while an async back() here would race the next mount's
-    // pushState and could chain right off the page.
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [inline]);
-
-  const onConfirmLeave = () => {
-    setShowLeaveConfirm(false);
-    if (isBrowserBack) {
-      // Discard confirmed: mark the draft clean and resume the interrupted
-      // back. The popstate handler now falls through every guard-tagged entry
-      // (however many a remount left behind), landing on the real previous one.
-      isDirtyRef.current = false;
-      window.history.back();
-    } else if (pendingLeaveUrl) {
-      allowLeaveRef.current = true;
-      isDirtyRef.current = false;
-      // The intercepted anchor's href is already locale-prefixed — the i18n
-      // router would prefix it again (/zh-TW/zh-TW/… → 404), so navigate with
-      // the bare Next router.
-      nextRouter.push(pendingLeaveUrl);
-    }
-  };
-
-  const onCancelLeave = () => {
-    setShowLeaveConfirm(false);
-  };
-
   useEffect(() => {
     onStoryChange?.(story);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story]);
 
-  // Autosave stub — every 10s if dirty
-  useEffect(() => {
-    if (!thoughtCore && !story) return;
-    const h = setTimeout(() => setSavedAt(new Date()), 10_000);
-    return () => clearTimeout(h);
-  }, [thoughtCore, story, tags, visibility]);
+  // ---- Autosave ---------------------------------------------------------
+  // The draft persists on its own shortly after editing pauses, so there is
+  // no Save-draft button and no leave guard — backing out of the editor is
+  // always safe. Everything the save needs travels through refs so the
+  // debounce timer, the unmount flush, and the publish path all write the
+  // same latest values.
+  const draftIdRef = useRef(initial?.id);
+  const values: DraftValues = { thoughtCore, story, tags, visibility, anonymous, media, accentHue };
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  const lastSavedRef = useRef(
+    draftSnapshot({
+      thoughtCore: initial?.thoughtCore ?? '',
+      story: initial?.story ?? '',
+      tags: initial?.tags ?? [],
+      visibility: initial?.visibility ?? 'public',
+      anonymous: initial?.anonymous ?? false,
+      media: initial?.media,
+      accentHue: initial?.accentHue ?? null,
+    }),
+  );
+  // All draft writes queue on one chain so an in-flight autosave can never
+  // race the publish path into creating a second document.
+  const writeChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
   const autosavedLabel = useMemo(() => {
     if (!savedAt) return null;
@@ -319,25 +242,81 @@ export function CardEditor({
     anonymous?: boolean;
   }
 
-  async function saveDraft(choices?: PublishChoices) {
-    const vis = choices?.visibility ?? visibility;
-    const anon = choices?.anonymous ?? anonymous;
-    const card = initial?.id
-      ? await updateCardDraft(initial.id, { thoughtCore, story, tags, visibility: vis, media, accentHue, anonymous: anon })
-      : await createCardDraft({
-        thoughtCore,
-        story,
-        tags,
-        visibility: vis,
-        originalLocale: locale,
-        media,
-        accentHue,
-        referenceCardId,
-        anonymous: anon,
-      });
-    setSavedAt(new Date());
-    return card;
+  function saveDraft(choices?: PublishChoices): Promise<Card> {
+    const run = writeChainRef.current.then(async () => {
+      const v: DraftValues = {
+        ...valuesRef.current,
+        visibility: choices?.visibility ?? valuesRef.current.visibility,
+        anonymous: choices?.anonymous ?? valuesRef.current.anonymous,
+      };
+      const payload = {
+        thoughtCore: v.thoughtCore,
+        story: v.story,
+        tags: v.tags,
+        visibility: v.visibility,
+        media: v.media,
+        accentHue: v.accentHue,
+        anonymous: v.anonymous,
+      };
+      const card = draftIdRef.current
+        ? await updateCardDraft(draftIdRef.current, payload)
+        : await createCardDraft({ ...payload, originalLocale: locale, referenceCardId });
+      if (!draftIdRef.current && !inline) {
+        // First save of a fresh draft: swap /write for /write/{id} in place
+        // (Next integrates native replaceState) so a reload or a later
+        // traversal reopens this draft instead of a blank editor.
+        const path = window.location.pathname;
+        const next = path.replace(/\/write(\/[^/]+)?$/, `/write/${card.id}`);
+        if (next !== path) {
+          const base = (window.history.state ?? {}) as Record<string, unknown>;
+          window.history.replaceState(base, '', next);
+        }
+      }
+      draftIdRef.current = card.id;
+      lastSavedRef.current = draftSnapshot(v);
+      setSavedAt(new Date());
+      return card;
+    });
+    writeChainRef.current = run.catch(() => undefined);
+    return run;
   }
+
+  // Kick a save if the current values differ from what was last written.
+  // Failures stay silent (logged) — the state remains dirty, so the next
+  // pause or the publish path retries.
+  function autosaveNow() {
+    const v = valuesRef.current;
+    if (draftSnapshot(v) === lastSavedRef.current) return;
+    if (!draftIdRef.current && isEmptyDraft(v)) return;
+    void saveDraft().catch((err) => console.error('Autosave failed:', err));
+  }
+  const autosaveNowRef = useRef(autosaveNow);
+  autosaveNowRef.current = autosaveNow;
+
+  // Debounce: save AUTOSAVE_DELAY_MS after the last edit. Inline (resonance)
+  // composers keep their explicit publish/save buttons instead.
+  useEffect(() => {
+    if (inline) return;
+    const h = setTimeout(() => autosaveNowRef.current(), AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(h);
+  }, [thoughtCore, story, tags, visibility, anonymous, media, accentHue, inline]);
+
+  // Edits younger than the debounce flush when the editor unmounts (in-app
+  // back/navigation keeps the JS context alive, so the async write completes)
+  // and when the tab is backgrounded — the closest signal mobile gives before
+  // being killed.
+  useEffect(() => {
+    if (inline) return;
+    const flush = () => autosaveNowRef.current();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      flush();
+    };
+  }, [inline]);
 
   async function submit(choices?: PublishChoices) {
     if (pending) return;
@@ -392,7 +371,6 @@ export function CardEditor({
       if (inline) {
         onPublished?.({ ...published, slug: destination === published.id ? published.slug : destination });
       } else {
-        allowLeaveRef.current = true;
         router.push(`/card/${destination}`);
       }
     } catch (err) {
@@ -698,28 +676,7 @@ export function CardEditor({
           </div>
         ) : (
         <div className={styles.actions}>
-          <OrganicButton
-            variant="outline"
-            onClick={() => {
-              if (pending) return;
-              setPending(true);
-              setPublishError(null);
-              saveDraft()
-                .then((card) => {
-                  if (!initial?.id && mode === 'page') {
-                    allowLeaveRef.current = true;
-                    router.replace(`/write/${card.id}`);
-                  }
-                })
-                .catch((err) => {
-                  console.error('Save draft failed:', err);
-                  setPublishError(err instanceof Error ? err.message : String(err));
-                })
-                .finally(() => setPending(false));
-            }}
-          >
-            {t('saveDraft')}
-          </OrganicButton>
+          {/* Drafts autosave — the only explicit action left is publishing. */}
           <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
             <OrganicButton
               variant="primary"
@@ -783,16 +740,6 @@ export function CardEditor({
           <AiRow icon="plus" title={tAi('tags')} hint={tAi('tagsHint')} onClick={suggestTags} />
         </Panel>
       */}
-      <ConfirmModal
-        open={showLeaveConfirm}
-        title={t('discard.title')}
-        body={t('discard.message')}
-        cancelLabel={t('discard.cancel')}
-        confirmLabel={t('discard.confirm')}
-        onCancel={onCancelLeave}
-        onConfirm={onConfirmLeave}
-        seed={41}
-      />
     </div>
   );
 }

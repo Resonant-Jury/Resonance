@@ -1,17 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act } from '@testing-library/react';
 import { renderWithIntl, screen, fireEvent, waitFor, userEvent } from '@/../test/render';
 import { CardEditor } from './CardEditor';
 
 const push = vi.fn();
 vi.mock('@/i18n/navigation', () => ({
   useRouter: () => ({ push }),
-}));
-// The confirmed link-leave path navigates with the bare Next router (the
-// intercepted href is already locale-prefixed) — same spy, one assertion story.
-const nextPush = vi.fn();
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: nextPush }),
 }));
 vi.mock('@/lib/db/firestore/client/cards', () => ({
   createCardDraft: vi.fn(),
@@ -47,10 +42,11 @@ vi.mock('@/components/molecules/MarkdownEditor/MarkdownEditor', () => ({
   ),
 }));
 
-import { createCardDraft, publishCard } from '@/lib/db/firestore/client/cards';
+import { createCardDraft, updateCardDraft, publishCard } from '@/lib/db/firestore/client/cards';
 
 beforeEach(() => {
   vi.mocked(createCardDraft).mockResolvedValue({ id: 'draft-1' } as never);
+  vi.mocked(updateCardDraft).mockResolvedValue({ id: 'draft-1' } as never);
   vi.mocked(publishCard).mockResolvedValue({ id: 'pub-1' } as never);
 });
 afterEach(() => vi.clearAllMocks());
@@ -121,10 +117,9 @@ describe('CardEditor', () => {
         target: { value: 'Once there was a long enough story to publish.' },
       });
 
-      // The editor's publish button opens the single-screen panel — nothing is
-      // saved yet.
+      // The editor's publish button opens the single-screen panel. (Autosave
+      // may or may not have persisted the draft by now — either is fine.)
       await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
-      expect(createCardDraft).not.toHaveBeenCalled();
       expect(await screen.findByText('Publish this card')).toBeInTheDocument();
 
       // Confirm inside the panel (two "Publish" buttons exist now; the panel's
@@ -170,54 +165,78 @@ describe('CardEditor', () => {
       const buttons = screen.getAllByRole('button', { name: 'Publish' });
       await userEvent.click(buttons[buttons.length - 1]);
 
-      await waitFor(() =>
-        expect(createCardDraft).toHaveBeenCalledWith(
-          expect.objectContaining({ anonymous: true })
-        )
-      );
+      // Autosave may have already created the draft (anonymous: false) before
+      // the panel confirmed — what matters is that the publish-path write
+      // carried the toggle, whichever call that ended up being.
+      await waitFor(() => {
+        const writes = [
+          ...vi.mocked(createCardDraft).mock.calls.map(([input]) => input),
+          ...vi.mocked(updateCardDraft).mock.calls.map(([, patch]) => patch),
+        ];
+        expect(writes.some((w) => w.anonymous === true)).toBe(true);
+      });
+      await waitFor(() => expect(publishCard).toHaveBeenCalledWith('draft-1'));
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  describe('Navigation Guard', () => {
-    it('does not trigger confirmation dialog if editor is clean', () => {
-      renderWithIntl(<CardEditor locale="en" />);
-      
-      const anchor = document.createElement('a');
-      anchor.setAttribute('href', '/home');
-      document.body.appendChild(anchor);
-      
-      fireEvent.click(anchor);
-      expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
-      document.body.removeChild(anchor);
+  describe('Autosave', () => {
+    afterEach(() => {
+      vi.useRealTimers();
     });
 
-    it('intercepts anchor click and shows confirmation modal when dirty', async () => {
+    it('creates the draft after an editing pause, then updates it in place', async () => {
+      vi.useFakeTimers();
       renderWithIntl(<CardEditor locale="en" />);
-      
-      // Make it dirty by typing
-      fireEvent.change(screen.getByLabelText('One-line title'), { target: { value: 'Dirty title' } });
 
-      const anchor = document.createElement('a');
-      anchor.setAttribute('href', '/home');
-      document.body.appendChild(anchor);
+      fireEvent.change(screen.getByLabelText('One-line title'), {
+        target: { value: 'Autosaved thought' },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(createCardDraft).toHaveBeenCalledTimes(1);
+      expect(createCardDraft).toHaveBeenCalledWith(
+        expect.objectContaining({ thoughtCore: 'Autosaved thought', originalLocale: 'en' }),
+      );
 
-      fireEvent.click(anchor);
-      expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument();
+      // Further edits update the just-created document — no second create.
+      fireEvent.change(screen.getByLabelText('Story'), {
+        target: { value: 'and then some words' },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(updateCardDraft).toHaveBeenCalledWith(
+        'draft-1',
+        expect.objectContaining({ story: 'and then some words' }),
+      );
+      expect(createCardDraft).toHaveBeenCalledTimes(1);
+    });
 
-      // Click cancel should close modal
-      await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
-      expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
+    it('never creates a document for an empty draft', async () => {
+      vi.useFakeTimers();
+      const { unmount } = renderWithIntl(<CardEditor locale="en" />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      unmount();
+      expect(createCardDraft).not.toHaveBeenCalled();
+    });
 
-      // Click discard should close modal and navigate. The intercepted href is
-      // already locale-prefixed, so it goes through the bare Next router.
-      fireEvent.click(anchor);
-      expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument();
-      await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
-      expect(nextPush).toHaveBeenCalledWith('/home');
-
-      document.body.removeChild(anchor);
+    it('flushes pending edits when the editor unmounts (leaving is safe)', async () => {
+      const { unmount } = renderWithIntl(<CardEditor locale="en" />);
+      fireEvent.change(screen.getByLabelText('One-line title'), {
+        target: { value: 'Backed out right away' },
+      });
+      // Unmount before the debounce elapses — the flush must still persist.
+      unmount();
+      await waitFor(() =>
+        expect(createCardDraft).toHaveBeenCalledWith(
+          expect.objectContaining({ thoughtCore: 'Backed out right away' }),
+        ),
+      );
     });
   });
 });

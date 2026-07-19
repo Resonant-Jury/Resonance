@@ -301,13 +301,6 @@
       "regenerate": "Try again",
       "stubNotice": "(MVP AI is a stub; real model in Phase 3)"
     },
-    "discard": {
-      "title": "Discard unsaved changes?",
-      "message": "You have unsaved changes. Leaving this page will discard them.",
-      "confirm": "Discard",
-      "cancel": "Keep editing"
-    },
-    "saveDraft": "Save draft",
     "publish": "Publish",
     "publishing": "Publishing…",
     "autosaved": "Draft saved · {time}",
@@ -533,8 +526,6 @@
       "title": "Delete account",
       "warn": "You have 7 days to undo. We’ll export a backup.",
       "button": "Begin deletion"
-    },
-    "save": "Save changes",
-    "saved": "Saved ✿"
+    }
   }
 }
