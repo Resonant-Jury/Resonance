@@ -103,6 +103,7 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
       <Link
         href={user ? '/me' : '/signin'}
         onClick={onClose}
+        aria-label={user?.handle || undefined}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -112,16 +113,13 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
         }}
       >
         {user ? (
-          <>
-            <HandDrawnAvatar
-              src={user.avatarUrl}
-              initials={user.initials}
-              size={32}
-              color={user.accentColor}
-              seed={Number(user.avatarSeed) || 77}
-            />
-            <span style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>{user.handle}</span>
-          </>
+          <HandDrawnAvatar
+            src={user.avatarUrl}
+            initials={user.initials}
+            size={32}
+            color={user.accentColor}
+            seed={Number(user.avatarSeed) || 77}
+          />
         ) : (
           <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: 14 }}>
             {t('signIn')}

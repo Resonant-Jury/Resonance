@@ -103,6 +103,36 @@ function StoryImage({ label, accentFill, imageUrl, seed }: { label: string; acce
   );
 }
 
+/** Wavy section dividers framing a full-bleed mobile card: one along the top
+    edge, plus one along the bottom for the last card of the feed. */
+function MobileDividers({ d, stroke, isLast }: { d: string; stroke: string; isLast: boolean }) {
+  const edge = (pos: 'top' | 'bottom') => (
+    <svg
+      viewBox="0 0 200 6"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      className={styles.mobileDivider}
+      style={pos === 'top' ? { top: -3 } : { bottom: -3 }}
+    >
+      <path
+        d={d}
+        transform="translate(0,3)"
+        stroke={stroke}
+        strokeWidth={INK_LIGHT}
+        fill="none"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+  return (
+    <>
+      {edge('top')}
+      {isLast && edge('bottom')}
+    </>
+  );
+}
+
 export interface StoryCardProps {
   story?: Story;
   index?: number;
@@ -159,8 +189,6 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
     });
   }, [w, h, R, seed, mag]);
 
-  const mobileBleed = 'clamp(24px, 5vw, 80px)';
-
   return (
     <article
       ref={cardRef}
@@ -168,56 +196,28 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
       onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
       className={styles.card}
       style={{
-        padding: isMobile ? `32px calc(18px + ${mobileBleed})` : '22px',
-        marginLeft: isMobile ? `calc(-1 * ${mobileBleed})` : 0,
-        marginRight: isMobile ? `calc(-1 * ${mobileBleed})` : 0,
-        background: isMobile ? cardInterior : 'transparent',
+        // Mobile-vs-desktop layout lives in the module CSS (640px media
+        // query); the card only supplies its palette as variables.
+        '--card-interior': cardInterior,
         // Tint every placeholder shimmer inside with this card's own hue
         // (a lighter shade of the card family), overriding the theme accent.
         '--skeleton-highlight': `oklch(88% 0.08 ${hue})`,
       } as CSSProperties}
     >
       {loading ? (
-        <div className={styles.skeletonChrome} aria-hidden style={{ background: cardInterior }} />
+        // Both chromes render; the module CSS shows exactly one per viewport,
+        // so even the pre-hydration SSR paint matches the loaded design.
+        <>
+          <div className={styles.skeletonChrome} aria-hidden style={{ background: cardInterior }} />
+          <div className={styles.skeletonMobileChrome} aria-hidden>
+            <GrainOverlay opacity={0.08} />
+            <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} />
+          </div>
+        </>
       ) : isMobile ? (
         <>
           <GrainOverlay opacity={0.08} />
-          <svg
-            viewBox="0 0 200 6"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-            className={styles.mobileDivider}
-            style={{ top: -3 }}
-          >
-            <path
-              d={dividerPath}
-              transform="translate(0,3)"
-              stroke={bc1}
-              strokeWidth={INK_LIGHT}
-              fill="none"
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-          {isLast && (
-            <svg
-              viewBox="0 0 200 6"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-              className={styles.mobileDivider}
-              style={{ bottom: -3 }}
-            >
-              <path
-                d={dividerPath}
-                transform="translate(0,3)"
-                stroke={bc1}
-                strokeWidth={INK_LIGHT}
-                fill="none"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-          )}
+          <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} />
         </>
       ) : (
         <>
@@ -270,7 +270,9 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
       <div className={styles.content}>
         {loading ? (
           <div className={styles.imagePlaceholder}>
-            <Skeleton height="100%" radius={0} style={{ position: 'absolute', inset: 0 }} />
+            {/* Radius mirrors OrganicImage's pre-wobble R so the placeholder
+                sits where the hand-drawn image curve will land. */}
+            <Skeleton height="100%" radius={18} style={{ position: 'absolute', inset: 0 }} />
           </div>
         ) : (
           <StoryImage

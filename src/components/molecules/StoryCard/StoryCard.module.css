@@ -1,18 +1,49 @@
 .card {
+  --story-bleed: clamp(24px, 5vw, 80px);
   position: relative;
   cursor: pointer;
+  padding: 22px;
   transition: background 320ms ease;
+}
+
+/* Phones: the card is a full-bleed section (tinted band between wavy
+   dividers), not a floating rounded box. Driven by CSS — not useIsMobile —
+   so the very first SSR paint already has the right layout. */
+@media (max-width: 640px) {
+  .card {
+    padding: 32px calc(18px + var(--story-bleed));
+    margin-left: calc(-1 * var(--story-bleed));
+    margin-right: calc(-1 * var(--story-bleed));
+    background: var(--card-interior);
+  }
 }
 
 /* Loading placeholder chrome: a plain rounded border drawn purely in CSS so
    it paints instantly at the correct size — no measure-then-draw step and no
-   organic SVG to flash. Mirrors the real card's interior tint and footprint. */
+   organic SVG to flash. Mirrors the real card's interior tint and footprint.
+   Desktop only — phones swap it for the section dividers below. */
 .skeletonChrome {
   position: absolute;
   inset: 0;
   z-index: 0;
   border-radius: 20px 24px 18px 22px;
   border: 1.5px solid oklch(86% 0.015 75);
+}
+
+/* Skeleton chrome switch, mirrored from the loaded card's two designs. */
+.skeletonMobileChrome {
+  display: none;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+@media (max-width: 640px) {
+  .skeletonChrome {
+    display: none;
+  }
+  .skeletonMobileChrome {
+    display: block;
+  }
 }
 
 .imagePlaceholder {
