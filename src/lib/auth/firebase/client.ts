@@ -3,6 +3,7 @@
 import { getApps, initializeApp } from 'firebase/app';
 import {
   GoogleAuthProvider,
+  OAuthProvider,
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
@@ -12,6 +13,7 @@ import {
   signOut as firebaseSignOut,
   type User as FirebaseUser,
 } from 'firebase/auth';
+import { isNativeApp, signInWithAppleNative, signInWithGoogleNative } from './native';
 import type { IAuthProvider } from '../interfaces';
 import type { AuthSession, AuthUser, PhoneVerificationInput, SignInInput, SignUpInput } from '../types';
 
@@ -68,11 +70,31 @@ export class FirebaseClientAuthProvider implements IAuthProvider {
   }
 
   async signInWithGoogle(): Promise<AuthUser> {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    const cred = await signInWithPopup(getFirebaseClientAuth(), provider);
-    await persistSession(cred.user);
-    return mapFirebaseUser(cred.user);
+    let user: FirebaseUser;
+    if (isNativeApp()) {
+      // Google blocks OAuth in WebViews, so the shell app authenticates
+      // through the native account picker instead of signInWithPopup.
+      ({ user } = await signInWithGoogleNative(getFirebaseClientAuth()));
+    } else {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      ({ user } = await signInWithPopup(getFirebaseClientAuth(), provider));
+    }
+    await persistSession(user);
+    return mapFirebaseUser(user);
+  }
+
+  async signInWithApple(): Promise<AuthUser> {
+    let user: FirebaseUser;
+    if (isNativeApp()) {
+      ({ user } = await signInWithAppleNative(getFirebaseClientAuth()));
+    } else {
+      // Web fallback; requires the Apple provider (Services ID) to be
+      // configured in the Firebase console before it can succeed.
+      ({ user } = await signInWithPopup(getFirebaseClientAuth(), new OAuthProvider('apple.com')));
+    }
+    await persistSession(user);
+    return mapFirebaseUser(user);
   }
 
   async signOut(): Promise<void> {

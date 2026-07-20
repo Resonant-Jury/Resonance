@@ -21,11 +21,23 @@ const config: CapacitorConfig = {
       'accounts.google.com',
     ],
   },
+  // Paper background behind the WebView — kills the white flash while the
+  // remote page loads and matches the site theme (tokens.css --color-bg).
+  backgroundColor: '#FAF2E9',
   ios: {
     contentInset: 'automatic',
   },
   android: {
     allowMixedContent: false,
+  },
+  plugins: {
+    FirebaseAuthentication: {
+      // Native layers only produce OAuth credentials; the web Firebase SDK
+      // performs the actual sign-in (see src/lib/auth/firebase/native.ts),
+      // keeping one auth state that drives the session cookie.
+      skipNativeAuth: true,
+      providers: ['google.com', 'apple.com'],
+    },
   },
 };
 

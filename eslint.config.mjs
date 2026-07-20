@@ -33,6 +33,11 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Capacitor native projects and generated shell copies
+      "android/**",
+      "ios/**",
+      "capacitor-shell/**",
+      "dist/**",
     ],
   },
 ];

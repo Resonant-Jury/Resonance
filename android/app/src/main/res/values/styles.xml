@@ -13,6 +13,14 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Paint both system bars in the site's paper color with dark icons.
+             On Android 15+ (edge-to-edge) the bar colors are ignored and the
+             window background — set to the same color by Capacitor's
+             backgroundColor config — shows through instead; values-v27 adds
+             the light-navigation-bar flag. -->
+        <item name="android:statusBarColor">@color/resonancePaper</item>
+        <item name="android:navigationBarColor">@color/resonancePaper</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
 

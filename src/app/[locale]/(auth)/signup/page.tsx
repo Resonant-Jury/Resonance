@@ -10,7 +10,9 @@ import { AuthCard, Field } from '@/components/molecules/AuthCard/AuthCard';
 import { OrganicInput, OrganicSelect } from '@/components/atoms/OrganicInput/OrganicInput';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { GoogleMark } from '@/components/atoms/GoogleMark/GoogleMark';
+import { AppleMark } from '@/components/atoms/AppleMark/AppleMark';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { isIosNativeApp } from '@/lib/auth/firebase/native';
 import { checkHandleAvailable, createCurrentUserProfile } from '@/lib/db/firestore/client/profile';
 
 type Step = 'google' | 'profile';
@@ -55,11 +57,19 @@ function SignUpPageInner() {
     return () => clearTimeout(h);
   }, [handle, step]);
 
-  async function startGoogle() {
+  // Apple ID is offered inside the iOS shell only (App Store requirement).
+  // Detected in an effect so SSR and first client render agree.
+  const [showApple, setShowApple] = useState(false);
+  useEffect(() => {
+    setShowApple(isIosNativeApp());
+  }, []);
+
+  async function startWith(provider: 'google' | 'apple') {
     setPending(true);
     setError(null);
     try {
-      await auth.signInWithGoogle();
+      if (provider === 'apple') await auth.signInWithApple();
+      else await auth.signInWithGoogle();
       setStep('profile');
     } catch {
       setError(t('signUpError'));
@@ -97,12 +107,22 @@ function SignUpPageInner() {
           >
             {t('googleIntro')}
           </p>
-          <OrganicButton variant="outline" onClick={startGoogle}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <GoogleMark size={18} />
-              {pending ? t('signingIn') : t('continueWithGoogle')}
-            </span>
-          </OrganicButton>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 14 }}>
+            <OrganicButton variant="outline" onClick={() => startWith('google')}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                <GoogleMark size={18} />
+                {pending ? t('signingIn') : t('continueWithGoogle')}
+              </span>
+            </OrganicButton>
+            {showApple && (
+              <OrganicButton variant="outline" onClick={() => startWith('apple')}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                  <AppleMark size={18} />
+                  {pending ? t('signingIn') : t('continueWithApple')}
+                </span>
+              </OrganicButton>
+            )}
+          </div>
         </>
       )}
 

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>1090298219401-pgd3sh80h9ukvf4l564dpvegebi2s8o7.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.1090298219401-pgd3sh80h9ukvf4l564dpvegebi2s8o7</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>1090298219401-9n46k7o3i4qlh9c5m29ejo7tbk0becpr.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyC_kArGRlyn5voih7_rNA1kbeuSQoVyPAM</string>
+	<key>GCM_SENDER_ID</key>
+	<string>1090298219401</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.resonance.stories</string>
+	<key>PROJECT_ID</key>
+	<string>resonance-stories</string>
+	<key>STORAGE_BUCKET</key>
+	<string>resonance-stories.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:1090298219401:ios:04f5a60ee38adfab066f58</string>
+</dict>
+</plist>

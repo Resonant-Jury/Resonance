@@ -10,6 +10,7 @@ interface AuthContextValue {
   signIn(input: SignInInput): Promise<AuthUser>;
   signUp(input: SignUpInput): Promise<AuthUser>;
   signInWithGoogle(): Promise<AuthUser>;
+  signInWithApple(): Promise<AuthUser>;
   signOut(): Promise<void>;
 }
 
@@ -46,6 +47,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       async signInWithGoogle() {
         const next = await firebaseClientAuthProvider.signInWithGoogle();
+        setUser(next);
+        return next;
+      },
+      async signInWithApple() {
+        const next = await firebaseClientAuthProvider.signInWithApple();
         setUser(next);
         return next;
       },

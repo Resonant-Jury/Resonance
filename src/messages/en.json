@@ -443,6 +443,7 @@
     "signUp": "Create account",
     "creating": "Creating…",
     "continueWithGoogle": "Continue with Google",
+    "continueWithApple": "Continue with Apple",
     "googleIntro": "We use Google to sign you in. We never see your password.",
     "signInError": "Sign in failed. Please try again.",
     "signUpError": "Could not create the account. Please try again.",

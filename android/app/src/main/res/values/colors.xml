@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Site theme background (tokens.css --color-bg), shared by the splash
+         screen, the WebView backdrop, and both system bars. -->
+    <color name="resonancePaper">#FAF2E9</color>
+</resources>
