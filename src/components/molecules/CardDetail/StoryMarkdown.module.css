@@ -64,8 +64,34 @@
   text-underline-offset: 2px;
 }
 
-/* Story images render through OrganicStoryImage (curved clip, natural size);
-   no extra img styling needed here. */
+/* Story images render through OrganicStoryImage (curved clip, natural size).
+   A photo on its own line is its own beat in the text, so it gets more air
+   than the paragraph rhythm and sits centered in the column — no blank lines
+   needed in the Markdown. Tall shots are capped by --story-image-max-h in
+   OrganicStoryImage so a portrait photo can't run off the screen. */
+.prose .imageBlock {
+  margin: var(--story-image-gap) auto;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.prose > .imageBlock:first-child {
+  margin-top: 0;
+}
+
+.prose > .imageBlock:last-child {
+  margin-bottom: 0;
+}
+
+/* An image sharing a paragraph with text still keeps its distance. */
+.prose p > .storyImage {
+  margin: 0.5em 0;
+}
+
+/* A line the writer deliberately left blank (see lib/markdown/blankLines). */
+.prose .blankLine {
+  height: var(--story-blank-line);
+}
 
 /* A standalone card link, rendered as the mini embedded story card. */
 .prose .embedBlock {

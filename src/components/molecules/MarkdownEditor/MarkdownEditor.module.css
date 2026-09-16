@@ -98,12 +98,20 @@
 
 /* Block image node view: the wrapper shrink-wraps the photo so the remove
    button and curved selection frame sit on the image's own corners, not the
-   column's. The curve itself is drawn by OrganicStoryImage. */
+   column's. The curve itself is drawn by OrganicStoryImage. Spacing and the
+   height cap come from the same tokens the article uses, so what the writer
+   arranges here is what the reader gets. */
 .imageNode {
   position: relative;
   width: fit-content;
   max-width: 100%;
-  margin: 0 0 0.9em;
+}
+
+/* Scoped to `.content` so it outranks the `.content :first-child` reset above:
+   a node view nests its wrapper one level down, so an image is *always* a
+   first child by that rule's reading and would lose its top margin. */
+.content .imageNode {
+  margin: var(--story-image-gap) auto;
 }
 
 /* Embedded card node view (mini horizontal story card). The card draws its

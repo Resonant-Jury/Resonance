@@ -39,6 +39,17 @@
   --page-max-w: 1080px;
   --page-max-w-wide: 1200px;
 
+  /* Story images (article body + the editor, so both look the same).
+     A photo is its own beat in the text: it carries its own breathing room,
+     so nobody has to type blank lines around it. The height cap is what
+     keeps a portrait photo from running off the bottom of the screen —
+     tall shots stay readable beside the paragraphs instead of dwarfing
+     them. A blank line the writer adds on purpose is worth one more line
+     of space (see SpacedParagraphNode). */
+  --story-image-gap: clamp(22px, 3.2vw, 34px);
+  --story-image-max-h: min(62vh, 520px);
+  --story-blank-line: 1.6em;
+
   /* Border Radius Tokens (Unified Corner Scale) */
   --radius-sm: 12px;
   --radius-md: 16px;

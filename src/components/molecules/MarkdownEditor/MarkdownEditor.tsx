@@ -17,6 +17,7 @@ import { uploadImageFile } from '@/lib/images/upload';
 import type { Card } from '@/lib/db/types';
 import { InsertCardModal } from './InsertCardModal';
 import { OrganicImageNode } from './OrganicImageNode';
+import { SpacedParagraphNode } from './SpacedParagraphNode';
 import { CardEmbedNode } from './CardEmbedNode';
 import { CurvedBlockquoteNode } from './CurvedBlockquoteNode';
 import styles from './MarkdownEditor.module.css';
@@ -99,7 +100,8 @@ export function MarkdownEditor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit.configure({ blockquote: false }),
+      StarterKit.configure({ blockquote: false, paragraph: false }),
+      SpacedParagraphNode,
       CurvedBlockquoteNode,
       OrganicImageNode,
       CardEmbedNode,

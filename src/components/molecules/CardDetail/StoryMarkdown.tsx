@@ -7,6 +7,7 @@ import type { Element, ElementContent } from 'hast';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { OrganicStoryImage } from '@/components/atoms/OrganicImage/OrganicStoryImage';
 import { CardEmbedLink } from '@/components/molecules/EmbedStoryCard/CardEmbedLink';
+import { isBlankParagraph } from '@/lib/markdown/blankLines';
 import { seedFromString } from '@/lib/design/prng';
 import styles from './StoryMarkdown.module.css';
 
@@ -39,13 +40,18 @@ const components: Components = {
   // the photo's natural size. Spans only, so it stays valid inside <p>.
   img: ({ src, alt }) => (
     <OrganicStoryImage
+      className={styles.storyImage}
       src={String(src ?? '')}
       alt={alt ?? ''}
       seed={seedFromString(String(src ?? ''))}
     />
   ),
   // Paragraphs that hold a single card link become mini embedded story
-  // cards. Everything else stays prose.
+  // cards; a paragraph holding a single photo becomes an image block with its
+  // own breathing room (a photo should never touch the sentence above it, and
+  // nobody should have to type blank lines to get that). A paragraph the
+  // writer deliberately left blank renders as extra space. Everything else
+  // stays prose.
   p: ({ node, children }) => {
     const sole = soleElementChild(node);
     if (sole?.tagName === 'a') {
@@ -57,6 +63,12 @@ const components: Components = {
           </div>
         );
       }
+    }
+    if (sole?.tagName === 'img') {
+      return <div className={styles.imageBlock}>{children}</div>;
+    }
+    if (node && isBlankParagraph(node.children.map(hastText).join(''))) {
+      return <div className={styles.blankLine} aria-hidden="true" />;
     }
     return <p>{children}</p>;
   },
