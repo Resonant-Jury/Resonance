@@ -59,19 +59,19 @@ import styles from './ThoughtMap.module.css';
 const GROUP_HUES = [88, 215, 290, 140, 55, 18];
 const GRID = 26;
 
-interface NodeState {
+export interface NodeState {
   cardId: string;
   x: number;
   y: number;
   groupId: string | null;
 }
-interface EdgeState {
+export interface EdgeState {
   id: string;
   sourceCardId: string;
   targetCardId: string;
   label: string;
 }
-interface GroupState {
+export interface GroupState {
   id: string;
   title: string;
   hue: number;
@@ -79,6 +79,13 @@ interface GroupState {
   y: number;
   w: number;
   h: number;
+}
+
+/** The board exactly as the canvas currently holds it (see `onBoardChange`). */
+export interface BoardSnapshot {
+  nodes: NodeState[];
+  edges: EdgeState[];
+  groups: GroupState[];
 }
 
 type Selection = { kind: 'node' | 'edge' | 'group'; id: string } | null;
@@ -125,6 +132,15 @@ export interface ThoughtMapCanvasProps {
    * NOT toggle this, so a manual resize leaves the content anchored in place.
    */
   paneOpen?: boolean;
+  /**
+   * Reports the board after every local change. The canvas owns its state
+   * optimistically, so without this the host's cached copy would still hold
+   * the board as it was when the canvas mounted — and the next mount (coming
+   * back from the card editor, say) would paint that stale copy and appear to
+   * have thrown the arrangement away. The host mirrors the snapshot into its
+   * cache so a remount picks up exactly what is on screen.
+   */
+  onBoardChange?: (board: BoardSnapshot) => void;
 }
 
 /**
@@ -139,6 +155,7 @@ export function ThoughtMapCanvas({
   flush = false,
   onOpenCard,
   paneOpen = false,
+  onBoardChange,
 }: ThoughtMapCanvasProps) {
   const t = useTranslations('me.thoughtMap');
   const router = useRouter();
@@ -168,6 +185,23 @@ export function ThoughtMapCanvas({
       ]),
     ),
   );
+
+  // Mirror every local change back to the host (see `onBoardChange`). The
+  // first run is skipped: on mount the state *is* what the host handed us.
+  const onBoardChangeRef = useRef(onBoardChange);
+  onBoardChangeRef.current = onBoardChange;
+  const reportedRef = useRef(false);
+  useEffect(() => {
+    if (!reportedRef.current) {
+      reportedRef.current = true;
+      return;
+    }
+    onBoardChangeRef.current?.({
+      nodes: Object.values(nodes),
+      edges: Object.values(edges),
+      groups: Object.values(groups),
+    });
+  }, [nodes, edges, groups]);
 
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, s: 1 });
   const cameraRef = useRef(camera);
