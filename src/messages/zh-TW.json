@@ -75,7 +75,8 @@
       "signOut": "登出",
       "messages": "私訊",
       "back": "返回",
-      "openMenu": "開啟選單"
+      "openMenu": "開啟選單",
+      "editThisCard": "編輯這張卡片"
     },
     "notifications": {
       "empty": "當有人共振你的卡片、或寄來一張小紙條，會出現在這裡。",

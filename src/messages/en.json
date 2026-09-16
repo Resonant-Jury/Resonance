@@ -75,7 +75,8 @@
       "signOut": "Sign out",
       "messages": "Messages",
       "back": "Back",
-      "openMenu": "Open menu"
+      "openMenu": "Open menu",
+      "editThisCard": "Edit this card"
     },
     "notifications": {
       "empty": "When someone resonates with your card — or sends you a little note — it will show up here.",
