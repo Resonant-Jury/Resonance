@@ -14,7 +14,8 @@
     "test:ui": "vitest --ui",
     "test:emulator": "cd firebase && firebase emulators:exec --only auth,firestore --project demo-resonance 'cd .. && vitest run -c vitest.emulator.config.ts'",
     "emulators": "cd firebase && firebase emulators:start --only auth,firestore --project demo-resonance",
-    "moderation": "tsx scripts/moderation/reports.ts"
+    "moderation": "tsx scripts/moderation/reports.ts",
+    "api:openapi": "tsx scripts/api-openapi.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1055.0",
@@ -40,7 +41,8 @@
     "remark-gfm": "^4.0.1",
     "sharp": "^0.34.5",
     "swr": "^2.4.1",
-    "tiptap-markdown": "^0.9.0"
+    "tiptap-markdown": "^0.9.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@capacitor/android": "^8.4.2",

@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getApps, initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import type { DecodedIdToken } from 'firebase-admin/auth';
@@ -63,7 +63,23 @@ export async function getServerSession(): Promise<AuthSession | null> {
   return verifySessionCookie(sessionCookie);
 }
 
+/**
+ * Verify a Firebase ID token sent as `Authorization: Bearer <token>` — how the
+ * native apps authenticate (they have no session cookie). Revoked tokens are
+ * rejected, same as `verifySessionCookie(…, true)`.
+ */
+export async function verifyBearerToken(authorization: string | null): Promise<AuthUser | null> {
+  if (!authorization?.startsWith('Bearer ')) return null;
+  try {
+    return mapToken(await getAdminAuth().verifyIdToken(authorization.slice(7), true));
+  } catch {
+    return null;
+  }
+}
+
 export async function getCurrentUser(): Promise<AuthUser | null> {
+  const authorization = (await headers()).get('authorization');
+  if (authorization) return verifyBearerToken(authorization);
   const session = await getServerSession();
   return session?.user ?? null;
 }
