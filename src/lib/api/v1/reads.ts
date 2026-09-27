@@ -3,7 +3,7 @@ import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card, RecommendationItem } from '@/lib/db/types';
 import { ApiFailure } from './http';
 import { blockedByViewer, canView, connected, loadAuthors, toAuthor, toFeedCard } from './present';
-import type { CardDetailBody, FeedCardBody, FeedPageBody, ProfileBody } from './schemas';
+import type { CardBoxTabName, CardDetailBody, FeedCardBody, FeedPageBody, ProfileBody } from './schemas';
 
 /**
  * v1 reads for the apps' reading screens (feed, card page, author page).
@@ -40,7 +40,7 @@ async function present(db: Firestore, viewerId: string, cards: Card[], reasons?:
     if (await canView(db, c, viewerId)) visible.push(c);
   }
   const authors = await loadAuthors(db, visible);
-  return visible.map((c) => toFeedCard(c, authors.get(c.authorId), reasons?.get(c.id) ?? null));
+  return visible.map((c) => toFeedCard(c, authors.get(c.authorId), { reason: reasons?.get(c.id) ?? null }));
 }
 
 async function cardsByIds(db: Firestore, ids: string[]): Promise<Card[]> {
@@ -193,4 +193,37 @@ export async function getProfileLinks(db: Firestore, viewerId: string, handle: s
   const links = await db.collection('cardLinks').where('targetAuthorId', '==', user.id).orderBy('createdAt', 'desc').limit(LINK_LIMIT).get();
   const cards = await cardsByIds(db, links.docs.map((d) => String(d.get('sourceCardId') ?? '')).filter(Boolean));
   return { cards: await present(db, viewerId, cards) };
+}
+
+const BOX_LIMIT = 40;
+
+/**
+ * One shelf of the viewer's card box (the web's useMyCardBox): their own
+ * published, private and draft cards; the originals they wrote a resonance
+ * for; cards linking to theirs; their bookmarks. Their own cards keep their
+ * byline even when published anonymously (marked `anonymous`).
+ */
+export async function getCardBox(db: Firestore, viewerId: string, tab: CardBoxTabName): Promise<{ cards: FeedCardBody[] }> {
+  if (tab === 'published' || tab === 'private' || tab === 'draft') {
+    const snap = await db.collection('cards').where('authorId', '==', viewerId).orderBy('publishedAt', 'desc').limit(BOX_LIMIT).get();
+    const mine = snap.docs
+      .map((d) => mapCard(d.id, d.data()))
+      .filter((c) =>
+        tab === 'draft' ? !c.publishedAt : c.publishedAt && (tab === 'private' ? c.visibility === 'private' : c.visibility !== 'private'),
+      );
+    const me = await db.doc(`users/${viewerId}`).get();
+    return { cards: mine.map((c) => toFeedCard(c, me.data(), { deanonymize: true })) };
+  }
+  if (tab === 'resonated') {
+    const snap = await db.collection('cards').where('authorId', '==', viewerId).limit(60).get();
+    const refIds = snap.docs.map((d) => d.get('referenceCardId')).filter((id): id is string => typeof id === 'string' && id.length > 0);
+    return { cards: await present(db, viewerId, await cardsByIds(db, refIds)) };
+  }
+  if (tab === 'linked') {
+    const links = await db.collection('cardLinks').where('targetAuthorId', '==', viewerId).orderBy('createdAt', 'desc').limit(LINK_LIMIT).get();
+    return { cards: await present(db, viewerId, await cardsByIds(db, links.docs.map((d) => String(d.get('sourceCardId') ?? '')).filter(Boolean))) };
+  }
+  // A bookmarked card that has since gone private simply drops out.
+  const marks = await db.collection(`users/${viewerId}/bookmarks`).orderBy('createdAt', 'desc').limit(BOX_LIMIT * 2).get();
+  return { cards: await present(db, viewerId, await cardsByIds(db, marks.docs.map((d) => d.id))) };
 }

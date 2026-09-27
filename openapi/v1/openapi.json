@@ -54,6 +54,62 @@
         }
       }
     },
+    "/me/cards": {
+      "get": {
+        "operationId": "getCardBox",
+        "summary": "One shelf of your card box",
+        "parameters": [
+          {
+            "name": "tab",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "published",
+                "private",
+                "draft",
+                "resonated",
+                "linked",
+                "bookmarks"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/feed": {
       "get": {
         "operationId": "getFeed",
@@ -827,8 +883,8 @@
             }
           },
           "publishedAt": {
-            "type": "string",
-            "description": "ISO 8601"
+            "nullable": true,
+            "type": "string"
           },
           "author": {
             "nullable": true,
@@ -836,6 +892,17 @@
               {
                 "$ref": "#/components/schemas/Author"
               }
+            ]
+          },
+          "anonymous": {
+            "type": "boolean"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "connections",
+              "private"
             ]
           },
           "imageUrl": {
@@ -872,6 +939,8 @@
           "tags",
           "publishedAt",
           "author",
+          "anonymous",
+          "visibility",
           "imageUrl",
           "imageLabel",
           "accentHue",

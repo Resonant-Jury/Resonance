@@ -68,12 +68,18 @@ export const FeedCard = named(
     id: z.string(),
     slug: z.string().nullable(),
     title: z.string(),
-    /** Plain text (Markdown stripped), at most 140 characters. */
+    /** Plain text (Markdown stripped), at most 96 characters as on the web's story cards. */
     excerpt: z.string(),
     tags: z.array(z.string()),
-    publishedAt: z.string().describe('ISO 8601'),
-    /** Null for anonymous cards: the byline is never revealed. */
+    /** ISO 8601; null for a draft (only its author ever sees one). */
+    publishedAt: z.string().nullable(),
+    /**
+     * Null for anonymous cards: the byline is never revealed — except to the
+     * author, in their own card box (which marks the card `anonymous`).
+     */
     author: Author.nullable(),
+    anonymous: z.boolean(),
+    visibility: z.enum(['public', 'connections', 'private']),
     imageUrl: z.string().nullable(),
     imageLabel: z.string().nullable(),
     /** The cover's dominant hue, which picks the card's palette (lib/design/dominantHue). */
@@ -159,6 +165,10 @@ export const FeedQuery = z.object({
   cursor: z.iso.datetime().optional(),
 });
 
+/** The card box's shelves (the web's me page). */
+export const CardBoxTab = z.enum(['published', 'private', 'draft', 'resonated', 'linked', 'bookmarks']);
+export const CardBoxQuery = z.object({ tab: CardBoxTab });
+
 /** A card's URL segment: its English slug or (older cards) its document id. */
 export const CardKey = z.string().regex(/^[A-Za-z0-9_-]{1,160}$/, 'Not a valid card.');
 export const CardIdParam = DocId;
@@ -172,4 +182,5 @@ export type FeedPageBody = z.infer<typeof FeedPage>;
 export type AuthorBody = z.infer<typeof Author>;
 export type CardDetailBody = z.infer<typeof CardDetail>;
 export type ProfileBody = z.infer<typeof Profile>;
+export type CardBoxTabName = z.infer<typeof CardBoxTab>;
 export type CreateInviteInput = z.infer<typeof CreateInviteRequest>;

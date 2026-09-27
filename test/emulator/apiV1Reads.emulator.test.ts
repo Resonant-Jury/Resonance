@@ -3,6 +3,7 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import {
+  getCardBox,
   getCardDetail,
   getLinksToCard,
   getProfile,
@@ -38,7 +39,7 @@ const card = (id: string, authorId: string, m: number, extra: Record<string, unk
   set(`cards/${id}`, {
     authorId,
     thoughtCore: `title ${id}`,
-    story: `## Heading\n\nSome **bold** words and [a link](https://example.com) in ${id}.`,
+    story: `## Heading\n\nSome **bold** words and [a link](https://example.com) in ${id}.\n\n- a list item\n\n---`,
     tags: ['日常'],
     visibility: 'public',
     publishedAt: minutesAgo(m),
@@ -83,7 +84,7 @@ describe('card cards in lists', () => {
     const [c] = (await getFeed(db, 'alice', 5)).cards;
     expect(c).toMatchObject({
       id: 'c1',
-      excerpt: 'Heading Some bold words and a link in c1.',
+      excerpt: 'Heading Some bold words and a link in c1. a list item',
       imageUrl: 'https://img/x.avif',
       imageLabel: 'rain',
       accentHue: 140,
@@ -215,5 +216,44 @@ describe('getRecommendedFeed', () => {
     } finally {
       console.error = quiet;
     }
+  });
+});
+
+describe('getCardBox', () => {
+  it("sorts the viewer's own cards onto shelves, keeping their byline even when anonymous", async () => {
+    await card('pub', 'alice', 1, { anonymous: true });
+    await card('conn', 'alice', 2, { visibility: 'connections' });
+    await card('priv', 'alice', 3, { visibility: 'private' });
+    await card('draft', 'alice', 4, { publishedAt: null });
+    await card('other', 'bob', 5);
+    const shelf = async (tab: Parameters<typeof getCardBox>[2]) => (await getCardBox(db, 'alice', tab)).cards;
+    const published = await shelf('published');
+    expect(published.map((c) => c.id)).toEqual(['pub', 'conn']);
+    expect(published[0]).toMatchObject({ anonymous: true, author: { id: 'alice' } });
+    expect((await shelf('private')).map((c) => c.id)).toEqual(['priv']);
+    const drafts = await shelf('draft');
+    expect(drafts.map((c) => c.id)).toEqual(['draft']);
+    expect(drafts[0].publishedAt).toBeNull();
+  });
+
+  it('lists the originals the viewer resonated with, cards linking to theirs, and bookmarks they can still read', async () => {
+    await card('orig', 'bob', 10);
+    await card('mine', 'alice', 1, { referenceCardId: 'orig' });
+    await card('target', 'alice', 5);
+    await card('src', 'dana', 2);
+    await set('cardLinks/l1', { sourceCardId: 'src', targetCardId: 'target', targetAuthorId: 'alice', createdAt: minutesAgo(1) });
+    await card('kept', 'dana', 3);
+    await card('hidden', 'dana', 4, { visibility: 'private' });
+    await set('users/alice/bookmarks/kept', { createdAt: minutesAgo(1) });
+    await set('users/alice/bookmarks/hidden', { createdAt: minutesAgo(2) });
+    expect((await getCardBox(db, 'alice', 'resonated')).cards.map((c) => c.id)).toEqual(['orig']);
+    expect((await getCardBox(db, 'alice', 'linked')).cards.map((c) => c.id)).toEqual(['src']);
+    expect((await getCardBox(db, 'alice', 'bookmarks')).cards.map((c) => c.id)).toEqual(['kept']);
+  });
+
+  it('never reveals an anonymous byline to anyone else', async () => {
+    await card('anon', 'alice', 1, { anonymous: true });
+    const [c] = (await getFeed(db, 'bob', 5)).cards;
+    expect(c).toMatchObject({ id: 'anon', anonymous: true, author: null });
   });
 });

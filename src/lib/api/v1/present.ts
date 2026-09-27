@@ -8,7 +8,8 @@ import type { AuthorBody, FeedCardBody } from './schemas';
  * card would fail a whole page (and the clients' strict decoders).
  */
 
-const EXCERPT_CHARS = 140;
+/** StoryCard's excerpt length on the web (lib/adapters/story cardToStory). */
+const EXCERPT_CHARS = 96;
 /** Characters read per minute, as the web's StoryCard counts (lib/adapters/story). */
 const CHARS_PER_MINUTE = 320;
 
@@ -24,6 +25,8 @@ export function plainText(markdown: string): string {
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/^>\s?/gm, '')
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
+    .replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, '')
     .replace(/[*_~`]+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -56,8 +59,15 @@ export function toAuthor(id: string, u: DocumentData): AuthorBody {
   };
 }
 
-export function toFeedCard(c: Card, author: DocumentData | undefined, reason: string | null = null): FeedCardBody {
-  const published = c.publishedAt && !Number.isNaN(c.publishedAt.getTime()) ? c.publishedAt : new Date(0);
+export interface FeedCardOptions {
+  reason?: string | null;
+  /** The viewer wrote the card (their card box): show the byline even when anonymous. */
+  deanonymize?: boolean;
+}
+
+export function toFeedCard(c: Card, author: DocumentData | undefined, opts: FeedCardOptions = {}): FeedCardBody {
+  const published = c.publishedAt && !Number.isNaN(c.publishedAt.getTime()) ? c.publishedAt : null;
+  const anonymous = c.anonymous === true;
   const story = String(c.story ?? '');
   const title = String(c.thoughtCore ?? '');
   return {
@@ -66,14 +76,16 @@ export function toFeedCard(c: Card, author: DocumentData | undefined, reason: st
     title,
     excerpt: excerpt(plainText(story)),
     tags: Array.isArray(c.tags) ? c.tags.filter((t): t is string => typeof t === 'string') : [],
-    publishedAt: published.toISOString(),
-    author: !c.anonymous && author ? toAuthor(c.authorId, author) : null,
+    publishedAt: published ? published.toISOString() : null,
+    author: (!anonymous || opts.deanonymize) && author ? toAuthor(c.authorId, author) : null,
+    anonymous,
+    visibility: c.visibility === 'private' || c.visibility === 'connections' ? c.visibility : 'public',
     imageUrl: str(c.media?.url),
     imageLabel: str(c.media?.label) ?? (title ? Array.from(title).slice(0, 24).join('') : null),
     accentHue: typeof c.accentHue === 'number' && Number.isFinite(c.accentHue) ? c.accentHue : null,
     readMinutes: readMinutes(story),
     referenceCardId: str(c.referenceCardId),
-    reason,
+    reason: opts.reason ?? null,
   };
 }
 

@@ -72,7 +72,7 @@ describe('getMe', () => {
 describe('getFeed', () => {
   it('serves a page around a malformed card, and cuts excerpts between code points', async () => {
     await Promise.all([
-      card('ok', 'bob', 1, { story: `${'字'.repeat(139)}🌧️ after the rain` }),
+      card('ok', 'bob', 1, { story: `${'字'.repeat(95)}🌧️ after the rain` }),
       // An old document without story, tags or title must not fail the page.
       db.doc('cards/old').set({ authorId: 'dana', visibility: 'public', publishedAt: minutesAgo(2) }),
     ]);
@@ -80,7 +80,7 @@ describe('getFeed', () => {
     expect(page.cards.map((c) => c.id)).toEqual(['ok', 'old']);
     expect(page.cards[1]).toMatchObject({ title: '', excerpt: '', tags: [] });
     const cut = page.cards[0].excerpt;
-    expect(cut).toBe(`${'字'.repeat(139)}🌧…`);
+    expect(cut).toBe(`${'字'.repeat(95)}🌧…`);
     // No lone surrogates: every code unit pairs up.
     expect(cut).toBe(Buffer.from(cut, 'utf8').toString('utf8'));
   });
@@ -102,7 +102,7 @@ describe('getFeed', () => {
     expect(first.cards.map((c) => c.id)).toEqual(['c1']);
     expect(first.nextCursor).not.toBeNull();
     expect(first.cards[0]).toMatchObject({ title: 'title c1', author: { handle: 'bob', initials: 'BO' } });
-    expect(first.cards[0].excerpt).toHaveLength(141); // 140 chars + ellipsis
+    expect(first.cards[0].excerpt).toHaveLength(97); // 96 chars + ellipsis, as the web's StoryCard
 
     const second = await getFeed(db, 'alice', 2, first.nextCursor!);
     expect(second.cards.map((c) => c.id)).toEqual(['c4']);

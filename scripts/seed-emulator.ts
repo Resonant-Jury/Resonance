@@ -129,6 +129,13 @@ async function main() {
     .doc('conversations/alice_bob/messages/m2')
     .set({ senderId: 'alice', text: '那篇雨後散步寫得好好', sentAt: at(10) });
 
+  // alice's notifications: one of each kind the apps route (unread first).
+  const notify = (id: string, type: string, payload: Record<string, unknown>, minutesAgo: number, read = false) =>
+    db.doc(`notifications/${id}`).set({ userId: 'alice', type, payload, readAt: read ? at(minutesAgo - 1) : null, createdAt: at(minutesAgo) });
+  await notify('n-note', 'note', { fromUserId: 'bob', fromHandle: 'bob', preview: '你的信讓我想起我自己的十年前。', cardId: 'letter' }, 5);
+  await notify('n-resonance', 'resonance', { fromUserId: 'bob', fromHandle: 'bob', cardId: 'letter' }, 40);
+  await notify('n-link', 'card_link', { fromUserId: 'carol', fromHandle: 'carol', cardId: 'carol-note' }, 90, true);
+
   console.log(`Seeded ${SEED_USERS.length} users into ${EMULATOR_PROJECT_ID}.`);
 }
 

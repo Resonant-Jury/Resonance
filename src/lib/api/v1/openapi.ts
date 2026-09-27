@@ -64,6 +64,11 @@ export function buildOpenApi(): Json {
           responses: { '200': { description: 'OK', ...json(ref('Me')) }, ...errors(401, 404) },
         },
       },
+      '/me/cards': get('getCardBox', 'One shelf of your card box', 'CardList', {
+        parameters: [
+          { name: 'tab', in: 'query', required: true, schema: { type: 'string', enum: ['published', 'private', 'draft', 'resonated', 'linked', 'bookmarks'] } },
+        ],
+      }, [400, 401]),
       '/feed': get('getFeed', 'Latest public cards, newest first (authors you blocked are left out)', 'FeedPage', { parameters: pageParams }, [400, 401]),
       '/feed/recommended': get('getRecommendedFeed', "Today's picks for you, each with the reason it was picked", 'CardList', {}, [401]),
       '/cards/{key}': get('getCard', 'A card you may read, by slug or id, with its story', 'CardDetail', {
