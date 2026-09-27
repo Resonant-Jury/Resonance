@@ -63,3 +63,18 @@ export function withUser<A extends unknown[]>(handler: (user: AuthUser, req: Req
     }
   };
 }
+
+/** Next.js passes a dynamic route's params as a promise. */
+export interface RouteContext<K extends string> {
+  params: Promise<Record<K, string>>;
+}
+
+/** A dynamic route segment, percent-decoded (a pen name may be written in any script). */
+export async function routeParam<K extends string>(ctx: RouteContext<K>, name: K): Promise<string> {
+  const raw = (await ctx.params)[name] ?? '';
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}

@@ -1,18 +1,11 @@
 import { NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
 import { requireUser } from '@/lib/auth';
 import { getAdminDb } from '@/lib/db/firestore/admin';
-import { recommendFeed } from '@/lib/recommend/funnel';
-import type { RecommendationItem } from '@/lib/db/types';
+import { dailyRecommendations } from '@/lib/recommend/daily';
 
 export const runtime = 'nodejs';
 // The funnel runs the rerank + select LLM calls; only on a cache miss.
 export const maxDuration = 120;
-
-/** UTC day key — the feed regenerates at most once per day per user. */
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 /**
  * The reader's recommended feed. Returns a cached daily result when fresh, and
@@ -22,15 +15,5 @@ function today(): string {
  */
 export async function GET() {
   const user = await requireUser();
-  const ref = getAdminDb().collection('recommendations').doc(user.id);
-
-  const snap = await ref.get();
-  const day = today();
-  if (snap.exists && snap.data()?.date === day) {
-    return NextResponse.json({ items: (snap.data()?.items ?? []) as RecommendationItem[], cached: true });
-  }
-
-  const items = await recommendFeed(user.id);
-  await ref.set({ date: day, items, generatedAt: FieldValue.serverTimestamp() });
-  return NextResponse.json({ items, cached: false });
+  return NextResponse.json(await dailyRecommendations(getAdminDb(), user.id));
 }

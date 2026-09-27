@@ -114,6 +114,467 @@
         }
       }
     },
+    "/feed/recommended": {
+      "get": {
+        "operationId": "getRecommendedFeed",
+        "summary": "Today's picks for you, each with the reason it was picked",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cards/{key}": {
+      "get": {
+        "operationId": "getCard",
+        "summary": "A card you may read, by slug or id, with its story",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The card slug, or (older cards) its id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cards/{key}/resonances": {
+      "get": {
+        "operationId": "getCardResonances",
+        "summary": "Public cards written in response to this one",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The card id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cards/{key}/related": {
+      "get": {
+        "operationId": "getRelatedCards",
+        "summary": "A few recent cards sharing its tags",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The card id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cards/{key}/links": {
+      "get": {
+        "operationId": "getCardLinks",
+        "summary": "Cards linking to it (empty unless you wrote it)",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The card id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{handle}": {
+      "get": {
+        "operationId": "getProfile",
+        "summary": "A person's profile as you see it",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Pen name (any script)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{handle}/cards": {
+      "get": {
+        "operationId": "getProfileCards",
+        "summary": "Their public cards, newest first (never anonymous ones)",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Pen name (any script)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30,
+              "default": 12
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{handle}/links": {
+      "get": {
+        "operationId": "getProfileLinks",
+        "summary": "Cards by others that link to theirs",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Pen name (any script)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/invites": {
       "post": {
         "operationId": "createInvite",
@@ -315,13 +776,32 @@
           },
           "accentColor": {
             "type": "string"
+          },
+          "avatarUrl": {
+            "nullable": true,
+            "type": "string"
+          },
+          "avatarSeed": {
+            "nullable": true,
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "region": {
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [
           "id",
           "handle",
           "initials",
-          "accentColor"
+          "accentColor",
+          "avatarUrl",
+          "avatarSeed",
+          "verified",
+          "region"
         ]
       },
       "FeedCard": {
@@ -357,6 +837,31 @@
                 "$ref": "#/components/schemas/Author"
               }
             ]
+          },
+          "imageUrl": {
+            "nullable": true,
+            "type": "string"
+          },
+          "imageLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "accentHue": {
+            "nullable": true,
+            "type": "number"
+          },
+          "readMinutes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "referenceCardId": {
+            "nullable": true,
+            "type": "string"
+          },
+          "reason": {
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [
@@ -366,7 +871,13 @@
           "excerpt",
           "tags",
           "publishedAt",
-          "author"
+          "author",
+          "imageUrl",
+          "imageLabel",
+          "accentHue",
+          "readMinutes",
+          "referenceCardId",
+          "reason"
         ]
       },
       "FeedPage": {
@@ -386,6 +897,111 @@
         "required": [
           "cards",
           "nextCursor"
+        ]
+      },
+      "CardList": {
+        "type": "object",
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedCard"
+            }
+          }
+        },
+        "required": [
+          "cards"
+        ]
+      },
+      "CardDetail": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/FeedCard"
+          },
+          "story": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "connections",
+              "private"
+            ]
+          },
+          "anonymous": {
+            "type": "boolean"
+          },
+          "resonanceCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "coreInsight": {
+            "nullable": true,
+            "type": "string"
+          },
+          "isOwner": {
+            "type": "boolean"
+          },
+          "referenceCard": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeedCard"
+              }
+            ]
+          }
+        },
+        "required": [
+          "card",
+          "story",
+          "visibility",
+          "anonymous",
+          "resonanceCount",
+          "coreInsight",
+          "isOwner",
+          "referenceCard"
+        ]
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/Author"
+          },
+          "bio": {
+            "nullable": true,
+            "type": "string"
+          },
+          "joinedAt": {
+            "type": "string",
+            "description": "ISO 8601"
+          },
+          "cardCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "isSelf": {
+            "type": "boolean"
+          },
+          "isConnected": {
+            "type": "boolean"
+          },
+          "isBlocked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "author",
+          "bio",
+          "joinedAt",
+          "cardCount",
+          "isSelf",
+          "isConnected",
+          "isBlocked"
         ]
       },
       "CreateInviteRequest": {

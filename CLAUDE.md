@@ -72,12 +72,15 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | `GET/POST/DELETE /api/account/deletion` | read / schedule (7-day grace, revokes refresh tokens) / cancel account deletion |
 | `GET /api/account/export` | the signed-in user's own writing as a JSON download |
 | `GET /api/cron/purge-accounts` | Vercel Cron (daily, `Bearer $CRON_SECRET`): purges accounts past their grace period (`src/lib/account/deletion.ts`) |
-| `GET /api/v1/me` · `GET /api/v1/feed` · `POST /api/v1/invites` | versioned API for the native apps (contract below) |
+| `GET /api/v1/me` · `GET /api/v1/feed` · `GET /api/v1/feed/recommended` | versioned API for the native apps (contract below): the account, latest and recommended feeds |
+| `GET /api/v1/cards/{key}` (+ `/resonances`, `/related`, `/links`) | a card by slug or id with its story, and the lists around it |
+| `GET /api/v1/users/{handle}` (+ `/cards`, `/links`) | a profile as the viewer sees it, their public cards, cards linking to theirs |
+| `POST /api/v1/invites` | S6 spike's write path (the web no longer sends invites) |
 | `GET /api/v1/openapi.json` | the v1 contract, for tools and client generators |
 
 API routes authenticate with the `__session` cookie **or** `Authorization: Bearer <Firebase ID token>` (native apps) — both via `getCurrentUser()`.
 
-**`/api/v1` is a contract.** Zod schemas in `src/lib/api/v1/schemas.ts` are the source of truth: routes validate with them (`withUser` + `parse` in `http.ts`, errors always `{ error: { code, message, issues? } }`), and `npm run api:openapi` writes `openapi/v1/openapi.json`, from which the iOS (swift-openapi-generator) and Android (openapi-generator) clients are generated. Within v1 change additively only; clients tolerate unknown fields (no `additionalProperties: false`), and optional request fields accept `null` (Kotlin clients send it, Swift omits it). The services (`service.ts`) run on the Admin SDK, which bypasses `firestore.rules` — every guarantee the rules give the web client (blocks, quotas, visibility) must be re-checked there and covered in `test/emulator/apiV1.emulator.test.ts`.
+**`/api/v1` is a contract.** Zod schemas in `src/lib/api/v1/schemas.ts` are the source of truth: routes validate with them (`withUser` + `parse` in `http.ts`, errors always `{ error: { code, message, issues? } }`), and `npm run api:openapi` writes `openapi/v1/openapi.json`, from which the iOS (swift-openapi-generator) and Android (openapi-generator) clients are generated. Within v1 change additively only; clients tolerate unknown fields (no `additionalProperties: false`), and optional request fields accept `null` (Kotlin clients send it, Swift omits it). The services (`service.ts`, `reads.ts`; shapes in `present.ts`) run on the Admin SDK, which bypasses `firestore.rules` — every guarantee the rules give the web client (blocks, quotas, visibility) must be re-checked there and covered in `test/emulator/apiV1*.emulator.test.ts` (`canView` in `present.ts` is `cardVisible`).
 
 ### Safety (App Store 1.2 / 5.1.1(v))
 

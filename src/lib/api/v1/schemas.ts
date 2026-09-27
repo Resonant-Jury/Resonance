@@ -54,6 +54,11 @@ export const Author = named(
     handle: z.string(),
     initials: z.string(),
     accentColor: z.string(),
+    avatarUrl: z.string().nullable(),
+    /** Seeds the hand-drawn avatar's wobble, so it matches the web. */
+    avatarSeed: z.string().nullable(),
+    verified: z.boolean(),
+    region: z.string().nullable(),
   }),
   'Author',
 );
@@ -63,11 +68,21 @@ export const FeedCard = named(
     id: z.string(),
     slug: z.string().nullable(),
     title: z.string(),
+    /** Plain text (Markdown stripped), at most 140 characters. */
     excerpt: z.string(),
     tags: z.array(z.string()),
     publishedAt: z.string().describe('ISO 8601'),
     /** Null for anonymous cards: the byline is never revealed. */
     author: Author.nullable(),
+    imageUrl: z.string().nullable(),
+    imageLabel: z.string().nullable(),
+    /** The cover's dominant hue, which picks the card's palette (lib/design/dominantHue). */
+    accentHue: z.number().nullable(),
+    readMinutes: z.number().int(),
+    /** The card this one resonates with (a response card), if any. */
+    referenceCardId: z.string().nullable(),
+    /** Recommended feed only: why this card was picked for the reader. */
+    reason: z.string().nullable(),
   }),
   'FeedCard',
 );
@@ -79,6 +94,41 @@ export const FeedPage = named(
     nextCursor: z.string().nullable(),
   }),
   'FeedPage',
+);
+
+export const CardList = named(z.object({ cards: z.array(FeedCard) }), 'CardList');
+
+export const CardDetail = named(
+  z.object({
+    card: FeedCard,
+    /** The story, as stored: Markdown (see src/lib/markdown/editorSchema.ts). */
+    story: z.string(),
+    visibility: z.enum(['public', 'connections', 'private']),
+    anonymous: z.boolean(),
+    resonanceCount: z.number().int(),
+    /** The insight the recommender distilled from the story, if indexed. */
+    coreInsight: z.string().nullable(),
+    /** The viewer wrote this card. */
+    isOwner: z.boolean(),
+    /** The card this one responds to, when the viewer may see it. */
+    referenceCard: FeedCard.nullable(),
+  }),
+  'CardDetail',
+);
+
+export const Profile = named(
+  z.object({
+    author: Author,
+    bio: z.string().nullable(),
+    joinedAt: z.string().describe('ISO 8601'),
+    /** Public, attributed cards, counted like the web's profile (its first 40). */
+    cardCount: z.number().int(),
+    isSelf: z.boolean(),
+    isConnected: z.boolean(),
+    /** The viewer blocked this person: their cards are not listed. */
+    isBlocked: z.boolean(),
+  }),
+  'Profile',
 );
 
 export const INVITE_MESSAGE_MAX = 500;
@@ -109,8 +159,17 @@ export const FeedQuery = z.object({
   cursor: z.iso.datetime().optional(),
 });
 
+/** A card's URL segment: its English slug or (older cards) its document id. */
+export const CardKey = z.string().regex(/^[A-Za-z0-9_-]{1,160}$/, 'Not a valid card.');
+export const CardIdParam = DocId;
+/** Pen names may be any script (2–20 characters); never a path. */
+export const HandleParam = z.string().trim().min(1).max(40).regex(/^[^/?#]+$/, 'Not a valid handle.');
+
 export type ApiErrorBody = z.infer<typeof ApiError>;
 export type MeBody = z.infer<typeof Me>;
 export type FeedCardBody = z.infer<typeof FeedCard>;
 export type FeedPageBody = z.infer<typeof FeedPage>;
+export type AuthorBody = z.infer<typeof Author>;
+export type CardDetailBody = z.infer<typeof CardDetail>;
+export type ProfileBody = z.infer<typeof Profile>;
 export type CreateInviteInput = z.infer<typeof CreateInviteRequest>;

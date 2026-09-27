@@ -92,6 +92,29 @@ async function main() {
     18,
   );
   await card('carol-note', 'carol', '陌生人的一句話', '在車站有人對我說辛苦了，那天就被接住了。', 200, 140);
+  // Every kind of content a story can hold, for checking readers (web and apps) side by side.
+  await card(
+    'rich-story',
+    'alice',
+    '搬家後的第一個安靜夜晚',
+    [
+      '箱子堆滿了客廳，我坐在地上，第一次覺得**安靜是屬於自己的**。窗外有人在*慢慢地*收衣服。',
+      '## 那些帶不走的東西',
+      '有些東西在打包的時候就決定留下了：舊沙發、一面有裂痕的鏡子，還有 [一篇讀過很多次的文章](https://example.com/essay)。',
+      '> 你不是失去了一個家，\n> 你是多了一個可以回去的地方。',
+      '\u00A0',
+      '### 清單',
+      '- 把書按照顏色排好\n- 在窗台放一盆薄荷\n- 寫信給十年前的自己',
+      '1. 先睡一覺\n2. 再說',
+      '延伸閱讀：',
+      '[一場雨後的散步](/card/rain-walk)',
+      '也可以看看 [第一杯自己沖的咖啡](/card/first-coffee) 這張，寫得很溫柔。',
+      '---',
+      'The quiet after moving out felt like mine — *finally*.',
+    ].join('\n\n'),
+    45,
+    290,
+  );
 
   await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: at(60 * 24) });
   await db.doc('conversations/alice_bob').set({
