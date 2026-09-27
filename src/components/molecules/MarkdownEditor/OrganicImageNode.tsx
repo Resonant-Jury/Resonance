@@ -1,11 +1,10 @@
 'use client';
 
-import Image from '@tiptap/extension-image';
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react';
-import type { Node as PMNode } from '@tiptap/pm/model';
 import { useTranslations } from 'next-intl';
 import { OrganicStoryImage } from '@/components/atoms/OrganicImage/OrganicStoryImage';
 import { seedFromString } from '@/lib/design/prng';
+import { BlockImage } from '@/lib/markdown/editorSchema';
 import { NodeRemoveButton } from './NodeRemoveButton';
 import styles from './MarkdownEditor.module.css';
 
@@ -28,42 +27,14 @@ function ImageView({ node, selected, deleteNode }: NodeViewProps) {
   );
 }
 
-/** The slice of prosemirror-markdown's serializer state we lean on. */
-interface MarkdownSerializerState {
-  write(content: string): void;
-  closeBlock(node: PMNode): void;
-  esc(text: string): string;
-}
-
 /**
- * The stock image node rendered through a node view so the editor shows the
- * exact organic curve the article will, a selection frame that follows that
- * curve, and an explicit "×" remove button. Backspace on the selected node
- * still deletes natively.
- *
- * Images here are block nodes, so they serialize as their own Markdown block.
- * tiptap-markdown's default is the *inline* image serializer, which writes the
- * link and leaves the block open — whatever came next then ran onto the same
- * line as the photo.
+ * The story image (block, see BlockImage) rendered through a node view so the
+ * editor shows the exact organic curve the article will, a selection frame
+ * that follows that curve, and an explicit "×" remove button. Backspace on
+ * the selected node still deletes natively.
  */
-export const OrganicImageNode = Image.extend({
+export const OrganicImageNode = BlockImage.extend({
   addNodeView() {
     return ReactNodeViewRenderer(ImageView);
-  },
-  addStorage() {
-    return {
-      markdown: {
-        serialize(state: MarkdownSerializerState, node: PMNode) {
-          const alt = state.esc(String(node.attrs.alt ?? ''));
-          const src = String(node.attrs.src ?? '');
-          const title = node.attrs.title ? ` "${state.esc(String(node.attrs.title))}"` : '';
-          state.write(`![${alt}](${src}${title})`);
-          state.closeBlock(node);
-        },
-        parse: {
-          // handled by markdown-it
-        },
-      },
-    };
   },
 });

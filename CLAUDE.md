@@ -76,6 +76,10 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 - **Reports**: `reports/*` is create-only for clients; read/resolve with `npm run moderation`.
 - **Account deletion**: `accountDeletions/{uid}` (admin-only) → purged by the cron. A new collection that stores a uid must be added to `collectAccountData()` in `src/lib/account/deletion.ts`.
 
+### Story editor & its Markdown
+
+Stories are stored as Markdown, so the editor's schema *is* the storage format. `src/lib/markdown/editorSchema.ts` holds it (nodes + their Markdown serialization, no UI); the web `MarkdownEditor` adds React node views and the native apps' WebView island (`native/editor`) adds DOM ones — both call `storyExtensions()`. `native/fixtures/markdown-corpus.json` pins how each kind of content round-trips (`editorSchema.test.ts`, and the same corpus runs inside both apps). After an intentional schema change: `UPDATE_MARKDOWN_CORPUS=1 npx vitest run src/lib/markdown/editorSchema.test.ts` and review the diff.
+
 ### AI (`src/lib/ai/`)
 
 Card URLs use English slugs (LLM translates the title, then slugify + handle/numeric-suffix collision handling). `openai.ts` wraps API calls, `tasks.ts` defines the tasks (slug base, tag suggestions, story illustration), `slugify.ts`/`tags.ts` are pure logic with tests. OpenAI is only called from server routes — the key never reaches the client.

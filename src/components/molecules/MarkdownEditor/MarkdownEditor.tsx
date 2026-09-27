@@ -2,10 +2,8 @@
 
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { useEditor, EditorContent, useEditorState, type Editor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
+import { useEditor, EditorContent, useEditorState } from '@tiptap/react';
 import Placeholder from '@tiptap/extension-placeholder';
-import { Markdown } from 'tiptap-markdown';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { Divider } from '@/components/atoms/Divider/Divider';
@@ -15,18 +13,13 @@ import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { uploadImageFile } from '@/lib/images/upload';
 import type { Card } from '@/lib/db/types';
+import { getMarkdown, storyExtensions } from '@/lib/markdown/editorSchema';
 import { InsertCardModal } from './InsertCardModal';
 import { OrganicImageNode } from './OrganicImageNode';
-import { SpacedParagraphNode } from './SpacedParagraphNode';
 import { CardEmbedNode } from './CardEmbedNode';
 import { CurvedBlockquoteNode } from './CurvedBlockquoteNode';
 import styles from './MarkdownEditor.module.css';
 import { INK_LIGHT } from '@/lib/design/strokes';
-
-/** tiptap-markdown augments `editor.storage` at runtime; type it locally. */
-function getMarkdown(editor: Editor): string {
-  return (editor.storage as unknown as { markdown: { getMarkdown: () => string } }).markdown.getMarkdown();
-}
 
 const ACCEPTED_IMAGES = 'image/png,image/jpeg,image/webp,image/gif';
 
@@ -99,13 +92,10 @@ export function MarkdownEditor({
 
   const editor = useEditor({
     immediatelyRender: false,
+    // The schema and its Markdown come from editorSchema (shared with the
+    // native apps' editor island); only the node views are the web's own.
     extensions: [
-      StarterKit.configure({ blockquote: false, paragraph: false }),
-      SpacedParagraphNode,
-      CurvedBlockquoteNode,
-      OrganicImageNode,
-      CardEmbedNode,
-      Markdown.configure({ html: false, transformPastedText: true, transformCopiedText: true }),
+      ...storyExtensions({ blockquote: CurvedBlockquoteNode, image: OrganicImageNode, cardEmbed: CardEmbedNode }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
     ],
     content: value,

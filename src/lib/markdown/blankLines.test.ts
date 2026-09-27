@@ -4,7 +4,7 @@ import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
 import { OrganicImageNode } from '@/components/molecules/MarkdownEditor/OrganicImageNode';
-import { SpacedParagraphNode } from '@/components/molecules/MarkdownEditor/SpacedParagraphNode';
+import { SpacedParagraph as SpacedParagraphNode } from '@/lib/markdown/editorSchema';
 import { BLANK_PARAGRAPH, isBlankParagraph } from '@/lib/markdown/blankLines';
 
 /** An editor wired exactly like MarkdownEditor's, minus the React node views. */

@@ -1,0 +1,115 @@
+{
+  "note": "Synthetic story Markdown covering everything the story editor can hold. Inputs only; `UPDATE_MARKDOWN_CORPUS=1 npx vitest run src/lib/markdown/editorSchema.test.ts` adds each case's canonical form (what the web editor writes back) into markdown-corpus.json. Real cards never go in the repo — see native/fixtures/*.local.json.",
+  "cases": [
+    {
+      "id": "paragraphs-zh",
+      "markdown": "雨停的時候，巷口的積水映出整排路燈。\n\n我突然想起小時候，也是這樣踩著水窪回家。",
+      "canonical": "雨停的時候，巷口的積水映出整排路燈。\n\n我突然想起小時候，也是這樣踩著水窪回家。"
+    },
+    {
+      "id": "mixed-punctuation",
+      "markdown": "「慢一點也沒關係。」她說——然後笑了。Keep going… the detour is the road.",
+      "canonical": "「慢一點也沒關係。」她說——然後笑了。Keep going… the detour is the road."
+    },
+    {
+      "id": "headings",
+      "markdown": "## 那年夏天\n\n內文。\n\n### 小標題\n\n更多內文。",
+      "canonical": "## 那年夏天\n\n內文。\n\n### 小標題\n\n更多內文。"
+    },
+    {
+      "id": "inline-marks",
+      "markdown": "這是**粗體**、*斜體*、~~刪除線~~和 `code`，還有 ***粗斜體***。",
+      "canonical": "這是**粗體**、*斜體*、~~刪除線~~和 `code`，還有 ***粗斜體***。"
+    },
+    {
+      "id": "link",
+      "markdown": "參考 [這篇文章](https://example.com/a?b=1&c=2) 的說法。",
+      "canonical": "參考 [這篇文章](https://example.com/a?b=1&c=2) 的說法。"
+    },
+    {
+      "id": "card-embed",
+      "markdown": "延伸閱讀：\n\n[一場雨後的散步](/card/a-walk-after-the-rain)\n\n結尾。",
+      "canonical": "延伸閱讀：\n\n[一場雨後的散步](/card/a-walk-after-the-rain)\n\n結尾。"
+    },
+    {
+      "id": "card-link-mid-sentence",
+      "markdown": "見 [一場雨後的散步](/card/a-walk-after-the-rain) 這張卡片。",
+      "canonical": "見 [一場雨後的散步](/card/a-walk-after-the-rain) 這張卡片。"
+    },
+    {
+      "id": "image-block",
+      "markdown": "開頭。\n\n![巷口的積水](https://cdn.example.com/image/u1/rain.avif)\n\n結尾。",
+      "canonical": "開頭。\n\n![巷口的積水](https://cdn.example.com/image/u1/rain.avif)\n\n結尾。"
+    },
+    {
+      "id": "image-then-text-no-gap",
+      "markdown": "![alt](https://cdn.example.com/x.avif)\n緊接著的文字。",
+      "canonical": "![alt](https://cdn.example.com/x.avif)\n\n緊接著的文字。"
+    },
+    {
+      "id": "blank-paragraph",
+      "markdown": "第一段。\n\n \n\n隔了一行的第二段。",
+      "canonical": "第一段。\n\n \n\n隔了一行的第二段。"
+    },
+    {
+      "id": "blockquote",
+      "markdown": "> 第一段引用。\n>\n> 第二段引用。\n\n引用之後。",
+      "canonical": "> 第一段引用。\n>\n> 第二段引用。\n\n引用之後。"
+    },
+    {
+      "id": "lists",
+      "markdown": "- 一\n- 二\n  - 二之一\n\n1. 第一\n2. 第二",
+      "canonical": "- 一\n- 二\n  - 二之一\n\n1. 第一\n2. 第二"
+    },
+    {
+      "id": "hard-break",
+      "markdown": "第一行\\\n第二行",
+      "canonical": "第一行\\\n第二行"
+    },
+    {
+      "id": "escapes",
+      "markdown": "\\*不是粗體\\*，1\\. 不是清單，\\# 不是標題，a_b_c。",
+      "canonical": "\\*不是粗體\\*，1. 不是清單，# 不是標題，a_b_c。"
+    },
+    {
+      "id": "escapes-at-line-start",
+      "markdown": "\\# 開頭不是標題\n\n1\\. 開頭不是清單\n\n\\- 開頭不是項目\n\n\\> 開頭不是引用",
+      "canonical": "\\# 開頭不是標題\n\n1\\. 開頭不是清單\n\n\\- 開頭不是項目\n\n&gt; 開頭不是引用"
+    },
+    {
+      "id": "emoji",
+      "markdown": "一家人 👩‍👩‍👧 和 🇹🇼，還有 ☕️。",
+      "canonical": "一家人 👩‍👩‍👧 和 🇹🇼，還有 ☕️。"
+    },
+    {
+      "id": "rule",
+      "markdown": "上面\n\n---\n\n下面",
+      "canonical": "上面\n\n---\n\n下面"
+    },
+    {
+      "id": "code-block",
+      "markdown": "```\nconst a = 1;\n```",
+      "canonical": "```\nconst a = 1;\n```"
+    },
+    {
+      "id": "normalize-setext-and-underscores",
+      "markdown": "標題\n===\n\n__粗體__ 和 _斜體_\n\n* 星號清單",
+      "canonical": "# 標題\n\n**粗體** 和 *斜體*\n\n- 星號清單"
+    },
+    {
+      "id": "collapse-blank-lines",
+      "markdown": "一\n\n\n\n二   ",
+      "canonical": "一\n\n二"
+    },
+    {
+      "id": "html-is-text",
+      "markdown": "<b>不是 HTML</b> 與 <script>x</script>",
+      "canonical": "&lt;b&gt;不是 HTML&lt;/b&gt; 與 &lt;script&gt;x&lt;/script&gt;"
+    },
+    {
+      "id": "long-paragraph",
+      "markdown": "水溫太高，粉也磨得太細，但那是第一次覺得早晨是屬於自己的。水溫太高，粉也磨得太細，但那是第一次覺得早晨是屬於自己的。The quiet after moving out was the loudest thing I had ever heard, and I kept it. 水溫太高，粉也磨得太細，但那是第一次覺得早晨是屬於自己的。",
+      "canonical": "水溫太高，粉也磨得太細，但那是第一次覺得早晨是屬於自己的。水溫太高，粉也磨得太細，但那是第一次覺得早晨是屬於自己的。The quiet after moving out was the loudest thing I had ever heard, and I kept it. 水溫太高，粉也磨得太細，但那是第一次覺得早晨是屬於自己的。"
+    }
+  ]
+}
