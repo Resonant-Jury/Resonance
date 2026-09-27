@@ -2,6 +2,7 @@
    the author's published cards. */
 
 .hero {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -157,4 +158,33 @@
 
 .backLink:hover {
   text-decoration: underline;
+}
+
+/* --- safety (report / block) --- */
+.heroMenu {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.blockedNotice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: clamp(32px, 5vw, 56px) 24px;
+}
+
+.blockedTitle {
+  font-family: var(--font-heading);
+  font-size: clamp(20px, 2.6vw, 24px);
+  font-weight: 700;
+  margin: 0;
+}
+
+.blockedBody {
+  font-size: 14.5px;
+  color: var(--color-text-muted);
+  margin: 0 0 8px;
 }

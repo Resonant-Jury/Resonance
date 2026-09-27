@@ -11,4 +11,6 @@ export interface IStorageProvider {
   uploadObject(intent: UploadIntent, body: Uint8Array): Promise<StoredObject>;
   getPublicUrl(key: string): string;
   deleteObject(key: string): Promise<void>;
+  /** Delete every object under `prefix` (e.g. `image/{uid}/`); returns how many. */
+  deletePrefix(prefix: string): Promise<number>;
 }

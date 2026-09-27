@@ -61,6 +61,20 @@ function SignInPageInner() {
       >
         {t('googleIntro')}
       </p>
+      {searchParams.get('notice') === 'deletion-scheduled' && (
+        <p
+          role="status"
+          style={{
+            fontSize: 14,
+            lineHeight: 1.6,
+            fontWeight: 600,
+            color: 'var(--color-terracotta)',
+            marginBottom: 20,
+          }}
+        >
+          {t('deletionScheduled')}
+        </p>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 14 }}>
         <OrganicButton variant="outline" onClick={() => signInWith('google')}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>

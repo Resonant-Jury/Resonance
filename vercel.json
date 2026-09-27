@@ -4,5 +4,6 @@
   "regions": ["hnd1"],
   "github": {
     "silent": true
-  }
+  },
+  "crons": [{ "path": "/api/cron/purge-accounts", "schedule": "0 18 * * *" }]
 }

@@ -13,6 +13,8 @@ import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid'
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
 import { useProfileByHandle } from '@/lib/data/hooks';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { BlockedNotice, ProfileSafetyMenu } from './ProfileSafety';
 import { regionDisplayName } from '@/lib/regionName';
 import styles from './page.module.css';
 
@@ -33,6 +35,7 @@ export default function PublicProfilePage() {
   const locale = useLocale();
   const t = useTranslations('profile');
   const tMsg = useTranslations('messages');
+  const { user: viewer } = useAuth();
   const { data, isLoading } = useProfileByHandle(handle);
 
   if (isLoading) {
@@ -65,7 +68,7 @@ export default function PublicProfilePage() {
     );
   }
 
-  const { user, isSelf, isConnected, published, linked, linkedAuthors } = data;
+  const { user, isSelf, isConnected, isBlocked, published, linked, linkedAuthors } = data;
   const authors: Record<string, User> = { [user.id]: user };
   const joined = new Date(user.joinedAt).toLocaleDateString(locale, {
     year: 'numeric',
@@ -75,6 +78,9 @@ export default function PublicProfilePage() {
   return (
     <PageShell width="wide">
       <header className={styles.hero}>
+        {/* Report / block lives in the corner for signed-in visitors only —
+            it's a safety valve, not part of the page's story. */}
+        {viewer && !isSelf && <ProfileSafetyMenu user={user} isBlocked={isBlocked} />}
         <HandDrawnAvatar
           src={user.avatarUrl}
           initials={user.initials}
@@ -120,7 +126,7 @@ export default function PublicProfilePage() {
         {/* Relationships grow from stories (design principle 3): connections
             start from a resonance/note notification, never from the profile
             page — so visitors see no connect button here. */}
-        {(isSelf || isConnected) && (
+        {!isBlocked && (isSelf || isConnected) && (
           <div className={styles.actions}>
             {isSelf ? (
               <Link href="/settings" style={{ textDecoration: 'none' }}>
@@ -139,10 +145,12 @@ export default function PublicProfilePage() {
         )}
       </header>
 
+      {isBlocked && <BlockedNotice user={user} />}
+
       {/* Visitors with nothing to browse see no section at all — the hero's
           card-count line already states the fact, so a heading over an empty
           state would just restate it. The owner keeps the teaching moment. */}
-      {(published.length > 0 || isSelf) && (
+      {!isBlocked && (published.length > 0 || isSelf) && (
         <section className={styles.section}>
           <h2 className={styles.sectionHeading}>{t('publishedHeading')}</h2>
           {published.length > 0 ? (

@@ -26,6 +26,7 @@ import { listLinksToAuthor, listLinksToCard } from '@/lib/db/firestore/client/ca
 import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
 import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
 import { listConversations, listenThread } from '@/lib/db/firestore/client/messages';
+import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import type { Conversation, Message } from '@/lib/db/types';
 
 export interface CardsWithAuthors {
@@ -33,9 +34,16 @@ export interface CardsWithAuthors {
   authors: Record<string, User>;
 }
 
+/** Drop cards by people the viewer has blocked (see client/blocks.ts). */
+async function dropBlocked(cards: Card[]): Promise<Card[]> {
+  const blocked = await getMyBlockedIds();
+  return blocked.size ? cards.filter((c) => !blocked.has(c.authorId)) : cards;
+}
+
 async function withAuthors(cards: Card[]): Promise<CardsWithAuthors> {
-  const authors = await getUsersByIds(cards.map((c) => c.authorId));
-  return { cards, authors };
+  const visible = await dropBlocked(cards);
+  const authors = await getUsersByIds(visible.map((c) => c.authorId));
+  return { cards: visible, authors };
 }
 
 /** Resolve a list of source card ids → visible cards (private/denied drop out). */
@@ -61,15 +69,22 @@ export function useRecommendedFeed() {
     const res = await fetch('/api/recommend/feed');
     if (!res.ok) return { cards: [], authors: {}, reasons: {} };
     const { items } = (await res.json()) as { items: { cardId: string; reason: string }[] };
-    const cards = await cardsFromIds(items.map((i) => i.cardId));
+    const { cards, authors } = await withAuthors(await cardsFromIds(items.map((i) => i.cardId)));
     const reasons: Record<string, string> = {};
     for (const item of items) reasons[item.cardId] = item.reason;
-    const { authors } = await withAuthors(cards);
     return { cards, authors, reasons };
   });
 }
 
 const FEED_PAGE_SIZE = 12;
+
+/** One fetched feed page. Pagination runs on the raw page (before blocked
+ * authors are dropped) so a filtered-short page never ends the feed early. */
+interface FeedPage extends CardsWithAuthors {
+  rawCount: number;
+  /** publishedAt of the last raw card — the next page's cursor. */
+  cursorMs: number | null;
+}
 
 export interface FeedState {
   data?: CardsWithAuthors;
@@ -86,20 +101,24 @@ export function useFeed(): FeedState {
   // The feed lists only public cards, which Firestore rules allow anonymously,
   // so it can fetch immediately regardless of auth state — no need to wait on
   // the client SDK's async auth restoration.
-  const { data, isLoading, size, setSize } = useSWRInfinite<CardsWithAuthors>(
-    (index, prev: CardsWithAuthors | null) => {
+  const { data, isLoading, size, setSize } = useSWRInfinite<FeedPage>(
+    (index, prev: FeedPage | null) => {
       // A short page means Firestore ran out — stop asking for more.
-      if (prev && prev.cards.length < FEED_PAGE_SIZE) return null;
+      if (prev && prev.rawCount < FEED_PAGE_SIZE) return null;
       if (index === 0) return ['feed:latest', null];
-      const last = prev!.cards[prev!.cards.length - 1];
-      return ['feed:latest', last.publishedAt!.getTime()];
+      return ['feed:latest', prev!.cursorMs];
     },
     async ([, cursorMs]: [string, number | null]) => {
       const cards =
         cursorMs === null
           ? await getLatestPublishedFeed(FEED_PAGE_SIZE)
           : await getLatestPublishedFeed(FEED_PAGE_SIZE, new Date(cursorMs));
-      return withAuthors(cards);
+      const last = cards[cards.length - 1];
+      return {
+        ...(await withAuthors(cards)),
+        rawCount: cards.length,
+        cursorMs: last?.publishedAt ? last.publishedAt.getTime() : null,
+      };
     },
   );
 
@@ -115,7 +134,7 @@ export function useFeed(): FeedState {
     data: merged,
     isLoading,
     isLoadingMore: size > pages.length,
-    hasMore: pages.length > 0 && pages[pages.length - 1].cards.length === FEED_PAGE_SIZE,
+    hasMore: pages.length > 0 && pages[pages.length - 1].rawCount === FEED_PAGE_SIZE,
     loadMore: () => void setSize((s) => s + 1),
   };
 }
@@ -167,6 +186,12 @@ export function useHasWrittenCards() {
     !loading ? `hasCards:${user?.id ?? 'anon'}` : null,
     () => (user ? hasAnyOwnCards() : true)
   );
+}
+
+/** The uids the signed-in viewer has blocked (empty set when signed out). */
+export function useMyBlockedIds() {
+  const { user, loading } = useAuth();
+  return useSWR<Set<string>>(user && !loading ? `blocks:${user.id}` : null, () => getMyBlockedIds());
 }
 
 /** The signed-in viewer's own profile. */
@@ -344,10 +369,14 @@ export function useConversations(refreshInterval = 30_000) {
     user && !loading ? `conversations:${user.id}` : null,
     async () => {
       const uid = user!.id;
-      const [conversations, connectionUids] = await Promise.all([
+      const [allConversations, connectionUids, blocked] = await Promise.all([
         listConversations(),
         listMyConnectionUids(),
+        getMyBlockedIds(),
       ]);
+      // A blocked person's conversation leaves the list (the thread itself is
+      // frozen by rules — the connection is gone).
+      const conversations = allConversations.filter((c) => !c.participants.some((p) => blocked.has(p)));
       const otherUids = conversations.map((c) => c.participants.find((p) => p !== uid) ?? '');
       const people = await getUsersByIds([...otherUids, ...connectionUids]);
       const talked = new Set(otherUids);
@@ -397,6 +426,8 @@ export interface PublicProfile {
   /** True when the signed-in viewer is looking at their own public page. */
   isSelf: boolean;
   isConnected: boolean;
+  /** The signed-in viewer has blocked this person — their cards are hidden. */
+  isBlocked: boolean;
   published: Card[];
   /** Cards that other people linked to one of this user's cards. */
   linked: Card[];
@@ -407,6 +438,7 @@ const emptyProfile: PublicProfile = {
   user: null,
   isSelf: false,
   isConnected: false,
+  isBlocked: false,
   published: [],
   linked: [],
   linkedAuthors: {},
@@ -430,14 +462,19 @@ export function useProfileByHandle(handle: string | undefined) {
     if (!user) return emptyProfile;
 
     const isSelf = !!viewer && viewer.id === user.id;
+    const isBlocked = !!viewer && !isSelf && (await getMyBlockedIds()).has(user.id);
+    if (isBlocked) {
+      return { ...emptyProfile, user, isBlocked };
+    }
     const [published, links] = await Promise.all([
       getPublicCardsByAuthor(user.id),
       listLinksToAuthor(user.id),
     ]);
     const connected = viewer && !isSelf ? await isConnected(viewer.id, user.id) : false;
-    const linked = await cardsFromIds(links.map((l) => l.sourceCardId));
-    const linkedAuthors = await getUsersByIds(linked.map((c) => c.authorId));
-    return { user, isSelf, isConnected: connected, published, linked, linkedAuthors };
+    const { cards: linked, authors: linkedAuthors } = await withAuthors(
+      await cardsFromIds(links.map((l) => l.sourceCardId)),
+    );
+    return { user, isSelf, isConnected: connected, isBlocked, published, linked, linkedAuthors };
   });
   // Same pre-fetch window as useCard: with a null key SWR reports
   // isLoading=false / data=undefined, which would flash "user not found" before

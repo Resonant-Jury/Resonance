@@ -482,7 +482,8 @@
     "next": "Next",
     "back": "Back",
     "finish": "Finish",
-    "welcome": "Welcome, {handle}. Start with your first card."
+    "welcome": "Welcome, {handle}. Start with your first card.",
+    "deletionScheduled": "Your account is scheduled for deletion. Sign in within 7 days to cancel."
   },
   "settings": {
     "title": "Settings",
@@ -539,8 +540,69 @@
     },
     "delete": {
       "title": "Delete account",
-      "warn": "You have 7 days to undo. We’ll export a backup.",
-      "button": "Begin deletion"
+      "warn": "You'll be signed out right away. After 7 days your account, cards, messages and uploaded images are deleted for good; signing back in within those 7 days cancels it.",
+      "exportHint": "Before you go, you can download everything you've written.",
+      "export": "Download my data",
+      "exporting": "Preparing…",
+      "button": "Delete account",
+      "confirmTitle": "Delete your account?",
+      "confirmBody": "You'll be signed out. After {date}, your account and everything in it are deleted and can't be recovered.",
+      "confirm": "Delete account",
+      "cancel": "Keep my account",
+      "error": "That didn't go through. Try again."
     }
+  },
+  "safety": {
+    "menuLabel": "More options",
+    "reportCard": "Report this card",
+    "reportUser": "Report this person",
+    "reportMessage": "Report this conversation",
+    "block": "Block",
+    "unblock": "Unblock",
+    "blockTitle": "Block {handle}?",
+    "blockBody": "They won't be able to message you, invite you or send you notes, and your connection will end. You won't see their cards. They won't be notified.",
+    "blockConfirm": "Block",
+    "cancel": "Cancel",
+    "actionError": "That didn't work. Try again.",
+    "anonymousAuthor": "this author",
+    "blockedNotice": "You blocked {handle}",
+    "blockedNoticeBody": "You don't see their cards, and they can't reach you.",
+    "report": {
+      "titleCard": "Report this card",
+      "titleUser": "Report {handle}",
+      "titleMessage": "Report your conversation with {handle}",
+      "intro": "Tell us what happened. They won't know who reported them.",
+      "reason": "Reason",
+      "reasons": {
+        "spam": "Spam or advertising",
+        "harassment": "Harassment or bullying",
+        "hate": "Hate speech or discrimination",
+        "sexual": "Sexual or explicit content",
+        "self_harm": "Self-harm or suicide",
+        "violence": "Violence or threats",
+        "other": "Something else"
+      },
+      "detail": "Details (optional)",
+      "detailPlaceholder": "What made you uncomfortable?",
+      "alsoBlock": "Also block {handle}",
+      "submit": "Send report",
+      "doneTitle": "Thanks for telling us",
+      "doneBody": "We'll review it as soon as we can. If someone is in immediate danger, contact your local emergency services.",
+      "doneBlocked": "You've also blocked {handle}.",
+      "close": "Close"
+    },
+    "blockedList": {
+      "title": "Blocked people",
+      "subtitle": "People you block can't reach you, and you don't see their cards.",
+      "empty": "You haven't blocked anyone.",
+      "since": "Blocked {date}",
+      "unknownUser": "Deleted account",
+      "close": "Close"
+    }
+  },
+  "accountDeletion": {
+    "banner": "Your account will be deleted on {date}.",
+    "cancel": "Cancel deletion",
+    "error": "Couldn't cancel. Try again."
   }
 }

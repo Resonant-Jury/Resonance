@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { AppHeader } from '@/components/sections/AppHeader/AppHeader';
 import { AppChromeProvider } from '@/components/providers/AppChrome';
 import { FloatingWriteButton } from '@/components/sections/AppHeader/FloatingWriteButton';
+import { AccountDeletionBanner } from '@/components/molecules/AccountDeletionBanner/AccountDeletionBanner';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile } from '@/lib/data/hooks';
 import { useRouter, usePathname } from '@/i18n/navigation';
@@ -71,6 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <AppChromeProvider>
       {!bareChrome && <AppHeader user={headerUser} signedIn={!!authUser} authReady={!loading} />}
       <main style={{ minHeight: '100vh' }}>{children}</main>
+      {authUser && <AccountDeletionBanner belowHeader={!bareChrome} />}
       {authUser && !bareChrome && <FloatingWriteButton />}
     </AppChromeProvider>
   );

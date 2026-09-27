@@ -1,0 +1,182 @@
+import type { DocumentReference, Firestore, Query } from 'firebase-admin/firestore';
+import { DELETION_GRACE_DAYS } from './constants';
+
+export { DELETION_GRACE_DAYS };
+
+/**
+ * Account deletion (App Store 5.1.1(v) / Google Play account-deletion policy).
+ *
+ * Deletion is scheduled, not immediate: the request is recorded in
+ * `accountDeletions/{uid}` and the account is purged once `purgeAfter` has
+ * passed ({@link DELETION_GRACE_DAYS} days). Signing back in during the grace
+ * period shows a banner that cancels it. The daily cron
+ * (`/api/cron/purge-accounts`) runs {@link purgeDueAccounts}.
+ *
+ * `accountDeletions` is admin-only (rules deny all client access) — the
+ * request itself must not be forgeable or visible to other users.
+ */
+export const DELETIONS_COLLECTION = 'accountDeletions';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Firestore `in` queries accept at most 30 values. */
+const IN_CHUNK = 30;
+
+export interface AccountDeletion {
+  uid: string;
+  requestedAt: Date;
+  purgeAfter: Date;
+}
+
+function toDate(value: unknown): Date {
+  if (value instanceof Date) return value;
+  if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  return new Date(0);
+}
+
+export async function scheduleAccountDeletion(
+  db: Firestore,
+  uid: string,
+  now: Date = new Date(),
+): Promise<AccountDeletion> {
+  const deletion = { uid, requestedAt: now, purgeAfter: new Date(now.getTime() + DELETION_GRACE_DAYS * DAY_MS) };
+  await db.collection(DELETIONS_COLLECTION).doc(uid).set(deletion);
+  return deletion;
+}
+
+export async function cancelAccountDeletion(db: Firestore, uid: string): Promise<void> {
+  await db.collection(DELETIONS_COLLECTION).doc(uid).delete();
+}
+
+export async function getAccountDeletion(db: Firestore, uid: string): Promise<AccountDeletion | null> {
+  const snap = await db.collection(DELETIONS_COLLECTION).doc(uid).get();
+  if (!snap.exists) return null;
+  const data = snap.data()!;
+  return { uid, requestedAt: toDate(data.requestedAt), purgeAfter: toDate(data.purgeAfter) };
+}
+
+export interface PurgeReport {
+  /** Documents removed together with all of their subcollections. */
+  trees: number;
+  /** Single documents removed (records that point at the user). */
+  documents: number;
+}
+
+/**
+ * Every place a user's data lives, as (a) document trees owned by the user and
+ * (b) queries for records elsewhere that point at the user. Keep in step with
+ * `firebase/firestore.rules` — a new collection that stores a uid belongs here.
+ *
+ * Deliberately kept: other people's cards that responded to this user's cards
+ * (their `referenceCardId` dangles and readers resolve it to null, the same
+ * as for a deleted card), other users' block lists (a uid is never reused),
+ * and reports filed *against* the user (moderation history).
+ */
+async function collectAccountData(db: Firestore, uid: string) {
+  const trees: DocumentReference[] = [
+    db.collection('users').doc(uid), // profile + bookmarks + blocks
+    db.collection('thoughtMaps').doc(uid),
+    db.collection('userProfiles').doc(uid),
+    db.collection('recommendations').doc(uid),
+  ];
+
+  const [cards, conversations] = await Promise.all([
+    db.collection('cards').where('authorId', '==', uid).get(),
+    db.collection('conversations').where('participants', 'array-contains', uid).get(),
+  ]);
+  cards.forEach((d) => trees.push(d.ref)); // card + its pending edits
+  conversations.forEach((d) => trees.push(d.ref)); // conversation + messages
+
+  const queries: Query[] = [
+    db.collection('connections').where('userIds', 'array-contains', uid),
+    db.collection('invites').where('fromUserId', '==', uid),
+    db.collection('invites').where('toUserId', '==', uid),
+    db.collection('resonances').where('userId', '==', uid),
+    db.collection('notes').where('fromUserId', '==', uid),
+    db.collection('notes').where('toUserId', '==', uid),
+    db.collection('cardLinks').where('sourceAuthorId', '==', uid),
+    db.collection('cardLinks').where('targetAuthorId', '==', uid),
+    db.collection('notifications').where('userId', '==', uid),
+    db.collection('notifications').where('payload.fromUserId', '==', uid),
+    db.collection('quotas').where('userId', '==', uid),
+    db.collection('cardVectors').where('authorId', '==', uid),
+    db.collection('reports').where('reporterId', '==', uid),
+  ];
+  // Other readers' resonance records on the deleted cards.
+  const cardIds = cards.docs.map((d) => d.id);
+  for (let i = 0; i < cardIds.length; i += IN_CHUNK) {
+    queries.push(db.collection('resonances').where('cardId', 'in', cardIds.slice(i, i + IN_CHUNK)));
+  }
+
+  const snaps = await Promise.all(queries.map((q) => q.get()));
+  const treePaths = new Set(trees.map((r) => r.path));
+  const singles = new Map<string, DocumentReference>();
+  for (const snap of snaps) {
+    for (const d of snap.docs) {
+      if (!treePaths.has(d.ref.path)) singles.set(d.ref.path, d.ref);
+    }
+  }
+  return { trees, singles: [...singles.values()] };
+}
+
+/** Remove every Firestore record of `uid` (see {@link collectAccountData}). */
+export async function purgeAccountData(db: Firestore, uid: string): Promise<PurgeReport> {
+  const { trees, singles } = await collectAccountData(db, uid);
+  for (const ref of trees) await db.recursiveDelete(ref);
+  const writer = db.bulkWriter();
+  for (const ref of singles) void writer.delete(ref);
+  await writer.close();
+  return { trees: trees.length, documents: singles.length };
+}
+
+export interface PurgeDeps {
+  db: Firestore;
+  /** Removes the sign-in account (firebase-admin `auth.deleteUser`). */
+  deleteAuthUser: (uid: string) => Promise<void>;
+  /** Removes uploaded files under a key prefix; failures are logged, not fatal. */
+  deleteStoragePrefix?: (prefix: string) => Promise<number>;
+}
+
+/**
+ * Full purge: Firestore data, uploaded images, the auth account, and finally
+ * the deletion request itself. Storage is best-effort — orphaned images are
+ * unreachable once the records pointing at them are gone, and must not block
+ * the account from being deleted.
+ */
+export async function purgeAccount(deps: PurgeDeps, uid: string): Promise<PurgeReport> {
+  const report = await purgeAccountData(deps.db, uid);
+  if (deps.deleteStoragePrefix) {
+    for (const prefix of [`image/${uid}/`, `video/${uid}/`]) {
+      try {
+        await deps.deleteStoragePrefix(prefix);
+      } catch (err) {
+        console.error(`Account purge: storage cleanup failed for ${prefix}`, err);
+      }
+    }
+  }
+  try {
+    await deps.deleteAuthUser(uid);
+  } catch (err) {
+    if ((err as { code?: string }).code !== 'auth/user-not-found') throw err;
+  }
+  await cancelAccountDeletion(deps.db, uid);
+  return report;
+}
+
+/** Purge every account whose grace period has ended. Returns the purged uids. */
+export async function purgeDueAccounts(deps: PurgeDeps, now: Date = new Date()): Promise<string[]> {
+  const due = await deps.db.collection(DELETIONS_COLLECTION).where('purgeAfter', '<=', now).get();
+  const purged: string[] = [];
+  for (const d of due.docs) {
+    try {
+      await purgeAccount(deps, d.id);
+      purged.push(d.id);
+    } catch (err) {
+      // One failure must not stall everyone else's deletion; the request stays
+      // in place and tomorrow's run retries it.
+      console.error(`Account purge failed for ${d.id}`, err);
+    }
+  }
+  return purged;
+}

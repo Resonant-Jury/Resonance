@@ -12,6 +12,7 @@ import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid'
 import { CardAuthorAside } from '@/components/molecules/CardDetail/CardAuthorAside';
 import { CardToc, type TocHeading } from '@/components/molecules/CardDetail/CardToc';
 import { CardActionsMenu } from '@/components/molecules/CardActionsMenu/CardActionsMenu';
+import { CardSafetyMenu } from '@/components/molecules/CardDetail/CardSafetyMenu';
 import { ReadAfterArea } from '@/components/molecules/CardDetail/ReadAfterArea';
 import { ResonanceCards } from '@/components/molecules/CardDetail/ResonanceCards';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
@@ -190,6 +191,13 @@ export default function CardDetailPage() {
                   // Re-read this card so the visibility chip/state reflects the change.
                   onChanged={() => void mutate(`card:${slug}:${user!.id}`)}
                   onDeleted={() => router.replace('/me')}
+                />
+              )}
+              {user && !isOwner && (
+                <CardSafetyMenu
+                  card={{ id: card.id, authorId: card.authorId, anonymous: card.anonymous }}
+                  authorHandle={author.handle}
+                  seed={hue + 3}
                 />
               )}
             </div>

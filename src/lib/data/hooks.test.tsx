@@ -34,6 +34,9 @@ vi.mock('@/lib/db/firestore/client/bookmarks', () => ({
 vi.mock('@/lib/db/firestore/client/thoughtMap', () => ({
   loadMyThoughtMap: vi.fn(),
 }));
+vi.mock('@/lib/db/firestore/client/blocks', () => ({
+  getMyBlockedIds: vi.fn(),
+}));
 
 // useAuth is mocked so each test controls the signed-in viewer directly,
 // instead of standing up the real AuthProvider + Firebase auth.
@@ -58,6 +61,7 @@ import {
 import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
 import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
 import { loadMyThoughtMap } from '@/lib/db/firestore/client/thoughtMap';
+import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import {
   useCard,
   useFeed,
@@ -118,6 +122,7 @@ beforeEach(() => {
   // profile) exercise their original branches without standing up fixtures.
   vi.mocked(listLinksToAuthor).mockResolvedValue([]);
   vi.mocked(listMyBookmarkIds).mockResolvedValue([]);
+  vi.mocked(getMyBlockedIds).mockResolvedValue(new Set());
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -139,6 +144,53 @@ describe('useFeed', () => {
     // authors were resolved from the cards' authorIds
     expect(getUsersByIds).toHaveBeenCalledWith(['a1', 'a2']);
     expect(result.current.data!.authors.a1.handle).toBe('a1');
+  });
+});
+
+// Blocking hides the blocked person's cards from every feed surface, but the
+// feed must keep paginating on the raw Firestore page: a page that comes back
+// short only because a blocked author was dropped is not the end of the feed.
+describe('blocked authors', () => {
+  it('drops their cards from the feed without ending pagination early', async () => {
+    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['bad']));
+    const fullPage = Array.from({ length: 12 }, (_, i) =>
+      card(`c${i}`, i % 3 === 0 ? 'bad' : 'a1', { publishedAt: new Date(2026, 0, 30 - i) }),
+    );
+    vi.mocked(getLatestPublishedFeed).mockResolvedValue(fullPage);
+    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
+
+    const { result } = renderHook(() => useFeed(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    expect(result.current.data!.cards.every((c) => c.authorId !== 'bad')).toBe(true);
+    expect(result.current.data!.cards).toHaveLength(8);
+    expect(getUsersByIds).toHaveBeenCalledWith(Array(8).fill('a1'));
+    // 12 raw cards came back, so there may be more — even though 8 are shown.
+    expect(result.current.hasMore).toBe(true);
+  });
+
+  it('shows a blocked person\'s profile as blocked, with none of their cards', async () => {
+    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['u2']));
+    vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'bob'));
+    vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('c1', 'u2')]);
+
+    const { result } = renderHook(() => useProfileByHandle('bob'), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    expect(result.current.data!.isBlocked).toBe(true);
+    expect(result.current.data!.user!.id).toBe('u2');
+    expect(result.current.data!.published).toEqual([]);
+    expect(getPublicCardsByAuthor).not.toHaveBeenCalled();
+  });
+
+  it('drops blocked people from resonance and related lists', async () => {
+    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['bad']));
+    vi.mocked(getRelatedCards).mockResolvedValue([card('c2', 'bad'), card('c3', 'a1')]);
+    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
+
+    const { result } = renderHook(() => useRelated('c1'), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['c3']);
   });
 });
 

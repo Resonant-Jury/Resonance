@@ -32,6 +32,19 @@ vi.mock('@/lib/data/hooks', () => ({
   useConversations: () => mockUseConversations(),
   useThread: (pairId: string | undefined) => mockUseThread(pairId),
   useMyProfile: () => mockUseMyProfile(),
+  useMyBlockedIds: () => ({ data: new Set<string>() }),
+}));
+
+const mockBlockUser = vi.fn();
+vi.mock('@/lib/db/firestore/client/blocks', () => ({
+  blockUser: (uid: string) => mockBlockUser(uid),
+  unblockUser: vi.fn(),
+}));
+const mockSubmitReport = vi.fn();
+vi.mock('@/lib/db/firestore/client/reports', () => ({
+  REPORT_REASONS: ['spam', 'harassment', 'other'],
+  REPORT_DETAIL_MAX: 1000,
+  submitReport: (input: unknown) => mockSubmitReport(input),
 }));
 
 const mockGetUserByHandle = vi.fn();
@@ -127,6 +140,8 @@ beforeEach(() => {
   mockGetConversation.mockResolvedValue(conversation());
   mockOpenConversation.mockResolvedValue('alice_me');
   mockSendMessage.mockResolvedValue('m-new');
+  mockBlockUser.mockResolvedValue(undefined);
+  mockSubmitReport.mockResolvedValue(undefined);
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -266,5 +281,46 @@ describe('MessagesPage thread', () => {
     renderPage(<MessagesPage activeHandle="alice" />);
     await waitFor(() => expect(screen.getByTestId('shared-card')).toHaveTextContent('card-77'));
     expect(screen.getByText('In reply to your note')).toBeInTheDocument();
+  });
+});
+
+// App Store 1.2: every conversation needs a way to report and block.
+describe('MessagesPage thread safety menu', () => {
+  it('blocks the other person after confirming', async () => {
+    const u = userEvent.setup({ pointerEventsCheck: 0 });
+    renderPage(<MessagesPage activeHandle="alice" />);
+    await u.click(await screen.findByRole('button', { name: 'Conversation options' }));
+    await u.click(screen.getByRole('menuitem', { name: 'Block' }));
+
+    expect(await screen.findByText('Block alice?')).toBeInTheDocument();
+    expect(mockBlockUser).not.toHaveBeenCalled();
+    await u.click(screen.getByRole('button', { name: 'Block' }));
+    await waitFor(() => expect(mockBlockUser).toHaveBeenCalledWith('alice'));
+  });
+
+  it('files a report about the conversation, with the chosen reason and details', async () => {
+    const u = userEvent.setup({ pointerEventsCheck: 0 });
+    renderPage(<MessagesPage activeHandle="alice" />);
+    await u.click(await screen.findByRole('button', { name: 'Conversation options' }));
+    await u.click(screen.getByRole('menuitem', { name: 'Report this conversation' }));
+
+    fireEvent.change(await screen.findByLabelText('Details (optional)'), {
+      target: { value: 'Keeps sending links' },
+    });
+    await u.click(screen.getByRole('button', { name: 'Send report' }));
+
+    await waitFor(() =>
+      expect(mockSubmitReport).toHaveBeenCalledWith({
+        targetType: 'message',
+        targetId: 'alice_me',
+        targetUserId: 'alice',
+        reason: 'spam',
+        detail: 'Keeps sending links',
+        contextId: 'alice_me',
+      }),
+    );
+    expect(await screen.findByText('Thanks for telling us')).toBeInTheDocument();
+    // Not blocked unless the "also block" switch was turned on.
+    expect(mockBlockUser).not.toHaveBeenCalled();
   });
 });

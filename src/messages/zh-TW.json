@@ -482,7 +482,8 @@
     "next": "下一步",
     "back": "上一步",
     "finish": "完成建立",
-    "welcome": "歡迎，{handle}。先寫第一張卡片吧。"
+    "welcome": "歡迎，{handle}。先寫第一張卡片吧。",
+    "deletionScheduled": "帳號已排定刪除。7 天內重新登入就能取消。"
   },
   "settings": {
     "title": "設定",
@@ -539,8 +540,69 @@
     },
     "delete": {
       "title": "刪除帳號",
-      "warn": "刪除後 7 天內可反悔。我們會幫你匯出一份備份。",
-      "button": "開始刪除流程"
+      "warn": "送出後你會立刻被登出。7 天後，你的帳號、卡片、訊息與上傳的圖片會永久刪除；這 7 天內重新登入就能取消。",
+      "exportHint": "刪除前，可以先下載一份你寫過的所有內容。",
+      "export": "下載我的資料",
+      "exporting": "準備中⋯",
+      "button": "刪除帳號",
+      "confirmTitle": "確定要刪除帳號？",
+      "confirmBody": "你會被登出。{date} 之後，帳號與所有內容會永久刪除，無法復原。",
+      "confirm": "刪除帳號",
+      "cancel": "先不要",
+      "error": "沒送出去，再試一次。"
     }
+  },
+  "safety": {
+    "menuLabel": "更多選項",
+    "reportCard": "檢舉這張卡片",
+    "reportUser": "檢舉這個人",
+    "reportMessage": "檢舉這段對話",
+    "block": "封鎖",
+    "unblock": "解除封鎖",
+    "blockTitle": "封鎖 {handle}？",
+    "blockBody": "對方將無法再傳訊息、送邀請或寫紙條給你，你們的連結也會解除。你不會再看到對方的卡片。對方不會收到通知。",
+    "blockConfirm": "封鎖",
+    "cancel": "取消",
+    "actionError": "沒完成，再試一次。",
+    "anonymousAuthor": "這位作者",
+    "blockedNotice": "你已封鎖 {handle}",
+    "blockedNoticeBody": "你看不到對方的卡片，對方也無法聯絡你。",
+    "report": {
+      "titleCard": "檢舉這張卡片",
+      "titleUser": "檢舉 {handle}",
+      "titleMessage": "檢舉與 {handle} 的對話",
+      "intro": "告訴我們發生了什麼。對方不會知道是誰檢舉的。",
+      "reason": "原因",
+      "reasons": {
+        "spam": "垃圾訊息或廣告",
+        "harassment": "騷擾或霸凌",
+        "hate": "仇恨或歧視言論",
+        "sexual": "性相關或不雅內容",
+        "self_harm": "自我傷害或自殺相關",
+        "violence": "暴力或威脅",
+        "other": "其他"
+      },
+      "detail": "補充說明（選填）",
+      "detailPlaceholder": "哪裡讓你不舒服？",
+      "alsoBlock": "同時封鎖 {handle}",
+      "submit": "送出檢舉",
+      "doneTitle": "謝謝你告訴我們",
+      "doneBody": "我們會盡快審閱。如果有人正處於立即的危險，請直接聯絡當地的緊急服務。",
+      "doneBlocked": "你也已經封鎖了 {handle}。",
+      "close": "關閉"
+    },
+    "blockedList": {
+      "title": "封鎖名單",
+      "subtitle": "被封鎖的人無法聯絡你，你也看不到他們的卡片。",
+      "empty": "你還沒有封鎖任何人。",
+      "since": "{date} 封鎖",
+      "unknownUser": "已刪除的帳號",
+      "close": "關閉"
+    }
+  },
+  "accountDeletion": {
+    "banner": "你的帳號將於 {date} 刪除。",
+    "cancel": "取消刪除",
+    "error": "沒取消成功，再試一次。"
   }
 }

@@ -15,6 +15,7 @@ npm run test:ui    # Vitest browser UI
 npm run emulators       # Firebase Auth + Firestore emulators (needs Java; project demo-resonance)
 npm run dev:emulator    # Next dev server wired to the emulators (no real Firebase/R2 is touched)
 npm run test:emulator   # Rules + Admin SDK suites in test/emulator (starts/stops the emulators itself)
+npm run moderation -- list [--emulator]   # read the report queue (reports are write-only for clients)
 ```
 
 Seed the emulators with known test accounts: `npx tsx scripts/seed-emulator.ts`. In a `dev:emulator` browser, sign in from devtools with `await window.__emulatorSignIn(email, password)` (values in the seed script) — that helper exists only in emulator builds.
@@ -65,6 +66,15 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | `POST /api/generate-image` | doodle-style illustration from story text → AVIF → R2 (`maxDuration: 120`) |
 | `POST /api/upload` | image upload proxy to R2 (works around client-to-R2 TLS issues), 8 MB limit |
 | `POST /api/revalidate` | authenticated `revalidatePath` on allowlisted paths (expands locale prefixes) |
+| `GET/POST/DELETE /api/account/deletion` | read / schedule (7-day grace, revokes refresh tokens) / cancel account deletion |
+| `GET /api/account/export` | the signed-in user's own writing as a JSON download |
+| `GET /api/cron/purge-accounts` | Vercel Cron (daily, `Bearer $CRON_SECRET`): purges accounts past their grace period (`src/lib/account/deletion.ts`) |
+
+### Safety (App Store 1.2 / 5.1.1(v))
+
+- **Blocking**: `users/{uid}/blocks/{blockedUid}` (owner-only). `blockedBetween()` in the rules refuses connections, messages, invites, notes, notifications and card links across a block, both directions; blocking also deletes the connection. Client reads drop blocked authors in `lib/data/hooks` (`getMyBlockedIds`).
+- **Reports**: `reports/*` is create-only for clients; read/resolve with `npm run moderation`.
+- **Account deletion**: `accountDeletions/{uid}` (admin-only) → purged by the cron. A new collection that stores a uid must be added to `collectAccountData()` in `src/lib/account/deletion.ts`.
 
 ### AI (`src/lib/ai/`)
 

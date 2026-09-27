@@ -14,11 +14,12 @@ import { InsertCardModal } from '@/components/molecules/MarkdownEditor/InsertCar
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { OrganicMenu } from '@/components/molecules/OrganicMenu/OrganicMenu';
 import { useCardEmbed } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
+import { useSafetyActions } from '@/components/molecules/SafetyActions/useSafetyActions';
 import { INK } from '@/lib/design/strokes';
 import { seedFromString } from '@/lib/design/prng';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { useMyProfile, useThread } from '@/lib/data/hooks';
+import { useMyBlockedIds, useMyProfile, useThread } from '@/lib/data/hooks';
 import { getUserByHandle, isConnected } from '@/lib/db/firestore/client/reads';
 import {
   MESSAGE_MAX_LENGTH,
@@ -68,6 +69,24 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     user && other && user.id !== other.id ? `connected:${pairId}` : null,
     () => isConnected(user!.id, other!.id),
   );
+
+  // Report / block the other participant from the header「⋯」menu. Blocking
+  // ends the connection, so the thread freezes (see firestore.rules).
+  const { data: blocked } = useMyBlockedIds();
+  const safety = useSafetyActions({
+    report: {
+      type: 'message',
+      id: pairId ?? '',
+      userId: other?.id ?? '',
+      handle: other?.handle,
+      contextId: pairId,
+    },
+    isBlocked: !!other && !!blocked?.has(other.id),
+    onBlockedChange: () => {
+      void globalMutate(`connected:${pairId}`);
+      if (user) void globalMutate(`conversations:${user.id}`);
+    },
+  });
 
   // Subscribe only once the conversation doc exists — the messages read rule
   // get()s the parent doc, so listening earlier would just error.
@@ -273,9 +292,11 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 items={[
                   { key: 'search', icon: 'search', label: t('menuSearch') },
                   { key: 'media', icon: 'cards', label: t('menuMedia') },
+                  ...safety.items,
                   { key: 'delete', icon: 'trash', label: t('menuDelete'), danger: true },
                 ]}
                 onChoose={(key) => {
+                  if (safety.choose(key)) return;
                   if (key === 'search') setSearchOpen(true);
                   else if (key === 'media') setMediaOpen(true);
                   else if (key === 'delete') setConfirmingDelete(true);
@@ -494,6 +515,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               </OrganicButton>
             </div>
           </Modal>
+          {safety.modals}
         </>
       )}
     </>

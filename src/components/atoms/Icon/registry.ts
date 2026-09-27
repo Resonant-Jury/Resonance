@@ -29,6 +29,8 @@ import { KeyIcon } from './icons/key';
 import { PaletteIcon } from './icons/palette';
 import { DocumentIcon } from './icons/document';
 import { ArrowsHorizontalIcon } from './icons/arrows-horizontal';
+import { FlagIcon } from './icons/flag';
+import { BanIcon } from './icons/ban';
 import type { IconRenderer } from './types';
 
 /**
@@ -77,6 +79,8 @@ export const ICONS = {
   palette: PaletteIcon,
   document: DocumentIcon,
   'arrows-horizontal': ArrowsHorizontalIcon,
+  flag: FlagIcon,
+  ban: BanIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

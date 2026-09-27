@@ -16,6 +16,8 @@ import { AvatarUpload } from '@/components/molecules/AvatarUpload/AvatarUpload';
 import { updateProfile } from '@/lib/db/firestore/client/profile';
 import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import { SignOutConfirmModal } from '@/components/molecules/SignOutConfirmModal/SignOutConfirmModal';
+import { BlockedListModal } from '@/components/molecules/BlockedListModal/BlockedListModal';
+import { DeleteAccountSection } from './DeleteAccountSection';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useTweaks } from '@/components/providers/TweaksPanel';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
@@ -103,6 +105,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   const [primaryLocale, setPrimaryLocale] = useState<Locale>(initial.primaryLocale);
   const [signingOut, setSigningOut] = useState(false);
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const [blockListOpen, setBlockListOpen] = useState(false);
   // Below this width the layout switches to the phone master/detail flow.
   const isMobile = useIsMobile(760);
 
@@ -300,7 +303,9 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               ]}
             />
             <div style={{ marginTop: 28 }}>
-              <OrganicButton variant="outline">{t('privacy.manageBlocks')}</OrganicButton>
+              <OrganicButton variant="outline" onClick={() => setBlockListOpen(true)}>
+                {t('privacy.manageBlocks')}
+              </OrganicButton>
             </div>
           </>
         )}
@@ -424,27 +429,20 @@ export function SettingsClient({ initial }: SettingsClientProps) {
             The terms page will live here — {t('sections.terms')}.
           </p>
         )}
-        {active === 'delete' && (
-          <>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, marginBottom: 8 }}>
-              {t('delete.title')}
-            </h3>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 14, marginBottom: 18 }}>
-              {t('delete.warn')}
-            </p>
-            <OrganicButton variant="outline">{t('delete.button')}</OrganicButton>
-          </>
-        )}
+        {active === 'delete' && <DeleteAccountSection />}
     </section>
   );
 
   const modal = (
-    <SignOutConfirmModal
-      open={confirmingSignOut}
-      busy={signingOut}
-      onCancel={() => setConfirmingSignOut(false)}
-      onConfirm={() => void signOut()}
-    />
+    <>
+      <SignOutConfirmModal
+        open={confirmingSignOut}
+        busy={signingOut}
+        onCancel={() => setConfirmingSignOut(false)}
+        onConfirm={() => void signOut()}
+      />
+      <BlockedListModal open={blockListOpen} onClose={() => setBlockListOpen(false)} />
+    </>
   );
 
   // Phone layout: a settings menu (rows → detail) that mirrors how native OS

@@ -28,6 +28,16 @@ service cloud.firestore {
         );
     }
 
+    // Either side has blocked the other (users/{uid}/blocks/{otherUid}). Every
+    // way of reaching someone — connecting, messaging, inviting, notes,
+    // notifications, card links — is refused across a block, in both
+    // directions. get()/exists() here bypass read rules, so a user's private
+    // block list can still gate what others write.
+    function blockedBetween(a, b) {
+      return exists(/databases/$(database)/documents/users/$(a)/blocks/$(b))
+        || exists(/databases/$(database)/documents/users/$(b)/blocks/$(a));
+    }
+
     function authorOnlyMetricsUnchanged() {
       return request.resource.data.readCount == resource.data.readCount
         && request.resource.data.resonanceCount == resource.data.resonanceCount
@@ -70,6 +80,19 @@ service cloud.firestore {
       // never notified, never a recommendation signal.
       match /bookmarks/{cardId} {
         allow read, write: if isSelf(userId);
+      }
+
+      // --- blocks (users/{uid}/blocks/{blockedUid}) ---
+      // The owner's private block list; the blocked person is never told.
+      // Enforcement lives in blockedBetween() on every write that reaches
+      // another user.
+      match /blocks/{blockedId} {
+        allow read, delete: if isSelf(userId);
+        allow create: if isSelf(userId)
+          && blockedId != userId
+          && request.resource.data.keys().hasOnly(["blockedUid", "createdAt"])
+          && request.resource.data.blockedUid == blockedId
+          && request.resource.data.createdAt == request.time;
       }
     }
 
@@ -128,11 +151,14 @@ service cloud.firestore {
         && connectionId == sortedConnectionId(
             request.resource.data.userIds[0],
             request.resource.data.userIds[1]
-          );
+          )
+        && !blockedBetween(request.resource.data.userIds[0], request.resource.data.userIds[1]);
       allow update: if signedIn()
         && request.auth.uid in resource.data.userIds
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["muted"]);
-      allow delete: if false;
+      // Either party may end the connection (blocking does this). The
+      // conversation stays readable but frozen: message create re-checks it.
+      allow delete: if signedIn() && request.auth.uid in resource.data.userIds;
     }
 
     // --- conversations (私訊) ---
@@ -157,6 +183,7 @@ service cloud.firestore {
             request.resource.data.participants[1]
           )
         && exists(/databases/$(database)/documents/connections/$(conversationId))
+        && !blockedBetween(request.resource.data.participants[0], request.resource.data.participants[1])
         && request.resource.data.lastMessage == null
         && request.resource.data.unread.keys().hasOnly(request.resource.data.participants)
         && request.resource.data.unread.values().hasOnly([0]);
@@ -179,6 +206,7 @@ service cloud.firestore {
         allow create: if signedIn()
           && request.auth.uid in parentConvo().participants
           && exists(/databases/$(database)/documents/connections/$(conversationId))
+          && !blockedBetween(parentConvo().participants[0], parentConvo().participants[1])
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 2000
@@ -200,7 +228,8 @@ service cloud.firestore {
         && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
       allow create: if signedIn()
         && request.resource.data.fromUserId == request.auth.uid
-        && request.resource.data.status == "pending";
+        && request.resource.data.status == "pending"
+        && !blockedBetween(request.auth.uid, request.resource.data.toUserId);
       allow update: if signedIn()
         && (
           resource.data.fromUserId == request.auth.uid
@@ -240,6 +269,7 @@ service cloud.firestore {
         && request.resource.data.fromUserId == request.auth.uid
         && request.resource.data.toUserId is string
         && request.resource.data.toUserId != request.auth.uid
+        && !blockedBetween(request.auth.uid, request.resource.data.toUserId)
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 2000
@@ -259,6 +289,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.sourceAuthorId == request.auth.uid
         && linkId == request.resource.data.sourceCardId + "_" + request.resource.data.targetCardId
+        && !blockedBetween(request.auth.uid, request.resource.data.targetAuthorId)
         && get(/databases/$(database)/documents/cards/$(request.resource.data.sourceCardId)).data.authorId == request.auth.uid;
       allow update: if false;
       allow delete: if signedIn() && resource.data.sourceAuthorId == request.auth.uid;
@@ -295,6 +326,7 @@ service cloud.firestore {
       allow read: if signedIn() && resource.data.userId == request.auth.uid;
       allow create: if signedIn()
         && request.resource.data.readAt == null
+        && !blockedBetween(request.auth.uid, request.resource.data.userId)
         && (
           notificationIsInviteSender()
           || actorNotif("resonance")
@@ -328,6 +360,48 @@ service cloud.firestore {
         && request.resource.data.inviteCount <= 3
         && request.resource.data.inviteCount >= resource.data.inviteCount;
       allow delete: if false;
+    }
+
+    // --- reports (檢舉) ---
+    // Write-only for clients: a signed-in user files a report about a card, a
+    // user, or a message. Nobody can read reports from the client (not even
+    // the reporter) — moderation reads them with the Admin SDK
+    // (scripts/moderation/reports.ts).
+    match /reports/{reportId} {
+      allow read, update, delete: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          "reporterId", "targetType", "targetId", "targetUserId",
+          "reason", "detail", "contextId", "createdAt", "status"
+        ])
+        && request.resource.data.keys().hasAll([
+          "reporterId", "targetType", "targetId", "targetUserId",
+          "reason", "detail", "createdAt", "status"
+        ])
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.targetType in ["card", "user", "message"]
+        && request.resource.data.targetId is string
+        && request.resource.data.targetId.size() > 0
+        && request.resource.data.targetId.size() <= 200
+        && request.resource.data.targetUserId is string
+        && request.resource.data.targetUserId != request.auth.uid
+        && request.resource.data.reason in [
+          "spam", "harassment", "hate", "sexual", "self_harm", "violence", "other"
+        ]
+        && request.resource.data.detail is string
+        && request.resource.data.detail.size() <= 1000
+        && (!("contextId" in request.resource.data)
+            || (request.resource.data.contextId is string
+                && request.resource.data.contextId.size() <= 200))
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == "open";
+    }
+
+    // --- account deletion requests (server-only) ---
+    // Written by /api/account/deletion with the Admin SDK; purged by the
+    // daily cron. Clients never touch them.
+    match /accountDeletions/{userId} {
+      allow read, write: if false;
     }
 
     // --- recommendation engine (server-only) ---
