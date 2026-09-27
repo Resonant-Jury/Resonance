@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>S5 TypeLab (web reference)</title>
+<style>
+  /* The same TTFs the native apps bundle (native/fonts), under the web's own stacks (src/styles/tokens.css). */
+  @font-face { font-family: 'Playfair Display'; src: url(../fonts/PlayfairDisplay.ttf); font-weight: 400 900; }
+  @font-face { font-family: 'DM Sans'; src: url(../fonts/DMSans.ttf); font-weight: 100 1000; }
+  @font-face { font-family: 'Noto Sans TC'; src: url(../fonts/NotoSansTC.ttf); font-weight: 100 900; }
+  @font-face { font-family: 'Noto Serif TC'; src: url(../fonts/NotoSerifTC.ttf); font-weight: 200 900; }
+  :root {
+    --font-heading: 'Playfair Display', 'Noto Serif TC', Georgia, serif;
+    --font-body: 'DM Sans', 'Noto Sans TC', system-ui, sans-serif;
+  }
+  body { margin: 20px; background: #faf2e9; color: #2f2115; -webkit-font-smoothing: antialiased; }
+  .sample { margin-bottom: 28px; }
+  .sample p { margin: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// Mirrors TypeSample.all in native/ios/Sources/S5/TypeLab.swift.
+const SAMPLES = [
+  { id: 'title', text: '一場雨後的散步 After the Rain', family: 'heading', size: 28, weight: 700, lineHeight: 1.25, width: 335 },
+  { id: 'body', text: '雨停的時候，巷口的積水映出整排路燈。I remembered walking home through puddles like this — 小時候也是這樣踩著水窪回家，鞋子濕了也不在意。', family: 'body', size: 16, weight: 400, lineHeight: 1.7, width: 335 },
+  { id: 'excerpt', text: '水溫太高，粉也磨得太細，但那是第一次覺得早晨是屬於自己的。「慢一點也沒關係。」她說。', family: 'body', size: 14, weight: 400, lineHeight: 1.65, width: 280 },
+  { id: 'cardTitle', text: 'The quiet after moving out 搬家後的安靜', family: 'heading', size: 18, weight: 700, lineHeight: 1.3, width: 260 },
+];
+
+function measure(p, text) {
+  // Walk UTF-16 offsets; a new line starts where a character's rect drops.
+  const node = p.firstChild;
+  const range = document.createRange();
+  const top0 = p.getBoundingClientRect().top;
+  const lineBox = parseFloat(getComputedStyle(p).lineHeight);
+  const lines = [];
+  let lastTop = null;
+  for (let i = 0; i < text.length; i++) {
+    range.setStart(node, i);
+    range.setEnd(node, i + 1);
+    const rects = range.getClientRects();
+    if (!rects.length) continue;
+    const r = rects[rects.length - 1];
+    if (/\s/.test(text[i])) continue;
+    // Line box top: snap the glyph's rect into its line box.
+    const lineIndex = Math.round((r.top - top0 - (lineBox - r.height) / 2) / lineBox);
+    if (lastTop === null || lineIndex !== lastTop) {
+      lines.push({ start: i, top: lineIndex * lineBox, height: lineBox });
+      lastTop = lineIndex;
+    }
+  }
+  for (let k = 0; k < lines.length; k++) {
+    const end = k + 1 < lines.length ? lines[k + 1].start : text.length;
+    lines[k].text = text.slice(lines[k].start, end);
+  }
+  return lines;
+}
+
+document.fonts.ready.then(async () => {
+  await Promise.all([
+    document.fonts.load('700 28px "Playfair Display"'), document.fonts.load('700 28px "Noto Serif TC"', '一'),
+    document.fonts.load('400 16px "DM Sans"'), document.fonts.load('400 16px "Noto Sans TC"', '一'),
+  ]);
+  const root = document.getElementById('root');
+  const results = [];
+  for (const s of SAMPLES) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sample';
+    const p = document.createElement('p');
+    p.textContent = s.text;
+    Object.assign(p.style, {
+      width: s.width + 'px',
+      fontFamily: s.family === 'heading' ? 'var(--font-heading)' : 'var(--font-body)',
+      fontSize: s.size + 'px',
+      fontWeight: s.weight,
+      lineHeight: String(s.lineHeight),
+    });
+    wrap.appendChild(p);
+    root.appendChild(wrap);
+    results.push({ id: s.id, platform: 'web', lines: measure(p, s.text), height: p.getBoundingClientRect().height });
+  }
+  // Baselines: a zero-size inline-block sits with its bottom on the baseline.
+  for (const r of results) {
+    const s = SAMPLES.find((x) => x.id === r.id);
+    const p = document.createElement('p');
+    Object.assign(p.style, {
+      width: s.width + 'px', fontFamily: s.family === 'heading' ? 'var(--font-heading)' : 'var(--font-body)',
+      fontSize: s.size + 'px', fontWeight: s.weight, lineHeight: String(s.lineHeight), margin: 0,
+    });
+    let html = '';
+    const starts = new Set(r.lines.map((l) => l.start));
+    [...s.text].forEach((ch, i) => {
+      if (starts.has(i)) html += '<span class="bl" style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+      html += ch.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    });
+    p.innerHTML = html;
+    root.appendChild(p);
+    const top0 = p.getBoundingClientRect().top;
+    const marks = [...p.querySelectorAll('.bl')].map((m) => m.getBoundingClientRect().bottom - top0);
+    r.lines.forEach((l, k) => { l.baseline = marks[k] !== undefined ? +(marks[k] - l.top).toFixed(2) : null; });
+    p.remove();
+  }
+  window.__S5 = results;
+  document.title = 'S5 ready';
+});
+</script>
+</body>
+</html>

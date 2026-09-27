@@ -17,6 +17,7 @@ npm run dev:emulator    # Next dev server wired to the emulators (no real Fireba
 npm run test:emulator   # Rules + Admin SDK suites in test/emulator (starts/stops the emulators itself)
 npm run moderation -- list [--emulator]   # read the report queue (reports are write-only for clients)
 npm run api:openapi     # regenerate openapi/v1/openapi.json from the Zod contract (a test fails when stale)
+npm run native:editor   # typecheck + build the native apps' editor island (native/editor/dist/editor.html)
 ```
 
 Seed the emulators with known test accounts: `npx tsx scripts/seed-emulator.ts`. In a `dev:emulator` browser, sign in from devtools with `await window.__emulatorSignIn(email, password)` (values in the seed script) — that helper exists only in emulator builds.

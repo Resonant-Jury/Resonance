@@ -22,6 +22,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:emulator", "--", "--port", "3100"],
       "port": 3100
+    },
+    {
+      "name": "native-static",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/native/serve-static.mjs", "4180"],
+      "port": 4180
     }
   ]
 }

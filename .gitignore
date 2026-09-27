@@ -18,3 +18,15 @@ android/keystore.properties
 # Firebase emulator logs
 *-debug.log
 
+# Native spikes (native/): build outputs and generated projects
+native/**/.build/
+native/**/build/
+native/**/.gradle/
+native/**/local.properties
+native/**/*.xcodeproj/
+native/**/DerivedData/
+native/**/.kotlin/
+native/fixtures/*.local.json
+native/fonts/
+.venv-fonts/
+native/editor/dist/

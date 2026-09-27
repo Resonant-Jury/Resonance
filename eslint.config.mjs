@@ -38,6 +38,8 @@ const eslintConfig = [
       "ios/**",
       "capacitor-shell/**",
       "dist/**",
+      // Native spike apps (Swift / Kotlin) and their generated web bundles
+      "native/**",
     ],
   },
 ];

@@ -1,0 +1,6 @@
+# swift-openapi-generator: build the v1 client from openapi/v1/openapi.json.
+generate:
+  - types
+  - client
+accessModifier: internal
+namingStrategy: idiomatic
