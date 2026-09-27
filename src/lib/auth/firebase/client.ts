@@ -4,6 +4,7 @@ import { getApps, initializeApp } from 'firebase/app';
 import {
   GoogleAuthProvider,
   OAuthProvider,
+  connectAuthEmulator,
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
@@ -33,8 +34,18 @@ export function getFirebaseClientApp() {
   return getApps()[0] ?? initializeApp(firebaseConfig());
 }
 
+/** Local-emulator mode (`npm run dev:emulator`); see scripts/emulator-env.mjs. */
+export const USE_FIREBASE_EMULATOR = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR === 'true';
+
+let authEmulatorConnected = false;
+
 export function getFirebaseClientAuth() {
-  return getAuth(getFirebaseClientApp());
+  const auth = getAuth(getFirebaseClientApp());
+  if (USE_FIREBASE_EMULATOR && !authEmulatorConnected) {
+    authEmulatorConnected = true;
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  }
+  return auth;
 }
 
 export function mapFirebaseUser(user: FirebaseUser): AuthUser {

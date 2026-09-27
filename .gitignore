@@ -14,3 +14,7 @@ dist
 # Android release signing (back up the keystore privately; never commit)
 android/keystore.properties
 *.keystore
+
+# Firebase emulator logs
+*-debug.log
+

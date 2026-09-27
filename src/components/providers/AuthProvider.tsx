@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { firebaseClientAuthProvider } from '@/lib/auth/firebase/client';
+import { USE_FIREBASE_EMULATOR, firebaseClientAuthProvider } from '@/lib/auth/firebase/client';
 import type { AuthUser, SignInInput, SignUpInput } from '@/lib/auth/types';
 
 interface AuthContextValue {
@@ -29,6 +29,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
     return unsubscribe;
+  }, []);
+
+  // Emulator builds only (`npm run dev:emulator`): the sign-in page offers
+  // Google alone, so browser tests sign the seeded accounts in from devtools —
+  // `await window.__emulatorSignIn(email, password)` (see scripts/seed-emulator.ts).
+  useEffect(() => {
+    if (!USE_FIREBASE_EMULATOR) return;
+    const w = window as unknown as { __emulatorSignIn?: (email: string, password: string) => Promise<AuthUser> };
+    w.__emulatorSignIn = async (email, password) => {
+      const next = await firebaseClientAuthProvider.signIn({ email, password });
+      setUser(next);
+      return next;
+    };
+    return () => {
+      delete w.__emulatorSignIn;
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(

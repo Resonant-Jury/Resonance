@@ -4,13 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:emulator": "node scripts/dev-emulator.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "test:emulator": "cd firebase && firebase emulators:exec --only auth,firestore --project demo-resonance 'cd .. && vitest run -c vitest.emulator.config.ts'",
+    "emulators": "cd firebase && firebase emulators:start --only auth,firestore --project demo-resonance"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1055.0",
@@ -43,6 +46,7 @@
     "@capacitor/cli": "^8.4.2",
     "@capacitor/ios": "^8.4.2",
     "@eslint/eslintrc": "^3.3.5",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

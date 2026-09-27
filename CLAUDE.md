@@ -12,7 +12,12 @@ npm run typecheck  # tsc --noEmit
 npm test           # Vitest, single run (CI mode)
 npm run test:watch # Vitest in watch mode
 npm run test:ui    # Vitest browser UI
+npm run emulators       # Firebase Auth + Firestore emulators (needs Java; project demo-resonance)
+npm run dev:emulator    # Next dev server wired to the emulators (no real Firebase/R2 is touched)
+npm run test:emulator   # Rules + Admin SDK suites in test/emulator (starts/stops the emulators itself)
 ```
+
+Seed the emulators with known test accounts: `npx tsx scripts/seed-emulator.ts`. In a `dev:emulator` browser, sign in from devtools with `await window.__emulatorSignIn(email, password)` (values in the seed script) — that helper exists only in emulator builds.
 
 ## Architecture
 
