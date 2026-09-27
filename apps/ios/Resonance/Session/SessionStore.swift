@@ -28,16 +28,25 @@ final class SessionStore {
 
     init(config: AppConfig) {
         self.config = config
-        api = ResonanceClient.make(APIConfiguration(origin: config.origin, idToken: { try await Self.idToken() }))
+        api = ResonanceClient.make(APIConfiguration(origin: config.origin, idToken: { force in try await Self.idToken(forceRefresh: force) }))
         listener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             MainActor.assumeIsolated { self?.apply(user?.uid) }
         }
     }
 
-    /// The current user's ID token; the SDK refreshes it when it is about to expire.
-    nonisolated static func idToken() async throws -> String? {
+    /// The current user's ID token; the SDK renews it before it expires.
+    /// A forced refresh that fails for good (the account was deleted or its
+    /// sessions revoked) signs the person out instead of leaving them stuck.
+    nonisolated static func idToken(forceRefresh: Bool = false) async throws -> String? {
         guard let user = Auth.auth().currentUser else { return nil }
-        return try await user.getIDToken()
+        do {
+            return try await user.getIDTokenResult(forcingRefresh: forceRefresh).token
+        } catch let error as NSError where forceRefresh && error.domain == AuthErrorDomain
+            && [AuthErrorCode.userNotFound.rawValue, AuthErrorCode.userTokenExpired.rawValue,
+                AuthErrorCode.invalidUserToken.rawValue, AuthErrorCode.userDisabled.rawValue].contains(error.code) {
+            await MainActor.run { try? Auth.auth().signOut() }
+            return nil
+        }
     }
 
     private func apply(_ newUID: String?) {

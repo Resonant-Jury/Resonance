@@ -172,7 +172,8 @@ public struct OrganicInlineBar<Trailing: View>: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 4)
-        .background(Tokens.cream.opacity(0.96))
+        // Reaches under the status bar, so content scrolled beneath never shows through.
+        .background(Tokens.cream.opacity(0.97).ignoresSafeArea(edges: .top))
     }
 }
 

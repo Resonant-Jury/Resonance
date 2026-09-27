@@ -39,8 +39,8 @@ struct CardBoxScreen: View {
             }
         case .missing:
             OrganicEmptyState(L10n.Auth.stepHandle)
-        case let .failed(message):
-            OrganicEmptyState(message, actionTitle: L10n.Home.moreBtn) { Task { await session.loadMe() } }
+        case .failed:
+            OrganicEmptyState(L10n.Native.loadError, actionTitle: L10n.Native.retry) { Task { await session.loadMe() } }
         }
     }
 }

@@ -5,40 +5,49 @@ import SwiftUI
 public struct TagPill: View {
     let text: String
     var fill: Color
-    var stroke: Color
-    var seed: Double
+    var seed: Double?
 
-    public init(_ text: String, fill: Color = Tokens.terracottaLight, stroke: Color = Tokens.terracotta, seed: Double = 5) {
+    /// The web's TagPill: auto wobble, the given fill, a faint ink outline.
+    public init(_ text: String, fill: Color = Tokens.yellow, seed: Double? = nil) {
         self.text = text
         self.fill = fill
-        self.stroke = stroke
         self.seed = seed
+    }
+
+    /// TagPill's automatic seed: a hash of the label, so a tag always wobbles the same.
+    static func autoSeed(_ s: String) -> Double {
+        var hash: Int32 = 7
+        for unit in s.utf16 { hash = (hash &<< 5) &- hash &+ Int32(unit) }
+        return Double(abs(Int(hash)) % 9973 + 1)
     }
 
     public var body: some View {
         Text(text)
-            .font(AppFonts.body(11, weight: .semibold))
-            .tracking(0.4)
+            .font(AppFonts.body(12, weight: .semibold))
+            .tracking(0.2)
             .foregroundStyle(Tokens.text)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 11)
+            .frame(minHeight: 24)
             .background {
-                let shape = WobRectShape(radius: 11, seed: seed, options: WobRectOptions(
-                    curve: 1.4, segmentsH: .count(2), segmentsV: .count(1)))
-                shape.fill(fill)
-                shape.stroke(stroke, lineWidth: Tokens.inkLight)
+                GeometryReader { geo in
+                    let shape = WobRectShape(radius: geo.size.height / 2, seed: seed ?? Self.autoSeed(text))
+                    shape.fill(fill)
+                    shape.stroke(Color(.displayP3, red: 0.25, green: 0.19, blue: 0.13, opacity: 0.45), lineWidth: Tokens.ink)
+                }
             }
     }
 }
 
 public struct HandDrawnAvatar: View {
     let initials: String
+    var imageURL: URL?
     var color: Color
     var size: CGFloat
     var seed: Double
 
-    public init(initials: String, color: Color = Tokens.terracottaLight, size: CGFloat = 32, seed: Double = 7) {
+    public init(initials: String, imageURL: URL? = nil, color: Color = Tokens.terracottaLight, size: CGFloat = 32, seed: Double = 7) {
         self.initials = initials
+        self.imageURL = imageURL
         self.color = color
         self.size = size
         self.seed = seed
@@ -47,13 +56,18 @@ public struct HandDrawnAvatar: View {
     public var body: some View {
         let shape = WobRectShape(radius: size * 0.4, seed: seed, mag: size * 0.022,
                                  options: WobRectOptions(curve: 1.2, segmentsH: .count(2), segmentsV: .count(2)))
-        Text(initials)
-            .font(AppFonts.body(size * 0.36, weight: .bold))
-            .foregroundStyle(Tokens.text)
-            .frame(width: size, height: size)
-            .background { shape.fill(color) }
-            .overlay { shape.stroke(Tokens.ghostStroke.opacity(0.7), lineWidth: Tokens.inkLight) }
-            .accessibilityHidden(true)
+        ZStack {
+            shape.fill(color)
+            Text(initials)
+                .font(AppFonts.body(size * 0.36, weight: .bold))
+                .foregroundStyle(Tokens.text)
+            if let imageURL {
+                OrganicAvatarPhoto(url: imageURL).clipShape(shape)
+            }
+        }
+        .frame(width: size, height: size)
+        .overlay { shape.stroke(Tokens.ghostStroke.opacity(0.7), lineWidth: Tokens.inkLight) }
+        .accessibilityHidden(true)
     }
 }
 

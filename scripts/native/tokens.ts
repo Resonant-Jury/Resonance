@@ -176,7 +176,8 @@ ${tokens
 
 const outputs: [string, string][] = [
   ['native/ios/Sources/Generated/Tokens.swift', swift],
-  ['apps/ios/Packages/DesignSystem/Sources/DesignSystem/Generated/Tokens.swift', swift],
+  // The app's packages default to main-actor isolation; constants are safe anywhere.
+  ['apps/ios/Packages/DesignSystem/Sources/DesignSystem/Generated/Tokens.swift', swift.replace('public enum Tokens {', 'public nonisolated enum Tokens {')],
   ['native/android/app/src/main/java/com/resonance/spikes/generated/Tokens.kt', kt],
   ['native/fixtures/tokens.json', JSON.stringify(tokens, null, 2) + '\n'],
 ];

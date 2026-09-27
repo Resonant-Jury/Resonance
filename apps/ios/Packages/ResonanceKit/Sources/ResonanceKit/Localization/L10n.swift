@@ -1107,4 +1107,12 @@ public enum L10n {
         /// Couldn't cancel. Try again.
         public static var error: String { Strings.shared.string("accountDeletion.error") }
     }
+    public enum Native {
+        /// Couldn't load this — please try again.
+        public static var loadError: String { Strings.shared.string("native.loadError") }
+        /// Try again
+        public static var retry: String { Strings.shared.string("native.retry") }
+        /// You're offline. What you've already opened is still here.
+        public static var offline: String { Strings.shared.string("native.offline") }
+    }
 }

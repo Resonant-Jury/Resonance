@@ -8,11 +8,12 @@ import ResonanceAPI
 public struct APIConfiguration: Sendable {
     /// The site's origin, e.g. https://resonance-world.vercel.app (the client adds /api/v1).
     public var origin: URL
-    /// A fresh Firebase ID token, or nil when signed out. Called per request;
-    /// the Firebase SDK caches the token and refreshes it before it expires.
-    public var idToken: @Sendable () async throws -> String?
+    /// A Firebase ID token, or nil when signed out. Called per request with
+    /// `forceRefresh: false` (the SDK caches the token and renews it before it
+    /// expires); called again with `true` when the API rejects a token.
+    public var idToken: @Sendable (_ forceRefresh: Bool) async throws -> String?
 
-    public init(origin: URL, idToken: @escaping @Sendable () async throws -> String?) {
+    public init(origin: URL, idToken: @escaping @Sendable (_ forceRefresh: Bool) async throws -> String?) {
         self.origin = origin
         self.idToken = idToken
     }
@@ -33,11 +34,12 @@ public enum ResonanceClient {
 }
 
 /// Adds `Authorization: Bearer <Firebase ID token>` — how the API recognises
-/// the app (the web uses its session cookie instead).
+/// the app (the web uses its session cookie instead). A token the API rejects
+/// (revoked, or its account re-created) is refreshed once and the call retried.
 public struct BearerAuthMiddleware: ClientMiddleware {
-    let idToken: @Sendable () async throws -> String?
+    let idToken: @Sendable (_ forceRefresh: Bool) async throws -> String?
 
-    public init(idToken: @escaping @Sendable () async throws -> String?) {
+    public init(idToken: @escaping @Sendable (_ forceRefresh: Bool) async throws -> String?) {
         self.idToken = idToken
     }
 
@@ -45,10 +47,14 @@ public struct BearerAuthMiddleware: ClientMiddleware {
         _ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String,
         next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
-        var request = request
-        if let token = try await idToken() {
-            request.headerFields[.authorization] = "Bearer \(token)"
+        guard let token = try await idToken(false) else { return try await next(request, body, baseURL) }
+        var authorized = request
+        authorized.headerFields[.authorization] = "Bearer \(token)"
+        let (response, responseBody) = try await next(authorized, body, baseURL)
+        guard response.status == .unauthorized, let fresh = try await idToken(true), fresh != token else {
+            return (response, responseBody)
         }
-        return try await next(request, body, baseURL)
+        authorized.headerFields[.authorization] = "Bearer \(fresh)"
+        return try await next(authorized, body, baseURL)
     }
 }

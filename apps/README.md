@@ -12,7 +12,8 @@ apps/
   ios/                      SwiftUI app (XcodeGen: project.yml)
     Resonance/              app target: App, Session, Navigation, Features/*
     Packages/DesignSystem/  tokens, fonts + CSS line boxes, grain, organic components
-    Packages/ResonanceKit/  generated /api/v1 client, auth middleware, localization
+    Packages/ResonanceKit/  generated /api/v1 client, auth middleware, localization,
+                            StoryFormat (a story's Markdown → the reader's blocks)
   shared/fonts/             subset fonts for both apps (committed)
 native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by the apps)
 ```
@@ -45,8 +46,11 @@ xcrun simctl install booted build/Build/Products/Debug-iphonesimulator/Resonance
 xcrun simctl launch booted com.resonance.stories
 ```
 
-Tests: `xcodebuild … test` (app), `cd Packages/ResonanceKit && swift test` (API
-and localization, runs on the Mac).
+Tests: `cd Packages/ResonanceKit && swift test` (API client, localization,
+story format — on the Mac, in seconds) and `xcodebuild … test` (app).
+Launch arguments for checking screens (Debug): `-route /card/<slug>` or
+`-route /u/<handle>` opens that page; the seed has `rich-story`, a card with
+every kind of content.
 
 ### Against the local backend
 

@@ -30,9 +30,10 @@ enum AppTab: Hashable, CaseIterable {
 /// switching tabs preserves where you were; re-tapping the current tab pops
 /// to its root. The bar hides on pushed screens, like the system one.
 struct MainTabView: View {
+    @Environment(SessionStore.self) private var session
     @State private var tab: AppTab = .feed
     @State private var paths: [AppTab: NavigationPath] = [:]
-    @State private var writing = false
+    @State private var writer = WriteLauncher()
 
     private let tabs: [AppTab] = [.feed, .messages, .notifications, .cardBox]
 
@@ -42,7 +43,12 @@ struct MainTabView: View {
                 NavigationStack(path: path(t)) {
                     root(t)
                         .toolbar(.hidden, for: .navigationBar)
+                        .appRoutes()
                 }
+                .environment(\.openRoute, OpenRouteAction(
+                    push: { paths[t, default: NavigationPath()].append($0) },
+                    popToRoot: { paths[t] = NavigationPath() }
+                ))
                 .opacity(t == tab ? 1 : 0)
                 .allowsHitTesting(t == tab)
                 .accessibilityHidden(t != tab)
@@ -55,7 +61,23 @@ struct MainTabView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: paths[tab]?.isEmpty ?? true)
         .background(Tokens.cream)
-        .fullScreenCover(isPresented: $writing) { WriteScreen() }
+        .environment(writer)
+        .fullScreenCover(isPresented: $writer.isPresented) { WriteScreen() }
+        .onOpenURL(perform: open)
+        #if DEBUG
+        // `-route /card/<slug>` or `-route /u/<handle>` opens that page at launch (screen checks).
+        .task {
+            if let path = UserDefaults.standard.string(forKey: "route") {
+                open(session.config.origin.appending(path: path))
+            }
+        }
+        #endif
+    }
+
+    /// Site links (universal links, shared URLs) open on the current tab.
+    private func open(_ url: URL) {
+        guard let route = Route(url: url, origin: session.config.origin) else { return }
+        paths[tab, default: NavigationPath()].append(route)
     }
 
     @ViewBuilder private func root(_ t: AppTab) -> some View {
@@ -70,7 +92,7 @@ struct MainTabView: View {
 
     private func select(_ picked: AppTab) {
         if picked == .write {
-            writing = true
+            writer.open()
             return
         }
         if picked == tab { paths[tab] = NavigationPath() }

@@ -3,7 +3,7 @@ import SwiftUI
 /// CSS `oklch(L C H [/ a])` → Display P3, the same conversion
 /// scripts/native/tokens.ts uses for the static tokens. For colors that
 /// arrive as data (a profile's accent color is stored as its CSS string).
-public enum OKLCHColor {
+public nonisolated enum OKLCHColor {
     public static func parse(_ css: String) -> Color? {
         let pattern = /oklch\(\s*([\d.]+)(%?)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\s*\)/
         guard let m = css.firstMatch(of: pattern),
