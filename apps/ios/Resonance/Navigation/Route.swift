@@ -6,6 +6,8 @@ enum Route: Hashable {
     case card(String)
     /// A person by pen name.
     case author(String)
+    case settings
+    case blockedList
 }
 
 /// Pushes a route onto the current tab's stack (for taps that aren't
@@ -44,6 +46,8 @@ extension View {
             switch route {
             case let .card(key): CardScreen(key: key)
             case let .author(handle): AuthorScreen(handle: handle)
+            case .settings: SettingsScreen()
+            case .blockedList: BlockedListScreen()
             }
         }
     }

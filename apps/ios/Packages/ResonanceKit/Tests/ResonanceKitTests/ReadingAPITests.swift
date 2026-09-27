@@ -28,7 +28,8 @@ final class StubTransport: ClientTransport, @unchecked Sendable {
     static let card = """
     {"id":"c1","slug":"a-walk","title":"一場雨後的散步","excerpt":"雨停的時候…","tags":["日常"],
      "publishedAt":"2026-09-01T08:00:00.000Z","author":{"id":"bob","handle":"bob","initials":"BO",
-     "accentColor":"oklch(90% 0.05 60)","avatarUrl":null,"avatarSeed":"42","verified":true},
+     "accentColor":"oklch(90% 0.05 60)","avatarUrl":null,"avatarSeed":"42","verified":true,"region":"TW"},
+     "anonymous":false,"visibility":"public",
      "imageUrl":null,"imageLabel":"一場雨後的散步","accentHue":140,"readMinutes":2,"referenceCardId":null,
      "reason":null,"someFieldFromTheFuture":1}
     """

@@ -28,14 +28,19 @@ struct AuthorScreen: View {
         }
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
-        .safeAreaInset(edge: .top, spacing: 0) { OrganicInlineBar("", backLabel: L10n.App.Nav.back) }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            OrganicInlineBar("", backLabel: L10n.App.Nav.back) {
+                if let profile = model?.profile, !profile.isSelf {
+                    SafetyMenu(target: .user(id: profile.author.id), handle: profile.author.handle, isBlocked: profile.isBlocked) {
+                        Task { await model?.load() }
+                    }
+                }
+            }
+        }
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            if model == nil {
-                let m = ProfileModel(handle: handle, api: ReadingAPI(client: session.api))
-                model = m
-                await m.load()
-            }
+            if model == nil { model = ProfileModel(handle: handle, api: session.reading) }
+            if let model, model.profile == nil { await model.load() }
         }
     }
 
@@ -97,7 +102,7 @@ struct AuthorScreen: View {
 
     private func meta(_ profile: Profile, author: Author) -> some View {
         let joined = ISO8601.date(profile.joinedAt).map {
-            $0.formatted(.dateTime.year().month(.abbreviated).locale(Locale(identifier: Strings.shared.language.rawValue)))
+            $0.formatted(.dateTime.year().month(.abbreviated).locale(Strings.shared.locale))
         } ?? ""
         return FlowRow(spacing: 14) {
             if let region = author.region {
@@ -118,7 +123,7 @@ struct AuthorScreen: View {
         guard region.count == 2, region.allSatisfy(\.isLetter) else { return region }
         let code = region.uppercased()
         let flag = code.unicodeScalars.compactMap { Unicode.Scalar(127397 + $0.value) }.map(String.init).joined()
-        let name = Locale(identifier: Strings.shared.language.rawValue).localizedString(forRegionCode: code) ?? code
+        let name = Strings.shared.locale.localizedString(forRegionCode: code) ?? code
         return "\(flag) \(name)"
     }
 }

@@ -1114,5 +1114,7 @@ public enum L10n {
         public static var retry: String { Strings.shared.string("native.retry") }
         /// You're offline. What you've already opened is still here.
         public static var offline: String { Strings.shared.string("native.offline") }
+        /// Feed
+        public static var tabFeed: String { Strings.shared.string("native.tabFeed") }
     }
 }

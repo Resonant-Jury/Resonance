@@ -7,7 +7,7 @@ enum AppTab: Hashable, CaseIterable {
 
     var title: String {
         switch self {
-        case .feed: L10n.App.Nav.home
+        case .feed: L10n.Native.tabFeed
         case .messages: L10n.App.Nav.messages
         case .write: L10n.App.Nav.write
         case .notifications: L10n.App.Nav.notifications
@@ -36,6 +36,9 @@ struct MainTabView: View {
     @State private var writer = WriteLauncher()
 
     private let tabs: [AppTab] = [.feed, .messages, .notifications, .cardBox]
+    #if DEBUG
+    private static var openedLaunchRoute = false
+    #endif
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -54,9 +57,17 @@ struct MainTabView: View {
                 .accessibilityHidden(t != tab)
             }
             if paths[tab]?.isEmpty ?? true {
-                OrganicTabBar(items: AppTab.allCases.map { OrganicTabItem(id: $0, title: $0.title, symbol: $0.symbol, isAction: $0 == .write) },
-                              selection: tab, onSelect: select)
+                OrganicTabBar(items: AppTab.allCases.map {
+                    OrganicTabItem(id: $0, title: $0.title, symbol: $0.symbol, isAction: $0 == .write,
+                                   badge: $0 == .notifications ? session.notifications.unreadCount : 0)
+                }, selection: tab, onSelect: select)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        // Content moves down under the banner rather than behind it.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let date = session.deletionDate {
+                AccountDeletionBanner(date: date).padding(.vertical, 6)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: paths[tab]?.isEmpty ?? true)
@@ -67,9 +78,11 @@ struct MainTabView: View {
         #if DEBUG
         // `-route /card/<slug>` or `-route /u/<handle>` opens that page at launch (screen checks).
         .task {
-            if let path = UserDefaults.standard.string(forKey: "route") {
-                open(session.config.origin.appending(path: path))
-            }
+            // Once per launch: the tab view reappears (after the writer's full-screen
+            // cover, a language change), and must not push the page again.
+            guard !Self.openedLaunchRoute, let path = UserDefaults.standard.string(forKey: "route") else { return }
+            Self.openedLaunchRoute = true
+            open(session.config.origin.appending(path: path))
         }
         #endif
     }

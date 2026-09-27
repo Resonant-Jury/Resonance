@@ -10,7 +10,6 @@ struct CardScreen: View {
     @Environment(\.openRoute) private var openRoute
     @Environment(\.openURL) private var openURL
     @State private var model: CardModel?
-    @State private var blocks: [StoryBlock] = []
 
     var body: some View {
         ScrollView {
@@ -31,6 +30,9 @@ struct CardScreen: View {
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
             OrganicInlineBar("", backLabel: L10n.App.Nav.back) {
+                if let detail = model?.detail, !detail.isOwner, let authorId = detail.anonymous ? nil : detail.card.author?.value1.id ?? nil {
+                    SafetyMenu(target: .card(id: detail.card.id, authorId: authorId), handle: detail.card.author?.value1.handle)
+                }
                 if let detail = model?.detail {
                     ShareLink(item: session.config.origin.appending(path: "card/\(detail.card.routeKey)")) {
                         Image(systemName: "square.and.arrow.up").font(.system(size: 16, weight: .medium)).foregroundStyle(Tokens.text).frame(width: 44, height: 44)
@@ -40,12 +42,9 @@ struct CardScreen: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            if model == nil {
-                let m = CardModel(key: key, api: ReadingAPI(client: session.api))
-                model = m
-                await m.load()
-                if let story = m.detail?.story { blocks = StoryParser.parse(story) }
-            }
+            if model == nil { model = CardModel(key: key, api: session.reading) }
+            // Also resumes a load that was cut short when the page left mid-way.
+            if let model, model.detail == nil { await model.load() }
         }
     }
 
@@ -70,7 +69,7 @@ struct CardScreen: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                     .padding(.bottom, 28)
-                StoryMarkdownView(blocks: blocks, onOpenURL: open) { href, title in
+                StoryMarkdownView(blocks: model.blocks, onOpenURL: open) { href, title in
                     CardEmbedView(href: href, title: title)
                 }
                 .padding(.bottom, 32)
@@ -133,8 +132,8 @@ struct CardScreen: View {
     }
 
     private func subline(_ card: FeedCard, region: String?) -> String {
-        let date = ISO8601.date(card.publishedAt).map {
-            $0.formatted(.dateTime.month(.abbreviated).day().locale(Locale(identifier: Strings.shared.language.rawValue)))
+        let date = card.publishedAt.flatMap(ISO8601.date).map {
+            $0.formatted(.dateTime.month(.abbreviated).day().locale(Strings.shared.locale))
         }
         return [region, date].compactMap { $0 }.joined(separator: " · ")
     }

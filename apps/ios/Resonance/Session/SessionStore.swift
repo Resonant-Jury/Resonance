@@ -21,17 +21,62 @@ final class SessionStore {
     private(set) var isSigningIn = false
     var signInError: String?
 
+    /// When a scheduled account deletion will run (the undo banner shows until then).
+    private(set) var deletionDate: Date?
+    /// Set when the app signed the person out because they scheduled deletion.
+    private(set) var signedOutForDeletion = false
+    /// Bumped when the interface language changes, so the whole UI re-renders.
+    private(set) var languageEpoch = 0
+
     let config: AppConfig
     let api: Client
+    let account: AccountAPI
+    let notifications = NotificationsStore()
     @ObservationIgnored private var listener: AuthStateDidChangeListenerHandle?
     @ObservationIgnored private let apple = AppleSignIn()
 
     init(config: AppConfig) {
         self.config = config
-        api = ResonanceClient.make(APIConfiguration(origin: config.origin, idToken: { force in try await Self.idToken(forceRefresh: force) }))
+        let configuration = APIConfiguration(origin: config.origin, idToken: { force in try await Self.idToken(forceRefresh: force) })
+        api = ResonanceClient.make(configuration)
+        account = AccountAPI(configuration)
+        if let saved = UserDefaults.standard.string(forKey: Self.languageKey), let language = Strings.Language(rawValue: saved) {
+            Strings.shared.language = language
+        }
         listener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             MainActor.assumeIsolated { self?.apply(user?.uid) }
         }
+    }
+
+    var reading: ReadingAPI { ReadingAPI(client: api) }
+    var safety: SafetyService? { uid.map(SafetyService.init(uid:)) }
+
+    // MARK: - Language
+
+    static let languageKey = "appLanguage"
+
+    func setLanguage(_ language: Strings.Language) {
+        Strings.shared.language = language
+        UserDefaults.standard.set(language.rawValue, forKey: Self.languageKey)
+        languageEpoch += 1
+    }
+
+    // MARK: - Account deletion
+
+    func refreshDeletion() async {
+        deletionDate = try? await account.deletion()
+    }
+
+    /// Schedules deletion; the server revokes every session, so sign out here too.
+    func scheduleDeletion() async throws {
+        try await account.scheduleDeletion()
+        signedOutForDeletion = true
+        signOut()
+    }
+
+    func cancelDeletion() async throws {
+        try await account.cancelDeletion()
+        deletionDate = nil
     }
 
     /// The current user's ID token; the SDK renews it before it expires.
@@ -56,7 +101,17 @@ final class SessionStore {
         me = nil
         profile = .unknown
         phase = newUID == nil ? .signedOut : .signedIn
-        if newUID != nil { Task { await loadMe() } }
+        deletionDate = nil
+        if let newUID {
+            signedOutForDeletion = false
+            notifications.start(uid: newUID)
+            Task {
+                await loadMe()
+                await refreshDeletion()
+            }
+        } else {
+            notifications.stop()
+        }
         #if DEBUG
         if wasRestoring, newUID == nil { autoSignInForTesting() }
         #endif

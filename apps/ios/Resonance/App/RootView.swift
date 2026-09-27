@@ -14,9 +14,12 @@ struct RootView: View {
                 SketchLoader(size: 56)
             case .signedOut:
                 SignInScreen()
+                    .id(session.languageEpoch)
                     .transition(.opacity)
             case .signedIn:
                 MainTabView()
+                    // A new interface language re-renders everything.
+                    .id(session.languageEpoch)
                     .transition(.opacity)
             }
         }

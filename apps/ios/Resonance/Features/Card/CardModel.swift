@@ -1,3 +1,4 @@
+import DesignSystem
 import Observation
 import ResonanceKit
 
@@ -9,12 +10,15 @@ final class CardModel {
 
     private(set) var phase: Phase = .loading
     private(set) var detail: CardDetail?
+    /// The story, parsed once when it arrives.
+    private(set) var blocks: [StoryBlock] = []
     private(set) var resonances: [FeedCard] = []
     private(set) var related: [FeedCard] = []
     private(set) var links: [FeedCard] = []
 
     let key: String
     private let api: ReadingAPI
+    private var isLoading = false
 
     init(key: String, api: ReadingAPI) {
         self.key = key
@@ -30,9 +34,13 @@ final class CardModel {
     }
 
     func load() async {
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
         do {
             let detail = try await api.card(key)
             self.detail = detail
+            blocks = StoryParser.parse(detail.story)
             phase = .loaded
             let id = detail.card.id
             async let resonances = try? api.cards(.resonances, of: id)

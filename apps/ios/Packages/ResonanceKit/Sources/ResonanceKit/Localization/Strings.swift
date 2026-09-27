@@ -30,6 +30,11 @@ public final class Strings: @unchecked Sendable {
         set { lock.withLock { _language = newValue } }
     }
 
+    /// For formatting dates and numbers in the interface language (not the system's).
+    public var locale: Locale {
+        Locale(identifier: language == .zhTW ? "zh-Hant-TW" : "en")
+    }
+
     public init(language: Language = .preferred()) {
         _language = language
     }

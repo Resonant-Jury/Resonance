@@ -39,6 +39,12 @@ struct SignInScreen: View {
                 .foregroundStyle(Tokens.textMuted)
                 .lineSpacing(14 * 0.6)
                 .padding(.bottom, 24)
+            if session.signedOutForDeletion {
+                Text(L10n.Auth.deletionScheduled)
+                    .font(AppFonts.body(14, weight: .semibold))
+                    .foregroundStyle(Tokens.terracotta)
+                    .padding(.bottom, 20)
+            }
             VStack(alignment: .leading, spacing: 14) {
                 OrganicButton(session.isSigningIn ? L10n.Auth.signingIn : L10n.Auth.continueWithGoogle, image: "GoogleMark", variant: .outline) {
                     Task { await session.signInWithGoogle() }

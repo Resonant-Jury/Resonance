@@ -76,6 +76,18 @@ public struct ReadingAPI: Sendable {
         }
     }
 
+    public typealias CardBoxShelf = Operations.GetCardBox.Input.Query.TabPayload
+
+    /// One shelf of the signed-in person's card box.
+    public func cardBox(_ shelf: CardBoxShelf) async throws -> [FeedCard] {
+        switch try await client.getCardBox(query: .init(tab: shelf)) {
+        case let .ok(r): return try r.body.json.cards
+        case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
+        case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
+        case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
+        }
+    }
+
     public func profile(_ handle: String) async throws -> Profile {
         switch try await client.getProfile(path: .init(handle: handle)) {
         case let .ok(r): return try r.body.json
