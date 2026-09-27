@@ -30,3 +30,9 @@ native/fixtures/*.local.json
 native/fonts/
 .venv-fonts/
 native/editor/dist/
+
+# Native apps (apps/): generated Xcode project, build outputs, SwiftPM caches
+apps/ios/*.xcodeproj/
+apps/ios/build/
+apps/**/.build/
+apps/**/.swiftpm/

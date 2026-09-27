@@ -18,6 +18,7 @@ npm run test:emulator   # Rules + Admin SDK suites in test/emulator (starts/stop
 npm run moderation -- list [--emulator]   # read the report queue (reports are write-only for clients)
 npm run api:openapi     # regenerate openapi/v1/openapi.json from the Zod contract (a test fails when stale)
 npm run native:editor   # typecheck + build the native apps' editor island (native/editor/dist/editor.html)
+npm run apps:generate   # regenerate what the native apps take from the web (tokens, strings, OpenAPI, editor)
 ```
 
 Seed the emulators with known test accounts: `npx tsx scripts/seed-emulator.ts`. In a `dev:emulator` browser, sign in from devtools with `await window.__emulatorSignIn(email, password)` (values in the seed script) — that helper exists only in emulator builds.
@@ -87,6 +88,10 @@ API routes authenticate with the `__session` cookie **or** `Authorization: Beare
 ### Story editor & its Markdown
 
 Stories are stored as Markdown, so the editor's schema *is* the storage format. `src/lib/markdown/editorSchema.ts` holds it (nodes + their Markdown serialization, no UI); the web `MarkdownEditor` adds React node views and the native apps' WebView island (`native/editor`) adds DOM ones — both call `storyExtensions()`. `native/fixtures/markdown-corpus.json` pins how each kind of content round-trips (`editorSchema.test.ts`, and the same corpus runs inside both apps). After an intentional schema change: `UPDATE_MARKDOWN_CORPUS=1 npx vitest run src/lib/markdown/editorSchema.test.ts` and review the diff.
+
+### Native apps (`apps/`)
+
+The iOS (SwiftUI, `apps/ios`) and Android (Compose) apps are a migration of this site; see `apps/README.md`. They take their design tokens, strings and editor from the web through `npm run apps:generate` — so renaming or removing a key in `src/messages/*.json`, or changing `tokens.css`, means regenerating (CI fails on stale output). The apps read `src/messages` at runtime as-is, with a small ICU subset (`{name}`, `plural` with `=N`/`one`/`other`/`#`); `scripts/apps/l10n.ts` refuses anything else.
 
 ### AI (`src/lib/ai/`)
 

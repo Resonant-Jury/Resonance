@@ -40,6 +40,8 @@ const eslintConfig = [
       "dist/**",
       // Native spike apps (Swift / Kotlin) and their generated web bundles
       "native/**",
+      // Native apps: Swift/Kotlin sources and their build outputs
+      "apps/**",
     ],
   },
 ];

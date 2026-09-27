@@ -1,0 +1,7 @@
+# swift-openapi-generator: the /api/v1 client, generated at build time from
+# openapi/v1/openapi.json (itself generated from the Zod contract).
+generate:
+  - types
+  - client
+accessModifier: public
+namingStrategy: idiomatic

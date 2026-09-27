@@ -1,0 +1,107 @@
+# XcodeGen spec for the Resonance iOS app. Generate the project with:
+#   cd apps/ios && xcodegen generate
+# (the .xcodeproj is not committed; see apps/README.md)
+name: Resonance
+options:
+  bundleIdPrefix: com.resonance
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+packages:
+  DesignSystem:
+    path: Packages/DesignSystem
+  ResonanceKit:
+    path: Packages/ResonanceKit
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: 12.19.2
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: 10.0.0
+targets:
+  Resonance:
+    type: application
+    platform: iOS
+    sources:
+      - path: Resonance
+      # Shared with Android: subset fonts (scripts/native/subset-fonts.py).
+      - path: ../shared/fonts
+        type: folder
+        buildPhase: resources
+      # The web's message catalogs, bundled as they are (see L10n.swift).
+      - path: ../../src/messages/en.json
+        buildPhase: resources
+      - path: ../../src/messages/zh-TW.json
+        buildPhase: resources
+    dependencies:
+      - package: DesignSystem
+      - package: ResonanceKit
+        product: ResonanceKit
+      - package: ResonanceKit
+        product: ResonanceAPI
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: GoogleSignIn
+        product: GoogleSignIn
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.resonance.stories
+        PRODUCT_NAME: Resonance
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: "YES"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_ENTITLEMENTS: Resonance/Resonance.entitlements
+        # Simulator builds sign ad hoc ("Sign to Run Locally"): no team needed,
+        # and Firebase Auth gets the keychain access it stores the session in.
+        "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+        CODE_SIGN_STYLE: Manual
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+    info:
+      path: Resonance/Info.plist
+      properties:
+        CFBundleDisplayName: Resonance
+        CFBundleLocalizations: [en, zh-Hant]
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        ITSAppUsesNonExemptEncryption: false
+        # Google Sign-In: OAuth client and its redirect scheme (GoogleService-Info.plist).
+        GIDClientID: 1090298219401-pgd3sh80h9ukvf4l564dpvegebi2s8o7.apps.googleusercontent.com
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [com.googleusercontent.apps.1090298219401-pgd3sh80h9ukvf4l564dpvegebi2s8o7]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+  ResonanceTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [ResonanceTests]
+    dependencies:
+      - target: Resonance
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: "YES"
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Resonance.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Resonance
+schemes:
+  Resonance:
+    build:
+      targets:
+        Resonance: all
+        ResonanceTests: [test]
+    run:
+      config: Debug
+      commandLineArguments:
+        "-emulator YES": false
+    test:
+      config: Debug
+      targets: [ResonanceTests]

@@ -82,6 +82,10 @@ object Tokens {
     val GhostStroke = Color(0.369f, 0.312f, 0.239f, 1f, ColorSpaces.DisplayP3)
     /** Modal border · sRGB #5f4025 */
     val ModalBorder = Color(0.3559f, 0.2548f, 0.1613f, 1f, ColorSpaces.DisplayP3)
+    /** AuthCard interior: color-mix(in oklch, terracotta-light 14%, card-bg) · sRGB #faf1e4 */
+    val AuthInterior = Color(0.9748f, 0.9461f, 0.8996f, 1f, ColorSpaces.DisplayP3)
+    /** AuthCard border: color-mix(in oklch, terracotta, black 18%) · sRGB #9a4d27 */
+    val AuthBorder = Color(0.5644f, 0.3178f, 0.1879f, 1f, ColorSpaces.DisplayP3)
 
     val CardFills = listOf(CardFill0, CardFill1, CardFill2, CardFill3, CardFill4, CardFill5)
     val CardBorders = listOf(CardBorder0, CardBorder1, CardBorder2, CardBorder3, CardBorder4, CardBorder5)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Ship-ready fonts for the native apps (native/fonts/app/), from the full files
-fetched by fetch-fonts.sh:
+Ship-ready fonts for the native apps (apps/shared/fonts/, committed), from the
+full files fetched by fetch-fonts.sh into native/fonts/:
 
   * CJK faces are subset to Big5 level 1 (the 5,401 common characters) plus
     ASCII, CJK punctuation and full-width forms — 38 MB → ~13 MB.
@@ -21,7 +21,7 @@ from fontTools import subset
 from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parents[2] / "native" / "fonts"
-OUT = ROOT / "app"
+OUT = Path(__file__).resolve().parents[2] / "apps" / "shared" / "fonts"
 
 
 def charset() -> str:

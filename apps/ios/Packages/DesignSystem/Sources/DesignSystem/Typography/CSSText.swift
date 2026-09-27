@@ -1,0 +1,81 @@
+import SwiftUI
+import UIKit
+
+/// CSS `line-height` puts half the extra leading above and half below each
+/// line. SwiftUI's `lineSpacing` only adds space *between* lines, so the first
+/// line sits higher than on the web. This label reproduces the CSS line box
+/// exactly with fixed line heights and a baseline shift.
+public struct CSSText: UIViewRepresentable {
+    let text: String
+    let font: UIFont
+    /// CSS line-height as a multiple of the font size (e.g. 1.7).
+    let lineHeight: CGFloat
+    var color: UIColor
+
+    public init(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor = UIColor(Tokens.text)) {
+        self.text = text
+        self.font = font
+        self.lineHeight = lineHeight
+        self.color = color
+    }
+
+    public func makeUIView(context: Context) -> UILabel {
+        let label = UILabel()
+        label.numberOfLines = 0
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return label
+    }
+
+    public func updateUIView(_ label: UILabel, context: Context) {
+        label.attributedText = CSSText.attributed(text, font: font, lineHeight: lineHeight, color: color)
+    }
+
+    public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UILabel, context: Context) -> CGSize? {
+        let width = proposal.width ?? 320
+        let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: size.height)
+    }
+
+    public static func attributed(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor) -> NSAttributedString {
+        let lineBox = font.pointSize * lineHeight
+        let style = NSMutableParagraphStyle()
+        style.minimumLineHeight = lineBox
+        style.maximumLineHeight = lineBox
+        // UIKit bottom-aligns glyphs in a fixed line (baseline = box − descent);
+        // CSS centres the primary font's content area, so lift by half the
+        // leading. (Measured in S5: the often-quoted "/ 4" is off by ~1.6pt.)
+        let offset = (lineBox - font.lineHeight) / 2
+        return NSAttributedString(string: text, attributes: [
+            .font: font,
+            .paragraphStyle: style,
+            .baselineOffset: offset,
+            .foregroundColor: color,
+        ])
+    }
+}
+
+/// Exact CSS line boxes for TextKit: every line is `lineBox` tall and its
+/// baseline sits at (lineBox + ascent − descent) / 2 of the *primary* font —
+/// what browsers do — no matter which fallback font (e.g. Noto TC) drew the
+/// glyphs. TextKit on its own uses each line's actual glyph fonts, which puts
+/// all-CJK lines ~0.35pt off.
+public final class CSSLineBoxes: NSObject, NSLayoutManagerDelegate {
+    public let font: UIFont
+    public let lineBox: CGFloat
+    public init(font: UIFont, lineHeight: CGFloat) {
+        self.font = font
+        self.lineBox = font.pointSize * lineHeight
+    }
+
+    public func layoutManager(_ layoutManager: NSLayoutManager,
+                       shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<CGRect>,
+                       lineFragmentUsedRect: UnsafeMutablePointer<CGRect>,
+                       baselineOffset: UnsafeMutablePointer<CGFloat>,
+                       in textContainer: NSTextContainer,
+                       forGlyphRange glyphRange: NSRange) -> Bool {
+        lineFragmentRect.pointee.size.height = lineBox
+        lineFragmentUsedRect.pointee.size.height = lineBox
+        baselineOffset.pointee = (lineBox + font.ascender + font.descender) / 2 // descender is negative
+        return true
+    }
+}

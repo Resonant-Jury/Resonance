@@ -18,6 +18,9 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # The native apps' generated tokens and string accessors must match the web.
+      - run: npx tsx scripts/native/tokens.ts && npx tsx scripts/apps/l10n.ts
+      - run: git diff --exit-code -- apps native
 
   # Firestore rules + Admin SDK purge suites against the local emulators.
   emulator:
