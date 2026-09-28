@@ -7,8 +7,11 @@
  * geometry (wobRect, wavyVertical). Built into one self-contained file by
  * scripts/native/build-editor.mjs.
  *
- * Bridge (native → island): window.ResonanceEditor.{setMarkdown, getMarkdown, roundtrip, focus}
- * Bridge (island → native): {type: 'ready' | 'change' | 'height', ...} posted to
+ * Bridge (native → island): window.ResonanceEditor.{setMarkdown, getMarkdown, roundtrip, focus, blur, exec}
+ *   exec(command, args?) runs a toolbar command (the web MarkdownEditor's set:
+ *   bold, italic, h2, h3, bulletList, orderedList, blockquote, insertCard,
+ *   insertImage, undo, redo); it returns false when the command can't run.
+ * Bridge (island → native): {type: 'ready' | 'change' | 'height' | 'state' | 'focus', ...} posted to
  *   iOS  window.webkit.messageHandlers.editor
  *   Android window.ResonanceBridge.postMessage(json)
  */
@@ -20,7 +23,19 @@ import { wobRect } from '../../../src/lib/design/wobRect';
 import { seedFromString } from '../../../src/lib/design/prng';
 import { BlockImage, CardEmbed, getMarkdown, storyExtensions } from '../../../src/lib/markdown/editorSchema';
 
-type Message = { type: 'ready'; ms: number } | { type: 'change'; markdown: string } | { type: 'height'; px: number };
+/** Which toolbar buttons show as on, and whether undo/redo can run — the web toolbar's activeStates. */
+type ToolbarState = {
+  active: Record<'bold' | 'italic' | 'h2' | 'h3' | 'bulletList' | 'orderedList' | 'blockquote', boolean>;
+  canUndo: boolean;
+  canRedo: boolean;
+};
+type Command = 'bold' | 'italic' | 'h2' | 'h3' | 'bulletList' | 'orderedList' | 'blockquote' | 'insertCard' | 'insertImage' | 'undo' | 'redo';
+type Message =
+  | { type: 'ready'; ms: number }
+  | { type: 'change'; markdown: string }
+  | { type: 'height'; px: number }
+  | ({ type: 'state' } & ToolbarState)
+  | { type: 'focus'; focused: boolean };
 
 declare global {
   interface Window {
@@ -31,6 +46,8 @@ declare global {
       getMarkdown(): string;
       roundtrip(md: string): string;
       focus(): void;
+      blur(): void;
+      exec(command: Command, args?: { href?: string; title?: string; src?: string; alt?: string }): boolean;
     };
   }
 }
@@ -129,13 +146,45 @@ const editor = new Editor({
     clearTimeout(timer);
     timer = setTimeout(() => send({ type: 'change', markdown: getMarkdown(editor) }), 150);
   },
+  onTransaction: () => sendState(),
+  onFocus: () => send({ type: 'focus', focused: true }),
+  onBlur: () => send({ type: 'focus', focused: false }),
 });
+
+// The toolbar lives natively above the keyboard; it only needs to hear when
+// something it shows changed, at most once a frame.
+let lastState = '';
+let stateFrame = 0;
+function sendState() {
+  cancelAnimationFrame(stateFrame);
+  stateFrame = requestAnimationFrame(() => {
+    const state: ToolbarState = {
+      active: {
+        bold: editor.isActive('bold'),
+        italic: editor.isActive('italic'),
+        h2: editor.isActive('heading', { level: 2 }),
+        h3: editor.isActive('heading', { level: 3 }),
+        bulletList: editor.isActive('bulletList'),
+        orderedList: editor.isActive('orderedList'),
+        blockquote: editor.isActive('blockquote'),
+      },
+      canUndo: editor.can().undo(),
+      canRedo: editor.can().redo(),
+    };
+    const json = JSON.stringify(state);
+    if (json === lastState) return;
+    lastState = json;
+    send({ type: 'state', ...state });
+  });
+}
 
 new ResizeObserver(() => send({ type: 'height', px: document.documentElement.scrollHeight })).observe(document.body);
 
 window.ResonanceEditor = {
+  // Loading a draft is not an edit: kept out of undo history, so undo can
+  // never take the page back to empty.
   setMarkdown(md) {
-    editor.commands.setContent(md, { emitUpdate: false });
+    editor.chain().setMeta('addToHistory', false).setContent(md, { emitUpdate: false }).run();
     return getMarkdown(editor);
   },
   getMarkdown: () => getMarkdown(editor),
@@ -147,6 +196,30 @@ window.ResonanceEditor = {
     return out;
   },
   focus: () => editor.commands.focus('end'),
+  blur: () => editor.commands.blur(),
+  exec(command, args = {}) {
+    const chain = editor.chain().focus();
+    switch (command) {
+      case 'bold': return chain.toggleBold().run();
+      case 'italic': return chain.toggleItalic().run();
+      case 'h2': return chain.toggleHeading({ level: 2 }).run();
+      case 'h3': return chain.toggleHeading({ level: 3 }).run();
+      case 'bulletList': return chain.toggleBulletList().run();
+      case 'orderedList': return chain.toggleOrderedList().run();
+      case 'blockquote': return chain.toggleBlockquote().run();
+      // A card link becomes an embedded card, as when the web inserts one (InsertCardModal).
+      case 'insertCard':
+        if (!args.href?.startsWith('/card/')) return false;
+        return chain.insertContent({ type: 'cardEmbed', attrs: { href: args.href, title: args.title ?? '' } }).run();
+      // The host uploads the photo (/api/upload) and hands over its public URL.
+      case 'insertImage':
+        if (!args.src) return false;
+        return chain.insertContent({ type: 'image', attrs: { src: args.src, alt: args.alt ?? '' } }).run();
+      case 'undo': return chain.undo().run();
+      case 'redo': return chain.redo().run();
+      default: return false;
+    }
+  },
 };
 
 send({ type: 'ready', ms: performance.now() });
