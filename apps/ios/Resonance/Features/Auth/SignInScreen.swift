@@ -49,7 +49,7 @@ struct SignInScreen: View {
                 OrganicButton(session.isSigningIn ? L10n.Auth.signingIn : L10n.Auth.continueWithGoogle, image: "GoogleMark", variant: .outline) {
                     Task { await session.signInWithGoogle() }
                 }
-                OrganicButton(session.isSigningIn ? L10n.Auth.signingIn : L10n.Auth.continueWithApple, icon: "apple.logo", variant: .outline) {
+                OrganicButton(session.isSigningIn ? L10n.Auth.signingIn : L10n.Auth.continueWithApple, systemImage: "apple.logo", variant: .outline) {
                     Task { await session.signInWithApple() }
                 }
             }

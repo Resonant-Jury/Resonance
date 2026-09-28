@@ -23,9 +23,10 @@ struct SettingsScreen: View {
 
                 panel(L10n.Settings.Sections.language) {
                     Text(L10n.Settings.Language.ui).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
-                    HStack(spacing: 10) {
-                        languageButton(.zhTW, "繁體中文")
-                        languageButton(.en, "English")
+                    VStack(spacing: 0) {
+                        languageRow(.zhTW, "繁體中文", seed: 71)
+                        WavyDivider(seed: 67).padding(.vertical, 2)
+                        languageRow(.en, "English", seed: 73)
                     }
                 }
 
@@ -34,7 +35,7 @@ struct SettingsScreen: View {
                         HStack {
                             Text(L10n.Settings.Privacy.manageBlocks).font(AppFonts.body(16)).foregroundStyle(Tokens.text)
                             Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(Tokens.textMuted)
+                            OrganicIcon(.chevronDown, size: 18, strokeWidth: Tokens.ink).rotationEffect(.degrees(-90)).foregroundStyle(Tokens.textMuted)
                         }
                         .contentShape(Rectangle())
                     }
@@ -49,12 +50,12 @@ struct SettingsScreen: View {
                     Text(L10n.Settings.Delete.exportHint).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
                     if let exportFile {
                         ShareLink(item: exportFile) {
-                            Label(L10n.Settings.Delete.export, systemImage: "square.and.arrow.down")
+                            Label { Text(L10n.Settings.Delete.export) } icon: { OrganicIcon(.document, size: 18) }
                                 .font(AppFonts.body(15, weight: .semibold))
                                 .foregroundStyle(Tokens.terracotta)
                         }
                     } else {
-                        OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: "square.and.arrow.down", variant: .outline) {
+                        OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .outline) {
                             Task { await export() }
                         }
                         .disabled(exporting)
@@ -85,18 +86,19 @@ struct SettingsScreen: View {
     /// Seven days from now — when a deletion scheduled today would run.
     static var purgeDate: Date { Date().addingTimeInterval(7 * 86_400) }
 
-    private func languageButton(_ language: Strings.Language, _ label: String) -> some View {
+    /// One choice of a radio list (the web's ToggleGroup rows, with a radio for the switch).
+    private func languageRow(_ language: Strings.Language, _ label: String, seed: Double) -> some View {
         let selected = Strings.shared.language == language
         return Button { session.setLanguage(language) } label: {
-            Text(label)
-                .font(AppFonts.body(15, weight: selected ? .semibold : .regular))
-                .foregroundStyle(selected ? Tokens.terracotta : Tokens.text)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background {
-                    WobRectShape(radius: 14, seed: label.count == 4 ? 71 : 73, mag: 1.2)
-                        .stroke(selected ? Tokens.terracotta : Tokens.fieldBorder, lineWidth: Tokens.ink)
-                }
+            HStack(spacing: 12) {
+                Text(label)
+                    .font(AppFonts.body(16, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(Tokens.text)
+                Spacer(minLength: 0)
+                OrganicRadio(isOn: selected, seed: seed)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])

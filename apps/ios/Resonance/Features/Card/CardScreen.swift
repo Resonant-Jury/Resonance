@@ -35,7 +35,7 @@ struct CardScreen: View {
                 }
                 if let detail = model?.detail {
                     ShareLink(item: session.config.origin.appending(path: "card/\(detail.card.routeKey)")) {
-                        Image(systemName: "square.and.arrow.up").font(.system(size: 16, weight: .medium)).foregroundStyle(Tokens.text).frame(width: 44, height: 44)
+                        OrganicIcon(.share, size: 22).foregroundStyle(Tokens.text).frame(width: 44, height: 44)
                     }
                 }
             }
@@ -117,7 +117,7 @@ struct CardScreen: View {
                             .foregroundStyle(Tokens.text)
                             .buttonStyle(.plain)
                         if author.verified {
-                            Image(systemName: "checkmark.seal").font(.system(size: 12)).foregroundStyle(Tokens.terracotta)
+                            OrganicIcon(.verified, size: 14, color: Tokens.sage, strokeWidth: 1.8)
                                 .accessibilityLabel(L10n.Card.verified)
                         }
                     } else {

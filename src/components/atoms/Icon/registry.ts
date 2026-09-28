@@ -31,6 +31,8 @@ import { DocumentIcon } from './icons/document';
 import { ArrowsHorizontalIcon } from './icons/arrows-horizontal';
 import { FlagIcon } from './icons/flag';
 import { BanIcon } from './icons/ban';
+import { ShareIcon } from './icons/share';
+import { SlidersIcon } from './icons/sliders';
 import type { IconRenderer } from './types';
 
 /**
@@ -81,6 +83,8 @@ export const ICONS = {
   'arrows-horizontal': ArrowsHorizontalIcon,
   flag: FlagIcon,
   ban: BanIcon,
+  share: ShareIcon,
+  sliders: SlidersIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

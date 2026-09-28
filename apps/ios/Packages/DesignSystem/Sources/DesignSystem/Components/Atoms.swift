@@ -75,16 +75,18 @@ public struct WavyDivider: View {
     var color: Color
     var seed: Double
     var amp: Double
+    var lineWidth: CGFloat
 
-    public init(color: Color = Tokens.fieldBorder, seed: Double = 17, amp: Double = 1.4) {
+    public init(color: Color = Tokens.fieldBorder, seed: Double = 17, amp: Double = 1.4, lineWidth: CGFloat = Tokens.inkLight) {
         self.color = color
         self.seed = seed
         self.amp = amp
+        self.lineWidth = lineWidth
     }
 
     public var body: some View {
         WavyLineShape(seed: seed, amp: amp)
-            .stroke(color, style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
+            .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
             .frame(height: 6)
             .accessibilityHidden(true)
     }

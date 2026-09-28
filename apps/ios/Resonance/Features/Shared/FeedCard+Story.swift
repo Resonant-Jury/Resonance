@@ -20,7 +20,7 @@ extension FeedCard {
             imageURL: imageUrl.flatMap(URL.init(string:)),
             imageLabel: imageLabel ?? String(title.prefix(24)),
             accentHue: accentHue,
-            reason: nil
+            reason: reason
         )
     }
 

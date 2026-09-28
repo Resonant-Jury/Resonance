@@ -32,14 +32,15 @@ struct ReportSheet: View {
                     Text(L10n.Safety.Report.intro).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
                     Text(L10n.Safety.Report.reason.uppercased())
                         .font(AppFonts.body(Tokens.labelSize, weight: .semibold)).foregroundStyle(Tokens.textMuted)
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(SafetyService.Reason.allCases) { r in
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(SafetyService.Reason.allCases.enumerated()), id: \.element) { i, r in
                             Button { reason = r } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: reason == r ? "largecircle.fill.circle" : "circle")
-                                        .foregroundStyle(reason == r ? Tokens.terracotta : Tokens.textMuted)
+                                HStack(spacing: 12) {
+                                    OrganicRadio(isOn: reason == r, seed: Double(21 + i * 7))
                                     Text(Self.label(r)).font(AppFonts.body(15)).foregroundStyle(Tokens.text)
+                                    Spacer(minLength: 0)
                                 }
+                                .frame(minHeight: 40)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -47,12 +48,14 @@ struct ReportSheet: View {
                         }
                     }
                     OrganicTextField(L10n.Safety.Report.detail, text: $detail, placeholder: L10n.Safety.Report.detailPlaceholder)
-                    OrganicToggle(isOn: $alsoBlock, label: L10n.Safety.Report.alsoBlock(handle: name))
-                        .overlay(alignment: .leading) {
-                            Text(L10n.Safety.Report.alsoBlock(handle: name)).font(AppFonts.body(14)).foregroundStyle(Tokens.text)
-                                .offset(x: 62).fixedSize()
-                        }
-                        .padding(.bottom, 8)
+                    // The web's blockRow: the label, then the switch at the far end.
+                    HStack(spacing: 16) {
+                        Text(L10n.Safety.Report.alsoBlock(handle: name)).font(AppFonts.body(14.5)).foregroundStyle(Tokens.text)
+                            .accessibilityHidden(true)
+                        Spacer(minLength: 0)
+                        OrganicToggle(isOn: $alsoBlock, label: L10n.Safety.Report.alsoBlock(handle: name), seed: 91)
+                    }
+                    .padding(.bottom, 8)
                     OrganicButton(L10n.Safety.Report.submit) { Task { await submit() } }
                         .disabled(reason == nil || sending)
                     if let error { Text(error).font(AppFonts.body(13)).foregroundStyle(Tokens.terracotta) }
@@ -116,17 +119,18 @@ struct SafetyMenu: View {
 
     var body: some View {
         Menu {
-            Button(reportTitle, systemImage: "flag") { reporting = true }
+            Button { reporting = true } label: { Label { Text(reportTitle) } icon: { OrganicIcon.image(.flag) } }
             if isBlocked {
-                Button(L10n.Safety.unblock, systemImage: "hand.raised.slash") {
+                Button {
                     Task { try? await session.safety?.unblock(target.userId); onChange() }
-                }
+                } label: { Label { Text(L10n.Safety.unblock) } icon: { OrganicIcon.image(.userCheck) } }
             } else {
-                Button(L10n.Safety.block, systemImage: "hand.raised", role: .destructive) { confirmingBlock = true }
+                Button(role: .destructive) { confirmingBlock = true } label: {
+                    Label { Text(L10n.Safety.block) } icon: { OrganicIcon.image(.ban) }
+                }
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 16, weight: .medium))
+            OrganicIcon(.dots, size: 22, strokeWidth: Tokens.ink)
                 .foregroundStyle(Tokens.text)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())

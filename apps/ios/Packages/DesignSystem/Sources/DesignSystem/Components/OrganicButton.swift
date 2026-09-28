@@ -9,16 +9,21 @@ public struct OrganicButton: View {
     public enum Variant: Sendable { case primary, ghost, outline }
 
     let title: String
-    var icon: String?
+    var icon: IconName?
     var image: String?
+    var systemImage: String?
     var variant: Variant
     var action: () -> Void
 
-    /// `icon` is an SF Symbol; `image` an asset in the app's catalog (e.g. a brand mark).
-    public init(_ title: String, icon: String? = nil, image: String? = nil, variant: Variant = .primary, action: @escaping () -> Void) {
+    /// `icon` is one of the web's hand-drawn glyphs; `image` an asset in the
+    /// app's catalog and `systemImage` an SF Symbol — for brand marks only
+    /// (Google's, Apple's).
+    public init(_ title: String, icon: IconName? = nil, image: String? = nil, systemImage: String? = nil,
+                variant: Variant = .primary, action: @escaping () -> Void) {
         self.title = title
         self.icon = icon
         self.image = image
+        self.systemImage = systemImage
         self.variant = variant
         self.action = action
     }
@@ -26,6 +31,14 @@ public struct OrganicButton: View {
     @State private var pressPoint: CGPoint? = nil
     @State private var revealed = false
 
+    /// The web's BTN_SEEDS, so each variant wobbles like its web twin.
+    private var seed: Double {
+        switch variant {
+        case .primary: 3
+        case .ghost: 401
+        case .outline: 601
+        }
+    }
     private var fill: Color {
         switch variant {
         case .primary: Tokens.terracotta
@@ -48,16 +61,16 @@ public struct OrganicButton: View {
     }
 
     public var body: some View {
-        let shape = WobRectShape(radius: 16, seed: variant == .primary ? 3 : 401, options: WobRectOptions(
-            curve: 1.3, cornerJitter: 1.3, segmentsH: .range(2, 3), segmentsV: .count(1)))
+        let shape = OrganicButtonShape(seed: seed)
         HStack(spacing: 8) {
-            if let icon { Image(systemName: icon).font(.system(size: 16, weight: .semibold)) }
+            if let icon { OrganicIcon(icon, size: 18) }
+            if let systemImage { Image(systemName: systemImage).font(.system(size: 16, weight: .semibold)) }
             if let image { Image(image).resizable().scaledToFit().frame(width: 18, height: 18) }
             Text(title).font(AppFonts.body(15, weight: .semibold)).tracking(0.3)
         }
         .foregroundStyle(textColor)
-        .padding(.horizontal, 26)
-        .padding(.vertical, 13)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 14)
         .background {
             GeometryReader { geo in
                 ZStack {
@@ -101,5 +114,24 @@ public struct OrganicButton: View {
         .accessibilityLabel(title)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { action() }
+    }
+}
+
+/// OrganicButton.tsx's outline: a calm pill — radius 16, two or three gentle
+/// turns along the long edges, one on the short ones, and the wobble and
+/// corner drift scaled to the button (4% and 3% of its short side). A fixed
+/// wobble reads as lumpy on a 48pt-tall button, most of all along the top edge.
+public nonisolated struct OrganicButtonShape: Shape {
+    public var seed: Double
+
+    public init(seed: Double) {
+        self.seed = seed
+    }
+
+    public func path(in rect: CGRect) -> Path {
+        let m = Double(min(rect.width, rect.height))
+        return WobRectShape(radius: 16, seed: seed, mag: m * 0.04, options: WobRectOptions(
+            curve: 1.3, cornerJitter: 1.3, cornerOffset: m * 0.03, segmentsH: .range(2, 3), segmentsV: .count(1)))
+            .path(in: rect)
     }
 }

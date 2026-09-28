@@ -9,15 +9,15 @@ import UIKit
 public struct OrganicTabItem<ID: Hashable>: Identifiable {
     public let id: ID
     public let title: String
-    public let symbol: String
+    public let icon: IconName
     /// A prominent action in the bar (the pen) rather than a tab.
     public var isAction: Bool
     public var badge: Int
 
-    public init(id: ID, title: String, symbol: String, isAction: Bool = false, badge: Int = 0) {
+    public init(id: ID, title: String, icon: IconName, isAction: Bool = false, badge: Int = 0) {
         self.id = id
         self.title = title
-        self.symbol = symbol
+        self.icon = icon
         self.isAction = isAction
         self.badge = badge
     }
@@ -60,11 +60,13 @@ public struct OrganicTabBar<ID: Hashable>: View {
         let selected = item.id == selection
         return Button { onSelect(item.id) } label: {
             VStack(spacing: 2) {
-                Image(systemName: item.symbol)
-                    .font(.system(size: 18, weight: selected ? .semibold : .regular))
+                OrganicIcon(item.icon, size: 24)
                     .overlay(alignment: .topTrailing) {
                         if item.badge > 0 {
-                            Circle().fill(Tokens.terracotta).frame(width: 8, height: 8).offset(x: 5, y: -2)
+                            WobCircleShape(seed: 17, options: WobCircleOptions(segments: 6, mag: 0.4, cpJitter: 0.3))
+                                .fill(Tokens.terracotta)
+                                .frame(width: 8, height: 8)
+                                .offset(x: 2, y: -1)
                         }
                     }
                 Text(item.title).font(AppFonts.body(10.5, weight: selected ? .semibold : .regular)).lineLimit(1)
@@ -84,15 +86,13 @@ public struct OrganicTabBar<ID: Hashable>: View {
         .buttonStyle(.plain)
         .accessibilityLabel(item.badge > 0 ? "\(item.title), \(item.badge)" : item.title)
         .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
-        .accessibilityShowsLargeContentViewer { Label(item.title, systemImage: item.symbol) }
+        .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
     }
 
     /// The pen: a filled terracotta blob in the middle of the bar.
     private func actionButton(_ item: OrganicTabItem<ID>, index: Int) -> some View {
         Button { onSelect(item.id) } label: {
-            Image(systemName: item.symbol)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Tokens.cream)
+            OrganicIcon(item.icon, size: 24, color: Tokens.cream)
                 .frame(width: 52, height: 44)
                 .background {
                     let shape = WobRectShape(radius: 18, seed: 57, mag: 1.4)
@@ -108,7 +108,7 @@ public struct OrganicTabBar<ID: Hashable>: View {
         .buttonStyle(.plain)
         .accessibilityLabel(item.title)
         .accessibilityAddTraits(.isButton)
-        .accessibilityShowsLargeContentViewer { Label(item.title, systemImage: item.symbol) }
+        .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
     }
 }
 
@@ -133,7 +133,7 @@ public struct OrganicLargeHeader<Trailing: View>: View {
                 Spacer(minLength: 12)
                 trailing
             }
-            WavyDivider(color: Tokens.textMuted.opacity(0.5), seed: 7, amp: 1.6)
+            WavyDivider(color: Tokens.fieldBorderHover, seed: 7, amp: 1.6, lineWidth: Tokens.ink)
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
@@ -154,49 +154,102 @@ public struct OrganicInlineBar<Trailing: View>: View {
     }
 
     public var body: some View {
-        VStack(spacing: 4) {
-            ZStack {
-                Text(title)
-                    .font(AppFonts.body(16, weight: .semibold))
-                    .lineLimit(1)
-                    .foregroundStyle(Tokens.text)
-                    .padding(.horizontal, 96)
-                    .accessibilityAddTraits(.isHeader)
-                HStack {
-                    OrganicIconButton(symbol: "chevron.left", label: backLabel) { dismiss() }
-                    Spacer()
-                    trailing
-                }
+        ZStack {
+            Text(title)
+                .font(AppFonts.body(16, weight: .semibold))
+                .lineLimit(1)
+                .foregroundStyle(Tokens.text)
+                .padding(.horizontal, 96)
+                .accessibilityAddTraits(.isHeader)
+            HStack {
+                OrganicIconButton(.arrowRight, label: backLabel, mirrored: true) { dismiss() }
+                Spacer()
+                trailing
             }
-            WavyDivider(color: Tokens.textMuted.opacity(0.4), seed: 11)
         }
         .padding(.horizontal, 12)
         .padding(.top, 4)
-        // Reaches under the status bar, so content scrolled beneath never shows through.
-        .background(Tokens.cream.opacity(0.97).ignoresSafeArea(edges: .top))
+        .padding(.bottom, HeaderEdge.height)
+        .background { HeaderEdge() }
+    }
+}
+
+/// The web AppHeader's backdrop and bottom edge: the cream fill stops exactly
+/// on the wavy pen line (the web masks its backdrop to the same curve), so
+/// the line *is* the bar's edge — no band of fill below it, and content
+/// scrolled beneath shows right up to the line. Reaches up under the status bar.
+public struct HeaderEdge: View {
+    /// Room under the bar's content for the wave (the web's HEADER_WAVE_H band).
+    public static let height: CGFloat = 10
+
+    public init() {}
+
+    public var body: some View {
+        ZStack {
+            HeaderEdgeShape(closed: true).fill(Tokens.cream)
+            HeaderEdgeShape(closed: false)
+                .stroke(Tokens.fieldBorderHover, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+        }
+        .ignoresSafeArea(edges: .top)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The web header's curve (wavyPoints over the width, seed 211, 12 steps),
+/// either as the stroke alone or as the fill from the top edge down to it.
+nonisolated struct HeaderEdgeShape: Shape {
+    var closed: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let y0 = Double(rect.maxY) - 1.4 - Double(Tokens.ink)
+        let pts = wavyPoints(Double(rect.width), y0: y0, amp: 1.4, seed: 211, steps: 12)
+            .map { CGPoint(x: Double(rect.minX) + $0.x, y: $0.y) }
+        var p = Path()
+        if closed {
+            p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            p.addLine(to: pts[pts.count - 1])
+            for i in stride(from: pts.count - 2, through: 0, by: -1) {
+                let a = pts[i + 1], b = pts[i]
+                let midX = (a.x + b.x) / 2
+                p.addCurve(to: b, control1: CGPoint(x: midX, y: a.y), control2: CGPoint(x: midX, y: b.y))
+            }
+            p.closeSubpath()
+        } else {
+            p.move(to: pts[0])
+            for i in 1..<pts.count {
+                let a = pts[i - 1], b = pts[i]
+                let midX = (a.x + b.x) / 2
+                p.addCurve(to: b, control1: CGPoint(x: midX, y: a.y), control2: CGPoint(x: midX, y: b.y))
+            }
+        }
+        return p
     }
 }
 
 /// A round hand-drawn icon button with a 44pt hit area.
 public struct OrganicIconButton: View {
-    let symbol: String
+    let icon: IconName
     let label: String
+    /// Drawn flipped left-to-right (the web's back arrow is arrow-right mirrored).
+    var mirrored: Bool
     let action: () -> Void
 
-    public init(symbol: String, label: String, action: @escaping () -> Void) {
-        self.symbol = symbol
+    public init(_ icon: IconName, label: String, mirrored: Bool = false, action: @escaping () -> Void) {
+        self.icon = icon
         self.label = label
+        self.mirrored = mirrored
         self.action = action
     }
 
     public var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 16, weight: .medium))
+            OrganicIcon(icon, size: 20)
+                .scaleEffect(x: mirrored ? -1 : 1)
                 .foregroundStyle(Tokens.text)
                 .frame(width: 40, height: 40)
                 .background {
-                    WobCircleShape(seed: Double(symbol.count * 13), options: WobCircleOptions(segments: 7, mag: 1.2, cpJitter: 0.5))
+                    WobCircleShape(seed: Double(icon.rawValue.count * 13), options: WobCircleOptions(segments: 7, mag: 1.2, cpJitter: 0.5))
                         .stroke(Tokens.ghostStroke.opacity(0.8), lineWidth: Tokens.inkLight)
                         .padding(3)
                 }

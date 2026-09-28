@@ -9,7 +9,7 @@ struct WriteScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                OrganicIconButton(symbol: "xmark", label: L10n.App.Nav.back) { dismiss() }
+                OrganicIconButton(.close, label: L10n.App.Nav.back) { dismiss() }
                 Spacer()
             }
             .padding(.horizontal, 12)

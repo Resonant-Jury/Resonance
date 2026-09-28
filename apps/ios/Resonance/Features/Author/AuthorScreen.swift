@@ -108,11 +108,10 @@ struct AuthorScreen: View {
             if let region = author.region {
                 Text(Self.regionLabel(region)).metaStyle()
             }
-            Label(L10n.Profile.cardCount(count: profile.cardCount), systemImage: "rectangle.stack").metaStyle()
+            Label { Text(L10n.Profile.cardCount(count: profile.cardCount)) } icon: { OrganicIcon(.cards, size: 16, strokeWidth: Tokens.ink) }.metaStyle()
             Text(L10n.Profile.joined(date: joined)).metaStyle()
             if !profile.isSelf && profile.isConnected {
-                Image(systemName: "person.crop.circle.badge.checkmark")
-                    .foregroundStyle(Tokens.terracotta)
+                OrganicIcon(.userCheck, size: 20, color: Tokens.terracotta)
                     .accessibilityLabel(L10n.Profile.connected)
             }
         }

@@ -15,13 +15,14 @@ enum AppTab: Hashable, CaseIterable {
         }
     }
 
-    var symbol: String {
+    /// The web's glyphs for the same places (Subnavbar, NotificationBell, FloatingWriteButton).
+    var icon: IconName {
         switch self {
-        case .feed: "sparkles"
-        case .messages: "bubble.left.and.bubble.right"
-        case .write: "pencil.line"
-        case .notifications: "bell"
-        case .cardBox: "tray.full"
+        case .feed: .sparkle
+        case .messages: .chat
+        case .write: .pen
+        case .notifications: .bell
+        case .cardBox: .cards
         }
     }
 }
@@ -58,7 +59,7 @@ struct MainTabView: View {
             }
             if paths[tab]?.isEmpty ?? true {
                 OrganicTabBar(items: AppTab.allCases.map {
-                    OrganicTabItem(id: $0, title: $0.title, symbol: $0.symbol, isAction: $0 == .write,
+                    OrganicTabItem(id: $0, title: $0.title, icon: $0.icon, isAction: $0 == .write,
                                    badge: $0 == .notifications ? session.notifications.unreadCount : 0)
                 }, selection: tab, onSelect: select)
                     .transition(.move(edge: .bottom).combined(with: .opacity))

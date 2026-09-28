@@ -89,8 +89,7 @@ public struct StoryCardView: View {
                     Text(content.readTime).font(AppFonts.body(12)).foregroundStyle(Tokens.textMuted)
                 }
                 Spacer()
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 15, weight: .medium))
+                OrganicIcon(.arrowRight, size: 18, strokeWidth: Tokens.ink)
                     .foregroundStyle(Tokens.text.opacity(0.28))
                     .accessibilityHidden(true)
             }
@@ -98,7 +97,7 @@ public struct StoryCardView: View {
 
             if let reason = content.reason, !reason.isEmpty {
                 HStack(alignment: .top, spacing: 7) {
-                    Image(systemName: "sparkle").font(.system(size: 12)).padding(.top, 5)
+                    OrganicIcon(.sparkle, size: 13, strokeWidth: Tokens.inkLight).padding(.top, 5)
                     Text(reason).font(AppFonts.handwritten(17)).tracking(0.34).lineSpacing(17 * 0.45)
                 }
                 .foregroundStyle(palette.noteInk)

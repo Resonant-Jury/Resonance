@@ -17,7 +17,7 @@ struct CardBoxScreen: View {
 
     var body: some View {
         TabScreen(L10n.App.Nav.me) {
-            OrganicIconButton(symbol: "gearshape", label: L10n.Settings.title) { openRoute(.settings) }
+            OrganicIconButton(.sliders, label: L10n.Settings.title) { openRoute(.settings) }
         } content: {
             header.padding(.horizontal, 20)
             tabs
