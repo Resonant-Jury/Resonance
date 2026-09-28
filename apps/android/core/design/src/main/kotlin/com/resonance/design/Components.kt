@@ -6,6 +6,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -170,7 +172,11 @@ fun OrganicButton(
     modifier: Modifier = Modifier,
     variant: ButtonVariant = ButtonVariant.Primary,
     icon: IconName? = null,
+    /** A brand mark (Google's) drawn as it is, instead of a hand-drawn glyph. */
+    image: Painter? = null,
     enabled: Boolean = true,
+    /** OrganicButton.tsx's `size="sm"`: tighter padding and 14px, for dialogs and dense rows. */
+    small: Boolean = false,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -201,12 +207,13 @@ fun OrganicButton(
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             }
-            .padding(horizontal = 28.dp, vertical = 14.dp),
+            .padding(horizontal = if (small) 18.dp else 28.dp, vertical = if (small) 9.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (icon != null) OrganicIcon(icon, size = 18.dp, color = text)
-        BasicText(title, style = AppFonts.body(15f, 600, lineHeight = 1.3f, color = if (enabled) text else text.copy(alpha = 0.5f)))
+        if (image != null) Image(image, contentDescription = null, modifier = Modifier.size(18.dp))
+        BasicText(title, style = AppFonts.body(if (small) 14f else 15f, 600, lineHeight = 1.3f, color = if (enabled) text else text.copy(alpha = 0.5f)))
     }
 }
 

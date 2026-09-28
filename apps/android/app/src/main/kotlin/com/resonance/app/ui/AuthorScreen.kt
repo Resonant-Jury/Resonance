@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.resonance.api.models.FeedCard
 import com.resonance.api.models.Profile
+import com.resonance.app.SafetyService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.HandDrawnAvatar
@@ -46,8 +47,10 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
     var cards by remember(handle) { mutableStateOf<List<FeedCard>>(emptyList()) }
     var linked by remember(handle) { mutableStateOf<List<FeedCard>>(emptyList()) }
     var cursor by remember(handle) { mutableStateOf<String?>(null) }
+    // Bumped after a block or unblock, so the page re-reads what the viewer may see.
+    var reload by remember(handle) { mutableStateOf(0) }
 
-    LaunchedEffect(handle) {
+    LaunchedEffect(handle, reload) {
         try {
             profile = session.reading.profile(handle)
             val page = session.reading.profileCards(handle)
@@ -63,7 +66,11 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
     }
 
     Column(Modifier.fillMaxSize().cream()) {
-        OrganicInlineBar(L10n.App.Nav.back, back)
+        OrganicInlineBar(L10n.App.Nav.back, back) {
+            profile?.takeIf { !it.isSelf }?.let { p ->
+                SafetyMenu(session, SafetyService.Target.User(p.author.id), p.author.handle, p.isBlocked) { reload++ }
+            }
+        }
         when (phase) {
             "loading" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { SketchLoader(48.dp) }
             "notFound" -> OrganicEmptyState(L10n.Profile.notFound, L10n.Profile.backHome, back)

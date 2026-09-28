@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
@@ -62,6 +63,8 @@ fun OrganicIcon(
     strokeWidth: Float = Tokens.InkStrong.value,
     fill: Color? = null,
     mirrored: Boolean = false,
+    /** Degrees clockwise (the chevron pointing right is chevron-down turned -90). */
+    rotation: Float = 0f,
 ) {
     val glyph = name.glyph
     Box(
@@ -73,7 +76,7 @@ fun OrganicIcon(
                 val paths = glyph.strokes.map { it.path(scale) }
                 val pen = strokeWidth * scale
                 onDrawBehind {
-                    scale(if (mirrored) -1f else 1f, 1f) {
+                    rotate(rotation) { scale(if (mirrored) -1f else 1f, 1f) {
                         glyph.strokes.forEachIndexed { i, s ->
                             if (s.filled) {
                                 drawPath(paths[i], color)
@@ -82,7 +85,7 @@ fun OrganicIcon(
                                 drawPath(paths[i], color, style = Stroke(pen * s.width, cap = StrokeCap.Round, join = StrokeJoin.Round))
                             }
                         }
-                    }
+                    } }
                 }
             },
     )

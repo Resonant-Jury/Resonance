@@ -1,5 +1,10 @@
 package com.resonance.app.ui
 
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.key
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,6 +37,8 @@ sealed interface Route {
     data class Root(val tab: Tab) : Route
     data class Card(val key: String) : Route
     data class Author(val handle: String) : Route
+    data object Settings : Route
+    data object BlockedList : Route
 
     companion object {
         /** Site paths the app can show itself: /card/{slug}, /u/{handle}, with or without a locale. */
@@ -66,8 +73,14 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         incomingRoute.value = null
     }
 
+    val notifications by session.notifications.items.collectAsStateWithLifecycle()
+    val unread = notifications.count { it.isUnread }
+    val deletionDate by session.deletionDate.collectAsStateWithLifecycle()
+    // A language change re-renders every screen (the strings are read while composing); the stacks stay.
+    val languageEpoch by session.languageEpoch.collectAsStateWithLifecycle()
+
     Box(Modifier.fillMaxSize().cream()) {
-        NavDisplay(
+        key(languageEpoch) { NavDisplay(
             backStack = stack,
             onBack = { stack.removeLastOrNull() },
             entryProvider = entryProvider {
@@ -75,15 +88,23 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                     when (r.tab) {
                         Tab.Feed -> FeedScreen(session, push)
                         Tab.Messages -> PlaceholderScreen(L10n.Messages.title, L10n.Messages.empty)
-                        Tab.Notifications -> PlaceholderScreen(L10n.App.Nav.notifications, L10n.App.Notifications.empty)
+                        Tab.Notifications -> NotificationsScreen(session, push)
                         Tab.CardBox -> CardBoxScreen(session, push)
                         Tab.Write -> {}
                     }
                 }
                 entry<Route.Card> { r -> CardScreen(session, r.key, push) { stack.removeLastOrNull() } }
                 entry<Route.Author> { r -> AuthorScreen(session, r.handle, push) { stack.removeLastOrNull() } }
+                entry<Route.Settings> { SettingsScreen(session, push) { stack.removeLastOrNull() } }
+                entry<Route.BlockedList> { BlockedListScreen(session) { stack.removeLastOrNull() } }
             },
-        )
+        ) }
+        // The undo banner floats above the tab bar (or the bottom edge on pushed screens) on every screen.
+        deletionDate?.let { date ->
+            Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = if (stack.size == 1) 96.dp else 12.dp)) {
+                AccountDeletionBanner(session, date)
+            }
+        }
         AnimatedVisibility(
             stack.size == 1,
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -96,7 +117,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                     OrganicTabItem(Tab.Feed, L10n.Native.tabFeed, IconName.Sparkle),
                     OrganicTabItem(Tab.Messages, L10n.App.Nav.messages, IconName.Chat),
                     OrganicTabItem(Tab.Write, L10n.App.Nav.write, IconName.Pen, isAction = true),
-                    OrganicTabItem(Tab.Notifications, L10n.App.Nav.notifications, IconName.Bell),
+                    OrganicTabItem(Tab.Notifications, L10n.App.Nav.notifications, IconName.Bell, badge = unread),
                     OrganicTabItem(Tab.CardBox, L10n.App.Nav.me, IconName.Cards),
                 ),
                 selection = tab,

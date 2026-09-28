@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.resonance.api.models.CardDetail
 import com.resonance.api.models.FeedCard
+import com.resonance.app.SafetyService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.CssText
@@ -91,6 +92,10 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () ->
     Column(Modifier.fillMaxSize().cream()) {
         OrganicInlineBar(L10n.App.Nav.back, back) {
             detail?.let { d ->
+                val authorId = d.card.author?.id
+                if (!d.isOwner && !d.anonymous && authorId != null) {
+                    SafetyMenu(session, SafetyService.Target.Card(d.card.id, authorId), d.card.author?.handle)
+                }
                 OrganicIconButton(IconName.Share, "Share") {
                     val link = "${session.config.origin}/card/${d.card.routeKey}"
                     context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link), null))

@@ -1,5 +1,7 @@
 package com.resonance.app.ui
 
+import com.resonance.app.R
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -42,6 +44,7 @@ fun SignInScreen(session: Session) {
     val scope = rememberCoroutineScope()
     val signingIn by session.signingIn.collectAsStateWithLifecycle()
     val error by session.signInError.collectAsStateWithLifecycle()
+    val signedOutForDeletion by session.signedOutForDeletion.collectAsStateWithLifecycle()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().cream().verticalScroll(rememberScrollState()).padding(top = 96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -55,7 +58,13 @@ fun SignInScreen(session: Session) {
             BasicText(L10n.Auth.signInTitle, style = AppFonts.heading(30f, lineHeight = 1.25f), modifier = Modifier.semantics { heading() })
             BasicText(L10n.Auth.googleIntro, style = AppFonts.body(14f, lineHeight = 1.6f, color = Tokens.TextMuted))
             Spacer(Modifier.height(10.dp))
-            OrganicButton(if (signingIn) L10n.Auth.signingIn else L10n.Auth.continueWithGoogle, variant = ButtonVariant.Outline, enabled = !signingIn) {
+            if (signedOutForDeletion) BasicText(L10n.Auth.deletionScheduled, style = AppFonts.body(14f, 600, lineHeight = 1.6f, color = Tokens.Terracotta))
+            OrganicButton(
+                if (signingIn) L10n.Auth.signingIn else L10n.Auth.continueWithGoogle,
+                variant = ButtonVariant.Outline,
+                image = painterResource(R.drawable.google_mark),
+                enabled = !signingIn,
+            ) {
                 scope.launch { session.signInWithGoogle(context) }
             }
             error?.let { BasicText(it, style = AppFonts.body(13f, color = Tokens.Terracotta)) }

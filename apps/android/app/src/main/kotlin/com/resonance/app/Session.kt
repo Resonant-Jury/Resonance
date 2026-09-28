@@ -1,6 +1,7 @@
 package com.resonance.app
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -11,10 +12,13 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.resonance.api.models.Me
+import com.resonance.kit.api.AccountApi
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.ReadingApi
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.l10n.Strings
+import java.time.OffsetDateTime
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -26,7 +30,7 @@ import kotlinx.coroutines.tasks.await
  * SessionStore). Firebase Auth owns the sign-in state and renews the ID
  * token; every API call asks it for a fresh one.
  */
-class Session(val config: AppConfig) {
+class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     enum class Phase { Restoring, SignedOut, SignedIn }
     sealed interface Profile {
         data object Unknown : Profile
@@ -47,9 +51,23 @@ class Session(val config: AppConfig) {
 
     val api = ApiConfiguration(config.origin) { force -> idToken(force) }
     val reading = ReadingApi(api)
+    val account = AccountApi(api)
+    val notifications = NotificationsStore()
+
+    /** When a scheduled account deletion will run (the undo banner shows until then). */
+    private val _deletionDate = MutableStateFlow<OffsetDateTime?>(null)
+    val deletionDate: StateFlow<OffsetDateTime?> = _deletionDate
+    /** Set when the app signed the person out because they scheduled deletion. */
+    private val _signedOutForDeletion = MutableStateFlow(false)
+    val signedOutForDeletion: StateFlow<Boolean> = _signedOutForDeletion
+    /** Bumped when the interface language changes, so the whole UI re-renders. */
+    private val _languageEpoch = MutableStateFlow(0)
+    val languageEpoch: StateFlow<Int> = _languageEpoch
 
     var uid: String? = null
         private set
+
+    val safety: SafetyService? get() = uid?.let(::SafetyService)
 
     private val auth: FirebaseAuth get() = AppFirebase.auth
     private val scope = MainScope()
@@ -60,8 +78,16 @@ class Session(val config: AppConfig) {
             if (next == uid && _phase.value != Phase.Restoring) return@addAuthStateListener
             uid = next
             _profile.value = Profile.Unknown
+            _deletionDate.value = null
             _phase.value = if (next == null) Phase.SignedOut else Phase.SignedIn
-            if (next != null) scope.launch { runCatching { onSignedIn() } }
+            if (next != null) {
+                _signedOutForDeletion.value = false
+                notifications.start(next)
+                scope.launch { runCatching { onSignedIn() } }
+                scope.launch { refreshDeletion() }
+            } else {
+                notifications.stop()
+            }
         }
     }
 
@@ -104,6 +130,34 @@ class Session(val config: AppConfig) {
     suspend fun signIn(email: String, password: String) = signIn { auth.signInWithEmailAndPassword(email, password).await() }
 
     fun signOut() = auth.signOut()
+
+    fun setLanguage(language: Strings.Language) {
+        Strings.language = language
+        prefs.edit().putString(LANGUAGE_KEY, language.tag).apply()
+        _languageEpoch.value += 1
+    }
+
+    // Account deletion
+
+    suspend fun refreshDeletion() {
+        _deletionDate.value = runCatching { account.deletion() }.getOrNull()
+    }
+
+    /** Schedules deletion; the server revokes every session, so sign out here too. */
+    suspend fun scheduleDeletion() {
+        account.scheduleDeletion()
+        _signedOutForDeletion.value = true
+        auth.signOut()
+    }
+
+    suspend fun cancelDeletion() {
+        account.cancelDeletion()
+        _deletionDate.value = null
+    }
+
+    companion object {
+        const val LANGUAGE_KEY = "appLanguage"
+    }
 
     private suspend fun signIn(work: suspend () -> Unit) {
         _signingIn.value = true

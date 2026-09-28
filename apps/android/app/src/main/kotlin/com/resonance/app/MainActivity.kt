@@ -25,8 +25,7 @@ class MainActivity : ComponentActivity() {
         val emulator = BuildConfig.DEBUG && intent.getBooleanExtra("emulator", false)
         val config = AppConfig(usesEmulator = emulator)
         AppFirebase.configure(this, config)
-        val session = Session(config)
-        session.start { session.loadMe() }
+        val session = (application as ResonanceApp).session(config)
         if (emulator) {
             val email = intent.getStringExtra("email")
             val password = intent.getStringExtra("password")
