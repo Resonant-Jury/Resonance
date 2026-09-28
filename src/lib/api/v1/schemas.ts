@@ -43,6 +43,11 @@ export const Me = named(
     accentColor: z.string(),
     bio: z.string().nullable(),
     avatarUrl: z.string().nullable(),
+    /** ISO 3166 code (e.g. TW) or free text; null when never set. */
+    region: z.string().nullable(),
+    primaryLocale: z.enum(['en', 'zh-TW']).nullable(),
+    /** When the pen name last changed (the settings hint: once every 30 days). */
+    handleChangedAt: z.iso.datetime().nullable(),
   }),
   'Me',
   'The signed-in account.',
@@ -160,6 +165,73 @@ export const CreateInviteRequest = named(
 
 export const CreateInviteResponse = named(z.object({ id: z.string() }), 'CreateInviteResponse');
 
+/** The web's limits: a pen name of 2–20 characters (any script), an 80-character bio. */
+export const HANDLE_MIN = 2;
+export const HANDLE_MAX = 20;
+export const BIO_MAX = 80;
+
+/**
+ * A pen name as it is saved: trimmed, 2–20 characters, any script — but never
+ * a path or query (it is the /u/{handle} segment) and no control characters.
+ */
+const Handle = z
+  .string()
+  .trim()
+  .min(HANDLE_MIN)
+  .max(HANDLE_MAX)
+  .regex(/^[^/?#\\\p{Cc}]+$/u, 'Not a valid pen name.');
+const Locale = z.enum(['en', 'zh-TW']);
+const Region = z.string().trim().min(1).max(40);
+
+export const CreateProfileRequest = named(
+  z.object({ handle: Handle, region: Region, primaryLocale: Locale }),
+  'CreateProfileRequest',
+  'Onboarding: the pen name, region and writing language of a new account.',
+);
+
+export const UpdateProfileRequest = named(
+  z.object({
+    handle: Handle.nullish(),
+    /** An empty string clears the bio. */
+    bio: z.string().trim().max(BIO_MAX).nullish(),
+    region: Region.nullish(),
+    primaryLocale: Locale.nullish(),
+  }),
+  'UpdateProfileRequest',
+  'Only the fields sent change.',
+);
+
+export const PublishResponse = named(
+  z.object({
+    id: z.string(),
+    /** The English URL slug; null if generating it failed (the card is live at its id). */
+    slug: z.string().nullable(),
+    /** False when it was already live (publishing again never re-dates a card). */
+    firstPublish: z.boolean(),
+  }),
+  'PublishResponse',
+);
+
+/** firestore.rules' cap on a report's details (REPORT_DETAIL_MAX on the web). */
+export const REPORT_DETAIL_MAX = 1000;
+
+export const ReportCardRequest = named(
+  z.object({
+    reason: z.enum(['spam', 'harassment', 'hate', 'sexual', 'self_harm', 'violence', 'other']),
+    detail: z.string().trim().max(REPORT_DETAIL_MAX).nullish(),
+  }),
+  'ReportCardRequest',
+  "Report a card — anonymous ones too: the server knows its author, the app doesn't.",
+);
+
+export const CreateReportResponse = named(z.object({ id: z.string() }), 'CreateReportResponse');
+
+export const HandleAvailability = named(
+  z.object({ handle: z.string(), available: z.boolean() }),
+  'HandleAvailability',
+  'Whether a pen name is free (your own counts as free).',
+);
+
 export const FeedQuery = z.object({
   limit: z.coerce.number().int().min(1).max(30).default(12),
   cursor: z.iso.datetime().optional(),
@@ -184,3 +256,6 @@ export type CardDetailBody = z.infer<typeof CardDetail>;
 export type ProfileBody = z.infer<typeof Profile>;
 export type CardBoxTabName = z.infer<typeof CardBoxTab>;
 export type CreateInviteInput = z.infer<typeof CreateInviteRequest>;
+export type CreateProfileInput = z.infer<typeof CreateProfileRequest>;
+export type UpdateProfileInput = z.infer<typeof UpdateProfileRequest>;
+export type ReportCardInput = z.infer<typeof ReportCardRequest>;

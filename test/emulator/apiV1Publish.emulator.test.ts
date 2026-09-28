@@ -1,0 +1,119 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
+import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { ApiFailure } from '@/lib/api/v1/http';
+import { publishCard } from '@/lib/api/v1/publish';
+
+// Publishing through the v1 API against the Firestore emulator — what the web
+// editor's submit() does from the client (stamp once, slug, resonance
+// connection + notification), with the rules' guarantees re-checked here.
+
+const PROJECT = 'demo-resonance-api-publish';
+let app: App;
+let db: Firestore;
+const slugBase = async (title: string) => (title.includes('雨') ? 'after-the-rain' : 'a-quiet-night');
+
+beforeAll(() => {
+  process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
+  app = initializeApp({ projectId: PROJECT }, 'api-v1-publish-test');
+  db = getFirestore(app);
+});
+
+afterAll(async () => {
+  await deleteApp(app);
+});
+
+beforeEach(async () => {
+  await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, {
+    method: 'DELETE',
+  });
+  await Promise.all(
+    ['alice', 'bob'].map((id) => db.doc(`users/${id}`).set({ handle: id, handleLower: id })),
+  );
+  await db.doc('cards/orig').set({ authorId: 'bob', thoughtCore: '一場雨', story: 'x', visibility: 'public', publishedAt: Timestamp.now(), slug: 'bobs-rain' });
+});
+
+const draft = (id: string, extra: Record<string, unknown> = {}) =>
+  db.doc(`cards/${id}`).set({ authorId: 'alice', thoughtCore: '安靜的夜晚', story: '...', visibility: 'public', publishedAt: null, anonymous: false, ...extra });
+
+async function failure(p: Promise<unknown>): Promise<ApiFailure> {
+  const e = await p.then(
+    () => null,
+    (err: unknown) => err,
+  );
+  expect(e).toBeInstanceOf(ApiFailure);
+  return e as ApiFailure;
+}
+
+describe('publishCard', () => {
+  it('stamps publishedAt once and gives the card its slug with the handle', async () => {
+    await draft('c1');
+    const first = await publishCard(db, 'alice', 'c1', slugBase);
+    expect(first).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: true });
+    const stamped = (await db.doc('cards/c1').get()).get('publishedAt') as Timestamp;
+    expect(stamped).toBeInstanceOf(Timestamp);
+
+    const again = await publishCard(db, 'alice', 'c1', slugBase);
+    expect(again).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: false });
+    expect(((await db.doc('cards/c1').get()).get('publishedAt') as Timestamp).isEqual(stamped)).toBe(true);
+  });
+
+  it('adds the handle to a slug someone already has', async () => {
+    await db.doc('cards/taken').set({ authorId: 'bob', slug: 'a-quiet-night' });
+    await draft('c1');
+    expect((await publishCard(db, 'alice', 'c1', slugBase)).slug).toBe('a-quiet-night-alice');
+  });
+
+  it("publishes even when the slug can't be made (the id is a working URL)", async () => {
+    await draft('c1');
+    const result = await publishCard(db, 'alice', 'c1', async () => {
+      throw new Error('LLM down');
+    });
+    expect(result).toEqual({ id: 'c1', slug: null, firstPublish: true });
+  });
+
+  it("is not_found for someone else's card, and refuses an untitled one", async () => {
+    await draft('c1');
+    expect((await failure(publishCard(db, 'bob', 'c1', slugBase))).code).toBe('not_found');
+    await draft('c2', { thoughtCore: '  ' });
+    expect((await failure(publishCard(db, 'alice', 'c2', slugBase))).code).toBe('invalid_request');
+    expect((await db.doc('cards/c1').get()).get('publishedAt')).toBeNull();
+  });
+
+  describe('a resonance', () => {
+    const notifications = () => db.collection('notifications').where('userId', '==', 'bob').get();
+
+    it("connects the authors and rings the original author's bell, once", async () => {
+      await draft('r1', { referenceCardId: 'orig' });
+      await publishCard(db, 'alice', 'r1', slugBase);
+      await publishCard(db, 'alice', 'r1', slugBase);
+      expect((await db.doc('connections/alice_bob').get()).get('userIds')).toEqual(['alice', 'bob']);
+      const bell = await notifications();
+      expect(bell.size).toBe(1);
+      expect(bell.docs[0].data()).toMatchObject({ type: 'resonance', readAt: null, payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' } });
+    });
+
+    it('stays anonymous: no connection, no notification, no handle in the slug', async () => {
+      await db.doc('cards/taken').set({ authorId: 'bob', slug: 'a-quiet-night' });
+      await draft('r1', { referenceCardId: 'orig', anonymous: true });
+      expect((await publishCard(db, 'alice', 'r1', slugBase)).slug).toBe('a-quiet-night-2');
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+      expect((await notifications()).size).toBe(0);
+    });
+
+    it('reaches no one across a block, in either direction', async () => {
+      await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+      await draft('r1', { referenceCardId: 'orig' });
+      await publishCard(db, 'alice', 'r1', slugBase);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+      expect((await notifications()).size).toBe(0);
+    });
+
+    it("reaches no one when the original isn't visible to the resonator", async () => {
+      await db.doc('cards/orig').set({ visibility: 'private' }, { merge: true });
+      await draft('r1', { referenceCardId: 'orig' });
+      await publishCard(db, 'alice', 'r1', slugBase);
+      expect((await notifications()).size).toBe(0);
+    });
+  });
+});

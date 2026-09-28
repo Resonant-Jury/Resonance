@@ -73,7 +73,9 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | `GET /api/account/export` | the signed-in user's own writing as a JSON download |
 | `GET /api/cron/purge-accounts` | Vercel Cron (daily, `Bearer $CRON_SECRET`): purges accounts past their grace period (`src/lib/account/deletion.ts`) |
 | `GET /api/v1/me` · `GET /api/v1/feed` · `GET /api/v1/feed/recommended` | versioned API for the native apps (contract below): the account, latest and recommended feeds |
-| `GET /api/v1/cards/{key}` (+ `/resonances`, `/related`, `/links`) | a card by slug or id with its story, and the lists around it |
+| `POST/PATCH /api/v1/me` · `GET /api/v1/handles/{handle}` | onboarding and profile edits (pen-name uniqueness checked in the write's transaction), and the as-you-type availability check |
+| `GET /api/v1/cards/{key}` (+ `/resonances`, `/related`, `/links`) · `POST …/report` | a card by slug or id with its story, and the lists around it; reporting it (the server fills in an anonymous author) |
+| `POST /api/v1/cards/{id}/publish` | publish your card: stamp once, slug (`assignSlug`, shared with `/api/cards/slug`), a resonance's connection + bell; index and cache after the response |
 | `GET /api/v1/users/{handle}` (+ `/cards`, `/links`) | a profile as the viewer sees it, their public cards, cards linking to theirs |
 | `POST /api/v1/invites` | S6 spike's write path (the web no longer sends invites) |
 | `GET /api/v1/openapi.json` | the v1 contract, for tools and client generators |

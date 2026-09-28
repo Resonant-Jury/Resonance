@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
 import { requireUser } from '@/lib/auth';
 import { getAdminDb } from '@/lib/db/firestore/admin';
-import { titleToSlugBase } from '@/lib/ai/tasks';
-import { ensureUniqueSlug, slugify } from '@/lib/ai/slugify';
+import { assignSlug } from '@/lib/ai/assignSlug';
 
 export const runtime = 'nodejs';
 
@@ -33,24 +31,5 @@ export async function POST(req: Request) {
   if (data.authorId !== user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-  if (typeof data.slug === 'string' && data.slug) {
-    return NextResponse.json({ slug: data.slug });
-  }
-
-  const base = await titleToSlugBase(String(data.thoughtCore ?? ''));
-  // Leak checklist (ux §6): an anonymous card's public URL must not embed the
-  // author's handle — collisions fall straight through to the numeric suffix.
-  let handle = '';
-  if (data.anonymous !== true) {
-    const handleSnap = await db.collection('users').doc(user.id).get();
-    handle = slugify(String(handleSnap.data()?.handle ?? ''));
-  }
-
-  const slug = await ensureUniqueSlug(base, handle, async (candidate) => {
-    const dupes = await db.collection('cards').where('slug', '==', candidate).limit(1).get();
-    return dupes.docs.some((d) => d.id !== cardId);
-  });
-
-  await ref.set({ slug, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  return NextResponse.json({ slug });
+  return NextResponse.json({ slug: await assignSlug(db, cardId) });
 }

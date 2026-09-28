@@ -61,6 +61,9 @@ describe('getMe', () => {
       accentColor: 'oklch(90% 0.05 60)',
       bio: null,
       avatarUrl: null,
+      region: null,
+      primaryLocale: null,
+      handleChangedAt: null,
     });
   });
 

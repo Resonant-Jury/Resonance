@@ -63,7 +63,26 @@ export function buildOpenApi(): Json {
           summary: 'The signed-in account',
           responses: { '200': { description: 'OK', ...json(ref('Me')) }, ...errors(401, 404) },
         },
+        post: {
+          operationId: 'createProfile',
+          summary: 'Onboarding: create your profile (an existing one comes back unchanged)',
+          requestBody: { required: true, ...json(ref('CreateProfileRequest')) },
+          responses: {
+            '200': { description: 'Already had a profile', ...json(ref('Me')) },
+            '201': { description: 'Created', ...json(ref('Me')) },
+            ...errors(400, 401, 409),
+          },
+        },
+        patch: {
+          operationId: 'updateProfile',
+          summary: 'Change your pen name, bio, region or writing language',
+          requestBody: { required: true, ...json(ref('UpdateProfileRequest')) },
+          responses: { '200': { description: 'OK', ...json(ref('Me')) }, ...errors(400, 401, 404, 409) },
+        },
       },
+      '/handles/{handle}': get('getHandleAvailability', 'Whether a pen name is free', 'HandleAvailability', {
+        parameters: [handle],
+      }, [400, 401]),
       '/me/cards': get('getCardBox', 'One shelf of your card box', 'CardList', {
         parameters: [
           { name: 'tab', in: 'query', required: true, schema: { type: 'string', enum: ['published', 'private', 'draft', 'resonated', 'linked', 'bookmarks'] } },
@@ -76,6 +95,23 @@ export function buildOpenApi(): Json {
       }),
       '/cards/{key}/resonances': get('getCardResonances', 'Public cards written in response to this one', 'CardList', { parameters: [cardId] }),
       '/cards/{key}/related': get('getRelatedCards', 'A few recent cards sharing its tags', 'CardList', { parameters: [cardId] }),
+      '/cards/{key}/publish': {
+        post: {
+          operationId: 'publishCard',
+          summary: 'Publish your card: stamps it once, gives it its slug, and connects a resonance to its original',
+          parameters: [pathParam('key', 'The card id')],
+          responses: { '200': { description: 'OK', ...json(ref('PublishResponse')) }, ...errors(400, 401, 404) },
+        },
+      },
+      '/cards/{key}/report': {
+        post: {
+          operationId: 'reportCard',
+          summary: 'Report a card you can see (its author, anonymous or not, is filled in by the server)',
+          parameters: [pathParam('key', 'The card slug, or its id')],
+          requestBody: { required: true, ...json(ref('ReportCardRequest')) },
+          responses: { '201': { description: 'Created', ...json(ref('CreateReportResponse')) }, ...errors(400, 401, 404) },
+        },
+      },
       '/cards/{key}/links': get('getCardLinks', 'Cards linking to it (empty unless you wrote it)', 'CardList', { parameters: [cardId] }),
       '/users/{handle}': get('getProfile', "A person's profile as you see it", 'Profile', { parameters: [handle] }),
       '/users/{handle}/cards': get('getProfileCards', 'Their public cards, newest first (never anonymous ones)', 'FeedPage', {

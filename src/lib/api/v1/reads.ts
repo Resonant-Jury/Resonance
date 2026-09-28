@@ -24,7 +24,7 @@ async function cardDoc(db: Firestore, id: string): Promise<Card | null> {
 }
 
 /** A card the viewer may read, by slug or document id — else not_found (never "forbidden": that would confirm it exists). */
-async function visibleCard(db: Firestore, viewerId: string, key: string): Promise<Card> {
+export async function visibleCard(db: Firestore, viewerId: string, key: string): Promise<Card> {
   const bySlug = await db.collection('cards').where('slug', '==', key).limit(1).get();
   const card = bySlug.empty ? await cardDoc(db, key) : mapCard(bySlug.docs[0].id, bySlug.docs[0].data());
   if (!card || !(await canView(db, card, viewerId))) throw new ApiFailure('not_found', 'No such card.');

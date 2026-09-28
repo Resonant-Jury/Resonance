@@ -33,6 +33,9 @@ export async function getMe(db: Firestore, uid: string): Promise<MeBody> {
     accentColor: String(u.accentColor ?? ''),
     bio: str(u.bio),
     avatarUrl: str(u.avatarUrl),
+    region: str(u.region),
+    primaryLocale: u.primaryLocale === 'en' || u.primaryLocale === 'zh-TW' ? u.primaryLocale : null,
+    handleChangedAt: u.handleChangedAt instanceof Timestamp ? u.handleChangedAt.toDate().toISOString() : null,
   };
 }
 
