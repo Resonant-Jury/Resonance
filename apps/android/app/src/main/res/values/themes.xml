@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Resonance</string>
+    <!-- The paper color while the first frame draws (the color-cream token). -->
+    <style name="Theme.Resonance" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FAF2E9</item>
+    </style>
+</resources>

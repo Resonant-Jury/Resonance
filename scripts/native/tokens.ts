@@ -180,6 +180,15 @@ const outputs: [string, string][] = [
   ['apps/ios/Packages/DesignSystem/Sources/DesignSystem/Generated/Tokens.swift', swift.replace('public enum Tokens {', 'public nonisolated enum Tokens {')],
   ['native/android/app/src/main/java/com/resonance/spikes/generated/Tokens.kt', kt],
   ['native/fixtures/tokens.json', JSON.stringify(tokens, null, 2) + '\n'],
+  [
+    'apps/android/core/design/src/main/kotlin/com/resonance/design/generated/Tokens.kt',
+    kt
+      .replace('package com.resonance.spikes.generated', 'package com.resonance.design.generated')
+      .replace(
+        `    val InkStrong = ${INK_STRONG}.dp\n}`,
+        `    val InkStrong = ${INK_STRONG}.dp\n${lengths.map((l) => `\n    /** ${l.source} */\n    const val ${l.name[0].toUpperCase()}${l.name.slice(1)} = ${l.value}f`).join('')}\n}`,
+      ),
+  ],
 ];
 for (const [p, body] of outputs) {
   mkdirSync(dirname(resolve(root, p)), { recursive: true });

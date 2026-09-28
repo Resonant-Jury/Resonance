@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "1090298219401",
+    "project_id": "resonance-stories",
+    "storage_bucket": "resonance-stories.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1090298219401:android:c107d5b460575ce7066f58",
+        "android_client_info": {
+          "package_name": "com.resonance.stories"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1090298219401-9n46k7o3i4qlh9c5m29ejo7tbk0becpr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.resonance.stories",
+            "certificate_hash": "30b8878af680d9d0b763171067a143de5c194b3d"
+          }
+        },
+        {
+          "client_id": "1090298219401-6bmfbcj936bfbnrtonr5dar0tmr3kqi0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCjHt0c_edqMKhbY7XTN3lCDXR0-i_PDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1090298219401-6bmfbcj936bfbnrtonr5dar0tmr3kqi0.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1090298219401-pgd3sh80h9ukvf4l564dpvegebi2s8o7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.resonance.stories"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

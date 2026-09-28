@@ -36,3 +36,8 @@ apps/ios/*.xcodeproj/
 apps/ios/build/
 apps/**/.build/
 apps/**/.swiftpm/
+# Android (apps/android): Gradle caches and build outputs, this machine's SDK path
+apps/android/.gradle/
+apps/android/.kotlin/
+apps/android/**/build/
+apps/android/local.properties

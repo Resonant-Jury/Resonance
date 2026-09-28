@@ -14,6 +14,10 @@ apps/
     Packages/DesignSystem/  tokens, fonts + CSS line boxes, grain, organic components
     Packages/ResonanceKit/  generated /api/v1 client, auth middleware, localization,
                             StoryFormat (a story's Markdown → the reader's blocks)
+  android/                  Compose app (Gradle)
+    app/                    the app: session, navigation (Navigation 3), screens
+    core/design/            tokens, fonts + CSS line boxes, grain, organic components, story reader
+    core/kit/               generated /api/v1 client, localization, story format (JVM, unit-tested)
   shared/fonts/             subset fonts for both apps (committed)
 native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by the apps)
 ```
@@ -21,17 +25,22 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
 ## Generated from the web
 
 ```bash
-npm run apps:generate   # tokens, string accessors, openapi.json, editor island
+npm run apps:generate   # tokens, string accessors, icons, openapi.json, editor island
 ```
 
 | Output | From | Script |
 | --- | --- | --- |
 | `DesignSystem/.../Generated/Tokens.swift` | `src/styles/tokens.css`, StoryCard palette, strokes | `scripts/native/tokens.ts` |
 | `ResonanceKit/.../Localization/L10n.swift` | `src/messages/*.json` (bundled as-is, read at runtime) | `scripts/apps/l10n.ts` |
+| `DesignSystem/.../Generated/Icons.swift` | the hand-drawn icons in `src/components/atoms/Icon` | `scripts/apps/icons.ts` |
+| the same three for Android (`core/design/.../generated/Tokens.kt`, `Icons.kt`, `core/kit/.../l10n/L10n.kt`) | as above | as above |
 | the Swift API client (at build time) | `openapi/v1/openapi.json` | swift-openapi-generator |
+| the Kotlin API client (at build time) | `openapi/v1/openapi.json` | openapi-generator (`jvm-okhttp4`) |
 | `apps/shared/fonts/*.ttf` | Noto TC, Playfair, DM Sans, 陳宇落雁 | `scripts/native/subset-fonts.py` (rarely) |
 
-CI fails when the committed tokens or string accessors are stale.
+CI fails when the committed tokens, string accessors or icons are stale. The
+apps draw only the web's icons (`OrganicIcon`); an icon the web lacks is added
+to the web's registry first, so both stay one set.
 
 ## iOS
 
@@ -68,3 +77,26 @@ xcrun simctl launch booted com.resonance.stories -emulator YES \
 
 `-email`/`-password` sign that seeded account in on launch (emulator builds
 only); the sign-in screen also shows an email form in emulator builds.
+
+## Android
+
+Needs JDK 21 and the Android SDK (compileSdk 37); the Gradle wrapper fetches
+the rest.
+
+```bash
+cd apps/android
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew :core:kit:test        # API client, localization, story format
+```
+
+Debug launch extras mirror iOS's arguments: `--ez emulator true` points
+Firebase at the emulators (`10.0.2.2`) and the API at `http://10.0.2.2:3100`,
+`--es email … --es password …` signs a seeded account in, and
+`--es route /card/<slug>` (or `/u/<handle>`) opens that page:
+
+```bash
+adb shell am start -n com.resonance.stories/com.resonance.app.MainActivity \
+  --ez emulator true --es email alice@resonance.test \
+  --es password <SEED_PASSWORD from scripts/seed-emulator.ts> --es route /card/rich-story
+```
