@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// Field.tsx's label: small caps in the muted ink, 10 above the control.
-struct FieldLabel: View {
+public struct FieldLabel: View {
     let text: String
-    var body: some View {
+    public init(text: String) { self.text = text }
+    public var body: some View {
         Text(text.uppercased())
             .font(AppFonts.body(Tokens.labelSize, weight: .semibold))
             .tracking(Tokens.labelSize * 0.06)
@@ -14,13 +15,19 @@ struct FieldLabel: View {
 /// The web Input/Textarea surface (HandDrawnDashedSurface R16): auto wobble,
 /// cream paper, and the ink darkening to terracotta while focused
 /// (tokens: --field-border / --field-border-focus).
-struct FieldSurface: ViewModifier {
+public struct FieldSurface: ViewModifier {
     let seed: Double
     let focused: Bool
     /// A set bow (the writer's title passes 0.8); nil keeps the size's own.
     var curve: Double?
 
-    func body(content: Content) -> some View {
+    public init(seed: Double, focused: Bool, curve: Double? = nil) {
+        self.seed = seed
+        self.focused = focused
+        self.curve = curve
+    }
+
+    public func body(content: Content) -> some View {
         content.background {
             let shape = curve.map { AnyShape(AutoWobRectShape(radius: Tokens.radiusMd, seed: seed, curve: $0)) }
                 ?? AnyShape(WobRectShape(radius: Tokens.radiusMd, seed: seed))
@@ -121,7 +128,7 @@ public struct OrganicTextArea: View {
                     if let maxLength, new.count > maxLength { text = String(new.prefix(maxLength)) }
                 }
             if let maxLength {
-                Text("\(text.count) / \(maxLength)")
+                Text(verbatim: "\(text.count) / \(maxLength)")
                     .font(AppFonts.body(11))
                     .monospacedDigit()
                     .foregroundStyle(text.count > maxLength ? Tokens.terracotta : Tokens.textMuted)

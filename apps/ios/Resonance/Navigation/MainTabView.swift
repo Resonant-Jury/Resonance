@@ -60,7 +60,8 @@ struct MainTabView: View {
             if paths[tab]?.isEmpty ?? true {
                 OrganicTabBar(items: AppTab.allCases.map {
                     OrganicTabItem(id: $0, title: $0.title, icon: $0.icon, isAction: $0 == .write,
-                                   badge: $0 == .notifications ? session.notifications.unreadCount : 0)
+                                   badge: $0 == .notifications ? session.notifications.unreadCount
+                                       : $0 == .messages ? session.conversations.unreadTotal : 0)
                 }, selection: tab, onSelect: select)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -97,6 +98,8 @@ struct MainTabView: View {
     /// Site links (universal links, shared URLs) open on the current tab.
     private func open(_ url: URL) {
         guard let route = Route(url: url, origin: session.config.origin) else { return }
+        // A conversation belongs to the Messages tab's stack.
+        if case .thread = route { tab = .messages }
         paths[tab, default: NavigationPath()].append(route)
     }
 

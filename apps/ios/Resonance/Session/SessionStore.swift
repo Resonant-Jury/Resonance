@@ -33,6 +33,7 @@ final class SessionStore {
     let account: AccountAPI
     let writing: WritingAPI
     let notifications = NotificationsStore()
+    let conversations = ConversationsStore()
     @ObservationIgnored private var listener: AuthStateDidChangeListenerHandle?
     @ObservationIgnored private let apple = AppleSignIn()
 
@@ -55,6 +56,7 @@ final class SessionStore {
     var bookmarks: BookmarkService? { uid.map(BookmarkService.init(uid:)) }
     var drafts: DraftService? { uid.map(DraftService.init(uid:)) }
     var hints: HintService? { uid.map(HintService.init(uid:)) }
+    var messaging: MessagingAPI { MessagingAPI(client: api) }
     /// What the account signed in with (settings → account shows them read-only).
     var email: String? { Auth.auth().currentUser?.email }
     var phoneNumber: String? { Auth.auth().currentUser?.phoneNumber }
@@ -113,12 +115,14 @@ final class SessionStore {
         if let newUID {
             signedOutForDeletion = false
             notifications.start(uid: newUID)
+            conversations.start(uid: newUID)
             Task {
                 await loadMe()
                 await refreshDeletion()
             }
         } else {
             notifications.stop()
+            conversations.stop()
         }
         #if DEBUG
         if wasRestoring { autoSignInForTesting() }

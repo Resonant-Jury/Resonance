@@ -80,7 +80,11 @@ struct NotificationsScreen: View {
     static func route(for item: NotificationsStore.Item) -> Route? {
         switch item.type {
         case "translation_done", "card_link": return item.cardId.map(Route.card)
-        case "invite_accepted", "message", "resonance", "note": return item.fromHandle.map(Route.author)
+        // NotificationBell: these open the conversation with that person; a note arrives quoted, ready to answer.
+        case "note":
+            let note = item.cardId.flatMap { card in item.noteId.map { MessagingAPI.NoteRef(cardId: card, noteId: $0) } }
+            return item.fromHandle.map { Route.thread(handle: $0, note: note) }
+        case "invite_accepted", "message", "resonance": return item.fromHandle.map { Route.thread(handle: $0, note: nil) }
         default: return nil
         }
     }

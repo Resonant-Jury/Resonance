@@ -1,3 +1,4 @@
+import ResonanceKit
 import SwiftUI
 
 /// Screens pushed onto a tab's stack.
@@ -8,6 +9,8 @@ enum Route: Hashable {
     case author(String)
     case settings
     case settingsSection(SettingsSection)
+    /// A conversation, by the other person's pen name; `note` quotes a note to answer.
+    case thread(handle: String, note: MessagingAPI.NoteRef?)
 }
 
 /// Pushes a route onto the current tab's stack (for taps that aren't
@@ -34,6 +37,12 @@ extension Route {
         switch parts[0] {
         case "card": self = .card(parts[1])
         case "u": self = .author(parts[1])
+        case "messages":
+            // /messages/{handle}?note={noteId}&card={cardId} (a note's reply link) keeps its query.
+            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let value = { (name: String) in query.first { $0.name == name }?.value }
+            let note = value("card").flatMap { card in value("note").map { MessagingAPI.NoteRef(cardId: card, noteId: $0) } }
+            self = .thread(handle: parts[1], note: note)
         default: return nil
         }
     }
@@ -48,6 +57,7 @@ extension View {
             case let .author(handle): AuthorScreen(handle: handle)
             case .settings: SettingsScreen()
             case let .settingsSection(section): SettingsSectionScreen(section: section)
+            case let .thread(handle, note): ThreadScreen(handle: handle, note: note)
             }
         }
     }

@@ -12,6 +12,8 @@ final class NotificationsStore {
         let fromHandle: String?
         let cardId: String?
         let preview: String?
+        /// A note's id (to quote it when replying).
+        let noteId: String?
         let count: Int?
         let readAt: Date?
         let createdAt: Date?
@@ -61,6 +63,7 @@ final class NotificationsStore {
             fromHandle: payload["fromHandle"] as? String,
             cardId: payload["cardId"] as? String,
             preview: payload["preview"] as? String,
+            noteId: payload["noteId"] as? String,
             count: (payload["count"] as? NSNumber)?.intValue,
             readAt: (doc.get("readAt") as? Timestamp)?.dateValue(),
             createdAt: (doc.get("createdAt") as? Timestamp)?.dateValue()

@@ -15,15 +15,18 @@ public struct CSSText: UIViewRepresentable {
     var tracking: CGFloat
     /// `-webkit-line-clamp`; 0 is unlimited.
     var lineLimit: Int
+    /// Take the text's own width (a bubble shrink-wrapping its words) rather than all that's offered.
+    var fitsContent: Bool
 
     public init(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor = UIColor(Tokens.text),
-                tracking: CGFloat = 0, lineLimit: Int = 0) {
+                tracking: CGFloat = 0, lineLimit: Int = 0, fitsContent: Bool = false) {
         self.text = text
         self.font = font
         self.lineHeight = lineHeight
         self.color = color
         self.tracking = tracking
         self.lineLimit = lineLimit
+        self.fitsContent = fitsContent
     }
 
     public func makeUIView(context: Context) -> UILabel {
@@ -42,7 +45,7 @@ public struct CSSText: UIViewRepresentable {
     public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UILabel, context: Context) -> CGSize? {
         let width = proposal.width ?? 320
         let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        return CGSize(width: width, height: size.height)
+        return CGSize(width: fitsContent ? min(width, size.width.rounded(.up)) : width, height: size.height)
     }
 
     public static func attributed(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor, tracking: CGFloat = 0) -> NSAttributedString {

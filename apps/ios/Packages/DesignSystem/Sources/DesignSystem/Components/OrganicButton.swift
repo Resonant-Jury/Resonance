@@ -43,6 +43,15 @@ public struct OrganicButton: View {
         self.action = action
     }
 
+    /// Stretch to the row's height (the thread's Send beside a growing field: `height: 100%`).
+    var fillsHeight = false
+
+    public func fillingHeight() -> OrganicButton {
+        var copy = self
+        copy.fillsHeight = true
+        return copy
+    }
+
     @State private var pressPoint: CGPoint? = nil
     @State private var revealed = false
     @Environment(\.isEnabled) private var isEnabled
@@ -51,6 +60,7 @@ public struct OrganicButton: View {
         let style = OrganicButtonStyle(variant: variant, size: size)
         let shape = OrganicButtonShape(seed: style.seed)
         face(style)
+            .frame(maxHeight: fillsHeight ? .infinity : nil)
             .background {
                 GeometryReader { geo in
                     ZStack {

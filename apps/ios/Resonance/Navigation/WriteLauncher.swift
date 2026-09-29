@@ -13,6 +13,8 @@ final class WriteLauncher {
         var cardId: String?
         /// Whether the card opens once the writer is gone (false when its own page is underneath).
         var showsCard = true
+        /// Words to start from (a note grown into a resonance).
+        var story: String?
     }
 
     var isPresented = false

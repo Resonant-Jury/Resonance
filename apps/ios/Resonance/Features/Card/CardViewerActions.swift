@@ -13,6 +13,7 @@ struct CardViewerActions: View {
     @State private var shown = false
     /// Your card answering this one (draft or published); nil while looking, "" when there is none.
     @State private var mine: String?
+    @State private var writingNote = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -28,7 +29,7 @@ struct CardViewerActions: View {
             .allowsHitTesting(mine != nil)
             HStack {
                 // The web's secondaryOutline with its frame hidden: a link.
-                Button { writer.open() } label: {
+                Button { writingNote = true } label: {
                     HStack(spacing: 7) {
                         OrganicIcon(.note, size: 16)
                         Text(L10n.Card.Note.entry).font(AppFonts.body(15, weight: .semibold)).tracking(15 * 0.02)
@@ -44,6 +45,13 @@ struct CardViewerActions: View {
         }
         .opacity(shown ? 1 : 0)
         .offset(y: shown ? 0 : 10)
+        .organicModal(isPresented: $writingNote, seed: 17, maxWidth: 520, closeLabel: L10n.Card.Note.close) {
+            NoteComposer(cardId: cardId) { writingNote = false } onUpgrade: { text in
+                writingNote = false
+                // The note's words become the resonance's story (the web drops them; the apps keep them).
+                writer.open(.init(referenceCardId: cardId, story: text))
+            }
+        }
         .task(id: "\(cardId)#\(writer.changes)") {
             // Signed out: nothing to find. A failed lookup stays dimmed, as on the web —
             // better than risking a second resonance.

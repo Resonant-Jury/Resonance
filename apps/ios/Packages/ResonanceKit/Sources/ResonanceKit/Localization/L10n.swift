@@ -1112,6 +1112,8 @@ public enum L10n {
     public enum Native {
         /// Couldn't load this — please try again.
         public static var loadError: String { Strings.shared.string("native.loadError") }
+        /// Copy
+        public static var copy: String { Strings.shared.string("native.copy") }
         /// Couldn't save that — try again.
         public static var saveError: String { Strings.shared.string("native.saveError") }
         /// Try again

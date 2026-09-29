@@ -65,7 +65,8 @@ Launch arguments for checking screens (Debug): `-route /card/<slug>` or
 `-route /u/<handle>` opens that page; the seed has `rich-story`, a card with
 every kind of content. `-writeTitle "…" -writeStory "…"` start a new card with
 that text (the simulator can't type into the fields from outside), and
-`-writeCover <url>` with that picture as its cover.
+`-writeCover <url>` with that picture as its cover; `-threadDraft "…"` fills a
+conversation's composer (`-route /messages/<handle>` opens one).
 
 ### Against the local backend
 

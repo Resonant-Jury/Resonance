@@ -73,6 +73,10 @@ struct WriteScreen: View {
                     model.values.story = story
                 }
                 #endif
+                if let story = request.story {
+                    model.editor.setMarkdown(story)
+                    model.values.story = story
+                }
                 self.model = model
                 showsAnonymousHint = await session.hints?.claim("anonymous-publish") ?? false
             }
@@ -135,8 +139,8 @@ struct WriteScreen: View {
             coverItem = nil
             Task { if let image = await Self.load(item) { await model.setCover(image, filename: "cover.jpg") } }
         }
-        .organicModal(isPresented: $pickingCard, seed: 41, maxWidth: 460, closeLabel: L10n.Write.Editor.CardModal.cancel) {
-            InsertCardContent { card in
+        .organicModal(isPresented: $pickingCard, seed: 53, maxWidth: 480, closeLabel: L10n.Write.Editor.CardModal.cancel) {
+            CardPickerContent(title: L10n.Write.Editor.CardModal.title, subtitle: L10n.Write.Editor.CardModal.subtitle) { card in
                 pickingCard = false
                 model.editor.exec("insertCard", ["href": "/card/\(card.routeKey)", "title": card.title])
             } onCancel: { pickingCard = false }
@@ -445,40 +449,5 @@ private struct PublishPanel: View {
             self.error = error.localizedDescription
         }
         pending = false
-    }
-}
-
-/// InsertCardModal: one of your public cards, dropped in as an embedded card.
-private struct InsertCardContent: View {
-    let onPick: (FeedCard) -> Void
-    let onCancel: () -> Void
-    @Environment(SessionStore.self) private var session
-    @State private var cards: [FeedCard]?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ModalTitle(L10n.Write.Editor.CardModal.title)
-            ModalBody(L10n.Write.Editor.CardModal.subtitle)
-            if let cards {
-                if cards.isEmpty {
-                    EmptyNote(L10n.Write.Editor.CardModal.empty, size: 14).padding(.vertical, 12)
-                }
-                ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
-                    if i > 0 { WavyDivider(seed: Double(60 + i * 7)).padding(.vertical, 2) }
-                    Button { onPick(card) } label: {
-                        Text(card.title)
-                            .font(AppFonts.heading(16))
-                            .foregroundStyle(Tokens.text)
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            } else {
-                SketchLoader(size: 40).frame(maxWidth: .infinity).padding(.vertical, 12)
-            }
-            ModalActions { OrganicButton(L10n.Write.Editor.CardModal.cancel, variant: .ghost, size: .sm, action: onCancel) }
-        }
-        .task { cards = (try? await session.reading.cardBox(.published)) ?? [] }
     }
 }

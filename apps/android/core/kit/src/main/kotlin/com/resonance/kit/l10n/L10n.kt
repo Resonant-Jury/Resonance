@@ -1114,6 +1114,8 @@ object L10n {
     object Native {
         /** Couldn't load this — please try again. */
         val loadError: String get() = Strings.string("native.loadError")
+        /** Copy */
+        val copy: String get() = Strings.string("native.copy")
         /** Couldn't save that — try again. */
         val saveError: String get() = Strings.string("native.saveError")
         /** Try again */

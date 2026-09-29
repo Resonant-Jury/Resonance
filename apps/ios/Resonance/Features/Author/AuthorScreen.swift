@@ -68,6 +68,12 @@ struct AuthorScreen: View {
                 meta(profile, author: author)
                 if !profile.isBlocked, profile.isSelf {
                     OrganicButton(L10n.Profile.editProfile, variant: .ghost) { openRoute(.settings) }
+                } else if !profile.isBlocked, profile.isConnected {
+                    // Connected: a way into the conversation (the web's small ghost button with the chat glyph).
+                    OrganicButton(L10n.Messages.messageLink, icon: .chat, variant: .ghost, size: .sm) {
+                        openRoute(.thread(handle: author.handle, note: nil))
+                    }
+                    .padding(.top, 4)
                 }
             }
             .padding(.horizontal, 24)
