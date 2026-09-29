@@ -3,15 +3,23 @@ import SwiftUI
 // MARK: - Small atoms
 
 public struct TagPill: View {
+    /// TagPill.tsx's sizes: md on cards, lg in the writer.
+    public enum Size: Sendable { case md, lg }
+
     let text: String
     var fill: Color
     var seed: Double?
+    var size: Size
+    var onRemove: (() -> Void)?
 
-    /// The web's TagPill: auto wobble, the given fill, a faint ink outline.
-    public init(_ text: String, fill: Color = Tokens.yellow, seed: Double? = nil) {
+    /// The web's TagPill: auto wobble, the given fill, a faint ink outline;
+    /// `onRemove` adds its hand-drawn × (the writer's chosen tags).
+    public init(_ text: String, fill: Color = Tokens.yellow, seed: Double? = nil, size: Size = .md, onRemove: (() -> Void)? = nil) {
         self.text = text
         self.fill = fill
         self.seed = seed
+        self.size = size
+        self.onRemove = onRemove
     }
 
     /// TagPill's automatic seed: a hash of the label, so a tag always wobbles the same.
@@ -21,24 +29,55 @@ public struct TagPill: View {
         return Double(abs(Int(hash)) % 9973 + 1)
     }
 
-    /// The md pill: 11px uppercase at 0.04em, 4×14 padding — its height comes
-    /// from the line box, as on the web (≈22).
+    /// md: 11px uppercase at 0.04em, 4×14 padding; lg: 13px at 0.05em, 7×18.
+    /// The height comes from the line box, as on the web (≈22 / ≈32).
     public var body: some View {
-        Text(text.uppercased())
-            .font(AppFonts.body(11, weight: .semibold))
-            .tracking(11 * 0.04)
-            .foregroundStyle(Tokens.text)
-            // CJK ink rides high in DM Sans' line box; the web nudges it 0.04em.
-            .offset(y: 11 * 0.04)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 4)
-            .background {
-                GeometryReader { geo in
-                    let shape = WobRectShape(radius: geo.size.height / 2, seed: seed ?? Self.autoSeed(text))
-                    shape.fill(fill)
-                    shape.stroke(Tokens.tagStroke, lineWidth: Tokens.ink)
+        let font: CGFloat = size == .lg ? 13 : 11
+        HStack(spacing: 6) {
+            Text(text.uppercased())
+                .font(AppFonts.body(font, weight: .semibold))
+                .tracking(font * (size == .lg ? 0.05 : 0.04))
+                .foregroundStyle(Tokens.text)
+                // CJK ink rides high in DM Sans' line box; the web nudges it 0.04em.
+                .offset(y: font * 0.04)
+            if let onRemove {
+                Button(action: onRemove) {
+                    TagRemoveGlyph()
+                        .stroke(Tokens.text, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                        .frame(width: 10, height: 10)
+                        .opacity(0.55)
+                        .padding(.leading, 2)
+                        .offset(y: font * 0.02)
+                        .contentShape(Rectangle().inset(by: -8))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove tag")
             }
+        }
+        .padding(.horizontal, size == .lg ? 18 : 14)
+        .padding(.vertical, size == .lg ? 7 : 4)
+        .background {
+            GeometryReader { geo in
+                let shape = WobRectShape(radius: geo.size.height / 2, seed: seed ?? Self.autoSeed(text))
+                shape.fill(fill)
+                shape.stroke(Tokens.tagStroke, lineWidth: Tokens.ink)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// TagPill's remove ×: two slightly bowed strokes in a 10-unit box.
+nonisolated struct TagRemoveGlyph: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = rect.width / 10
+        func p(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: rect.minX + x * s, y: rect.minY + y * s) }
+        var path = Path()
+        path.move(to: p(1.6, 1.8))
+        path.addCurve(to: p(8.2, 8.4), control1: p(3, 3), control2: p(5.2, 5.2))
+        path.move(to: p(8.2, 1.8))
+        path.addCurve(to: p(1.6, 8.4), control1: p(7, 3), control2: p(4.8, 5.2))
+        return path
     }
 }
 

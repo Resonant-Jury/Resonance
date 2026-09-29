@@ -64,7 +64,8 @@ story format — on the Mac, in seconds) and `xcodebuild … test` (app).
 Launch arguments for checking screens (Debug): `-route /card/<slug>` or
 `-route /u/<handle>` opens that page; the seed has `rich-story`, a card with
 every kind of content. `-writeTitle "…" -writeStory "…"` start a new card with
-that text (the simulator can't type into the fields from outside).
+that text (the simulator can't type into the fields from outside), and
+`-writeCover <url>` with that picture as its cover.
 
 ### Against the local backend
 

@@ -2,6 +2,7 @@ package com.resonance.app.ui
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import androidx.compose.runtime.getValue
@@ -15,6 +16,7 @@ import com.resonance.kit.images.AccentHue
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
 import java.io.ByteArrayOutputStream
+import java.net.URL
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -60,8 +62,18 @@ class WriteModel(
         private set
     var uploadingInline by mutableStateOf(false)
         private set
+    var generating by mutableStateOf(false)
+        private set
+    /** The illustration's in-progress pass while it renders. */
+    var partialPreview by mutableStateOf<Bitmap?>(null)
+        private set
     var mediaError by mutableStateOf<String?>(null)
         private set
+
+    /** Uploading or illustrating — the image surface waits either way. */
+    val mediaBusy: Boolean get() = uploadingCover || generating
+    /** The web's canGenerate: there is a story to draw from. */
+    val canGenerate: Boolean get() = values.story.isNotBlank() && !mediaBusy
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var saveJob: Job? = null
@@ -162,7 +174,7 @@ class WriteModel(
 
     /** The cover: compressed here, uploaded, and its hue read from the local pixels. */
     fun setCover(context: Context, uri: Uri) {
-        if (uploadingCover) return
+        if (mediaBusy) return
         mediaError = null
         uploadingCover = true
         scope.launch {
@@ -179,6 +191,49 @@ class WriteModel(
                 mediaError = L10n.Write.mediaUploadError
             } finally {
                 uploadingCover = false
+            }
+        }
+    }
+
+    /**
+     * An illustration drawn from the story (/api/generate-image): its previews
+     * show as they arrive; the stored picture becomes the cover, its hue read
+     * from that picture (or, failing that, the last preview).
+     */
+    fun generateCover() {
+        if (!canGenerate) return
+        mediaError = null
+        generating = true
+        scope.launch {
+            try {
+                var stored: String? = null
+                var failed = false
+                writing.illustrate(values.story).collect { event ->
+                    when (event) {
+                        is WritingApi.IllustrationEvent.Partial ->
+                            withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(event.png, 0, event.png.size) }?.let { partialPreview = it }
+                        is WritingApi.IllustrationEvent.Done -> stored = event.url
+                        WritingApi.IllustrationEvent.Failed -> failed = true
+                    }
+                }
+                val url = stored
+                if (failed || url == null) {
+                    mediaError = L10n.Write.mediaGenerateError
+                    return@launch
+                }
+                val preview = partialPreview
+                val hue = withContext(Dispatchers.IO) {
+                    val picture = runCatching { URL(url).readBytes() }.getOrNull()?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                    (picture ?: preview)?.let(CoverImage::accentHue)
+                }
+                update { copy(imageUrl = url, imageLabel = L10n.Write.mediaGeneratedLabel, accentHue = hue) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                mediaError = L10n.Write.mediaGenerateError
+            } finally {
+                generating = false
+                partialPreview = null
             }
         }
     }

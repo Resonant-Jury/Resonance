@@ -17,7 +17,15 @@ final class WriteModel {
     var tagError: String?
     private(set) var uploadingCover = false
     private(set) var uploadingInline = false
+    private(set) var generating = false
+    /// The illustration's in-progress pass while it renders.
+    private(set) var partialPreview: UIImage?
     var mediaError: String?
+
+    /// Uploading or illustrating — the image surface waits either way.
+    var mediaBusy: Bool { uploadingCover || generating }
+    /// The web's canGenerate: there is a story to draw from.
+    var canGenerate: Bool { !values.story.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !mediaBusy }
 
     /// The card this one resonates with, if any (a response card).
     let referenceCardId: String?
@@ -116,7 +124,7 @@ final class WriteModel {
 
     /// The cover: compressed here, uploaded, and its hue read from the local pixels.
     func setCover(_ image: UIImage, filename: String) async {
-        guard !uploadingCover, let data = CoverImage.jpeg(image) else { return }
+        guard !mediaBusy, let data = CoverImage.jpeg(image) else { return }
         mediaError = nil
         uploadingCover = true
         defer { uploadingCover = false }
@@ -128,6 +136,43 @@ final class WriteModel {
         } catch {
             mediaError = L10n.Write.mediaUploadError
         }
+    }
+
+    /// An illustration drawn from the story (/api/generate-image): its previews
+    /// show as they arrive; the stored picture becomes the cover, its hue read
+    /// from that picture (or, failing that, the last preview).
+    func generateCover() async {
+        guard canGenerate else { return }
+        mediaError = nil
+        generating = true
+        defer {
+            generating = false
+            partialPreview = nil
+        }
+        var stored: URL?
+        do {
+            for try await event in writing.illustrate(story: values.story) {
+                switch event {
+                case let .partial(png): partialPreview = UIImage(data: png) ?? partialPreview
+                case let .done(url): stored = url
+                case .failed:
+                    mediaError = L10n.Write.mediaGenerateError
+                    return
+                }
+            }
+        } catch {
+            mediaError = L10n.Write.mediaGenerateError
+            return
+        }
+        guard let stored else {
+            mediaError = L10n.Write.mediaGenerateError
+            return
+        }
+        let preview = partialPreview
+        let picture = try? await URLSession.shared.data(from: stored).0
+        values.imageURL = stored
+        values.imageLabel = L10n.Write.mediaGeneratedLabel
+        values.accentHue = (picture.flatMap(UIImage.init(data:)) ?? preview).flatMap(CoverImage.accentHue)
     }
 
     func removeCover() {

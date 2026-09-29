@@ -101,6 +101,28 @@ actor TokenLog {
         #expect(sent?["tags"] as? [String] == ["日常"])
     }
 
+    @Test func streamsTheIllustrationsPreviewsThenItsPicture() async throws {
+        let png = Data([0x89, 0x50, 0x4E, 0x47])
+        StubURLProtocol.reset([(200, """
+        {"type":"partial","index":0,"b64":"\(png.base64EncodedString())"}
+        {"type":"done","publicUrl":"https://img.test/u/alice/generated.avif","key":"u/alice/generated.avif"}
+
+        """)])
+        var events: [WritingAPI.IllustrationEvent] = []
+        for try await event in api().illustrate(story: "雨停的時候…") { events.append(event) }
+        #expect(events == [.partial(png), .done(URL(string: "https://img.test/u/alice/generated.avif")!)])
+        let (request, body) = try #require(StubURLProtocol.sent.first)
+        #expect(request.url?.path == "/api/generate-image")
+        #expect((try JSONSerialization.jsonObject(with: body) as? [String: String])?["story"] == "雨停的時候…")
+    }
+
+    @Test func aFailureAfterTheStreamBeganIsAnEvent() async throws {
+        StubURLProtocol.reset([(200, #"{"type":"error"}"#)])
+        var events: [WritingAPI.IllustrationEvent] = []
+        for try await event in api().illustrate(story: "s") { events.append(event) }
+        #expect(events == [.failed])
+    }
+
     @Test func asksToSignInAgainWhenTheFreshTokenIsRejectedToo() async throws {
         StubURLProtocol.reset([(401, "{}"), (401, "{}")])
         await #expect(throws: APIFailure(code: "unauthenticated", message: "Sign in again.", status: 401)) {

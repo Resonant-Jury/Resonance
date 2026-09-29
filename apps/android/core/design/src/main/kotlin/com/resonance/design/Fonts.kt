@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.Typeface
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextGeometricTransform
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -98,6 +99,13 @@ object AppFonts {
             platformStyle = PlatformTextStyle(includeFontPadding = false),
             lineBreak = LineBreak.Simple,
         )
+
+    /**
+     * The browser's synthetic italic: none of the bundled faces has an italic
+     * (Noto TC has none at all), so CSS `font-style: italic` leans every glyph
+     * by the same 0.25 shear on its baseline — Paint's text skew here.
+     */
+    fun oblique(style: TextStyle): TextStyle = style.copy(textGeometricTransform = TextGeometricTransform(skewX = -0.25f))
 
     fun heading(size: Float, weight: Int = 700, lineHeight: Float = 1.25f) = style(Family.Heading, size, weight, lineHeight)
     fun body(size: Float, weight: Int = 400, lineHeight: Float = 1.6f, color: androidx.compose.ui.graphics.Color = Tokens.Text) =

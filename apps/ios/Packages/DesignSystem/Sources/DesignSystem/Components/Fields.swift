@@ -17,10 +17,13 @@ struct FieldLabel: View {
 struct FieldSurface: ViewModifier {
     let seed: Double
     let focused: Bool
+    /// A set bow (the writer's title passes 0.8); nil keeps the size's own.
+    var curve: Double?
 
     func body(content: Content) -> some View {
         content.background {
-            let shape = WobRectShape(radius: Tokens.radiusMd, seed: seed)
+            let shape = curve.map { AnyShape(AutoWobRectShape(radius: Tokens.radiusMd, seed: seed, curve: $0)) }
+                ?? AnyShape(WobRectShape(radius: Tokens.radiusMd, seed: seed))
             shape.fill(Tokens.cream)
             shape.stroke(focused ? Tokens.terracotta : Tokens.fieldBorder,
                          style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, lineJoin: .round))
@@ -30,8 +33,9 @@ struct FieldSurface: ViewModifier {
 }
 
 /// The web's placeholder: warm grey, italic.
-func fieldPrompt(_ text: String) -> Text {
-    Text(text).italic().foregroundStyle(Tokens.placeholder)
+/// (globals.css: every placeholder is the body face, italic, at the field's size and weight.)
+public func fieldPrompt(_ text: String, size: CGFloat = 15, weight: UIFont.Weight = .regular) -> Text {
+    Text(text).font(AppFonts.body(size, weight: weight, oblique: true)).foregroundStyle(Tokens.placeholder)
 }
 
 /// OrganicInput: a labelled text field in a wobbly frame.
@@ -85,21 +89,26 @@ public struct OrganicTextArea: View {
     var seed: Double
     /// Field's `tone="display"`: the writing screen's title, set in Playfair 22/700 on two lines.
     var display: Bool
+    var curve: Double?
     @FocusState private var focused: Bool
 
-    public init(_ label: String, text: Binding<String>, placeholder: String = "", maxLength: Int? = nil, seed: Double = 17, display: Bool = false) {
+    public init(_ label: String, text: Binding<String>, placeholder: String = "", maxLength: Int? = nil, seed: Double = 17,
+                display: Bool = false, curve: Double? = nil) {
         self.label = label
         self._text = text
         self.placeholder = placeholder
         self.maxLength = maxLength
         self.seed = seed
         self.display = display
+        self.curve = curve
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             FieldLabel(text: label).padding(.bottom, 10)
-            TextField(text: $text, prompt: fieldPrompt(placeholder), axis: .vertical) { Text(label) }
+            // The global placeholder rule sets the body face in italic; the display tone keeps its size and weight.
+            TextField(text: $text, prompt: display ? fieldPrompt(placeholder, size: 22, weight: .bold) : fieldPrompt(placeholder),
+                      axis: .vertical) { Text(label) }
                 .lineLimit(display ? 2... : 3...)
                 .lineSpacing(display ? 22 * 0.35 : 15 * 0.6)
                 .font(display ? AppFonts.heading(22) : AppFonts.body(15))
@@ -107,7 +116,7 @@ public struct OrganicTextArea: View {
                 .focused($focused)
                 .padding(.horizontal, Tokens.fieldPadX)
                 .padding(.vertical, Tokens.fieldPadY)
-                .modifier(FieldSurface(seed: seed, focused: focused))
+                .modifier(FieldSurface(seed: seed, focused: focused, curve: curve))
                 .onChange(of: text) { _, new in
                     if let maxLength, new.count > maxLength { text = String(new.prefix(maxLength)) }
                 }

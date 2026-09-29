@@ -37,20 +37,27 @@ public enum AppFonts {
         }
     }
 
-    public static func uiFont(_ family: Family, size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
+    /// The browser's synthetic italic: none of the bundled faces has an italic
+    /// (Noto TC has none at all), so CSS `font-style: italic` leans every glyph
+    /// by the same 0.25 shear on its baseline — done here with the font matrix.
+    static let obliqueMatrix = CGAffineTransform(a: 1, b: 0, c: 0.25, d: 1, tx: 0, ty: 0)
+
+    public static func uiFont(_ family: Family, size: CGFloat, weight: UIFont.Weight = .regular, oblique: Bool = false) -> UIFont {
         let traits: [UIFontDescriptor.TraitKey: Any] = [.weight: weight]
-        let attributes: [UIFontDescriptor.AttributeName: Any] = [
-            .family: family.rawValue,
-            .traits: traits,
-            .cascadeList: [UIFontDescriptor(fontAttributes: [.family: family.cjkFallback, .traits: traits])],
-        ]
+        var fallback: [UIFontDescriptor.AttributeName: Any] = [.family: family.cjkFallback, .traits: traits]
+        var attributes: [UIFontDescriptor.AttributeName: Any] = [.family: family.rawValue, .traits: traits]
+        if oblique {
+            attributes[.matrix] = obliqueMatrix
+            fallback[.matrix] = obliqueMatrix
+        }
+        attributes[.cascadeList] = [UIFontDescriptor(fontAttributes: fallback)]
         return UIFont(descriptor: UIFontDescriptor(fontAttributes: attributes), size: size)
     }
 
     /// Scales with Dynamic Type relative to `textStyle`, like the system fonts do.
-    public static func font(_ family: Family, size: CGFloat, weight: UIFont.Weight = .regular,
+    public static func font(_ family: Family, size: CGFloat, weight: UIFont.Weight = .regular, oblique: Bool = false,
                             relativeTo textStyle: UIFont.TextStyle = .body) -> Font {
-        let base = uiFont(family, size: size, weight: weight)
+        let base = uiFont(family, size: size, weight: weight, oblique: oblique)
         return Font(UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base))
     }
 
@@ -58,8 +65,8 @@ public enum AppFonts {
         font(.heading, size: size, weight: weight, relativeTo: .title1)
     }
 
-    public static func body(_ size: CGFloat, weight: UIFont.Weight = .regular) -> Font {
-        font(.body, size: size, weight: weight)
+    public static func body(_ size: CGFloat, weight: UIFont.Weight = .regular, oblique: Bool = false) -> Font {
+        font(.body, size: size, weight: weight, oblique: oblique)
     }
 
     public static func handwritten(_ size: CGFloat) -> Font {

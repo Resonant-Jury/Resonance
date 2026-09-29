@@ -61,6 +61,71 @@ public struct WritingAPI: Sendable {
         return url
     }
 
+    /// One line of /api/generate-image's progress stream (GenerateImageEvent).
+    public enum IllustrationEvent: Sendable, Equatable {
+        /// The model's in-progress pass, a PNG.
+        case partial(Data)
+        /// The stored picture.
+        case done(URL)
+        /// The server gave up after the stream began (the status is already 200 by then).
+        case failed
+    }
+
+    /// A doodle-style illustration from the story (/api/generate-image): the
+    /// model's previews while it renders, then the stored picture — NDJSON,
+    /// read line by line as it arrives.
+    public func illustrate(story: String) -> AsyncThrowingStream<IllustrationEvent, Error> {
+        struct Body: Encodable { let story: String }
+        struct Line: Decodable { let type: String; let b64: String?; let publicUrl: String? }
+        let body = try? JSONEncoder().encode(Body(story: story))
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let bytes = try await open("api/generate-image", body: body ?? Data(), contentType: "application/json")
+                    for try await text in bytes.lines {
+                        guard let line = try? JSONDecoder().decode(Line.self, from: Data(text.utf8)) else { continue }
+                        switch line.type {
+                        case "partial":
+                            if let png = line.b64.flatMap({ Data(base64Encoded: $0) }) { continuation.yield(.partial(png)) }
+                        case "done":
+                            if let url = line.publicUrl.flatMap(URL.init(string:)) { continuation.yield(.done(url)) } else { continuation.yield(.failed) }
+                        default:
+                            continuation.yield(.failed)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// POSTs and hands back the body as it streams in, with the same token refresh as `send`.
+    private func open(_ path: String, body: Data, contentType: String) async throws -> URLSession.AsyncBytes {
+        var request = URLRequest(url: configuration.origin.appending(path: path))
+        // Rendering can go quiet for a while between previews; the route allows two minutes.
+        request.timeoutInterval = 150
+        request.httpMethod = "POST"
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        var token = try await configuration.idToken(false)
+        for attempt in 0..<2 {
+            if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+            let (bytes, response) = try await session.bytes(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 401, attempt == 0, let fresh = try await configuration.idToken(true), fresh != token {
+                token = fresh
+                continue
+            }
+            if status == 401 { throw APIFailure(code: "unauthenticated", message: "Sign in again.", status: 401) }
+            guard (200..<300).contains(status) else { throw APIFailure.unexpected(status: status) }
+            return bytes
+        }
+        throw APIFailure(code: "unauthenticated", message: "Sign in again.", status: 401)
+    }
+
     private func send<T: Encodable>(_ path: String, json: T) async throws -> Data {
         try await send(path, body: try JSONEncoder().encode(json), contentType: "application/json")
     }

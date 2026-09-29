@@ -3,6 +3,9 @@ package com.resonance.kit.api
 import com.resonance.api.apis.DefaultApi
 import com.resonance.api.models.PublishResponse
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -12,6 +15,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.Base64
+import java.util.concurrent.TimeUnit
 
 /**
  * What the writing screen asks of the server — the twin of iOS's WritingAPI:
@@ -57,6 +62,48 @@ class WritingApi(private val configuration: ApiConfiguration, http: OkHttpClient
             .build()
         return json.decodeFromString(UploadReply.serializer(), post("api/upload", form).decodeToString()).publicUrl
     }
+
+    /** One line of /api/generate-image's progress stream (GenerateImageEvent). */
+    sealed interface IllustrationEvent {
+        /** The model's in-progress pass, a PNG. */
+        class Partial(val png: ByteArray) : IllustrationEvent
+        /** The stored picture. */
+        data class Done(val url: String) : IllustrationEvent
+        /** The server gave up after the stream began (the status is already 200 by then). */
+        data object Failed : IllustrationEvent
+    }
+
+    @Serializable private data class StoryBody(val story: String)
+    @Serializable private data class IllustrationLine(val type: String, val b64: String? = null, val publicUrl: String? = null)
+
+    /**
+     * A doodle-style illustration from the story (/api/generate-image): the
+     * model's previews while it renders, then the stored picture — NDJSON,
+     * read line by line as it arrives. Rendering can go quiet for a while, so
+     * the read timeout is the route's own two minutes.
+     */
+    fun illustrate(story: String): Flow<IllustrationEvent> = flow {
+        val body = json.encodeToString(StoryBody.serializer(), StoryBody(story)).toRequestBody(JSON)
+        val url = configuration.origin.trimEnd('/') + "/api/generate-image"
+        val slow = http.newBuilder().readTimeout(150, TimeUnit.SECONDS).build()
+        slow.newCall(Request.Builder().url(url).post(body).build()).execute().use { r ->
+            if (r.code == 401) throw ApiFailure("unauthenticated", "Sign in again.", 401)
+            if (!r.isSuccessful) throw ApiFailure("unexpected", "HTTP ${r.code}", r.code)
+            val source = r.body?.source() ?: return@flow
+            while (true) {
+                val text = source.readUtf8Line() ?: break
+                if (text.isBlank()) continue
+                val line = runCatching { json.decodeFromString(IllustrationLine.serializer(), text) }.getOrNull() ?: continue
+                emit(
+                    when (line.type) {
+                        "partial" -> IllustrationEvent.Partial(line.b64?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() } ?: continue)
+                        "done" -> line.publicUrl?.let { IllustrationEvent.Done(it) } ?: IllustrationEvent.Failed
+                        else -> IllustrationEvent.Failed
+                    },
+                )
+            }
+        }
+    }.flowOn(Dispatchers.IO)
 
     /** POSTs with the ID token (refreshed once on a 401 by the interceptor). */
     private suspend fun post(path: String, body: RequestBody): ByteArray = withContext(Dispatchers.IO) {

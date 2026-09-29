@@ -100,44 +100,49 @@ private struct IslandView: UIViewRepresentable {
     func updateUIView(_ view: WKWebView, context: Context) {}
 }
 
-/// MarkdownEditor on a phone: the field's hand-drawn frame, the text toolbar
-/// on top (the web's words, not icons — Bold, Italic | H2, H3 | List,
-/// Numbered, Quote | Insert card, Insert image), a wavy rule, then the story.
+/// MarkdownEditor on a phone: the field's hand-drawn frame (seed 17), the
+/// text toolbar on top (the web's words, not icons — Bold, Italic | H2, H3 |
+/// List, Numbered, Quote | Insert card, Insert image) over its wavy bottom
+/// line, then the story.
 struct StoryEditorField: View {
     let bridge: StoryEditorBridge
     var onInsertCard: () -> Void
     var onInsertImage: () -> Void
     var uploadingImage = false
+    /// MarkdownEditor's `seed`; the buttons, rules and wave offset from it.
+    private let seed = 17.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             FlowRow(spacing: 2) {
-                tool(L10n.Write.Editor.bold, on: bridge.active.bold, weight: .bold) { bridge.exec("bold") }
-                tool(L10n.Write.Editor.italic, on: bridge.active.italic, italic: true) { bridge.exec("italic") }
-                rule
-                tool("H2", on: bridge.active.h2) { bridge.exec("h2") }
-                tool("H3", on: bridge.active.h3) { bridge.exec("h3") }
-                rule
-                tool(L10n.Write.Editor.bulletList, on: bridge.active.bulletList) { bridge.exec("bulletList") }
-                tool(L10n.Write.Editor.orderedList, on: bridge.active.orderedList) { bridge.exec("orderedList") }
-                tool(L10n.Write.Editor.quote, on: bridge.active.blockquote) { bridge.exec("blockquote") }
-                rule
-                tool(L10n.Write.Editor.insertCard, icon: .cards, action: onInsertCard)
-                tool(uploadingImage ? L10n.Write.Editor.imageUploading : L10n.Write.Editor.insertImage, icon: .image, action: onInsertImage)
+                tool(L10n.Write.Editor.bold, on: bridge.active.bold, seed: 21) { bridge.exec("bold") }
+                tool(L10n.Write.Editor.italic, on: bridge.active.italic, seed: 28) { bridge.exec("italic") }
+                rule(3)
+                tool("H2", on: bridge.active.h2, seed: 35) { bridge.exec("h2") }
+                tool("H3", on: bridge.active.h3, seed: 42) { bridge.exec("h3") }
+                rule(9)
+                tool(L10n.Write.Editor.bulletList, on: bridge.active.bulletList, seed: 49) { bridge.exec("bulletList") }
+                tool(L10n.Write.Editor.orderedList, on: bridge.active.orderedList, seed: 56) { bridge.exec("orderedList") }
+                tool(L10n.Write.Editor.quote, on: bridge.active.blockquote, seed: 63) { bridge.exec("blockquote") }
+                rule(15)
+                tool(L10n.Write.Editor.insertCard, icon: .cards, seed: 70, action: onInsertCard)
+                tool(L10n.Write.Editor.insertImage, icon: .image, busy: uploadingImage, seed: 77, action: onInsertImage)
                     .disabled(uploadingImage)
             }
+            .padding(.bottom, 4)
+            // toolbarWrap: 10 above and beside, 12 below for the wave.
             .padding(.horizontal, 10)
             .padding(.top, 10)
-            .padding(.bottom, 4)
+            .padding(.bottom, 12)
+            .background { ToolbarWave(seed: seed + 5) }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(L10n.Write.Editor.toolbarLabel)
-            WavyDivider(color: Tokens.fieldBorder, seed: 22, amp: 1.2)
             IslandView(webView: bridge.webView)
                 .frame(height: bridge.height)
                 .accessibilityLabel(L10n.Write.storyLabel)
         }
         .background {
-            let shape = WobRectShape(radius: Double(Tokens.radiusMd), seed: 17)
+            let shape = WobRectShape(radius: Double(Tokens.radiusMd), seed: seed)
             ZStack {
                 RoundedRectangle(cornerRadius: Tokens.radiusMd).fill(Tokens.cream)
                 shape.stroke(bridge.focused ? Tokens.terracotta : Tokens.fieldBorder, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
@@ -145,37 +150,65 @@ struct StoryEditorField: View {
         }
     }
 
-    private var rule: some View {
-        WavyVerticalRule().frame(width: 8, height: 26)
+    /// The toolbar's vertical Divider (amplitude 1.2, 4 either side), as tall as a button.
+    private func rule(_ offset: Double) -> some View {
+        OrganicVerticalRule(seed: seed + offset, amp: 1.2)
+            .frame(height: 27)
+            .padding(.horizontal, 4)
     }
 
-    /// ToolButton: the label on a wobbly wash when on.
-    private func tool(_ label: String, on: Bool = false, weight: UIFont.Weight = .semibold, italic: Bool = false, icon: IconName? = nil,
+    /// ToolButton: 13pt semibold on nothing, or on its wobbly terracotta wash when on.
+    private func tool(_ label: String, on: Bool = false, icon: IconName? = nil, busy: Bool = false, seed: Double,
                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                if let icon { OrganicIcon(icon, size: 15, strokeWidth: Tokens.ink) }
-                Text(label).font(AppFonts.body(14, weight: weight)).italic(italic)
+            HStack(spacing: 5) {
+                if busy {
+                    SketchLoader(size: 15)
+                } else if let icon {
+                    OrganicIcon(icon, size: 15, color: on ? Tokens.terracotta : Tokens.text)
+                }
+                Text(label).font(AppFonts.body(13, weight: .semibold))
             }
             .foregroundStyle(on ? Tokens.terracotta : Tokens.text)
-            .padding(.horizontal, 10)
-            .frame(minHeight: 34)
-            .background {
-                if on { WobRectShape(radius: 10, seed: Double(label.count * 7 + 3), mag: 1).fill(Tokens.terracottaLight.opacity(0.45)) }
-            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background { if on { ToolWashShape(seed: self.seed + seed).fill(Tokens.terracottaLight.opacity(0.7)) } }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ToolButtonStyle())
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
-/// The toolbar's vertical pen rule between groups (the web's vertical Divider).
-private struct WavyVerticalRule: View {
+/// A disabled tool fades (the web's 0.6).
+private struct ToolButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(enabled ? 1 : 0.6)
+    }
+}
+
+/// ToolButton's wash: a soft two-turn pill (R 0.4h, mag 1.4, bow 1.5).
+private nonisolated struct ToolWashShape: Shape {
+    let seed: Double
+    func path(in rect: CGRect) -> Path {
+        let h = Double(rect.height)
+        return WobRectShape(radius: h * 0.4, seed: seed, mag: 1.4, options: WobRectOptions(
+            curve: 1.5, cornerJitter: 2.6, cornerOffset: h * 0.05, segmentsH: .count(2), segmentsV: .count(1)
+        )).path(in: rect)
+    }
+}
+
+/// The toolbar's pen line: AppHeader's construction — ten turns across an
+/// 800×54 box stretched over the toolbar, low in it, edge to edge.
+private struct ToolbarWave: View {
+    let seed: Double
+
     var body: some View {
         Canvas { ctx, size in
-            let path = wavyVertical(Double(size.height), seed: 7, amp: 1, steps: 3).path(offsetX: Double(size.width / 2))
-            ctx.stroke(path, with: .color(Tokens.fieldBorder), style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
+            let line = pointsToBezier(wavyPoints(800, y0: 42 + 12 * 0.35, amp: 2, seed: seed, steps: 10)).path()
+            let fitted = line.applying(CGAffineTransform(scaleX: size.width / 800, y: size.height / 54))
+            ctx.stroke(fitted, with: .color(Tokens.fieldBorderHover.opacity(0.45)), style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
         }
         .accessibilityHidden(true)
     }

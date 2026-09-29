@@ -11,6 +11,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.asImageBitmap
+import com.resonance.design.HandDrawnImage
+import com.resonance.design.OrganicCloseChip
+import com.resonance.design.OrganicVerticalRule
+import com.resonance.design.TagPill
+import com.resonance.design.TagSize
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -100,6 +110,7 @@ fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, o
             // Debug `writeTitle` / `writeStory` extras fill a new card (screen checks; the emulator's keyboard is slow to drive).
             if (BuildConfig.DEBUG) {
                 DebugLaunch.writeTitle?.let { t -> update { copy(title = t) } }
+                DebugLaunch.writeCover?.let { c -> update { copy(imageUrl = c) } }
                 DebugLaunch.writeStory?.let { s ->
                     editor.setMarkdown(s)
                     update { copy(story = s) }
@@ -123,21 +134,18 @@ fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, o
     }
     BackHandler(onBack = leave)
 
-    Column(
+    Box(Modifier.fillMaxSize().cream().statusBarsPadding().imePadding()) { Column(
         Modifier
             .fillMaxSize()
-            .cream()
             // The page scrolls under a cream status bar, not through the clock.
-            .statusBarsPadding()
-            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        Header(model, leave)
+        Header(model)
         OrganicTextField(
             L10n.Write.coreLabel, model.values.title, { t -> model.update { copy(title = t) } },
-            placeholder = L10n.Write.corePlaceholder, seed = 11.0, multiline = true, minLines = 2, display = true, maxLength = WriteModel.TITLE_MAX,
+            placeholder = L10n.Write.corePlaceholder, multiline = true, minLines = 2, display = true, maxLength = WriteModel.TITLE_MAX, curve = 0.8,
         )
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel(L10n.Write.storyLabel)
@@ -145,10 +153,15 @@ fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, o
         }
         Tags(model)
         Cover(model) { coverPicker.launch(images) }
-        Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            OrganicButton(L10n.Write.publish, enabled = model.values.title.isNotBlank()) { publishing = true }
+        // Everything autosaves; these are only about intent — publish it, or step away.
+        FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OrganicButton(L10n.Write.publish) { publishing = true }
             OrganicButton(L10n.Write.saveDraftAndLeave, variant = ButtonVariant.Ghost, onClick = leave)
         }
+    }
+        // The ✕ stays put above the scrolling page, on the title's line (paneClose);
+        // leaving keeps what's written: the draft is saved on the way out.
+        OrganicCloseChip(L10n.Write.closeEditor, Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 20.dp), onClick = leave)
     }
 
     if (pickingCard) InsertCardModal(session, onPick = { card ->
@@ -162,14 +175,11 @@ fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, o
     }) { publishing = false }
 }
 
+/** PageTitle with the save state under it (clear of the pinned ✕). */
 @Composable
-private fun Header(model: WriteModel, leave: () -> Unit) {
+private fun Header(model: WriteModel) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            BasicText(L10n.Write.title, style = AppFonts.heading(28f, lineHeight = 1.2f), modifier = Modifier.weight(1f).semantics { heading() })
-            // Leaving keeps what's written: the draft is saved on the way out.
-            OrganicButton(L10n.Write.closeEditor, variant = ButtonVariant.Ghost, icon = IconName.Close, iconOnly = true, onClick = leave)
-        }
+        BasicText(L10n.Write.title, style = AppFonts.heading(28f, lineHeight = 1.2f), modifier = Modifier.padding(end = 48.dp).semantics { heading() })
         BasicText(model.saveStatus, style = AppFonts.body(14f, color = Tokens.TextMuted))
     }
 }
@@ -180,118 +190,74 @@ private fun SectionLabel(text: String) {
 }
 
 /**
- * Tags: the chosen ones (tap to remove), the AI pill while nothing is being
- * typed, and the tag input with its Add.
+ * Tags: the chosen ones (lg pills with their ×), the AI pill while nothing is
+ * being typed, and the two-segment tag bar.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Tags(model: WriteModel) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionLabel(L10n.Write.tagsLabel)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            model.values.tags.forEach { tag ->
-                val seed = (tag.sumOf { it.code } % 97).toDouble()
-                Row(
-                    Modifier
-                        .drawWithCache {
-                            val o = WobRectShape(14.0, seed).createOutline(size, layoutDirection, this)
-                            val s = Stroke(Tokens.InkLight.toPx())
-                            onDrawBehind {
-                                drawOutline(o, Tokens.TerracottaLight)
-                                drawOutline(o, Tokens.GhostStroke.copy(alpha = 0.5f), style = s)
-                            }
-                        }
-                        .plainClickable(role = Role.Button, onClickLabel = L10n.Write.mediaRemove) { model.removeTag(tag) }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    BasicText(tag, style = AppFonts.body(14f, 600, lineHeight = 1.3f))
-                    OrganicIcon(IconName.Close, size = 12.dp, strokeWidth = Tokens.Ink.value)
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                model.values.tags.forEach { tag -> TagPill(tag, Tokens.TerracottaLight, size = TagSize.Lg) { model.removeTag(tag) } }
+                // The AI pill steps aside once the user starts typing their own tag.
+                if (model.tagDraft.isBlank()) {
+                    AddTagButton(if (model.suggestingTags) L10n.Write.tagsSuggesting else L10n.Write.tagsSuggest) { model.suggestTags() }
                 }
             }
-            if (model.tagDraft.isBlank()) {
-                OrganicButton(
-                    if (model.suggestingTags) L10n.Write.tagsSuggesting else L10n.Write.tagsSuggest,
-                    variant = ButtonVariant.Ghost, icon = IconName.Plus, small = true, enabled = !model.suggestingTags,
-                ) { model.suggestTags() }
-            }
+            TagInputBar(model.tagDraft, { model.tagDraft = it }, L10n.Write.tagsPlaceholder, L10n.Write.tagsAdd) { model.addTag() }
+            model.tagError?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(
-                Modifier
-                    .weight(1f)
-                    .drawWithCache {
-                        val o = WobRectShape(Tokens.RadiusMd.toDouble(), 19.0).createOutline(size, layoutDirection, this)
-                        val s = Stroke(Tokens.Ink.toPx())
-                        onDrawBehind {
-                            drawOutline(o, Tokens.Cream)
-                            drawOutline(o, Tokens.FieldBorder, style = s)
-                        }
-                    }
-                    .padding(horizontal = Tokens.FieldPadX.dp, vertical = Tokens.FieldPadY.dp),
-            ) {
-                val text = AppFonts.body(15f, lineHeight = 1.6f)
-                if (model.tagDraft.isEmpty()) BasicText(L10n.Write.tagsPlaceholder, style = text.copy(color = Tokens.Placeholder))
-                BasicTextField(
-                    model.tagDraft, { model.tagDraft = it },
-                    textStyle = text,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { model.addTag() }),
-                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = L10n.Write.tagsLabel },
-                )
-            }
-            OrganicButton(L10n.Write.tagsAdd, variant = ButtonVariant.Outline, icon = IconName.Plus, small = true, enabled = model.tagDraft.isNotBlank()) { model.addTag() }
-        }
-        model.tagError?.let { BasicText(it, style = AppFonts.body(13f, color = Mixes.Danger)) }
     }
 }
 
 /**
- * The cover: the picked photo in its hand-drawn frame (tap × to remove), or
- * the dashed drop surface that opens the photo picker.
+ * The cover: the picked or drawn picture in its frame (✕ removes it); an
+ * illustration's preview, blurred, while it renders; the loader while a photo
+ * goes up; otherwise the split surface — upload on the left, illustrate from
+ * the story on the right, a pen rule between.
  */
 @Composable
 private fun Cover(model: WriteModel, pick: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionLabel(L10n.Write.mediaLabel)
         val url = model.values.imageUrl
-        if (url != null) {
-            Box(Modifier.fillMaxWidth().aspectRatio(1 / 0.56f)) {
-                OrganicImage(url, seed = 31.0, radius = 16.0, modifier = Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(Tokens.CreamDark)) }
-                Box(Modifier.align(Alignment.TopEnd).padding(8.dp).background(Tokens.Cream.copy(alpha = 0.9f), CircleShape)) {
-                    OrganicButton(L10n.Write.mediaRemove, variant = ButtonVariant.Ghost, icon = IconName.Close, iconOnly = true) { model.removeCover() }
+        val preview = model.partialPreview
+        when {
+            url != null -> HandDrawnImage(url = url, removeLabel = L10n.Write.mediaRemove, onRemove = model::removeCover)
+            preview != null -> HandDrawnImage(bitmap = preview.asImageBitmap(), blur = 14.dp, wash = Tokens.Cream.copy(alpha = 0.45f)) {
+                Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SketchLoader(64.dp)
+                    BasicText(L10n.Write.mediaGenerating, style = AppFonts.body(14f, 600))
                 }
             }
-        } else {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 150.dp)
-                    .drawBehind {
-                        val o = WobRectShape(16.0, 31.0).createOutline(size, layoutDirection, this)
-                        drawOutline(o, Tokens.FieldBorder, style = Stroke(
-                            Tokens.Ink.toPx(), cap = StrokeCap.Round,
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(7.dp.toPx(), 6.dp.toPx())),
-                        ))
-                    }
-                    .plainClickable(role = Role.Button, onClickLabel = L10n.Write.mediaPlaceholder) { if (!model.uploadingCover) pick() }
-                    .padding(16.dp),
+            model.mediaBusy -> Column(
+                Modifier.fillMaxWidth().mediaFrame(busy = true).padding(vertical = 22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (model.uploadingCover) {
-                    SketchLoader(56.dp)
-                    BasicText(L10n.Write.mediaUploading, style = AppFonts.body(14f, 600, color = Tokens.TextMuted))
-                } else {
-                    OrganicIcon(IconName.Image, size = 26.dp, color = Tokens.Terracotta)
-                    BasicText(L10n.Write.mediaPlaceholder, style = AppFonts.body(14f, 600).copy(textAlign = TextAlign.Center))
-                    BasicText(L10n.Write.mediaHint, style = AppFonts.body(12f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center))
-                }
+                SketchLoader(64.dp)
+                BasicText(if (model.generating) L10n.Write.mediaGenerating else L10n.Write.mediaUploading, style = AppFonts.body(14f, 600, color = Tokens.TextMuted))
+            }
+            else -> Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).mediaFrame()) {
+                MediaHalf(
+                    IconName.Image, L10n.Write.mediaPlaceholder, L10n.Write.mediaHint,
+                    Modifier.weight(1f).fillMaxHeight().plainClickable(role = Role.Button, onClick = pick),
+                )
+                OrganicVerticalRule(lineWidth = Tokens.Ink)
+                MediaHalf(
+                    IconName.Sparkle, L10n.Write.mediaGenerate,
+                    if (model.canGenerate) L10n.Write.mediaGenerateHint else L10n.Write.mediaGenerateNeedStory,
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .alpha(if (model.canGenerate) 1f else 0.55f)
+                        .plainClickable(role = Role.Button) { model.generateCover() },
+                )
             }
         }
-        model.mediaError?.let { BasicText(it, style = AppFonts.body(13f, color = Mixes.Danger)) }
+        model.mediaError?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
     }
 }
 

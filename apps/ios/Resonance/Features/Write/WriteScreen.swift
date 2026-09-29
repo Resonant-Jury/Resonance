@@ -31,9 +31,10 @@ struct WriteScreen: View {
             if model == nil {
                 let model = WriteModel(drafts: session.drafts, writing: session.writing, referenceCardId: writer.request?.referenceCardId)
                 #if DEBUG
-                // `-writeTitle "…" -writeStory "…"` fill a new card (screen checks; the simulator can't type into it).
+                // `-writeTitle "…" -writeStory "…" -writeCover <url>` fill a new card (screen checks; the simulator can't type into it).
                 let defaults = UserDefaults.standard
                 if let title = defaults.string(forKey: "writeTitle") { model.values.title = title }
+                if let cover = defaults.string(forKey: "writeCover").flatMap(URL.init(string:)) { model.values.imageURL = cover }
                 if let story = defaults.string(forKey: "writeStory") {
                     model.editor.setMarkdown(story)
                     model.values.story = story
@@ -50,7 +51,7 @@ struct WriteScreen: View {
             VStack(alignment: .leading, spacing: 28) {
                 header(model)
                 OrganicTextArea(L10n.Write.coreLabel, text: $model.values.title, placeholder: L10n.Write.corePlaceholder,
-                                maxLength: WriteModel.titleMax, seed: 11, display: true)
+                                maxLength: WriteModel.titleMax, display: true, curve: 0.8)
                 VStack(alignment: .leading, spacing: 10) {
                     label(L10n.Write.storyLabel)
                     StoryEditorField(bridge: model.editor, onInsertCard: { pickingCard = true },
@@ -65,6 +66,18 @@ struct WriteScreen: View {
             .padding(.bottom, 48)
         }
         .scrollDismissesKeyboard(.interactively)
+        // The ✕ stays put above the scrolling page, on the title's line (paneClose).
+        // Leaving keeps what's written: the draft is saved on the way out.
+        .overlay(alignment: .topTrailing) {
+            OrganicCloseChip(label: L10n.Write.closeEditor) {
+                Task {
+                    await model.saveNow()
+                    dismiss()
+                }
+            }
+            .padding(.top, 12)
+            .padding(.trailing, 20)
+        }
         // The page scrolls under a cream status bar, not through the clock
         // (a background reaches into the safe area its view touches).
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -96,22 +109,14 @@ struct WriteScreen: View {
         }
     }
 
+    /// PageTitle with the save state under it (clear of the pinned ✕).
     private func header(_ model: WriteModel) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center) {
-                Text(L10n.Write.title)
-                    .font(AppFonts.heading(28))
-                    .foregroundStyle(Tokens.text)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                // Leaving keeps what's written: the draft is saved on the way out.
-                OrganicButton(icon: .close, label: L10n.Write.closeEditor) {
-                    Task {
-                        await model.saveNow()
-                        dismiss()
-                    }
-                }
-            }
+            Text(L10n.Write.title)
+                .font(AppFonts.heading(28))
+                .foregroundStyle(Tokens.text)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.trailing, 48)
             Text(model.saveStatus)
                 .font(AppFonts.body(14))
                 .foregroundStyle(Tokens.textMuted)
@@ -126,111 +131,85 @@ struct WriteScreen: View {
             .foregroundStyle(Tokens.textMuted)
     }
 
-    /// Tags: the chosen ones (tap to remove), the AI pill while nothing is
-    /// being typed, and the tag input with its Add.
+    /// Tags: the chosen ones (lg pills with their ×), the AI pill while nothing
+    /// is being typed, and the two-segment tag bar.
     private func tags(_ model: WriteModel) -> some View {
         @Bindable var model = model
         return VStack(alignment: .leading, spacing: 10) {
             label(L10n.Write.tagsLabel)
-            FlowRow(spacing: 8) {
-                ForEach(model.values.tags, id: \.self) { tag in
-                    Button { model.removeTag(tag) } label: {
-                        HStack(spacing: 4) {
-                            Text(tag)
-                            OrganicIcon(.close, size: 12, strokeWidth: Tokens.ink)
-                        }
-                        .font(AppFonts.body(14, weight: .semibold))
-                        .foregroundStyle(Tokens.text)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background {
-                            let shape = WobRectShape(radius: 14, seed: Double(tag.unicodeScalars.reduce(0) { $0 + Int($1.value) } % 97))
-                            shape.fill(Tokens.terracottaLight)
-                            shape.stroke(Tokens.ghostStroke.opacity(0.5), lineWidth: Tokens.inkLight)
+            VStack(alignment: .leading, spacing: 12) {
+                FlowRow(spacing: 10) {
+                    ForEach(model.values.tags, id: \.self) { tag in
+                        TagPill(tag, fill: Tokens.terracottaLight, size: .lg) { model.removeTag(tag) }
+                    }
+                    // The AI pill steps aside once the user starts typing their own tag.
+                    if model.tagDraft.trimmingCharacters(in: .whitespaces).isEmpty {
+                        AddTagButton(label: model.suggestingTags ? L10n.Write.tagsSuggesting : L10n.Write.tagsSuggest) {
+                            Task { await model.suggestTags() }
                         }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(tag)
-                    .accessibilityHint(L10n.Write.mediaRemove)
                 }
-                if model.tagDraft.trimmingCharacters(in: .whitespaces).isEmpty {
-                    OrganicButton(model.suggestingTags ? L10n.Write.tagsSuggesting : L10n.Write.tagsSuggest, icon: .plus,
-                                  variant: .ghost, size: .sm) {
-                        Task { await model.suggestTags() }
-                    }
-                    .disabled(model.suggestingTags)
+                TagInputBar(text: $model.tagDraft, placeholder: L10n.Write.tagsPlaceholder, addLabel: L10n.Write.tagsAdd) { model.addTag() }
+                if let error = model.tagError {
+                    Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta)
                 }
-            }
-            HStack(spacing: 10) {
-                TextField(text: $model.tagDraft, prompt: Text(L10n.Write.tagsPlaceholder).italic().foregroundStyle(Tokens.placeholder)) {
-                    Text(L10n.Write.tagsLabel)
-                }
-                .font(AppFonts.body(15))
-                .submitLabel(.done)
-                .onSubmit { model.addTag() }
-                .padding(.horizontal, Tokens.fieldPadX)
-                .padding(.vertical, Tokens.fieldPadY)
-                .background {
-                    let shape = WobRectShape(radius: Tokens.radiusMd, seed: 19)
-                    shape.fill(Tokens.cream)
-                    shape.stroke(Tokens.fieldBorder, lineWidth: Tokens.ink)
-                }
-                OrganicButton(L10n.Write.tagsAdd, icon: .plus, variant: .outline, size: .sm) { model.addTag() }
-                    .disabled(model.tagDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            if let error = model.tagError {
-                Text(error).font(AppFonts.body(13)).foregroundStyle(Tokens.danger)
             }
         }
     }
 
-    /// The cover: the picked photo in its hand-drawn frame (tap × to remove),
-    /// or the dashed drop surface that opens the photo library.
+    /// The cover: the picked or drawn picture in its frame (✕ removes it); an
+    /// illustration's preview, blurred, while it renders; the loader while a
+    /// photo goes up; otherwise the split surface — upload on the left,
+    /// illustrate from the story on the right, a pen rule between.
     private func cover(_ model: WriteModel) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             label(L10n.Write.mediaLabel)
             if let url = model.values.imageURL {
-                OrganicImage(url: url, seed: 31, radius: 16) { Tokens.creamDark }
-                    .aspectRatio(1 / 0.56, contentMode: .fit)
-                    .overlay(alignment: .topTrailing) {
-                        OrganicButton(icon: .close, label: L10n.Write.mediaRemove, variant: .ghost) { model.removeCover() }
-                            .background(Tokens.cream.opacity(0.9), in: Circle())
-                            .padding(8)
+                HandDrawnImage(.url(url), removeLabel: L10n.Write.mediaRemove) { model.removeCover() }
+            } else if let preview = model.partialPreview {
+                HandDrawnImage(.image(preview), blur: 14, wash: Tokens.cream.opacity(0.45)) {
+                    VStack(spacing: 6) {
+                        SketchLoader(size: 64)
+                        Text(L10n.Write.mediaGenerating).font(AppFonts.body(14, weight: .semibold)).foregroundStyle(Tokens.text)
                     }
-            } else {
-                PhotosPicker(selection: $coverItem, matching: .images) {
-                    VStack(spacing: 8) {
-                        if model.uploadingCover {
-                            SketchLoader(size: 56)
-                            Text(L10n.Write.mediaUploading).font(AppFonts.body(14, weight: .semibold)).foregroundStyle(Tokens.textMuted)
-                        } else {
-                            OrganicIcon(.image, size: 26, color: Tokens.terracotta)
-                            Text(L10n.Write.mediaPlaceholder).font(AppFonts.body(14, weight: .semibold)).foregroundStyle(Tokens.text)
-                            Text(L10n.Write.mediaHint).font(AppFonts.body(12)).foregroundStyle(Tokens.textMuted)
-                        }
-                    }
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, minHeight: 150)
-                    .padding(16)
-                    .background {
-                        WobRectShape(radius: 16, seed: 31)
-                            .stroke(Tokens.fieldBorder, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, dash: [7, 6]))
-                    }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .disabled(model.uploadingCover)
+            } else if model.mediaBusy {
+                VStack(spacing: 6) {
+                    SketchLoader(size: 64)
+                    Text(model.generating ? L10n.Write.mediaGenerating : L10n.Write.mediaUploading)
+                        .font(AppFonts.body(14, weight: .semibold)).foregroundStyle(Tokens.textMuted)
+                }
+                .padding(.vertical, 22)
+                .frame(maxWidth: .infinity)
+                .modifier(MediaFrame(busy: true))
+            } else {
+                HStack(spacing: 0) {
+                    PhotosPicker(selection: $coverItem, matching: .images) {
+                        MediaHalf(icon: .image, title: L10n.Write.mediaPlaceholder, hint: L10n.Write.mediaHint)
+                    }
+                    .buttonStyle(.plain)
+                    OrganicVerticalRule(lineWidth: Tokens.ink)
+                    Button { Task { await model.generateCover() } } label: {
+                        MediaHalf(icon: .sparkle, title: L10n.Write.mediaGenerate,
+                                  hint: model.canGenerate ? L10n.Write.mediaGenerateHint : L10n.Write.mediaGenerateNeedStory)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!model.canGenerate)
+                    .opacity(model.canGenerate ? 1 : 0.55)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .modifier(MediaFrame())
             }
             if let error = model.mediaError {
-                Text(error).font(AppFonts.body(13)).foregroundStyle(Tokens.danger)
+                Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta).padding(.top, -4)
             }
         }
     }
 
+    /// Everything autosaves; these are only about intent — publish it, or step away.
     private func actions(_ model: WriteModel) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FlowRow(spacing: 12) {
             OrganicButton(L10n.Write.publish) { publishing = true }
-                .disabled(model.values.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             OrganicButton(L10n.Write.saveDraftAndLeave, variant: .ghost) {
                 Task {
                     await model.saveNow()
@@ -238,7 +217,7 @@ struct WriteScreen: View {
                 }
             }
         }
-        .padding(.top, 4)
+        .padding(.top, 6)
     }
 
     private static func load(_ item: PhotosPickerItem) async -> UIImage? {

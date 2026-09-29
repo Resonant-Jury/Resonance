@@ -3,6 +3,7 @@ package com.resonance.kit
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.WritingApi
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -14,6 +15,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -66,6 +68,26 @@ class WritingApiTest {
         val sent = Json.parseToJsonElement(retried.body.readUtf8()).jsonObject
         assertEquals("一場雨後的散步", sent["thoughtCore"]!!.jsonPrimitive.content)
         assertEquals(listOf("日常"), sent["tags"]!!.jsonArray.map { it.jsonPrimitive.content })
+    }
+
+    @Test fun streamsTheIllustrationsPreviewsThenItsPicture() = runBlocking {
+        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)
+        val b64 = java.util.Base64.getEncoder().encodeToString(png)
+        server.enqueue(MockResponse().setBody(
+            "{\"type\":\"partial\",\"index\":0,\"b64\":\"$b64\"}\n" +
+                "{\"type\":\"done\",\"publicUrl\":\"https://img.test/u/alice/generated.avif\",\"key\":\"k\"}\n",
+        ))
+        val events = api().illustrate("雨停的時候…").toList()
+        assertContentEquals(png, (events[0] as WritingApi.IllustrationEvent.Partial).png)
+        assertEquals(WritingApi.IllustrationEvent.Done("https://img.test/u/alice/generated.avif"), events[1])
+        val request = server.takeRequest()
+        assertEquals("/api/generate-image", request.path)
+        assertEquals("雨停的時候…", Json.parseToJsonElement(request.body.readUtf8()).jsonObject["story"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun aFailureAfterTheStreamBeganIsAnEvent() = runBlocking {
+        server.enqueue(MockResponse().setBody("{\"type\":\"error\"}\n"))
+        assertEquals(listOf<WritingApi.IllustrationEvent>(WritingApi.IllustrationEvent.Failed), api().illustrate("s").toList())
     }
 
     @Test fun anInsightMayBeMissing() = runBlocking {

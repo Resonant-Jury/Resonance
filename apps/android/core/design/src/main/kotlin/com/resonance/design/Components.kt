@@ -46,6 +46,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
@@ -113,27 +114,51 @@ fun Modifier.grainOverlay(opacity: Float): Modifier = drawWithCache {
 fun Context.prefersReducedMotion(): Boolean =
     Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
+/** TagPill.tsx's sizes: md on cards, lg in the writer. */
+enum class TagSize { Md, Lg }
+
 /**
- * The web's TagPill (md): small caps — 11px/600, uppercase, 0.04em tracking,
- * padding 4×14 — on an auto-wobbled pill of the given fill with a faint ink outline.
+ * The web's TagPill: small caps — md 11px/600 at 0.04em, padding 4×14; lg
+ * 13px at 0.05em, 7×18 — on an auto-wobbled pill of the given fill with a
+ * faint ink outline. `onRemove` adds its hand-drawn × (the writer's tags).
  */
 @Composable
-fun TagPill(text: String, fill: Color = Tokens.Yellow, seed: Double? = null) {
+fun TagPill(text: String, fill: Color = Tokens.Yellow, seed: Double? = null, size: TagSize = TagSize.Md, onRemove: (() -> Unit)? = null) {
     val s = seed ?: autoSeed(text)
-    BasicText(
-        text.uppercase(),
-        style = AppFonts.body(11f, 600, lineHeight = 1.3f).copy(letterSpacing = 0.04.em),
-        modifier = Modifier
+    val lg = size == TagSize.Lg
+    Row(
+        Modifier
             .drawWithCache {
-                val o = WobRectShape(size.height / density / 2.0, s).createOutline(size, layoutDirection, this)
+                val o = WobRectShape(this.size.height / density / 2.0, s).createOutline(this.size, layoutDirection, this)
                 val stroke = Stroke(Tokens.Ink.toPx())
                 onDrawBehind {
                     drawOutline(o, fill)
                     drawOutline(o, Color(0.25f, 0.19f, 0.13f, 0.45f), style = stroke)
                 }
             }
-            .padding(horizontal = 14.dp, vertical = 4.dp),
-    )
+            .padding(horizontal = if (lg) 18.dp else 14.dp, vertical = if (lg) 7.dp else 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        BasicText(
+            text.uppercase(),
+            style = AppFonts.body(if (lg) 13f else 11f, 600, lineHeight = 1.3f).copy(letterSpacing = if (lg) 0.05.em else 0.04.em),
+        )
+        if (onRemove != null) Canvas(
+            Modifier
+                .padding(start = 2.dp)
+                .size(10.dp)
+                .alpha(0.55f)
+                .plainClickable(role = Role.Button, onClickLabel = "Remove tag", onClick = onRemove),
+        ) {
+            val k = this.size.width / 10f
+            val x = Path().apply {
+                moveTo(1.6f * k, 1.8f * k); cubicTo(3f * k, 3f * k, 5.2f * k, 5.2f * k, 8.2f * k, 8.4f * k)
+                moveTo(8.2f * k, 1.8f * k); cubicTo(7f * k, 3f * k, 4.8f * k, 5.2f * k, 1.6f * k, 8.4f * k)
+            }
+            drawPath(x, Tokens.Text, style = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round))
+        }
+    }
 }
 
 /** TagPill's automatic seed: a hash of the label, so a tag always wobbles the same. */
@@ -422,16 +447,21 @@ fun OrganicTextField(
     enabled: Boolean = true,
     display: Boolean = false,
     maxLength: Int? = null,
+    /** A set bow (the writer's title passes 0.8); null keeps the size's own. */
+    curve: Double? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val text = if (display) AppFonts.heading(22f, lineHeight = 1.35f) else AppFonts.body(15f, lineHeight = 1.6f)
+    // globals.css: every placeholder is the body face, italic, at the field's size and weight.
+    val hint = AppFonts.oblique(AppFonts.body(if (display) 22f else 15f, if (display) 700 else 400, lineHeight = if (display) 1.35f else 1.6f, color = Tokens.Placeholder))
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         BasicText(label.uppercase(), style = AppFonts.body(Tokens.LabelSize, 600, lineHeight = 1.3f, color = Tokens.TextMuted).copy(letterSpacing = 0.06.em))
         Box(
             Modifier
                 .fillMaxWidth()
                 .drawWithCache {
-                    val o = WobRectShape(Tokens.RadiusMd.toDouble(), seed).createOutline(size, layoutDirection, this)
+                    val shape = curve?.let { AutoWobRectShape(Tokens.RadiusMd.toDouble(), seed, it) } ?: WobRectShape(Tokens.RadiusMd.toDouble(), seed)
+                    val o = shape.createOutline(size, layoutDirection, this)
                     val s = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                     val r = CornerRadius(Tokens.RadiusMd.dp.toPx())
                     onDrawBehind {
@@ -442,7 +472,7 @@ fun OrganicTextField(
                 }
                 .padding(horizontal = Tokens.FieldPadX.dp, vertical = Tokens.FieldPadY.dp),
         ) {
-            if (value.isEmpty()) BasicText(placeholder, style = text.copy(color = Tokens.Placeholder))
+            if (value.isEmpty()) BasicText(placeholder, style = hint)
             BasicTextField(
                 value, { onValueChange(if (maxLength != null) it.take(maxLength) else it) },
                 textStyle = text,

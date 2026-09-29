@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
  *   --ez emulator true             use the local Firebase emulators + dev server
  *   --es email … --es password …   sign that seeded account in (emulator only)
  *   --es route /card/<slug>        open that page
- *   --es writeTitle … --es writeStory …   a new card starts with them
+ *   --es writeTitle … --es writeStory … --es writeCover <url>   a new card starts with them
  */
 class MainActivity : ComponentActivity() {
     private val incomingRoute = mutableStateOf<String?>(null)
@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
         if (BuildConfig.DEBUG) {
             DebugLaunch.writeTitle = intent.getStringExtra("writeTitle")
             DebugLaunch.writeStory = intent.getStringExtra("writeStory")
+            DebugLaunch.writeCover = intent.getStringExtra("writeCover")
         }
         incomingRoute.value = routeFrom(intent)
         setContent { ResonanceRoot(session, incomingRoute) }
@@ -56,4 +57,5 @@ class MainActivity : ComponentActivity() {
 object DebugLaunch {
     var writeTitle: String? = null
     var writeStory: String? = null
+    var writeCover: String? = null
 }

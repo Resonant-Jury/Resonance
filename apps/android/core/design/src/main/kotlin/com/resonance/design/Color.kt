@@ -92,6 +92,9 @@ object Mixes {
     val Danger = OklchColor.parse("oklch(58% 0.16 25)") ?: Tokens.Terracotta
     /** OrganicButton outline's pen: color-mix(terracotta, black 15%) — darker than its label. */
     val TerracottaOutline = OklchColor.parse("oklch(52.7% 0.119 45)") ?: Tokens.Terracotta
+    /** HandDrawnImage's ✕ chip: a dark translucent pebble with a pale rim. */
+    val ImageRemoveFill = OklchColor.parse("oklch(30% 0.02 70 / 0.7)") ?: Tokens.Text
+    val ImageRemoveStroke = OklchColor.parse("oklch(96% 0.02 75 / 0.75)") ?: Tokens.Cream
     /** HandDrawnAvatar's rim, oklch(36% 0.06 60 / 0.55). */
     val AvatarRim = OklchColor.parse("oklch(36% 0.06 60 / 0.55)") ?: Tokens.GhostStroke
     /** OrganicMenu's destructive-row wash: color-mix(yellow 25%, cream); 45% while pressed. */

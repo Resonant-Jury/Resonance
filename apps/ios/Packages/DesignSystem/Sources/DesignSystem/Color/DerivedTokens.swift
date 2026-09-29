@@ -17,6 +17,9 @@ extension Tokens {
     public nonisolated static let avatarStroke = oklch(0.36, 0.06, 60, alpha: 0.55)
     /// TagPill's outline.
     public nonisolated static let tagStroke = oklch(0.32, 0.05, 60, alpha: 0.45)
+    /// HandDrawnImage's ✕ chip: a dark translucent pebble with a pale rim.
+    public nonisolated static let imageRemoveFill = oklch(0.30, 0.02, 70, alpha: 0.7)
+    public nonisolated static let imageRemoveStroke = oklch(0.96, 0.02, 75, alpha: 0.75)
 
     nonisolated static func oklch(_ L: Double, _ C: Double, _ H: Double, alpha: Double = 1) -> Color {
         OKLCHColor.color(L, C, H, alpha: alpha)

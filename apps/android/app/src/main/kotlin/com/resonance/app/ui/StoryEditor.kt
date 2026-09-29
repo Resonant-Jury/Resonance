@@ -29,6 +29,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Matrix
+import com.resonance.design.OrganicVerticalRule
+import com.resonance.design.SketchLoader
+import com.resonance.geometry.SegValue
+import com.resonance.geometry.WobRectOptions
+import com.resonance.geometry.pointsToBezier
+import com.resonance.geometry.wavyPoints
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.StrokeCap
@@ -165,9 +173,10 @@ class StoryEditorBridge(context: Context, placeholder: String) {
 }
 
 /**
- * MarkdownEditor on a phone: the field's hand-drawn frame, the text toolbar
- * on top (the web's words, not icons — Bold, Italic | H2, H3 | List,
- * Numbered, Quote | Insert card, Insert image), a wavy rule, then the story.
+ * MarkdownEditor on a phone: the field's hand-drawn frame (seed 17), the text
+ * toolbar on top (the web's words, not icons — Bold, Italic | H2, H3 | List,
+ * Numbered, Quote | Insert card, Insert image) over its wavy bottom line,
+ * then the story.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -176,7 +185,7 @@ fun StoryEditorField(bridge: StoryEditorBridge, onInsertCard: () -> Unit, onInse
         Modifier
             .fillMaxWidth()
             .drawWithCache {
-                val o = WobRectShape(Tokens.RadiusMd.toDouble(), 17.0).createOutline(size, layoutDirection, this)
+                val o = WobRectShape(Tokens.RadiusMd.toDouble(), EDITOR_SEED).createOutline(size, layoutDirection, this)
                 val s = Stroke(Tokens.Ink.toPx(), join = StrokeJoin.Round)
                 val r = CornerRadius(Tokens.RadiusMd.dp.toPx())
                 onDrawBehind {
@@ -187,27 +196,29 @@ fun StoryEditorField(bridge: StoryEditorBridge, onInsertCard: () -> Unit, onInse
     ) {
         FlowRow(
             Modifier
-                .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 4.dp)
+                .fillMaxWidth()
+                .toolbarWave(EDITOR_SEED + 5)
+                // toolbarWrap: 10 above and beside, 12 below for the wave; the toolbar keeps 4 of its own.
+                .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp)
                 .semantics { contentDescription = L10n.Write.Editor.toolbarLabel },
             horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             val a = bridge.active
-            Tool(L10n.Write.Editor.bold, a.bold, weight = 700) { bridge.exec("bold") }
-            Tool(L10n.Write.Editor.italic, a.italic, italic = true) { bridge.exec("italic") }
-            ToolRule()
-            Tool("H2", a.h2) { bridge.exec("h2") }
-            Tool("H3", a.h3) { bridge.exec("h3") }
-            ToolRule()
-            Tool(L10n.Write.Editor.bulletList, a.bulletList) { bridge.exec("bulletList") }
-            Tool(L10n.Write.Editor.orderedList, a.orderedList) { bridge.exec("orderedList") }
-            Tool(L10n.Write.Editor.quote, a.blockquote) { bridge.exec("blockquote") }
-            ToolRule()
-            Tool(L10n.Write.Editor.insertCard, icon = IconName.Cards, onClick = onInsertCard)
-            Tool(if (uploadingImage) L10n.Write.Editor.imageUploading else L10n.Write.Editor.insertImage, icon = IconName.Image,
-                enabled = !uploadingImage, onClick = onInsertImage)
+            Tool(L10n.Write.Editor.bold, a.bold, seed = 21.0) { bridge.exec("bold") }
+            Tool(L10n.Write.Editor.italic, a.italic, seed = 28.0) { bridge.exec("italic") }
+            ToolRule(3.0)
+            Tool("H2", a.h2, seed = 35.0) { bridge.exec("h2") }
+            Tool("H3", a.h3, seed = 42.0) { bridge.exec("h3") }
+            ToolRule(9.0)
+            Tool(L10n.Write.Editor.bulletList, a.bulletList, seed = 49.0) { bridge.exec("bulletList") }
+            Tool(L10n.Write.Editor.orderedList, a.orderedList, seed = 56.0) { bridge.exec("orderedList") }
+            Tool(L10n.Write.Editor.quote, a.blockquote, seed = 63.0) { bridge.exec("blockquote") }
+            ToolRule(15.0)
+            Tool(L10n.Write.Editor.insertCard, icon = IconName.Cards, seed = 70.0, onClick = onInsertCard)
+            Tool(L10n.Write.Editor.insertImage, icon = IconName.Image, busy = uploadingImage, seed = 77.0, enabled = !uploadingImage, onClick = onInsertImage)
         }
-        WavyDivider(color = Tokens.FieldBorder, seed = 22.0, amp = 1.2)
         AndroidView(
             factory = { bridge.webView },
             modifier = Modifier.fillMaxWidth().height(bridge.height.dp).semantics { contentDescription = L10n.Write.storyLabel },
@@ -215,45 +226,55 @@ fun StoryEditorField(bridge: StoryEditorBridge, onInsertCard: () -> Unit, onInse
     }
 }
 
-/** ToolButton: the label on a wobbly wash when on. */
+/** MarkdownEditor's `seed`; the buttons, rules and wave offset from it. */
+private const val EDITOR_SEED = 17.0
+
+/** ToolButton: 13sp semibold on nothing, or on its wobbly terracotta wash when on; a disabled tool fades (0.6). */
 @Composable
 private fun Tool(
     label: String,
     on: Boolean = false,
-    weight: Int = 600,
-    italic: Boolean = false,
     icon: IconName? = null,
+    busy: Boolean = false,
+    seed: Double,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val color = if (on) Tokens.Terracotta else Tokens.Text
     Row(
         Modifier
-            .heightIn(min = 34.dp)
-            .drawBehind {
-                if (on) drawOutline(
-                    WobRectShape(10.0, (label.length * 7 + 3).toDouble(), mag = 1.0).createOutline(size, layoutDirection, this),
-                    Tokens.TerracottaLight.copy(alpha = 0.45f),
-                )
+            .alpha(if (enabled) 1f else 0.6f)
+            .drawWithCache {
+                val h = (size.height / density).toDouble()
+                // A soft two-turn pill (R 0.4h, mag 1.4, bow 1.5).
+                val o = WobRectShape(h * 0.4, EDITOR_SEED + seed, mag = 1.4, options = WobRectOptions(
+                    curve = 1.5, cornerJitter = 2.6, cornerOffset = h * 0.05, segmentsH = SegValue.Count(2.0), segmentsV = SegValue.Count(1.0),
+                )).createOutline(size, layoutDirection, this)
+                onDrawBehind { if (on) drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.7f)) }
             }
             .plainClickable(role = Role.Button) { if (enabled) onClick() }
             .semantics { selected = on }
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = 9.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        if (icon != null) OrganicIcon(icon, size = 15.dp, color = color, strokeWidth = Tokens.Ink.value)
-        BasicText(label, style = AppFonts.body(14f, weight, lineHeight = 1.3f, color = color).copy(fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal))
+        if (busy) SketchLoader(15.dp) else if (icon != null) OrganicIcon(icon, size = 15.dp, color = color)
+        BasicText(label, style = AppFonts.body(13f, 600, lineHeight = 1.3f, color = color))
     }
 }
 
-/** The toolbar's vertical pen rule between groups (the web's vertical Divider). */
+/** The toolbar's vertical Divider (amplitude 1.2, 4 either side), as tall as a button. */
 @Composable
-private fun ToolRule() {
-    Box(Modifier.size(8.dp, 34.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(8.dp, 26.dp).clearAndSetSemantics { }) {
-            val path = wavyVertical(size.height / density.toDouble(), seed = 7.0, amp = 1.0, steps = 3).toPath(density, size.width / 2, 0f)
-            drawPath(path, Tokens.FieldBorder, style = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round))
-        }
-    }
+private fun ToolRule(offset: Double) {
+    OrganicVerticalRule(Modifier.height(27.dp).padding(horizontal = 4.dp), seed = EDITOR_SEED + offset, amp = 1.2)
+}
+
+/**
+ * The toolbar's pen line: AppHeader's construction — ten turns across an
+ * 800×54 box stretched over the toolbar, low in it, edge to edge.
+ */
+private fun Modifier.toolbarWave(seed: Double): Modifier = drawBehind {
+    val line = pointsToBezier(wavyPoints(800.0, 42 + 12 * 0.35, 2.0, seed, 10)).toPath(1f)
+    line.transform(Matrix().apply { scale(size.width / 800f, size.height / 54f) })
+    drawPath(line, Tokens.FieldBorderHover.copy(alpha = 0.45f), style = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round))
 }
