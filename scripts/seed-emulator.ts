@@ -2,8 +2,9 @@
  * Seed the local Firebase emulators with a small, known world for manual and
  * browser testing (`npm run emulators`, then `npx tsx scripts/seed-emulator.ts`).
  *
- * Two connected people (Alice, Bob) with cards, a conversation, and a
- * stranger (Carol). The accounts exist only in the Auth emulator of the
+ * Two connected people (Alice, Bob) with cards, a conversation, a
+ * stranger (Carol), and a newcomer with no cards yet (Dora — the write
+ * page's first-card guide shows for her). The accounts exist only in the Auth emulator of the
  * `demo-resonance` project; the password below is a local test value.
  * In the browser (dev:emulator), sign in from devtools with:
  *   await window.__emulatorSignIn('alice@resonance.test')
@@ -16,6 +17,7 @@ export const SEED_USERS = [
   { uid: 'alice', handle: 'alice', email: 'alice@resonance.test', accent: 'oklch(88% 0.08 55)' },
   { uid: 'bob', handle: 'bob', email: 'bob@resonance.test', accent: 'oklch(90% 0.06 140)' },
   { uid: 'carol', handle: 'carol', email: 'carol@resonance.test', accent: 'oklch(90% 0.05 290)' },
+  { uid: 'dora', handle: 'dora', email: 'dora@resonance.test', accent: 'oklch(90% 0.05 215)' },
 ] as const;
 
 async function main() {

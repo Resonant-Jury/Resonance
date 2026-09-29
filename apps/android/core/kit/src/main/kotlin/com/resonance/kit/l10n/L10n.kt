@@ -424,6 +424,8 @@ object L10n {
         val deleteError: String get() = Strings.string("messages.deleteError")
     }
     object Write {
+        /** Give it a one-line title first. */
+        val titleRequired: String get() = Strings.string("write.titleRequired")
         /** New card */
         val title: String get() = Strings.string("write.title")
         /** Edit draft */
@@ -1112,6 +1114,8 @@ object L10n {
     object Native {
         /** Couldn't load this — please try again. */
         val loadError: String get() = Strings.string("native.loadError")
+        /** Couldn't save that — try again. */
+        val saveError: String get() = Strings.string("native.saveError")
         /** Try again */
         val retry: String get() = Strings.string("native.retry")
         /** You're offline. What you've already opened is still here. */

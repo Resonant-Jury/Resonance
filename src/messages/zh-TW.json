@@ -234,6 +234,7 @@
     "deleteError": "沒刪成，再試一次。"
   },
   "write": {
+    "titleRequired": "先寫下一句話標題。",
     "title": "寫一張新卡片",
     "editTitle": "編輯草稿",
     "editPublishedTitle": "編輯已發布的卡片",
@@ -607,6 +608,7 @@
   },
   "native": {
     "loadError": "沒能載入，請再試一次。",
+    "saveError": "沒存成，再試一次。",
     "retry": "再試一次",
     "offline": "目前離線，已經打開過的內容還在。",
     "tabFeed": "共振 Feed"

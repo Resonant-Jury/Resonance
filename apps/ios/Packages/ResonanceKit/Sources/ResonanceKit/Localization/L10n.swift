@@ -422,6 +422,8 @@ public enum L10n {
         public static var deleteError: String { Strings.shared.string("messages.deleteError") }
     }
     public enum Write {
+        /// Give it a one-line title first.
+        public static var titleRequired: String { Strings.shared.string("write.titleRequired") }
         /// New card
         public static var title: String { Strings.shared.string("write.title") }
         /// Edit draft
@@ -1110,6 +1112,8 @@ public enum L10n {
     public enum Native {
         /// Couldn't load this — please try again.
         public static var loadError: String { Strings.shared.string("native.loadError") }
+        /// Couldn't save that — try again.
+        public static var saveError: String { Strings.shared.string("native.saveError") }
         /// Try again
         public static var retry: String { Strings.shared.string("native.retry") }
         /// You're offline. What you've already opened is still here.

@@ -234,6 +234,7 @@
     "deleteError": "Couldn’t delete — please try again."
   },
   "write": {
+    "titleRequired": "Give it a one-line title first.",
     "title": "New card",
     "editTitle": "Edit draft",
     "editPublishedTitle": "Edit a published card",
@@ -607,6 +608,7 @@
   },
   "native": {
     "loadError": "Couldn't load this — please try again.",
+    "saveError": "Couldn't save that — try again.",
     "retry": "Try again",
     "offline": "You're offline. What you've already opened is still here.",
     "tabFeed": "Feed"

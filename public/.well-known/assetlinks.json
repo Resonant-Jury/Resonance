@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.resonance.stories",
+      "sha256_cert_fingerprints": [
+        "04:C4:71:67:B2:46:41:4D:E7:D1:54:86:D4:91:CC:F9:E1:8C:F6:3E:AB:55:32:6C:2B:C6:5B:07:52:0B:AC:97"
+      ]
+    }
+  }
+]
