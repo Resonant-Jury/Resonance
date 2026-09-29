@@ -112,10 +112,27 @@ Firebase at the emulators (`10.0.2.2`) and the API at `http://10.0.2.2:3100`,
 `--es email … --es password …` signs a seeded account in,
 `--es route /card/<slug>` (or `/u/<handle>`) opens that page,
 `--es writeTitle … --es writeStory …` start a new card with that text, and
-`--es threadDraft …` fills a conversation's composer (`--es route /messages/<handle>` opens one):
+`--es threadDraft …` fills a conversation's composer (`--es route /messages/<handle>` opens one),
+and `--es pushToken <any>` registers a stand-in push token under the signed-in account
+(`devices/*` in the emulator; it lasts until the process ends, and emulator builds never touch FCM):
 
 ```bash
 adb shell am start -n com.resonance.stories/com.resonance.app.MainActivity \
   --ez emulator true --es email alice@resonance.test \
   --es password <SEED_PASSWORD from scripts/seed-emulator.ts> --es route /card/rich-story
 ```
+
+A tapped push starts the app with its data as extras, so `--es route` with `--es notificationId` fakes a
+tap (`--es route "''"` for a push with no page of its own: the notifications tab); `--es pushTitle …`
+posts the notification a push that arrives while the app is open shows:
+
+```bash
+adb shell am start -n com.resonance.stories/com.resonance.app.MainActivity \
+  --es route /messages/alice --es notificationId x
+```
+
+Push: the server pushes every bell row through FCM (`src/lib/push`, on the "activity" channel); the app
+asks for the notification permission once signed in (API 33+), registers its token with
+`PUT /api/v1/me/devices/{installationId}` (again on a new token or a language change) and
+unregisters on sign-out. Real delivery needs a build against production (not `--ez emulator true`)
+on a device with Google Play services.

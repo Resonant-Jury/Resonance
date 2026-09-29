@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import com.resonance.app.PushCenter
 import com.resonance.app.Session
 import com.resonance.design.generated.IconName
 import com.resonance.design.OrganicTabBar
@@ -97,13 +98,25 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     val stack: SnapshotStateList<Route> = stacks.getValue(tab)
     val push: (Route) -> Unit = { stack.add(it) }
 
+    // A site path from a link or a push. A conversation belongs to the Messages tab's stack; other pages open on the current tab.
+    fun open(route: Route) {
+        if (route is Route.Thread) tab = Tab.Messages
+        stacks.getValue(tab).add(route)
+    }
+
     LaunchedEffect(incomingRoute.value) {
-        incomingRoute.value?.let { Route.fromPath(it) }?.let { route ->
-            // A conversation belongs to the Messages tab's stack; other site links open on the current tab.
-            if (route is Route.Thread) tab = Tab.Messages
-            stacks.getValue(tab).add(route)
-        }
+        incomingRoute.value?.let { Route.fromPath(it) }?.let(::open)
         incomingRoute.value = null
+    }
+
+    // A tapped push: its page, or the notifications when it has none (also after a cold start, which leaves it waiting here).
+    val tappedPush by PushCenter.opened.collectAsStateWithLifecycle()
+    LaunchedEffect(tappedPush) {
+        val opened = tappedPush ?: return@LaunchedEffect
+        PushCenter.consume()
+        opened.notificationId?.let { session.notifications.markRead(it) }
+        val route = Route.fromPath(opened.route)
+        if (route != null) open(route) else tab = Tab.Notifications
     }
 
     val notifications by session.notifications.items.collectAsStateWithLifecycle()

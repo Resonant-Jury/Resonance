@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tokens.Terracotta (display-p3 0.7388 0.4228 0.2563) in sRGB: the waves glyph's tint on notifications. -->
+    <color name="notification_accent">#C96736</color>
+</resources>

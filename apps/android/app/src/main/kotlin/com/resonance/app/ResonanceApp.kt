@@ -23,5 +23,7 @@ class ResonanceApp : Application() {
         val saved = getSharedPreferences("settings", MODE_PRIVATE).getString(Session.LANGUAGE_KEY, null)
         Strings.language = Strings.Language.fromTag(saved)
             ?: Strings.Language.preferred(resources.configuration.locales.let { l -> List(l.size()) { l[it].toLanguageTag() } })
+        // The "activity" channel (named in the language just chosen) exists before any push can arrive.
+        PushCenter.init(this)
     }
 }

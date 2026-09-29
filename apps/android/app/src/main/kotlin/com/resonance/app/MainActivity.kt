@@ -1,10 +1,12 @@
 package com.resonance.app
 
+import android.Manifest
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.resonance.app.ui.ResonanceRoot
@@ -14,12 +16,19 @@ import kotlinx.coroutines.launch
  * Debug launch extras (the twins of the iOS launch arguments):
  *   --ez emulator true             use the local Firebase emulators + dev server
  *   --es email … --es password …   sign that seeded account in, switching from a restored one (emulator only)
- *   --es route /card/<slug>        open that page
+ *   --es route /card/<slug>        open that page (with --es notificationId …, what a tapped push starts the app with)
  *   --es writeTitle … --es writeStory … --es writeCover <url>   a new card starts with them
  *   --es threadDraft …             fills a conversation's composer (--es route /messages/<handle> opens one)
+ *   --es pushToken …               registers that stand-in push token under the signed-in account
+ *   --es pushTitle … [--es pushBody … --es pushRoute … --es pushId …]   posts the notification a push received while open shows
  */
 class MainActivity : ComponentActivity() {
     private val incomingRoute = mutableStateOf<String?>(null)
+    private var session: Session? = null
+    // The answer to the notification permission dialog: the device registers for pushes once they can show.
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        lifecycleScope.launch { session?.registerPush() }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -28,6 +37,7 @@ class MainActivity : ComponentActivity() {
         val config = AppConfig(usesEmulator = emulator)
         AppFirebase.configure(this, config)
         val session = (application as ResonanceApp).session(config)
+        this.session = session
         if (emulator) {
             val email = intent.getStringExtra("email")
             val password = intent.getStringExtra("password")
@@ -43,18 +53,45 @@ class MainActivity : ComponentActivity() {
             DebugLaunch.threadDraft = intent.getStringExtra("threadDraft")
         }
         incomingRoute.value = routeFrom(intent)
+        // A recreated activity (rotation, process restore) still holds the intent it was first started with.
+        if (savedInstanceState == null) handleExtras(intent)
         setContent { ResonanceRoot(session, incomingRoute) }
+        // Once signed in: ask to show notifications (API 33+, once), and give this install's push token to the session.
+        lifecycleScope.launch {
+            session.phase.collect { phase ->
+                if (phase != Session.Phase.SignedIn) return@collect
+                if (PushCenter.takePermissionRequest()) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                PushCenter.fetchToken(config.usesEmulator)
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         incomingRoute.value = routeFrom(intent)
+        handleExtras(intent)
     }
 
-    /** A site link (/card/…, /u/…, /messages/…?note=…&card=…, its query kept) or the debug `route` extra. */
+    /** A site link: /card/…, /u/…, /messages/…?note=…&card=…, its query kept. */
     private fun routeFrom(intent: Intent): String? =
         intent.data?.let { uri -> uri.path?.let { path -> path + (uri.encodedQuery?.let { "?$it" } ?: "") } }
-            ?: if (BuildConfig.DEBUG) intent.getStringExtra("route") else null
+
+    /**
+     * A tapped push starts the app with its data as extras (`route`, `notificationId`; the
+     * system's own notification does it for a push that arrived while the app was closed, and
+     * the one the app posts itself does the same), in every build. The tabs open what it points at.
+     */
+    private fun handleExtras(intent: Intent) {
+        if (intent.data == null && (intent.hasExtra(PushCenter.EXTRA_ROUTE) || intent.hasExtra(PushCenter.EXTRA_NOTIFICATION_ID))) {
+            PushCenter.open(intent.getStringExtra(PushCenter.EXTRA_ROUTE).orEmpty(), intent.getStringExtra(PushCenter.EXTRA_NOTIFICATION_ID))
+        }
+        if (BuildConfig.DEBUG) {
+            intent.getStringExtra("pushToken")?.let(PushCenter::tokenChanged)
+            intent.getStringExtra("pushTitle")?.let {
+                PushCenter.show(this, it, intent.getStringExtra("pushBody"), intent.getStringExtra("pushRoute").orEmpty(), intent.getStringExtra("pushId"))
+            }
+        }
+    }
 }
 
 /** Debug launch extras the screens read (the writer's and a thread's prefill). */

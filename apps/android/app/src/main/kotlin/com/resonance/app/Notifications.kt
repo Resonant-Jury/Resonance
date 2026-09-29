@@ -58,7 +58,13 @@ class NotificationsStore {
 
     fun markRead(item: Item) {
         if (!item.isUnread) return
-        AppFirebase.db.collection("notifications").document(item.id).update("readAt", FieldValue.serverTimestamp())
+        markRead(item.id)
+    }
+
+    /** A tapped push reads its row (it may not have arrived in the list yet). */
+    fun markRead(id: String) {
+        if (_items.value.firstOrNull { it.id == id }?.isUnread == false) return
+        AppFirebase.db.collection("notifications").document(id).update("readAt", FieldValue.serverTimestamp())
     }
 
     private fun item(doc: QueryDocumentSnapshot): Item {

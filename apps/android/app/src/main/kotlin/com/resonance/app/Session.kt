@@ -16,11 +16,13 @@ import com.resonance.kit.api.AccountApi
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.MessagingApi
+import com.resonance.kit.api.PushApi
 import com.resonance.kit.api.ReadingApi
 import com.resonance.kit.api.WritingApi
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
 import java.time.OffsetDateTime
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -57,6 +59,7 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     val account = AccountApi(api)
     val writing = WritingApi(api)
     val messaging = MessagingApi(api)
+    val pushApi = PushApi(api)
     val notifications = NotificationsStore()
     val conversations = ConversationsStore()
 
@@ -101,6 +104,11 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     private val auth: FirebaseAuth get() = AppFirebase.auth
     private val scope = MainScope()
 
+    init {
+        // Each new FCM token is registered under whoever is signed in.
+        PushCenter.onToken = { scope.launch { registerPush() } }
+    }
+
     fun start(onSignedIn: suspend () -> Unit) {
         auth.addAuthStateListener { a ->
             val next = a.currentUser?.uid
@@ -115,6 +123,7 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
                 conversations.start(next)
                 scope.launch { runCatching { onSignedIn() } }
                 scope.launch { refreshDeletion() }
+                scope.launch { registerPush() }
             } else {
                 notifications.stop()
                 conversations.stop()
@@ -160,12 +169,44 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     /** Email and password — emulator builds only, for the seeded test accounts. */
     suspend fun signIn(email: String, password: String) = signIn { auth.signInWithEmailAndPassword(email, password).await() }
 
-    fun signOut() = auth.signOut()
+    /**
+     * This install stops getting the account's pushes: ask with the ID token the person still has
+     * (usually cached), then sign out without waiting for the answer (iOS's SessionStore.signOut).
+     */
+    fun signOut() {
+        val user = auth.currentUser
+        if (PushCenter.token == null || user == null) return auth.signOut()
+        scope.launch {
+            val token = runCatching { user.getIdToken(false).await().token }.getOrNull()
+            auth.signOut()
+            if (token == null) return@launch
+            val signedOut = PushApi(ApiConfiguration(config.origin) { token })
+            runCatching { signedOut.unregister(PushCenter.installationId) }
+        }
+    }
 
     fun setLanguage(language: Strings.Language) {
         Strings.language = language
         prefs.edit().putString(LANGUAGE_KEY, language.tag).apply()
         _languageEpoch.value += 1
+        // Pushes are written in the app's language, and the channel is named in it.
+        PushCenter.createChannel()
+        scope.launch { registerPush() }
+    }
+
+    // Push
+
+    /** This install gets the signed-in person's pushes (again, whenever the token or the language changes). */
+    suspend fun registerPush() {
+        val token = PushCenter.token
+        if (_phase.value != Phase.SignedIn || token == null || !PushCenter.canNotify) return
+        try {
+            pushApi.register(PushCenter.installationId, token, Strings.language, BuildConfig.VERSION_NAME)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("Session", "push registration failed", e)
+        }
     }
 
     // Account deletion

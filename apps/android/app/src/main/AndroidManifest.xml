@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Push (API 33+ asks at run time, once the person is signed in). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".ResonanceApp"
@@ -31,5 +33,18 @@
                 <data android:scheme="https" android:host="resonance-world.vercel.app" />
             </intent-filter>
         </activity>
+
+        <!-- Push: a new FCM token, and messages that arrive while the app is open (see PushCenter). -->
+        <service android:name=".ResonancePushService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <!-- What the system shows for a push while the app is closed: the "activity" channel and the waves glyph. -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="activity" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_accent" />
+        <!-- Off until the app turns it on (PushCenter.start): emulator builds never touch FCM, their Firebase project is a stand-in. -->
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
     </application>
 </manifest>
