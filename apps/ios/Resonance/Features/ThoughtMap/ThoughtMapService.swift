@@ -193,6 +193,17 @@ struct ThoughtMapService {
         return (byId, resonated)
     }
 
+    /// Cards already on the map that the newest-40 read didn't bring (an older card placed long ago).
+    func cards(ids: [String]) async -> [MapCard] {
+        let cardsCol = db.collection("cards")
+        return await withTaskGroup(of: MapCard?.self) { group in
+            for id in ids { group.addTask { try? await Self.card(cardsCol.document(id).getDocument()) } }
+            var out: [MapCard] = []
+            for await c in group { if let c { out.append(c) } }
+            return out
+        }
+    }
+
     nonisolated private static func card(_ d: DocumentSnapshot) -> MapCard? {
         guard d.exists else { return nil }
         let media = d.get("media") as? [String: Any]

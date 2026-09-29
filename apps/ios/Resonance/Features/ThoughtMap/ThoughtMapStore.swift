@@ -65,7 +65,11 @@ final class ThoughtMapStore {
             async let map = service.load()
             async let cardSet = service.cards()
             let (m, c) = try await (map, cardSet)
-            applyCards(c.cards, resonated: c.resonated)
+            var byId = c.cards
+            // A placed card older than the newest 40 is still on the map: read it by id.
+            let missing = m.nodes.map(\.cardId).filter { byId[$0] == nil }
+            for card in await service.cards(ids: missing) { byId[card.id] = card }
+            applyCards(byId, resonated: c.resonated)
             // A card that's gone (deleted, or an original I can no longer read) drops out of view.
             nodes = [:]
             nodeOrder = []
@@ -88,7 +92,10 @@ final class ThoughtMapStore {
     /// Titles and tags may have changed in the writer: refresh the cards, keep the map.
     func refreshCards() async {
         guard let service, let c = try? await service.cards() else { return }
-        applyCards(c.cards, resonated: c.resonated)
+        var byId = c.cards
+        let missing = nodeOrder.filter { byId[$0] == nil }
+        for card in await service.cards(ids: missing) { byId[card.id] = card }
+        applyCards(byId, resonated: c.resonated)
     }
 
     private func applyCards(_ byId: [String: MapCard], resonated: Set<String>) {

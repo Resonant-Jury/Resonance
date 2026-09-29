@@ -361,6 +361,22 @@ describe('useMyThoughtMap', () => {
     expect(map.resonatedIds).toEqual(['theirs']);
     expect(map.nodes.map((n) => n.cardId).sort()).toEqual(['own', 'theirs']);
   });
+
+  it('keeps a placed card older than the newest 40 own cards the reads bring', async () => {
+    vi.mocked(getCardsByAuthor).mockImplementation(async (_uid, tab) => (tab === 'published' ? [card('recent', 'me')] : []));
+    vi.mocked(getCardById).mockImplementation(async (id) => (id === 'old' ? card('old', 'me') : null));
+    const node = (cardId: string) => ({ id: cardId, cardId, x: 0, y: 0, createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01') });
+    vi.mocked(loadMyThoughtMap).mockResolvedValue({ nodes: [node('recent'), node('old'), node('gone')], edges: [], groups: [] });
+
+    const { result } = renderHook(() => useMyThoughtMap(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    const map = result.current.data!;
+    expect(map.nodes.map((n) => n.cardId).sort()).toEqual(['old', 'recent']);
+    expect(map.cards.old?.id).toBe('old');
+    expect(getCardById).toHaveBeenCalledWith('old');
+    expect(getCardById).toHaveBeenCalledWith('gone');
+  });
 });
 
 describe('useProfileByHandle', () => {

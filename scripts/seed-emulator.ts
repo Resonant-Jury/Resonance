@@ -129,8 +129,12 @@ async function main() {
     translations: {}, visibility: 'public', publishedAt: null, updatedAt: at(15), readCount: 0, resonanceCount: 0, inviteCount: 0,
   });
 
-  // alice's thought map: a region holding two of her cards, bob's walk she resonated with, one labelled arrow.
+  // alice's thought map: a region holding two of her cards, bob's walk she resonated with, one labelled arrow
+  // (written over a clean map — and without seed-thought-map-bench.ts's hundred cards, if it ran).
   const map = db.doc('thoughtMaps/alice');
+  await db.recursiveDelete(map);
+  const bench = await db.collection('cards').where('authorId', '==', 'alice').get();
+  await Promise.all(bench.docs.filter((d) => d.id.startsWith('bench-')).map((d) => d.ref.delete()));
   const node = (cardId: string, x: number, y: number, groupId: string | null) =>
     map.collection('nodes').doc(cardId).set({ cardId, x, y, groupId, createdAt: at(60), updatedAt: at(60) });
   await map.collection('groups').doc('g-memory').set({ title: '回憶', hue: 88, x: -40, y: -70, w: 560, h: 300, createdAt: at(60) });

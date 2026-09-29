@@ -261,6 +261,9 @@ export function useMyThoughtMap() {
     // keeps its own-card entry.
     for (const c of [...resonated, ...published, ...priv, ...draft]) cards[c.id] = c;
     const resonatedIds = resonated.map((c) => c.id).filter((id) => cards[id].authorId !== uid);
+    // A card placed long ago can be older than the newest 40 read above: read those by id.
+    const missing = map.nodes.map((n) => n.cardId).filter((id) => !cards[id]);
+    for (const c of await Promise.all(missing.map((id) => getCardById(id)))) if (c) cards[c.id] = c;
     // Drop nodes whose card has been deleted since being placed on the map.
     return { ...map, nodes: map.nodes.filter((n) => cards[n.cardId]), cards, resonatedIds };
   });
