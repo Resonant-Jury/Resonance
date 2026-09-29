@@ -22,6 +22,7 @@ let package = Package(
             dependencies: [
                 .product(name: "ResonanceGeometry", package: "ResonanceGeometry"),
                 .product(name: "StoryFormat", package: "ResonanceKit"),
+                .product(name: "Nuke", package: "Nuke"),
                 .product(name: "NukeUI", package: "Nuke"),
             ],
             resources: [.process("Resources")],

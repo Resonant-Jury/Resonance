@@ -118,6 +118,27 @@ async function main() {
     290,
   );
 
+  // alice resonated with bob's walk, and keeps a draft.
+  await db.doc('cards/alice-reply').set({
+    authorId: 'alice', slug: 'alice-reply', thoughtCore: '我也在雨裡走過', story: '讀完那篇散步，我想起高中放學的那條路。',
+    tags: ['回應'], originalLocale: 'zh-TW', translations: {}, visibility: 'public', publishedAt: at(25),
+    readCount: 0, resonanceCount: 0, inviteCount: 0, accentHue: 140, referenceCardId: 'rain-walk',
+  });
+  await db.doc('cards/alice-draft').set({
+    authorId: 'alice', thoughtCore: '還沒寫完的清晨', story: '五點的街道很安靜，', tags: [], originalLocale: 'zh-TW',
+    translations: {}, visibility: 'public', publishedAt: null, updatedAt: at(15), readCount: 0, resonanceCount: 0, inviteCount: 0,
+  });
+
+  // alice's thought map: a region holding two of her cards, bob's walk she resonated with, one labelled arrow.
+  const map = db.doc('thoughtMaps/alice');
+  const node = (cardId: string, x: number, y: number, groupId: string | null) =>
+    map.collection('nodes').doc(cardId).set({ cardId, x, y, groupId, createdAt: at(60), updatedAt: at(60) });
+  await map.collection('groups').doc('g-memory').set({ title: '回憶', hue: 88, x: -40, y: -70, w: 560, h: 300, createdAt: at(60) });
+  await node('letter', 0, 0, 'g-memory');
+  await node('rich-story', 272, 20, 'g-memory');
+  await node('rain-walk', 130, 330, null);
+  await map.collection('edges').doc('rain-walk_letter').set({ sourceCardId: 'rain-walk', targetCardId: 'letter', label: '後來', createdAt: at(60) });
+
   await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: at(60 * 24) });
   await db.doc('conversations/alice_bob').set({
     participants: ['alice', 'bob'],

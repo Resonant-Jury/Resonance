@@ -1,3 +1,4 @@
+import Nuke
 import NukeUI
 import SwiftUI
 
@@ -65,5 +66,24 @@ nonisolated struct OrganicImageShape: Shape {
 extension OrganicImage where Placeholder == Color {
     public init(url: URL?, seed: Double, radius: Double = 18, grain: Double = 0, fill: Color) {
         self.init(url: url, seed: seed, radius: radius, grain: grain) { fill }
+    }
+}
+
+/// A remote picture filling its frame (cover), decoded at the size it's shown
+/// at (`pixelSize`, in points × scale) instead of full resolution — for many
+/// small pictures at once, like the thought map's card thumbnails.
+public struct RemoteImage: View {
+    let url: URL
+    let pixelSize: CGSize
+
+    public init(url: URL, pixelSize: CGSize) {
+        self.url = url
+        self.pixelSize = pixelSize
+    }
+
+    public var body: some View {
+        LazyImage(request: ImageRequest(url: url, processors: [.resize(size: pixelSize, unit: .pixels, contentMode: .aspectFill)])) { state in
+            if let image = state.image { image.resizable().scaledToFill() }
+        }
     }
 }

@@ -52,6 +52,23 @@ public struct OrganicButton: View {
         return copy
     }
 
+    /// Flip a glyph-only chip's icon (arrow-right as "back": `transform: scaleX(-1)`).
+    var mirrorsIcon = false
+    /// A glyph-only chip at the size's own padding (sm: 9×18) instead of the tight 9×11.
+    var roomyIcon = false
+
+    public func roomy() -> OrganicButton {
+        var copy = self
+        copy.roomyIcon = true
+        return copy
+    }
+
+    public func mirroringIcon() -> OrganicButton {
+        var copy = self
+        copy.mirrorsIcon = true
+        return copy
+    }
+
     @State private var pressPoint: CGPoint? = nil
     @State private var revealed = false
     @Environment(\.isEnabled) private var isEnabled
@@ -111,9 +128,10 @@ extension OrganicButton {
     @ViewBuilder fileprivate func face(_ style: OrganicButtonStyle) -> some View {
         if let iconOnlySize, let icon {
             OrganicIcon(icon, size: iconOnlySize)
+                .scaleEffect(x: mirrorsIcon ? -1 : 1)
                 .foregroundStyle(style.textColor)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
+                .padding(.horizontal, roomyIcon ? (size == .sm ? 18 : 32) : 11)
+                .padding(.vertical, roomyIcon ? (size == .sm ? 9 : 14) : 9)
         } else {
             style.label(title, icon: icon, image: image)
         }

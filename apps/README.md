@@ -67,6 +67,8 @@ every kind of content. `-writeTitle "…" -writeStory "…"` start a new card wi
 that text (the simulator can't type into the fields from outside), and
 `-writeCover <url>` with that picture as its cover; `-threadDraft "…"` fills a
 conversation's composer (`-route /messages/<handle>` opens one).
+`-route /me/thought-map` opens the thought map (the seed gives alice one:
+a region, three cards, a labelled arrow).
 `-pushToken <any>` registers a stand-in push token under the signed-in
 account (`devices/*` in the emulator), and `xcrun simctl push booted
 com.resonance.stories <file.apns>` with top-level `route` and `notificationId`

@@ -11,6 +11,8 @@ enum Route: Hashable {
     case settingsSection(SettingsSection)
     /// A conversation, by the other person's pen name; `note` quotes a note to answer.
     case thread(handle: String, note: MessagingAPI.NoteRef?)
+    /// My thought map (me/thought-map).
+    case thoughtMap
 }
 
 /// Pushes a route onto the current tab's stack (for taps that aren't
@@ -37,6 +39,7 @@ extension Route {
         switch parts[0] {
         case "card": self = .card(parts[1])
         case "u": self = .author(parts[1])
+        case "me" where parts[1] == "thought-map": self = .thoughtMap
         case "messages":
             // /messages/{handle}?note={noteId}&card={cardId} (a note's reply link) keeps its query.
             let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
@@ -58,6 +61,7 @@ extension View {
             case .settings: SettingsScreen()
             case let .settingsSection(section): SettingsSectionScreen(section: section)
             case let .thread(handle, note): ThreadScreen(handle: handle, note: note)
+            case .thoughtMap: ThoughtMapScreen()
             }
         }
     }

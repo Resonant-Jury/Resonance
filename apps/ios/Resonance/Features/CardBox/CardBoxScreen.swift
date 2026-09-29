@@ -87,6 +87,16 @@ struct CardBoxScreen: View {
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(active ? [.isSelected, .isButton] : .isButton)
                 }
+                // The thought map is the strip's last tab; it opens its own screen (OrganicTabs' thoughtMapHref).
+                Button { openRoute(.thoughtMap) } label: {
+                    Text(L10n.Me.Tabs.thoughtMap)
+                        .font(AppFonts.body(14, weight: .medium))
+                        .foregroundStyle(Tokens.textMuted)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                        .padding(.bottom, 14)
+                }
+                .buttonStyle(.plain)
             }
             // Room for the wobble, which bleeds a few points past the tab.
             .padding(.horizontal, 20)

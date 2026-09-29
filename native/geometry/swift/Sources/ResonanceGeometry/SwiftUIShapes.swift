@@ -97,14 +97,14 @@ extension WobRectOptions {
 
 /// Small LRU-ish cache: SwiftUI re-asks `path(in:)` on every layout pass, and a
 /// scrolling feed lays out the same few card sizes over and over.
-final class GeometryCache: @unchecked Sendable {
-    static let shared = GeometryCache()
+public final class GeometryCache: @unchecked Sendable {
+    public static let shared = GeometryCache()
     private var store: [String: [PathCommand]] = [:]
     private var order: [String] = []
     private let lock = NSLock()
     private let limit = 512
 
-    func path(key: String, make: () -> [PathCommand]) -> [PathCommand] {
+    public func path(key: String, make: () -> [PathCommand]) -> [PathCommand] {
         lock.lock()
         if let hit = store[key] {
             lock.unlock()
