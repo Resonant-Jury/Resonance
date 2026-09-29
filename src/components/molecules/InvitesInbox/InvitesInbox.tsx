@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { useAuth } from '@/components/providers/AuthProvider';
 import {
   acceptInvite,
   declineInvite,
@@ -12,6 +13,8 @@ import type { Invite } from '@/lib/db/types';
 
 export function InvitesInbox() {
   const t = useTranslations('inviteInbox');
+  const { user } = useAuth();
+  const uid = user?.id ?? null;
   const [items, setItems] = useState<Invite[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -29,9 +32,11 @@ export function InvitesInbox() {
     }
   }, []);
 
+  // Once Firebase Auth has restored the viewer (on a fresh load it hasn't yet
+  // at mount, and the query would find no one's invites).
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (uid) void refresh();
+  }, [refresh, uid]);
 
   function accept(invite: Invite) {
     setPendingId(invite.id);
