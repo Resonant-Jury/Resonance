@@ -226,7 +226,10 @@ struct ThreadScreen: View {
                 .padding(.horizontal, 16)
             }
             .scrollDismissesKeyboard(.interactively)
-            .defaultScrollAnchor(.bottom)
+            // Opens at the newest and follows new messages, but a short thread
+            // starts at the top like the web's (no bottom alignment).
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .onChange(of: model.messages.count) {
                 if let last = model.messages.last { proxy.scrollTo(last.id, anchor: .bottom) }
             }
