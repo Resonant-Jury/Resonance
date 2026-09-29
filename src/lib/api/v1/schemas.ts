@@ -223,6 +223,45 @@ export const ApplyEditResponse = named(
   'ApplyEditResponse',
 );
 
+/** The web's limits (client/notes.ts, client/messages.ts; mirrored in firestore.rules). */
+export const NOTE_TEXT_MAX = 2000;
+export const MESSAGE_TEXT_MAX = 2000;
+
+export const SendNoteRequest = named(
+  z.object({
+    cardId: DocId,
+    text: z.string().trim().min(1).max(NOTE_TEXT_MAX),
+  }),
+  'SendNoteRequest',
+  "A note to a card's author (the server finds the author — anonymous cards too).",
+);
+
+export const SendNoteResponse = named(z.object({ id: z.string() }), 'SendNoteResponse');
+
+export const NoteRef = named(z.object({ cardId: DocId, noteId: DocId }), 'NoteRef', 'The note a message answers.');
+
+export const SendMessageRequest = named(
+  z.object({
+    /** The other person's user id. */
+    to: DocId,
+    /** May be empty when a card is attached. */
+    text: z.string().trim().max(MESSAGE_TEXT_MAX),
+    /** A card attached to the message (its id). */
+    cardRef: DocId.nullish(),
+    noteRef: NoteRef.nullish(),
+  }),
+  'SendMessageRequest',
+);
+
+export const SendMessageResponse = named(
+  z.object({
+    /** conversations/{id}: the two user ids, sorted, joined by "_". */
+    conversationId: z.string(),
+    id: z.string(),
+  }),
+  'SendMessageResponse',
+);
+
 /** firestore.rules' cap on a report's details (REPORT_DETAIL_MAX on the web). */
 export const REPORT_DETAIL_MAX = 1000;
 

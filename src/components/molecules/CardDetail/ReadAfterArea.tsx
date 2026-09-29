@@ -105,7 +105,6 @@ export function ReadAfterArea({ cardId, cardTitle, author }: ReadAfterAreaProps)
             key={noteNonce}
             variant="plain"
             cardId={cardId}
-            toUserId={author.id}
             initialText={noteDraft}
             onUpgrade={handleUpgrade}
             onClose={() => setNoteOpen(false)}

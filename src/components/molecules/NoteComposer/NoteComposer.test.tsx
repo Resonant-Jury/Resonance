@@ -28,7 +28,7 @@ const user = () => userEvent.setup({ pointerEventsCheck: 0 });
 
 describe('NoteComposer', () => {
   it('shows the privacy micro-hint and sends a note to the author', async () => {
-    renderWithIntl(<NoteComposer cardId="c1" toUserId="author-1" />);
+    renderWithIntl(<NoteComposer cardId="c1" />);
 
     expect(screen.getByText('Only the author can see this.')).toBeInTheDocument();
 
@@ -40,9 +40,7 @@ describe('NoteComposer', () => {
     await waitFor(() =>
       expect(sendNote).toHaveBeenCalledWith({
         cardId: 'c1',
-        toUserId: 'author-1',
         text: 'Your story stayed with me all day.',
-        fromHandle: 'my-handle',
       }),
     );
     // Confirmation replaces the form.
@@ -50,14 +48,14 @@ describe('NoteComposer', () => {
   });
 
   it('does not send an empty note', async () => {
-    renderWithIntl(<NoteComposer cardId="c1" toUserId="author-1" />);
+    renderWithIntl(<NoteComposer cardId="c1" />);
     await user().click(screen.getByRole('button', { name: 'Send' }));
     expect(sendNote).not.toHaveBeenCalled();
   });
 
   it('offers the resonance upgrade only past the length threshold, carrying the text', async () => {
     const onUpgrade = vi.fn();
-    renderWithIntl(<NoteComposer cardId="c1" toUserId="author-1" onUpgrade={onUpgrade} />);
+    renderWithIntl(<NoteComposer cardId="c1" onUpgrade={onUpgrade} />);
     const box = screen.getByPlaceholderText('Something you want to tell the author…');
 
     fireEvent.change(box, { target: { value: 'short note' } });

@@ -15,8 +15,6 @@ export const NOTE_UPGRADE_THRESHOLD = 200;
 
 export interface NoteComposerProps {
   cardId: string;
-  /** The card's author — the only reader this note will ever have. */
-  toUserId: string;
   /** Draft carried in from the resonance editor's downgrade exit. */
   initialText?: string;
   onSent?: () => void;
@@ -40,7 +38,6 @@ export interface NoteComposerProps {
  */
 export function NoteComposer({
   cardId,
-  toUserId,
   initialText,
   onSent,
   onUpgrade,
@@ -63,7 +60,7 @@ export function NoteComposer({
     setError(null);
     start(async () => {
       try {
-        await sendNote({ cardId, toUserId, text: trimmed, fromHandle: me!.handle });
+        await sendNote({ cardId, text: trimmed });
         setSent(true);
         onSent?.();
       } catch (err) {

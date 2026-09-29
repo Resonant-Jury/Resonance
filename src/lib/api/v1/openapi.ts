@@ -126,6 +126,22 @@ export function buildOpenApi(): Json {
         parameters: [handle, ...pageParams],
       }),
       '/users/{handle}/links': get('getProfileLinks', "Cards by others that link to theirs", 'CardList', { parameters: [handle] }),
+      '/notes': {
+        post: {
+          operationId: 'sendNote',
+          summary: "Send a note to a card's author: rings their bell and connects you (not for an anonymous card)",
+          requestBody: { required: true, ...json(ref('SendNoteRequest')) },
+          responses: { '201': { description: 'Created', ...json(ref('SendNoteResponse')) }, ...errors(400, 401, 403, 404) },
+        },
+      },
+      '/messages': {
+        post: {
+          operationId: 'sendMessage',
+          summary: 'Message someone you are connected with (opens the conversation; its first message rings their bell)',
+          requestBody: { required: true, ...json(ref('SendMessageRequest')) },
+          responses: { '201': { description: 'Created', ...json(ref('SendMessageResponse')) }, ...errors(400, 401, 403, 404) },
+        },
+      },
       '/invites': {
         post: {
           operationId: 'createInvite',
