@@ -83,7 +83,7 @@ struct CardScreen: View {
                     // The ⋯ sits beside the title, as on the web: the owner's actions, or the reader's safety menu.
                     if detail.isOwner {
                         CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, routeKey: card.routeKey, seed: hue + 3,
-                                        onDeleted: { openRoute.dismissToRoot() })
+                                        showsCardAfterEdit: false, onDeleted: { openRoute.dismissToRoot() })
                     } else if let authorId = detail.anonymous ? nil : card.author?.value1.id {
                         SafetyMenu(target: .card(id: card.id, authorId: authorId), handle: card.author?.value1.handle,
                                    seed: hue + 3)

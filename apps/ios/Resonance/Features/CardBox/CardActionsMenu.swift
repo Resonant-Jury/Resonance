@@ -13,6 +13,8 @@ struct CardActionsMenu: View {
     let routeKey: String
     var seed: Double = 7
     var hue: Double?
+    /// Whether the card opens once edited (false on the card's own page, which is already underneath).
+    var showsCardAfterEdit = true
     var onChanged: () -> Void = {}
     var onDeleted: () -> Void = {}
     @Environment(SessionStore.self) private var session
@@ -33,7 +35,7 @@ struct CardActionsMenu: View {
 
     private var items: [OrganicMenuItem] {
         [
-            OrganicMenuItem(id: "edit", title: L10n.Me.Actions.edit, icon: .pen) { writer.edit(cardId) },
+            OrganicMenuItem(id: "edit", title: L10n.Me.Actions.edit, icon: .pen) { writer.edit(cardId, showsCard: showsCardAfterEdit) },
             OrganicMenuItem(id: "visibility", title: isPrivate ? L10n.Me.Actions.makePublic : L10n.Me.Actions.makePrivate,
                             icon: isPrivate ? .globe : .lock) { Task { await toggleVisibility() } },
             OrganicMenuItem(id: "delete", title: L10n.Me.Actions.delete, icon: .trash, danger: true) { confirming = true },
