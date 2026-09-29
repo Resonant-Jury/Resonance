@@ -132,6 +132,9 @@ const IslandCardEmbed = CardEmbed.extend({
 });
 
 const params = new URLSearchParams(location.search);
+// ?embed=1: the story field of the writing screen — the host frames it, sizes
+// the view to the content (the 'height' message) and scrolls the page itself.
+if (params.get('embed') === '1') document.documentElement.classList.add('embed');
 const extensions = [
   ...storyExtensions({ blockquote: IslandBlockquote, image: IslandImage, cardEmbed: IslandCardEmbed }),
   Placeholder.configure({ placeholder: params.get('placeholder') ?? '寫下你的故事…' }),

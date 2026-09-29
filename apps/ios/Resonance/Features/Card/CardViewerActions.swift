@@ -14,7 +14,7 @@ struct CardViewerActions: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            OrganicButton(L10n.Card.resonate, icon: .wave) { writer.open() }
+            OrganicButton(L10n.Card.resonate, icon: .wave) { writer.open(.init(referenceCardId: cardId)) }
             HStack {
                 // The web's secondaryOutline with its frame hidden: a link.
                 Button { writer.open() } label: {

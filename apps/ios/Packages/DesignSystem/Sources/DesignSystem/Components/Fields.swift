@@ -83,23 +83,26 @@ public struct OrganicTextArea: View {
     @Binding var text: String
     var maxLength: Int?
     var seed: Double
+    /// Field's `tone="display"`: the writing screen's title, set in Playfair 22/700 on two lines.
+    var display: Bool
     @FocusState private var focused: Bool
 
-    public init(_ label: String, text: Binding<String>, placeholder: String = "", maxLength: Int? = nil, seed: Double = 17) {
+    public init(_ label: String, text: Binding<String>, placeholder: String = "", maxLength: Int? = nil, seed: Double = 17, display: Bool = false) {
         self.label = label
         self._text = text
         self.placeholder = placeholder
         self.maxLength = maxLength
         self.seed = seed
+        self.display = display
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             FieldLabel(text: label).padding(.bottom, 10)
             TextField(text: $text, prompt: fieldPrompt(placeholder), axis: .vertical) { Text(label) }
-                .lineLimit(3...)
-                .lineSpacing(15 * 0.6)
-                .font(AppFonts.body(15))
+                .lineLimit(display ? 2... : 3...)
+                .lineSpacing(display ? 22 * 0.35 : 15 * 0.6)
+                .font(display ? AppFonts.heading(22) : AppFonts.body(15))
                 .foregroundStyle(Tokens.text)
                 .focused($focused)
                 .padding(.horizontal, Tokens.fieldPadX)

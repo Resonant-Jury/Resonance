@@ -33,3 +33,9 @@ html, body { margin: 0; background: var(--cream); color: var(--text); -webkit-te
 .card-embed small { font-family: var(--font-body); font-weight: 400; color: var(--text-muted); }
 .ProseMirror-selectednode { outline: 2px solid #c96736; outline-offset: 2px; }
 p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #988979; float: left; height: 0; pointer-events: none; }
+
+/* Embedded in the writing screen's story field (?embed=1): the field's frame
+   is native, so the page is transparent, compact and never scrolls itself. */
+html.embed, html.embed body { background: transparent; overflow: hidden; }
+html.embed #editor { padding: 14px 18px 18px; }
+html.embed .ProseMirror { min-height: 168px; }

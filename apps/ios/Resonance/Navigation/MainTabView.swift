@@ -74,7 +74,13 @@ struct MainTabView: View {
         .animation(.easeInOut(duration: 0.2), value: paths[tab]?.isEmpty ?? true)
         .background(Tokens.cream)
         .environment(writer)
-        .fullScreenCover(isPresented: $writer.isPresented) { WriteScreen() }
+        .fullScreenCover(isPresented: $writer.isPresented, onDismiss: {
+            // A published card opens on the current tab once the writer is gone, as the web goes to it.
+            if let key = writer.publishedCard {
+                writer.publishedCard = nil
+                paths[tab, default: NavigationPath()].append(Route.card(key))
+            }
+        }) { WriteScreen().environment(writer) }
         .onOpenURL(perform: open)
         #if DEBUG
         // `-route /card/<slug>` or `-route /u/<handle>` opens that page at launch (screen checks).

@@ -34,6 +34,9 @@ targets:
         buildPhase: resources
       - path: ../../src/messages/zh-TW.json
         buildPhase: resources
+      # The story editor island (npm run native:editor → native/editor/dist).
+      - path: ../../native/editor/dist/editor.html
+        buildPhase: resources
     dependencies:
       - package: DesignSystem
       - package: ResonanceKit

@@ -31,6 +31,7 @@ final class SessionStore {
     let config: AppConfig
     let api: Client
     let account: AccountAPI
+    let writing: WritingAPI
     let notifications = NotificationsStore()
     @ObservationIgnored private var listener: AuthStateDidChangeListenerHandle?
     @ObservationIgnored private let apple = AppleSignIn()
@@ -40,6 +41,7 @@ final class SessionStore {
         let configuration = APIConfiguration(origin: config.origin, idToken: { force in try await Self.idToken(forceRefresh: force) })
         api = ResonanceClient.make(configuration)
         account = AccountAPI(configuration)
+        writing = WritingAPI(client: api, configuration: configuration)
         if let saved = UserDefaults.standard.string(forKey: Self.languageKey), let language = Strings.Language(rawValue: saved) {
             Strings.shared.language = language
         }
@@ -51,6 +53,7 @@ final class SessionStore {
     var reading: ReadingAPI { ReadingAPI(client: api) }
     var safety: SafetyService? { uid.map(SafetyService.init(uid:)) }
     var bookmarks: BookmarkService? { uid.map(BookmarkService.init(uid:)) }
+    var drafts: DraftService? { uid.map(DraftService.init(uid:)) }
     /// What the account signed in with (settings → account shows them read-only).
     var email: String? { Auth.auth().currentUser?.email }
     var phoneNumber: String? { Auth.auth().currentUser?.phoneNumber }
