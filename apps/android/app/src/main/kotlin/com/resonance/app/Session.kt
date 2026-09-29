@@ -16,6 +16,7 @@ import com.resonance.kit.api.AccountApi
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.ReadingApi
+import com.resonance.kit.api.WritingApi
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
 import java.time.OffsetDateTime
@@ -52,6 +53,7 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     val api = ApiConfiguration(config.origin) { force -> idToken(force) }
     val reading = ReadingApi(api)
     val account = AccountApi(api)
+    val writing = WritingApi(api)
     val notifications = NotificationsStore()
 
     /** When a scheduled account deletion will run (the undo banner shows until then). */
@@ -69,6 +71,9 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
 
     val safety: SafetyService? get() = uid?.let(::SafetyService)
     val bookmarks: BookmarkService? get() = uid?.let(::BookmarkService)
+    val drafts: DraftService? get() = uid?.let(::DraftService)
+    /** The signed-in profile once loaded (the publish panel's card head). */
+    val me: Me? get() = (_profile.value as? Profile.Loaded)?.me
     /** The sign-in email and phone, shown read-only on the account screen. */
     val email: String? get() = auth.currentUser?.email
     val phoneNumber: String? get() = auth.currentUser?.phoneNumber

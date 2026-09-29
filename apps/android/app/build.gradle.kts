@@ -33,11 +33,13 @@ android {
     sourceSets {
         getByName("main") {
             // Subset fonts (apps/shared/fonts), the grain tiles (shared with iOS's
-            // DesignSystem package) and the web's message catalogs, as they are.
+            // DesignSystem package), the web's message catalogs, as they are, and
+            // the story editor island (npm run native:editor → native/editor/dist).
             assets.srcDirs(
                 "../../shared/fonts",
                 "../../ios/Packages/DesignSystem/Sources/DesignSystem/Resources",
                 "../../../src/messages",
+                "../../../native/editor/dist",
             )
         }
     }

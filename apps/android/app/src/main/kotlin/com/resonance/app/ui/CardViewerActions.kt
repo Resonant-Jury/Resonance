@@ -44,16 +44,17 @@ import kotlinx.coroutines.launch
  * The reader's actions under a story (ReadAfterArea → CardViewerActions, the
  * phone layout): 共振 as the one primary button, then the note as a quiet
  * text link and the bookmark as a bare glyph. The twin of iOS's
- * CardViewerActions; resonating and notes open the writer.
+ * CardViewerActions; resonating starts a response card, and the note opens
+ * the writer until notes land (M4).
  */
 @Composable
-fun CardViewerActions(session: Session, cardId: String, onWrite: () -> Unit, modifier: Modifier = Modifier) {
+fun CardViewerActions(session: Session, cardId: String, onResonate: () -> Unit, onNote: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        OrganicButton(L10n.Card.resonate, icon = IconName.Wave, onClick = onWrite)
+        OrganicButton(L10n.Card.resonate, icon = IconName.Wave, onClick = onResonate)
         Row(verticalAlignment = Alignment.CenterVertically) {
             // The web's secondaryOutline with its frame hidden: a link.
             Row(
-                Modifier.heightIn(min = 44.dp).plainClickable(role = Role.Button, onClick = onWrite),
+                Modifier.heightIn(min = 44.dp).plainClickable(role = Role.Button, onClick = onNote),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {

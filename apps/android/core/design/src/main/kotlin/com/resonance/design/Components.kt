@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
@@ -403,7 +404,9 @@ fun OrganicListEmpty(message: String, size: Float = 14f, modifier: Modifier = Mo
 /**
  * Field.tsx's Input: a labelled field on cream, framed by a hand-drawn line
  * (R 16, the size's own wobble) that turns terracotta while focused.
- * `multiline` is its Textarea (seed 17 there).
+ * `multiline` is its Textarea (seed 17 there); `display` is its
+ * `tone="display"` (the writing screen's title, Playfair 22 on two lines),
+ * and `maxLength` caps it with the web's "12 / 60" counter underneath.
  */
 @Composable
 fun OrganicTextField(
@@ -417,9 +420,11 @@ fun OrganicTextField(
     minLines: Int = 3,
     /** Read-only (the sign-in email on the account screen). */
     enabled: Boolean = true,
+    display: Boolean = false,
+    maxLength: Int? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val text = AppFonts.body(15f, lineHeight = 1.6f)
+    val text = if (display) AppFonts.heading(22f, lineHeight = 1.35f) else AppFonts.body(15f, lineHeight = 1.6f)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         BasicText(label.uppercase(), style = AppFonts.body(Tokens.LabelSize, 600, lineHeight = 1.3f, color = Tokens.TextMuted).copy(letterSpacing = 0.06.em))
         Box(
@@ -439,7 +444,7 @@ fun OrganicTextField(
         ) {
             if (value.isEmpty()) BasicText(placeholder, style = text.copy(color = Tokens.Placeholder))
             BasicTextField(
-                value, onValueChange,
+                value, { onValueChange(if (maxLength != null) it.take(maxLength) else it) },
                 textStyle = text,
                 singleLine = !multiline,
                 enabled = enabled,
@@ -448,6 +453,13 @@ fun OrganicTextField(
                 modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
             )
         }
+        if (maxLength != null) BasicText(
+            "${value.length} / $maxLength",
+            style = AppFonts.body(11f, lineHeight = 1.3f, color = if (value.length > maxLength) Tokens.Terracotta else Tokens.TextMuted)
+                .copy(textAlign = TextAlign.End, fontFeatureSettings = "tnum"),
+            // 6 under the field (the column spaces its rows 10).
+            modifier = Modifier.fillMaxWidth().offset(y = (-4).dp),
+        )
     }
 }
 

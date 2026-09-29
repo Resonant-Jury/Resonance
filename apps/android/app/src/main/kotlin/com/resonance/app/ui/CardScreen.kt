@@ -149,7 +149,7 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () ->
                             FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
                             }
-                            if (!d.isOwner) CardViewerActions(session, card.id, { open(Route.Write) }, Modifier.padding(bottom = 40.dp))
+                            if (!d.isOwner) CardViewerActions(session, card.id, { open(Route.Write(referenceCardId = card.id)) }, { open(Route.Write()) }, Modifier.padding(bottom = 40.dp))
                         }
                     }
                     if (d.isOwner && linked.isNotEmpty()) {
@@ -179,7 +179,7 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () ->
     }
     // The web's pen sits on the card page too: bottom right, 20 in.
     detail?.let { d ->
-        FloatingWriteButton(if (d.isOwner) L10n.App.Nav.editThisCard else L10n.App.Nav.write, Modifier.align(Alignment.BottomEnd)) { open(Route.Write) }
+        FloatingWriteButton(if (d.isOwner) L10n.App.Nav.editThisCard else L10n.App.Nav.write, Modifier.align(Alignment.BottomEnd)) { open(Route.Write()) }
     }
     }
 }

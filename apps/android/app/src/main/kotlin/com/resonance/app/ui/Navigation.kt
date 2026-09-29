@@ -38,8 +38,8 @@ sealed interface Route {
     data class Card(val key: String) : Route
     data class Author(val handle: String) : Route
     data object Settings : Route
-    /** Writing a card (the editor lands in A3). */
-    data object Write : Route
+    /** Writing a card; a resonance answers `referenceCardId`. */
+    data class Write(val referenceCardId: String? = null) : Route
     data class SettingsSection(val section: com.resonance.app.ui.SettingsSection) : Route
 
     companion object {
@@ -97,7 +97,13 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                 }
                 entry<Route.Card> { r -> CardScreen(session, r.key, push) { stack.removeLastOrNull() } }
                 entry<Route.Author> { r -> AuthorScreen(session, r.handle, push) { stack.removeLastOrNull() } }
-                entry<Route.Write> { WriteScreen { stack.removeLastOrNull() } }
+                entry<Route.Write> { r ->
+                    WriteScreen(session, r.referenceCardId, close = { stack.removeLastOrNull() }) { key ->
+                        // The published card takes the writer's place, as the web goes to it.
+                        stack.removeLastOrNull()
+                        stack.add(Route.Card(key))
+                    }
+                }
                 entry<Route.Settings> { SettingsScreen(push) { stack.removeLastOrNull() } }
                 entry<Route.SettingsSection> { r -> SettingsSectionScreen(session, r.section) { stack.removeLastOrNull() } }
             },
@@ -127,7 +133,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                 onSelect = { picked ->
                     // The pen opens the writer over the current tab, like the web's floating pen.
                     if (picked == Tab.Write) {
-                        stack.add(Route.Write)
+                        stack.add(Route.Write())
                         return@OrganicTabBar
                     }
                     if (picked == tab) stacks.getValue(tab).let { if (it.size > 1) it.removeRange(1, it.size) }

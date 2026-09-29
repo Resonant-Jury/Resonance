@@ -38,6 +38,10 @@ npm run apps:generate   # tokens, string accessors, icons, openapi.json, editor 
 | the Kotlin API client (at build time) | `openapi/v1/openapi.json` | openapi-generator (`jvm-okhttp4`) |
 | `apps/shared/fonts/*.ttf` | Noto TC, Playfair, DM Sans, 陳宇落雁 | `scripts/native/subset-fonts.py` (rarely) |
 
+Both apps also bundle the story editor island, `native/editor/dist/editor.html`
+(the writing screen's story field). It is built, not committed: run
+`npm run native:editor` (or `apps:generate`) before the first app build.
+
 CI fails when the committed tokens, string accessors or icons are stale. The
 apps draw only the web's icons (`OrganicIcon`); an icon the web lacks is added
 to the web's registry first, so both stay one set.
@@ -59,7 +63,8 @@ Tests: `cd Packages/ResonanceKit && swift test` (API client, localization,
 story format — on the Mac, in seconds) and `xcodebuild … test` (app).
 Launch arguments for checking screens (Debug): `-route /card/<slug>` or
 `-route /u/<handle>` opens that page; the seed has `rich-story`, a card with
-every kind of content.
+every kind of content. `-writeTitle "…" -writeStory "…"` start a new card with
+that text (the simulator can't type into the fields from outside).
 
 ### Against the local backend
 
@@ -87,13 +92,14 @@ the rest.
 cd apps/android
 ./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-./gradlew :core:kit:test        # API client, localization, story format
+./gradlew :core:kit:test        # API clients, localization, story format, cover hue
 ```
 
 Debug launch extras mirror iOS's arguments: `--ez emulator true` points
 Firebase at the emulators (`10.0.2.2`) and the API at `http://10.0.2.2:3100`,
-`--es email … --es password …` signs a seeded account in, and
-`--es route /card/<slug>` (or `/u/<handle>`) opens that page:
+`--es email … --es password …` signs a seeded account in,
+`--es route /card/<slug>` (or `/u/<handle>`) opens that page, and
+`--es writeTitle … --es writeStory …` start a new card with that text:
 
 ```bash
 adb shell am start -n com.resonance.stories/com.resonance.app.MainActivity \
