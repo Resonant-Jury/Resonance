@@ -74,6 +74,24 @@ actor TokenLog {
         #expect(request.headerFields[.authorization] == "Bearer stale-token")
     }
 
+    @Test func appliesAPendingEditThroughTheContract() async throws {
+        let transport = StubTransport(body: #"{"id":"c1","slug":"a-walk","applied":true}"#)
+        let result = try await api(transport).applyEdit("c1")
+        #expect(result.applied == true)
+        #expect(result.slug == "a-walk")
+        let request = try #require(transport.requests.first)
+        #expect(request.method == .post)
+        #expect(request.path?.hasSuffix("/cards/c1/edits/apply") == true)
+    }
+
+    @Test func asksTheSiteToRefreshItsPages() async throws {
+        StubURLProtocol.reset([(200, #"{"ok":true,"revalidated":[]}"#)])
+        await api().revalidate(["/card/a-walk"])
+        let (request, body) = try #require(StubURLProtocol.sent.first)
+        #expect(request.url?.path == "/api/revalidate")
+        #expect(String(decoding: body, as: UTF8.self) == #"{"paths":["\/card\/a-walk"]}"#)
+    }
+
     @Test func uploadsThePhotoAsTheFormsFilePart() async throws {
         StubURLProtocol.reset([(200, #"{"publicUrl":"https://img.test/u/alice/cover.avif","key":"u/alice/cover.avif"}"#)])
         let photo = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x01, 0x02])

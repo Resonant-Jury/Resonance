@@ -2,6 +2,7 @@ import Foundation
 import ResonanceAPI
 
 public typealias PublishResult = Components.Schemas.PublishResponse
+public typealias ApplyEditResult = Components.Schemas.ApplyEditResponse
 
 /// What the writing screen asks of the server: publishing (the v1 contract),
 /// and the web editor's helpers it shares as they are — AI tag suggestions,
@@ -28,6 +29,25 @@ public struct WritingAPI: Sendable {
         case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
         case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
         }
+    }
+
+    /// Applies your pending edit to your published card and clears it; its
+    /// date and slug stay (POST /api/v1/cards/{id}/edits/apply).
+    public func applyEdit(_ cardId: String) async throws -> ApplyEditResult {
+        switch try await client.applyCardEdit(path: .init(key: cardId)) {
+        case let .ok(r): return try r.body.json
+        case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
+        case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
+        case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
+        case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
+        }
+    }
+
+    /// Asks the site to refresh its cached pages (/api/revalidate, e.g. `/card/{slug}`,
+    /// `/me`) after a change the site can't see — a grace note, never awaited for success.
+    public func revalidate(_ paths: [String]) async {
+        struct Body: Encodable { let paths: [String] }
+        _ = try? await send("api/revalidate", json: Body(paths: paths))
     }
 
     /// Two or three tags for the draft, informed by your tag history (/api/cards/tags).

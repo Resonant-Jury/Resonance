@@ -7,12 +7,25 @@ import SwiftUI
 /// story in the editor island under the web's text toolbar, tags with the AI
 /// pill, the cover photo, then Publish (through the publish panel) or leave
 /// with the draft saved. Drafts save themselves a moment after typing stops.
+/// Opened on one of your cards (write/[id]) it resumes a draft, or revises a
+/// published card: then Save changes / Discard changes.
 struct WriteScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model: WriteModel?
+    /// Opening a card that is missing or not yours.
+    @State private var notFound = false
+    /// The first-card guide (ux §5): a brand-new writer's fresh card only.
+    @State private var showGuide = false
     @State private var publishing = false
+    /// The panel is publishing or saving: it can't be closed meanwhile (the web's pending gate).
+    @State private var panelBusy = false
+    /// The anonymous-publishing hint, for this writer's first few visits (counted per visit, as the web).
+    @State private var showsAnonymousHint = false
+    /// Discarding a revision (the buttons wait meanwhile).
+    @State private var discarding = false
+    @State private var actionError: String?
     @State private var pickingCard = false
     @State private var coverItem: PhotosPickerItem?
     @State private var inlineItem: PhotosPickerItem?
@@ -22,14 +35,34 @@ struct WriteScreen: View {
         Group {
             if let model {
                 form(model)
+            } else if notFound {
+                missing
             } else {
-                Tokens.cream
+                // The card loads straight from Firestore, painting a loader meanwhile.
+                SketchLoader()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 120)
             }
         }
         .background(Tokens.cream)
+        // Leaving the app saves what is written now, not 1.5s later (the web's visibilitychange flush).
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active, let model { Task { await model.saveNow() } }
+        }
         .task {
             if model == nil {
-                let model = WriteModel(drafts: session.drafts, writing: session.writing, referenceCardId: writer.request?.referenceCardId)
+                let request = writer.request ?? .init()
+                var opened: DraftService.OpenedCard?
+                if let cardId = request.cardId {
+                    opened = try? await session.drafts?.open(cardId)
+                    guard opened != nil else {
+                        notFound = true
+                        return
+                    }
+                } else if request.referenceCardId == nil, let drafts = session.drafts {
+                    showGuide = await !drafts.hasAnyCards()
+                }
+                let model = WriteModel(drafts: session.drafts, writing: session.writing, referenceCardId: request.referenceCardId, opened: opened)
                 #if DEBUG
                 // `-writeTitle "…" -writeStory "…" -writeCover <url>` fill a new card (screen checks; the simulator can't type into it).
                 let defaults = UserDefaults.standard
@@ -41,6 +74,7 @@ struct WriteScreen: View {
                 }
                 #endif
                 self.model = model
+                showsAnonymousHint = await session.hints?.claim("anonymous-publish") ?? false
             }
         }
     }
@@ -50,6 +84,13 @@ struct WriteScreen: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 header(model)
+                if showGuide {
+                    FirstCardGuide { question in
+                        // Seeded into the story as a quote to write against; the guide steps aside.
+                        model.seed(story: "> \(question)\n\n")
+                        withAnimation(.easeOut(duration: 0.2)) { showGuide = false }
+                    }
+                }
                 OrganicTextArea(L10n.Write.coreLabel, text: $model.values.title, placeholder: L10n.Write.corePlaceholder,
                                 maxLength: WriteModel.titleMax, display: true, curve: 0.8)
                 VStack(alignment: .leading, spacing: 10) {
@@ -72,7 +113,7 @@ struct WriteScreen: View {
             OrganicCloseChip(label: L10n.Write.closeEditor) {
                 Task {
                     await model.saveNow()
-                    dismiss()
+                    writer.close()
                 }
             }
             .padding(.top, 12)
@@ -100,11 +141,11 @@ struct WriteScreen: View {
                 model.editor.exec("insertCard", ["href": "/card/\(card.routeKey)", "title": card.title])
             } onCancel: { pickingCard = false }
         }
-        .organicModal(isPresented: $publishing, seed: 29, maxWidth: 480, closeLabel: L10n.Write.PublishPanel.cancel) {
-            PublishPanel(model: model) { routeKey in
+        .organicModal(isPresented: $publishing, seed: 29, maxWidth: 480, closeLabel: L10n.Write.PublishPanel.cancel,
+                      dismissible: !panelBusy) {
+            PublishPanel(model: model, pending: $panelBusy, showsAnonymousHint: showsAnonymousHint) { routeKey in
                 publishing = false
-                writer.finish(publishedCard: routeKey)
-                dismiss()
+                writer.finish(card: routeKey)
             } onCancel: { publishing = false }
         }
     }
@@ -112,7 +153,7 @@ struct WriteScreen: View {
     /// PageTitle with the save state under it (clear of the pinned ✕).
     private func header(_ model: WriteModel) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.Write.title)
+            Text(model.title)
                 .font(AppFonts.heading(28))
                 .foregroundStyle(Tokens.text)
                 .accessibilityAddTraits(.isHeader)
@@ -206,18 +247,66 @@ struct WriteScreen: View {
         }
     }
 
-    /// Everything autosaves; these are only about intent — publish it, or step away.
+    /// Everything autosaves; these are only about intent. A draft: publish it,
+    /// or step away. A live card: put the revision in front of readers, or drop it.
     private func actions(_ model: WriteModel) -> some View {
-        FlowRow(spacing: 12) {
-            OrganicButton(L10n.Write.publish) { publishing = true }
-            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .ghost) {
-                Task {
-                    await model.saveNow()
-                    dismiss()
+        VStack(alignment: .leading, spacing: 8) {
+            FlowRow(spacing: 12) {
+                if model.isPublished {
+                    OrganicButton(discarding ? L10n.Write.saving : L10n.Write.saveChanges) {
+                        actionError = nil
+                        publishing = true
+                    }
+                    if model.hasPendingEdit {
+                        OrganicButton(L10n.Write.discardChanges, variant: .ghost) { Task { await discard(model) } }
+                    }
+                } else {
+                    OrganicButton(L10n.Write.publish) {
+                        actionError = nil
+                        publishing = true
+                    }
+                    OrganicButton(L10n.Write.saveDraftAndLeave, variant: .ghost) {
+                        Task {
+                            await model.saveNow()
+                            writer.close()
+                        }
+                    }
                 }
+            }
+            .opacity(discarding ? 0.6 : 1)
+            .allowsHitTesting(!discarding)
+            if let actionError {
+                Text(actionError).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta)
             }
         }
         .padding(.top, 6)
+    }
+
+    private func discard(_ model: WriteModel) async {
+        guard !discarding else { return }
+        discarding = true
+        actionError = nil
+        defer { discarding = false }
+        do {
+            writer.finish(card: try await model.discardEdit())
+        } catch {
+            actionError = L10n.Native.saveError
+        }
+    }
+
+    /// The card isn't there (deleted) or isn't yours: the web's not-found note.
+    private var missing: some View {
+        VStack(spacing: 12) {
+            Text(L10n.Card.NotFound.title).font(AppFonts.heading(24)).foregroundStyle(Tokens.text)
+            Button(L10n.Card.NotFound.back) { writer.close() }
+                .font(AppFonts.body(15))
+                .foregroundStyle(Tokens.terracotta)
+                .buttonStyle(.plain)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20)
+        .padding(.top, 120)
     }
 
     private static func load(_ item: PhotosPickerItem) async -> UIImage? {
@@ -227,22 +316,30 @@ struct WriteScreen: View {
 }
 
 /// The publish panel (PublishPanel.tsx): the insight echo, who can see it,
-/// publishing anonymously with the card head it will get, then Publish.
+/// publishing anonymously with the card head it will get, then Publish. For a
+/// published card's revision ('update' mode) the echo gives way to a plain
+/// line about what the button does, and it saves the changes instead.
 private struct PublishPanel: View {
     let model: WriteModel
+    @Binding var pending: Bool
+    let showsAnonymousHint: Bool
     let onPublished: (String) -> Void
     let onCancel: () -> Void
     @Environment(SessionStore.self) private var session
     @State private var visibility = "public"
     @State private var anonymous = false
     @State private var insight: String?
-    @State private var insightLoading = true
-    @State private var pending = false
+    @State private var insightLoading = false
     @State private var error: String?
 
     var body: some View {
+        let updating = model.isPublished
         VStack(alignment: .leading, spacing: 18) {
-            ModalTitle(L10n.Write.PublishPanel.title)
+            ModalTitle(updating ? L10n.Write.PublishPanel.updateTitle : L10n.Write.PublishPanel.title)
+            if updating {
+                CSSText(L10n.Write.PublishPanel.updateHint, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.7,
+                        color: UIColor(Tokens.textMuted))
+            }
             if insightLoading {
                 HStack(spacing: 10) {
                     SketchLoader(size: 28)
@@ -284,13 +381,15 @@ private struct PublishPanel: View {
                         .font(AppFonts.body(14, weight: .semibold))
                         .foregroundStyle(anonymous ? Tokens.textMuted : Tokens.text)
                 }
-                if anonymous {
+                if showsAnonymousHint {
                     Text(L10n.Write.PublishPanel.anonymousHint).font(AppFonts.body(Tokens.hintSize)).foregroundStyle(Tokens.textMuted)
                 }
             }
             WavyDivider(seed: 47)
             HStack(spacing: 12) {
-                OrganicButton(pending ? L10n.Write.PublishPanel.publishing : L10n.Write.PublishPanel.publish, size: .sm) {
+                OrganicButton(updating
+                              ? (pending ? L10n.Write.PublishPanel.updating : L10n.Write.PublishPanel.update)
+                              : (pending ? L10n.Write.PublishPanel.publishing : L10n.Write.PublishPanel.publish), size: .sm) {
                     Task { await publish() }
                 }
                 .disabled(pending)
@@ -300,8 +399,12 @@ private struct PublishPanel: View {
             if let error { Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta) }
         }
         .task {
-            visibility = model.values.visibility == "private" ? "private" : "public"
+            // As it is: a connections card shows neither row picked, and keeps its audience unless one is.
+            visibility = model.values.visibility
             anonymous = model.values.anonymous
+            // The mirror moment is for a first publication only.
+            guard !model.isPublished else { return }
+            insightLoading = true
             insight = try? await session.writing.insight(title: model.values.title, story: model.values.story)
             insightLoading = false
         }
@@ -325,10 +428,17 @@ private struct PublishPanel: View {
     }
 
     private func publish() async {
+        // The server refuses a card without a title; say so in the writer's words.
+        guard !model.values.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            error = L10n.Write.titleRequired
+            return
+        }
         pending = true
         error = nil
         do {
-            onPublished(try await model.publish(visibility: visibility, anonymous: anonymous))
+            onPublished(model.isPublished
+                        ? try await model.applyEdit(visibility: visibility, anonymous: anonymous)
+                        : try await model.publish(visibility: visibility, anonymous: anonymous))
         } catch let failure as APIFailure {
             error = failure.message
         } catch {

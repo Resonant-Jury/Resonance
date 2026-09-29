@@ -3,18 +3,29 @@ import ResonanceKit
 import SwiftUI
 
 /// The reader's actions under a story (ReadAfterArea → CardViewerActions, the
-/// phone layout): 共振 as the one primary button, then the note as a quiet
-/// text link and the bookmark as a bare glyph. Fades in once scrolled to.
-/// Writing a resonance or a note lands with the editor (M3); until then
-/// both open the writer.
+/// phone layout): 共振 as the one primary button — or, once you have answered
+/// this card, 修改 in outline opening your own resonance — then the note as a
+/// quiet text link and the bookmark as a bare glyph. Fades in once scrolled to.
 struct CardViewerActions: View {
     let cardId: String
+    @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
     @State private var shown = false
+    /// Your card answering this one (draft or published); nil while looking, "" when there is none.
+    @State private var mine: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            OrganicButton(L10n.Card.resonate, icon: .wave) { writer.open(.init(referenceCardId: cardId)) }
+            Group {
+                if let mine, !mine.isEmpty {
+                    OrganicButton(L10n.Card.modify, icon: .pen, variant: .outline) { writer.edit(mine) }
+                } else {
+                    OrganicButton(L10n.Card.resonate, icon: .wave) { writer.open(.init(referenceCardId: cardId)) }
+                }
+            }
+            // Wait for the lookup, so a second resonance can't be started by accident.
+            .opacity(mine == nil ? 0.6 : 1)
+            .allowsHitTesting(mine != nil)
             HStack {
                 // The web's secondaryOutline with its frame hidden: a link.
                 Button { writer.open() } label: {
@@ -33,6 +44,12 @@ struct CardViewerActions: View {
         }
         .opacity(shown ? 1 : 0)
         .offset(y: shown ? 0 : 10)
+        .task(id: "\(cardId)#\(writer.changes)") {
+            // Signed out: nothing to find. A failed lookup stays dimmed, as on the web —
+            // better than risking a second resonance.
+            guard let drafts = session.drafts else { return mine = "" }
+            do { mine = try await drafts.myResonance(to: cardId) ?? "" } catch { mine = nil }
+        }
         .onScrollVisibilityChange(threshold: 0.08) { visible in
             guard visible, !shown else { return }
             withAnimation(.easeOut(duration: 0.6)) { shown = true }

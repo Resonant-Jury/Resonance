@@ -54,6 +54,7 @@ final class SessionStore {
     var safety: SafetyService? { uid.map(SafetyService.init(uid:)) }
     var bookmarks: BookmarkService? { uid.map(BookmarkService.init(uid:)) }
     var drafts: DraftService? { uid.map(DraftService.init(uid:)) }
+    var hints: HintService? { uid.map(HintService.init(uid:)) }
     /// What the account signed in with (settings → account shows them read-only).
     var email: String? { Auth.auth().currentUser?.email }
     var phoneNumber: String? { Auth.auth().currentUser?.phoneNumber }
@@ -120,17 +121,19 @@ final class SessionStore {
             notifications.stop()
         }
         #if DEBUG
-        if wasRestoring, newUID == nil { autoSignInForTesting() }
+        if wasRestoring { autoSignInForTesting() }
         #endif
     }
 
     #if DEBUG
     /// Emulator builds launched with `-email … -password …` sign that seeded
-    /// account in on start, so screens can be checked without typing.
+    /// account in on start (switching from whoever was restored), so screens
+    /// can be checked without typing.
     private func autoSignInForTesting() {
         let defaults = UserDefaults.standard
         guard config.usesEmulator, let email = defaults.string(forKey: "email"),
-              let password = defaults.string(forKey: "password") else { return }
+              let password = defaults.string(forKey: "password"),
+              Auth.auth().currentUser?.email?.lowercased() != email.lowercased() else { return }
         Task { await signIn(email: email, password: password) }
     }
     #endif

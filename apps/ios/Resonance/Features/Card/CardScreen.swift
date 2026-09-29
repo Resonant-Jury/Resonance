@@ -45,7 +45,10 @@ struct CardScreen: View {
         // The web's pen sits on the card page too: bottom right, 20 in.
         .overlay(alignment: .bottomTrailing) {
             if let detail = model?.detail {
-                FloatingWriteButton(label: detail.isOwner ? L10n.App.Nav.editThisCard : L10n.App.Nav.write) { writer.open() }
+                // On your own card the pen edits it (FloatingWriteButton's editsOwnCard), then comes back here.
+                FloatingWriteButton(label: detail.isOwner ? L10n.App.Nav.editThisCard : L10n.App.Nav.write) {
+                    if detail.isOwner { writer.edit(detail.card.id, showsCard: false) } else { writer.open() }
+                }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -53,6 +56,10 @@ struct CardScreen: View {
             if model == nil { model = CardModel(key: key, api: session.reading) }
             // Also resumes a load that was cut short when the page left mid-way.
             if let model, model.detail == nil { await model.load() }
+        }
+        // Edited, published or re-shelved from the writer or the ⋯: read it again.
+        .onChange(of: writer.changes) {
+            Task { await model?.load() }
         }
     }
 
@@ -73,8 +80,11 @@ struct CardScreen: View {
                     CSSText(card.title, font: AppFonts.uiFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
                             tracking: -0.015 * 28)
                         .accessibilityAddTraits(.isHeader)
-                    // The reader's ⋯ sits beside the title, as on the web.
-                    if !detail.isOwner, let authorId = detail.anonymous ? nil : card.author?.value1.id {
+                    // The ⋯ sits beside the title, as on the web: the owner's actions, or the reader's safety menu.
+                    if detail.isOwner {
+                        CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, routeKey: card.routeKey, seed: hue + 3,
+                                        onDeleted: { openRoute.dismissToRoot() })
+                    } else if let authorId = detail.anonymous ? nil : card.author?.value1.id {
                         SafetyMenu(target: .card(id: card.id, authorId: authorId), handle: card.author?.value1.handle,
                                    seed: hue + 3)
                     }

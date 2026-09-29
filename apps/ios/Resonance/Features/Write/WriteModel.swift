@@ -5,6 +5,8 @@ import UIKit
 
 /// The writing screen's state and its work (CardEditor): the draft's values,
 /// autosave a moment after typing stops, AI tags, the cover photo, publishing.
+/// Opened on a published card it revises instead: autosave buffers the
+/// working copy privately and "Save changes" puts it in front of readers.
 @MainActor @Observable
 final class WriteModel {
     var values = DraftValues() {
@@ -12,6 +14,12 @@ final class WriteModel {
     }
     private(set) var draftId: String?
     private(set) var savedAt: Date?
+    /// Revising a live card (fixed for the model's lifetime, as on the web).
+    let isPublished: Bool
+    /// A revision is waiting in the buffer — only its author can see it.
+    private(set) var hasPendingEdit: Bool
+    /// The published card's slug (its page lives at slug ?? id).
+    let slug: String?
     var tagDraft = ""
     private(set) var suggestingTags = false
     var tagError: String?
@@ -36,18 +44,33 @@ final class WriteModel {
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     /// Writes run one after another, so a slow create can't race the next update.
     @ObservationIgnored private var chain: Task<Void, Never>?
+    /// What the last successful write stored; an unchanged working copy isn't written again.
+    @ObservationIgnored private var lastSaved: DraftValues?
 
-    /// CardEditor's AUTOSAVE_DELAY_MS.
-    static let autosaveDelay: Duration = .milliseconds(800)
+    /// CardEditor's AUTOSAVE_DELAY_MS (leaving or going to the background saves at once).
+    static let autosaveDelay: Duration = .milliseconds(1500)
     static let titleMax = 60
 
-    init(drafts: DraftService?, writing: WritingAPI, referenceCardId: String? = nil) {
+    init(drafts: DraftService?, writing: WritingAPI, referenceCardId: String? = nil, opened: DraftService.OpenedCard? = nil) {
         self.drafts = drafts
         self.writing = writing
-        self.referenceCardId = referenceCardId
+        self.referenceCardId = opened?.referenceCardId ?? referenceCardId
+        isPublished = opened?.isPublished ?? false
+        hasPendingEdit = opened?.hasPendingEdit ?? false
+        slug = opened?.slug
+        title = opened.map { $0.isPublished ? L10n.Write.editPublishedTitle : L10n.Write.editTitle } ?? L10n.Write.title
         editor = StoryEditorBridge(placeholder: L10n.Write.storyPlaceholder)
+        if let opened {
+            draftId = opened.id
+            values = opened.values
+            lastSaved = opened.values
+            editor.setMarkdown(opened.values.story)
+        }
         editor.onChange = { [weak self] markdown in self?.values.story = markdown }
     }
+
+    /// The card's page: slug, or id (a draft or a card without one).
+    var routeKey: String? { slug ?? draftId }
 
     // MARK: Autosave
 
@@ -71,12 +94,18 @@ final class WriteModel {
             guard let self, let drafts = self.drafts else { return }
             let v = self.values
             if v.isEmpty && self.draftId == nil { return }
+            if v == self.lastSaved { return }
             do {
-                if let id = self.draftId {
+                if self.isPublished, let id = self.draftId {
+                    // A live card: the revision waits privately in its buffer.
+                    try await drafts.saveEdit(id, v)
+                    self.hasPendingEdit = true
+                } else if let id = self.draftId {
                     try await drafts.update(id, v)
                 } else {
                     self.draftId = try await drafts.create(v, locale: Strings.shared.language.rawValue, referenceCardId: self.referenceCardId)
                 }
+                self.lastSaved = v
                 self.savedAt = Date()
             } catch {
                 // Kept in memory; the next edit (or leaving) tries again.
@@ -87,11 +116,28 @@ final class WriteModel {
         return draftId
     }
 
-    /// "Draft saved · 14:32", or the hint that drafts save themselves.
-    var saveStatus: String {
-        guard let savedAt else { return L10n.Write.autosaveHint }
-        return L10n.Write.autosaved(time: savedAt.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Strings.shared.locale)))
+    /// The first-card guide's question, as the story to write against: it is
+    /// the starting point, not writing — nothing is saved until the user adds to it.
+    func seed(story: String) {
+        editor.setMarkdown(story)
+        values.story = story
+        lastSaved = values
     }
+
+    /// One line of plain reassurance under the page title: what has happened
+    /// and, for a live card, what has not happened yet.
+    var saveStatus: String {
+        let time = savedAt?.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Strings.shared.locale))
+        if isPublished {
+            if let time { return L10n.Write.editBuffered(time: time) }
+            return hasPendingEdit ? L10n.Write.editBufferedIdle : L10n.Write.editLiveHint
+        }
+        guard let time else { return L10n.Write.autosaveHint }
+        return L10n.Write.autosaved(time: time)
+    }
+
+    /// The page title: a new card, a draft being resumed, or a live card being revised.
+    let title: String
 
     // MARK: Tags
 
@@ -202,5 +248,31 @@ final class WriteModel {
         guard let id = await saveNow() else { throw APIFailure(code: "invalid_request", message: "Nothing to publish.", status: nil) }
         let result = try await writing.publish(id)
         return result.slug ?? result.id
+    }
+
+    /// Save changes: the working copy (with the panel's choices) goes into the
+    /// buffer, then the server makes it the live card — the moment an edit
+    /// reaches readers. The publish date stays. Returns where the card lives.
+    func applyEdit(visibility: String, anonymous: Bool) async throws -> String {
+        values.visibility = visibility
+        values.anonymous = anonymous
+        guard let id = draftId else { throw APIFailure(code: "not_found", message: "No such card.", status: nil) }
+        await saveNow()
+        if values != lastSaved { throw APIFailure(code: "internal", message: L10n.Native.saveError, status: nil) }
+        let result = try await writing.applyEdit(id)
+        hasPendingEdit = false
+        return result.slug ?? slug ?? id
+    }
+
+    /// Discard changes: the buffer goes; the live card was never touched.
+    func discardEdit() async throws -> String {
+        guard let id = draftId, let drafts else { throw APIFailure(code: "not_found", message: "No such card.", status: nil) }
+        saveTask?.cancel()
+        // Behind any autosave in flight, so a straggling write can't re-create the buffer.
+        await chain?.value
+        try await drafts.discardEdit(id)
+        hasPendingEdit = false
+        lastSaved = values
+        return slug ?? id
     }
 }

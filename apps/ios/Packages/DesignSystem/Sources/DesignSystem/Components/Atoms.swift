@@ -4,7 +4,14 @@ import SwiftUI
 
 public struct TagPill: View {
     /// TagPill.tsx's sizes: md on cards, lg in the writer.
-    public enum Size: Sendable { case md, lg }
+    public enum Size: Sendable {
+        case sm, md, lg
+
+        var font: CGFloat { switch self { case .sm: 10; case .md: 11; case .lg: 13 } }
+        var tracking: CGFloat { self == .lg ? 0.05 : 0.04 }
+        var padX: CGFloat { switch self { case .sm: 10; case .md: 14; case .lg: 18 } }
+        var padY: CGFloat { switch self { case .sm: 3; case .md: 4; case .lg: 7 } }
+    }
 
     let text: String
     var fill: Color
@@ -29,14 +36,14 @@ public struct TagPill: View {
         return Double(abs(Int(hash)) % 9973 + 1)
     }
 
-    /// md: 11px uppercase at 0.04em, 4×14 padding; lg: 13px at 0.05em, 7×18.
-    /// The height comes from the line box, as on the web (≈22 / ≈32).
+    /// sm: 10px uppercase at 0.04em, 3×10 padding; md: 11px, 4×14; lg: 13px at
+    /// 0.05em, 7×18. The height comes from the line box, as on the web (≈19 / ≈22 / ≈32).
     public var body: some View {
-        let font: CGFloat = size == .lg ? 13 : 11
+        let font = size.font
         HStack(spacing: 6) {
             Text(text.uppercased())
                 .font(AppFonts.body(font, weight: .semibold))
-                .tracking(font * (size == .lg ? 0.05 : 0.04))
+                .tracking(font * size.tracking)
                 .foregroundStyle(Tokens.text)
                 // CJK ink rides high in DM Sans' line box; the web nudges it 0.04em.
                 .offset(y: font * 0.04)
@@ -54,8 +61,8 @@ public struct TagPill: View {
                 .accessibilityLabel("Remove tag")
             }
         }
-        .padding(.horizontal, size == .lg ? 18 : 14)
-        .padding(.vertical, size == .lg ? 7 : 4)
+        .padding(.horizontal, size.padX)
+        .padding(.vertical, size.padY)
         .background {
             GeometryReader { geo in
                 let shape = WobRectShape(radius: geo.size.height / 2, seed: seed ?? Self.autoSeed(text))

@@ -14,6 +14,8 @@ struct CardBoxScreen: View {
     @State private var failed = false
 
     private static let order: [ReadingAPI.CardBoxShelf] = [.published, ._private, .draft, .resonated, .linked, .bookmarks]
+    /// The shelves of my own cards (OWNED_TABS): each card gets its ⋯.
+    private static let owned: Set<ReadingAPI.CardBoxShelf> = [.published, ._private, .draft]
 
     var body: some View {
         TabScreen(L10n.App.Nav.me) {
@@ -26,6 +28,11 @@ struct CardBoxScreen: View {
             await load(shelf, force: true)
         }
         .task(id: shelf) { await load(shelf) }
+        // The writer or a card's ⋯ changed something: every shelf may have moved.
+        .onChange(of: writer.changes) {
+            shelves = [:]
+            Task { await load(shelf) }
+        }
     }
 
     @ViewBuilder private var header: some View {
@@ -104,6 +111,8 @@ struct CardBoxScreen: View {
                 .padding(.vertical, 40)
             } else if shelf == .linked {
                 MiniCardList(cards: cards)
+            } else if Self.owned.contains(shelf) {
+                ManagedCardList(cards: cards, resumesDrafts: shelf == .draft)
             } else {
                 StoryCardList(cards: cards)
             }
@@ -157,6 +166,49 @@ struct CardBoxScreen: View {
         case .resonated: L10n.Me.emptyResonated
         case .linked: L10n.Me.emptyLinked
         case .bookmarks: L10n.Me.emptyBookmarks
+        }
+    }
+}
+
+/// My own cards (ProfileTabs' managed shelves): each with the owner's ⋯ over
+/// its top-right corner, and the anonymous badge under an anonymous one (my
+/// own byline shows on it here — the badge marks it instead). A draft has no
+/// page yet, so tapping it resumes writing.
+private struct ManagedCardList: View {
+    let cards: [FeedCard]
+    let resumesDrafts: Bool
+    @Environment(WriteLauncher.self) private var writer
+
+    var body: some View {
+        LazyVStack(spacing: 0) {
+            ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
+                let hue = CardPalette(accentHue: card.accentHue, position: i).hue
+                VStack(alignment: .leading, spacing: 0) {
+                    Group {
+                        if resumesDrafts {
+                            Button { writer.edit(card.id) } label: { StoryCardView(card.story, position: i, isLast: i == cards.count - 1) }
+                        } else {
+                            NavigationLink(value: Route.card(card.routeKey)) {
+                                StoryCardView(card.story, position: i, isLast: i == cards.count - 1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    // .actions: the chip 14 in from the card's corner (the card's box sits 20 in from
+                    // the screen); the trigger's 44pt hit box reaches 3 past the 38pt chip.
+                    .overlay(alignment: .topTrailing) {
+                        CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, routeKey: card.routeKey, seed: hue, hue: hue)
+                            .padding(.top, 14 - 3)
+                            .padding(.trailing, 34 - 3)
+                    }
+                    if card.anonymous {
+                        TagPill(L10n.Me.anonymousBadge, fill: Tokens.creamDark, size: .sm)
+                            .padding(.top, 8)
+                            .padding(.horizontal, 34)
+                            .padding(.bottom, 4)
+                    }
+                }
+            }
         }
     }
 }

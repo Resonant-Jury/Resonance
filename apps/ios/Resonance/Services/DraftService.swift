@@ -69,6 +69,96 @@ struct DraftService {
         try await write(db.collection("cards").document(id), data, merge: true)
     }
 
+    // MARK: Opening a card to edit
+
+    /// A card of yours as the editor opens it (write/[id]/page.tsx): a draft
+    /// with its own fields, or a published card with its pending edit when
+    /// there is one — buffered edits win over the live fields.
+    struct OpenedCard {
+        let id: String
+        var values: DraftValues
+        let isPublished: Bool
+        let slug: String?
+        let referenceCardId: String?
+        let hasPendingEdit: Bool
+        /// Where it lives once published: the slug, or the id.
+        var routeKey: String { slug ?? id }
+    }
+
+    /// Your card by id, or nil when it is missing or someone else's (rules deny → nil).
+    func open(_ id: String) async throws -> OpenedCard? {
+        let ref = db.collection("cards").document(id)
+        guard let card = try? await ref.getDocument(), let data = card.data(), data["authorId"] as? String == uid else { return nil }
+        let isPublished = data["publishedAt"] is Timestamp
+        let pending = isPublished ? try? await editRef(id).getDocument() : nil
+        let buffered = pending?.data()
+        return OpenedCard(id: id, values: Self.values(buffered ?? data), isPublished: isPublished, slug: data["slug"] as? String,
+                          referenceCardId: data["referenceCardId"] as? String, hasPendingEdit: buffered != nil)
+    }
+
+    private static func values(_ d: [String: Any]) -> DraftValues {
+        let media = d["media"] as? [String: Any]
+        return DraftValues(
+            title: d["thoughtCore"] as? String ?? "",
+            story: d["story"] as? String ?? "",
+            tags: d["tags"] as? [String] ?? [],
+            visibility: d["visibility"] as? String ?? "public",
+            anonymous: d["anonymous"] as? Bool ?? false,
+            imageURL: (media?["url"] as? String).flatMap(URL.init(string:)),
+            imageLabel: media?["label"] as? String,
+            accentHue: (d["accentHue"] as? NSNumber)?.doubleValue
+        )
+    }
+
+    // MARK: Pending edits (lib/db/firestore/client/cardEdits.ts)
+
+    private func editRef(_ id: String) -> DocumentReference {
+        db.collection("cards").document(id).collection("edits").document("current")
+    }
+
+    /// savePendingCardEdit: a published card autosaves its whole working copy
+    /// here (owner-only), never onto the card readers are looking at.
+    func saveEdit(_ id: String, _ v: DraftValues) async throws {
+        var data = fields(v)
+        if let media = media(v) { data["media"] = media }
+        data["accentHue"] = v.accentHue ?? NSNull()
+        data["updatedAt"] = FieldValue.serverTimestamp()
+        try await write(editRef(id), data, merge: false)
+    }
+
+    /// discardPendingCardEdit: the live card is left exactly as it was.
+    func discardEdit(_ id: String) async throws {
+        try await editRef(id).delete()
+    }
+
+    // MARK: The card box's ⋯ (CardActionsMenu)
+
+    /// 轉為公開／私人: the card's visibility alone.
+    func setVisibility(_ id: String, _ visibility: String) async throws {
+        try await write(db.collection("cards").document(id), ["visibility": visibility, "updatedAt": FieldValue.serverTimestamp()], merge: true)
+    }
+
+    /// deleteCardDraft — drafts and published cards alike.
+    func delete(_ id: String) async throws {
+        try await db.collection("cards").document(id).delete()
+    }
+
+    // MARK: Reads of your own cards
+
+    /// getMyResonanceCard: your card (draft or published) answering this one, if any.
+    func myResonance(to cardId: String) async throws -> String? {
+        let snap = try await db.collection("cards").whereField("authorId", isEqualTo: uid)
+            .whereField("referenceCardId", isEqualTo: cardId).limit(to: 1).getDocuments()
+        return snap.documents.first?.documentID
+    }
+
+    /// hasAnyOwnCards: whether you have written anything at all (drafts count).
+    func hasAnyCards() async -> Bool {
+        let snap = try? await db.collection("cards").whereField("authorId", isEqualTo: uid).limit(to: 1).getDocuments()
+        // A failed read counts as "has written": the guide is for newcomers only.
+        return snap.map { !$0.documents.isEmpty } ?? true
+    }
+
     // The completion form: the payload never leaves the main actor.
     private func write(_ ref: DocumentReference, _ data: [String: Any], merge: Bool) async throws {
         try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
