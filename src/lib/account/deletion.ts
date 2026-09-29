@@ -102,6 +102,7 @@ async function collectAccountData(db: Firestore, uid: string) {
     db.collection('quotas').where('userId', '==', uid),
     db.collection('cardVectors').where('authorId', '==', uid),
     db.collection('reports').where('reporterId', '==', uid),
+    db.collection('devices').where('userId', '==', uid), // push tokens
   ];
   // Other readers' resonance records on the deleted cards.
   const cardIds = cards.docs.map((d) => d.id);

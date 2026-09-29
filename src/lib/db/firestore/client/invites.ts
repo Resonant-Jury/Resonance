@@ -15,6 +15,7 @@ import type { Invite } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getCurrentUserHandle } from './profile';
 import { getClientDb } from './init';
+import { ringNotification } from './push';
 
 function requireUid(): string {
   const uid = getFirebaseClientAuth().currentUser?.uid;
@@ -41,7 +42,8 @@ export async function acceptInvite(inviteId: string): Promise<string> {
   // Denormalized into the notification payload: notification rules cannot
   // read other docs cheaply.
   const myHandle = await getCurrentUserHandle().catch(() => null);
-  return runTransaction(db, async (tx) => {
+  const bell = doc(collection(db, 'notifications'));
+  const connected = await runTransaction(db, async (tx) => {
     const inviteRef = doc(db, 'invites', inviteId);
     const snap = await tx.get(inviteRef);
     if (!snap.exists()) throw new Error('Invite not found');
@@ -58,7 +60,7 @@ export async function acceptInvite(inviteId: string): Promise<string> {
       userIds: uid < otherUid ? [uid, otherUid] : [otherUid, uid],
       establishedAt: serverTimestamp(),
     });
-    tx.set(doc(collection(db, 'notifications')), {
+    tx.set(bell, {
       userId: otherUid,
       type: 'invite_accepted',
       payload: { inviteId, fromUserId: uid, fromHandle: myHandle ?? '' },
@@ -68,6 +70,8 @@ export async function acceptInvite(inviteId: string): Promise<string> {
 
     return connectionId;
   });
+  ringNotification(bell.id);
+  return connected;
 }
 
 export async function withdrawInvite(inviteId: string): Promise<void> {

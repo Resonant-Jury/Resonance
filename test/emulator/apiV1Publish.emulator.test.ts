@@ -49,12 +49,12 @@ describe('publishCard', () => {
   it('stamps publishedAt once and gives the card its slug with the handle', async () => {
     await draft('c1');
     const first = await publishCard(db, 'alice', 'c1', slugBase);
-    expect(first).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: true });
+    expect(first).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: true, notificationId: null });
     const stamped = (await db.doc('cards/c1').get()).get('publishedAt') as Timestamp;
     expect(stamped).toBeInstanceOf(Timestamp);
 
     const again = await publishCard(db, 'alice', 'c1', slugBase);
-    expect(again).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: false });
+    expect(again).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: false, notificationId: null });
     expect(((await db.doc('cards/c1').get()).get('publishedAt') as Timestamp).isEqual(stamped)).toBe(true);
   });
 
@@ -69,7 +69,7 @@ describe('publishCard', () => {
     const result = await publishCard(db, 'alice', 'c1', async () => {
       throw new Error('LLM down');
     });
-    expect(result).toEqual({ id: 'c1', slug: null, firstPublish: true });
+    expect(result).toEqual({ id: 'c1', slug: null, firstPublish: true, notificationId: null });
   });
 
   it("is not_found for someone else's card, and refuses an untitled one", async () => {
@@ -85,11 +85,14 @@ describe('publishCard', () => {
 
     it("connects the authors and rings the original author's bell, once", async () => {
       await draft('r1', { referenceCardId: 'orig' });
-      await publishCard(db, 'alice', 'r1', slugBase);
-      await publishCard(db, 'alice', 'r1', slugBase);
+      const first = await publishCard(db, 'alice', 'r1', slugBase);
+      const again = await publishCard(db, 'alice', 'r1', slugBase);
       expect((await db.doc('connections/alice_bob').get()).get('userIds')).toEqual(['alice', 'bob']);
       const bell = await notifications();
       expect(bell.size).toBe(1);
+      // The route pushes that row after its response; a re-publish rings nothing.
+      expect(first.notificationId).toBe(bell.docs[0].id);
+      expect(again.notificationId).toBeNull();
       expect(bell.docs[0].data()).toMatchObject({ type: 'resonance', readAt: null, payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' } });
     });
 

@@ -142,6 +142,21 @@ export function buildOpenApi(): Json {
           responses: { '201': { description: 'Created', ...json(ref('SendMessageResponse')) }, ...errors(400, 401, 403, 404) },
         },
       },
+      '/me/devices/{installationId}': {
+        put: {
+          operationId: 'registerDevice',
+          summary: "Register this install's push token (it moves to you if someone else was signed in on it)",
+          parameters: [pathParam('installationId', "The install's own stable id (8–128 of A–Z a–z 0–9 _ . : -)")],
+          requestBody: { required: true, ...json(ref('RegisterDeviceRequest')) },
+          responses: { '204': { description: 'Registered' }, ...errors(400, 401) },
+        },
+        delete: {
+          operationId: 'unregisterDevice',
+          summary: 'On sign-out: stop pushing to this install',
+          parameters: [pathParam('installationId', "The install's own stable id")],
+          responses: { '204': { description: 'Removed (or it was not yours)' }, ...errors(400, 401) },
+        },
+      },
       '/invites': {
         post: {
           operationId: 'createInvite',

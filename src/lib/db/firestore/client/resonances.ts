@@ -3,6 +3,7 @@
 import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
+import { ringNotification } from './push';
 
 export interface ResonanceTarget {
   /** uid of the original card's author, who should be notified. */
@@ -26,7 +27,8 @@ export async function notifyResonance(
   if (!uid || target.authorId === uid) return;
   const db = getClientDb();
   const batch = writeBatch(db);
-  batch.set(doc(collection(db, 'notifications')), {
+  const bell = doc(collection(db, 'notifications'));
+  batch.set(bell, {
     userId: target.authorId,
     type: 'resonance',
     payload: { fromUserId: uid, fromHandle: target.fromHandle, cardId: originalCardId },
@@ -34,4 +36,5 @@ export async function notifyResonance(
     createdAt: serverTimestamp(),
   });
   await batch.commit();
+  ringNotification(bell.id);
 }

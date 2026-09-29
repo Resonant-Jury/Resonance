@@ -3,6 +3,7 @@ import { ApiFailure, parse, withUser } from '@/lib/api/v1/http';
 import { sendMessage } from '@/lib/api/v1/conversations';
 import { SendMessageRequest } from '@/lib/api/v1/schemas';
 import { getAdminDb } from '@/lib/db/firestore/admin';
+import { ringAfter } from '@/lib/push/ring';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,8 @@ export const POST = withUser(async (user, req) => {
   const body = await req.json().catch(() => {
     throw new ApiFailure('invalid_request', 'The body must be JSON.');
   });
-  const sent = await sendMessage(getAdminDb(), user.id, parse(SendMessageRequest, body));
+  const db = getAdminDb();
+  const { notificationId, ...sent } = await sendMessage(db, user.id, parse(SendMessageRequest, body));
+  ringAfter(db, notificationId);
   return NextResponse.json(sent, { status: 201 });
 });

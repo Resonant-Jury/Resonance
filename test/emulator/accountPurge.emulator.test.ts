@@ -94,6 +94,8 @@ async function seedWorld() {
     set('recommendations/alice', { items: [] }),
     set('reports/r1', { reporterId: 'alice', targetUserId: 'carol' }),
     set('reports/r2', { reporterId: 'carol', targetUserId: 'alice' }),
+    set('devices/alice-phone-1', { userId: 'alice', token: 't1', platform: 'ios', locale: 'en' }),
+    set('devices/bob-phone-1', { userId: 'bob', token: 't2', platform: 'android', locale: 'en' }),
   ]);
 }
 
@@ -137,6 +139,7 @@ describe('purgeAccount', () => {
       'userProfiles/alice',
       'recommendations/alice',
       'reports/r1',
+      'devices/alice-phone-1',
       'accountDeletions/alice',
     ];
     const kept = [
@@ -152,6 +155,7 @@ describe('purgeAccount', () => {
       'notifications/bob-own',
       'cardVectors/bob-card__insight',
       'reports/r2', // reports about the deleted user stay for moderation history
+      'devices/bob-phone-1',
     ];
 
     const stillThere = (await Promise.all(gone.map(async (p) => ((await exists(p)) ? p : null)))).filter(Boolean);

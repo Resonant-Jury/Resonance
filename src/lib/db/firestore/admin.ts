@@ -1,5 +1,6 @@
 import { getApps, initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
 
 function privateKey() {
   return process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
@@ -28,4 +29,10 @@ export function getAdminDb() {
     initializeApp(firebaseAdminConfig());
   }
   return getFirestore();
+}
+
+/** FCM through the same admin app (push: `src/lib/push`). */
+export function getAdminMessaging() {
+  getAdminDb();
+  return getMessaging();
 }

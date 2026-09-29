@@ -262,6 +262,19 @@ export const SendMessageResponse = named(
   'SendMessageResponse',
 );
 
+export const RegisterDeviceRequest = named(
+  z.object({
+    /** The FCM registration token (iOS: FCM's token for the APNs one). */
+    token: z.string().min(1).max(4096),
+    platform: z.enum(['ios', 'android']),
+    /** The app's UI language — pushes are written in it ("zh…" reads zh-TW, anything else en). */
+    locale: z.string().max(35).nullish(),
+    appVersion: z.string().max(40).nullish(),
+  }),
+  'RegisterDeviceRequest',
+  "This install's push token. Register after sign-in and whenever the token or the app's language changes.",
+);
+
 /** firestore.rules' cap on a report's details (REPORT_DETAIL_MAX on the web). */
 export const REPORT_DETAIL_MAX = 1000;
 
@@ -294,6 +307,9 @@ export const CardBoxQuery = z.object({ tab: CardBoxTab });
 /** A card's URL segment: its English slug or (older cards) its document id. */
 export const CardKey = z.string().regex(/^[A-Za-z0-9_-]{1,160}$/, 'Not a valid card.');
 export const CardIdParam = DocId;
+export const NotificationIdParam = DocId;
+/** An app install's own stable id (a UUID it keeps; Firebase Installations' id also fits). */
+export const InstallationIdParam = z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, 'Not a valid installation id.');
 /** Pen names may be any script (2–20 characters); never a path. */
 export const HandleParam = z.string().trim().min(1).max(40).regex(/^[^/?#]+$/, 'Not a valid handle.');
 

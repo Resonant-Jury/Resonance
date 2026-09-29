@@ -10,6 +10,8 @@ export interface PublishResult {
   slug: string | null;
   /** False when the card was already live — publishing again never re-dates it. */
   firstPublish: boolean;
+  /** A resonance's bell row on the original author's side, for its push (never returned to the client). */
+  notificationId: string | null;
 }
 
 /**
@@ -45,24 +47,25 @@ export async function publishCard(
   const slug = await assignSlug(db, id, slugBase).catch(() => null);
 
   const referenceCardId = typeof card.data.referenceCardId === 'string' ? card.data.referenceCardId : null;
-  if (card.firstPublish && referenceCardId && card.data.anonymous !== true) {
-    await connectResonance(db, uid, referenceCardId).catch((e) => console.error('[api/v1] resonance', e));
-  }
-  return { id, slug, firstPublish: card.firstPublish };
+  const notificationId = card.firstPublish && referenceCardId && card.data.anonymous !== true
+    ? await connectResonance(db, uid, referenceCardId).catch((e) => (console.error('[api/v1] resonance', e), null))
+    : null;
+  return { id, slug, firstPublish: card.firstPublish, notificationId };
 }
 
-async function connectResonance(db: Firestore, uid: string, originalId: string) {
+/** Connect the two authors and ring the original's bell; the bell row's id, or null when nothing rang. */
+async function connectResonance(db: Firestore, uid: string, originalId: string): Promise<string | null> {
   const snap = await db.doc(`cards/${originalId}`).get();
-  if (!snap.exists) return;
+  if (!snap.exists) return null;
   const original = mapCard(snap.id, snap.data()!);
   const other = original.authorId;
-  if (!other || other === uid || !(await canView(db, original, uid))) return;
+  if (!other || other === uid || !(await canView(db, original, uid))) return null;
   const [out, inn, me] = await Promise.all([
     db.doc(`users/${uid}/blocks/${other}`).get(),
     db.doc(`users/${other}/blocks/${uid}`).get(),
     db.doc(`users/${uid}`).get(),
   ]);
-  if (out.exists || inn.exists) return;
+  if (out.exists || inn.exists) return null;
 
   const pair = uid < other ? `${uid}_${other}` : `${other}_${uid}`;
   const connection = db.doc(`connections/${pair}`);
@@ -70,7 +73,8 @@ async function connectResonance(db: Firestore, uid: string, originalId: string) 
   if (!(await connection.get()).exists) {
     batch.set(connection, { userIds: uid < other ? [uid, other] : [other, uid], establishedAt: FieldValue.serverTimestamp() });
   }
-  batch.set(db.collection('notifications').doc(), {
+  const bell = db.collection('notifications').doc();
+  batch.set(bell, {
     userId: other,
     type: 'resonance',
     payload: { fromUserId: uid, fromHandle: String(me.get('handle') ?? ''), cardId: originalId },
@@ -78,4 +82,5 @@ async function connectResonance(db: Firestore, uid: string, originalId: string) 
     createdAt: FieldValue.serverTimestamp(),
   });
   await batch.commit();
+  return bell.id;
 }

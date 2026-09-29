@@ -1135,6 +1135,98 @@
         }
       }
     },
+    "/me/devices/{installationId}": {
+      "put": {
+        "operationId": "registerDevice",
+        "summary": "Register this install's push token (it moves to you if someone else was signed in on it)",
+        "parameters": [
+          {
+            "name": "installationId",
+            "in": "path",
+            "required": true,
+            "description": "The install's own stable id (8–128 of A–Z a–z 0–9 _ . : -)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Registered"
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unregisterDevice",
+        "summary": "On sign-out: stop pushing to this install",
+        "parameters": [
+          {
+            "name": "installationId",
+            "in": "path",
+            "required": true,
+            "description": "The install's own stable id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed (or it was not yours)"
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/invites": {
       "post": {
         "operationId": "createInvite",
@@ -1825,6 +1917,38 @@
           "conversationId",
           "id"
         ]
+      },
+      "RegisterDeviceRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ios",
+              "android"
+            ]
+          },
+          "locale": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 35
+          },
+          "appVersion": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "token",
+          "platform"
+        ],
+        "description": "This install's push token. Register after sign-in and whenever the token or the app's language changes."
       },
       "ReportCardRequest": {
         "type": "object",

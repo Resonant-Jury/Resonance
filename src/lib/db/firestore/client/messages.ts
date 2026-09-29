@@ -20,6 +20,7 @@ import {
 import type { Conversation, Message } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
+import { ringNotification } from './push';
 
 /** Hard cap mirrored in firestore.rules — keep the two in sync. */
 export const MESSAGE_MAX_LENGTH = 2000;
@@ -177,13 +178,15 @@ export async function notifyConversationStarted(
   fromHandle: string,
 ): Promise<void> {
   const uid = requireUid();
-  await setDoc(doc(collection(getClientDb(), 'notifications')), {
+  const bell = doc(collection(getClientDb(), 'notifications'));
+  await setDoc(bell, {
     userId: toUserId,
     type: 'message',
     payload: { fromUserId: uid, fromHandle },
     readAt: null,
     createdAt: serverTimestamp(),
   });
+  ringNotification(bell.id);
 }
 
 /** Zero the viewer's own unread counter on a conversation. */

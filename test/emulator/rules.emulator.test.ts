@@ -268,6 +268,17 @@ describe('account deletion requests', () => {
   });
 });
 
+describe('push devices', () => {
+  it('are the API\'s alone: no client reads a token or registers one, even its own', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'devices', 'alice-phone-1'), { userId: 'alice', token: 't', platform: 'ios', locale: 'en' });
+    });
+    await assertFails(getDoc(doc(as('alice'), 'devices', 'alice-phone-1')));
+    await assertFails(getDocs(query(collection(as('alice'), 'devices'), where('userId', '==', 'alice'))));
+    await assertFails(setDoc(doc(as('bob'), 'devices', 'bob-phone-1'), { userId: 'bob', token: 't', platform: 'ios', locale: 'en' }));
+  });
+});
+
 describe('cards: who can read which', () => {
   // Bob's four cards: a public one, a private one, one for connections, and a
   // draft (drafts start as visibility "public" — publishing is what shows them).

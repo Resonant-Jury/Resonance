@@ -22,7 +22,13 @@ const cut = (text: string, n: number) => Array.from(text).slice(0, n).join('');
  * author can answer in Messages; an anonymous card connects no one (the
  * connection would name its author, as a resonance to it doesn't either).
  */
-export async function sendNote(db: Firestore, uid: string, input: { cardId: string; text: string }): Promise<string> {
+export interface SentNote {
+  id: string;
+  /** The author's bell row, for its push (never returned to the client). */
+  notificationId: string;
+}
+
+export async function sendNote(db: Firestore, uid: string, input: { cardId: string; text: string }): Promise<SentNote> {
   const card = await visibleCard(db, uid, input.cardId);
   if (!card.publishedAt) throw new ApiFailure('not_found', 'No such card.');
   const author = card.authorId;
@@ -49,7 +55,8 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
       readAt: null,
       createdAt: FieldValue.serverTimestamp(),
     });
-    tx.set(db.collection('notifications').doc(), {
+    const bell = db.collection('notifications').doc();
+    tx.set(bell, {
       userId: author,
       type: 'note',
       payload: {
@@ -66,13 +73,15 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
     if (!connected.exists && !card.anonymous) {
       tx.set(connection, { userIds: [uid, author].sort(), establishedAt: FieldValue.serverTimestamp() });
     }
-    return note.id;
+    return { id: note.id, notificationId: bell.id };
   });
 }
 
 export interface SentMessage {
   conversationId: string;
   id: string;
+  /** The first message's bell row, for its push (never returned to the client). */
+  notificationId: string | null;
 }
 
 /**
@@ -137,8 +146,9 @@ export async function sendMessage(
       updatedAt: FieldValue.serverTimestamp(),
       unread: { [other]: FieldValue.increment(1) },
     }, { merge: true });
-    if (first) {
-      tx.set(db.collection('notifications').doc(), {
+    const bell = first ? db.collection('notifications').doc() : null;
+    if (bell) {
+      tx.set(bell, {
         userId: other,
         type: 'message',
         payload: { fromUserId: uid, fromHandle: String(me.get('handle') ?? '') },
@@ -146,6 +156,6 @@ export async function sendMessage(
         createdAt: FieldValue.serverTimestamp(),
       });
     }
-    return { conversationId: pair, id: message.id };
+    return { conversationId: pair, id: message.id, notificationId: bell?.id ?? null };
   });
 }

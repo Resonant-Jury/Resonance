@@ -1,0 +1,157 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
+import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import type { BatchResponse, MulticastMessage } from 'firebase-admin/messaging';
+import { ApiFailure } from '@/lib/api/v1/http';
+import { sendMessage, sendNote } from '@/lib/api/v1/conversations';
+import { registerDevice, unregisterDevice } from '@/lib/push/devices';
+import { assertRingable, RING_WINDOW_MS } from '@/lib/push/ring';
+import { pushNotification, type PushSender } from '@/lib/push/send';
+
+// Push against the Firestore emulator with a fake FCM: the device registry,
+// what a push says and where it leads, and that it rings once, never across a
+// block, and forgets tokens FCM has given up on.
+
+const PROJECT = 'demo-resonance-push';
+let app: App;
+let db: Firestore;
+
+beforeAll(() => {
+  process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
+  app = initializeApp({ projectId: PROJECT }, 'push-test');
+  db = getFirestore(app);
+});
+
+afterAll(async () => {
+  await deleteApp(app);
+});
+
+beforeEach(async () => {
+  await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, {
+    method: 'DELETE',
+  });
+  await Promise.all([
+    db.doc('users/alice').set({ handle: '小明', handleLower: '小明' }),
+    db.doc('users/bob').set({ handle: 'bob', handleLower: 'bob' }),
+    db.doc('users/carol').set({ handle: 'carol', handleLower: 'carol' }),
+    db.doc('cards/walk').set({
+      authorId: 'bob', thoughtCore: 'A walk', story: 's', visibility: 'public', anonymous: false,
+      publishedAt: Timestamp.fromDate(new Date('2026-09-01T08:00:00Z')),
+    }),
+  ]);
+});
+
+/** Records every multicast; tokens listed in `dead` come back unregistered. */
+function fakeFcm(dead: string[] = []) {
+  const sent: MulticastMessage[] = [];
+  const sender: PushSender = {
+    async sendEachForMulticast(message) {
+      sent.push(message);
+      const responses = message.tokens.map((t) =>
+        dead.includes(t)
+          ? { success: false, error: { code: 'messaging/registration-token-not-registered' } }
+          : { success: true, messageId: `m-${t}` },
+      ) as BatchResponse['responses'];
+      const successCount = responses.filter((r) => r.success).length;
+      return { responses, successCount, failureCount: responses.length - successCount };
+    },
+  };
+  return { sender, sent };
+}
+
+const exists = async (path: string) => (await db.doc(path).get()).exists;
+
+describe('the device registry', () => {
+  it('keys a device by its install, so signing in as someone else moves it to them', async () => {
+    await registerDevice(db, 'alice', 'install-0001', { token: 't1', platform: 'ios', locale: 'zh-Hant-TW', appVersion: '1.0' });
+    expect((await db.doc('devices/install-0001').get()).data()).toMatchObject({ userId: 'alice', token: 't1', platform: 'ios', locale: 'zh-TW' });
+
+    await registerDevice(db, 'bob', 'install-0001', { token: 't1', platform: 'ios', locale: 'en' });
+    expect((await db.doc('devices/install-0001').get()).get('userId')).toBe('bob');
+
+    // Alice's late sign-out must not take the phone from Bob.
+    await unregisterDevice(db, 'alice', 'install-0001');
+    expect(await exists('devices/install-0001')).toBe(true);
+    await unregisterDevice(db, 'bob', 'install-0001');
+    expect(await exists('devices/install-0001')).toBe(false);
+  });
+});
+
+describe('pushNotification', () => {
+  beforeEach(async () => {
+    await registerDevice(db, 'bob', 'bob-iphone', { token: 'bob-zh', platform: 'ios', locale: 'zh-TW' });
+    await registerDevice(db, 'bob', 'bob-pixel', { token: 'bob-en', platform: 'android', locale: 'en-US' });
+    await registerDevice(db, 'carol', 'carol-phone', { token: 'carol', platform: 'android', locale: 'en' });
+  });
+
+  it("pushes a note to the author's devices, each in its app's language, opening the reply", async () => {
+    const { id, notificationId } = await sendNote(db, 'alice', { cardId: 'walk', text: '雨後的散步' });
+    const fcm = fakeFcm();
+    expect(await pushNotification(db, notificationId, fcm.sender)).toEqual({ sent: 2, pruned: 0 });
+
+    const byToken = Object.fromEntries(fcm.sent.map((m) => [m.tokens.join(), m]));
+    expect(Object.keys(byToken).sort()).toEqual(['bob-en', 'bob-zh']);
+    expect(byToken['bob-zh'].notification).toEqual({ title: '小明 寄來一張小紙條', body: '「雨後的散步」' });
+    expect(byToken['bob-en'].notification).toEqual({ title: '小明 sent you a little note', body: '「雨後的散步」' });
+    expect(byToken['bob-en'].data).toEqual({
+      notificationId,
+      type: 'note',
+      route: `/messages/${encodeURIComponent('小明')}?note=${id}&card=walk`,
+    });
+    expect(byToken['bob-en'].android?.notification?.channelId).toBe('activity');
+    expect((await db.doc(`notifications/${notificationId}`).get()).get('pushedAt')).toBeInstanceOf(Timestamp);
+  });
+
+  it('rings once, however often it is asked', async () => {
+    const { notificationId } = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi' });
+    const fcm = fakeFcm();
+    const results = await Promise.all([1, 2, 3].map(() => pushNotification(db, notificationId, fcm.sender)));
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(fcm.sent).toHaveLength(2); // one multicast per language, once
+  });
+
+  it("stays silent when a block went up after the bell rang, and for a row that's already read", async () => {
+    const { notificationId } = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi' });
+    await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+    const fcm = fakeFcm();
+    expect(await pushNotification(db, notificationId, fcm.sender)).toBeNull();
+
+    await db.doc('notifications/read').set({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'carol', fromHandle: 'carol', cardId: 'walk' }, readAt: Timestamp.now() });
+    expect(await pushNotification(db, 'read', fcm.sender)).toBeNull();
+    expect(fcm.sent).toHaveLength(0);
+  });
+
+  it('forgets the devices FCM no longer knows', async () => {
+    await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
+    const { notificationId } = await sendMessage(db, 'alice', { to: 'bob', text: '嗨' });
+    const fcm = fakeFcm(['bob-zh']);
+    expect(await pushNotification(db, notificationId!, fcm.sender)).toEqual({ sent: 1, pruned: 1 });
+    expect(fcm.sent.find((m) => m.tokens[0] === 'bob-en')?.data?.route).toBe(`/messages/${encodeURIComponent('小明')}`);
+    expect(await exists('devices/bob-iphone')).toBe(false);
+    expect(await exists('devices/bob-pixel')).toBe(true);
+    expect(await exists('devices/carol-phone')).toBe(true);
+  });
+
+  it('sends nothing, and needs no FCM, for someone with no devices', async () => {
+    await db.doc('notifications/n1').set({ userId: 'alice', type: 'card_link', payload: { fromUserId: 'bob', fromHandle: 'bob', cardId: 'walk' }, readAt: null, createdAt: Timestamp.now() });
+    const fcm = fakeFcm();
+    expect(await pushNotification(db, 'n1', fcm.sender)).toEqual({ sent: 0, pruned: 0 });
+    expect(fcm.sent).toHaveLength(0);
+  });
+});
+
+describe('assertRingable (the web asking to push a row it wrote)', () => {
+  const row = (id: string, from: string, created: Date) =>
+    db.doc(`notifications/${id}`).set({ userId: 'bob', type: 'message', payload: { fromUserId: from, fromHandle: 'x' }, readAt: null, createdAt: Timestamp.fromDate(created) });
+
+  it("only lets the row's sender ring it, and only while it is fresh", async () => {
+    const now = new Date('2026-09-30T08:00:00Z');
+    await row('fresh', 'alice', new Date(now.getTime() - 60_000));
+    await row('stale', 'alice', new Date(now.getTime() - RING_WINDOW_MS - 1));
+
+    await expect(assertRingable(db, 'alice', 'fresh', now.getTime())).resolves.toBeUndefined();
+    await expect(assertRingable(db, 'carol', 'fresh', now.getTime())).rejects.toMatchObject({ code: 'not_found' });
+    await expect(assertRingable(db, 'alice', 'stale', now.getTime())).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(assertRingable(db, 'alice', 'missing', now.getTime())).rejects.toBeInstanceOf(ApiFailure);
+  });
+});

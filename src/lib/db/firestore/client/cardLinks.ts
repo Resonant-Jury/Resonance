@@ -14,6 +14,7 @@ import {
 import type { CardLink } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
+import { ringNotification } from './push';
 
 function requireUid(): string {
   const uid = getFirebaseClientAuth().currentUser?.uid;
@@ -66,8 +67,9 @@ export async function createCardLink(input: CreateCardLinkInput): Promise<string
     createdAt: serverTimestamp(),
   });
 
-  if (input.targetAuthorId !== uid) {
-    batch.set(doc(collection(db, 'notifications')), {
+  const bell = input.targetAuthorId !== uid ? doc(collection(db, 'notifications')) : null;
+  if (bell) {
+    batch.set(bell, {
       userId: input.targetAuthorId,
       type: 'card_link',
       payload: {
@@ -82,6 +84,7 @@ export async function createCardLink(input: CreateCardLinkInput): Promise<string
   }
 
   await batch.commit();
+  if (bell) ringNotification(bell.id);
   return linkRef.id;
 }
 

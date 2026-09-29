@@ -51,7 +51,7 @@ const docs = async (path: string) => (await db.collection(path).get()).docs.map(
 
 describe('sendNote', () => {
   it("leaves the note with the card's author, rings their bell and connects the two", async () => {
-    const id = await sendNote(db, 'alice', { cardId: 'walk', text: '謝謝你寫下這段，我也常在雨後散步 🌧️' });
+    const { id } = await sendNote(db, 'alice', { cardId: 'walk', text: '謝謝你寫下這段，我也常在雨後散步 🌧️' });
     const note = (await db.doc(`notes/${id}`).get()).data()!;
     expect(note).toMatchObject({ cardId: 'walk', fromUserId: 'alice', toUserId: 'bob', readAt: null });
     const [bell] = await docs('notifications');
@@ -118,7 +118,7 @@ describe('sendMessage', () => {
   });
 
   it("carries a card (previewed by its title when there's no text) and a note it answers", async () => {
-    const noteId = await sendNote(db, 'alice', { cardId: 'walk', text: 'a note' });
+    const { id: noteId } = await sendNote(db, 'alice', { cardId: 'walk', text: 'a note' });
     await sendMessage(db, 'bob', { to: 'alice', text: '', cardRef: 'walk', noteRef: { cardId: 'walk', noteId } });
     const [message] = await docs('conversations/alice_bob/messages');
     expect(message).toMatchObject({ senderId: 'bob', text: '', cardRef: 'walk', noteRef: { cardId: 'walk', noteId } });
