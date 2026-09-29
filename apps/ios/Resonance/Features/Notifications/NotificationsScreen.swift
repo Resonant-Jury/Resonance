@@ -12,7 +12,7 @@ struct NotificationsScreen: View {
         let store = session.notifications
         TabScreen(L10n.App.Nav.notifications) {
             if store.loaded && store.items.isEmpty {
-                OrganicEmptyState(L10n.App.Notifications.empty)
+                EmptyNote(L10n.App.Notifications.empty).padding(.horizontal, 20)
             } else if !store.loaded {
                 SketchLoader(size: 48).frame(maxWidth: .infinity).padding(.top, 60)
             } else {
@@ -31,26 +31,33 @@ struct NotificationsScreen: View {
             session.notifications.markRead(item)
             if let route = Self.route(for: item) { openRoute(route) }
         } label: {
+            // Read and unread differ by ink alone; the unread dot follows the
+            // last line (after a note's words), as the web's inline dot does.
+            let preview = item.type == "note" ? item.preview.flatMap { $0.isEmpty ? nil : $0 } : nil
             VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(Self.text(for: item))
-                        .font(AppFonts.body(15, weight: item.isUnread ? .semibold : .regular))
-                        .foregroundStyle(item.isUnread ? Tokens.text : Tokens.textMuted)
-                        .multilineTextAlignment(.leading)
-                    if item.isUnread {
-                        Circle().fill(Tokens.terracotta).frame(width: 6, height: 6).accessibilityLabel("unread")
-                    }
-                }
-                if item.type == "note", let preview = item.preview, !preview.isEmpty {
-                    Text("「\(preview)」").font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+                withDot(Text(Self.text(for: item)), if: item.isUnread && preview == nil)
+                    .font(AppFonts.body(14))
+                    .foregroundStyle(item.isUnread ? Tokens.text : Tokens.textMuted)
+                if let preview {
+                    withDot(Text("「\(preview)」"), if: item.isUnread)
+                        .font(AppFonts.body(13))
+                        .foregroundStyle(Tokens.textMuted)
                 }
             }
+            .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            .padding(.vertical, 13)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// The terracotta dot, 8 after the text on its last line.
+    private func withDot(_ text: Text, if unread: Bool) -> Text {
+        guard unread else { return text }
+        let dot = Text(verbatim: "\u{25CF}").font(.system(size: 7)).foregroundStyle(Tokens.terracotta).baselineOffset(1.5)
+        return Text("\(text)\u{2009}\u{2009}\(dot)")
     }
 
     static func text(for item: NotificationsStore.Item) -> String {

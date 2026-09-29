@@ -53,20 +53,14 @@ import java.time.OffsetDateTime
  * organic menu, confirming a block in its ConfirmModal.
  */
 @Composable
-fun SafetyMenu(session: Session, target: SafetyService.Target, handle: String?, isBlocked: Boolean = false, onChange: () -> Unit = {}) {
+fun SafetyMenu(session: Session, target: SafetyService.Target, handle: String?, isBlocked: Boolean = false, seed: Double = 7.0, onChange: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
-    var expanded by remember { mutableStateOf(false) }
     var reporting by remember { mutableStateOf(false) }
     var confirmingBlock by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     val name = handle ?: L10n.Safety.anonymousAuthor
 
-    Box(
-        Modifier.size(48.dp).clickable(role = Role.Button) { expanded = true }.semantics { contentDescription = L10n.Safety.menuLabel },
-        contentAlignment = Alignment.Center,
-    ) { OrganicIcon(IconName.Dots, size = 22.dp, strokeWidth = Tokens.Ink.value) }
-
-    OrganicMenu(expanded, { expanded = false }, buildList {
+    OrganicMenu(label = L10n.Safety.menuLabel, seed = seed, items = buildList {
         add(OrganicMenuItem(if (target is SafetyService.Target.Card) L10n.Safety.reportCard else L10n.Safety.reportUser, IconName.Flag) { reporting = true })
         if (isBlocked) {
             add(OrganicMenuItem(L10n.Safety.unblock, IconName.UserCheck) {
@@ -136,7 +130,7 @@ fun ReportDialog(session: Session, target: SafetyService.Target, handle: String?
                 }
             }
         }
-        OrganicTextField(L10n.Safety.Report.detail, detail, { detail = it.take(SafetyService.DETAIL_MAX) }, L10n.Safety.Report.detailPlaceholder, seed = 89.0)
+        OrganicTextField(L10n.Safety.Report.detail, detail, { detail = it.take(SafetyService.DETAIL_MAX) }, L10n.Safety.Report.detailPlaceholder, seed = 89.0, multiline = true)
         // The web's blockRow: the label, then the switch at the far end.
         Row(verticalAlignment = Alignment.CenterVertically) {
             BasicText(L10n.Safety.Report.alsoBlock(name), style = AppFonts.body(14.5f), modifier = Modifier.weight(1f).padding(end = 16.dp))

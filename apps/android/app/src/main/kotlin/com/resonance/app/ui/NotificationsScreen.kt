@@ -1,6 +1,5 @@
 package com.resonance.app.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,8 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -23,12 +21,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.NotificationsStore
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
-import com.resonance.design.OrganicEmptyState
+import com.resonance.design.OrganicListEmpty
+import com.resonance.design.plainClickable
 import com.resonance.design.SketchLoader
 import com.resonance.design.WavyDivider
-import com.resonance.design.WobCircleShape
 import com.resonance.design.generated.Tokens
-import com.resonance.geometry.WobCircleOptions
 import com.resonance.kit.l10n.L10n
 
 /**
@@ -42,38 +39,41 @@ fun NotificationsScreen(session: Session, open: (Route) -> Unit) {
     TabScreen(L10n.App.Nav.notifications) {
         when {
             !loaded -> item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { SketchLoader(48.dp) } }
-            items.isEmpty() -> item { OrganicEmptyState(L10n.App.Notifications.empty) }
+            items.isEmpty() -> item { OrganicListEmpty(L10n.App.Notifications.empty, modifier = Modifier.padding(horizontal = 20.dp)) }
             else -> itemsIndexed(items, key = { _, it -> it.id }) { i, item ->
-                if (i > 0) Box(Modifier.padding(horizontal = 20.dp)) { WavyDivider(seed = 29.0 + i * 7) }
-                NotificationRow(item, session, open)
+                Column(Modifier.padding(horizontal = 20.dp)) {
+                    if (i > 0) WavyDivider(seed = 29.0 + i * 7)
+                    NotificationRow(item, session, open)
+                }
             }
         }
     }
 }
 
+/**
+ * One row as the bell's list draws it: 14px, the text color while unread and
+ * muted once read (never bolder), a 6px terracotta dot 8 after the words.
+ */
 @Composable
 private fun NotificationRow(item: NotificationsStore.Item, session: Session, open: (Route) -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clickable {
+            .plainClickable {
                 session.notifications.markRead(item)
                 routeFor(item)?.let(open)
             }
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(horizontal = 2.dp, vertical = 13.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BasicText(
                 textFor(item),
-                style = AppFonts.body(15f, if (item.isUnread) 600 else 400, lineHeight = 1.5f, color = if (item.isUnread) Tokens.Text else Tokens.TextMuted),
+                style = AppFonts.body(14f, lineHeight = 1.5f, color = if (item.isUnread) Tokens.Text else Tokens.TextMuted),
                 modifier = Modifier.weight(1f, fill = false),
             )
             if (item.isUnread) Box(
-                Modifier.size(7.dp).semantics { contentDescription = "unread" }.drawWithCache {
-                    val o = WobCircleShape(17.0, WobCircleOptions(segments = 6, mag = 0.4, cpJitter = 0.3)).createOutline(size, layoutDirection, this)
-                    onDrawBehind { drawOutline(o, Tokens.Terracotta) }
-                },
+                Modifier.size(6.dp).semantics { contentDescription = "unread" }.drawBehind { drawCircle(Tokens.Terracotta) },
             )
         }
         if (item.type == "note" && !item.preview.isNullOrEmpty()) {

@@ -2,56 +2,63 @@ package com.resonance.app.ui
 
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import com.resonance.design.OrganicIcon
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import com.resonance.api.models.CardDetail
 import com.resonance.api.models.FeedCard
 import com.resonance.app.SafetyService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
+import com.resonance.design.CardDetailSkeleton
 import com.resonance.design.CssText
+import com.resonance.design.FloatingWriteButton
 import com.resonance.design.EmbedStoryCard
+import com.resonance.design.EmbedStoryCardPlaceholder
+import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OrganicEmptyState
-import com.resonance.design.OrganicIconButton
 import com.resonance.design.OrganicImage
 import com.resonance.design.OrganicInlineBar
-import com.resonance.design.SketchLoader
+import com.resonance.design.OrganicMenuChip
 import com.resonance.design.StoryMarkdown
 import com.resonance.design.TagPill
 import com.resonance.design.cream
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
+import com.resonance.design.plainClickable
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
@@ -66,10 +73,15 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () ->
     var blocks by remember(key) { mutableStateOf<List<StoryBlock>>(emptyList()) }
     var resonances by remember(key) { mutableStateOf<List<FeedCard>>(emptyList()) }
     var related by remember(key) { mutableStateOf<List<FeedCard>>(emptyList()) }
+    var linked by remember(key) { mutableStateOf<List<FeedCard>>(emptyList()) }
+    // Bumped by "try again".
+    var attempt by remember(key) { mutableIntStateOf(0) }
     val uri = LocalUriHandler.current
     val context = LocalContext.current
+    val list = rememberLazyListState()
 
-    LaunchedEffect(key) {
+    LaunchedEffect(key, attempt) {
+        phase = "loading"
         try {
             val d = session.reading.card(key)
             detail = d
@@ -77,6 +89,8 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () ->
             phase = "loaded"
             resonances = runCatching { session.reading.resonances(d.card.id) }.getOrDefault(emptyList())
             related = runCatching { session.reading.related(d.card.id) }.getOrDefault(emptyList())
+            // Cards others linked to this one are shown to its author only (useLinkedToCard).
+            if (d.isOwner) linked = runCatching { session.reading.links(d.card.id) }.getOrDefault(emptyList())
         } catch (e: ApiFailure) {
             phase = if (e.isNotFound) "notFound" else "failed"
         } catch (e: Exception) {
@@ -89,61 +103,100 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () ->
         if (route != null) open(route) else runCatching { uri.openUri(url) }
     }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().cream()) {
-        OrganicInlineBar(L10n.App.Nav.back, back) {
+        OrganicInlineBar(L10n.App.Nav.back, back, scrolled = list.scrolledPast20()) {
             detail?.let { d ->
-                val authorId = d.card.author?.id
-                if (!d.isOwner && !d.anonymous && authorId != null) {
-                    SafetyMenu(session, SafetyService.Target.Card(d.card.id, authorId), d.card.author?.handle)
-                }
-                OrganicIconButton(IconName.Share, "Share") {
+                val hueSeed = d.card.accentHue ?: 55.0
+                OrganicMenuChip(IconName.Share, "Share", seed = hueSeed + 5) {
                     val link = "${session.config.origin}/card/${d.card.routeKey}"
                     context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link), null))
                 }
             }
         }
         when (phase) {
-            "loading" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { SketchLoader(48.dp) }
-            "notFound" -> OrganicEmptyState(L10n.Card.NotFound.title, L10n.Card.NotFound.back, back)
-            "failed" -> OrganicEmptyState(L10n.Native.loadError)
+            // CardDetailSkeleton: the article's own layout in shimmering blocks.
+            "loading" -> CardDetailSkeleton(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp))
+            "notFound" -> OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = back, action = EmptyAction.Link)
+            "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { attempt++ }, action = EmptyAction.Outline)
             else -> detail?.let { d ->
                 val card = d.card
                 val resonance = (listOfNotNull(d.referenceCard) + resonances).distinctBy { it.id }
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp)) {
                     item {
                         Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
                             Byline(card, d.anonymous) { open(Route.Author(it)) }
+                            // The byline sits 28 above the cover (or the title); the cover keeps its 0.52 ratio and 20 below.
+                            Spacer(Modifier.height(28.dp))
                             if (card.imageUrl != null) {
-                                OrganicImage(card.imageUrl, (card.accentHue ?: 55.0) + 11, Modifier.fillMaxWidth().aspectRatio(1 / 0.52f).padding(top = 24.dp)) {
+                                OrganicImage(card.imageUrl, (card.accentHue ?: 55.0) + 11, Modifier.fillMaxWidth().aspectRatio(1 / 0.52f)) {
                                     Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
                                 }
+                                Spacer(Modifier.height(20.dp))
                             }
-                            CssText(card.title, AppFonts.Family.Heading, 28f, 700, lineHeight = 1.2f, modifier = Modifier.padding(top = 24.dp, bottom = 28.dp).semantics { heading() })
-                            StoryMarkdown(blocks, openUrl) { href, title -> CardEmbed(session, href, title, open) }
-                            if (card.tags.isNotEmpty()) {
-                                FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
+                            Row(Modifier.padding(bottom = 28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                CssText(
+                                    card.title, AppFonts.Family.Heading, 28f, 700, lineHeight = 1.2f, letterSpacing = -0.015f,
+                                    modifier = Modifier.weight(1f).semantics { heading() },
+                                )
+                                // The reader's ⋯ sits beside the title, as on the web.
+                                val authorId = card.author?.id
+                                if (!d.isOwner && !d.anonymous && authorId != null) {
+                                    SafetyMenu(session, SafetyService.Target.Card(card.id, authorId), card.author?.handle, seed = (card.accentHue ?: 55.0) + 3)
                                 }
                             }
+                            StoryMarkdown(blocks, openUrl) { href, title -> CardEmbed(session, href, title, open) }
+                            FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
+                            }
+                            if (!d.isOwner) CardViewerActions(session, card.id, { open(Route.Write) }, Modifier.padding(bottom = 40.dp))
                         }
                     }
-                    if (resonance.isNotEmpty()) section(L10n.Card.ResonanceSection.title, resonance, Tokens.CreamDark, open)
-                    if (related.isNotEmpty()) section(L10n.Card.related, related, if (resonance.isEmpty()) Tokens.CreamDark else Tokens.Cream, open)
+                    if (d.isOwner && linked.isNotEmpty()) {
+                        item {
+                            BasicText(
+                                L10n.Card.linkedCards,
+                                style = AppFonts.heading(20f, lineHeight = 1.3f).copy(letterSpacing = (-0.01).em),
+                                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp).semantics { heading() },
+                            )
+                        }
+                        miniCards(linked, open, keyPrefix = "linked:")
+                        item { Spacer(Modifier.height(40.dp)) }
+                    }
+                    if (resonance.isNotEmpty()) {
+                        sectionHeading(L10n.Card.ResonanceSection.title, below = 40)
+                        miniCards(resonance, open, keyPrefix = "resonance:")
+                        item { Spacer(Modifier.height(16.dp)) }
+                    }
+                    if (related.isNotEmpty()) {
+                        sectionHeading(L10n.Card.related, below = 56)
+                        storyCards(related, open)
+                        item { Spacer(Modifier.height(16.dp)) }
+                    }
                 }
             }
         }
     }
+    // The web's pen sits on the card page too: bottom right, 20 in.
+    detail?.let { d ->
+        FloatingWriteButton(if (d.isOwner) L10n.App.Nav.editThisCard else L10n.App.Nav.write, Modifier.align(Alignment.BottomEnd)) { open(Route.Write) }
+    }
+    }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.section(title: String, cards: List<FeedCard>, background: Color, open: (Route) -> Unit) {
+/**
+ * A section heading under the article. On phones the web drops the tinted
+ * band and its wavy edge (the cards are bands already — "double chrome"), so
+ * the heading sits on the page: 32 above, 22/700 centred.
+ */
+private fun LazyListScope.sectionHeading(title: String, below: Int) {
     item {
         BasicText(
             title,
-            style = AppFonts.heading(22f, lineHeight = 1.3f).copy(textAlign = TextAlign.Center, letterSpacing = (-0.22).sp),
-            modifier = Modifier.fillMaxWidth().background(background).padding(start = 20.dp, end = 20.dp, top = 72.dp, bottom = 40.dp).semantics { heading() },
+            style = AppFonts.heading(22f, lineHeight = 1.3f).copy(textAlign = TextAlign.Center, letterSpacing = (-0.01).em),
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = below.dp).semantics { heading() },
         )
     }
-    storyCards(cards, open)
 }
 
 /** The phone byline: avatar, pen name (→ their page), verified mark, region · date. */
@@ -156,7 +209,7 @@ private fun Byline(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> U
         Column {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (author != null && !anonymous) {
-                    BasicText(author.handle, style = AppFonts.body(16f, 600), modifier = Modifier.clickable { openAuthor(author.handle) })
+                    BasicText(author.handle, style = AppFonts.body(16f, 600), modifier = Modifier.plainClickable { openAuthor(author.handle) })
                     if (author.verified) OrganicIcon(IconName.Verified, Modifier.semantics { contentDescription = L10n.Card.verified }, size = 14.dp, color = Tokens.Sage, strokeWidth = 1.8f)
                 } else {
                     BasicText(L10n.Card.anonymousAuthor, style = AppFonts.body(16f, 600, color = Tokens.TextMuted))
@@ -168,15 +221,23 @@ private fun Byline(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> U
     }
 }
 
-/** A card link standing alone in a story: the linked card as an embed, or the plain link. */
+/**
+ * A card link standing alone in a story (CardEmbedLink): the embed's
+ * footprint while the card loads, then the embedded card — or, when the
+ * reader may not see it, the plain link.
+ */
 @Composable
 private fun CardEmbed(session: Session, href: String, title: String, open: (Route) -> Unit) {
     val key = href.substringAfterLast('/')
-    var card by remember(href) { mutableStateOf<FeedCard?>(null) }
-    LaunchedEffect(href) { card = runCatching { session.reading.card(key).card }.getOrNull() }
-    val c = card
-    Box(Modifier.fillMaxWidth().clickable { open(Route.Card(key)) }) {
-        if (c != null) EmbedStoryCard(c.title, c.author?.handle ?: L10n.Card.anonymousAuthor, c.imageUrl, c.accentHue, seedFromString(href).toDouble())
-        else BasicText(title, style = AppFonts.body(17f, color = Tokens.Terracotta))
+    var state by remember(href) { mutableStateOf<Result<FeedCard>?>(null) }
+    LaunchedEffect(href) { state = runCatching { session.reading.card(key).card } }
+    val go = Modifier.plainClickable(onClickLabel = title) { open(Route.Card(key)) }
+    val loaded = state
+    when {
+        loaded == null -> EmbedStoryCardPlaceholder(title)
+        loaded.isSuccess -> loaded.getOrThrow().let { c ->
+            EmbedStoryCard(c.title, c.author?.handle ?: L10n.Card.anonymousAuthor, c.imageUrl, c.accentHue, seedFromString(href).toDouble(), go)
+        }
+        else -> BasicText(title, style = AppFonts.body(17f, lineHeight = 1.8f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline), modifier = go)
     }
 }

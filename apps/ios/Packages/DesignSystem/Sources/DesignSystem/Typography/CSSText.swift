@@ -11,23 +11,32 @@ public struct CSSText: UIViewRepresentable {
     /// CSS line-height as a multiple of the font size (e.g. 1.7).
     let lineHeight: CGFloat
     var color: UIColor
+    /// CSS letter-spacing in points (e.g. −0.015em × size).
+    var tracking: CGFloat
+    /// `-webkit-line-clamp`; 0 is unlimited.
+    var lineLimit: Int
 
-    public init(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor = UIColor(Tokens.text)) {
+    public init(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor = UIColor(Tokens.text),
+                tracking: CGFloat = 0, lineLimit: Int = 0) {
         self.text = text
         self.font = font
         self.lineHeight = lineHeight
         self.color = color
+        self.tracking = tracking
+        self.lineLimit = lineLimit
     }
 
     public func makeUIView(context: Context) -> UILabel {
         let label = UILabel()
-        label.numberOfLines = 0
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return label
     }
 
     public func updateUIView(_ label: UILabel, context: Context) {
-        label.attributedText = CSSText.attributed(text, font: font, lineHeight: lineHeight, color: color)
+        label.numberOfLines = lineLimit
+        label.attributedText = CSSText.attributed(text, font: font, lineHeight: lineHeight, color: color, tracking: tracking)
+        // After the text: its paragraph style would otherwise reset the mode.
+        if lineLimit > 0 { label.lineBreakMode = .byTruncatingTail }
     }
 
     public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UILabel, context: Context) -> CGSize? {
@@ -36,7 +45,7 @@ public struct CSSText: UIViewRepresentable {
         return CGSize(width: width, height: size.height)
     }
 
-    public static func attributed(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor) -> NSAttributedString {
+    public static func attributed(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor, tracking: CGFloat = 0) -> NSAttributedString {
         let lineBox = font.pointSize * lineHeight
         let style = NSMutableParagraphStyle()
         style.minimumLineHeight = lineBox
@@ -50,6 +59,7 @@ public struct CSSText: UIViewRepresentable {
             .paragraphStyle: style,
             .baselineOffset: offset,
             .foregroundColor: color,
+            .kern: tracking,
         ])
     }
 }

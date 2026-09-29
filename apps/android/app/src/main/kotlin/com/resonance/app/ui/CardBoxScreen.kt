@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -22,7 +23,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -37,8 +41,13 @@ import com.resonance.design.AppFonts
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicEmptyState
-import com.resonance.design.OrganicIconButton
-import com.resonance.design.SketchLoader
+import com.resonance.design.ButtonVariant
+import com.resonance.design.EmptyAction
+import com.resonance.design.OrganicButton
+import com.resonance.design.OrganicListEmpty
+import com.resonance.design.Skeleton
+import com.resonance.design.plainClickable
+import com.resonance.design.storyCardSkeletons
 import com.resonance.design.WobRectShape
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
@@ -67,33 +76,41 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     }
     LaunchedEffect(shelf) { load(shelf) }
 
-    TabScreen(L10n.App.Nav.me, trailing = {
-        OrganicIconButton(IconName.Sliders, L10n.Settings.title) { open(Route.Settings) }
-    }) {
+    TabScreen(L10n.App.Nav.me) {
         item {
             when (val p = profile) {
                 is Session.Profile.Loaded -> Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Box(Modifier.clickable(onClickLabel = L10n.Me.viewPublicProfile) { open(Route.Author(p.me.handle)) }) {
                         HandDrawnAvatar(p.me.initials, p.me.avatarUrl, OklchColor.parse(p.me.accentColor) ?: Tokens.TerracottaLight, 72.dp, seedFromString(p.me.id).toDouble())
                     }
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         BasicText(p.me.handle, style = AppFonts.heading(24f))
                         BasicText(p.me.bio ?: L10n.Me.bioEmpty, style = AppFonts.body(14f, color = Tokens.TextMuted))
                     }
+                    // /me on phones: the identity row ends on a compact chip holding the pen, the app's settings glyph.
+                    OrganicButton(L10n.Me.editProfile, variant = ButtonVariant.Ghost, icon = IconName.Pen, iconOnly = true) { open(Route.Settings) }
                 }
                 Session.Profile.Missing -> OrganicEmptyState(L10n.Auth.stepHandle)
-                Session.Profile.Failed -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry) { scope.launch { session.loadMe() } }
-                else -> {}
+                Session.Profile.Failed -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { session.loadMe() } }, action = EmptyAction.Outline)
+                // Still loading: the identity row's shape in shimmering blocks.
+                else -> Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Skeleton(height = 72.dp, circle = true)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Skeleton(Modifier.width(140.dp), height = 24.dp)
+                        Skeleton(Modifier.fillMaxWidth(0.7f), height = 14.dp)
+                    }
+                }
             }
         }
         item { ShelfTabs(shelf) { shelf = it } }
         val cards = shelves[shelf]
         when {
-            cards == null && failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry) { scope.launch { load(shelf, force = true) } } }
-            cards == null -> item { Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { SketchLoader(44.dp) } }
-            cards.isEmpty() -> item {
-                if (shelf == TabGetCardBox.published) OrganicEmptyState(L10n.Me.emptyPublished) else OrganicEmptyState(emptyText(shelf))
-            }
+            cards == null && failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { load(shelf, force = true) } }, action = EmptyAction.Outline) }
+            cards == null -> storyCardSkeletons(6)
+            // ProfileTabs' empty shelf: one muted line, centred; its "write" CTA waits for the editor (A3).
+            cards.isEmpty() -> item { OrganicEmptyState(emptyText(shelf), verticalPadding = 40.dp) }
+            // The linked shelf lists the pared-back cards, as the web's MiniCardGrid does.
+            shelf == TabGetCardBox.linked -> miniCards(cards, open, keyPrefix = "linked:")
             else -> storyCards(cards, open)
         }
     }
@@ -101,27 +118,40 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
 
 private val ShelfOrder = listOf(TabGetCardBox.published, TabGetCardBox.`private`, TabGetCardBox.draft, TabGetCardBox.resonated, TabGetCardBox.linked, TabGetCardBox.bookmarks)
 
-/** The shelves as a row of words; the chosen one sits on a wobbly wash (the web's active tab). */
+/**
+ * The shelves as OrganicTabs' scrollable `surface` strip: the chosen one on a
+ * hand-drawn surface — terracotta pen around a light wash, R 12, its wobble
+ * sized to the tab, seed 23 + the key's length × 7 as on the web.
+ */
 @Composable
 private fun ShelfTabs(selection: TabGetCardBox, onSelect: (TabGetCardBox) -> Unit) {
     val haptic = LocalHapticFeedback.current
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        ShelfOrder.forEachIndexed { i, s ->
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 7.dp).padding(top = 20.dp, bottom = 28.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ShelfOrder.forEach { s ->
             val selected = s == selection
             BasicText(
                 shelfTitle(s),
-                style = AppFonts.body(14f, if (selected) 600 else 400, color = if (selected) Tokens.Terracotta else Tokens.TextMuted),
+                style = AppFonts.body(14f, if (selected) 600 else 500, lineHeight = 1.3f, color = if (selected) Tokens.Terracotta else Tokens.TextMuted),
                 modifier = Modifier
                     .drawWithCache {
-                        val o = WobRectShape(14.0, i * 17.0 + 3, mag = 1.2).createOutline(size, layoutDirection, this)
-                        onDrawBehind { if (selected) drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.45f)) }
+                        val o = WobRectShape(12.0, 23.0 + s.value.length * 7).createOutline(size, layoutDirection, this)
+                        val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        onDrawBehind {
+                            if (selected) {
+                                drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.45f))
+                                drawOutline(o, Tokens.Terracotta, style = pen)
+                            }
+                        }
                     }
                     .semantics { this.selected = selected }
-                    .clickable(role = Role.Tab) {
+                    .plainClickable(role = Role.Tab) {
                         haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
                         onSelect(s)
                     }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 14.dp),
             )
         }
     }
@@ -147,5 +177,5 @@ private fun emptyText(s: TabGetCardBox) = when (s) {
 
 @Composable
 fun PlaceholderScreen(title: String, message: String) {
-    TabScreen(title) { item { OrganicEmptyState(message) } }
+    TabScreen(title) { item { OrganicListEmpty(message, modifier = Modifier.padding(horizontal = 20.dp)) } }
 }

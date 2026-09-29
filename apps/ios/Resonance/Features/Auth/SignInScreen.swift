@@ -11,29 +11,41 @@ struct SignInScreen: View {
     @State private var password = ""
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                Spacer(minLength: 72)
-                Text("Resonance")
-                    .font(AppFonts.heading(22, weight: .semibold))
-                    .foregroundStyle(Tokens.terracotta)
-                    .padding(.bottom, 28)
-                card
-                if session.config.usesEmulator { emulatorForm.padding(.top, 32) }
+        GeometryReader { geo in
+            ScrollView {
+                // The auth layout: the brand over the section, centred on the screen.
+                VStack(spacing: 0) {
+                    brand.padding(.bottom, 36)
+                    card
+                    if session.config.usesEmulator { emulatorForm.padding(.top, 32) }
+                }
+                .padding(.vertical, 48)
+                .frame(maxWidth: .infinity, minHeight: geo.size.height)
             }
-            .frame(maxWidth: .infinity)
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .scrollBounceBehavior(.basedOnSize)
         .background(Tokens.cream)
+    }
+
+    /// ResonanceIcon (the wave glyph, nudged down 7%) beside the wordmark.
+    private var brand: some View {
+        HStack(spacing: 10) {
+            OrganicIcon(.wave, size: 44, color: Tokens.terracotta, strokeWidth: Tokens.ink)
+                .offset(y: 44 * 0.07)
+            Text(verbatim: "Resonance")
+                .font(AppFonts.heading(26))
+                .foregroundStyle(Tokens.text)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(L10n.Auth.signInTitle)
-                .font(AppFonts.heading(30))
+                .font(AppFonts.heading(24))
                 .foregroundStyle(Tokens.text)
                 .accessibilityAddTraits(.isHeader)
-                .padding(.bottom, 12)
+                .padding(.bottom, 22)
             Text(L10n.Auth.googleIntro)
                 .font(AppFonts.body(14))
                 .foregroundStyle(Tokens.textMuted)
@@ -49,7 +61,7 @@ struct SignInScreen: View {
                 OrganicButton(session.isSigningIn ? L10n.Auth.signingIn : L10n.Auth.continueWithGoogle, image: "GoogleMark", variant: .outline) {
                     Task { await session.signInWithGoogle() }
                 }
-                OrganicButton(session.isSigningIn ? L10n.Auth.signingIn : L10n.Auth.continueWithApple, systemImage: "apple.logo", variant: .outline) {
+                OrganicButton(session.isSigningIn ? L10n.Auth.signingIn : L10n.Auth.continueWithApple, image: "AppleMark", variant: .outline) {
                     Task { await session.signInWithApple() }
                 }
             }
@@ -65,8 +77,12 @@ struct SignInScreen: View {
         .padding(.vertical, 42)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Tokens.authInterior)
+        // GrainOverlay 0.04 over the whole section, words included: ink at 2×.
+        .overlay {
+            GrainLayer(shape: Rectangle(), mode: .tile, opacity: 0.08, tile: "grain-overlay").accessibilityHidden(true)
+        }
         .overlay(alignment: .top) { WavyDivider(color: Tokens.authBorder, seed: 313).offset(y: -3) }
-        .overlay(alignment: .bottom) { WavyDivider(color: Tokens.authBorder, seed: 317).offset(y: 3) }
+        .overlay(alignment: .bottom) { WavyDivider(color: Tokens.authBorder, seed: 324).offset(y: 3) }
     }
 
     /// Emulator builds only: the seeded accounts (scripts/seed-emulator.ts).

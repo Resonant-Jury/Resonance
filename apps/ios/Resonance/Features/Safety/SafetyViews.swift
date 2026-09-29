@@ -2,36 +2,44 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// Report (web: ReportModal): a reason, optional details, optionally block too.
-struct ReportSheet: View {
+/// Report (web: ReportModal) — the inside of its dialog: a reason, optional
+/// details, optionally block too; then a thank-you in place of the form.
+struct ReportForm: View {
     let target: SafetyService.Target
     /// The person's pen name, or nil for an anonymous card's author.
     let handle: String?
+    /// Offer "also block" (not when they're already blocked).
+    var offerBlock = true
+    @Binding var sending: Bool
+    var onClose: () -> Void
     var onBlocked: () -> Void = {}
     @Environment(SessionStore.self) private var session
-    @Environment(\.dismiss) private var dismiss
-    @State private var reason: SafetyService.Reason?
+    // ReportModal opens on the first reason, as the web does.
+    @State private var reason: SafetyService.Reason? = .spam
     @State private var detail = ""
     @State private var alsoBlock = false
-    @State private var sending = false
     @State private var done = false
+    @State private var blocked = false
     @State private var error: String?
 
     private var name: String { handle ?? L10n.Safety.anonymousAuthor }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if done {
-                    Text(L10n.Safety.Report.doneTitle).font(AppFonts.heading(24)).foregroundStyle(Tokens.text)
-                    Text(L10n.Safety.Report.doneBody).font(AppFonts.body(15)).foregroundStyle(Tokens.textMuted)
-                    if alsoBlock { Text(L10n.Safety.Report.doneBlocked(handle: name)).font(AppFonts.body(15)).foregroundStyle(Tokens.text) }
-                    OrganicButton(L10n.Safety.Report.close) { dismiss() }
-                } else {
-                    Text(title).font(AppFonts.heading(24)).foregroundStyle(Tokens.text)
-                    Text(L10n.Safety.Report.intro).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
+        VStack(alignment: .leading, spacing: 14) {
+            if done {
+                ModalTitle(L10n.Safety.Report.doneTitle)
+                ModalBody(L10n.Safety.Report.doneBody)
+                if blocked { ModalBody(L10n.Safety.Report.doneBlocked(handle: name)) }
+                ModalActions { OrganicButton(L10n.Safety.Report.close, size: .sm, action: onClose) }
+            } else {
+                ModalTitle(title)
+                ModalBody(L10n.Safety.Report.intro)
+                VStack(alignment: .leading, spacing: 10) {
                     Text(L10n.Safety.Report.reason.uppercased())
-                        .font(AppFonts.body(Tokens.labelSize, weight: .semibold)).foregroundStyle(Tokens.textMuted)
+                        .font(AppFonts.body(Tokens.labelSize, weight: .semibold))
+                        .tracking(Tokens.labelSize * 0.06)
+                        .foregroundStyle(Tokens.textMuted)
+                    // Radios stand in for the web's organic select (see OrganicRadio).
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(SafetyService.Reason.allCases.enumerated()), id: \.element) { i, r in
                             Button { reason = r } label: {
@@ -47,7 +55,10 @@ struct ReportSheet: View {
                             .accessibilityAddTraits(reason == r ? .isSelected : [])
                         }
                     }
-                    OrganicTextField(L10n.Safety.Report.detail, text: $detail, placeholder: L10n.Safety.Report.detailPlaceholder)
+                }
+                OrganicTextArea(L10n.Safety.Report.detail, text: $detail, placeholder: L10n.Safety.Report.detailPlaceholder,
+                                maxLength: SafetyService.detailMax, seed: 89)
+                if offerBlock {
                     // The web's blockRow: the label, then the switch at the far end.
                     HStack(spacing: 16) {
                         Text(L10n.Safety.Report.alsoBlock(handle: name)).font(AppFonts.body(14.5)).foregroundStyle(Tokens.text)
@@ -55,16 +66,17 @@ struct ReportSheet: View {
                         Spacer(minLength: 0)
                         OrganicToggle(isOn: $alsoBlock, label: L10n.Safety.Report.alsoBlock(handle: name), seed: 91)
                     }
-                    .padding(.bottom, 8)
-                    OrganicButton(L10n.Safety.Report.submit) { Task { await submit() } }
-                        .disabled(reason == nil || sending)
-                    if let error { Text(error).font(AppFonts.body(13)).foregroundStyle(Tokens.terracotta) }
                 }
+                if let error { ModalError(error) }
+                ModalActions {
+                    OrganicButton(L10n.Safety.cancel, variant: .ghost, size: .sm, action: onClose)
+                    OrganicButton(sending ? "…" : L10n.Safety.Report.submit, size: .sm) { Task { await submit() } }
+                        .disabled(reason == nil)
+                }
+                .disabled(sending)
+                .padding(.top, 4)
             }
-            .padding(24)
         }
-        .background(Tokens.cream)
-        .presentationDetents([.large])
     }
 
     private var title: String {
@@ -88,13 +100,15 @@ struct ReportSheet: View {
     }
 
     private func submit() async {
-        guard let reason, let safety = session.safety else { return }
+        guard let reason, let safety = session.safety, !sending else { return }
         sending = true
+        error = nil
         defer { sending = false }
         do {
             try await safety.report(target, reason: reason, detail: detail)
-            if alsoBlock {
+            if offerBlock && alsoBlock {
                 try await safety.block(target.userId)
+                blocked = true
                 onBlocked()
             }
             done = true
@@ -104,50 +118,49 @@ struct ReportSheet: View {
     }
 }
 
-/// The "⋯" safety menu for someone else's card or page: report, block/unblock.
+/// The "⋯" safety menu for someone else's card or page (the web's
+/// CardSafetyMenu / ProfileSafetyMenu): report, block/unblock, each through
+/// the web's dialogs.
 struct SafetyMenu: View {
     let target: SafetyService.Target
     let handle: String?
     var isBlocked = false
+    var seed: Double = 7
+    var triggerSize: CGFloat = 38
     var onChange: () -> Void = {}
     @Environment(SessionStore.self) private var session
     @State private var reporting = false
+    @State private var sendingReport = false
     @State private var confirmingBlock = false
-    @State private var failed = false
+    @State private var busy = false
+    @State private var blockError: String?
 
     private var name: String { handle ?? L10n.Safety.anonymousAuthor }
 
     var body: some View {
-        Menu {
-            Button { reporting = true } label: { Label { Text(reportTitle) } icon: { OrganicIcon.image(.flag) } }
-            if isBlocked {
-                Button {
-                    Task { try? await session.safety?.unblock(target.userId); onChange() }
-                } label: { Label { Text(L10n.Safety.unblock) } icon: { OrganicIcon.image(.userCheck) } }
-            } else {
-                Button(role: .destructive) { confirmingBlock = true } label: {
-                    Label { Text(L10n.Safety.block) } icon: { OrganicIcon.image(.ban) }
-                }
+        OrganicMenu(items: items, label: L10n.Safety.menuLabel, seed: seed, triggerSize: triggerSize)
+            .organicModal(isPresented: $reporting, seed: 83, maxWidth: 460, closeLabel: L10n.Safety.Report.close,
+                          dismissible: !sendingReport) {
+                ReportForm(target: target, handle: handle, offerBlock: !isBlocked, sending: $sendingReport,
+                           onClose: { reporting = false }, onBlocked: onChange)
             }
-        } label: {
-            OrganicIcon(.dots, size: 22, strokeWidth: Tokens.ink)
-                .foregroundStyle(Tokens.text)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(L10n.Safety.menuLabel)
-        .sheet(isPresented: $reporting) { ReportSheet(target: target, handle: handle, onBlocked: onChange) }
-        .confirmationDialog(L10n.Safety.blockTitle(handle: name), isPresented: $confirmingBlock, titleVisibility: .visible) {
-            Button(L10n.Safety.blockConfirm, role: .destructive) {
-                Task {
-                    do { try await session.safety?.block(target.userId); onChange() } catch { failed = true }
-                }
+            .organicConfirm(isPresented: $confirmingBlock, title: L10n.Safety.blockTitle(handle: name),
+                            message: L10n.Safety.blockBody, cancelLabel: L10n.Safety.cancel,
+                            confirmLabel: L10n.Safety.blockConfirm, closeLabel: L10n.Safety.cancel,
+                            busy: busy, error: blockError, seed: 71) {
+                Task { await block() }
             }
-            Button(L10n.Safety.cancel, role: .cancel) {}
-        } message: {
-            Text(L10n.Safety.blockBody)
-        }
-        .alert(L10n.Safety.actionError, isPresented: $failed) { Button("OK") {} }
+    }
+
+    private var items: [OrganicMenuItem] {
+        let report = OrganicMenuItem(id: "report", title: reportTitle, icon: .flag) { reporting = true }
+        let block = isBlocked
+            ? OrganicMenuItem(id: "unblock", title: L10n.Safety.unblock, icon: .ban) { Task { await unblock() } }
+            : OrganicMenuItem(id: "block", title: L10n.Safety.block, icon: .ban, danger: true) {
+                blockError = nil
+                confirmingBlock = true
+            }
+        return [report, block]
     }
 
     private var reportTitle: String {
@@ -157,32 +170,66 @@ struct SafetyMenu: View {
         case .message: L10n.Safety.reportMessage
         }
     }
+
+    private func block() async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            try await session.safety?.block(target.userId)
+            confirmingBlock = false
+            onChange()
+        } catch {
+            blockError = L10n.Safety.actionError
+        }
+    }
+
+    private func unblock() async {
+        try? await session.safety?.unblock(target.userId)
+        onChange()
+    }
 }
 
-/// The undo banner while a deletion is scheduled (web: AccountDeletionBanner).
+/// The undo banner while a deletion is scheduled (web: AccountDeletionBanner):
+/// card paper in a red hand-drawn rim, the date, and a small filled Cancel —
+/// stacked and centred, as the web lays it out on phones.
 struct AccountDeletionBanner: View {
     let date: Date
     @Environment(SessionStore.self) private var session
+    @State private var busy = false
     @State private var failed = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(L10n.AccountDeletion.banner(date: date.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Strings.shared.locale))))
-                .font(AppFonts.body(14, weight: .semibold))
+        VStack(spacing: 14) {
+            let when = date.formatted(Date.FormatStyle(date: .long, time: .omitted, locale: Strings.shared.locale))
+            let error = failed ? Text(verbatim: " " + L10n.AccountDeletion.error).foregroundStyle(Tokens.danger) : Text(verbatim: "")
+            // The error follows the sentence inline, in the danger ink.
+            Text("\(Text(verbatim: L10n.AccountDeletion.banner(date: when)))\(error)")
+                .font(AppFonts.body(14.5))
                 .foregroundStyle(Tokens.text)
-            Spacer(minLength: 8)
-            Button(L10n.AccountDeletion.cancel) {
-                Task {
-                    do { try await session.cancelDeletion() } catch { failed = true }
-                }
-            }
-            .font(AppFonts.body(14, weight: .semibold))
-            .foregroundStyle(Tokens.terracotta)
+                .lineSpacing(14.5 * 0.5)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            OrganicButton(busy ? "…" : L10n.AccountDeletion.cancel, size: .sm) { Task { await cancel() } }
+                .disabled(busy)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .organicSurface(fill: Tokens.terracottaLight, stroke: Tokens.terracotta, radius: 18, seed: 211, grainOpacity: 0.2)
-        .padding(.horizontal, 12)
-        .alert(L10n.AccountDeletion.error, isPresented: $failed) { Button("OK") {} }
+        .frame(maxWidth: .infinity)
+        .padding(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 14))
+        .background {
+            let shape = WobRectShape(radius: 18, seed: 131)
+            shape.fill(Tokens.cardBg)
+            shape.stroke(Tokens.danger, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
+        }
+        .frame(maxWidth: 560)
+        .padding(.horizontal, 20)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func cancel() async {
+        guard !busy else { return }
+        busy = true
+        failed = false
+        defer { busy = false }
+        do { try await session.cancelDeletion() } catch { failed = true }
     }
 }

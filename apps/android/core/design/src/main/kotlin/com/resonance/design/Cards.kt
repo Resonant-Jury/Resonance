@@ -1,21 +1,25 @@
 package com.resonance.design
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import com.resonance.design.generated.IconName
 import androidx.compose.runtime.Composable
@@ -32,22 +36,31 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.SegValue
 import com.resonance.geometry.WobRectOptions
 import com.resonance.geometry.wobRect
 import kotlin.math.ceil
+import kotlin.math.max
 import kotlin.math.min
+
+/** OrganicImage's wobble: a few gentle turns, corners drifting 6 (OrganicImage.tsx, OrganicStoryImage.tsx). */
+private val ImageWob = WobRectOptions(
+    curve = 0.4, cornerJitter = 1.1, cornerOffset = 6.0, segmentsH = SegValue.Range(3, 4), segmentsV = SegValue.Range(2, 3),
+)
 
 /**
  * OrganicImage's clip: wobRect (R 18, 5% wobble) over the box, the picture
@@ -60,24 +73,38 @@ class OrganicImageShape(private val seed: Double, private val radius: Double = 1
         val h = (size.height / d).toDouble()
         if (w <= 0 || h <= 0) return Outline.Rectangle(Rect.Zero)
         val cmds = GeometryCache.get("img|$w|$h|$seed|$radius|$magFactor") {
-            wobRect(w, h, min(radius, min(w, h) / 2), seed, min(w, h) * magFactor, WobRectOptions(
-                curve = 0.4, cornerJitter = 1.1, cornerOffset = 6.0, segmentsH = SegValue.Range(3, 4), segmentsV = SegValue.Range(2, 3),
-            ))
+            wobRect(w, h, min(radius, min(w, h) / 2), seed, min(w, h) * magFactor, ImageWob)
         }
         return Outline.Generic(cmds.toPath(d))
     }
 }
 
-/** A remote image (or placeholder) in the organic clip, bleeding past its box by the wobble's outward swing. */
+/** How far a picture must overflow its box so the clip's outward swing (wobble + corner drift) lands on pixels. */
+internal fun imageBleed(w: Float, h: Float, magFactor: Double): Dp = ceil(min(w, h) * magFactor + 6 + 4).dp
+
+/**
+ * A remote image (or placeholder) in the organic clip, bleeding past its box
+ * by the wobble's outward swing. `grain` lays the web's GrainOverlay over the
+ * picture itself (StoryCard's covers carry 0.055).
+ */
 @Composable
-fun OrganicImage(url: String?, seed: Double, modifier: Modifier = Modifier, contentDescription: String? = null, placeholder: @Composable () -> Unit) {
+fun OrganicImage(
+    url: String?,
+    seed: Double,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+    grain: Float = 0f,
+    radius: Double = 18.0,
+    magFactor: Double = 0.05,
+    placeholder: @Composable () -> Unit,
+) {
     BoxWithConstraints(modifier) {
-        val mag = min(maxWidth.value, maxHeight.value) * 0.05f
-        val bleed = ceil(mag + 6 + 4).dp
+        val bleed = imageBleed(maxWidth.value, maxHeight.value, magFactor)
         Box(
             Modifier
                 .requiredSize(maxWidth + bleed * 2, maxHeight + bleed * 2)
-                .clip(BledShape(seed, bleed.value.toDouble())),
+                .clip(BledShape(seed, bleed.value.toDouble(), radius, magFactor))
+                .then(if (grain > 0f) Modifier.grainOverlay(grain) else Modifier),
         ) {
             placeholder()
             if (url != null) AsyncImage(model = url, contentDescription = contentDescription, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -86,29 +113,35 @@ fun OrganicImage(url: String?, seed: Double, modifier: Modifier = Modifier, cont
 }
 
 /** The clip drawn inside a frame `bleed` larger on every side. */
-private class BledShape(private val seed: Double, private val bleed: Double) : Shape {
+internal class BledShape(private val seed: Double, private val bleed: Double, private val radius: Double = 18.0, private val magFactor: Double = 0.05) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val d = density.density
         val w = size.width / d - bleed * 2
         val h = size.height / d - bleed * 2
         if (w <= 0 || h <= 0) return Outline.Rectangle(Rect.Zero)
-        val cmds = wobRect(w, h, min(18.0, min(w, h) / 2), seed, min(w, h) * 0.05, WobRectOptions(
-            curve = 0.4, cornerJitter = 1.1, cornerOffset = 6.0, segmentsH = SegValue.Range(3, 4), segmentsV = SegValue.Range(2, 3),
-        ))
+        val cmds = GeometryCache.get("bled|$w|$h|$seed|$radius|$magFactor") {
+            wobRect(w, h, min(radius, min(w, h) / 2), seed, min(w, h) * magFactor, ImageWob)
+        }
         return Outline.Generic(cmds.toPath(d, (bleed * d).toFloat(), (bleed * d).toFloat()))
     }
 }
 
-/** The web's striped cover placeholder: the card's fill, diagonal hatching, the label, grain. */
+/**
+ * The web's striped cover placeholder: the card's fill, diagonal hatching in
+ * the fill 7 L darker at 0.28 (a tint of the card, not grey), the label. The
+ * 320×200 drawing covers the box, centred (`xMidYMid slice`).
+ */
 @Composable
-fun StoryImagePlaceholder(fill: Color, label: String) {
-    Box(Modifier.fillMaxSize().grainOverlay(0.055f), contentAlignment = Alignment.Center) {
+fun StoryImagePlaceholder(fill: Color, stripe: Color, label: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             drawRect(fill)
             val scale = maxOf(size.width / 320f, size.height / 200f)
+            val dx = (size.width - 320f * scale) / 2
+            val dy = (size.height - 200f * scale) / 2
             for (i in 0 until 22) {
-                val x = (i * 22f - 160f) * scale
-                drawLine(Tokens.Text.copy(alpha = 0.07f), Offset(x, 0f), Offset(x + 320f * scale, 200f * scale), strokeWidth = Tokens.InkLight.toPx())
+                val x = dx + (i * 22f - 160f) * scale
+                drawLine(stripe.copy(alpha = 0.28f), Offset(x, dy), Offset(x + 320f * scale, dy + 200f * scale), strokeWidth = Tokens.InkLight.toPx() * scale)
             }
         }
         BasicText(label, maxLines = 1, style = AppFonts.body(10.5f, color = Tokens.Text.copy(alpha = 0.42f)).copy(fontFamily = FontFamily.Monospace))
@@ -131,58 +164,87 @@ data class StoryCardContent(
     val accentHue: Double?,
     /** Why the feed picked it — Resonance's handwritten margin note. */
     val reason: String? = null,
+    /** The author's own color (MiniStoryCard paints their avatar with it). */
+    val authorAccent: Color? = null,
 )
+
+/** CSS `margin-top` (negative too): shifts the child and takes the same amount off the space it claims. */
+private fun Modifier.marginTop(dy: Dp): Modifier = layout { measurable, constraints ->
+    val p = measurable.measure(constraints)
+    val d = dy.roundToPx()
+    layout(p.width, max(0, p.height + d)) { p.place(0, d) }
+}
+
+/**
+ * The phone band every story card is (StoryCard/MiniStoryCard ≤ 640px): the
+ * card's paper edge to edge, a wavy rule along its top edge — and the same
+ * rule along the bottom for the last card — and GrainOverlay above
+ * everything, photo and text included (it sits at z-index 10 on the web).
+ * Content is inset 38 (page padding 20 + the band's own 18).
+ */
+@Composable
+private fun StoryBand(
+    palette: CardPalette,
+    ruleSeed: Double,
+    isLast: Boolean,
+    verticalPadding: Dp,
+    gap: Dp,
+    modifier: Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val interior = palette.interior
+    val border = palette.border
+    Column(
+        modifier
+            .fillMaxWidth()
+            .drawWithCache {
+                val grain = Grain.brush(GrainMode.Tile, "grain-overlay", size, density, 1f)
+                // wavyLine(200, seed + 17, 1.4, 7) stretched across the band, centred on its edge.
+                val rule = wavyLinePath(size.width, 0f, density, ruleSeed, 1.4, 7)
+                val stroke = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round)
+                onDrawWithContent {
+                    drawRect(interior)
+                    drawPath(rule, border, style = stroke)
+                    if (isLast) translate(top = size.height) { drawPath(rule, border, style = stroke) }
+                    drawContent()
+                    grain?.let { drawRect(it, alpha = 0.16f) }
+                }
+            }
+            .padding(horizontal = 38.dp, vertical = verticalPadding),
+        verticalArrangement = Arrangement.spacedBy(gap),
+        content = content,
+    )
+}
+
+/** StoryCard's rule above the byline: wavyLine(200, seed + 91, 1.2, 6), 2 below the excerpt. */
+@Composable
+private fun BylineRule(seed: Double, color: Color) {
+    Box(Modifier.fillMaxWidth().padding(top = 2.dp).height(6.dp).clearAndSetSemantics { }.drawWithCache {
+        val p = wavyLinePath(size.width, size.height, density, seed + 91, 1.2, 6)
+        val s = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round)
+        onDrawBehind { drawPath(p, color, style = s) }
+    })
+}
 
 /**
  * StoryCard as the web draws it on a phone: a full-bleed band tinted with the
- * card's hue, grain, a wavy rule along its top edge (and bottom for the last
- * card), then image, tags, title, excerpt, rule, byline.
+ * card's hue, then image, tags, title, excerpt, rule, byline.
  */
 @Composable
 fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier) {
     val palette = CardPalette(content.accentHue, position)
     val seed = position * 77.0 + 13
-    Column(
-        modifier
-            .fillMaxWidth()
-            .drawWithCache {
-                val interior = palette.interior
-                val grain = Grain.brush(GrainMode.Tile, "grain-overlay", size, density, 1f)
-                val top = wavyLinePath(size.width, 6.dp.toPx(), density, seed + 17, 1.4)
-                val bottom = wavyLinePath(size.width, 6.dp.toPx(), density, seed + 23, 1.4)
-                val stroke = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round)
-                onDrawBehind {
-                    drawRect(interior)
-                    grain?.let { drawRect(it, alpha = 0.16f) }
-                    drawContext.canvas.save()
-                    drawContext.transform.translate(0f, -3.dp.toPx())
-                    drawPath(top, palette.border, style = stroke)
-                    drawContext.canvas.restore()
-                    if (isLast) {
-                        drawContext.transform.translate(0f, size.height - 3.dp.toPx())
-                        drawPath(bottom, palette.border, style = stroke)
-                        drawContext.transform.translate(0f, -(size.height - 3.dp.toPx()))
-                    }
-                }
-            }
-            .padding(horizontal = 24.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.62f)) {
-            StoryImagePlaceholder(palette.fill, content.imageLabel)
+    StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier) {
+        OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.62f), grain = 0.055f) {
+            StoryImagePlaceholder(palette.fill, palette.stripe, content.imageLabel)
         }
-        if (content.tags.isNotEmpty()) {
-            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                content.tags.take(4).forEach { TagPill(it, fill = palette.fill) }
-            }
+        // The web renders the tag row even when empty (its 8px margin still counts).
+        FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            content.tags.take(4).forEach { TagPill(it, fill = palette.fill) }
         }
         CssText(content.title, AppFonts.Family.Heading, 18f, 700, lineHeight = 1.3f, modifier = Modifier.fillMaxWidth())
         CssText(content.excerpt, AppFonts.Family.Body, 14f, 400, lineHeight = 1.65f, color = Tokens.TextMuted, modifier = Modifier.fillMaxWidth())
-        Box(Modifier.fillMaxWidth().height(6.dp).padding(top = 0.dp).clearAndSetSemantics { }.drawWithCache {
-            val p = wavyLinePath(size.width, size.height, density, seed + 91, 1.2)
-            val s = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round)
-            onDrawBehind { drawPath(p, palette.separator, style = s) }
-        })
+        BylineRule(seed, palette.separator)
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             HandDrawnAvatar(content.authorInitials, content.authorImageUrl, palette.fill, 30.dp, content.avatarSeed)
             Column(Modifier.weight(1f)) {
@@ -192,15 +254,79 @@ fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false,
             OrganicIcon(IconName.ArrowRight, size = 18.dp, color = Tokens.Text.copy(alpha = 0.28f), strokeWidth = Tokens.Ink.value)
         }
         if (!content.reason.isNullOrEmpty()) {
-            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(Modifier.marginTop((-4).dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 OrganicIcon(IconName.Sparkle, Modifier.padding(top = 5.dp), size = 13.dp, color = palette.noteInk, strokeWidth = Tokens.InkLight.value)
-                CssText(content.reason, AppFonts.Family.Handwritten, 17f, 400, lineHeight = 1.45f, color = palette.noteInk, modifier = Modifier.weight(1f))
+                CssText(content.reason, AppFonts.Family.Handwritten, 17f, 400, lineHeight = 1.45f, color = palette.noteInk, modifier = Modifier.weight(1f), letterSpacing = 0.02f)
             }
         }
     }
 }
 
-/** EmbedStoryCard: the smallest of the family, set inside an article. */
+/**
+ * StoryCard in `loading` mode: the real band, rules and grain, with the
+ * cover, tags, title, excerpt and byline as shimmering blocks tinted with the
+ * card's own hue.
+ */
+@Composable
+fun StoryCardSkeleton(position: Int, isLast: Boolean = false, modifier: Modifier = Modifier) {
+    val palette = CardPalette(null, position)
+    val seed = position * 77.0 + 13
+    WithSkeletonHue(palette.hue) {
+        StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier.semantics { contentDescription = "Loading" }) {
+            Skeleton(Modifier.aspectRatio(1 / 0.62f), height = Dp.Unspecified, radius = 18.dp)
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Skeleton(Modifier.width(56.dp), height = 22.dp, radius = 11.dp)
+                Skeleton(Modifier.width(72.dp), height = 22.dp, radius = 11.dp)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Skeleton(Modifier.fillMaxWidth(0.9f), height = 18.dp)
+                Skeleton(Modifier.fillMaxWidth(0.55f), height = 18.dp)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Skeleton(height = 13.dp)
+                Skeleton(height = 13.dp)
+                Skeleton(Modifier.fillMaxWidth(0.7f), height = 13.dp)
+            }
+            BylineRule(seed, palette.separator)
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Skeleton(height = 30.dp, circle = true)
+                Column(Modifier.weight(1f)) {
+                    Skeleton(Modifier.width(96.dp), height = 13.dp)
+                    Skeleton(Modifier.padding(top = 6.dp).width(56.dp), height = 11.dp)
+                }
+                Skeleton(height = 18.dp, circle = true)
+            }
+        }
+    }
+}
+
+/**
+ * MiniStoryCard on a phone — the pared-back card of the resonance and
+ * linked-cards lists: cover (0.56, the author's color when there is no
+ * picture), title, avatar and name. No tags, excerpt or read time.
+ */
+@Composable
+fun MiniStoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier) {
+    val palette = CardPalette(content.accentHue, position)
+    val seed = position * 71.0 + 19
+    val accent = content.authorAccent ?: palette.accent
+    StoryBand(palette, seed + 17, isLast, 28.dp, 12.dp, modifier) {
+        OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.56f), grain = 0.055f) {
+            if (content.imageUrl == null) Box(Modifier.fillMaxSize().background(accent))
+        }
+        CssText(content.title, AppFonts.Family.Heading, 17f, 700, lineHeight = 1.3f, modifier = Modifier.fillMaxWidth())
+        Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            HandDrawnAvatar(content.authorInitials, content.authorImageUrl, accent, 30.dp, content.avatarSeed)
+            BasicText(content.authorName, style = AppFonts.body(13f, 600, lineHeight = 1.4f))
+        }
+    }
+}
+
+/**
+ * EmbedStoryCard: the smallest of the family, set inside an article — a chip
+ * at most 360 wide, a 52 thumbnail, the title in the body face (14.5/600, two
+ * lines) over a one-line author.
+ */
 @Composable
 fun EmbedStoryCard(title: String, author: String?, imageUrl: String?, hue: Double?, seed: Double, modifier: Modifier = Modifier) {
     val h = hue ?: 55.0
@@ -209,6 +335,7 @@ fun EmbedStoryCard(title: String, author: String?, imageUrl: String?, hue: Doubl
     val border = OklchColor.parse("oklch(52% 0.11 $h)") ?: Tokens.Terracotta
     Row(
         modifier
+            .widthIn(max = 360.dp)
             .fillMaxWidth()
             .drawWithCache {
                 val o = WobRectShape(16.0, seed).createOutline(size, layoutDirection, this)
@@ -218,16 +345,39 @@ fun EmbedStoryCard(title: String, author: String?, imageUrl: String?, hue: Doubl
                     drawOutline(o, border, style = s)
                 }
             }
-            .padding(12.dp),
+            .padding(start = 10.dp, top = 10.dp, bottom = 10.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        OrganicImage(imageUrl, seed + 5, Modifier.size(64.dp)) {
-            Box(Modifier.fillMaxSize().grainOverlay(0.055f)) { Canvas(Modifier.fillMaxSize()) { drawRect(accent) } }
+        OrganicImage(imageUrl, seed + 5, Modifier.size(52.dp), grain = 0.055f) {
+            if (imageUrl == null) Box(Modifier.fillMaxSize().background(accent))
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.heading(16f, lineHeight = 1.3f))
-            if (author != null) BasicText(author, style = AppFonts.body(13f, color = Tokens.TextMuted))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14.5f, 600, lineHeight = 1.35f))
+            if (author != null) BasicText(author, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.4f, color = Tokens.TextMuted))
         }
+    }
+}
+
+/**
+ * CardEmbedLink's loading state: the embed's footprint (72 tall, ≤ 360) in
+ * plain chrome — no wobble, on purpose — with the link's own title, so the
+ * story does not reflow when the card arrives.
+ */
+@Composable
+fun EmbedStoryCardPlaceholder(title: String, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(16.dp)
+    Box(
+        modifier
+            .widthIn(max = 360.dp)
+            .fillMaxWidth()
+            .height(72.dp)
+            .clip(shape)
+            .background(OklchColor.parse("oklch(97.5% 0.012 55)") ?: Tokens.CardBg)
+            .border(Tokens.InkLight, Tokens.Text.copy(alpha = 0.22f), shape)
+            .padding(start = 10.dp, top = 10.dp, bottom = 10.dp, end = 16.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14.5f, 600, lineHeight = 1.35f, color = Tokens.TextMuted))
     }
 }

@@ -10,28 +10,34 @@ struct AuthorScreen: View {
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.openRoute) private var openRoute
     @State private var model: ProfileModel?
+    @State private var scrolled = false
+    @State private var unblocking = false
 
     var body: some View {
         ScrollView {
             switch model?.phase ?? .loading {
             case .loading:
-                SketchLoader(size: 48).frame(maxWidth: .infinity).padding(.top, 120)
+                ProfileSkeleton()
             case .notFound:
-                OrganicEmptyState(L10n.Profile.notFound, actionTitle: L10n.Profile.backHome) { openRoute.dismissToRoot() }
-                    .padding(.top, 80)
+                OrganicEmptyState(title: L10n.Profile.notFound, actionTitle: L10n.Profile.backHome, actionStyle: .link) {
+                    openRoute.dismissToRoot()
+                }
             case .failed:
-                OrganicEmptyState(L10n.Native.loadError, actionTitle: L10n.Native.retry) { Task { await model?.load() } }
-                    .padding(.top, 80)
+                OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
+                    Task { await model?.load() }
+                }
             case .loaded:
                 if let model, let profile = model.profile { page(model, profile) }
             }
         }
+        .onHeaderScroll($scrolled)
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
-            OrganicInlineBar("", backLabel: L10n.App.Nav.back) {
+            OrganicInlineBar("", backLabel: L10n.App.Nav.back, scrolled: scrolled) {
                 if let profile = model?.profile, !profile.isSelf {
-                    SafetyMenu(target: .user(id: profile.author.id), handle: profile.author.handle, isBlocked: profile.isBlocked) {
+                    SafetyMenu(target: .user(id: profile.author.id), handle: profile.author.handle, isBlocked: profile.isBlocked,
+                               seed: Double(seedFromString(profile.author.id)), triggerSize: 36) {
                         Task { await model?.load() }
                     }
                 }
@@ -61,8 +67,7 @@ struct AuthorScreen: View {
                     .lineSpacing(15 * 0.6)
                 meta(profile, author: author)
                 if !profile.isBlocked, profile.isSelf {
-                    OrganicButton(L10n.Profile.editProfile, variant: .ghost) {}
-                        .disabled(true) // Settings arrive in M2.
+                    OrganicButton(L10n.Profile.editProfile, variant: .ghost) { openRoute(.settings) }
                 }
             }
             .padding(.horizontal, 24)
@@ -70,39 +75,73 @@ struct AuthorScreen: View {
             .padding(.bottom, 36)
 
             if profile.isBlocked {
-                VStack(spacing: 6) {
-                    Text(L10n.Safety.blockedNotice(handle: author.handle)).font(AppFonts.heading(18)).foregroundStyle(Tokens.text)
-                    Text(L10n.Safety.blockedNoticeBody).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
-                }
-                .multilineTextAlignment(.center)
-                .padding(24)
+                blockedNotice(author)
             } else if !model.cards.isEmpty || profile.isSelf {
                 heading(L10n.Profile.publishedHeading)
                 if model.cards.isEmpty {
-                    OrganicEmptyState(L10n.Profile.emptyPublishedSelf, actionTitle: L10n.Profile.emptyPublishedCta) { writer.open() }
+                    // The owner's empty page teaches rather than apologizes.
+                    VStack(spacing: 18) {
+                        Text(L10n.Profile.emptyPublishedSelf)
+                            .font(AppFonts.body(15))
+                            .foregroundStyle(Tokens.textMuted)
+                            .multilineTextAlignment(.center)
+                        OrganicButton(L10n.Profile.emptyPublishedCta) { writer.open() }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 24)
                 } else {
                     StoryCardList(cards: model.cards) { Task { await model.loadMore() } }
                 }
             }
             if !model.linked.isEmpty {
                 heading(L10n.Profile.linkedCards).padding(.top, 48)
-                StoryCardList(cards: model.linked)
+                MiniCardList(cards: model.linked)
             }
             Color.clear.frame(height: 48)
         }
     }
 
+    /// BlockedNotice: in place of their cards, with the way back.
+    private func blockedNotice(_ author: Author) -> some View {
+        VStack(spacing: 8) {
+            Text(L10n.Safety.blockedNotice(handle: author.handle)).font(AppFonts.heading(20)).foregroundStyle(Tokens.text)
+            Text(L10n.Safety.blockedNoticeBody).font(AppFonts.body(14.5)).foregroundStyle(Tokens.textMuted)
+                .padding(.bottom, 8)
+            OrganicButton(unblocking ? "…" : L10n.Safety.unblock, variant: .ghost, size: .sm) {
+                Task { await unblock(author.id) }
+            }
+            .disabled(unblocking)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+        .padding(.horizontal, 24)
+    }
+
+    private func unblock(_ id: String) async {
+        guard !unblocking else { return }
+        unblocking = true
+        defer { unblocking = false }
+        try? await session.safety?.unblock(id)
+        await model?.load()
+    }
+
+    /// The web's section heading: Playfair 20, set tight, on the left.
     private func heading(_ title: String) -> some View {
         Text(title)
-            .font(AppFonts.heading(22))
+            .font(AppFonts.heading(20))
+            .tracking(-0.01 * 20)
             .foregroundStyle(Tokens.text)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
             .padding(.bottom, 24)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func meta(_ profile: Profile, author: Author) -> some View {
         let joined = ISO8601.date(profile.joinedAt).map {
-            $0.formatted(.dateTime.year().month(.abbreviated).locale(Strings.shared.locale))
+            // The web's joined date: year and the month in full ("August 2026", "2026年8月").
+            $0.formatted(.dateTime.year().month(.wide).locale(Strings.shared.locale))
         } ?? ""
         return FlowRow(spacing: 14) {
             if let region = author.region {
@@ -124,6 +163,28 @@ struct AuthorScreen: View {
         let flag = code.unicodeScalars.compactMap { Unicode.Scalar(127397 + $0.value) }.map(String.init).joined()
         let name = Strings.shared.locale.localizedString(forRegionCode: code) ?? code
         return "\(flag) \(name)"
+    }
+}
+
+/// The profile's loading state: the hero's avatar, name, bio and meta as
+/// blocks, then four loading cards (u/[handle]/page.tsx).
+private struct ProfileSkeleton: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 16) {
+                SkeletonBlock(width: 96, circle: true)
+                SkeletonBlock(width: 220, height: 34, radius: 10)
+                SkeletonBlock(fraction: 0.8, height: 16, alignment: .center)
+                SkeletonBlock(fraction: 0.6, height: 16, alignment: .center)
+                SkeletonBlock(fraction: 0.7, height: 13, alignment: .center)
+            }
+            // The blocks are centred like the hero they stand in for.
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 36)
+            FeedSkeleton(count: 4)
+        }
     }
 }
 

@@ -29,7 +29,15 @@ class SafetyService(private val uid: String) {
         }
     }
 
-    data class BlockedPerson(val id: String, val handle: String?, val initials: String, val since: Date?)
+    data class BlockedPerson(
+        val id: String,
+        val handle: String?,
+        val initials: String,
+        val since: Date?,
+        val avatarUrl: String? = null,
+        val accentColor: String? = null,
+        val avatarSeed: Double? = null,
+    )
 
     private val db get() = AppFirebase.db
 
@@ -71,7 +79,16 @@ class SafetyService(private val uid: String) {
             .orderBy("createdAt", Query.Direction.DESCENDING).get().await()
         return snap.documents.map { doc ->
             val user = runCatching { db.collection("users").document(doc.id).get().await() }.getOrNull()
-            BlockedPerson(doc.id, user?.getString("handle"), user?.getString("initials") ?: "·", doc.getTimestamp("createdAt")?.toDate())
+            BlockedPerson(
+                id = doc.id,
+                handle = user?.getString("handle"),
+                initials = user?.getString("initials") ?: "·",
+                since = doc.getTimestamp("createdAt")?.toDate(),
+                avatarUrl = user?.getString("avatarUrl"),
+                accentColor = user?.getString("accentColor"),
+                // Stored as text by the web's signup, as a number by older seeds.
+                avatarSeed = (user?.get("avatarSeed") as? Number)?.toDouble() ?: user?.getString("avatarSeed")?.toDoubleOrNull(),
+            )
         }
     }
 

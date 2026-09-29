@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
@@ -200,15 +201,21 @@ private fun Block(block: StoryBlock, style: ProseStyle, onOpenUrl: (String) -> U
         // The rail is drawn behind the quote's own box (its height is the
         // content's), not a sibling sized by intrinsics — the story text is
         // built on BoxWithConstraints, which cannot answer intrinsic queries.
+        // The web's vertical Divider (seed 5): trimmed 6 at each end (18% for a
+        // very short quote), a turn every ~34px, the light pen, centred in its
+        // 5.2px-wide strip, 1em before the text.
         is StoryBlock.Quote -> Box(
             Modifier
                 .fillMaxWidth()
                 .drawBehind {
                     val h = size.height / density
-                    val path = wavyVertical(h.toDouble(), 5.0, 1.6, max(3, (h / 60).roundToInt())).toPath(density, 3.dp.toPx(), 0f)
-                    drawPath(path, Tokens.TerracottaLight, style = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round))
+                    val trim = min(0.18f * h, 6f)
+                    val run = h - trim * 2
+                    val path = wavyVertical(run.toDouble(), 5.0, 1.4, max(2, (run / 34).roundToInt()))
+                        .toPath(density, QuoteRailWidth.toPx() / 2, trim * density)
+                    drawPath(path, Tokens.TerracottaLight, style = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round))
                 }
-                .padding(start = 6.dp + ProseMetrics.EM.dp),
+                .padding(start = QuoteRailWidth + ProseMetrics.EM.dp),
         ) { BlockColumn(block.children, style.quoted, onOpenUrl, embed) }
         is StoryBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy((0.3f * ProseMetrics.EM).dp)) {
             block.items.forEachIndexed { i, item ->
@@ -220,31 +227,41 @@ private fun Block(block: StoryBlock, style: ProseStyle, onOpenUrl: (String) -> U
                 }
             }
         }
-        StoryBlock.Rule -> WavyDivider(Tokens.TextMuted.copy(alpha = 0.45f), seed = 23.0)
+        StoryBlock.Rule -> WavyDivider(seed = 23.0)
         is StoryBlock.CodeBlock -> BasicText(block.code, style = AppFonts.body(15f, color = Tokens.Text).copy(fontFamily = FontFamily.Monospace))
     }
 }
 
-/** OrganicStoryImage: a photo at its own proportions (≤ 520dp or 62% of the screen tall), centred, in a gentle clip. */
+/**
+ * OrganicStoryImage: a photo at its own proportions (≤ 520dp or 62% of the
+ * screen tall), centred, in a gentle clip (R 12, 2.5% wobble). Like the
+ * cover, the photo overflows its box by the clip's outward swing so the
+ * bulges land on pixels instead of being cut flat.
+ */
 @Composable
 private fun StoryImage(url: String, alt: String) {
     var aspect by remember(url) { mutableFloatStateOf(1.5f) }
     val maxH = min(520f, LocalConfiguration.current.screenHeightDp * 0.62f)
     BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         val w = min(maxWidth.value, maxH * aspect)
-        AsyncImage(
-            model = url,
-            contentDescription = alt,
-            contentScale = ContentScale.Crop,
-            onSuccess = { s ->
-                val d = s.result.image
-                if (d.height > 0) aspect = d.width.toFloat() / d.height
-            },
-            modifier = Modifier
-                .widthIn(max = w.dp)
-                .aspectRatio(aspect)
-                .heightIn(min = 40.dp)
-                .clip(OrganicImageShape(seedFromString(url).toDouble(), radius = 12.0, magFactor = 0.025)),
-        )
+        val seed = seedFromString(url).toDouble()
+        BoxWithConstraints(Modifier.widthIn(max = w.dp).aspectRatio(aspect).heightIn(min = 40.dp)) {
+            val bleed = imageBleed(maxWidth.value, maxHeight.value, 0.025)
+            AsyncImage(
+                model = url,
+                contentDescription = alt,
+                contentScale = ContentScale.Crop,
+                onSuccess = { s ->
+                    val d = s.result.image
+                    if (d.height > 0) aspect = d.width.toFloat() / d.height
+                },
+                modifier = Modifier
+                    .requiredSize(maxWidth + bleed * 2, maxHeight + bleed * 2)
+                    .clip(BledShape(seed, bleed.value.toDouble(), radius = 12.0, magFactor = 0.025)),
+            )
+        }
     }
 }
+
+/** The quote rail's strip: the web Divider's width (amplitude and pen, twice each). */
+private val QuoteRailWidth = 5.2.dp

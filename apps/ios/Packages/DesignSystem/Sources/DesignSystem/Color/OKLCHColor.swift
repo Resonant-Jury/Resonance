@@ -10,6 +10,11 @@ public nonisolated enum OKLCHColor {
               var L = Double(m.1), let C = Double(m.3), let H = Double(m.4) else { return nil }
         if m.2 == "%" { L /= 100 }
         let alpha = m.5.flatMap { Double($0) } ?? 1
+        return color(L, C, H, alpha: alpha)
+    }
+
+    /// `oklch(L C H / alpha)` with L as a fraction (0.58 for 58%).
+    public static func color(_ L: Double, _ C: Double, _ H: Double, alpha: Double = 1) -> Color {
         let (r, g, b) = displayP3(L: L, C: C, H: H)
         return Color(.displayP3, red: r, green: g, blue: b, opacity: alpha)
     }

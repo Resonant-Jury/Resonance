@@ -10,7 +10,9 @@ struct ConversationsScreen: View {
                 .font(AppFonts.body(14))
                 .foregroundStyle(Tokens.textMuted)
                 .padding(.horizontal, 20)
-            OrganicEmptyState(L10n.Messages.empty)
+            EmptyNote(L10n.Messages.empty)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
         }
     }
 }

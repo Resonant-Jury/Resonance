@@ -85,9 +85,14 @@ class WobCircleShape(
     }
 }
 
-/** A full-width wavy stroke (dividers, header edges), centred vertically. */
-fun wavyLinePath(widthPx: Float, heightPx: Float, density: Float, seed: Double, amp: Double): Path {
+/**
+ * A full-width wavy stroke, centred vertically. The web draws its rules as
+ * `wavyLine(200|240, seed, amp, steps)` stretched across the box, so a rule
+ * has the same `steps` turns at any width; x scales linearly, so drawing it at
+ * the real width is the same curve. Without `steps`, one turn per ~30dp.
+ */
+fun wavyLinePath(widthPx: Float, heightPx: Float, density: Float, seed: Double, amp: Double, steps: Int? = null): Path {
     val w = (widthPx / density).toDouble()
-    val steps = max(3, (w / 30).roundToInt())
-    return com.resonance.geometry.wavyLine(w, seed, amp, steps).toPath(density, 0f, heightPx / 2)
+    val n = steps ?: max(3, (w / 30).roundToInt())
+    return com.resonance.geometry.wavyLine(w, seed, amp, n).toPath(density, 0f, heightPx / 2)
 }

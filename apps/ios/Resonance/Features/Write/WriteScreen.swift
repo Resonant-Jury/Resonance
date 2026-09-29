@@ -14,7 +14,7 @@ struct WriteScreen: View {
             }
             .padding(.horizontal, 12)
             OrganicLargeHeader(L10n.App.Nav.write)
-            OrganicEmptyState(L10n.Me.emptyPublished)
+            OrganicEmptyState(message: L10n.Me.emptyPublished)
             Spacer()
         }
         .background(Tokens.cream)

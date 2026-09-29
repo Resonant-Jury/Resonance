@@ -1,7 +1,40 @@
 import SwiftUI
 
-/// OrganicInput: a labelled text field in a wobbly frame. The frame darkens
-/// to terracotta while focused (tokens: --field-border / --field-border-focus).
+/// Field.tsx's label: small caps in the muted ink, 10 above the control.
+struct FieldLabel: View {
+    let text: String
+    var body: some View {
+        Text(text.uppercased())
+            .font(AppFonts.body(Tokens.labelSize, weight: .semibold))
+            .tracking(Tokens.labelSize * 0.06)
+            .foregroundStyle(Tokens.textMuted)
+    }
+}
+
+/// The web Input/Textarea surface (HandDrawnDashedSurface R16): auto wobble,
+/// cream paper, and the ink darkening to terracotta while focused
+/// (tokens: --field-border / --field-border-focus).
+struct FieldSurface: ViewModifier {
+    let seed: Double
+    let focused: Bool
+
+    func body(content: Content) -> some View {
+        content.background {
+            let shape = WobRectShape(radius: Tokens.radiusMd, seed: seed)
+            shape.fill(Tokens.cream)
+            shape.stroke(focused ? Tokens.terracotta : Tokens.fieldBorder,
+                         style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, lineJoin: .round))
+        }
+        .animation(.easeOut(duration: 0.15), value: focused)
+    }
+}
+
+/// The web's placeholder: warm grey, italic.
+func fieldPrompt(_ text: String) -> Text {
+    Text(text).italic().foregroundStyle(Tokens.placeholder)
+}
+
+/// OrganicInput: a labelled text field in a wobbly frame.
 public struct OrganicTextField: View {
     let label: String
     let placeholder: String
@@ -9,8 +42,9 @@ public struct OrganicTextField: View {
     var isSecure: Bool
     var seed: Double
     @FocusState private var focused: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
-    public init(_ label: String, text: Binding<String>, placeholder: String = "", isSecure: Bool = false, seed: Double = 21) {
+    public init(_ label: String, text: Binding<String>, placeholder: String = "", isSecure: Bool = false, seed: Double = 13) {
         self.label = label
         self._text = text
         self.placeholder = placeholder
@@ -19,68 +53,152 @@ public struct OrganicTextField: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label.uppercased())
-                .font(AppFonts.body(Tokens.labelSize, weight: .semibold))
-                .tracking(Tokens.labelSize * 0.06)
-                .foregroundStyle(Tokens.textMuted)
+        VStack(alignment: .leading, spacing: 10) {
+            FieldLabel(text: label)
             Group {
                 if isSecure {
-                    SecureField(placeholder, text: $text)
+                    SecureField(text: $text, prompt: fieldPrompt(placeholder)) { Text(label) }
                 } else {
-                    TextField(placeholder, text: $text)
+                    TextField(text: $text, prompt: fieldPrompt(placeholder)) { Text(label) }
                 }
             }
-            .font(AppFonts.body(16))
+            .font(AppFonts.body(15))
             .foregroundStyle(Tokens.text)
+            // The web's 15px on a 1.6 line box.
+            .frame(minHeight: 15 * 1.6)
+            .opacity(isEnabled ? 1 : 0.55)
             .focused($focused)
             .padding(.horizontal, Tokens.fieldPadX)
             .padding(.vertical, Tokens.fieldPadY)
-            .background {
-                let shape = WobRectShape(radius: Tokens.radiusMd, seed: seed, mag: 1.4)
-                shape.fill(Tokens.cardBg)
-                shape.stroke(focused ? Tokens.terracotta : Tokens.fieldBorder, lineWidth: Tokens.ink)
-            }
-            .animation(.easeOut(duration: 0.15), value: focused)
+            .modifier(FieldSurface(seed: seed, focused: focused))
         }
     }
 }
 
-/// An empty or error state in the web's voice: a hand-drawn blob, a line of copy,
-/// and an optional action. Empty states teach (docs/ux-user-flows.md §4).
+/// The web's auto-growing Textarea: three lines at rest, taller as the text
+/// grows, with an optional "count / max" under it (CharCount).
+public struct OrganicTextArea: View {
+    let label: String
+    let placeholder: String
+    @Binding var text: String
+    var maxLength: Int?
+    var seed: Double
+    @FocusState private var focused: Bool
+
+    public init(_ label: String, text: Binding<String>, placeholder: String = "", maxLength: Int? = nil, seed: Double = 17) {
+        self.label = label
+        self._text = text
+        self.placeholder = placeholder
+        self.maxLength = maxLength
+        self.seed = seed
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FieldLabel(text: label).padding(.bottom, 10)
+            TextField(text: $text, prompt: fieldPrompt(placeholder), axis: .vertical) { Text(label) }
+                .lineLimit(3...)
+                .lineSpacing(15 * 0.6)
+                .font(AppFonts.body(15))
+                .foregroundStyle(Tokens.text)
+                .focused($focused)
+                .padding(.horizontal, Tokens.fieldPadX)
+                .padding(.vertical, Tokens.fieldPadY)
+                .modifier(FieldSurface(seed: seed, focused: focused))
+                .onChange(of: text) { _, new in
+                    if let maxLength, new.count > maxLength { text = String(new.prefix(maxLength)) }
+                }
+            if let maxLength {
+                Text("\(text.count) / \(maxLength)")
+                    .font(AppFonts.body(11))
+                    .monospacedDigit()
+                    .foregroundStyle(text.count > maxLength ? Tokens.terracotta : Tokens.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.top, 6)
+            }
+        }
+    }
+}
+
+/// A page-level empty, not-found or error state as the web sets them: a
+/// Playfair line, the muted explanation, then one way forward — a filled
+/// button for "start writing", or a plain terracotta link for "back".
+/// (No blob: the web keeps OrganiBlob for its landing page.)
 public struct OrganicEmptyState: View {
-    let message: String
+    public enum ActionStyle: Sendable { case primary, outline, link }
+
+    let title: String?
+    let titleSize: CGFloat
+    let message: String?
     let actionTitle: String?
+    let actionStyle: ActionStyle
     let action: (() -> Void)?
 
-    public init(_ message: String, actionTitle: String? = nil, action: (() -> Void)? = nil) {
+    public init(title: String? = nil, titleSize: CGFloat = 22, message: String? = nil,
+                actionTitle: String? = nil, actionStyle: ActionStyle = .primary, action: (() -> Void)? = nil) {
+        self.title = title
+        self.titleSize = titleSize
         self.message = message
         self.actionTitle = actionTitle
+        self.actionStyle = actionStyle
         self.action = action
     }
 
     public var body: some View {
-        VStack(spacing: 18) {
-            WobCircleShape(seed: 41, options: WobCircleOptions(segments: 9, mag: 3, cpJitter: 0.6))
-                .fill(Tokens.terracottaLight.opacity(0.5))
-                .overlay {
-                    WobCircleShape(seed: 41, options: WobCircleOptions(segments: 9, mag: 3, cpJitter: 0.6))
-                        .stroke(Tokens.terracotta.opacity(0.5), lineWidth: Tokens.inkLight)
-                }
-                .frame(width: 72, height: 72)
-                .accessibilityHidden(true)
-            Text(message)
-                .font(AppFonts.body(15))
-                .foregroundStyle(Tokens.textMuted)
-                .multilineTextAlignment(.center)
-                .lineSpacing(15 * 0.6)
-                .frame(maxWidth: 320)
+        VStack(spacing: 0) {
+            if let title {
+                Text(title)
+                    .font(AppFonts.heading(titleSize, weight: .regular))
+                    .foregroundStyle(Tokens.text)
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.bottom, message == nil ? 12 : 8)
+            }
+            if let message {
+                Text(message)
+                    .font(AppFonts.body(16))
+                    .foregroundStyle(Tokens.textMuted)
+                    .padding(.bottom, 24)
+            }
             if let actionTitle, let action {
-                OrganicButton(actionTitle, variant: .outline, action: action)
+                switch actionStyle {
+                case .primary: OrganicButton(actionTitle, action: action)
+                case .outline: OrganicButton(actionTitle, variant: .outline, action: action)
+                case .link:
+                    Button(actionTitle, action: action)
+                        .font(AppFonts.body(16))
+                        .foregroundStyle(Tokens.terracotta)
+                        .buttonStyle(.plain)
+                }
             }
         }
-        .padding(.horizontal, 32)
-        .padding(.vertical, 40)
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 64)
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// A list's empty line (notifications, messages, a shelf, the block list):
+/// just the muted sentence, no heading and no art.
+public struct EmptyNote: View {
+    let text: String
+    var size: CGFloat
+    var centered: Bool
+
+    public init(_ text: String, size: CGFloat = 14, centered: Bool = false) {
+        self.text = text
+        self.size = size
+        self.centered = centered
+    }
+
+    public var body: some View {
+        Text(text)
+            .font(AppFonts.body(size))
+            .foregroundStyle(Tokens.textMuted)
+            .lineSpacing(size * 0.5)
+            .multilineTextAlignment(centered ? .center : .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
     }
 }

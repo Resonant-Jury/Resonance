@@ -61,10 +61,16 @@ class CardPalette(accentHue: Double?, position: Int) {
     val separator: Color get() = OklchColor.parse("oklch(55% 0.04 $hue / 0.4)") ?: Tokens.FieldBorder
     /** `oklch(44% 0.08 hue)` — Resonance's handwritten margin note. */
     val noteInk: Color get() = OklchColor.parse("oklch(44% 0.08 $hue)") ?: Tokens.TextMuted
+    /** The cover placeholder's hatching: the fill 7 L darker (StoryCard's `stripeFill`), drawn at 0.28. */
+    val stripe: Color get() = FILL_LC[index].let { (l, c) -> OklchColor.parse("oklch(${l - 7}% $c $hue)") } ?: fill
+    /** `oklch(90% 0.06 hue)` — MiniStoryCard's cover fallback and avatar when the author has no accent. */
+    val accent: Color get() = OklchColor.parse("oklch(90% 0.06 $hue)") ?: fill
 
     companion object {
         /** CARD_HUES, in palette order. */
         val HUES = listOf(55.0, 290.0, 140.0, 88.0, 215.0, 18.0)
+        /** CARD_FILLS' lightness (%) and chroma, in palette order. */
+        private val FILL_LC = listOf(90.0 to 0.065, 94.0 to 0.032, 93.0 to 0.042, 92.0 to 0.075, 92.0 to 0.033, 89.0 to 0.047)
 
         fun nearest(hue: Double): Int {
             fun distance(a: Double, b: Double): Double {
@@ -73,5 +79,36 @@ class CardPalette(accentHue: Double?, position: Int) {
             }
             return HUES.indices.minBy { distance(hue, HUES[it]) }
         }
+    }
+}
+
+/**
+ * Colors the web mixes from its tokens with `color-mix(in oklch, …)` that the
+ * generated set does not carry, worked out in OKLCH the way the browser does
+ * (black has no hue, so it keeps the other color's).
+ */
+object Mixes {
+    /** `var(--color-danger, oklch(58% 0.16 25))` — the variable is undefined, so every error line and the delete row show the fallback red. */
+    val Danger = OklchColor.parse("oklch(58% 0.16 25)") ?: Tokens.Terracotta
+    /** OrganicButton outline's pen: color-mix(terracotta, black 15%) — darker than its label. */
+    val TerracottaOutline = OklchColor.parse("oklch(52.7% 0.119 45)") ?: Tokens.Terracotta
+    /** HandDrawnAvatar's rim, oklch(36% 0.06 60 / 0.55). */
+    val AvatarRim = OklchColor.parse("oklch(36% 0.06 60 / 0.55)") ?: Tokens.GhostStroke
+    /** OrganicMenu's destructive-row wash: color-mix(yellow 25%, cream); 45% while pressed. */
+    val MenuDangerWash = OklchColor.parse("oklch(94.375% 0.03625 78.75)") ?: Tokens.Yellow
+    val MenuDangerWashPressed = OklchColor.parse("oklch(92.675% 0.05325 81.75)") ?: Tokens.Yellow
+    /** Skeleton's sand: color-mix(color-mix(cream-dark 94%, text) 85%, transparent). */
+    val SkeletonBase = OklchColor.parse("oklch(88.98% 0.01872 74.1 / 0.85)") ?: Tokens.CreamDark
+
+    /** Skeleton's shimmer: color-mix(highlight 50%, cream), the highlight `oklch(88% 0.08 hue)` (terracotta-light by default). */
+    fun skeletonHighlight(hue: Double = 55.0): Color =
+        OklchColor.parse("oklch(92.25% 0.0475 ${mixHue(hue, 75.0)})") ?: Tokens.TerracottaLight
+
+    /** Halfway round the shorter arc between two hues, as CSS interpolates them. */
+    private fun mixHue(a: Double, b: Double): Double {
+        var d = b - a
+        if (d > 180) d -= 360
+        if (d < -180) d += 360
+        return ((a + d / 2) % 360 + 360) % 360
     }
 }

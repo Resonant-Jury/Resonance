@@ -50,6 +50,10 @@ final class SessionStore {
 
     var reading: ReadingAPI { ReadingAPI(client: api) }
     var safety: SafetyService? { uid.map(SafetyService.init(uid:)) }
+    var bookmarks: BookmarkService? { uid.map(BookmarkService.init(uid:)) }
+    /// What the account signed in with (settings → account shows them read-only).
+    var email: String? { Auth.auth().currentUser?.email }
+    var phoneNumber: String? { Auth.auth().currentUser?.phoneNumber }
 
     // MARK: - Language
 

@@ -2,42 +2,50 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// A card's page (card/[slug]/page.tsx, phone layout): byline, cover, title,
-/// the story, tags; then the resonance and related sections on their bands.
+/// A card's page (card/[slug]/page.tsx, phone layout): byline, cover, title
+/// (with its ⋯), the story, tags, what a reader can do next; then the
+/// resonance and related sections, set straight on the page.
 struct CardScreen: View {
     let key: String
     @Environment(SessionStore.self) private var session
+    @Environment(WriteLauncher.self) private var writer
     @Environment(\.openRoute) private var openRoute
     @Environment(\.openURL) private var openURL
     @State private var model: CardModel?
+    @State private var scrolled = false
 
     var body: some View {
         ScrollView {
             switch model?.phase ?? .loading {
             case .loading:
-                SketchLoader(size: 48).frame(maxWidth: .infinity).padding(.top, 120)
+                CardDetailSkeleton()
             case .notFound:
-                OrganicEmptyState(L10n.Card.NotFound.title, actionTitle: L10n.Card.NotFound.back) { openRoute.dismissToRoot() }
-                    .padding(.top, 80)
+                OrganicEmptyState(title: L10n.Card.NotFound.title, titleSize: 24, actionTitle: L10n.Card.NotFound.back,
+                                  actionStyle: .link) { openRoute.dismissToRoot() }
             case .failed:
-                OrganicEmptyState(L10n.Native.loadError, actionTitle: L10n.Native.retry) { Task { await model?.load() } }
-                    .padding(.top, 80)
+                OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
+                    Task { await model?.load() }
+                }
             case .loaded:
                 if let model, let detail = model.detail { page(model, detail) }
             }
         }
+        .onHeaderScroll($scrolled)
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
-            OrganicInlineBar("", backLabel: L10n.App.Nav.back) {
-                if let detail = model?.detail, !detail.isOwner, let authorId = detail.anonymous ? nil : detail.card.author?.value1.id ?? nil {
-                    SafetyMenu(target: .card(id: detail.card.id, authorId: authorId), handle: detail.card.author?.value1.handle)
-                }
+            OrganicInlineBar("", backLabel: L10n.App.Nav.back, scrolled: scrolled) {
                 if let detail = model?.detail {
                     ShareLink(item: session.config.origin.appending(path: "card/\(detail.card.routeKey)")) {
-                        OrganicIcon(.share, size: 22).foregroundStyle(Tokens.text).frame(width: 44, height: 44)
+                        OrganicChipFace(.share, seed: (detail.card.accentHue ?? 55) + 5)
                     }
                 }
+            }
+        }
+        // The web's pen sits on the card page too: bottom right, 20 in.
+        .overlay(alignment: .bottomTrailing) {
+            if let detail = model?.detail {
+                FloatingWriteButton(label: detail.isOwner ? L10n.App.Nav.editThisCard : L10n.App.Nav.write) { writer.open() }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -54,48 +62,62 @@ struct CardScreen: View {
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 byline(card, anonymous: detail.anonymous)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 28)
                 if let url = card.imageUrl.flatMap(URL.init(string:)) {
                     OrganicImage(url: url, seed: hue + 11, fill: Tokens.creamDark)
                         .aspectRatio(1 / 0.52, contentMode: .fit)
                         .padding(.bottom, 20)
                         .accessibilityLabel(card.imageLabel ?? card.title)
                 }
-                Text(card.title)
-                    .font(AppFonts.heading(28))
-                    .tracking(-0.015 * 28)
-                    .foregroundStyle(Tokens.text)
-                    .lineSpacing(28 * 0.2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                    .padding(.bottom, 28)
+                HStack(alignment: .center, spacing: 16) {
+                    CSSText(card.title, font: AppFonts.uiFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
+                            tracking: -0.015 * 28)
+                        .accessibilityAddTraits(.isHeader)
+                    // The reader's ⋯ sits beside the title, as on the web.
+                    if !detail.isOwner, let authorId = detail.anonymous ? nil : card.author?.value1.id {
+                        SafetyMenu(target: .card(id: card.id, authorId: authorId), handle: card.author?.value1.handle,
+                                   seed: hue + 3)
+                    }
+                }
+                .padding(.bottom, 28)
                 StoryMarkdownView(blocks: model.blocks, onOpenURL: open) { href, title in
                     CardEmbedView(href: href, title: title)
                 }
                 .padding(.bottom, 32)
                 if !card.tags.isEmpty {
+                    // Tags are app furniture: the theme colour, not the card's hue.
                     FlowRow(spacing: 8) {
                         ForEach(card.tags, id: \.self) { TagPill($0, fill: Tokens.terracottaLight) }
                     }
                     .padding(.bottom, 40)
                 }
+                if !detail.isOwner {
+                    CardViewerActions(cardId: card.id).padding(.bottom, 40)
+                }
                 if !model.links.isEmpty {
-                    Text(L10n.Card.linkedCards).font(AppFonts.heading(20)).foregroundStyle(Tokens.text).padding(.bottom, 16)
+                    Text(L10n.Card.linkedCards)
+                        .font(AppFonts.heading(20))
+                        .tracking(-0.01 * 20)
+                        .foregroundStyle(Tokens.text)
+                        .padding(.bottom, 24)
                 }
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
 
-            if !model.links.isEmpty { StoryCardList(cards: model.links).padding(.bottom, 40) }
+            if !model.links.isEmpty { MiniCardList(cards: model.links).padding(.bottom, 40) }
+            // The article's own bottom padding.
+            Color.clear.frame(height: 40)
 
             let resonance = model.resonanceSection
             if !resonance.isEmpty {
-                section(L10n.Card.ResonanceSection.title, cards: resonance, background: Tokens.creamDark)
+                section(L10n.Card.ResonanceSection.title, headingGap: 40) { MiniCardList(cards: resonance) }
             }
             if !model.related.isEmpty {
-                section(L10n.Card.related, cards: model.related, background: resonance.isEmpty ? Tokens.creamDark : Tokens.cream)
+                section(L10n.Card.related, headingGap: 56) { StoryCardList(cards: model.related) }
             }
-            Color.clear.frame(height: 40)
+            // Room for the pen.
+            Color.clear.frame(height: 96)
         }
     }
 
@@ -138,21 +160,24 @@ struct CardScreen: View {
         return [region, date].compactMap { $0 }.joined(separator: " · ")
     }
 
-    private func section(_ title: String, cards: [FeedCard], background: Color) -> some View {
+    /// A section under the article. On phones the web drops the tinted band
+    /// and its wavy edge — the cards' own bands are chrome enough — so the
+    /// heading sits straight on the page.
+    private func section<Cards: View>(_ title: String, headingGap: CGFloat, @ViewBuilder cards: () -> Cards) -> some View {
         VStack(spacing: 0) {
             Text(title)
                 .font(AppFonts.heading(22))
-                .tracking(-0.22)
+                .tracking(-0.01 * 22)
                 .foregroundStyle(Tokens.text)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 20)
-                .padding(.bottom, 40)
-            StoryCardList(cards: cards)
+                .padding(.bottom, headingGap)
+                .accessibilityAddTraits(.isHeader)
+            cards()
         }
-        .padding(.top, 72)
-        .padding(.bottom, 56)
-        .background(background)
+        .padding(.top, 32)
+        .padding(.bottom, 16)
     }
 
     /// Links in the story: pages of this site open in the app, the rest in Safari.
@@ -163,6 +188,45 @@ struct CardScreen: View {
         } else {
             openURL(absolute)
         }
+    }
+}
+
+/// CardDetailSkeleton on a phone: the byline, cover, title, story and tags
+/// as shimmering blocks where they will land.
+private struct CardDetailSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                SkeletonBlock(width: 44, circle: true)
+                VStack(alignment: .leading, spacing: 7) {
+                    SkeletonBlock(width: 140, height: 15)
+                    SkeletonBlock(width: 96, height: 13)
+                }
+            }
+            .padding(.bottom, 28)
+            SkeletonBlock(height: 180, radius: 18).padding(.bottom, 20)
+            VStack(alignment: .leading, spacing: 12) {
+                SkeletonBlock(fraction: 0.9, height: 38)
+                SkeletonBlock(fraction: 0.55, height: 38)
+            }
+            .padding(.bottom, 28)
+            VStack(alignment: .leading, spacing: 12) {
+                SkeletonBlock(height: 17)
+                SkeletonBlock(height: 17)
+                SkeletonBlock(height: 17)
+                SkeletonBlock(fraction: 0.65, height: 17)
+            }
+            .padding(.bottom, 32)
+            HStack(spacing: 8) {
+                SkeletonBlock(width: 64, height: 26, radius: 13)
+                SkeletonBlock(width: 84, height: 26, radius: 13)
+                SkeletonBlock(width: 56, height: 26, radius: 13)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .accessibilityElement()
+        .accessibilityLabel("Loading")
     }
 }
 
@@ -184,13 +248,14 @@ struct CardEmbedView: View {
                 EmbedStoryCard(title: card.title, author: card.author?.value1.handle ?? L10n.Card.anonymousAuthor,
                                imageURL: card.imageUrl.flatMap(URL.init(string:)), hue: card.accentHue,
                                seed: Double(seedFromString(href)))
-            } else {
+            } else if failed {
                 Text(title)
                     .font(AppFonts.body(17))
                     .underline()
                     .foregroundStyle(Tokens.terracotta)
-                    .opacity(failed ? 1 : 0.6)
-                    .frame(maxWidth: .infinity, minHeight: failed ? nil : 88, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                EmbedStoryCardPlaceholder(title: title)
             }
         }
         .buttonStyle(.plain)

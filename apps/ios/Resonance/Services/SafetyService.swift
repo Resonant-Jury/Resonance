@@ -80,6 +80,9 @@ struct SafetyService {
         let id: String
         let handle: String?
         let initials: String
+        let avatarUrl: String?
+        let accentColor: String?
+        let avatarSeed: Double?
         let since: Date?
     }
 
@@ -95,7 +98,12 @@ struct SafetyService {
             people.append(BlockedPerson(
                 id: doc.documentID,
                 handle: handle,
-                initials: (user?.get("initials") as? String) ?? "·",
+                initials: (user?.get("initials") as? String) ?? "··",
+                avatarUrl: user?.get("avatarUrl") as? String,
+                accentColor: user?.get("accentColor") as? String,
+                // Stored as a string, like the web's `Number(avatarSeed)`.
+                avatarSeed: ((user?.get("avatarSeed") as? String).flatMap(Double.init) ?? (user?.get("avatarSeed") as? Double))
+                    .flatMap { $0 == 0 ? nil : $0 },
                 since: (doc.get("createdAt") as? Timestamp)?.dateValue()
             ))
         }

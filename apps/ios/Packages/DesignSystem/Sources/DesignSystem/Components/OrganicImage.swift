@@ -8,12 +8,16 @@ public struct OrganicImage<Placeholder: View>: View {
     let url: URL?
     let seed: Double
     let radius: Double
+    let grain: Double
     let placeholder: Placeholder
 
-    public init(url: URL?, seed: Double, radius: Double = 18, @ViewBuilder placeholder: () -> Placeholder) {
+    /// `grain` is the web's GrainOverlay opacity laid over the picture (the
+    /// story cards' paper texture, 0.055); 0 draws none.
+    public init(url: URL?, seed: Double, radius: Double = 18, grain: Double = 0, @ViewBuilder placeholder: () -> Placeholder) {
         self.url = url
         self.seed = seed
         self.radius = radius
+        self.grain = grain
         self.placeholder = placeholder()
     }
 
@@ -30,6 +34,10 @@ public struct OrganicImage<Placeholder: View>: View {
                             image.resizable().scaledToFill()
                         }
                     }
+                }
+                if grain > 0 {
+                    // Above the photo too (the web's overlay sits at z 10): ink at 2×.
+                    GrainLayer(shape: Rectangle(), mode: .tile, opacity: grain * 2, tile: "grain-overlay")
                 }
             }
             .frame(width: w + bleed * 2, height: h + bleed * 2)
@@ -55,7 +63,7 @@ nonisolated struct OrganicImageShape: Shape {
 }
 
 extension OrganicImage where Placeholder == Color {
-    public init(url: URL?, seed: Double, radius: Double = 18, fill: Color) {
-        self.init(url: url, seed: seed, radius: radius) { fill }
+    public init(url: URL?, seed: Double, radius: Double = 18, grain: Double = 0, fill: Color) {
+        self.init(url: url, seed: seed, radius: radius, grain: grain) { fill }
     }
 }

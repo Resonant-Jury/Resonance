@@ -64,7 +64,7 @@ struct BlockView<Embed: View>: View {
         case let .quote(children):
             HStack(alignment: .top, spacing: ProseMetrics.em) {
                 WavyRailShape(seed: 5)
-                    .stroke(Tokens.terracottaLight, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                    .stroke(Tokens.terracottaLight, style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
                     .frame(width: 6)
                     .frame(maxHeight: .infinity)
                     .accessibilityHidden(true)
@@ -78,7 +78,7 @@ struct BlockView<Embed: View>: View {
                 }
             }
         case .rule:
-            WavyDivider(color: Tokens.textMuted.opacity(0.45), seed: 23)
+            WavyDivider(seed: 23)
         case let .code(code):
             Text(code)
                 .font(.system(size: 15, design: .monospaced))
@@ -115,20 +115,25 @@ struct ListItemView<Embed: View>: View {
     }
 }
 
-/// The blockquote's hand-drawn vertical rail (the web's vertical Divider).
+/// The blockquote's hand-drawn vertical rail (the web's vertical Divider):
+/// trimmed 6pt at each end, one turn per 34pt of what is left.
 nonisolated struct WavyRailShape: Shape {
     let seed: Double
 
     func path(in rect: CGRect) -> Path {
         let h = Double(rect.height)
         guard h > 0 else { return Path() }
-        return wavyVertical(h, seed: seed, amp: 1.6, steps: max(3, Int((h / 60).rounded())))
-            .path(offsetX: Double(rect.midX), offsetY: Double(rect.minY))
+        let inset = min(0.18 * h, 6)
+        let length = h - inset * 2
+        return wavyVertical(length, seed: seed, amp: 1.4, steps: max(2, Int((length / 34).rounded())))
+            .path(offsetX: Double(rect.midX), offsetY: Double(rect.minY) + inset)
     }
 }
 
 /// OrganicStoryImage: a photo at its natural proportions (never taller than
-/// 520pt or 62% of the screen), centred, in a hand-drawn clip.
+/// 520pt or 62% of the screen), centred, in a hand-drawn clip. The photo is
+/// zoomed past its box by the wobble's reach so the clip's outward swings
+/// land on real pixels, as on the web.
 struct StoryImageView: View {
     let url: URL?
     let alt: String
@@ -140,6 +145,8 @@ struct StoryImageView: View {
             let maxH = min(520, UIScreen.main.bounds.height * 0.62)
             let a = aspect ?? 1.5
             let w = min(geo.size.width, maxH * a)
+            let h = w / a
+            let bleed = (min(w, h) * 0.025 + 6 + 4).rounded(.up)
             let setAspect = $aspect
             LazyImage(url: url) { state in
                 if let image = state.image {
@@ -153,8 +160,9 @@ struct StoryImageView: View {
                     setAspect.wrappedValue = response.image.size.width / response.image.size.height
                 }
             }
-            .frame(width: w, height: w / a)
-            .clipShape(StoryImageClip(seed: seed))
+            .frame(width: w + bleed * 2, height: h + bleed * 2)
+            .clipShape(StoryImageClip(seed: seed, bleed: bleed))
+            .frame(width: w, height: h)
             .frame(maxWidth: .infinity)
             .accessibilityLabel(alt)
             .accessibilityAddTraits(.isImage)
@@ -171,15 +179,17 @@ struct StoryImageView: View {
     }
 }
 
-/// The story photo's clip: R 12, a gentler wobble than covers (mag 2.5%).
+/// The story photo's clip: R 12, a gentler wobble than covers (mag 2.5%),
+/// drawn for the photo's box inside the bled frame.
 nonisolated struct StoryImageClip: Shape {
     let seed: Double
+    let bleed: Double
 
     func path(in rect: CGRect) -> Path {
-        let w = Double(rect.width), h = Double(rect.height)
+        let w = Double(rect.width) - bleed * 2, h = Double(rect.height) - bleed * 2
         guard w > 0, h > 0 else { return Path() }
         return wobRect(w, h, 12, seed: seed, mag: min(w, h) * 0.025, options: WobRectOptions(
             curve: 0.4, cornerJitter: 1.1, cornerOffset: 6, segmentsH: .range(3, 4), segmentsV: .range(2, 3)
-        )).path(offsetX: Double(rect.minX), offsetY: Double(rect.minY))
+        )).path(offsetX: Double(rect.minX) + bleed, offsetY: Double(rect.minY) + bleed)
     }
 }

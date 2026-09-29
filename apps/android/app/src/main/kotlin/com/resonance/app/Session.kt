@@ -68,6 +68,10 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
         private set
 
     val safety: SafetyService? get() = uid?.let(::SafetyService)
+    val bookmarks: BookmarkService? get() = uid?.let(::BookmarkService)
+    /** The sign-in email and phone, shown read-only on the account screen. */
+    val email: String? get() = auth.currentUser?.email
+    val phoneNumber: String? get() = auth.currentUser?.phoneNumber
 
     private val auth: FirebaseAuth get() = AppFirebase.auth
     private val scope = MainScope()

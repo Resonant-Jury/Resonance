@@ -53,11 +53,13 @@ class CssLineHeightSpan(private val lineBoxPx: Float, primary: Paint.FontMetrics
 }
 
 object CssLayout {
-    fun build(text: String, family: AppFonts.Family, sizeSp: Float, weight: Int, lineHeight: Float, widthPx: Int, density: Float, color: Color = Tokens.Text): StaticLayout {
+    /** `letterSpacing` is CSS letter-spacing in em (TextPaint takes it in em too). */
+    fun build(text: String, family: AppFonts.Family, sizeSp: Float, weight: Int, lineHeight: Float, widthPx: Int, density: Float, color: Color = Tokens.Text, letterSpacing: Float = 0f): StaticLayout {
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = AppFonts.typeface(family, weight)
             textSize = sizeSp * density
             this.color = color.toArgb()
+            this.letterSpacing = letterSpacing
         }
         val lineBoxPx = sizeSp * lineHeight * density
         val spanned = SpannableString(text).apply {
@@ -76,12 +78,22 @@ object CssLayout {
 
 /** A paragraph laid out with CSS line boxes; reads as text to accessibility services. */
 @Composable
-fun CssText(text: String, family: AppFonts.Family, sizeSp: Float, weight: Int = 400, lineHeight: Float = 1.5f, color: Color = Tokens.Text, modifier: Modifier = Modifier) {
+fun CssText(
+    text: String,
+    family: AppFonts.Family,
+    sizeSp: Float,
+    weight: Int = 400,
+    lineHeight: Float = 1.5f,
+    color: Color = Tokens.Text,
+    modifier: Modifier = Modifier,
+    /** CSS letter-spacing, in em. */
+    letterSpacing: Float = 0f,
+) {
     val density = LocalDensity.current.density
     BoxWithConstraints(modifier) {
         val widthPx = constraints.maxWidth
-        val layout = remember(text, family, sizeSp, weight, lineHeight, widthPx, density, color, AppFonts.useBundledCJK) {
-            CssLayout.build(text, family, sizeSp, weight, lineHeight, widthPx, density, color)
+        val layout = remember(text, family, sizeSp, weight, lineHeight, widthPx, density, color, letterSpacing, AppFonts.useBundledCJK) {
+            CssLayout.build(text, family, sizeSp, weight, lineHeight, widthPx, density, color, letterSpacing)
         }
         Box(
             Modifier

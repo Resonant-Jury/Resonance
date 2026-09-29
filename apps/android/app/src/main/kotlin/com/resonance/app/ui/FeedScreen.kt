@@ -1,7 +1,6 @@
 package com.resonance.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,7 +14,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.resonance.api.models.FeedCard
 import com.resonance.app.Session
@@ -24,8 +22,8 @@ import com.resonance.design.ButtonVariant
 import com.resonance.design.CssText
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicEmptyState
-import com.resonance.design.SketchLoader
-import com.resonance.design.generated.Tokens
+import com.resonance.design.EmptyAction
+import com.resonance.design.storyCardSkeletons
 import com.resonance.kit.l10n.L10n
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -66,16 +64,15 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
     val cards = if (latestVisible) recommended + latest.filter { it.id !in picked } else recommended.toList()
     val canLoadMore = !latestVisible || cursor != null
 
-    TabScreen(L10n.Home.heading) {
-        item {
-            CssText(L10n.Home.subheading, AppFonts.Family.Body, 15f, lineHeight = 1.6f, color = Tokens.TextMuted, modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp))
-        }
+    TabScreen(L10n.Home.heading, subtitle = L10n.Home.subheading) {
         when (phase) {
-            "loading" -> item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { SketchLoader(48.dp) } }
-            "failed" -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry) { scope.launch { load() } } }
+            // The web's FeedSkeleton: the real cards' bands with shimmering blocks, so nothing jumps on arrival.
+            "loading" -> storyCardSkeletons(6)
+            "failed" -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { load() } }, action = EmptyAction.Outline) }
             else -> {
                 if (cards.isEmpty()) {
-                    item { OrganicEmptyState(L10n.Home.Empty.title + L10n.Home.Empty.subtitle) }
+                    // The web's "Start writing" CTA waits for the editor (A3).
+                    item { OrganicEmptyState(L10n.Home.Empty.subtitle, title = L10n.Home.Empty.title) }
                 } else {
                     storyCards(cards, open)
                     item {

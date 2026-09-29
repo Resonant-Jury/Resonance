@@ -118,28 +118,38 @@ struct MainTabView: View {
     }
 }
 
-/// A tab's root screen: scrolling content under the large organic header,
-/// with room at the bottom for the floating tab bar.
+/// A tab's root screen: the pinned brand bar (the web's phone AppHeader),
+/// then the page title and the content scrolling under the bar, with room
+/// at the bottom for the floating tab bar.
 struct TabScreen<Trailing: View, Content: View>: View {
     let title: String
+    var headerSpacing: CGFloat
     let trailing: Trailing
     let content: Content
+    @State private var scrolled = false
 
-    init(_ title: String, @ViewBuilder trailing: () -> Trailing = { EmptyView() }, @ViewBuilder content: () -> Content) {
+    init(_ title: String, headerSpacing: CGFloat = 20, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
+         @ViewBuilder content: () -> Content) {
         self.title = title
+        self.headerSpacing = headerSpacing
         self.trailing = trailing()
         self.content = content()
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 0) {
                 OrganicLargeHeader(title) { trailing }
+                    .padding(.bottom, headerSpacing)
                 content
             }
+            // --page-pad-top on a phone.
+            .padding(.top, 40)
             .padding(.bottom, 110)
         }
+        .onHeaderScroll($scrolled)
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
+        .safeAreaInset(edge: .top, spacing: 0) { OrganicBrandBar(scrolled: scrolled) }
     }
 }

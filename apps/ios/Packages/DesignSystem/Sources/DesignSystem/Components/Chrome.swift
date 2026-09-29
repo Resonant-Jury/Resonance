@@ -62,12 +62,8 @@ public struct OrganicTabBar<ID: Hashable>: View {
             VStack(spacing: 2) {
                 OrganicIcon(item.icon, size: 24)
                     .overlay(alignment: .topTrailing) {
-                        if item.badge > 0 {
-                            WobCircleShape(seed: 17, options: WobCircleOptions(segments: 6, mag: 0.4, cpJitter: 0.3))
-                                .fill(Tokens.terracotta)
-                                .frame(width: 8, height: 8)
-                                .offset(x: 2, y: -1)
-                        }
+                        // Where the web's chip hangs off its 34pt icon button.
+                        if item.badge > 0 { UnreadBadge(count: item.badge).offset(x: 9, y: -8) }
                     }
                 Text(item.title).font(AppFonts.body(10.5, weight: selected ? .semibold : .regular)).lineLimit(1)
             }
@@ -89,19 +85,10 @@ public struct OrganicTabBar<ID: Hashable>: View {
         .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
     }
 
-    /// The pen: a filled terracotta blob in the middle of the bar.
+    /// The pen: the web's write button, a little smaller to sit in the bar.
     private func actionButton(_ item: OrganicTabItem<ID>, index: Int) -> some View {
         Button { onSelect(item.id) } label: {
-            OrganicIcon(item.icon, size: 24, color: Tokens.cream)
-                .frame(width: 52, height: 44)
-                .background {
-                    let shape = WobRectShape(radius: 18, seed: 57, mag: 1.4)
-                    ZStack {
-                        shape.fill(Tokens.terracotta)
-                        GrainLayer(shape: shape, mode: .tile, opacity: 0.38, tile: "grain-button")
-                        shape.stroke(Tokens.terracottaInk, lineWidth: Tokens.ink)
-                    }
-                }
+            WriteButtonFace(size: 52, icon: item.icon)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .contentShape(Rectangle())
         }
@@ -112,8 +99,108 @@ public struct OrganicTabBar<ID: Hashable>: View {
     }
 }
 
-/// Root-screen header: large Playfair title with the wavy pen line under it —
-/// the web's AppHeader wave, moved from the bar into the content.
+/// The web's unread chip (NotificationBell, MessagesEntry): a wobbly
+/// terracotta tag with the count, wider once it takes two digits.
+public struct UnreadBadge: View {
+    let count: Int
+
+    public init(count: Int) {
+        self.count = count
+    }
+
+    public var body: some View {
+        let h: CGFloat = 18
+        Text("\(count)")
+            .font(AppFonts.body(10, weight: .bold))
+            .foregroundStyle(Tokens.cream)
+            .frame(width: count > 9 ? 26 : 19, height: h)
+            .background {
+                WobRectShape(radius: h * 0.4, seed: 9, mag: 1.3, options: WobRectOptions(
+                    curve: 1.5, cornerJitter: 3, cornerOffset: h * 0.06, segmentsH: .count(1), segmentsV: .count(1)))
+                    .fill(Tokens.terracotta)
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// FloatingWriteButton's face: a wobbly terracotta rounded square — one
+/// lopsided turn per side and drifting corners (the avatar's recipe) — with
+/// the pen in cream.
+public struct WriteButtonFace: View {
+    let size: CGFloat
+    let icon: IconName
+
+    public init(size: CGFloat = 56, icon: IconName = .pen) {
+        self.size = size
+        self.icon = icon
+    }
+
+    public var body: some View {
+        let shape = WobRectShape(radius: size * 0.4, seed: 3, mag: size * 0.022, options: WobRectOptions(
+            curve: 1.3, cornerJitter: 3.2, cornerOffset: size * 0.06, segmentsH: .count(1), segmentsV: .count(1)))
+        OrganicIcon(icon, size: 24, color: Tokens.cream)
+            .frame(width: size, height: size)
+            .background {
+                shape.fill(Tokens.terracotta)
+                shape.stroke(Tokens.terracottaInk, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
+            }
+    }
+}
+
+/// FloatingWriteButton: the pen fixed bottom-right of a browsing page (the
+/// card page; on the tabs it lives in the bar).
+public struct FloatingWriteButton: View {
+    let label: String
+    let action: () -> Void
+
+    public init(label: String, action: @escaping () -> Void) {
+        self.label = label
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) { WriteButtonFace(size: 56) }
+            .buttonStyle(.plain)
+            .accessibilityLabel(label)
+            .padding(20)
+    }
+}
+
+/// The root tabs' pinned bar (the web AppHeader on a phone): the brand
+/// lockup on cream that ends on the wavy pen line, content scrolling under it.
+public struct OrganicBrandBar<Trailing: View>: View {
+    var scrolled: Bool
+    let trailing: Trailing
+
+    public init(scrolled: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+        self.scrolled = scrolled
+        self.trailing = trailing()
+    }
+
+    public var body: some View {
+        HStack(spacing: 10) {
+            // ResonanceIcon: the wave glyph in the accent, nudged down 7% to
+            // sit on the wordmark's visual centre.
+            OrganicIcon(.wave, size: 38, color: Tokens.terracotta, strokeWidth: Tokens.ink)
+                .offset(y: 38 * 0.07)
+            Text(verbatim: "Resonance")
+                .font(AppFonts.heading(22))
+                .tracking(-0.02 * 22)
+                .foregroundStyle(Tokens.text)
+            Spacer(minLength: 12)
+            trailing
+        }
+        .frame(minHeight: 44)
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
+        .padding(.bottom, HeaderEdge.height)
+        .background { HeaderEdge(scrolled: scrolled) }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// A root screen's page title (home's h1): Playfair 32 on a 1.1 line, set
+/// tight, with an optional control at its end.
 public struct OrganicLargeHeader<Trailing: View>: View {
     let title: String
     let trailing: Trailing
@@ -124,53 +211,50 @@ public struct OrganicLargeHeader<Trailing: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center) {
-                Text(title)
-                    .font(AppFonts.heading(30))
-                    .foregroundStyle(Tokens.text)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 12)
-                trailing
-            }
-            WavyDivider(color: Tokens.fieldBorderHover, seed: 7, amp: 1.6, lineWidth: Tokens.ink)
+        HStack(alignment: .center) {
+            CSSText(title, font: AppFonts.uiFont(.heading, size: 32, weight: .bold), lineHeight: 1.1, tracking: -0.02 * 32)
+                .accessibilityAddTraits(.isHeader)
+            trailing
         }
         .padding(.horizontal, 20)
-        .padding(.top, 8)
     }
 }
 
-/// Pushed-screen bar: hand-drawn back button, centered title, trailing actions.
+/// Pushed-screen bar (the web header taken over by a sub-screen): the bare
+/// back arrow, then the screen's title set like the brand, then any actions.
 public struct OrganicInlineBar<Trailing: View>: View {
     let title: String
     let backLabel: String
+    var scrolled: Bool
     let trailing: Trailing
     @Environment(\.dismiss) private var dismiss
 
-    public init(_ title: String, backLabel: String, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+    public init(_ title: String, backLabel: String, scrolled: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
         self.title = title
         self.backLabel = backLabel
+        self.scrolled = scrolled
         self.trailing = trailing()
     }
 
     public var body: some View {
-        ZStack {
+        HStack(spacing: 10) {
+            // The arrow's own 8pt pad sits in the gutter (margin-left −8 on the web).
+            OrganicIconButton(.arrowRight, label: backLabel, size: 18, mirrored: true) { dismiss() }
+                .padding(.leading, -13)
             Text(title)
-                .font(AppFonts.body(16, weight: .semibold))
+                .font(AppFonts.heading(22))
+                .tracking(-0.02 * 22)
                 .lineLimit(1)
                 .foregroundStyle(Tokens.text)
-                .padding(.horizontal, 96)
                 .accessibilityAddTraits(.isHeader)
-            HStack {
-                OrganicIconButton(.arrowRight, label: backLabel, mirrored: true) { dismiss() }
-                Spacer()
-                trailing
-            }
+            Spacer(minLength: 8)
+            trailing
         }
-        .padding(.horizontal, 12)
+        .frame(minHeight: 44)
+        .padding(.horizontal, 20)
         .padding(.top, 4)
         .padding(.bottom, HeaderEdge.height)
-        .background { HeaderEdge() }
+        .background { HeaderEdge(scrolled: scrolled) }
     }
 }
 
@@ -178,20 +262,38 @@ public struct OrganicInlineBar<Trailing: View>: View {
 /// on the wavy pen line (the web masks its backdrop to the same curve), so
 /// the line *is* the bar's edge — no band of fill below it, and content
 /// scrolled beneath shows right up to the line. Reaches up under the status bar.
+/// The line rests at half ink and darkens once the page has scrolled.
 public struct HeaderEdge: View {
     /// Room under the bar's content for the wave (the web's HEADER_WAVE_H band).
     public static let height: CGFloat = 10
+    var scrolled: Bool
 
-    public init() {}
+    public init(scrolled: Bool = false) {
+        self.scrolled = scrolled
+    }
 
     public var body: some View {
         ZStack {
             HeaderEdgeShape(closed: true).fill(Tokens.cream)
             HeaderEdgeShape(closed: false)
                 .stroke(Tokens.fieldBorderHover, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                .opacity(scrolled ? 1 : 0.5)
+                .animation(.easeInOut(duration: 0.3), value: scrolled)
         }
         .ignoresSafeArea(edges: .top)
         .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Reports whether this scroll view has moved past the web header's 20pt
+    /// threshold, for the bar's pen line.
+    public func onHeaderScroll(_ scrolled: Binding<Bool>) -> some View {
+        onScrollGeometryChange(for: Bool.self) { geo in
+            geo.contentOffset.y + geo.contentInsets.top > 20
+        } action: { _, isScrolled in
+            scrolled.wrappedValue = isScrolled
+        }
     }
 }
 
@@ -227,33 +329,30 @@ nonisolated struct HeaderEdgeShape: Shape {
     }
 }
 
-/// A round hand-drawn icon button with a 44pt hit area.
+/// A bare hand-drawn icon control with a 44pt hit area — the web's header
+/// buttons draw no frame around the glyph.
 public struct OrganicIconButton: View {
     let icon: IconName
     let label: String
+    var size: CGFloat
     /// Drawn flipped left-to-right (the web's back arrow is arrow-right mirrored).
     var mirrored: Bool
     let action: () -> Void
 
-    public init(_ icon: IconName, label: String, mirrored: Bool = false, action: @escaping () -> Void) {
+    public init(_ icon: IconName, label: String, size: CGFloat = 22, mirrored: Bool = false, action: @escaping () -> Void) {
         self.icon = icon
         self.label = label
+        self.size = size
         self.mirrored = mirrored
         self.action = action
     }
 
     public var body: some View {
         Button(action: action) {
-            OrganicIcon(icon, size: 20)
+            OrganicIcon(icon, size: size)
                 .scaleEffect(x: mirrored ? -1 : 1)
                 .foregroundStyle(Tokens.text)
-                .frame(width: 40, height: 40)
-                .background {
-                    WobCircleShape(seed: Double(icon.rawValue.count * 13), options: WobCircleOptions(segments: 7, mag: 1.2, cpJitter: 0.5))
-                        .stroke(Tokens.ghostStroke.opacity(0.8), lineWidth: Tokens.inkLight)
-                        .padding(3)
-                }
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

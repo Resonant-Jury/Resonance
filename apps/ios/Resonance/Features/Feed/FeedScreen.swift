@@ -10,10 +10,10 @@ struct FeedScreen: View {
     @State private var model: FeedModel?
 
     var body: some View {
-        TabScreen(L10n.Home.heading) {
+        TabScreen(L10n.Home.heading, headerSpacing: 12) {
             CSSText(L10n.Home.subheading, font: AppFonts.uiFont(.body, size: 15), lineHeight: 1.6, color: UIColor(Tokens.textMuted))
                 .padding(.horizontal, 20)
-                .padding(.bottom, 12)
+                .padding(.bottom, 40)
             content
         }
         .refreshable { await model?.refresh() }
@@ -26,12 +26,15 @@ struct FeedScreen: View {
     @ViewBuilder private var content: some View {
         switch model?.phase ?? .idle {
         case .idle, .loading:
-            SketchLoader(size: 48).frame(maxWidth: .infinity).padding(.top, 60)
+            FeedSkeleton(count: 6)
         case .failed:
-            OrganicEmptyState(L10n.Native.loadError, actionTitle: L10n.Native.retry) { Task { await model?.load() } }
+            OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
+                Task { await model?.load() }
+            }
         case .loaded:
             if let model, model.isEmpty {
-                OrganicEmptyState(L10n.Home.Empty.subtitle, actionTitle: L10n.Home.Empty.cta) { writer.open() }
+                OrganicEmptyState(title: L10n.Home.Empty.title, message: L10n.Home.Empty.subtitle,
+                                  actionTitle: L10n.Home.Empty.cta) { writer.open() }
             } else if let model {
                 StoryCardList(cards: model.cards)
                 footer(model)
@@ -43,7 +46,7 @@ struct FeedScreen: View {
         VStack(spacing: 14) {
             if model.latestVisible && !model.canLoadMore {
                 Text(L10n.Home.endOfDay)
-                    .font(AppFonts.heading(20))
+                    .font(AppFonts.heading(22, weight: .regular))
                     .foregroundStyle(Tokens.text)
                     .multilineTextAlignment(.center)
             }
@@ -55,7 +58,7 @@ struct FeedScreen: View {
             OrganicButton(L10n.Home.writeResponse) { writer.open() }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 48)
+        .padding(.top, 64)
         .padding(.horizontal, 20)
     }
 }

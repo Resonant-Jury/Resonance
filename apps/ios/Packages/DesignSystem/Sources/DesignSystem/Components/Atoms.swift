@@ -21,18 +21,22 @@ public struct TagPill: View {
         return Double(abs(Int(hash)) % 9973 + 1)
     }
 
+    /// The md pill: 11px uppercase at 0.04em, 4×14 padding — its height comes
+    /// from the line box, as on the web (≈22).
     public var body: some View {
-        Text(text)
-            .font(AppFonts.body(12, weight: .semibold))
-            .tracking(0.2)
+        Text(text.uppercased())
+            .font(AppFonts.body(11, weight: .semibold))
+            .tracking(11 * 0.04)
             .foregroundStyle(Tokens.text)
-            .padding(.horizontal, 11)
-            .frame(minHeight: 24)
+            // CJK ink rides high in DM Sans' line box; the web nudges it 0.04em.
+            .offset(y: 11 * 0.04)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 4)
             .background {
                 GeometryReader { geo in
                     let shape = WobRectShape(radius: geo.size.height / 2, seed: seed ?? Self.autoSeed(text))
                     shape.fill(fill)
-                    shape.stroke(Color(.displayP3, red: 0.25, green: 0.19, blue: 0.13, opacity: 0.45), lineWidth: Tokens.ink)
+                    shape.stroke(Tokens.tagStroke, lineWidth: Tokens.ink)
                 }
             }
     }
@@ -53,42 +57,71 @@ public struct HandDrawnAvatar: View {
         self.seed = seed
     }
 
+    /// AVATAR_WOB: one lopsided turn per side, corners that drift (6% of the
+    /// size), and the same curve for the fill, the photo's clip and the rim.
     public var body: some View {
-        let shape = WobRectShape(radius: size * 0.4, seed: seed, mag: size * 0.022,
-                                 options: WobRectOptions(curve: 1.2, segmentsH: .count(2), segmentsV: .count(2)))
+        let shape = WobRectShape(radius: size * 0.4, seed: seed, mag: size * 0.022, options: WobRectOptions(
+            curve: 1.3, cornerJitter: 3.2, cornerOffset: size * 0.06, segmentsH: .count(1), segmentsV: .count(1)))
         ZStack {
             shape.fill(color)
             Text(initials)
-                .font(AppFonts.body(size * 0.36, weight: .bold))
+                .font(AppFonts.body(size * 0.35, weight: .bold))
                 .foregroundStyle(Tokens.text)
             if let imageURL {
                 OrganicAvatarPhoto(url: imageURL).clipShape(shape)
             }
         }
         .frame(width: size, height: size)
-        .overlay { shape.stroke(Tokens.ghostStroke.opacity(0.7), lineWidth: Tokens.inkLight) }
+        .overlay { shape.stroke(Tokens.avatarStroke, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round)) }
         .accessibilityHidden(true)
     }
 }
 
+/// The web's Divider: a fixed number of gentle turns (7) stretched across
+/// whatever width it gets, in the field-border ink at 35%.
 public struct WavyDivider: View {
     var color: Color
     var seed: Double
     var amp: Double
+    var steps: Int
     var lineWidth: CGFloat
 
-    public init(color: Color = Tokens.fieldBorder, seed: Double = 17, amp: Double = 1.4, lineWidth: CGFloat = Tokens.inkLight) {
+    public init(color: Color = Tokens.dividerInk, seed: Double = 17, amp: Double = 1.4, steps: Int = 7,
+                lineWidth: CGFloat = Tokens.inkLight) {
         self.color = color
         self.seed = seed
         self.amp = amp
+        self.steps = steps
         self.lineWidth = lineWidth
     }
 
     public var body: some View {
-        WavyLineShape(seed: seed, amp: amp)
+        WavyRuleShape(seed: seed, amp: amp, steps: steps)
             .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
             .frame(height: 6)
             .accessibilityHidden(true)
+    }
+}
+
+/// `wavyLine(200, seed, amp, steps)` stretched to the width (the web's
+/// `preserveAspectRatio="none"` rules): the turn count stays fixed however
+/// wide the line is, unlike ResonanceGeometry's width-derived WavyLineShape.
+public nonisolated struct WavyRuleShape: Shape {
+    public var seed: Double
+    public var amp: Double
+    public var steps: Int
+
+    public init(seed: Double, amp: Double = 1.4, steps: Int = 7) {
+        self.seed = seed
+        self.amp = amp
+        self.steps = steps
+    }
+
+    public func path(in rect: CGRect) -> Path {
+        // x scales linearly with the width, so drawing at the real width is
+        // the stretched 200-unit line.
+        wavyLine(Double(rect.width), seed: seed, amp: amp, steps: steps)
+            .path(offsetX: Double(rect.minX), offsetY: Double(rect.midY))
     }
 }
 
@@ -138,19 +171,28 @@ public struct SketchLoader: View {
     private let links: [Double] = [0.12, 0.19, 0.28, 0.4, 0.55, 0.95]
     private let seg = 0.12
     private let loopSeconds = 2.6
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public var body: some View {
         let c = Double(size / 2)
         let path = wobLoop(c, c, Double(size) * 0.34, Double(size) * 0.27, seed: 7,
                            options: WobLoopOptions(segments: 9, mag: Double(size) * 0.03, cpJitter: 0.7)).path()
-        TimelineView(.animation) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate / loopSeconds
-            ZStack {
-                ForEach(links.indices, id: \.self) { k in
-                    let head = (t + Double(k) * seg).truncatingRemainder(dividingBy: 1)
-                    Dash(path: path, from: head, length: seg)
-                        .stroke(color.opacity(links[k]), style: StrokeStyle(
-                            lineWidth: size * 0.036, lineCap: k == links.count - 1 ? .round : .butt, lineJoin: .round))
+        Group {
+            if reduceMotion {
+                // The web's reduced-motion loader: the pen at rest, the whole
+                // two-lap loop drawn once as a calm double ring.
+                path.stroke(color.opacity(0.7), style: StrokeStyle(lineWidth: size * 0.036, lineCap: .round, lineJoin: .round))
+            } else {
+                TimelineView(.animation) { timeline in
+                    let t = timeline.date.timeIntervalSinceReferenceDate / loopSeconds
+                    ZStack {
+                        ForEach(links.indices, id: \.self) { k in
+                            let head = (t + Double(k) * seg).truncatingRemainder(dividingBy: 1)
+                            Dash(path: path, from: head, length: seg)
+                                .stroke(color.opacity(links[k]), style: StrokeStyle(
+                                    lineWidth: size * 0.036, lineCap: k == links.count - 1 ? .round : .butt, lineJoin: .round))
+                        }
+                    }
                 }
             }
         }

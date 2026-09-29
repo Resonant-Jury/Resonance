@@ -57,8 +57,8 @@ public struct StoryCardView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            OrganicImage(url: content.imageURL, seed: seed + 5) {
-                StoryImagePlaceholder(fill: palette.fill, label: content.imageLabel)
+            OrganicImage(url: content.imageURL, seed: seed + 5, grain: 0.055) {
+                StoryImagePlaceholder(fill: palette.fill, stripe: palette.stripe, label: content.imageLabel)
             }
             .aspectRatio(1 / 0.62, contentMode: .fit)
             .accessibilityHidden(true)
@@ -75,11 +75,7 @@ public struct StoryCardView: View {
 
             CSSText(content.excerpt, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.65, color: UIColor(Tokens.textMuted))
 
-            WavyLineShape(seed: seed + 91, amp: 1.2)
-                .stroke(palette.separator, style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
-                .frame(height: 6)
-                .padding(.top, 2)
-                .accessibilityHidden(true)
+            StoryCardSeparator(palette: palette, seed: seed)
 
             HStack(spacing: 10) {
                 HandDrawnAvatar(initials: content.authorInitials, imageURL: content.authorImageURL,
@@ -104,38 +100,184 @@ public struct StoryCardView: View {
                 .padding(.top, -4)
             }
         }
-        .padding(.vertical, 32)
-        .padding(.horizontal, 24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            ZStack {
-                palette.interior
-                // GrainOverlay opacity 0.08: ink at 2× so the mean darkening is 8%.
-                GrainLayer(shape: Rectangle(), mode: .tile, opacity: 0.16, tile: "grain-overlay")
-            }
-        }
-        .overlay(alignment: .top) { edge(seed + 17).offset(y: -3) }
-        .overlay(alignment: .bottom) { if isLast { edge(seed + 23).offset(y: 3) } }
+        .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 32))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
+}
 
-    private func edge(_ seed: Double) -> some View {
-        WavyLineShape(seed: seed, amp: 1.4)
+/// The loading card (StoryCard `loading`): the real band — tint, grain and
+/// rules — with the picture, words and avatar swapped for shimmering blocks.
+public struct StoryCardSkeleton: View {
+    let position: Int
+    var isLast: Bool
+
+    public init(position: Int, isLast: Bool = false) {
+        self.position = position
+        self.isLast = isLast
+    }
+
+    public var body: some View {
+        let palette = CardPalette(accentHue: nil, position: position)
+        let seed = Double(position * 77 + 13)
+        VStack(alignment: .leading, spacing: 14) {
+            // OrganicImage's pre-wobble radius, where the curve will land.
+            SkeletonBlock(height: nil, radius: 18)
+                .aspectRatio(1 / 0.62, contentMode: .fit)
+            HStack(spacing: 6) {
+                SkeletonBlock(width: 56, height: 22, radius: 11)
+                SkeletonBlock(width: 72, height: 22, radius: 11)
+            }
+            .padding(.top, 8)
+            VStack(alignment: .leading, spacing: 8) {
+                SkeletonBlock(fraction: 0.9, height: 18)
+                SkeletonBlock(fraction: 0.55, height: 18)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                SkeletonBlock(height: 13)
+                SkeletonBlock(height: 13)
+                SkeletonBlock(fraction: 0.7, height: 13)
+            }
+            StoryCardSeparator(palette: palette, seed: seed)
+            HStack(spacing: 10) {
+                SkeletonBlock(width: 30, circle: true)
+                VStack(alignment: .leading, spacing: 6) {
+                    SkeletonBlock(width: 96, height: 13)
+                    SkeletonBlock(width: 56, height: 11)
+                }
+                Spacer()
+                SkeletonBlock(width: 18, circle: true)
+            }
+            .padding(.top, 8)
+        }
+        .environment(\.skeletonHue, palette.hue)
+        .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 32))
+        .accessibilityHidden(true)
+    }
+}
+
+/// What a mini card shows (MiniStoryCard: cover, title, author — no excerpt,
+/// tags or read time).
+public struct MiniStoryCardContent: Sendable, Identifiable {
+    public var id: String
+    public var title: String
+    public var authorName: String
+    public var authorInitials: String
+    public var authorImageURL: URL?
+    public var avatarSeed: Double
+    /// The author's accent (tints the avatar and the empty cover); nil for anonymous cards.
+    public var authorAccent: Color?
+    public var imageURL: URL?
+    public var accentHue: Double?
+
+    public init(id: String, title: String, authorName: String, authorInitials: String, authorImageURL: URL?,
+                avatarSeed: Double, authorAccent: Color?, imageURL: URL?, accentHue: Double?) {
+        self.id = id
+        self.title = title
+        self.authorName = authorName
+        self.authorInitials = authorInitials
+        self.authorImageURL = authorImageURL
+        self.avatarSeed = avatarSeed
+        self.authorAccent = authorAccent
+        self.imageURL = imageURL
+        self.accentHue = accentHue
+    }
+}
+
+/// MiniStoryCard's phone form: the pared-back sibling of StoryCardView for
+/// resonances and linked cards — the same band, 28pt deep, holding a cover
+/// in the author's accent, the title, and the byline.
+public struct MiniStoryCardView: View {
+    let content: MiniStoryCardContent
+    let position: Int
+    var isLast: Bool
+
+    public init(_ content: MiniStoryCardContent, position: Int, isLast: Bool = false) {
+        self.content = content
+        self.position = position
+        self.isLast = isLast
+    }
+
+    public var body: some View {
+        let palette = CardPalette(accentHue: content.accentHue, position: position)
+        let seed = Double(position * 71 + 19)
+        let accent = content.authorAccent ?? palette.accent
+        VStack(alignment: .leading, spacing: 12) {
+            OrganicImage(url: content.imageURL, seed: seed + 5, grain: 0.055, fill: accent)
+                .aspectRatio(1 / 0.56, contentMode: .fit)
+                .accessibilityHidden(true)
+            CSSText(content.title, font: AppFonts.uiFont(.heading, size: 17, weight: .bold), lineHeight: 1.3)
+                .accessibilityAddTraits(.isHeader)
+            HStack(spacing: 9) {
+                HandDrawnAvatar(initials: content.authorInitials, imageURL: content.authorImageURL,
+                                color: accent, size: 30, seed: content.avatarSeed)
+                Text(content.authorName).font(AppFonts.body(13, weight: .semibold)).foregroundStyle(Tokens.text)
+            }
+            .padding(.top, 2)
+        }
+        .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 28))
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The wavy rule over the byline: six slow turns across the card.
+struct StoryCardSeparator: View {
+    let palette: CardPalette
+    let seed: Double
+
+    var body: some View {
+        WavyRuleShape(seed: seed + 91, amp: 1.2, steps: 6)
+            .stroke(palette.separator, style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
+            .frame(height: 6)
+            .padding(.top, 2)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The phone card's band: its paper tint, the content inset to where the
+/// web's page padding plus the card's own puts it (20 + 18), grain over
+/// everything (the web lays it above the text and the photo too), and the
+/// seven-turn pen rule on the top edge — repeated on the bottom of the last card.
+struct StoryBand: ViewModifier {
+    let palette: CardPalette
+    let seed: Double
+    let isLast: Bool
+    let verticalPadding: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.vertical, verticalPadding)
+            .padding(.horizontal, 38)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(palette.interior)
+            // GrainOverlay opacity 0.08: ink at 2× so the mean darkening is 8%.
+            .overlay {
+                GrainLayer(shape: Rectangle(), mode: .tile, opacity: 0.16, tile: "grain-overlay")
+                    .accessibilityHidden(true)
+            }
+            .overlay(alignment: .top) { edge.offset(y: -3) }
+            .overlay(alignment: .bottom) { if isLast { edge.offset(y: 3) } }
+    }
+
+    private var edge: some View {
+        WavyRuleShape(seed: seed + 17, amp: 1.4, steps: 7)
             .stroke(palette.border, style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
             .frame(height: 6)
             .accessibilityHidden(true)
     }
 }
 
-/// The web's striped cover placeholder: the card's fill, faint diagonal
-/// hatching, the label in monospace, and grain.
+/// The web's striped cover placeholder: the card's fill, diagonal hatching
+/// in a darker shade of it, and the label in monospace.
 public struct StoryImagePlaceholder: View {
     let fill: Color
+    let stripe: Color
     let label: String
 
-    public init(fill: Color, label: String) {
+    public init(fill: Color, stripe: Color, label: String) {
         self.fill = fill
+        self.stripe = stripe
         self.label = label
     }
 
@@ -145,12 +287,13 @@ public struct StoryImagePlaceholder: View {
             Canvas { ctx, size in
                 // 22 diagonal lines across a 320×200 viewBox, sliced to fill.
                 let scale = max(size.width / 320, size.height / 200)
+                let dx = (size.width - 320 * scale) / 2, dy = (size.height - 200 * scale) / 2
                 for i in 0..<22 {
                     var p = Path()
-                    let x = (Double(i) * 22 - 160) * scale
-                    p.move(to: CGPoint(x: x, y: 0))
-                    p.addLine(to: CGPoint(x: x + 320 * scale, y: 200 * scale))
-                    ctx.stroke(p, with: .color(Tokens.text.opacity(0.07)), lineWidth: Tokens.inkLight)
+                    let x = (Double(i) * 22 - 160) * scale + dx
+                    p.move(to: CGPoint(x: x, y: dy))
+                    p.addLine(to: CGPoint(x: x + 320 * scale, y: 200 * scale + dy))
+                    ctx.stroke(p, with: .color(stripe), lineWidth: Tokens.inkLight)
                 }
             }
             Text(label)
@@ -158,7 +301,6 @@ public struct StoryImagePlaceholder: View {
                 .foregroundStyle(Tokens.text.opacity(0.42))
                 .lineLimit(1)
                 .padding(.horizontal, 12)
-            GrainLayer(shape: Rectangle(), mode: .tile, opacity: 0.11, tile: "grain-overlay")
         }
     }
 }

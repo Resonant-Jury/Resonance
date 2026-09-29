@@ -2,181 +2,327 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// Settings (settings/page.tsx, the parts that apply to the app): language,
-/// the block list, signing out, and deleting the account after optionally
-/// downloading everything one wrote (Apple 5.1.1(v)).
+/// The settings sections that apply to the app, in the web's order.
+enum SettingsSection: Hashable, CaseIterable {
+    case account, privacy, language, delete
+
+    var title: String {
+        switch self {
+        case .account: L10n.Settings.Sections.account
+        case .privacy: L10n.Settings.Sections.privacy
+        case .language: L10n.Settings.Sections.language
+        case .delete: L10n.Settings.Sections.delete
+        }
+    }
+
+    /// SECTION_ICONS.
+    var icon: IconName {
+        switch self {
+        case .account: .key
+        case .privacy: .lock
+        case .language: .globe
+        case .delete: .trash
+        }
+    }
+
+    /// Its place in the web's full list, which seeds the rule above its row.
+    var webIndex: Int {
+        switch self {
+        case .account: 1
+        case .privacy: 2
+        case .language: 4
+        case .delete: 8
+        }
+    }
+}
+
+/// Settings on a phone (SettingsClient's menu): the title, then one row per
+/// section — glyph, name, chevron — between wavy rules, each opening its
+/// own screen. No panels: the web drops the frames at this width.
 struct SettingsScreen: View {
-    @Environment(SessionStore.self) private var session
     @Environment(\.openRoute) private var openRoute
-    @State private var exportFile: URL?
-    @State private var exporting = false
-    @State private var confirmingDelete = false
-    @State private var deleteError: String?
+    @State private var scrolled = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(L10n.Settings.title)
-                    .font(AppFonts.heading(30))
+                    .font(AppFonts.heading(28))
                     .foregroundStyle(Tokens.text)
                     .accessibilityAddTraits(.isHeader)
-
-                panel(L10n.Settings.Sections.language) {
-                    Text(L10n.Settings.Language.ui).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
-                    VStack(spacing: 0) {
-                        languageRow(.zhTW, "繁體中文", seed: 71)
-                        WavyDivider(seed: 67).padding(.vertical, 2)
-                        languageRow(.en, "English", seed: 73)
+                    .padding(.bottom, 18)
+                ForEach(SettingsSection.allCases, id: \.self) { section in
+                    if section != SettingsSection.allCases.first {
+                        WavyDivider(seed: Double(40 + section.webIndex * 6)).padding(.vertical, 2)
                     }
-                }
-
-                panel(L10n.Settings.Sections.privacy) {
-                    Button { openRoute(.blockedList) } label: {
-                        HStack {
-                            Text(L10n.Settings.Privacy.manageBlocks).font(AppFonts.body(16)).foregroundStyle(Tokens.text)
-                            Spacer()
-                            OrganicIcon(.chevronDown, size: 18, strokeWidth: Tokens.ink).rotationEffect(.degrees(-90)).foregroundStyle(Tokens.textMuted)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                panel(L10n.Settings.Sections.account) {
-                    OrganicButton(L10n.Settings.Account.signOut, variant: .ghost) { session.signOut() }
-                }
-
-                panel(L10n.Settings.Delete.title) {
-                    Text(L10n.Settings.Delete.exportHint).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
-                    if let exportFile {
-                        ShareLink(item: exportFile) {
-                            Label { Text(L10n.Settings.Delete.export) } icon: { OrganicIcon(.document, size: 18) }
-                                .font(AppFonts.body(15, weight: .semibold))
-                                .foregroundStyle(Tokens.terracotta)
-                        }
-                    } else {
-                        OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .outline) {
-                            Task { await export() }
-                        }
-                        .disabled(exporting)
-                    }
-                    WavyDivider(seed: 61).padding(.vertical, 4)
-                    Text(L10n.Settings.Delete.warn).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                    OrganicButton(L10n.Settings.Delete.button) { confirmingDelete = true }
-                    if let deleteError {
-                        Text(deleteError).font(AppFonts.body(13)).foregroundStyle(Tokens.terracotta)
-                    }
+                    row(section)
                 }
             }
             .padding(20)
             .padding(.bottom, 40)
         }
+        .onHeaderScroll($scrolled)
         .background(Tokens.cream)
-        .safeAreaInset(edge: .top, spacing: 0) { OrganicInlineBar("", backLabel: L10n.App.Nav.back) }
+        .safeAreaInset(edge: .top, spacing: 0) { OrganicInlineBar("", backLabel: L10n.App.Nav.back, scrolled: scrolled) }
         .toolbar(.hidden, for: .navigationBar)
-        .confirmationDialog(L10n.Settings.Delete.confirmTitle, isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button(L10n.Settings.Delete.confirm, role: .destructive) { Task { await deleteAccount() } }
-            Button(L10n.Settings.Delete.cancel, role: .cancel) {}
-        } message: {
-            Text(L10n.Settings.Delete.confirmBody(date: Self.purgeDate.formatted(Date.FormatStyle(date: .long, time: .omitted, locale: Strings.shared.locale))))
+    }
+
+    private func row(_ section: SettingsSection) -> some View {
+        // Deleting the account is the one red row.
+        let tint = section == .delete ? Tokens.danger : Tokens.terracotta
+        return Button { openRoute(.settingsSection(section)) } label: {
+            HStack(spacing: 16) {
+                OrganicIcon(section.icon, size: 22, color: tint)
+                Text(section.title)
+                    .font(AppFonts.body(16))
+                    .foregroundStyle(section == .delete ? tint : Tokens.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                OrganicIcon(.chevronDown, size: 18, color: Tokens.textMuted).rotationEffect(.degrees(-90))
+            }
+            .padding(.vertical, 18)
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// One settings section on its own screen; the bar carries its name.
+struct SettingsSectionScreen: View {
+    let section: SettingsSection
+    @State private var scrolled = false
+
+    var body: some View {
+        ScrollView {
+            Group {
+                switch section {
+                case .account: AccountSettings()
+                case .privacy: PrivacySettings()
+                case .language: LanguageSettings()
+                case .delete: DeleteAccountSettings()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .padding(.bottom, 40)
+        }
+        .onHeaderScroll($scrolled)
+        .background(Tokens.cream)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            OrganicInlineBar(section.title, backLabel: L10n.App.Nav.back, scrolled: scrolled)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+/// Account: the sign-in email and phone (read-only), and signing out —
+/// after the web's "Sign out?" confirmation.
+private struct AccountSettings: View {
+    @Environment(SessionStore.self) private var session
+    @State private var confirming = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            OrganicTextField(L10n.Settings.Account.email, text: .constant(session.email ?? ""), placeholder: "you@example.com", seed: 51)
+                .disabled(true)
+            OrganicTextField(L10n.Settings.Account.phone, text: .constant(session.phoneNumber ?? ""), placeholder: "—", seed: 57)
+                .disabled(true)
+            OrganicButton(L10n.Settings.Account.signOut, variant: .outline) { confirming = true }
+                .padding(.top, 4)
+        }
+        .organicConfirm(isPresented: $confirming, title: L10n.App.SignOutConfirm.title, message: L10n.App.SignOutConfirm.body,
+                        cancelLabel: L10n.App.SignOutConfirm.cancel, confirmLabel: L10n.App.SignOutConfirm.confirm,
+                        closeLabel: L10n.App.SignOutConfirm.cancel, seed: 67) {
+            session.signOut()
+        }
+    }
+}
+
+/// Privacy: the block list, in its own dialog.
+private struct PrivacySettings: View {
+    @State private var showingBlocks = false
+
+    var body: some View {
+        OrganicButton(L10n.Settings.Privacy.manageBlocks, variant: .outline) { showingBlocks = true }
+            .organicModal(isPresented: $showingBlocks, seed: 97, closeLabel: L10n.Safety.BlockedList.close) {
+                BlockedListContent { showingBlocks = false }
+            }
+    }
+}
+
+/// Language: the interface language, as a radio list (the web's select).
+private struct LanguageSettings: View {
+    @Environment(SessionStore.self) private var session
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L10n.Settings.Language.ui.uppercased())
+                .font(AppFonts.body(Tokens.labelSize, weight: .semibold))
+                .tracking(Tokens.labelSize * 0.06)
+                .foregroundStyle(Tokens.textMuted)
+            VStack(spacing: 0) {
+                row(.zhTW, "繁體中文", seed: 71)
+                WavyDivider(seed: 67).padding(.vertical, 2)
+                row(.en, "English", seed: 73)
+            }
         }
     }
 
-    /// Seven days from now — when a deletion scheduled today would run.
-    static var purgeDate: Date { Date().addingTimeInterval(7 * 86_400) }
-
-    /// One choice of a radio list (the web's ToggleGroup rows, with a radio for the switch).
-    private func languageRow(_ language: Strings.Language, _ label: String, seed: Double) -> some View {
+    private func row(_ language: Strings.Language, _ label: String, seed: Double) -> some View {
         let selected = Strings.shared.language == language
         return Button { session.setLanguage(language) } label: {
             HStack(spacing: 12) {
                 Text(label)
-                    .font(AppFonts.body(16, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(Tokens.text)
+                    .font(AppFonts.body(15, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Tokens.terracotta : Tokens.text)
                 Spacer(minLength: 0)
                 OrganicRadio(isOn: selected, seed: seed)
             }
-            .frame(minHeight: 44)
+            .frame(minHeight: 48)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
+}
 
-    private func panel<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(title.uppercased())
-                .font(AppFonts.body(Tokens.labelSize, weight: .semibold))
-                .tracking(Tokens.labelSize * 0.06)
-                .foregroundStyle(Tokens.textMuted)
-            content()
+/// DeleteAccountSection: what happens, the backup first, then the quieter
+/// outline Delete (the web keeps it from reading as a call to action) and
+/// its confirmation. Apple 5.1.1(v).
+private struct DeleteAccountSettings: View {
+    @Environment(SessionStore.self) private var session
+    @State private var exportFile: URL?
+    @State private var exporting = false
+    @State private var confirming = false
+    @State private var busy = false
+    @State private var failed = false
+
+    /// Seven days from now — when a deletion scheduled today would run.
+    private static var purgeDate: Date { Date().addingTimeInterval(7 * 86_400) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(L10n.Settings.Delete.title).font(AppFonts.heading(20)).foregroundStyle(Tokens.text)
+            muted(L10n.Settings.Delete.warn)
+            muted(L10n.Settings.Delete.exportHint)
+            FlowRow(spacing: 12) {
+                if let exportFile {
+                    ShareLink(item: exportFile) {
+                        OrganicButtonLabel(L10n.Settings.Delete.export, icon: .document, variant: .ghost)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .ghost) {
+                        Task { await export() }
+                    }
+                    .disabled(exporting)
+                }
+                OrganicButton(L10n.Settings.Delete.button, icon: .trash, variant: .outline) { confirming = true }
+            }
+            if failed { ModalError(L10n.Settings.Delete.error) }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .organicSurface(fill: Tokens.cardBg, stroke: Tokens.fieldBorder, radius: Tokens.radiusLg, seed: Double(title.count * 11 + 5), grainOpacity: 0.2)
+        .organicConfirm(isPresented: $confirming, title: L10n.Settings.Delete.confirmTitle,
+                        message: L10n.Settings.Delete.confirmBody(date: Self.purgeDate.formatted(
+                            Date.FormatStyle(date: .long, time: .omitted, locale: Strings.shared.locale))),
+                        cancelLabel: L10n.Settings.Delete.cancel, confirmLabel: L10n.Settings.Delete.confirm,
+                        closeLabel: L10n.Settings.Delete.cancel, busy: busy, seed: 73) {
+            Task { await deleteAccount() }
+        }
+    }
+
+    private func muted(_ text: String) -> some View {
+        CSSText(text, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.65, color: UIColor(Tokens.textMuted))
     }
 
     private func export() async {
         exporting = true
+        failed = false
         defer { exporting = false }
-        guard let data = try? await session.account.export() else { return }
+        guard let data = try? await session.account.export() else {
+            failed = true
+            return
+        }
         let url = FileManager.default.temporaryDirectory
             .appending(path: "resonance-backup-\(Date().formatted(.iso8601.year().month().day())).json")
-        if (try? data.write(to: url)) != nil { exportFile = url }
+        if (try? data.write(to: url)) != nil { exportFile = url } else { failed = true }
     }
 
     private func deleteAccount() async {
+        guard !busy else { return }
+        busy = true
+        failed = false
         do {
             try await session.scheduleDeletion()
         } catch {
-            deleteError = L10n.Settings.Delete.error
+            busy = false
+            confirming = false
+            failed = true
         }
     }
 }
 
-/// The people one blocked, with a way to unblock (web: BlockedListModal).
-struct BlockedListScreen: View {
+/// BlockedListModal's inside: everyone blocked, newest first, each with a
+/// small Unblock, between wavy rules.
+private struct BlockedListContent: View {
+    let onClose: () -> Void
     @Environment(SessionStore.self) private var session
     @State private var people: [SafetyService.BlockedPerson]?
+    @State private var pending: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(L10n.Safety.BlockedList.title).font(AppFonts.heading(28)).foregroundStyle(Tokens.text)
-                Text(L10n.Safety.BlockedList.subtitle).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
-                if let people {
-                    if people.isEmpty {
-                        OrganicEmptyState(L10n.Safety.BlockedList.empty)
-                    }
-                    ForEach(people) { person in
-                        HStack(spacing: 12) {
-                            HandDrawnAvatar(initials: person.initials, color: Tokens.creamDark, size: 40, seed: Double(seedFromString(person.id)))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(person.handle ?? L10n.Safety.BlockedList.unknownUser).font(AppFonts.body(16, weight: .semibold)).foregroundStyle(Tokens.text)
-                                if let since = person.since {
-                                    Text(L10n.Safety.BlockedList.since(date: since.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Strings.shared.locale))))
-                                        .font(AppFonts.body(12)).foregroundStyle(Tokens.textMuted)
-                                }
-                            }
-                            Spacer()
-                            OrganicButton(L10n.Safety.unblock, variant: .ghost) {
-                                Task {
-                                    try? await session.safety?.unblock(person.id)
-                                    self.people?.removeAll { $0.id == person.id }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    SketchLoader(size: 44).frame(maxWidth: .infinity).padding(.top, 40)
+        VStack(alignment: .leading, spacing: 0) {
+            ModalTitle(L10n.Safety.BlockedList.title).padding(.bottom, 6)
+            ModalBody(L10n.Safety.BlockedList.subtitle).padding(.bottom, 14)
+            if let people {
+                if people.isEmpty {
+                    EmptyNote(L10n.Safety.BlockedList.empty, size: 14.5).padding(.vertical, 18)
+                }
+                ForEach(Array(people.enumerated()), id: \.element.id) { i, person in
+                    if i > 0 { WavyDivider(seed: Double(100 + i * 7)).padding(.vertical, 2) }
+                    row(person)
+                }
+            } else {
+                SketchLoader(size: 44).frame(maxWidth: .infinity).padding(.vertical, 18)
+            }
+            ModalActions { OrganicButton(L10n.Safety.BlockedList.close, size: .sm, action: onClose) }
+                .padding(.top, 16)
+        }
+        .task { people = (try? await session.safety?.blocked()) ?? [] }
+    }
+
+    private func row(_ person: SafetyService.BlockedPerson) -> some View {
+        HStack(spacing: 12) {
+            HandDrawnAvatar(initials: person.initials, imageURL: person.avatarUrl.flatMap(URL.init(string:)),
+                            color: person.accentColor.flatMap(OKLCHColor.parse) ?? Tokens.creamDark, size: 36,
+                            seed: person.avatarSeed ?? 5)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(person.handle ?? L10n.Safety.BlockedList.unknownUser)
+                    .font(AppFonts.body(15, weight: .semibold))
+                    .foregroundStyle(Tokens.text)
+                    .lineLimit(1)
+                if let since = person.since {
+                    Text(L10n.Safety.BlockedList.since(date: since.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Strings.shared.locale))))
+                        .font(AppFonts.body(12.5))
+                        .foregroundStyle(Tokens.textMuted)
                 }
             }
-            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            OrganicButton(pending == person.id ? "…" : L10n.Safety.unblock, variant: .ghost, size: .sm) {
+                Task { await unblock(person.id) }
+            }
+            .disabled(pending != nil)
         }
-        .background(Tokens.cream)
-        .safeAreaInset(edge: .top, spacing: 0) { OrganicInlineBar("", backLabel: L10n.App.Nav.back) }
-        .toolbar(.hidden, for: .navigationBar)
-        .task { people = (try? await session.safety?.blocked()) ?? [] }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 2)
+    }
+
+    private func unblock(_ id: String) async {
+        guard pending == nil else { return }
+        pending = id
+        defer { pending = nil }
+        do {
+            try await session.safety?.unblock(id)
+            people?.removeAll { $0.id == id }
+        } catch {}
     }
 }

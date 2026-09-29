@@ -2,11 +2,13 @@ package com.resonance.app.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,28 +27,38 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import com.resonance.app.SafetyService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
+import com.resonance.design.CssText
 import com.resonance.design.HandDrawnAvatar
+import com.resonance.design.Mixes
+import com.resonance.design.ModalActions
+import com.resonance.design.ModalBody
+import com.resonance.design.ModalTitle
+import com.resonance.design.OklchColor
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicConfirmDialog
-import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicInlineBar
+import com.resonance.design.OrganicListEmpty
+import com.resonance.design.OrganicModal
 import com.resonance.design.OrganicRadio
+import com.resonance.design.OrganicTextField
 import com.resonance.design.SketchLoader
 import com.resonance.design.WavyDivider
 import com.resonance.design.cream
-import com.resonance.design.organicSurface
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
+import com.resonance.design.plainClickable
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
@@ -55,169 +67,285 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.OffsetDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
+/** The settings sections that apply to the app, in the web's order (the twin of iOS's SettingsSection). */
+enum class SettingsSection(
+    /** SECTION_ICONS. */
+    val icon: IconName,
+    /** Its place in the web's full list, which seeds the rule above its row. */
+    val webIndex: Int,
+) {
+    Account(IconName.Key, 1),
+    Privacy(IconName.Lock, 2),
+    Language(IconName.Globe, 4),
+    Delete(IconName.Trash, 8);
+
+    val title: String
+        get() = when (this) {
+            Account -> L10n.Settings.Sections.account
+            Privacy -> L10n.Settings.Sections.privacy
+            Language -> L10n.Settings.Sections.language
+            Delete -> L10n.Settings.Sections.delete
+        }
+}
+
 /**
- * Settings (settings/page.tsx, the parts that apply to the app): language,
- * the block list, signing out, and deleting the account after optionally
- * downloading everything one wrote. The twin of iOS's SettingsScreen.
+ * Settings on a phone (SettingsClient's menu): the title, then one row per
+ * section — glyph, name, chevron — between wavy rules, each opening its own
+ * screen. No panels: the web drops the frames at this width.
  */
 @Composable
-fun SettingsScreen(session: Session, open: (Route) -> Unit, back: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    var exporting by remember { mutableStateOf(false) }
-    var exported by remember { mutableStateOf(false) }
-    var confirmingDelete by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
-    var deleteError by remember { mutableStateOf<String?>(null) }
-
-    // The backup goes wherever the person picks (the system's save sheet).
-    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            exporting = true
-            runCatching {
-                val bytes = session.account.export()
-                withContext(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } }
-            }.onSuccess { exported = true }
-            exporting = false
-        }
-    }
-
+fun SettingsScreen(open: (Route) -> Unit, back: () -> Unit) {
+    val scroll = rememberScrollState()
     Column(Modifier.fillMaxSize().cream()) {
-        OrganicInlineBar(L10n.App.Nav.back, back)
-        Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(20.dp).padding(bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(28.dp),
-        ) {
-            BasicText(L10n.Settings.title, style = AppFonts.heading(30f, lineHeight = 1.2f), modifier = Modifier.semantics { heading() })
-
-            Panel(L10n.Settings.Sections.language, 71.0) {
-                BasicText(L10n.Settings.Language.ui, style = AppFonts.body(14f, color = Tokens.TextMuted))
-                Column {
-                    LanguageRow(session, Strings.Language.ZhTW, "繁體中文", 71.0)
-                    WavyDivider(seed = 67.0, modifier = Modifier.padding(vertical = 2.dp))
-                    LanguageRow(session, Strings.Language.En, "English", 73.0)
-                }
-            }
-
-            Panel(L10n.Settings.Sections.privacy, 23.0) {
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Button) { open(Route.BlockedList) },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BasicText(L10n.Settings.Privacy.manageBlocks, style = AppFonts.body(16f), modifier = Modifier.weight(1f))
-                    OrganicIcon(IconName.ChevronDown, Modifier.padding(start = 8.dp), size = 18.dp, color = Tokens.TextMuted, strokeWidth = Tokens.Ink.value, rotation = -90f)
-                }
-            }
-
-            Panel(L10n.Settings.Sections.account, 41.0) {
-                OrganicButton(L10n.Settings.Account.signOut, variant = ButtonVariant.Ghost) { session.signOut() }
-            }
-
-            Panel(L10n.Settings.Delete.title, 53.0) {
-                BasicText(L10n.Settings.Delete.exportHint, style = AppFonts.body(14f, lineHeight = 1.6f, color = Tokens.TextMuted))
-                OrganicButton(
-                    if (exporting) L10n.Settings.Delete.exporting else L10n.Settings.Delete.export,
-                    variant = ButtonVariant.Outline,
-                    icon = if (exported) IconName.Check else IconName.Document,
-                    enabled = !exporting,
-                ) { save.launch("resonance-backup-${LocalDate.now()}.json") }
-                WavyDivider(seed = 61.0, modifier = Modifier.padding(vertical = 4.dp))
-                BasicText(L10n.Settings.Delete.warn, style = AppFonts.body(14f, lineHeight = 1.6f, color = Tokens.TextMuted))
-                OrganicButton(L10n.Settings.Delete.button) { confirmingDelete = true }
-                deleteError?.let { BasicText(it, style = AppFonts.body(13f, color = Tokens.Terracotta)) }
+        OrganicInlineBar(L10n.App.Nav.back, back, scrolled = scroll.scrolledPast20())
+        Column(Modifier.verticalScroll(scroll).padding(20.dp).padding(bottom = 40.dp)) {
+            BasicText(
+                L10n.Settings.title,
+                style = AppFonts.heading(28f, lineHeight = 1.2f),
+                modifier = Modifier.padding(bottom = 18.dp).semantics { heading() },
+            )
+            SettingsSection.entries.forEachIndexed { i, section ->
+                if (i > 0) WavyDivider(seed = 40.0 + section.webIndex * 6, modifier = Modifier.padding(vertical = 2.dp))
+                MenuRow(section) { open(Route.SettingsSection(section)) }
             }
         }
     }
+}
 
-    if (confirmingDelete) OrganicConfirmDialog(
-        title = L10n.Settings.Delete.confirmTitle,
-        body = L10n.Settings.Delete.confirmBody(OffsetDateTime.now().plusDays(7).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(Strings.language.locale))),
-        cancelLabel = L10n.Settings.Delete.cancel,
-        confirmLabel = L10n.Settings.Delete.confirm,
-        busy = deleting,
-        onCancel = { confirmingDelete = false },
-        onConfirm = {
-            scope.launch {
-                deleting = true
-                runCatching { session.scheduleDeletion() }.onFailure { deleteError = L10n.Settings.Delete.error }
-                deleting = false
-                confirmingDelete = false
+@Composable
+private fun MenuRow(section: SettingsSection, onClick: () -> Unit) {
+    // Deleting the account is the one red row.
+    val tint = if (section == SettingsSection.Delete) Mixes.Danger else Tokens.Terracotta
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .plainClickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        OrganicIcon(section.icon, size = 22.dp, color = tint)
+        BasicText(
+            section.title,
+            style = AppFonts.body(16f, color = if (section == SettingsSection.Delete) tint else Tokens.Text),
+            modifier = Modifier.weight(1f),
+        )
+        OrganicIcon(IconName.ChevronDown, size = 18.dp, color = Tokens.TextMuted, rotation = -90f)
+    }
+}
+
+/** One settings section on its own screen; the bar carries its name. */
+@Composable
+fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -> Unit) {
+    val scroll = rememberScrollState()
+    Column(Modifier.fillMaxSize().cream()) {
+        OrganicInlineBar(L10n.App.Nav.back, back, title = section.title, scrolled = scroll.scrolledPast20())
+        Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(20.dp).padding(bottom = 40.dp)) {
+            when (section) {
+                SettingsSection.Account -> AccountSettings(session)
+                SettingsSection.Privacy -> PrivacySettings(session)
+                SettingsSection.Language -> LanguageSettings(session)
+                SettingsSection.Delete -> DeleteAccountSettings(session)
             }
-        },
+        }
+    }
+}
+
+/** Account: the sign-in email and phone (read-only), and signing out — after the web's "Sign out?" confirmation. */
+@Composable
+private fun AccountSettings(session: Session) {
+    var confirming by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        OrganicTextField(L10n.Settings.Account.email, session.email ?: "", {}, placeholder = "you@example.com", seed = 51.0, enabled = false)
+        OrganicTextField(L10n.Settings.Account.phone, session.phoneNumber ?: "", {}, placeholder = "—", seed = 57.0, enabled = false)
+        OrganicButton(L10n.Settings.Account.signOut, Modifier.padding(top = 4.dp), variant = ButtonVariant.Outline) { confirming = true }
+    }
+    if (confirming) OrganicConfirmDialog(
+        title = L10n.App.SignOutConfirm.title,
+        body = L10n.App.SignOutConfirm.body,
+        cancelLabel = L10n.App.SignOutConfirm.cancel,
+        confirmLabel = L10n.App.SignOutConfirm.confirm,
+        onCancel = { confirming = false },
+        onConfirm = { confirming = false; session.signOut() },
     )
 }
 
-/** One choice of a radio list (the web's ToggleGroup rows, with a radio for the switch). */
+/** Privacy: the block list, in its own dialog (the web's BlockedListModal). */
+@Composable
+private fun PrivacySettings(session: Session) {
+    var showingBlocks by remember { mutableStateOf(false) }
+    OrganicButton(L10n.Settings.Privacy.manageBlocks, variant = ButtonVariant.Outline) { showingBlocks = true }
+    if (showingBlocks) OrganicModal({ showingBlocks = false }, L10n.Safety.BlockedList.title, seed = 97.0, closeLabel = L10n.Safety.BlockedList.close) {
+        BlockedListContent(session) { showingBlocks = false }
+    }
+}
+
+/** Language: the interface language, as a radio list (the web's select). */
+@Composable
+private fun LanguageSettings(session: Session) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        BasicText(
+            L10n.Settings.Language.ui.uppercase(),
+            style = AppFonts.body(Tokens.LabelSize, 600, color = Tokens.TextMuted).copy(letterSpacing = 0.06.em),
+        )
+        Column {
+            LanguageRow(session, Strings.Language.ZhTW, "繁體中文", 71.0)
+            WavyDivider(seed = 67.0, modifier = Modifier.padding(vertical = 2.dp))
+            LanguageRow(session, Strings.Language.En, "English", 73.0)
+        }
+    }
+}
+
 @Composable
 private fun LanguageRow(session: Session, language: Strings.Language, label: String, seed: Double) {
     val selected = Strings.language == language
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .semantics { this.selected = selected }
-            .clickable(role = Role.RadioButton) { session.setLanguage(language) },
+            .plainClickable(role = Role.RadioButton) { session.setLanguage(language) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(label, style = AppFonts.body(16f, if (selected) 600 else 400), modifier = Modifier.weight(1f))
+        BasicText(
+            label,
+            style = AppFonts.body(15f, if (selected) 600 else 400, color = if (selected) Tokens.Terracotta else Tokens.Text),
+            modifier = Modifier.weight(1f),
+        )
         OrganicRadio(selected, seed)
     }
 }
 
-/** A settings section: an organic panel with its label in small caps. */
+/**
+ * DeleteAccountSection: what happens, the backup first, then the quieter
+ * outline Delete (the web keeps it from reading as a call to action) and its
+ * confirmation. The backup goes wherever the person picks (the system's save sheet).
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Panel(title: String, seed: Double, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .organicSurface(Tokens.CardBg, Tokens.FieldBorder, radius = Tokens.RadiusLg.toDouble(), seed = seed, grainOpacity = 0.2f)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        BasicText(title.uppercase(), style = AppFonts.body(Tokens.LabelSize, 600, color = Tokens.TextMuted).copy(letterSpacing = androidx.compose.ui.unit.TextUnit(Tokens.LabelSize * 0.06f, androidx.compose.ui.unit.TextUnitType.Sp)))
-        content()
+private fun DeleteAccountSettings(session: Session) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var exporting by remember { mutableStateOf(false) }
+    var exported by remember { mutableStateOf(false) }
+    var confirming by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            exporting = true
+            failed = false
+            runCatching {
+                val bytes = session.account.export()
+                withContext(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } }
+            }.onSuccess { exported = true }.onFailure { failed = true }
+            exporting = false
+        }
     }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        BasicText(L10n.Settings.Delete.title, style = AppFonts.heading(20f, lineHeight = 1.3f))
+        CssText(L10n.Settings.Delete.warn, AppFonts.Family.Body, 14f, lineHeight = 1.65f, color = Tokens.TextMuted)
+        CssText(L10n.Settings.Delete.exportHint, AppFonts.Family.Body, 14f, lineHeight = 1.65f, color = Tokens.TextMuted)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OrganicButton(
+                if (exporting) L10n.Settings.Delete.exporting else L10n.Settings.Delete.export,
+                variant = ButtonVariant.Ghost,
+                icon = if (exported) IconName.Check else IconName.Document,
+                enabled = !exporting,
+            ) { save.launch("resonance-backup-${LocalDate.now()}.json") }
+            OrganicButton(L10n.Settings.Delete.button, variant = ButtonVariant.Outline, icon = IconName.Trash) { confirming = true }
+        }
+        if (failed) BasicText(L10n.Settings.Delete.error, style = AppFonts.body(13f, color = Mixes.Danger))
+    }
+
+    if (confirming) OrganicConfirmDialog(
+        title = L10n.Settings.Delete.confirmTitle,
+        body = L10n.Settings.Delete.confirmBody(
+            OffsetDateTime.now().plusDays(7).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(Strings.language.locale)),
+        ),
+        cancelLabel = L10n.Settings.Delete.cancel,
+        confirmLabel = L10n.Settings.Delete.confirm,
+        busy = busy,
+        seed = 73.0,
+        onCancel = { confirming = false },
+        onConfirm = {
+            scope.launch {
+                busy = true
+                failed = false
+                // Success signs the person out, which leaves this screen.
+                runCatching { session.scheduleDeletion() }.onFailure { failed = true; confirming = false }
+                busy = false
+            }
+        },
+    )
 }
 
-/** The people one blocked, with a way to unblock (web: BlockedListModal). */
+/** BlockedListModal's inside: everyone blocked, newest first, each with a small Unblock, between wavy rules. */
 @Composable
-fun BlockedListScreen(session: Session, back: () -> Unit) {
+private fun ColumnScope.BlockedListContent(session: Session, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     var people by remember { mutableStateOf<List<SafetyService.BlockedPerson>?>(null) }
+    var pending by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { people = runCatching { session.safety?.blocked() }.getOrNull() ?: emptyList() }
 
-    Column(Modifier.fillMaxSize().cream()) {
-        OrganicInlineBar(L10n.App.Nav.back, back)
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            BasicText(L10n.Safety.BlockedList.title, style = AppFonts.heading(28f, lineHeight = 1.2f), modifier = Modifier.semantics { heading() })
-            BasicText(L10n.Safety.BlockedList.subtitle, style = AppFonts.body(14f, lineHeight = 1.6f, color = Tokens.TextMuted))
-            val list = people
-            when {
-                list == null -> Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { SketchLoader(44.dp) }
-                list.isEmpty() -> OrganicEmptyState(L10n.Safety.BlockedList.empty)
-                else -> list.forEach { person ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        HandDrawnAvatar(person.initials, null, Tokens.CreamDark, 40.dp, seedFromString(person.id).toDouble())
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            BasicText(person.handle ?: L10n.Safety.BlockedList.unknownUser, style = AppFonts.body(16f, 600))
-                            person.since?.let { d ->
-                                val date = d.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                                    .format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Strings.language.locale))
-                                BasicText(L10n.Safety.BlockedList.since(date), style = AppFonts.body(12f, color = Tokens.TextMuted))
-                            }
+    ModalTitle(L10n.Safety.BlockedList.title)
+    ModalBody(L10n.Safety.BlockedList.subtitle)
+    val list = people
+    when {
+        list == null -> Box(Modifier.fillMaxWidth().padding(vertical = 18.dp), contentAlignment = Alignment.Center) { SketchLoader(44.dp) }
+        list.isEmpty() -> OrganicListEmpty(L10n.Safety.BlockedList.empty, 14.5f, Modifier.padding(vertical = 18.dp))
+        else -> Column {
+            list.forEachIndexed { i, person ->
+                if (i > 0) WavyDivider(seed = 100.0 + i * 7, modifier = Modifier.padding(vertical = 2.dp))
+                Row(
+                    Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    HandDrawnAvatar(
+                        person.initials,
+                        person.avatarUrl,
+                        person.accentColor?.let(OklchColor::parse) ?: Tokens.CreamDark,
+                        36.dp,
+                        person.avatarSeed ?: seedFromString(person.id).toDouble(),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        BasicText(person.handle ?: L10n.Safety.BlockedList.unknownUser, style = AppFonts.body(15f, 600), maxLines = 1)
+                        person.since?.let { d ->
+                            val date = d.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+                                .format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Strings.language.locale))
+                            BasicText(L10n.Safety.BlockedList.since(date), style = AppFonts.body(12.5f, color = Tokens.TextMuted))
                         }
-                        OrganicButton(L10n.Safety.unblock, variant = ButtonVariant.Ghost, small = true) {
-                            scope.launch {
-                                runCatching { session.safety?.unblock(person.id) }.onSuccess { people = people?.filter { it.id != person.id } }
-                            }
+                    }
+                    OrganicButton(
+                        if (pending == person.id) "…" else L10n.Safety.unblock,
+                        variant = ButtonVariant.Ghost,
+                        small = true,
+                        enabled = pending == null,
+                    ) {
+                        scope.launch {
+                            pending = person.id
+                            runCatching { session.safety?.unblock(person.id) }.onSuccess { people = people?.filter { it.id != person.id } }
+                            pending = null
                         }
                     }
                 }
             }
         }
     }
+    ModalActions { OrganicButton(L10n.Safety.BlockedList.close, small = true, onClick = onClose) }
+}
+
+/** Past the web header's 20px scroll threshold, when its pen line inks in fully. */
+@Composable
+fun ScrollState.scrolledPast20(): Boolean {
+    val threshold = with(LocalDensity.current) { 20.dp.toPx() }
+    return value > threshold
 }

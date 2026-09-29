@@ -17,10 +17,8 @@ struct CardBoxScreen: View {
 
     var body: some View {
         TabScreen(L10n.App.Nav.me) {
-            OrganicIconButton(.sliders, label: L10n.Settings.title) { openRoute(.settings) }
-        } content: {
-            header.padding(.horizontal, 20)
-            tabs
+            header.padding(.horizontal, 20).padding(.bottom, 24)
+            tabs.padding(.bottom, 28)
             shelfContent
         }
         .refreshable {
@@ -45,36 +43,47 @@ struct CardBoxScreen: View {
                     Text(me.bio ?? L10n.Me.bioEmpty).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
                 }
                 Spacer(minLength: 0)
+                // The phone's settings entry: the pen (the app's settings glyph) in a small ghost chip.
+                OrganicButton(icon: .pen, label: L10n.Me.editProfile) { openRoute(.settings) }
             }
         } else if case .missing = session.profile {
-            OrganicEmptyState(L10n.Auth.stepHandle)
+            OrganicEmptyState(message: L10n.Auth.stepHandle)
         } else if case .failed = session.profile {
-            OrganicEmptyState(L10n.Native.loadError, actionTitle: L10n.Native.retry) { Task { await session.loadMe() } }
+            OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
+                Task { await session.loadMe() }
+            }
         }
     }
 
+    /// OrganicTabs' surface variant: the active shelf sits on a hand-drawn
+    /// wash in a terracotta rim (seeded per tab key, as on the web).
     private var tabs: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 ForEach(Self.order, id: \.self) { s in
+                    let active = s == shelf
                     Button { shelf = s } label: {
                         Text(Self.title(s))
-                            .font(AppFonts.body(14, weight: s == shelf ? .semibold : .regular))
-                            .foregroundStyle(s == shelf ? Tokens.terracotta : Tokens.textMuted)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
+                            .font(AppFonts.body(14, weight: active ? .semibold : .medium))
+                            .foregroundStyle(active ? Tokens.terracotta : Tokens.textMuted)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+                            .padding(.bottom, 14)
                             .background {
-                                if s == shelf {
-                                    WobRectShape(radius: 14, seed: Double(Self.order.firstIndex(of: s) ?? 0) * 17 + 3, mag: 1.2)
-                                        .fill(Tokens.terracottaLight.opacity(0.45))
+                                if active {
+                                    let shape = WobRectShape(radius: 12, seed: Double(23 + Self.webKey(s).count * 7))
+                                    shape.fill(Tokens.terracottaLight.opacity(0.45))
+                                    shape.stroke(Tokens.terracotta, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
                                 }
                             }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityAddTraits(s == shelf ? [.isSelected, .isButton] : .isButton)
+                    .accessibilityAddTraits(active ? [.isSelected, .isButton] : .isButton)
                 }
             }
-            .padding(.horizontal, 16)
+            // Room for the wobble, which bleeds a few points past the tab.
+            .padding(.horizontal, 20)
+            .padding(.vertical, 7)
         }
         .scrollIndicators(.hidden)
         .sensoryFeedback(.selection, trigger: shelf)
@@ -83,18 +92,27 @@ struct CardBoxScreen: View {
     @ViewBuilder private var shelfContent: some View {
         if let cards = shelves[shelf] {
             if cards.isEmpty {
-                if shelf == .published {
-                    OrganicEmptyState(L10n.Me.emptyPublished, actionTitle: L10n.Me.emptyPublishedCta) { writer.open() }
-                } else {
-                    OrganicEmptyState(Self.empty(shelf))
+                // An empty shelf is a line of muted text; the empty published
+                // shelf also points at the first story (ux §4).
+                VStack(spacing: 18) {
+                    EmptyNote(Self.empty(shelf), size: 16, centered: true)
+                    if shelf == .published {
+                        OrganicButton(L10n.Me.emptyPublishedCta) { writer.open() }
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 40)
+            } else if shelf == .linked {
+                MiniCardList(cards: cards)
             } else {
                 StoryCardList(cards: cards)
             }
         } else if failed {
-            OrganicEmptyState(L10n.Native.loadError, actionTitle: L10n.Native.retry) { Task { await load(shelf, force: true) } }
+            OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
+                Task { await load(shelf, force: true) }
+            }
         } else {
-            SketchLoader(size: 44).frame(maxWidth: .infinity).padding(.top, 40)
+            FeedSkeleton(count: 6)
         }
     }
 
@@ -116,6 +134,18 @@ struct CardBoxScreen: View {
         case .resonated: L10n.Me.Tabs.resonated
         case .linked: L10n.Me.Tabs.linked
         case .bookmarks: L10n.Me.Tabs.bookmarks
+        }
+    }
+
+    /// The web's tab key, which seeds the active tab's outline.
+    static func webKey(_ s: ReadingAPI.CardBoxShelf) -> String {
+        switch s {
+        case .published: "published"
+        case ._private: "private"
+        case .draft: "draft"
+        case .resonated: "resonated"
+        case .linked: "linked"
+        case .bookmarks: "bookmarks"
         }
     }
 
