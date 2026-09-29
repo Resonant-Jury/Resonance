@@ -103,6 +103,14 @@ export function buildOpenApi(): Json {
           responses: { '200': { description: 'OK', ...json(ref('PublishResponse')) }, ...errors(400, 401, 404) },
         },
       },
+      '/cards/{key}/edits/apply': {
+        post: {
+          operationId: 'applyCardEdit',
+          summary: 'Apply your pending edit (cards/{id}/edits/current) to your published card, and clear it',
+          parameters: [pathParam('key', 'The card id')],
+          responses: { '200': { description: 'OK', ...json(ref('ApplyEditResponse')) }, ...errors(400, 401, 404) },
+        },
+      },
       '/cards/{key}/report': {
         post: {
           operationId: 'reportCard',

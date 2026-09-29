@@ -12,6 +12,7 @@ import {
 import type { Card, CardMedia, Visibility } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
+import { clearedMedia } from './cards';
 import { mapCard } from './map';
 
 /**
@@ -106,7 +107,7 @@ export async function applyPendingCardEdit(
   const db = getClientDb();
   const ref = doc(db, 'cards', cardId);
   const batch = writeBatch(db);
-  batch.set(ref, { ...values, updatedAt: serverTimestamp() }, { merge: true });
+  batch.set(ref, { ...values, ...clearedMedia(values), updatedAt: serverTimestamp() }, { merge: true });
   batch.delete(editRef(cardId));
   await batch.commit();
   const snap = await getDoc(ref);

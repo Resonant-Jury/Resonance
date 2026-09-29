@@ -17,6 +17,7 @@ vi.mock('firebase/firestore', () => ({
   // doc(db, ...segments) → a stand-in that records the path it addresses.
   doc: vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') })),
   deleteDoc: vi.fn(),
+  deleteField: vi.fn(() => '<delete>'),
   getDoc: vi.fn(),
   setDoc: vi.fn(),
   serverTimestamp: vi.fn(() => '<server-time>'),
@@ -116,6 +117,12 @@ describe('pending card edits', () => {
     expect((batch.delete.mock.calls[0][0] as { path: string }).path).toBe(EDIT_PATH);
     expect(batch.commit).toHaveBeenCalled();
     expect(card.id).toBe('card-1');
+  });
+
+  it('removes the live cover when the revision removed it', async () => {
+    vi.mocked(getDoc).mockResolvedValue({ id: 'card-1', data: () => ({ authorId: 'me' }) } as never);
+    await applyPendingCardEdit('card-1', { ...values, media: undefined, accentHue: null });
+    expect(batch.set.mock.calls[0][1]).toMatchObject({ media: '<delete>', accentHue: null });
   });
 
   it('discards a working copy without touching the card', async () => {

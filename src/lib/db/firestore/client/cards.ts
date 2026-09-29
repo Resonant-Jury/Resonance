@@ -4,6 +4,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   serverTimestamp,
@@ -79,7 +80,7 @@ export async function updateCardDraft(
 ): Promise<Card> {
   requireUid();
   const ref = doc(getClientDb(), 'cards', id);
-  await setDoc(ref, { ...patch, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(ref, { ...patch, ...clearedMedia(patch), updatedAt: serverTimestamp() }, { merge: true });
   const snap = await getDoc(ref);
   return mapCard(snap.id, snap.data() ?? {});
 }
@@ -104,6 +105,15 @@ export async function publishCard(id: string): Promise<Card> {
   );
   const snap = await getDoc(ref);
   return mapCard(snap.id, snap.data() ?? {});
+}
+
+/**
+ * A removed cover arrives as `media: undefined`, which a merge write silently
+ * drops (the client runs with ignoreUndefinedProperties) — the old cover
+ * would survive. Say "delete it" instead. Shared with applyPendingCardEdit.
+ */
+export function clearedMedia(values: { media?: CardMedia }): { media?: ReturnType<typeof deleteField> } {
+  return 'media' in values && values.media === undefined ? { media: deleteField() } : {};
 }
 
 export async function deleteCardDraft(id: string): Promise<void> {

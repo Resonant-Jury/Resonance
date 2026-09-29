@@ -212,6 +212,17 @@ export const PublishResponse = named(
   'PublishResponse',
 );
 
+export const ApplyEditResponse = named(
+  z.object({
+    id: z.string(),
+    /** Where the card lives: its English slug, or null (it is served at its id). */
+    slug: z.string().nullable(),
+    /** False when there was no pending edit to apply (applying twice changes nothing). */
+    applied: z.boolean(),
+  }),
+  'ApplyEditResponse',
+);
+
 /** firestore.rules' cap on a report's details (REPORT_DETAIL_MAX on the web). */
 export const REPORT_DETAIL_MAX = 1000;
 
