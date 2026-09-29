@@ -183,6 +183,8 @@ export async function getPublicCardsByAuthor(authorId: string): Promise<Card[]> 
       collection(getClientDb(), 'cards'),
       where('authorId', '==', authorId),
       where('visibility', '==', 'public'),
+      // The rules list public cards only once published — the query must say so.
+      where('publishedAt', '!=', null),
       orderBy('publishedAt', 'desc'),
       fbLimit(40)
     )

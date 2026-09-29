@@ -110,7 +110,9 @@ export async function connected(db: Firestore, a: string, b: string): Promise<bo
 
 /** firestore.rules `cardVisible`, for the Admin SDK (which bypasses rules). */
 export async function canView(db: Firestore, card: Card, viewerId: string): Promise<boolean> {
-  if (card.visibility === 'public') return true;
   if (card.authorId === viewerId) return true;
+  // A draft is its author's alone, whatever visibility it will be published with.
+  if (!card.publishedAt) return false;
+  if (card.visibility === 'public') return true;
   return card.visibility === 'connections' && (await connected(db, viewerId, card.authorId));
 }

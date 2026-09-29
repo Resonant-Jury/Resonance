@@ -17,13 +17,16 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/connections/$(request.auth.uid < userId ? request.auth.uid + "_" + userId : userId + "_" + request.auth.uid));
     }
 
+    // A card is its author's; anyone else sees it once it is published, and
+    // then only as its visibility allows. (Drafts start as "public": that is
+    // the choice they will be published with, not permission to read them.)
     function cardVisible(data) {
-      return data.visibility == "public"
+      return (signedIn() && data.authorId == request.auth.uid)
         || (
-          signedIn()
+          data.publishedAt != null
           && (
-            data.authorId == request.auth.uid
-            || (data.visibility == "connections" && connectedTo(data.authorId))
+            data.visibility == "public"
+            || (signedIn() && data.visibility == "connections" && connectedTo(data.authorId))
           )
         );
     }
@@ -101,11 +104,12 @@ service cloud.firestore {
     // tamper with metrics that are aggregated by trusted writers.
     match /cards/{cardId} {
       allow get: if cardVisible(resource.data);
-      // Anonymous visitors may only list public cards (the feed query filters
-      // visibility == "public", so every candidate doc passes). Signed-in users
-      // may run author-scoped list queries that also surface their own
-      // private/connections cards.
-      allow list: if signedIn() || resource.data.visibility == "public";
+      // Lists are either your own cards (queries scoped authorId == you) or
+      // published public ones (queries filtering visibility == "public" and
+      // publishedAt != null, as the feed, profiles and resonances do). A
+      // connections card is opened one at a time, by get.
+      allow list: if (signedIn() && resource.data.authorId == request.auth.uid)
+        || (resource.data.visibility == "public" && resource.data.publishedAt != null);
       allow create: if signedIn()
         && request.resource.data.authorId == request.auth.uid
         && request.resource.data.keys().hasAll(["authorId", "thoughtCore", "story", "tags", "visibility"])

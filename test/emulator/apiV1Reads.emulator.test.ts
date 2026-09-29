@@ -115,6 +115,12 @@ describe('getCardDetail', () => {
     expect((await failure(getCardDetail(db, 'alice', 'nope'))).code).toBe('not_found');
   });
 
+  it("keeps a draft its author's alone, though it will be published as public", async () => {
+    await card('draft', 'bob', 1, { publishedAt: null });
+    expect((await failure(getCardDetail(db, 'alice', 'draft'))).code).toBe('not_found');
+    expect((await getCardDetail(db, 'bob', 'draft')).isOwner).toBe(true);
+  });
+
   it('hides the byline of an anonymous card', async () => {
     await card('anon', 'bob', 1, { anonymous: true });
     const detail = await getCardDetail(db, 'alice', 'anon');

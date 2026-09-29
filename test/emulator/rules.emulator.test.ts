@@ -14,9 +14,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
   setLogLevel,
+  where,
   type Firestore,
 } from 'firebase/firestore';
 
@@ -261,5 +265,67 @@ describe('account deletion requests', () => {
   it('are invisible and unwritable from the client', async () => {
     await assertFails(getDoc(doc(as('alice'), 'accountDeletions', 'alice')));
     await assertFails(setDoc(doc(as('alice'), 'accountDeletions', 'alice'), { purgeAfter: new Date() }));
+  });
+});
+
+describe('cards: who can read which', () => {
+  // Bob's four cards: a public one, a private one, one for connections, and a
+  // draft (drafts start as visibility "public" — publishing is what shows them).
+  const published = new Date('2026-09-01T08:00:00Z');
+  const card = (extra: Record<string, unknown>) => ({
+    authorId: 'bob', thoughtCore: 't', story: 's', tags: [], readCount: 0, resonanceCount: 0, inviteCount: 0,
+    visibility: 'public', publishedAt: published, ...extra,
+  });
+  beforeEach(async () => {
+    await seedConnection();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'cards', 'pub'), card({ referenceCardId: 'orig' }));
+      await setDoc(doc(db, 'cards', 'priv'), card({ visibility: 'private' }));
+      await setDoc(doc(db, 'cards', 'conn'), card({ visibility: 'connections' }));
+      await setDoc(doc(db, 'cards', 'draft'), card({ publishedAt: null }));
+    });
+  });
+
+  const feed = (db: Firestore) =>
+    query(collection(db, 'cards'), where('visibility', '==', 'public'), where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'), limit(12));
+
+  it('opens a published card to whoever it is for, and a draft to no one but its author', async () => {
+    const carol = as('carol');
+    await assertSucceeds(getDoc(doc(carol, 'cards', 'pub')));
+    await assertFails(getDoc(doc(carol, 'cards', 'priv')));
+    await assertFails(getDoc(doc(carol, 'cards', 'conn')));
+    await assertFails(getDoc(doc(carol, 'cards', 'draft')));
+    await assertSucceeds(getDoc(doc(as('alice'), 'cards', 'conn')));
+    await assertFails(getDoc(doc(as('alice'), 'cards', 'draft')));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore() as unknown as Firestore, 'cards', 'draft')));
+    await assertSucceeds(getDoc(doc(as('bob'), 'cards', 'draft')));
+  });
+
+  it("won't list someone else's cards beyond the published public ones", async () => {
+    const carol = as('carol');
+    await assertFails(getDocs(collection(carol, 'cards')));
+    await assertFails(getDocs(query(collection(carol, 'cards'), where('visibility', '==', 'private'))));
+    await assertFails(getDocs(query(collection(carol, 'cards'), where('authorId', '==', 'bob'))));
+    // Public alone isn't enough: that would include drafts.
+    await assertFails(getDocs(query(collection(carol, 'cards'), where('visibility', '==', 'public'))));
+    await assertFails(getDocs(collection(env.unauthenticatedContext().firestore() as unknown as Firestore, 'cards')));
+  });
+
+  it("still runs every query the site and the apps make", async () => {
+    const carol = as('carol');
+    // The latest feed, signed in or not.
+    await assertSucceeds(getDocs(feed(carol)));
+    await assertSucceeds(getDocs(feed(env.unauthenticatedContext().firestore() as unknown as Firestore)));
+    // A profile's public cards.
+    await assertSucceeds(getDocs(query(collection(carol, 'cards'), where('authorId', '==', 'bob'), where('visibility', '==', 'public'),
+      where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'), limit(40))));
+    // A card's resonances.
+    await assertSucceeds(getDocs(query(collection(carol, 'cards'), where('referenceCardId', '==', 'orig'), where('visibility', '==', 'public'),
+      where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'))));
+    // Your own card box, your resonance to a card, whether you've written anything.
+    const bob = as('bob');
+    const mine = await getDocs(query(collection(bob, 'cards'), where('authorId', '==', 'bob')));
+    if (mine.size !== 4) throw new Error(`expected all 4 of bob's cards, got ${mine.size}`);
+    await assertSucceeds(getDocs(query(collection(bob, 'cards'), where('authorId', '==', 'bob'), where('referenceCardId', '==', 'orig'), limit(1))));
   });
 });
