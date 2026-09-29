@@ -122,6 +122,12 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                                     OrganicIcon(IconName.UserCheck, Modifier.semantics { contentDescription = L10n.Profile.connected }, size = 20.dp, color = Tokens.Terracotta)
                                 }
                             }
+                            // Connected: a way into the conversation (the web's small ghost button with the chat glyph).
+                            if (!p.isBlocked && !p.isSelf && p.isConnected) {
+                                OrganicButton(L10n.Messages.messageLink, Modifier.padding(top = 4.dp), variant = ButtonVariant.Ghost, icon = IconName.Chat, small = true) {
+                                    open(Route.Thread(a.handle))
+                                }
+                            }
                         }
                     }
                     if (p.isBlocked) {

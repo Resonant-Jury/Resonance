@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
  *   --es email … --es password …   sign that seeded account in, switching from a restored one (emulator only)
  *   --es route /card/<slug>        open that page
  *   --es writeTitle … --es writeStory … --es writeCover <url>   a new card starts with them
+ *   --es threadDraft …             fills a conversation's composer (--es route /messages/<handle> opens one)
  */
 class MainActivity : ComponentActivity() {
     private val incomingRoute = mutableStateOf<String?>(null)
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
             DebugLaunch.writeTitle = intent.getStringExtra("writeTitle")
             DebugLaunch.writeStory = intent.getStringExtra("writeStory")
             DebugLaunch.writeCover = intent.getStringExtra("writeCover")
+            DebugLaunch.threadDraft = intent.getStringExtra("threadDraft")
         }
         incomingRoute.value = routeFrom(intent)
         setContent { ResonanceRoot(session, incomingRoute) }
@@ -49,14 +51,17 @@ class MainActivity : ComponentActivity() {
         incomingRoute.value = routeFrom(intent)
     }
 
-    /** A site link (/card/…, /u/…) or the debug `route` extra. */
+    /** A site link (/card/…, /u/…, /messages/…?note=…&card=…, its query kept) or the debug `route` extra. */
     private fun routeFrom(intent: Intent): String? =
-        intent.data?.path ?: if (BuildConfig.DEBUG) intent.getStringExtra("route") else null
+        intent.data?.let { uri -> uri.path?.let { path -> path + (uri.encodedQuery?.let { "?$it" } ?: "") } }
+            ?: if (BuildConfig.DEBUG) intent.getStringExtra("route") else null
 }
 
-/** Debug launch extras the screens read (the writer's prefill). */
+/** Debug launch extras the screens read (the writer's and a thread's prefill). */
 object DebugLaunch {
     var writeTitle: String? = null
     var writeStory: String? = null
     var writeCover: String? = null
+    /** A conversation's composer starts with this text. */
+    var threadDraft: String? = null
 }

@@ -15,6 +15,7 @@ import com.resonance.api.models.Me
 import com.resonance.kit.api.AccountApi
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
+import com.resonance.kit.api.MessagingApi
 import com.resonance.kit.api.ReadingApi
 import com.resonance.kit.api.WritingApi
 import com.resonance.kit.l10n.L10n
@@ -55,7 +56,9 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     val reading = ReadingApi(api)
     val account = AccountApi(api)
     val writing = WritingApi(api)
+    val messaging = MessagingApi(api)
     val notifications = NotificationsStore()
+    val conversations = ConversationsStore()
 
     /** When a scheduled account deletion will run (the undo banner shows until then). */
     private val _deletionDate = MutableStateFlow<OffsetDateTime?>(null)
@@ -109,10 +112,12 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
             if (next != null) {
                 _signedOutForDeletion.value = false
                 notifications.start(next)
+                conversations.start(next)
                 scope.launch { runCatching { onSignedIn() } }
                 scope.launch { refreshDeletion() }
             } else {
                 notifications.stop()
+                conversations.stop()
             }
         }
     }

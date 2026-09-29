@@ -110,9 +110,9 @@ import kotlinx.coroutines.launch
  * The twin of iOS's WriteScreen; `onFinished` gets the card's slug or id.
  */
 @Composable
-fun WriteScreen(session: Session, referenceCardId: String?, cardId: String?, close: () -> Unit, onFinished: (String) -> Unit) {
+fun WriteScreen(session: Session, referenceCardId: String?, cardId: String?, story: String?, close: () -> Unit, onFinished: (String) -> Unit) {
     if (cardId == null) {
-        WriteForm(session, referenceCardId, null, close, onFinished)
+        WriteForm(session, referenceCardId, story, null, close, onFinished)
         return
     }
     // The card loads straight from Firestore, painting a loader meanwhile.
@@ -137,12 +137,12 @@ fun WriteScreen(session: Session, referenceCardId: String?, cardId: String?, clo
                 OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = close, action = EmptyAction.Link, verticalPadding = 120.dp)
             }
         }
-        else -> WriteForm(session, referenceCardId, card, close, onFinished)
+        else -> WriteForm(session, referenceCardId, null, card, close, onFinished)
     }
 }
 
 @Composable
-private fun WriteForm(session: Session, referenceCardId: String?, opened: DraftService.OpenedCard?, close: () -> Unit, onFinished: (String) -> Unit) {
+private fun WriteForm(session: Session, referenceCardId: String?, story: String?, opened: DraftService.OpenedCard?, close: () -> Unit, onFinished: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val model = remember(opened) {
@@ -155,6 +155,11 @@ private fun WriteForm(session: Session, referenceCardId: String?, opened: DraftS
                     editor.setMarkdown(s)
                     update { copy(story = s) }
                 }
+            }
+            // Words to start from: a note grown into a resonance (the web drops them; the apps keep them).
+            if (opened == null) story?.let { words ->
+                editor.setMarkdown(words)
+                update { copy(story = words) }
             }
         }
     }
@@ -254,10 +259,15 @@ private fun WriteForm(session: Session, referenceCardId: String?, opened: DraftS
         OrganicCloseChip(L10n.Write.closeEditor, Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 20.dp), onClick = leave)
     }
 
-    if (pickingCard) InsertCardModal(session, onPick = { card ->
-        pickingCard = false
-        model.editor.exec("insertCard", mapOf("href" to "/card/${card.slug ?: card.id}", "title" to card.title))
-    }) { pickingCard = false }
+    if (pickingCard) OrganicModal(
+        { pickingCard = false }, L10n.Write.Editor.CardModal.title,
+        seed = 53.0, closeLabel = L10n.Write.Editor.CardModal.cancel, maxWidth = 480.dp,
+    ) {
+        CardPickerContent(session, L10n.Write.Editor.CardModal.title, L10n.Write.Editor.CardModal.subtitle, onPick = { card ->
+            pickingCard = false
+            model.editor.exec("insertCard", mapOf("href" to "/card/${card.slug ?: card.id}", "title" to card.title))
+        }) { pickingCard = false }
+    }
     if (publishing) PublishPanel(session, model, showsAnonymousHint, onPublished = { key ->
         publishing = false
         model.editor.releaseKeyboard()
@@ -468,37 +478,5 @@ private fun VisibilityRow(label: String, icon: IconName, seed: Double, selected:
         OrganicIcon(icon, size = 16.dp, color = if (selected) Tokens.Terracotta else Tokens.TextMuted)
         BasicText(label, style = AppFonts.body(15f, if (selected) 600 else 400, color = color), modifier = Modifier.weight(1f))
         OrganicRadio(selected, seed)
-    }
-}
-
-/** InsertCardModal: one of your public cards, dropped in as an embedded card. */
-@Composable
-private fun InsertCardModal(session: Session, onPick: (FeedCard) -> Unit, onCancel: () -> Unit) {
-    var cards by remember { mutableStateOf<List<FeedCard>?>(null) }
-    LaunchedEffect(Unit) { cards = runCatching { session.reading.cardBox(TabGetCardBox.published) }.getOrDefault(emptyList()) }
-    OrganicModal(onCancel, L10n.Write.Editor.CardModal.title, seed = 41.0, closeLabel = L10n.Write.Editor.CardModal.cancel) {
-        ModalTitle(L10n.Write.Editor.CardModal.title)
-        ModalBody(L10n.Write.Editor.CardModal.subtitle)
-        val list = cards
-        if (list == null) {
-            Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) { SketchLoader(40.dp) }
-        } else {
-            if (list.isEmpty()) OrganicListEmpty(L10n.Write.Editor.CardModal.empty, modifier = Modifier.padding(vertical = 12.dp))
-            Column {
-                list.forEachIndexed { i, card ->
-                    if (i > 0) WavyDivider(seed = (60 + i * 7).toDouble(), modifier = Modifier.padding(vertical = 2.dp))
-                    BasicText(
-                        card.title,
-                        style = AppFonts.heading(16f, lineHeight = 1.3f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 44.dp)
-                            .plainClickable(role = Role.Button) { onPick(card) }
-                            .padding(vertical = 12.dp),
-                    )
-                }
-            }
-        }
-        ModalActions { OrganicButton(L10n.Write.Editor.CardModal.cancel, variant = ButtonVariant.Ghost, small = true, onClick = onCancel) }
     }
 }

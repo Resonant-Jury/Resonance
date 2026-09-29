@@ -91,7 +91,15 @@ fun SafetyMenu(session: Session, target: SafetyService.Target, handle: String?, 
  * the same step; after sending, the dialog turns into a thank-you note.
  */
 @Composable
-fun ReportDialog(session: Session, target: SafetyService.Target, handle: String?, onBlocked: () -> Unit, onClose: () -> Unit) {
+fun ReportDialog(
+    session: Session,
+    target: SafetyService.Target,
+    handle: String?,
+    onBlocked: () -> Unit,
+    /** Offer "also block" (not when they're already blocked). */
+    offerBlock: Boolean = true,
+    onClose: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     var reason by remember { mutableStateOf(SafetyService.Reason.Spam) }
     var detail by remember { mutableStateOf("") }
@@ -100,7 +108,11 @@ fun ReportDialog(session: Session, target: SafetyService.Target, handle: String?
     var error by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf<Boolean?>(null) }
     val name = handle ?: L10n.Safety.anonymousAuthor
-    val title = if (target is SafetyService.Target.Card) L10n.Safety.Report.titleCard else L10n.Safety.Report.titleUser(name)
+    val title = when (target) {
+        is SafetyService.Target.Card -> L10n.Safety.Report.titleCard
+        is SafetyService.Target.User -> L10n.Safety.Report.titleUser(name)
+        is SafetyService.Target.Message -> L10n.Safety.Report.titleMessage(name)
+    }
 
     OrganicModal(if (busy) null else onClose, title, seed = 83.0) {
         val blocked = done
@@ -132,7 +144,7 @@ fun ReportDialog(session: Session, target: SafetyService.Target, handle: String?
         }
         OrganicTextField(L10n.Safety.Report.detail, detail, { detail = it.take(SafetyService.DETAIL_MAX) }, L10n.Safety.Report.detailPlaceholder, seed = 89.0, multiline = true)
         // The web's blockRow: the label, then the switch at the far end.
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (offerBlock) Row(verticalAlignment = Alignment.CenterVertically) {
             BasicText(L10n.Safety.Report.alsoBlock(name), style = AppFonts.body(14.5f), modifier = Modifier.weight(1f).padding(end = 16.dp))
             OrganicToggle(alsoBlock, { alsoBlock = it }, L10n.Safety.Report.alsoBlock(name), seed = 91.0)
         }
@@ -146,10 +158,10 @@ fun ReportDialog(session: Session, target: SafetyService.Target, handle: String?
                     runCatching {
                         val safety = session.safety ?: error("signed out")
                         safety.report(target, reason, detail)
-                        if (alsoBlock) safety.block(target.userId)
+                        if (offerBlock && alsoBlock) safety.block(target.userId)
                     }.onSuccess {
-                        done = alsoBlock
-                        if (alsoBlock) onBlocked()
+                        done = offerBlock && alsoBlock
+                        if (offerBlock && alsoBlock) onBlocked()
                     }.onFailure { error = true }
                     busy = false
                 }

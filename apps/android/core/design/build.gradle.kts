@@ -28,4 +28,5 @@ dependencies {
     api("androidx.compose.material:material-icons-core:1.7.8")
     api("io.coil-kt.coil3:coil-compose:3.6.3")
     api("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
+    testImplementation("junit:junit:4.13.2")
 }

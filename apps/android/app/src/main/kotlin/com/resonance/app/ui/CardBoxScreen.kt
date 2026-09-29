@@ -227,8 +227,3 @@ private fun emptyText(s: TabGetCardBox) = when (s) {
     TabGetCardBox.linked -> L10n.Me.emptyLinked
     TabGetCardBox.bookmarks -> L10n.Me.emptyBookmarks
 }
-
-@Composable
-fun PlaceholderScreen(title: String, message: String) {
-    TabScreen(title) { item { OrganicListEmpty(message, modifier = Modifier.padding(horizontal = 20.dp)) } }
-}

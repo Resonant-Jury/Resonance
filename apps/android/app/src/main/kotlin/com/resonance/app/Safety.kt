@@ -27,6 +27,11 @@ class SafetyService(private val uid: String) {
             override val userId get() = id
             override val fields get() = mapOf("targetType" to "user", "targetId" to id, "targetUserId" to id)
         }
+        /** A conversation, reported from its ⋯: its pair id names it, and the other person is who is reported. */
+        data class Message(val id: String, val senderId: String, val conversationId: String) : Target {
+            override val userId get() = senderId
+            override val fields get() = mapOf("targetType" to "message", "targetId" to id, "targetUserId" to senderId, "contextId" to conversationId)
+        }
     }
 
     data class BlockedPerson(

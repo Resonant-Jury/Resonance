@@ -20,7 +20,11 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.resonance.api.models.Author
 import com.resonance.api.models.FeedCard
@@ -73,6 +77,9 @@ fun FeedCard.story(): StoryCardContent {
 val FeedCard.routeKey: String get() = slug ?: id
 
 fun Author.avatarSeedValue(): Double = avatarSeed?.toDoubleOrNull() ?: ((initials.firstOrNull()?.code ?: 7) * 13).toDouble()
+
+/** The web's `Number(avatarSeed) || fallback`: Messages draw a missing or zero seed as their own fixed one (5 in the list, 3 in a thread). */
+fun seedOr(avatarSeed: String?, fallback: Double): Double = avatarSeed?.toDoubleOrNull()?.takeIf { it != 0.0 && it.isFinite() } ?: fallback
 fun Author.accent() = OklchColor.parse(accentColor) ?: Tokens.TerracottaLight
 
 /** "Sep 28" / "9月28日" in the interface language. */
@@ -113,7 +120,14 @@ fun LazyListState.scrolledPast20(): Boolean {
  * its lede, then the list, with room for the floating tab bar.
  */
 @Composable
-fun TabScreen(title: String, subtitle: String? = null, trailing: @Composable () -> Unit = {}, content: LazyListScope.() -> Unit) {
+fun TabScreen(
+    title: String,
+    subtitle: String? = null,
+    /** iOS's `headerSpacing` (its default is 20): the air between the title and the content when there is no lede. */
+    headerSpacing: Dp = 20.dp,
+    trailing: @Composable () -> Unit = {},
+    content: LazyListScope.() -> Unit,
+) {
     val list = rememberLazyListState()
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight
     Box(Modifier.fillMaxSize().cream()) {
@@ -121,7 +135,7 @@ fun TabScreen(title: String, subtitle: String? = null, trailing: @Composable () 
             item {
                 // The web's page padding: 40 under the header, the title block 40 above the content (home's header).
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 40.dp, bottom = if (subtitle != null) 40.dp else 28.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 40.dp, bottom = if (subtitle != null) 40.dp else headerSpacing + 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     OrganicPageTitle(title) { trailing() }
@@ -133,3 +147,15 @@ fun TabScreen(title: String, subtitle: String? = null, trailing: @Composable () 
         OrganicBrandBar(list.scrolledPast20())
     }
 }
+
+/**
+ * The web's `opacity: .5; pointer-events: none` wrapper (a Send with nothing to
+ * send yet): dimmed, and touches don't reach what is under it.
+ */
+fun Modifier.dimmedUnless(active: Boolean): Modifier =
+    if (active) this
+    else alpha(0.5f).pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+        }
+    }

@@ -30,6 +30,7 @@ import com.resonance.design.generated.IconName
 import com.resonance.design.OrganicTabBar
 import com.resonance.design.OrganicTabItem
 import com.resonance.design.cream
+import com.resonance.kit.api.MessagingApi
 import com.resonance.kit.l10n.L10n
 
 /** Screens on a tab's back stack. */
@@ -43,17 +44,39 @@ sealed interface Route {
      * your cards (a draft, or a published card's revision). `showsCard` is whether the card
      * opens once the writer is gone (false when its own page is underneath).
      */
-    data class Write(val referenceCardId: String? = null, val cardId: String? = null, val showsCard: Boolean = true) : Route
+    data class Write(
+        val referenceCardId: String? = null,
+        val cardId: String? = null,
+        val showsCard: Boolean = true,
+        /** Words to start from (a note grown into a resonance). */
+        val story: String? = null,
+    ) : Route
+    /** A conversation, by the other person's pen name; a note (`noteCardId` + `noteId`) quotes one to answer. */
+    data class Thread(val handle: String, val noteCardId: String? = null, val noteId: String? = null) : Route {
+        val note: MessagingApi.Note? get() = if (noteCardId != null && noteId != null) MessagingApi.Note(noteCardId, noteId) else null
+    }
     data class SettingsSection(val section: com.resonance.app.ui.SettingsSection) : Route
 
     companion object {
-        /** Site paths the app can show itself: /card/{slug}, /u/{handle}, with or without a locale. */
+        /**
+         * Site paths the app can show itself: /card/{slug}, /u/{handle}, and
+         * /messages/{handle}?note={noteId}&card={cardId} (a note's reply link keeps its
+         * query), with or without a locale.
+         */
         fun fromPath(path: String): Route? {
-            val parts = path.split('/').filter { it.isNotEmpty() }.let { if (it.firstOrNull() in setOf("en", "zh-TW")) it.drop(1) else it }
+            val bare = path.substringBefore('?')
+            val query = path.substringAfter('?', "")
+            val parts = bare.split('/').filter { it.isNotEmpty() }.let { if (it.firstOrNull() in setOf("en", "zh-TW")) it.drop(1) else it }
             if (parts.size != 2) return null
             return when (parts[0]) {
                 "card" -> Card(parts[1])
                 "u" -> Author(android.net.Uri.decode(parts[1]))
+                "messages" -> {
+                    val params = query.split('&').filter { it.isNotEmpty() }.associate { it.substringBefore('=') to android.net.Uri.decode(it.substringAfter('=', "")) }
+                    val card = params["card"]
+                    val note = params["note"]
+                    if (card != null && note != null) Thread(android.net.Uri.decode(parts[1]), card, note) else Thread(android.net.Uri.decode(parts[1]))
+                }
                 else -> null
             }
         }
@@ -75,12 +98,17 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     val push: (Route) -> Unit = { stack.add(it) }
 
     LaunchedEffect(incomingRoute.value) {
-        incomingRoute.value?.let { Route.fromPath(it) }?.let { stack.add(it) }
+        incomingRoute.value?.let { Route.fromPath(it) }?.let { route ->
+            // A conversation belongs to the Messages tab's stack; other site links open on the current tab.
+            if (route is Route.Thread) tab = Tab.Messages
+            stacks.getValue(tab).add(route)
+        }
         incomingRoute.value = null
     }
 
     val notifications by session.notifications.items.collectAsStateWithLifecycle()
     val unread = notifications.count { it.isUnread }
+    val conversations by session.conversations.state.collectAsStateWithLifecycle()
     val deletionDate by session.deletionDate.collectAsStateWithLifecycle()
     // A language change re-renders every screen (the strings are read while composing); the stacks stay.
     val languageEpoch by session.languageEpoch.collectAsStateWithLifecycle()
@@ -93,7 +121,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                 entry<Route.Root> { r ->
                     when (r.tab) {
                         Tab.Feed -> FeedScreen(session, push)
-                        Tab.Messages -> PlaceholderScreen(L10n.Messages.title, L10n.Messages.empty)
+                        Tab.Messages -> ConversationsScreen(session, push)
                         Tab.Notifications -> NotificationsScreen(session, push)
                         Tab.CardBox -> CardBoxScreen(session, push)
                         Tab.Write -> {}
@@ -105,7 +133,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                 entry<Route.Author> { r -> AuthorScreen(session, r.handle, push) { stack.removeLastOrNull() } }
                 entry<Route.Write> { r ->
                     WriteScreen(
-                        session, r.referenceCardId, r.cardId,
+                        session, r.referenceCardId, r.cardId, r.story,
                         // Closed with the draft or revision saved: the screens showing cards read them again.
                         close = {
                             session.noteCardChange()
@@ -118,6 +146,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                         if (r.showsCard) stack.add(Route.Card(key))
                     }
                 }
+                entry<Route.Thread> { r -> ThreadScreen(session, r.handle, r.note, push) { stack.removeLastOrNull() } }
                 entry<Route.Settings> { SettingsScreen(push) { stack.removeLastOrNull() } }
                 entry<Route.SettingsSection> { r -> SettingsSectionScreen(session, r.section) { stack.removeLastOrNull() } }
             },
@@ -138,7 +167,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                 listOf(
                     // The web's glyphs for the same places (Subnavbar, NotificationBell, FloatingWriteButton).
                     OrganicTabItem(Tab.Feed, L10n.Native.tabFeed, IconName.Sparkle),
-                    OrganicTabItem(Tab.Messages, L10n.App.Nav.messages, IconName.Chat),
+                    OrganicTabItem(Tab.Messages, L10n.App.Nav.messages, IconName.Chat, badge = conversations.unreadTotal),
                     OrganicTabItem(Tab.Write, L10n.App.Nav.write, IconName.Pen, isAction = true),
                     OrganicTabItem(Tab.Notifications, L10n.App.Nav.notifications, IconName.Bell, badge = unread),
                     OrganicTabItem(Tab.CardBox, L10n.App.Nav.me, IconName.Cards),

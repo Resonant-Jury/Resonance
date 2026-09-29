@@ -35,6 +35,7 @@ import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicIcon
+import com.resonance.design.OrganicModal
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
@@ -49,7 +50,8 @@ import kotlinx.coroutines.launch
  * this card, 修改 in outline opening your own resonance (`onModify`) — then
  * the note as a quiet text link and the bookmark as a bare glyph. The twin of
  * iOS's CardViewerActions; resonating starts a response card, and the note
- * opens the writer until notes land (M4).
+ * opens the note composer in its modal (`onUpgradeNote`: a long note grown into
+ * a resonance, its words carried into the writer).
  */
 @Composable
 fun CardViewerActions(
@@ -57,11 +59,12 @@ fun CardViewerActions(
     cardId: String,
     onResonate: () -> Unit,
     onModify: (resonanceId: String) -> Unit,
-    onNote: () -> Unit,
+    onUpgradeNote: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Your card answering this one (draft or published); null while looking, "" when there is none.
     var mine by remember(cardId) { mutableStateOf<String?>(null) }
+    var writingNote by remember(cardId) { mutableStateOf(false) }
     // Again after the writer (or the ⋯) changed a card.
     val changes by session.cardChanges.collectAsStateWithLifecycle()
     LaunchedEffect(cardId, changes) {
@@ -87,7 +90,7 @@ fun CardViewerActions(
         Row(verticalAlignment = Alignment.CenterVertically) {
             // The web's secondaryOutline with its frame hidden: a link.
             Row(
-                Modifier.heightIn(min = 44.dp).plainClickable(role = Role.Button, onClick = onNote),
+                Modifier.heightIn(min = 44.dp).plainClickable(role = Role.Button) { writingNote = true },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
@@ -97,6 +100,16 @@ fun CardViewerActions(
             Spacer(Modifier.weight(1f))
             BookmarkButton(session, cardId)
         }
+    }
+    if (writingNote) OrganicModal(
+        { writingNote = false }, L10n.Card.Note.label,
+        seed = 17.0, closeLabel = L10n.Card.Note.close, maxWidth = 520.dp,
+    ) {
+        NoteComposer(session, cardId, onClose = { writingNote = false }, onUpgrade = { text ->
+            writingNote = false
+            // The note's words become the resonance's story (the web drops them; the apps keep them).
+            onUpgradeNote(text)
+        })
     }
 }
 

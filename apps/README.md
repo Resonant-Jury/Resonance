@@ -110,8 +110,9 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 Debug launch extras mirror iOS's arguments: `--ez emulator true` points
 Firebase at the emulators (`10.0.2.2`) and the API at `http://10.0.2.2:3100`,
 `--es email … --es password …` signs a seeded account in,
-`--es route /card/<slug>` (or `/u/<handle>`) opens that page, and
-`--es writeTitle … --es writeStory …` start a new card with that text:
+`--es route /card/<slug>` (or `/u/<handle>`) opens that page,
+`--es writeTitle … --es writeStory …` start a new card with that text, and
+`--es threadDraft …` fills a conversation's composer (`--es route /messages/<handle>` opens one):
 
 ```bash
 adb shell am start -n com.resonance.stories/com.resonance.app.MainActivity \

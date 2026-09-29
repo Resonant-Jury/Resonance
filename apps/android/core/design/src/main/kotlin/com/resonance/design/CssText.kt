@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import com.resonance.design.generated.Tokens
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
@@ -88,6 +89,8 @@ fun CssText(
     modifier: Modifier = Modifier,
     /** CSS letter-spacing, in em. */
     letterSpacing: Float = 0f,
+    /** Take the text's own width (a bubble shrink-wrapping its words) rather than all that's offered. */
+    fitsContent: Boolean = false,
 ) {
     val density = LocalDensity.current.density
     BoxWithConstraints(modifier) {
@@ -95,9 +98,11 @@ fun CssText(
         val layout = remember(text, family, sizeSp, weight, lineHeight, widthPx, density, color, letterSpacing, AppFonts.useBundledCJK) {
             CssLayout.build(text, family, sizeSp, weight, lineHeight, widthPx, density, color, letterSpacing)
         }
+        // The widest line without its trailing space, rounded up to a whole pixel (the iOS twin's `ceil`).
+        val boxPx = if (fitsContent) minOf(layout.width, ceil((0 until layout.lineCount).maxOfOrNull { layout.getLineMax(it) } ?: 0f).toInt()) else layout.width
         Box(
             Modifier
-                .width((layout.width / density).let { androidx.compose.ui.unit.Dp(it) })
+                .width((boxPx / density).let { androidx.compose.ui.unit.Dp(it) })
                 .height(androidx.compose.ui.unit.Dp(layout.height / density))
                 .semantics { this.text = AnnotatedString(text) }
                 .drawBehind { drawIntoCanvas { layout.draw(it.nativeCanvas) } },

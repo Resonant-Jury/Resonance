@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -106,6 +108,8 @@ fun OrganicModal(
                 .fillMaxSize()
                 .background(Backdrop)
                 .plainClickable { onDismiss?.invoke() }
+                // Rises above the keyboard (a note or a report being typed), the card scrolling if it has to.
+                .imePadding()
                 .padding(16.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -174,6 +178,8 @@ fun OrganicConfirmDialog(
     onConfirm: () -> Unit,
     busy: Boolean = false,
     seed: Double = 67.0,
+    /** What went wrong, under the body (a block that didn't go through); the dialog stays for another try. */
+    error: String? = null,
 ) {
     OrganicModal(if (busy) null else onCancel, title, seed) {
         // ConfirmModal: 8 between title and body, 18 before the actions (14 + ModalActions' 4).
@@ -181,6 +187,15 @@ fun OrganicConfirmDialog(
             ModalTitle(title)
             ModalBody(body)
         }
+        if (error != null) BasicText(
+            error, style = AppFonts.body(13f, color = Mixes.Danger),
+            // ConfirmModal: 10 under the body and 14 above the actions; the column's 14 and the actions' 4 would make them 14 and 18.
+            modifier = Modifier.layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val tuck = 4.dp.roundToPx()
+                layout(placeable.width, placeable.height - 2 * tuck) { placeable.place(0, -tuck) }
+            },
+        )
         ModalActions {
             OrganicButton(cancelLabel, variant = ButtonVariant.Ghost, small = true, enabled = !busy, onClick = onCancel)
             OrganicButton(if (busy) "…" else confirmLabel, small = true, enabled = !busy, onClick = onConfirm)
@@ -196,10 +211,10 @@ fun ModalTitle(text: String) = BasicText(text, style = AppFonts.heading(20f, lin
 @Composable
 fun ModalBody(text: String, color: Color = Tokens.TextMuted) = BasicText(text, style = AppFonts.body(14f, lineHeight = 1.6f, color = color))
 
-/** Actions at the bottom right, 10 apart, a little air above. */
+/** Actions at the bottom right, 10 apart, a little air above (`topPadding`; a list that ends in its own padding asks for none). */
 @Composable
-fun ModalActions(content: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+fun ModalActions(topPadding: Dp = 4.dp, content: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = topPadding), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
         content()
     }
 }

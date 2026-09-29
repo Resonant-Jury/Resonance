@@ -20,6 +20,8 @@ class NotificationsStore {
         val fromHandle: String?,
         val cardId: String?,
         val preview: String?,
+        /** A note's id (to quote it when replying). */
+        val noteId: String?,
         val count: Int?,
         val readAt: Date?,
         val createdAt: Date?,
@@ -68,6 +70,7 @@ class NotificationsStore {
             fromHandle = payload["fromHandle"] as? String,
             cardId = payload["cardId"] as? String,
             preview = payload["preview"] as? String,
+            noteId = payload["noteId"] as? String,
             count = (payload["count"] as? Number)?.toInt(),
             readAt = doc.getTimestamp("readAt")?.toDate(),
             createdAt = doc.getTimestamp("createdAt")?.toDate(),

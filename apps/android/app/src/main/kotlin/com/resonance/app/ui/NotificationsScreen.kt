@@ -97,9 +97,17 @@ private fun textFor(item: NotificationsStore.Item): String {
     }
 }
 
-/** Where a notification leads (the web's hrefs). Conversations arrive in A4; until then the person's page stands in. */
+/**
+ * Where a notification leads (the web's hrefs, NotificationBell): these open the
+ * conversation with that person; a note arrives quoted, ready to answer.
+ */
 private fun routeFor(item: NotificationsStore.Item): Route? = when (item.type) {
     "translation_done", "card_link" -> item.cardId?.let(Route::Card)
-    "invite_accepted", "message", "resonance", "note" -> item.fromHandle?.let(Route::Author)
+    "note" -> item.fromHandle?.let { handle ->
+        val card = item.cardId
+        val note = item.noteId
+        if (card != null && note != null) Route.Thread(handle, card, note) else Route.Thread(handle)
+    }
+    "invite_accepted", "message", "resonance" -> item.fromHandle?.let { Route.Thread(it) }
     else -> null
 }

@@ -161,7 +161,7 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
                                 session, card.id,
                                 onResonate = { open(Route.Write(referenceCardId = card.id)) },
                                 onModify = { mine -> open(Route.Write(cardId = mine)) },
-                                onNote = { open(Route.Write()) },
+                                onUpgradeNote = { words -> open(Route.Write(referenceCardId = card.id, story = words)) },
                                 modifier = Modifier.padding(bottom = 40.dp),
                             )
                         }

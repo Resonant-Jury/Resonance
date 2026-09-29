@@ -462,21 +462,11 @@ fun OrganicTextField(
     // globals.css: every placeholder is the body face, italic, at the field's size and weight.
     val hint = AppFonts.oblique(AppFonts.body(if (display) 22f else 15f, if (display) 700 else 400, lineHeight = if (display) 1.35f else 1.6f, color = Tokens.Placeholder))
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        BasicText(label.uppercase(), style = AppFonts.body(Tokens.LabelSize, 600, lineHeight = 1.3f, color = Tokens.TextMuted).copy(letterSpacing = 0.06.em))
+        FieldLabel(label)
         Box(
             Modifier
                 .fillMaxWidth()
-                .drawWithCache {
-                    val shape = curve?.let { AutoWobRectShape(Tokens.RadiusMd.toDouble(), seed, it) } ?: WobRectShape(Tokens.RadiusMd.toDouble(), seed)
-                    val o = shape.createOutline(size, layoutDirection, this)
-                    val s = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-                    val r = CornerRadius(Tokens.RadiusMd.dp.toPx())
-                    onDrawBehind {
-                        // The web fills the field's plain rounded box; the pen line wobbles around it.
-                        drawRoundRect(Tokens.Cream, cornerRadius = r)
-                        drawOutline(o, if (focused) Tokens.Terracotta else Tokens.FieldBorder, style = s)
-                    }
-                }
+                .fieldSurface(seed, { focused }, curve)
                 .padding(horizontal = Tokens.FieldPadX.dp, vertical = Tokens.FieldPadY.dp),
         ) {
             if (value.isEmpty()) BasicText(placeholder, style = hint)
@@ -499,6 +489,34 @@ fun OrganicTextField(
         )
     }
 }
+
+/** Field.tsx's label: small caps in the muted ink, 10 above the control (the caller spaces it). */
+@Composable
+fun FieldLabel(text: String) {
+    BasicText(text.uppercase(), style = AppFonts.body(Tokens.LabelSize, 600, lineHeight = 1.3f, color = Tokens.TextMuted).copy(letterSpacing = 0.06.em))
+}
+
+/**
+ * The web Input/Textarea surface (HandDrawnDashedSurface R16): cream paper
+ * framed by a hand-drawn line (the size's own wobble, or a set `curve`) that
+ * darkens to terracotta while `focused`. Padding is the caller's
+ * (`Tokens.FieldPadX` × `FieldPadY`); `focused` is read while drawing, so a
+ * focus change redraws without recomposing.
+ */
+fun Modifier.fieldSurface(seed: Double = 13.0, focused: () -> Boolean = { false }, curve: Double? = null): Modifier = drawWithCache {
+    val shape = curve?.let { AutoWobRectShape(Tokens.RadiusMd.toDouble(), seed, it) } ?: WobRectShape(Tokens.RadiusMd.toDouble(), seed)
+    val o = shape.createOutline(size, layoutDirection, this)
+    val s = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+    val r = CornerRadius(Tokens.RadiusMd.dp.toPx())
+    onDrawBehind {
+        // The web fills the field's plain rounded box; the pen line wobbles around it.
+        drawRoundRect(Tokens.Cream, cornerRadius = r)
+        drawOutline(o, if (focused()) Tokens.Terracotta else Tokens.FieldBorder, style = s)
+    }
+}
+
+/** globals.css: every placeholder is the body face, italic, at the field's size and weight. */
+fun fieldHintStyle(size: Float = 15f, lineHeight: Float = 1.6f) = AppFonts.oblique(AppFonts.body(size, 400, lineHeight = lineHeight, color = Tokens.Placeholder))
 
 /** Solid page background. */
 fun Modifier.cream(): Modifier = background(Tokens.Cream)
