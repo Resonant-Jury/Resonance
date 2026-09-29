@@ -77,8 +77,14 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | `GET /api/v1/cards/{key}` (+ `/resonances`, `/related`, `/links`) · `POST …/report` | a card by slug or id with its story, and the lists around it; reporting it (the server fills in an anonymous author) |
 | `POST /api/v1/cards/{id}/publish` | publish your card: stamp once, slug (`assignSlug`, shared with `/api/cards/slug`), a resonance's connection + bell; index and cache after the response |
 | `GET /api/v1/users/{handle}` (+ `/cards`, `/links`) | a profile as the viewer sees it, their public cards, cards linking to theirs |
+| `POST /api/v1/cards/{id}/edits/apply` | apply a published card's pending edit (`cards/{id}/edits/current`) in one transaction, keeping its date and slug |
+| `POST /api/v1/notes` · `POST /api/v1/messages` | a note to a card's author (the server finds the author) · a message to a connection (opens the conversation; only the first rings the bell) |
+| `PUT/DELETE /api/v1/me/devices/{installationId}` | the apps' push registration: FCM token + UI language in `devices/{installationId}` (no client rule; purged with the account) |
+| `POST /api/notifications/{id}/push` | the web asks for the push of a bell row it just wrote from the browser (its sender only, while fresh) |
 | `POST /api/v1/invites` | S6 spike's write path (the web no longer sends invites) |
 | `GET /api/v1/openapi.json` | the v1 contract, for tools and client generators |
+
+**Push** (`src/lib/push`): every `notifications/*` row is also pushed to the recipient's devices through FCM (`pushNotification`: once-only via `pushedAt`, blocks re-checked, the bell's own `app.notifications.*` copy in each device's language, `data.route` a site path the apps open). Server writers call `ringAfter()` after their response; web writers that still write rows from the browser call `ringNotification(id)`. A new notification writer must do one or the other.
 
 API routes authenticate with the `__session` cookie **or** `Authorization: Bearer <Firebase ID token>` (native apps) — both via `getCurrentUser()`.
 
