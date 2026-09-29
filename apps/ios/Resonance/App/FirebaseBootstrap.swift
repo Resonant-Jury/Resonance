@@ -13,7 +13,8 @@ enum FirebaseBootstrap {
         if config.usesEmulator {
             let options = FirebaseOptions(contentsOfFile: Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")!)!
             options.projectID = emulatorProjectID
-            options.apiKey = "demo-key"
+            // A stand-in in the shape Firebase checks (39 characters, "A…"; Installations refuses others).
+            options.apiKey = "AIzaSyDemoResonanceLocalEmulators000000"
             FirebaseApp.configure(options: options)
             Auth.auth().useEmulator(withHost: config.emulatorHost, port: 9099)
             let settings = Firestore.firestore().settings

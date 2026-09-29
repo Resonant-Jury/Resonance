@@ -35,6 +35,7 @@ struct MainTabView: View {
     @State private var tab: AppTab = .feed
     @State private var paths: [AppTab: NavigationPath] = [:]
     @State private var writer = WriteLauncher()
+    private let push = PushCenter.shared
 
     private let tabs: [AppTab] = [.feed, .messages, .notifications, .cardBox]
     #if DEBUG
@@ -83,6 +84,18 @@ struct MainTabView: View {
             }
         }) { WriteScreen().environment(writer) }
         .onOpenURL(perform: open)
+        // A tapped push: its page, or the notifications when it has none (also after a cold start).
+        .onChange(of: push.opened, initial: true) { _, opened in
+            guard let opened else { return }
+            push.opened = nil
+            if let id = opened.notificationId { session.notifications.markRead(id: id) }
+            if let url = URL(string: opened.route, relativeTo: session.config.origin)?.absoluteURL,
+               Route(url: url, origin: session.config.origin) != nil {
+                open(url)
+            } else {
+                tab = .notifications
+            }
+        }
         #if DEBUG
         // `-route /card/<slug>` or `-route /u/<handle>` opens that page at launch (screen checks).
         .task {

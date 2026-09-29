@@ -103,6 +103,15 @@ async function exists(path: string): Promise<boolean> {
   return (await db.doc(path).get()).exists;
 }
 
+describe('scheduleAccountDeletion', () => {
+  it("stops pushing to the account's phones at once (its sessions are revoked, so the apps can't unregister)", async () => {
+    await seedWorld();
+    await scheduleAccountDeletion(db, 'alice');
+    expect(await exists('devices/alice-phone-1')).toBe(false);
+    expect(await exists('devices/bob-phone-1')).toBe(true);
+  });
+});
+
 describe('purgeAccount', () => {
   it('removes everything of the deleted user and nothing of anyone else', async () => {
     await seedWorld();

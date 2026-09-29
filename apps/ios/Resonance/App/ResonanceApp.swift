@@ -5,6 +5,7 @@ import SwiftUI
 
 @main
 struct ResonanceApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var session: SessionStore
 
     init() {

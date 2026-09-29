@@ -34,6 +34,7 @@ final class SessionStore {
     let writing: WritingAPI
     let notifications = NotificationsStore()
     let conversations = ConversationsStore()
+    let push = PushCenter.shared
     @ObservationIgnored private var listener: AuthStateDidChangeListenerHandle?
     @ObservationIgnored private let apple = AppleSignIn()
 
@@ -49,6 +50,7 @@ final class SessionStore {
         listener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             MainActor.assumeIsolated { self?.apply(user?.uid) }
         }
+        push.onToken = { [weak self] _ in Task { await self?.registerPush() } }
     }
 
     var reading: ReadingAPI { ReadingAPI(client: api) }
@@ -57,6 +59,7 @@ final class SessionStore {
     var drafts: DraftService? { uid.map(DraftService.init(uid:)) }
     var hints: HintService? { uid.map(HintService.init(uid:)) }
     var messaging: MessagingAPI { MessagingAPI(client: api) }
+    var pushAPI: PushAPI { PushAPI(client: api) }
     /// What the account signed in with (settings → account shows them read-only).
     var email: String? { Auth.auth().currentUser?.email }
     var phoneNumber: String? { Auth.auth().currentUser?.phoneNumber }
@@ -69,6 +72,24 @@ final class SessionStore {
         Strings.shared.language = language
         UserDefaults.standard.set(language.rawValue, forKey: Self.languageKey)
         languageEpoch += 1
+        // Pushes are written in the app's language.
+        Task { await registerPush() }
+    }
+
+    // MARK: - Push
+
+    /// This install gets the signed-in person's pushes (again, whenever the token or the language changes).
+    func registerPush() async {
+        guard phase == .signedIn, let token = push.token else { return }
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        do {
+            try await pushAPI.register(installationId: PushCenter.installationId, token: token,
+                                       language: Strings.shared.language, appVersion: version)
+        } catch {
+            #if DEBUG
+            print("Push registration failed: \(error)")
+            #endif
+        }
     }
 
     // MARK: - Account deletion
@@ -119,6 +140,10 @@ final class SessionStore {
             Task {
                 await loadMe()
                 await refreshDeletion()
+            }
+            Task {
+                await push.requestPermission()
+                await registerPush()
             }
         } else {
             notifications.stop()
@@ -192,8 +217,21 @@ final class SessionStore {
     }
 
     func signOut() {
-        try? Auth.auth().signOut()
-        GIDSignIn.sharedInstance.signOut()
+        let finish = {
+            try? Auth.auth().signOut()
+            GIDSignIn.sharedInstance.signOut()
+        }
+        guard push.token != nil, Auth.auth().currentUser != nil else { return finish() }
+        // This install stops getting the account's pushes: ask with the ID token
+        // it still has (usually cached), then sign out without waiting for the answer.
+        let origin = config.origin
+        Task {
+            let token = try? await Self.idToken()
+            finish()
+            guard let token else { return }
+            let api = PushAPI(client: ResonanceClient.make(APIConfiguration(origin: origin, idToken: { _ in token })))
+            try? await api.unregister(installationId: PushCenter.installationId)
+        }
     }
 
     private func signIn(_ work: @escaping () async throws -> Void) async {

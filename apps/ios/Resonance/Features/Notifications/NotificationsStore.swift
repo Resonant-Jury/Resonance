@@ -51,7 +51,13 @@ final class NotificationsStore {
 
     func markRead(_ item: Item) {
         guard item.isUnread else { return }
-        Firestore.firestore().collection("notifications").document(item.id)
+        markRead(id: item.id)
+    }
+
+    /// A tapped push reads its row (it may not have arrived in the list yet).
+    func markRead(id: String) {
+        if let item = items.first(where: { $0.id == id }), !item.isUnread { return }
+        Firestore.firestore().collection("notifications").document(id)
             .updateData(["readAt": FieldValue.serverTimestamp()])
     }
 
