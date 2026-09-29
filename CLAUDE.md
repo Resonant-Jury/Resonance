@@ -25,7 +25,7 @@ Seed the emulators with known test accounts: `npx tsx scripts/seed-emulator.ts`.
 
 ## Architecture
 
-**Resonance**（共振）is a multilingual social storytelling platform built around "story cards" — users write cards, respond to others by authoring a *resonance* (a response card with a `referenceCardId`, **not** a like), and form one-to-one connections via invites. Built with Next.js 15 (App Router) + React 19 + TypeScript 5.7 (strict). No Tailwind — all styling uses CSS Modules + CSS custom properties defined in `src/styles/tokens.css`. See `README.md` for the full architecture write-up (in Chinese).
+**Resonance**（共振）is a multilingual social storytelling platform built around "story cards" — users write cards, respond to others by authoring a *resonance* (a response card with a `referenceCardId`, **not** a like), and form one-to-one connections by resonating or leaving a note (older invites can still be answered, none are sent). Built with Next.js 15 (App Router) + React 19 + TypeScript 5.7 (strict). No Tailwind — all styling uses CSS Modules + CSS custom properties defined in `src/styles/tokens.css`. See `README.md` for the full architecture write-up (in Chinese).
 
 Stack: Firebase Auth + session cookies, Cloud Firestore, Cloudflare R2 (object storage), OpenAI (slugs/tags/illustrations), Tiptap 3 editor + react-markdown reader, SWR for client data fetching. Deployed on Vercel (region `hnd1`).
 
@@ -81,7 +81,6 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | `POST /api/v1/notes` · `POST /api/v1/messages` | a note to a card's author (the server finds the author) · a message to a connection (opens the conversation; only the first rings the bell) |
 | `PUT/DELETE /api/v1/me/devices/{installationId}` | the apps' push registration: FCM token + UI language in `devices/{installationId}` (no client rule; purged with the account) |
 | `POST /api/notifications/{id}/push` | the web asks for the push of a bell row it just wrote from the browser (its sender only, while fresh) |
-| `POST /api/v1/invites` | S6 spike's write path (the web no longer sends invites) |
 | `GET /api/v1/openapi.json` | the v1 contract, for tools and client generators |
 
 **Push** (`src/lib/push`): every `notifications/*` row is also pushed to the recipient's devices through FCM (`pushNotification`: once-only via `pushedAt`, blocks re-checked, the bell's own `app.notifications.*` copy in each device's language, `data.route` a site path the apps open). Server writers call `ringAfter()` after their response; web writers that still write rows from the browser call `ringNotification(id)`. A new notification writer must do one or the other.

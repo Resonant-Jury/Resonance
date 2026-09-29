@@ -5,8 +5,8 @@ import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import {
   acceptInvite,
+  declineInvite,
   listIncomingPendingInvites,
-  withdrawInvite,
 } from '@/lib/db/firestore/client/invites';
 import type { Invite } from '@/lib/db/types';
 
@@ -53,7 +53,7 @@ export function InvitesInbox() {
     setError(null);
     start(async () => {
       try {
-        await withdrawInvite(invite.id);
+        await declineInvite(invite.id);
         setItems((prev) => prev.filter((i) => i.id !== invite.id));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));

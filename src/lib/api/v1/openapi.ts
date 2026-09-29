@@ -157,17 +157,6 @@ export function buildOpenApi(): Json {
           responses: { '204': { description: 'Removed (or it was not yours)' }, ...errors(400, 401) },
         },
       },
-      '/invites': {
-        post: {
-          operationId: 'createInvite',
-          summary: 'Invite someone to connect (3 a day)',
-          requestBody: { required: true, ...json(ref('CreateInviteRequest')) },
-          responses: {
-            '201': { description: 'Created', ...json(ref('CreateInviteResponse')) },
-            ...errors(400, 401, 403, 404, 409, 429),
-          },
-        },
-      },
     },
     components: {
       securitySchemes: { firebaseIdToken: { type: 'http', scheme: 'bearer', bearerFormat: 'Firebase ID token' } },

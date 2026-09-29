@@ -20,6 +20,7 @@ import {
   serverTimestamp,
   setDoc,
   setLogLevel,
+  updateDoc,
   where,
   type Firestore,
 } from 'firebase/firestore';
@@ -178,9 +179,6 @@ describe('a block refuses contact in both directions', () => {
       addDoc(collection(db, 'conversations', PAIR, 'messages'), { senderId: 'bob', text: 'hi', sentAt: new Date() }),
     );
     await assertSucceeds(
-      addDoc(collection(db, 'invites'), { fromUserId: 'bob', toUserId: 'carol', status: 'pending' }),
-    );
-    await assertSucceeds(
       addDoc(collection(db, 'notifications'), {
         userId: 'alice',
         type: 'note',
@@ -265,6 +263,41 @@ describe('account deletion requests', () => {
   it('are invisible and unwritable from the client', async () => {
     await assertFails(getDoc(doc(as('alice'), 'accountDeletions', 'alice')));
     await assertFails(setDoc(doc(as('alice'), 'accountDeletions', 'alice'), { purgeAfter: new Date() }));
+  });
+});
+
+describe('legacy invites', () => {
+  const seedInvite = (status = 'pending') =>
+    seed(async (db) => {
+      await setDoc(doc(db, 'invites', 'i1'), { fromUserId: 'bob', toUserId: 'alice', message: 'hi', status });
+    });
+
+  it('can no longer be sent, nor their bell rung, by anyone', async () => {
+    await assertFails(addDoc(collection(as('bob'), 'invites'), { fromUserId: 'bob', toUserId: 'carol', status: 'pending' }));
+    await seedInvite();
+    await assertFails(
+      addDoc(collection(as('bob'), 'notifications'), {
+        userId: 'alice',
+        type: 'invite',
+        payload: { fromUserId: 'bob', inviteId: 'i1' },
+        readAt: null,
+      }),
+    );
+  });
+
+  it('are answered by their recipient only, and withdrawn by either side, while pending', async () => {
+    await seedInvite();
+    await assertFails(updateDoc(doc(as('bob'), 'invites', 'i1'), { status: 'accepted' }));
+    await assertFails(updateDoc(doc(as('carol'), 'invites', 'i1'), { status: 'withdrawn' }));
+    await assertSucceeds(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'declined' }));
+    // Closed: nothing reopens or re-answers it.
+    await assertFails(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'accepted' }));
+    await assertFails(updateDoc(doc(as('bob'), 'invites', 'i1'), { status: 'withdrawn' }));
+
+    await seedInvite();
+    await assertSucceeds(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'accepted' }));
+    await seedInvite();
+    await assertSucceeds(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'withdrawn' })); // a block does this
   });
 });
 

@@ -14,6 +14,7 @@ import {
 import type { Invite } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getCurrentUserHandle } from './profile';
+import { isConnected } from './reads';
 import { getClientDb } from './init';
 import { ringNotification } from './push';
 
@@ -55,11 +56,17 @@ export async function acceptInvite(inviteId: string): Promise<string> {
     const connectionId = sortedConnectionId(uid, otherUid);
     const connectionRef = doc(db, 'connections', connectionId);
 
+    // Already connected (a resonance or a note did it since): keep that connection
+    // as it is — rewriting it would be an update, which the rules refuse. (Not a
+    // transactional read: the rules deny reading a connection that doesn't exist.)
+    const already = await isConnected(uid, otherUid);
     tx.update(inviteRef, { status: 'accepted' });
-    tx.set(connectionRef, {
-      userIds: uid < otherUid ? [uid, otherUid] : [otherUid, uid],
-      establishedAt: serverTimestamp(),
-    });
+    if (!already) {
+      tx.set(connectionRef, {
+        userIds: uid < otherUid ? [uid, otherUid] : [otherUid, uid],
+        establishedAt: serverTimestamp(),
+      });
+    }
     tx.set(bell, {
       userId: otherUid,
       type: 'invite_accepted',
@@ -72,6 +79,21 @@ export async function acceptInvite(inviteId: string): Promise<string> {
   });
   ringNotification(bell.id);
   return connected;
+}
+
+/** The recipient says no: the invite closes, no connection, no notification. */
+export async function declineInvite(inviteId: string): Promise<void> {
+  const uid = requireUid();
+  const db = getClientDb();
+  await runTransaction(db, async (tx) => {
+    const ref = doc(db, 'invites', inviteId);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('Invite not found');
+    const data = snap.data();
+    if (data.toUserId !== uid) throw new Error('Only the recipient can decline');
+    if (data.status !== 'pending') throw new Error('Invite no longer pending');
+    tx.update(ref, { status: 'declined' });
+  });
 }
 
 export async function withdrawInvite(inviteId: string): Promise<void> {

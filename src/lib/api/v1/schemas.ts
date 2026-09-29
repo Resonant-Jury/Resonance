@@ -142,8 +142,6 @@ export const Profile = named(
   'Profile',
 );
 
-export const INVITE_MESSAGE_MAX = 500;
-
 /**
  * A user or card id as the client sends it. Ids become Firestore document
  * paths on the server, so a `/` would let a caller point a read at another
@@ -154,16 +152,6 @@ const DocId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Not a valid id.');
 
 // Optional request fields accept `null` as "absent": generated clients differ
 // (Swift omits a nil field, Kotlin's kotlinx.serialization sends `null`).
-export const CreateInviteRequest = named(
-  z.object({
-    toUserId: DocId,
-    message: z.string().trim().min(1).max(INVITE_MESSAGE_MAX),
-    referenceCardId: DocId.nullish(),
-  }),
-  'CreateInviteRequest',
-);
-
-export const CreateInviteResponse = named(z.object({ id: z.string() }), 'CreateInviteResponse');
 
 /** The web's limits: a pen name of 2–20 characters (any script), an 80-character bio. */
 export const HANDLE_MIN = 2;
@@ -321,7 +309,6 @@ export type AuthorBody = z.infer<typeof Author>;
 export type CardDetailBody = z.infer<typeof CardDetail>;
 export type ProfileBody = z.infer<typeof Profile>;
 export type CardBoxTabName = z.infer<typeof CardBoxTab>;
-export type CreateInviteInput = z.infer<typeof CreateInviteRequest>;
 export type CreateProfileInput = z.infer<typeof CreateProfileRequest>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileRequest>;
 export type ReportCardInput = z.infer<typeof ReportCardRequest>;

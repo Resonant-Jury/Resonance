@@ -230,16 +230,20 @@ service cloud.firestore {
     match /invites/{inviteId} {
       allow read: if signedIn()
         && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
-      allow create: if signedIn()
-        && request.resource.data.fromUserId == request.auth.uid
-        && request.resource.data.status == "pending"
-        && !blockedBetween(request.auth.uid, request.resource.data.toUserId);
+      // Legacy: nothing sends invites any more (a resonance or a note connects
+      // people), so none can be created; the pending ones are answered.
+      allow create: if false;
       allow update: if signedIn()
+        && resource.data.status == "pending"
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
         && (
-          resource.data.fromUserId == request.auth.uid
-          || resource.data.toUserId == request.auth.uid
-        )
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"]);
+          // Either side may withdraw it (blocking does, in both directions)…
+          ((resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid)
+            && request.resource.data.status == "withdrawn")
+          // …and only its recipient answers it.
+          || (resource.data.toUserId == request.auth.uid
+            && request.resource.data.status in ["accepted", "declined"])
+        );
       allow delete: if false;
     }
 
@@ -310,15 +314,8 @@ service cloud.firestore {
     // --- notifications ---
     // Recipients can read and mark their own notifications read.
     // Limited client-create is allowed for events the sender already has
-    // permission to perform (e.g. inviting someone, marking a resonance):
-    //   * type == "invite"             -> payload.fromUserId == auth.uid
-    //   * type == "resonance_summary"  -> created by trusted writer only
-    //   * type == "translation_done"   -> created by trusted writer only
-    function notificationIsInviteSender() {
-      return request.resource.data.type == "invite"
-        && request.resource.data.payload.fromUserId == request.auth.uid
-        && request.resource.data.userId != request.auth.uid;
-    }
+    // permission to perform (marking a resonance, sending a note); the rest
+    // ("invite", "resonance_summary", "translation_done") only the server writes.
     // Interaction notifications (resonance / comment / card_link): the actor
     // creates a notification addressed to someone else, stamped with their uid.
     function actorNotif(type) {
@@ -332,8 +329,7 @@ service cloud.firestore {
         && request.resource.data.readAt == null
         && !blockedBetween(request.auth.uid, request.resource.data.userId)
         && (
-          notificationIsInviteSender()
-          || actorNotif("resonance")
+          actorNotif("resonance")
           || actorNotif("card_link")
           // Accepting an invite notifies the original sender that the
           // connection is live ("you're connected now").

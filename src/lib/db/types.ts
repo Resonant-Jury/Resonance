@@ -121,7 +121,7 @@ export interface Invite {
   toUserId: string;
   message: string;
   referenceCardId?: string;
-  status: 'pending' | 'accepted' | 'expired' | 'withdrawn';
+  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'withdrawn';
   expiresAt: Date;
   createdAt: Date;
 }

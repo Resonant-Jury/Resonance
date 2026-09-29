@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // and never when the write failed or there was no row.
 vi.mock('./init', () => ({ getClientDb: vi.fn(() => ({})) }));
 vi.mock('./profile', () => ({ getCurrentUserHandle: vi.fn(async () => 'alice') }));
+vi.mock('./reads', () => ({ isConnected: vi.fn(async () => false) }));
 vi.mock('@/lib/auth/firebase/client', () => ({
   getFirebaseClientAuth: vi.fn(() => ({ currentUser: { uid: 'alice' } })),
 }));
@@ -43,7 +44,7 @@ import { notifyConversationStarted } from './messages';
 import { acceptInvite } from './invites';
 import { createCardLink } from './cardLinks';
 
-const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
+const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 202 }));
 const rung = () => fetchMock.mock.calls.map(([url]) => url);
 
 beforeEach(() => {
