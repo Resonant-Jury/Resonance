@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.api.models.CardDetail
 import com.resonance.api.models.FeedCard
 import com.resonance.app.SafetyService
@@ -65,9 +66,9 @@ import com.resonance.kit.l10n.L10n
 import com.resonance.kit.story.StoryBlock
 import com.resonance.kit.story.StoryParser
 
-/** A card's page (card/[slug]/page.tsx, phone layout). */
+/** A card's page (card/[slug]/page.tsx, phone layout); `popToRoot` is where a deleted card leaves to. */
 @Composable
-fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () -> Unit) {
+fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: () -> Unit, back: () -> Unit) {
     var phase by remember(key) { mutableStateOf("loading") }
     var detail by remember(key) { mutableStateOf<CardDetail?>(null) }
     var blocks by remember(key) { mutableStateOf<List<StoryBlock>>(emptyList()) }
@@ -79,9 +80,12 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () ->
     val uri = LocalUriHandler.current
     val context = LocalContext.current
     val list = rememberLazyListState()
+    // Edited, published or re-shelved from the writer or the ⋯: read it again.
+    val changes by session.cardChanges.collectAsStateWithLifecycle()
 
-    LaunchedEffect(key, attempt) {
-        phase = "loading"
+    LaunchedEffect(key, attempt, changes) {
+        // A first read (or a retry) shows the skeleton; a re-read keeps the page while it goes.
+        if (phase != "loaded") phase = "loading"
         try {
             val d = session.reading.card(key)
             detail = d
@@ -139,17 +143,27 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () ->
                                     card.title, AppFonts.Family.Heading, 28f, 700, lineHeight = 1.2f, letterSpacing = -0.015f,
                                     modifier = Modifier.weight(1f).semantics { heading() },
                                 )
-                                // The reader's ⋯ sits beside the title, as on the web.
+                                // The ⋯ sits beside the title, as on the web: the owner's actions, or the reader's safety menu.
                                 val authorId = card.author?.id
-                                if (!d.isOwner && !d.anonymous && authorId != null) {
-                                    SafetyMenu(session, SafetyService.Target.Card(card.id, authorId), card.author?.handle, seed = (card.accentHue ?: 55.0) + 3)
+                                val menuSeed = (card.accentHue ?: 55.0) + 3
+                                if (d.isOwner) {
+                                    // Its own page is underneath the writer, so the card isn't opened again on the way out.
+                                    CardActionsMenu(session, card.id, card.visibility.value, card.routeKey, open, seed = menuSeed, showsCard = false, onDeleted = popToRoot)
+                                } else if (!d.anonymous && authorId != null) {
+                                    SafetyMenu(session, SafetyService.Target.Card(card.id, authorId), card.author?.handle, seed = menuSeed)
                                 }
                             }
                             StoryMarkdown(blocks, openUrl) { href, title -> CardEmbed(session, href, title, open) }
                             FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
                             }
-                            if (!d.isOwner) CardViewerActions(session, card.id, { open(Route.Write(referenceCardId = card.id)) }, { open(Route.Write()) }, Modifier.padding(bottom = 40.dp))
+                            if (!d.isOwner) CardViewerActions(
+                                session, card.id,
+                                onResonate = { open(Route.Write(referenceCardId = card.id)) },
+                                onModify = { mine -> open(Route.Write(cardId = mine)) },
+                                onNote = { open(Route.Write()) },
+                                modifier = Modifier.padding(bottom = 40.dp),
+                            )
                         }
                     }
                     if (d.isOwner && linked.isNotEmpty()) {
@@ -178,8 +192,11 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, back: () ->
         }
     }
     // The web's pen sits on the card page too: bottom right, 20 in.
+    // On your own card the pen edits it (FloatingWriteButton's editsOwnCard), then comes back here.
     detail?.let { d ->
-        FloatingWriteButton(if (d.isOwner) L10n.App.Nav.editThisCard else L10n.App.Nav.write, Modifier.align(Alignment.BottomEnd)) { open(Route.Write()) }
+        FloatingWriteButton(if (d.isOwner) L10n.App.Nav.editThisCard else L10n.App.Nav.write, Modifier.align(Alignment.BottomEnd)) {
+            open(if (d.isOwner) Route.Write(cardId = d.card.id, showsCard = false) else Route.Write())
+        }
     }
     }
 }

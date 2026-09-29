@@ -29,28 +29,61 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
+import com.resonance.design.ButtonVariant
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicIcon
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
 import com.resonance.kit.l10n.L10n
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * The reader's actions under a story (ReadAfterArea → CardViewerActions, the
- * phone layout): 共振 as the one primary button, then the note as a quiet
- * text link and the bookmark as a bare glyph. The twin of iOS's
- * CardViewerActions; resonating starts a response card, and the note opens
- * the writer until notes land (M4).
+ * phone layout): 共振 as the one primary button — or, once you have answered
+ * this card, 修改 in outline opening your own resonance (`onModify`) — then
+ * the note as a quiet text link and the bookmark as a bare glyph. The twin of
+ * iOS's CardViewerActions; resonating starts a response card, and the note
+ * opens the writer until notes land (M4).
  */
 @Composable
-fun CardViewerActions(session: Session, cardId: String, onResonate: () -> Unit, onNote: () -> Unit, modifier: Modifier = Modifier) {
+fun CardViewerActions(
+    session: Session,
+    cardId: String,
+    onResonate: () -> Unit,
+    onModify: (resonanceId: String) -> Unit,
+    onNote: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Your card answering this one (draft or published); null while looking, "" when there is none.
+    var mine by remember(cardId) { mutableStateOf<String?>(null) }
+    // Again after the writer (or the ⋯) changed a card.
+    val changes by session.cardChanges.collectAsStateWithLifecycle()
+    LaunchedEffect(cardId, changes) {
+        // Signed out: nothing to find. A failed lookup stays dimmed, as on the web —
+        // better than risking a second resonance.
+        val drafts = session.drafts
+        mine = if (drafts == null) "" else try {
+            drafts.myResonance(cardId) ?: ""
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        OrganicButton(L10n.Card.resonate, icon = IconName.Wave, onClick = onResonate)
+        val answered = mine
+        // Wait for the lookup, so a second resonance can't be started by accident (dimmed to 0.6 and inert meanwhile).
+        if (!answered.isNullOrEmpty()) {
+            OrganicButton(L10n.Card.modify, variant = ButtonVariant.Outline, icon = IconName.Pen) { onModify(answered) }
+        } else {
+            OrganicButton(L10n.Card.resonate, icon = IconName.Wave, enabled = answered != null, onClick = onResonate)
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             // The web's secondaryOutline with its frame hidden: a link.
             Row(

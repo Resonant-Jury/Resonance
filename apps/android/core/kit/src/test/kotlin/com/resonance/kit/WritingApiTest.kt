@@ -43,6 +43,41 @@ class WritingApiTest {
         assertEquals("Bearer stale-token", request.getHeader("Authorization"))
     }
 
+    @Test fun appliesAPendingEditThroughTheContract() = runBlocking {
+        server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("""{"id":"c1","slug":"a-walk","applied":true,"later":1}"""))
+        val result = api().applyEdit("c1")
+        assertEquals(true, result.applied)
+        assertEquals("a-walk", result.slug)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/v1/cards/c1/edits/apply", request.path)
+        assertEquals("Bearer stale-token", request.getHeader("Authorization"))
+    }
+
+    @Test fun aRefusedEditIsTheContractsError() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(404).setHeader("Content-Type", "application/json")
+                .setBody("""{"error":{"code":"not_found","message":"No such card."}}"""),
+        )
+        assertEquals(true, assertFailsWith<ApiFailure> { api().applyEdit("nope") }.isNotFound)
+    }
+
+    @Test fun asksTheSiteToRefreshItsPages() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"ok":true,"revalidated":[]}"""))
+        api().revalidate(listOf("/card/a-walk"))
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/revalidate", request.path)
+        val sent = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+        assertEquals(listOf("/card/a-walk"), sent["paths"]!!.jsonArray.map { it.jsonPrimitive.content })
+    }
+
+    @Test fun aFailedRefreshIsNotAnError() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(500))
+        api().revalidate(listOf("/card/a-walk"))
+        assertEquals(1, server.requestCount)
+    }
+
     @Test fun uploadsThePhotoAsTheFormsFilePart() = runBlocking {
         server.enqueue(MockResponse().setBody("""{"publicUrl":"https://img.test/u/alice/cover.avif","key":"u/alice/cover.avif"}"""))
         val photo = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1, 2)

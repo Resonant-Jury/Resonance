@@ -1,7 +1,9 @@
 package com.resonance.kit.api
 
 import com.resonance.api.apis.DefaultApi
+import com.resonance.api.models.ApplyEditResponse
 import com.resonance.api.models.PublishResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -34,6 +36,29 @@ class WritingApi(private val configuration: ApiConfiguration, http: OkHttpClient
      * connects a resonance to its original (POST /api/v1/cards/{id}/publish).
      */
     suspend fun publish(cardId: String): PublishResponse = call { api.publishCard(cardId) }
+
+    /**
+     * Applies your pending edit to your published card and clears it; its
+     * date and slug stay (POST /api/v1/cards/{id}/edits/apply).
+     */
+    suspend fun applyEdit(cardId: String): ApplyEditResponse = call { api.applyCardEdit(cardId) }
+
+    @Serializable private data class RevalidateBody(val paths: List<String>)
+
+    /**
+     * Asks the site to refresh its cached pages (/api/revalidate, e.g.
+     * `/card/{slug}`, `/me`) after a change the site can't see — a grace
+     * note, never awaited for success: a failure is dropped.
+     */
+    suspend fun revalidate(paths: List<String>) {
+        try {
+            post("api/revalidate", json.encodeToString(RevalidateBody.serializer(), RevalidateBody(paths)).toRequestBody(JSON))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The cache entry simply ages out on its own.
+        }
+    }
 
     @Serializable private data class TagsBody(val thoughtCore: String, val story: String, val tags: List<String>)
     @Serializable private data class TagsReply(val tags: List<String>)

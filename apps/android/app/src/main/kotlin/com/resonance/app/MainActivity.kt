@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 /**
  * Debug launch extras (the twins of the iOS launch arguments):
  *   --ez emulator true             use the local Firebase emulators + dev server
- *   --es email … --es password …   sign that seeded account in (emulator only)
+ *   --es email … --es password …   sign that seeded account in, switching from a restored one (emulator only)
  *   --es route /card/<slug>        open that page
  *   --es writeTitle … --es writeStory … --es writeCover <url>   a new card starts with them
  */
@@ -30,7 +30,8 @@ class MainActivity : ComponentActivity() {
         if (emulator) {
             val email = intent.getStringExtra("email")
             val password = intent.getStringExtra("password")
-            if (email != null && password != null && AppFirebase.auth.currentUser == null) {
+            // Switches from whoever was restored to the requested account.
+            if (email != null && password != null && !AppFirebase.auth.currentUser?.email.equals(email, ignoreCase = true)) {
                 lifecycleScope.launch { session.signIn(email, password) }
             }
         }

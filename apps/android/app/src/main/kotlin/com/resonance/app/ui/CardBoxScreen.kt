@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -32,12 +34,17 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.api.apis.DefaultApi.TabGetCardBox
 import com.resonance.api.models.FeedCard
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
+import com.resonance.design.CardPalette
+import com.resonance.design.StoryCard
+import com.resonance.design.TagPill
+import com.resonance.design.TagSize
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicEmptyState
@@ -64,7 +71,9 @@ import kotlinx.coroutines.launch
 fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     val profile by session.profile.collectAsStateWithLifecycle()
     var shelf by rememberSaveable { mutableStateOf(TabGetCardBox.published) }
-    val shelves = remember { mutableStateMapOf<TabGetCardBox, List<FeedCard>>() }
+    // The writer or a card's ⋯ changed something: every shelf may have moved, so they are read again.
+    val changes by session.cardChanges.collectAsStateWithLifecycle()
+    val shelves = remember(changes) { mutableStateMapOf<TabGetCardBox, List<FeedCard>>() }
     var failed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -74,7 +83,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
             .onSuccess { shelves[s] = it; failed = false }
             .onFailure { failed = true }
     }
-    LaunchedEffect(shelf) { load(shelf) }
+    LaunchedEffect(shelf, changes) { load(shelf) }
 
     TabScreen(L10n.App.Nav.me) {
         item {
@@ -107,11 +116,55 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
         when {
             cards == null && failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { load(shelf, force = true) } }, action = EmptyAction.Outline) }
             cards == null -> storyCardSkeletons(6)
-            // ProfileTabs' empty shelf: one muted line, centred; its "write" CTA waits for the editor (A3).
-            cards.isEmpty() -> item { OrganicEmptyState(emptyText(shelf), verticalPadding = 40.dp) }
+            // ProfileTabs' empty shelf: one muted line, centred; the empty published shelf
+            // also points at the first story (ux §4).
+            cards.isEmpty() -> item {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 40.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    BasicText(emptyText(shelf), style = AppFonts.body(16f, lineHeight = 1.6f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center))
+                    if (shelf == TabGetCardBox.published) OrganicButton(L10n.Me.emptyPublishedCta) { open(Route.Write()) }
+                }
+            }
             // The linked shelf lists the pared-back cards, as the web's MiniCardGrid does.
             shelf == TabGetCardBox.linked -> miniCards(cards, open, keyPrefix = "linked:")
+            shelf in OwnedShelves -> managedCards(session, cards, open, resumesDrafts = shelf == TabGetCardBox.draft)
             else -> storyCards(cards, open)
+        }
+    }
+}
+
+/** The shelves of my own cards (OWNED_TABS): each card gets its ⋯. */
+private val OwnedShelves = setOf(TabGetCardBox.published, TabGetCardBox.`private`, TabGetCardBox.draft)
+
+/**
+ * My own cards (ProfileTabs' managed shelves): each with the owner's ⋯ over
+ * its top-right corner, and the anonymous badge under an anonymous one (my
+ * own byline shows on it here — the badge marks it instead). A draft has no
+ * page yet, so tapping it resumes writing.
+ */
+private fun LazyListScope.managedCards(session: Session, cards: List<FeedCard>, open: (Route) -> Unit, resumesDrafts: Boolean) {
+    itemsIndexed(cards, key = { _, c -> c.id }) { i, card ->
+        val hue = CardPalette(card.accentHue, i).hue
+        Column(Modifier.fillMaxWidth()) {
+            Box {
+                StoryCard(
+                    card.story(), i, i == cards.lastIndex,
+                    Modifier.plainClickable { open(if (resumesDrafts) Route.Write(cardId = card.id) else Route.Card(card.routeKey)) },
+                )
+                // The chip 14 in from the card's corner (the card's box sits 20 in from the screen);
+                // the trigger's 44dp hit box reaches 3 past the 38dp chip.
+                Box(Modifier.align(Alignment.TopEnd).padding(top = 14.dp - 3.dp, end = 34.dp - 3.dp)) {
+                    CardActionsMenu(session, card.id, card.visibility.value, card.routeKey, open, seed = hue, hue = hue)
+                }
+            }
+            if (card.anonymous) {
+                Box(Modifier.padding(start = 34.dp, end = 34.dp, top = 8.dp, bottom = 4.dp)) {
+                    TagPill(L10n.Me.anonymousBadge, fill = Tokens.CreamDark, size = TagSize.Sm)
+                }
+            }
         }
     }
 }

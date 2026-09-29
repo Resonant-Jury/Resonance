@@ -26,6 +26,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -37,22 +38,35 @@ import kotlinx.coroutines.withContext
 /**
  * The writing screen's state and its work (CardEditor): the draft's values,
  * autosave a moment after typing stops, AI tags, the cover photo, publishing.
+ * Opened on a published card it revises instead: autosave buffers the
+ * working copy privately and "Save changes" puts it in front of readers.
  * The twin of iOS's WriteModel. It owns its scope so the last save still
  * lands after the screen is gone ([leave]).
  */
 class WriteModel(
     private val drafts: DraftService?,
     private val writing: WritingApi,
-    /** The card this one resonates with, if any (a response card). */
-    val referenceCardId: String?,
+    referenceCardId: String?,
     val editor: StoryEditorBridge,
+    /** One of your cards to edit: a draft to resume, or a live card to revise. */
+    opened: DraftService.OpenedCard? = null,
 ) {
-    var values by mutableStateOf(DraftValues())
+    /** The card this one resonates with, if any (a response card). */
+    val referenceCardId: String? = opened?.referenceCardId ?: referenceCardId
+    var values by mutableStateOf(opened?.values ?: DraftValues())
         private set
-    var draftId: String? = null
+    var draftId: String? = opened?.id
         private set
     var savedAt by mutableStateOf<LocalTime?>(null)
         private set
+    /** Revising a live card (fixed for the model's lifetime, as on the web). */
+    val isPublished: Boolean = opened?.isPublished ?: false
+    /** A revision is waiting in the buffer — only its author can see it. */
+    var hasPendingEdit by mutableStateOf(opened?.hasPendingEdit ?: false)
+        private set
+    /** The published card's slug (its page lives at slug ?: id). */
+    val slug: String? = opened?.slug
+    private val editing = opened != null
     var tagDraft by mutableStateOf("")
     var suggestingTags by mutableStateOf(false)
         private set
@@ -79,25 +93,43 @@ class WriteModel(
     private var saveJob: Job? = null
     /** Writes run one after another, so a slow create can't race the next update. */
     private val writes = Mutex()
-    /** What the last successful write stored; leaving right after a save doesn't write again. */
-    private var lastSaved: DraftValues? = null
+    /** What the last successful write stored; an unchanged working copy isn't written again (and opening a card writes nothing). */
+    private var lastSaved: DraftValues? = opened?.values
 
     init {
+        opened?.let { editor.setMarkdown(it.values.story) }
         editor.onChange = { story -> update { copy(story = story) } }
     }
+
+    /** The page title: a new card, a draft being resumed, or a live card being revised. */
+    val title: String
+        get() = when {
+            !editing -> L10n.Write.title
+            isPublished -> L10n.Write.editPublishedTitle
+            else -> L10n.Write.editTitle
+        }
+
+    /** The card's page: its slug, or its id (a draft, or a card without one). */
+    val routeKey: String? get() = slug ?: draftId
 
     fun update(change: DraftValues.() -> DraftValues) {
         val next = values.change()
         if (next == values) return
         values = next
+        scheduleSave()
+    }
+
+    // Autosave
+
+    private fun scheduleSave() {
         saveJob?.cancel()
+        // Only the wait can be cancelled: a write that has begun always finishes, so
+        // a create can't lose its id and a second save can't create a duplicate draft.
         saveJob = scope.launch {
             delay(AUTOSAVE_DELAY_MS)
             save()
         }
     }
-
-    // Autosave
 
     /** Writes the draft now (creating it the first time there is something to keep); returns its id. */
     suspend fun saveNow(): String? {
@@ -105,22 +137,35 @@ class WriteModel(
         return save()
     }
 
-    private suspend fun save(): String? = writes.withLock {
-        val drafts = drafts ?: return@withLock draftId
+    /** The app is going to the background: what is written now is saved now, not 1.5s later (the web's visibilitychange flush). */
+    fun flush() {
+        scope.launch { saveNow() }
+    }
+
+    private suspend fun save(): String? = writes.withLock { withContext(NonCancellable) { write() } }
+
+    private suspend fun write(): String? {
+        val drafts = drafts ?: return draftId
         val v = values
-        if (v.isEmpty && draftId == null) return@withLock null
-        if (v == lastSaved) return@withLock draftId
+        if (v.isEmpty && draftId == null) return null
+        if (v == lastSaved) return draftId
         try {
             val id = draftId
-            if (id != null) drafts.update(id, v) else draftId = drafts.create(v, Strings.language.tag, referenceCardId)
+            if (isPublished && id != null) {
+                // A live card: the revision waits privately in its buffer.
+                drafts.saveEdit(id, v)
+                hasPendingEdit = true
+            } else if (id != null) {
+                drafts.update(id, v)
+            } else {
+                draftId = drafts.create(v, Strings.language.tag, referenceCardId)
+            }
             lastSaved = v
             savedAt = LocalTime.now()
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
             // Kept in memory; the next edit (or leaving) tries again.
         }
-        draftId
+        return draftId
     }
 
     /** The screen is going away: the last edit is saved, then the model stops. */
@@ -135,10 +180,32 @@ class WriteModel(
         }
     }
 
-    /** "Draft saved · 14:32", or the hint that drafts save themselves. */
+    /**
+     * The first-card guide's question, as the story to write against: it is
+     * the starting point, not writing — nothing is saved until the user adds to it.
+     */
+    fun seed(story: String) {
+        editor.setMarkdown(story)
+        val before = values
+        values = before.copy(story = story)
+        // Nothing else waiting to be written: the seed becomes the baseline. (Anything the
+        // user had typed before picking is still owed a save, so its timer runs.)
+        if (before == lastSaved || (draftId == null && before.isEmpty)) lastSaved = values else scheduleSave()
+    }
+
+    /**
+     * One line of plain reassurance under the page title: what has happened
+     * and, for a live card, what has not happened yet.
+     */
     val saveStatus: String
-        get() = savedAt?.let { L10n.Write.autosaved(it.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Strings.language.locale))) }
-            ?: L10n.Write.autosaveHint
+        get() {
+            val time = savedAt?.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Strings.language.locale))
+            if (isPublished) {
+                if (time != null) return L10n.Write.editBuffered(time)
+                return if (hasPendingEdit) L10n.Write.editBufferedIdle else L10n.Write.editLiveHint
+            }
+            return if (time != null) L10n.Write.autosaved(time) else L10n.Write.autosaveHint
+        }
 
     // Tags
 
@@ -269,9 +336,38 @@ class WriteModel(
         return result.slug ?: result.id
     }
 
+    /**
+     * Save changes: the working copy (with the panel's choices) goes into the
+     * buffer, then the server makes it the live card — the moment an edit
+     * reaches readers. The publish date stays. Returns where the card lives.
+     */
+    suspend fun applyEdit(visibility: String, anonymous: Boolean): String {
+        update { copy(visibility = visibility, anonymous = anonymous) }
+        val id = draftId ?: throw ApiFailure("not_found", "No such card.", null)
+        saveNow()
+        // The server applies what is in the buffer: a save that didn't land must stop here.
+        if (values != lastSaved) throw ApiFailure("internal", L10n.Native.saveError, null)
+        val result = writing.applyEdit(id)
+        hasPendingEdit = false
+        return result.slug ?: slug ?: id
+    }
+
+    /** Discard changes: the buffer goes; the live card was never touched. Returns where the card lives. */
+    suspend fun discardEdit(): String {
+        val id = draftId
+        val drafts = drafts
+        if (id == null || drafts == null) throw ApiFailure("not_found", "No such card.", null)
+        saveJob?.cancel()
+        // Behind any autosave in flight, so a straggling write can't re-create the buffer.
+        writes.withLock { drafts.discardEdit(id) }
+        hasPendingEdit = false
+        lastSaved = values
+        return slug ?: id
+    }
+
     companion object {
-        /** CardEditor's AUTOSAVE_DELAY_MS. */
-        const val AUTOSAVE_DELAY_MS = 800L
+        /** CardEditor's AUTOSAVE_DELAY_MS (leaving, or going to the background, saves at once). */
+        const val AUTOSAVE_DELAY_MS = 1500L
         const val TITLE_MAX = 60
     }
 }

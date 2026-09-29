@@ -126,9 +126,24 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                     }
                     if (p.isBlocked) {
                         item { BlockedNotice(session, a.id, a.handle) { reload++ } }
-                    } else if (cards.isNotEmpty()) {
+                    } else if (cards.isNotEmpty() || p.isSelf) {
                         item { SectionHeading(L10n.Profile.publishedHeading) }
-                        storyCards(cards, open) {
+                        if (cards.isEmpty()) {
+                            // The owner's empty page teaches rather than apologizes.
+                            item {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                                ) {
+                                    BasicText(
+                                        L10n.Profile.emptyPublishedSelf,
+                                        style = AppFonts.body(15f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
+                                    )
+                                    OrganicButton(L10n.Profile.emptyPublishedCta) { open(Route.Write()) }
+                                }
+                            }
+                        } else storyCards(cards, open) {
                             cursor?.let { c ->
                                 cursor = null
                                 scope.launch { runCatching { session.reading.profileCards(handle, cursor = c) }.onSuccess { cards = cards + it.cards; cursor = it.nextCursor } }

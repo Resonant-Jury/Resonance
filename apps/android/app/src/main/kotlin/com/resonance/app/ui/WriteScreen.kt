@@ -61,12 +61,18 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.resonance.api.apis.DefaultApi.TabGetCardBox
 import com.resonance.api.models.FeedCard
 import com.resonance.app.BuildConfig
 import com.resonance.app.DebugLaunch
+import com.resonance.app.DraftService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
+import com.resonance.design.CssText
+import com.resonance.design.EmptyAction
+import com.resonance.design.OrganicEmptyState
 import com.resonance.design.ButtonVariant
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.Mixes
@@ -99,16 +105,50 @@ import kotlinx.coroutines.launch
  * story in the editor island under the web's text toolbar, tags with the AI
  * pill, the cover photo, then Publish (through the publish panel) or leave
  * with the draft saved. Drafts save themselves a moment after typing stops.
- * The twin of iOS's WriteScreen; `onPublished` gets the card's slug or id.
+ * Opened on one of your cards (`cardId`, write/[id]) it resumes a draft, or
+ * revises a published card: then Save changes / Discard changes.
+ * The twin of iOS's WriteScreen; `onFinished` gets the card's slug or id.
  */
 @Composable
-fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, onPublished: (String) -> Unit) {
+fun WriteScreen(session: Session, referenceCardId: String?, cardId: String?, close: () -> Unit, onFinished: (String) -> Unit) {
+    if (cardId == null) {
+        WriteForm(session, referenceCardId, null, close, onFinished)
+        return
+    }
+    // The card loads straight from Firestore, painting a loader meanwhile.
+    var loaded by remember(cardId) { mutableStateOf(false) }
+    var opened by remember(cardId) { mutableStateOf<DraftService.OpenedCard?>(null) }
+    LaunchedEffect(cardId) {
+        opened = session.drafts?.open(cardId)
+        loaded = true
+    }
+    val card = opened
+    when {
+        !loaded -> {
+            BackHandler(onBack = close)
+            Box(Modifier.fillMaxSize().cream().statusBarsPadding(), contentAlignment = Alignment.TopCenter) {
+                Box(Modifier.padding(top = 120.dp)) { SketchLoader(64.dp) }
+            }
+        }
+        // The card isn't there (deleted) or isn't yours: the web's not-found note.
+        card == null -> {
+            BackHandler(onBack = close)
+            Box(Modifier.fillMaxSize().cream().statusBarsPadding()) {
+                OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = close, action = EmptyAction.Link, verticalPadding = 120.dp)
+            }
+        }
+        else -> WriteForm(session, referenceCardId, card, close, onFinished)
+    }
+}
+
+@Composable
+private fun WriteForm(session: Session, referenceCardId: String?, opened: DraftService.OpenedCard?, close: () -> Unit, onFinished: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val model = remember {
-        WriteModel(session.drafts, session.writing, referenceCardId, StoryEditorBridge(context, L10n.Write.storyPlaceholder)).apply {
+    val model = remember(opened) {
+        WriteModel(session.drafts, session.writing, referenceCardId, StoryEditorBridge(context, L10n.Write.storyPlaceholder), opened).apply {
             // Debug `writeTitle` / `writeStory` extras fill a new card (screen checks; the emulator's keyboard is slow to drive).
-            if (BuildConfig.DEBUG) {
+            if (BuildConfig.DEBUG && opened == null) {
                 DebugLaunch.writeTitle?.let { t -> update { copy(title = t) } }
                 DebugLaunch.writeCover?.let { c -> update { copy(imageUrl = c) } }
                 DebugLaunch.writeStory?.let { s ->
@@ -120,8 +160,21 @@ fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, o
     }
     // Whatever way the screen goes (close, back, a tab switch), the last edit is saved.
     DisposableEffect(model) { onDispose { model.leave() } }
+    // Leaving the app saves what is written now, not 1.5s later.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { model.flush() }
     var publishing by remember { mutableStateOf(false) }
     var pickingCard by remember { mutableStateOf(false) }
+    // The first-card guide (ux §5): a brand-new writer's fresh card only.
+    var showGuide by remember(model) { mutableStateOf(false) }
+    // The anonymous-publishing hint, for this writer's first few visits (counted per visit, as the web).
+    var showsAnonymousHint by remember(model) { mutableStateOf(false) }
+    // Discarding a revision (the buttons wait meanwhile).
+    var discarding by remember(model) { mutableStateOf(false) }
+    var actionError by remember(model) { mutableStateOf<String?>(null) }
+    LaunchedEffect(model) {
+        if (opened == null && referenceCardId == null) session.drafts?.let { showGuide = !it.hasAnyCards() }
+    }
+    LaunchedEffect(model) { showsAnonymousHint = session.hints?.claim("anonymous-publish") ?: false }
     val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { model.setCover(context, it) } }
     val inlinePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { model.insertImage(context, it) } }
     val images = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -143,6 +196,11 @@ fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, o
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
         Header(model)
+        if (showGuide) FirstCardGuide { question ->
+            // Seeded into the story as a quote to write against; the guide steps aside.
+            model.seed("> $question\n\n")
+            showGuide = false
+        }
         OrganicTextField(
             L10n.Write.coreLabel, model.values.title, { t -> model.update { copy(title = t) } },
             placeholder = L10n.Write.corePlaceholder, multiline = true, minLines = 2, display = true, maxLength = WriteModel.TITLE_MAX, curve = 0.8,
@@ -153,10 +211,42 @@ fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, o
         }
         Tags(model)
         Cover(model) { coverPicker.launch(images) }
-        // Everything autosaves; these are only about intent — publish it, or step away.
-        FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OrganicButton(L10n.Write.publish) { publishing = true }
-            OrganicButton(L10n.Write.saveDraftAndLeave, variant = ButtonVariant.Ghost, onClick = leave)
+        // Everything autosaves; these are only about intent. A draft: publish it, or step away.
+        // A live card: put the revision in front of readers, or drop it.
+        Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (model.isPublished) {
+                    OrganicButton(if (discarding) L10n.Write.saving else L10n.Write.saveChanges, enabled = !discarding) {
+                        actionError = null
+                        publishing = true
+                    }
+                    if (model.hasPendingEdit) {
+                        OrganicButton(L10n.Write.discardChanges, variant = ButtonVariant.Ghost, enabled = !discarding) {
+                            if (discarding) return@OrganicButton
+                            discarding = true
+                            actionError = null
+                            scope.launch {
+                                try {
+                                    onFinished(model.discardEdit())
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    actionError = L10n.Native.saveError
+                                } finally {
+                                    discarding = false
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    OrganicButton(L10n.Write.publish) {
+                        actionError = null
+                        publishing = true
+                    }
+                    OrganicButton(L10n.Write.saveDraftAndLeave, variant = ButtonVariant.Ghost, onClick = leave)
+                }
+            }
+            actionError?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
         }
     }
         // The ✕ stays put above the scrolling page, on the title's line (paneClose);
@@ -168,10 +258,10 @@ fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, o
         pickingCard = false
         model.editor.exec("insertCard", mapOf("href" to "/card/${card.slug ?: card.id}", "title" to card.title))
     }) { pickingCard = false }
-    if (publishing) PublishPanel(session, model, onPublished = { key ->
+    if (publishing) PublishPanel(session, model, showsAnonymousHint, onPublished = { key ->
         publishing = false
         model.editor.releaseKeyboard()
-        onPublished(key)
+        onFinished(key)
     }) { publishing = false }
 }
 
@@ -179,7 +269,7 @@ fun WriteScreen(session: Session, referenceCardId: String?, close: () -> Unit, o
 @Composable
 private fun Header(model: WriteModel) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        BasicText(L10n.Write.title, style = AppFonts.heading(28f, lineHeight = 1.2f), modifier = Modifier.padding(end = 48.dp).semantics { heading() })
+        BasicText(model.title, style = AppFonts.heading(28f, lineHeight = 1.2f), modifier = Modifier.padding(end = 48.dp).semantics { heading() })
         BasicText(model.saveStatus, style = AppFonts.body(14f, color = Tokens.TextMuted))
     }
 }
@@ -263,24 +353,35 @@ private fun Cover(model: WriteModel, pick: () -> Unit) {
 
 /**
  * The publish panel (PublishPanel.tsx): the insight echo, who can see it,
- * publishing anonymously with the card head it will get, then Publish.
+ * publishing anonymously with the card head it will get, then Publish. For a
+ * published card's revision ('update' mode) the echo gives way to a plain
+ * line about what the button does, and it saves the changes instead.
  */
 @Composable
-private fun PublishPanel(session: Session, model: WriteModel, onPublished: (String) -> Unit, onCancel: () -> Unit) {
+private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint: Boolean, onPublished: (String) -> Unit, onCancel: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var visibility by remember { mutableStateOf(if (model.values.visibility == "private") "private" else "public") }
+    val updating = model.isPublished
+    // As it is: a connections card shows neither row picked, and keeps its audience unless one is.
+    var visibility by remember { mutableStateOf(model.values.visibility) }
     var anonymous by remember { mutableStateOf(model.values.anonymous) }
     var insight by remember { mutableStateOf<String?>(null) }
-    var insightLoading by remember { mutableStateOf(true) }
+    var insightLoading by remember { mutableStateOf(!updating) }
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // The mirror moment is for a first publication only.
     LaunchedEffect(Unit) {
+        if (updating) return@LaunchedEffect
         insight = runCatching { session.writing.insight(model.values.title, model.values.story) }.getOrNull()
         insightLoading = false
     }
 
-    OrganicModal(if (pending) null else onCancel, L10n.Write.PublishPanel.title, seed = 29.0, closeLabel = L10n.Write.PublishPanel.cancel) {
-        ModalTitle(L10n.Write.PublishPanel.title)
+    // Not closable while it publishes or saves (the web's pending gate).
+    val title = if (updating) L10n.Write.PublishPanel.updateTitle else L10n.Write.PublishPanel.title
+    OrganicModal(if (pending) null else onCancel, title, seed = 29.0, closeLabel = L10n.Write.PublishPanel.cancel) {
+        ModalTitle(title)
+        if (updating) {
+            CssText(L10n.Write.PublishPanel.updateHint, AppFonts.Family.Body, 14f, lineHeight = 1.7f, color = Tokens.TextMuted)
+        }
         if (insightLoading) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SketchLoader(28.dp)
@@ -315,16 +416,27 @@ private fun PublishPanel(session: Session, model: WriteModel, onPublished: (Stri
                     style = AppFonts.body(14f, 600, color = if (anonymous) Tokens.TextMuted else Tokens.Text),
                 )
             }
-            if (anonymous) BasicText(L10n.Write.PublishPanel.anonymousHint, style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted))
+            // The hint counts visits, not the toggle (useHint('anonymous-publish')).
+            if (showsAnonymousHint) BasicText(L10n.Write.PublishPanel.anonymousHint, style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted))
         }
         WavyDivider(seed = 47.0)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OrganicButton(if (pending) L10n.Write.PublishPanel.publishing else L10n.Write.PublishPanel.publish, small = true, enabled = !pending) {
+            val label = if (updating) {
+                if (pending) L10n.Write.PublishPanel.updating else L10n.Write.PublishPanel.update
+            } else {
+                if (pending) L10n.Write.PublishPanel.publishing else L10n.Write.PublishPanel.publish
+            }
+            OrganicButton(label, small = true, enabled = !pending) {
+                // The server refuses a card without a title; say so in the writer's words.
+                if (model.values.title.isBlank()) {
+                    error = L10n.Write.titleRequired
+                    return@OrganicButton
+                }
                 pending = true
                 error = null
                 scope.launch {
                     try {
-                        onPublished(model.publish(visibility, anonymous))
+                        onPublished(if (updating) model.applyEdit(visibility, anonymous) else model.publish(visibility, anonymous))
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: ApiFailure) {

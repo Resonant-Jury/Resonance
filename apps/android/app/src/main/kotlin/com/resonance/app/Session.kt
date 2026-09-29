@@ -22,6 +22,7 @@ import com.resonance.kit.l10n.Strings
 import java.time.OffsetDateTime
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
@@ -66,12 +67,28 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     private val _languageEpoch = MutableStateFlow(0)
     val languageEpoch: StateFlow<Int> = _languageEpoch
 
+    /**
+     * Counts the changes that may have moved a card: the writer closing (saved,
+     * published, revised, discarded) and a card's ⋯ (visibility, delete). The
+     * screens showing cards watch it to read them again (iOS's WriteLauncher.changes).
+     */
+    private val _cardChanges = MutableStateFlow(0)
+    val cardChanges: StateFlow<Int> = _cardChanges
+
+    fun noteCardChange() = _cardChanges.update { it + 1 }
+
+    /** Asks the site to refresh its cached pages, without waiting on it (a card's page after a visibility change or a delete). */
+    fun revalidate(paths: List<String>) {
+        scope.launch { writing.revalidate(paths) }
+    }
+
     var uid: String? = null
         private set
 
     val safety: SafetyService? get() = uid?.let(::SafetyService)
     val bookmarks: BookmarkService? get() = uid?.let(::BookmarkService)
     val drafts: DraftService? get() = uid?.let(::DraftService)
+    val hints: HintService? get() = uid?.let { HintService(it, prefs) }
     /** The signed-in profile once loaded (the publish panel's card head). */
     val me: Me? get() = (_profile.value as? Profile.Loaded)?.me
     /** The sign-in email and phone, shown read-only on the account screen. */

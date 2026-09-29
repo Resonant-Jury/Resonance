@@ -96,6 +96,8 @@ fun OrganicModal(
     title: String,
     seed: Double = 17.0,
     closeLabel: String = L10n.Safety.Report.close,
+    /** The card's widest (Modal's `maxWidth`): 460 unless a small dialog asks for less. */
+    maxWidth: Dp = 460.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Dialog(onDismissRequest = { onDismiss?.invoke() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -107,7 +109,7 @@ fun OrganicModal(
                 .padding(16.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.widthIn(max = 460.dp).fillMaxWidth()) {
+            Box(Modifier.widthIn(max = maxWidth).fillMaxWidth()) {
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -206,16 +208,60 @@ fun ModalActions(content: @Composable () -> Unit) {
 class OrganicMenuItem(val title: String, val icon: IconName, val destructive: Boolean = false, val onClick: () -> Unit)
 
 /**
+ * OrganicMenu's colors (the web's `--menu-*`): the theme terracotta, or — for
+ * a card's own menu — its hue: the pen `oklch(52% 0.11 h)`, deeper `oklch(38%
+ * 0.09 h)` when pressed, paper `oklch(98% 0.01 h)`, dividers `oklch(55% 0.04 h
+ * / 0.4)`, and the destructive row's wash `color-mix(yellow 25%, paper)` (45% pressed).
+ */
+internal class MenuColors(hue: Double?) {
+    val border: Color
+    val borderHover: Color
+    val cream: Color
+    val divider: Color
+    val dangerWash: Color
+    val dangerWashPressed: Color
+
+    init {
+        if (hue == null) {
+            border = Tokens.Terracotta
+            borderHover = Tokens.TerracottaDeep
+            cream = Tokens.Cream
+            divider = Tokens.Terracotta.copy(alpha = 0.4f)
+            dangerWash = Mixes.MenuDangerWash
+            dangerWashPressed = Mixes.MenuDangerWashPressed
+        } else {
+            border = OklchColor.parse("oklch(52% 0.11 $hue)") ?: Tokens.Terracotta
+            borderHover = OklchColor.parse("oklch(38% 0.09 $hue)") ?: Tokens.TerracottaDeep
+            cream = OklchColor.parse("oklch(98% 0.01 $hue)") ?: Tokens.Cream
+            divider = OklchColor.parse("oklch(55% 0.04 $hue / 0.4)") ?: Tokens.Terracotta.copy(alpha = 0.4f)
+            dangerWash = mixYellow(hue, 0.25)
+            dangerWashPressed = mixYellow(hue, 0.45)
+        }
+    }
+
+    /** color-mix(in oklch, yellow t, the menu's paper): halfway round the shorter hue arc, as CSS interpolates. */
+    private fun mixYellow(hue: Double, t: Double): Color {
+        val (yl, yc, yh) = Triple(0.88, 0.10, 90.0)
+        val (cl, cc) = 0.98 to 0.01
+        val dh = (yh - hue + 540) % 360 - 180
+        val h = ((hue + dh * t) % 360 + 360) % 360
+        return OklchColor.parse("oklch(${(cl + (yl - cl) * t) * 100}% ${cc + (yc - cc) * t} $h)") ?: Mixes.MenuDangerWash
+    }
+}
+
+/**
  * OrganicMenu's trigger: a wobbly squircle chip (R 0.42s, one turn a side)
- * on cream with a terracotta pen, the glyph at 0.53s. Also the header's other
- * round actions (share), so they read as one set.
+ * on cream with a terracotta pen (or a card's hue), the glyph at 0.53s. Also
+ * the header's other round actions (share), so they read as one set. The chip
+ * sits centred in a 44dp hit box.
  */
 @Composable
-fun OrganicMenuChip(icon: IconName, label: String, seed: Double, size: Dp = 38.dp, expanded: Boolean = false, onClick: () -> Unit) {
-    val ink = if (expanded) Tokens.TerracottaDeep else Tokens.Terracotta
+fun OrganicMenuChip(icon: IconName, label: String, seed: Double, size: Dp = 38.dp, expanded: Boolean = false, hue: Double? = null, onClick: () -> Unit) {
+    val colors = remember(hue) { MenuColors(hue) }
+    val ink = if (expanded) colors.borderHover else colors.border
     Box(
         Modifier
-            .size(44.dp)
+            .size(MenuHitBox)
             .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
@@ -228,8 +274,8 @@ fun OrganicMenuChip(icon: IconName, label: String, seed: Double, size: Dp = 38.d
                 )).createOutline(this.size, layoutDirection, this)
                 val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 onDrawBehind {
-                    drawOutline(o, Tokens.Cream.copy(alpha = 0.9f))
-                    drawOutline(o, Tokens.Terracotta, style = pen)
+                    drawOutline(o, colors.cream.copy(alpha = 0.9f))
+                    drawOutline(o, colors.border, style = pen)
                 }
             },
             contentAlignment = Alignment.Center,
@@ -237,27 +283,40 @@ fun OrganicMenuChip(icon: IconName, label: String, seed: Double, size: Dp = 38.d
     }
 }
 
+/** The chip's touch target. */
+private val MenuHitBox = 44.dp
+
 /** OrganicMenu's rows are 42 tall. */
 private const val MenuRowHeight = 42.0
 
 /**
  * The web's OrganicMenu: the ⋯ chip, dropping a hand-drawn cream panel 8
- * under its trailing edge — terracotta pen, wavy dividers between rows, the
- * destructive row on a yellow wash — not Material's menu.
+ * under its trailing edge — terracotta pen (or a card's `hue`), wavy dividers
+ * between rows, the destructive row on a yellow wash — not Material's menu.
  */
 @Composable
-fun OrganicMenu(items: List<OrganicMenuItem>, label: String, seed: Double = 7.0, triggerIcon: IconName = IconName.Dots) {
+fun OrganicMenu(
+    items: List<OrganicMenuItem>,
+    label: String,
+    seed: Double = 7.0,
+    triggerIcon: IconName = IconName.Dots,
+    hue: Double? = null,
+    triggerSize: Dp = 38.dp,
+) {
     var open by remember { mutableStateOf(false) }
+    val colors = remember(hue) { MenuColors(hue) }
     Box {
-        OrganicMenuChip(triggerIcon, label, seed, expanded = open) { open = !open }
+        OrganicMenuChip(triggerIcon, label, seed, size = triggerSize, expanded = open, hue = hue) { open = !open }
         if (open) {
             val gap = with(LocalDensity.current) { 8.dp.roundToPx() }
+            // The chip is centred in its hit box: the panel hangs from the chip, not from the box.
+            val inset = with(LocalDensity.current) { ((MenuHitBox - triggerSize) / 2).roundToPx() }
             Popup(
-                popupPositionProvider = remember(gap) { BelowTrailingEdge(gap) },
+                popupPositionProvider = remember(gap, inset) { BelowTrailingEdge(gap, inset) },
                 onDismissRequest = { open = false },
                 properties = PopupProperties(focusable = true),
             ) {
-                MenuPanel(items, seed) { item ->
+                MenuPanel(items, seed, colors) { item ->
                     open = false
                     item.onClick()
                 }
@@ -266,16 +325,16 @@ fun OrganicMenu(items: List<OrganicMenuItem>, label: String, seed: Double = 7.0,
     }
 }
 
-/** Under the anchor, right edges aligned (the web's `top: 100% + 8px; right: 0`), kept on screen. */
-private class BelowTrailingEdge(private val gap: Int) : PopupPositionProvider {
+/** Under the chip, its trailing edge and the panel's aligned (the web's `top: 100% + 8px; right: 0`), kept on screen. */
+private class BelowTrailingEdge(private val gap: Int, private val inset: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-        val x = (anchorBounds.right - popupContentSize.width).coerceIn(0, max(0, windowSize.width - popupContentSize.width))
-        return IntOffset(x, anchorBounds.bottom + gap)
+        val x = (anchorBounds.right - inset - popupContentSize.width).coerceIn(0, max(0, windowSize.width - popupContentSize.width))
+        return IntOffset(x, anchorBounds.bottom - inset + gap)
     }
 }
 
 @Composable
-private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, onChoose: (OrganicMenuItem) -> Unit) {
+private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuColors, onChoose: (OrganicMenuItem) -> Unit) {
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) { appear.animateTo(1f, tween(180, easing = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f))) }
     var pressed by remember { mutableStateOf<Int?>(null) }
@@ -306,12 +365,12 @@ private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, onChoose: (Org
                 val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 onDrawBehind {
                     clipPath(outline) {
-                        drawPath(outline, Tokens.Cream)
-                        if (danger >= 0) drawPath(regions[danger], Mixes.MenuDangerWash)
-                        pressed?.let { drawPath(regions[it], if (it == danger) Mixes.MenuDangerWashPressed else Tokens.TerracottaDeep.copy(alpha = 0.15f)) }
-                        dividers.forEach { drawPath(it, Tokens.Terracotta.copy(alpha = 0.4f), style = light) }
+                        drawPath(outline, colors.cream)
+                        if (danger >= 0) drawPath(regions[danger], colors.dangerWash)
+                        pressed?.let { drawPath(regions[it], if (it == danger) colors.dangerWashPressed else colors.borderHover.copy(alpha = 0.15f)) }
+                        dividers.forEach { drawPath(it, colors.divider, style = light) }
                     }
-                    drawPath(outline, Tokens.Terracotta, style = pen)
+                    drawPath(outline, colors.border, style = pen)
                 }
             }
             .padding(horizontal = 8.dp),
@@ -320,7 +379,7 @@ private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, onChoose: (Org
             val source = remember { MutableInteractionSource() }
             val down by source.collectIsPressedAsState()
             LaunchedEffect(down) { if (down) pressed = i else if (pressed == i) pressed = null }
-            val ink = if (down) Tokens.TerracottaDeep else Tokens.Terracotta
+            val ink = if (down) colors.borderHover else colors.border
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -331,7 +390,7 @@ private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, onChoose: (Org
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OrganicIcon(item.icon, size = 17.dp, color = ink, strokeWidth = Tokens.Ink.value)
-                BasicText(item.title, maxLines = 1, style = AppFonts.body(14f, lineHeight = 1.3f, color = if (down) Tokens.TerracottaDeep else Tokens.Text))
+                BasicText(item.title, maxLines = 1, style = AppFonts.body(14f, lineHeight = 1.3f, color = if (down) colors.borderHover else Tokens.Text))
             }
         }
     }

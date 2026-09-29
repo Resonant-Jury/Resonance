@@ -114,18 +114,25 @@ fun Modifier.grainOverlay(opacity: Float): Modifier = drawWithCache {
 fun Context.prefersReducedMotion(): Boolean =
     Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
-/** TagPill.tsx's sizes: md on cards, lg in the writer. */
-enum class TagSize { Md, Lg }
+/**
+ * TagPill.tsx's sizes: sm under the owner's cards (the anonymous badge), md on
+ * cards, lg in the writer — the label's px, its tracking in em, and the pill's
+ * horizontal × vertical padding.
+ */
+enum class TagSize(val font: Float, val tracking: Float, val padX: Dp, val padY: Dp) {
+    Sm(10f, 0.04f, 10.dp, 3.dp),
+    Md(11f, 0.04f, 14.dp, 4.dp),
+    Lg(13f, 0.05f, 18.dp, 7.dp),
+}
 
 /**
- * The web's TagPill: small caps — md 11px/600 at 0.04em, padding 4×14; lg
- * 13px at 0.05em, 7×18 — on an auto-wobbled pill of the given fill with a
- * faint ink outline. `onRemove` adds its hand-drawn × (the writer's tags).
+ * The web's TagPill: small caps — sm 10px/600 at 0.04em, padding 3×10; md
+ * 11px, 4×14; lg 13px at 0.05em, 7×18 — on an auto-wobbled pill of the given
+ * fill with a faint ink outline. `onRemove` adds its hand-drawn × (the writer's tags).
  */
 @Composable
 fun TagPill(text: String, fill: Color = Tokens.Yellow, seed: Double? = null, size: TagSize = TagSize.Md, onRemove: (() -> Unit)? = null) {
     val s = seed ?: autoSeed(text)
-    val lg = size == TagSize.Lg
     Row(
         Modifier
             .drawWithCache {
@@ -136,13 +143,13 @@ fun TagPill(text: String, fill: Color = Tokens.Yellow, seed: Double? = null, siz
                     drawOutline(o, Color(0.25f, 0.19f, 0.13f, 0.45f), style = stroke)
                 }
             }
-            .padding(horizontal = if (lg) 18.dp else 14.dp, vertical = if (lg) 7.dp else 4.dp),
+            .padding(horizontal = size.padX, vertical = size.padY),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         BasicText(
             text.uppercase(),
-            style = AppFonts.body(if (lg) 13f else 11f, 600, lineHeight = 1.3f).copy(letterSpacing = if (lg) 0.05.em else 0.04.em),
+            style = AppFonts.body(size.font, 600, lineHeight = 1.3f).copy(letterSpacing = size.tracking.em),
         )
         if (onRemove != null) Canvas(
             Modifier

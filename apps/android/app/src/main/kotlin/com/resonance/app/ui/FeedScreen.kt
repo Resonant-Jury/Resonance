@@ -71,8 +71,9 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
             "failed" -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { load() } }, action = EmptyAction.Outline) }
             else -> {
                 if (cards.isEmpty()) {
-                    // The web's "Start writing" CTA waits for the editor (A3).
-                    item { OrganicEmptyState(L10n.Home.Empty.subtitle, title = L10n.Home.Empty.title) }
+                    item {
+                        OrganicEmptyState(L10n.Home.Empty.subtitle, L10n.Home.Empty.cta, { open(Route.Write()) }, title = L10n.Home.Empty.title)
+                    }
                 } else {
                     storyCards(cards, open)
                     item {
@@ -95,6 +96,7 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
                                     }
                                 }
                             }
+                            OrganicButton(L10n.Home.writeResponse) { open(Route.Write()) }
                         }
                     }
                 }

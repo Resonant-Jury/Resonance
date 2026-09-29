@@ -38,8 +38,12 @@ sealed interface Route {
     data class Card(val key: String) : Route
     data class Author(val handle: String) : Route
     data object Settings : Route
-    /** Writing a card; a resonance answers `referenceCardId`. */
-    data class Write(val referenceCardId: String? = null) : Route
+    /**
+     * Writing a card; a resonance answers `referenceCardId`. With a `cardId` it edits one of
+     * your cards (a draft, or a published card's revision). `showsCard` is whether the card
+     * opens once the writer is gone (false when its own page is underneath).
+     */
+    data class Write(val referenceCardId: String? = null, val cardId: String? = null, val showsCard: Boolean = true) : Route
     data class SettingsSection(val section: com.resonance.app.ui.SettingsSection) : Route
 
     companion object {
@@ -95,13 +99,23 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                         Tab.Write -> {}
                     }
                 }
-                entry<Route.Card> { r -> CardScreen(session, r.key, push) { stack.removeLastOrNull() } }
+                entry<Route.Card> { r ->
+                    CardScreen(session, r.key, push, popToRoot = { if (stack.size > 1) stack.removeRange(1, stack.size) }) { stack.removeLastOrNull() }
+                }
                 entry<Route.Author> { r -> AuthorScreen(session, r.handle, push) { stack.removeLastOrNull() } }
                 entry<Route.Write> { r ->
-                    WriteScreen(session, r.referenceCardId, close = { stack.removeLastOrNull() }) { key ->
-                        // The published card takes the writer's place, as the web goes to it.
+                    WriteScreen(
+                        session, r.referenceCardId, r.cardId,
+                        // Closed with the draft or revision saved: the screens showing cards read them again.
+                        close = {
+                            session.noteCardChange()
+                            stack.removeLastOrNull()
+                        },
+                    ) { key ->
+                        session.noteCardChange()
                         stack.removeLastOrNull()
-                        stack.add(Route.Card(key))
+                        // The card takes the writer's place, as the web goes to it — unless its own page is underneath.
+                        if (r.showsCard) stack.add(Route.Card(key))
                     }
                 }
                 entry<Route.Settings> { SettingsScreen(push) { stack.removeLastOrNull() } }
