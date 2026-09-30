@@ -52,7 +52,6 @@ import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 /** A person's page (u/[handle]/page.tsx). */
 @Composable
@@ -213,12 +212,7 @@ private fun ProfileHeroSkeleton() {
 }
 
 /** "TW" → "🇹🇼 台灣" in the interface language; free text stays as it is. */
-fun regionLabel(region: String): String {
-    if (region.length != 2 || !region.all { it.isLetter() }) return region
-    val code = region.uppercase()
-    val flag = code.map { String(Character.toChars(127397 + it.code)) }.joinToString("")
-    return "$flag ${Locale("", code).getDisplayCountry(Strings.language.locale)}"
-}
+fun regionLabel(region: String): String = Regions.label(region)
 
 /** page.module.css .sectionHeading on a phone: 20/700, -0.01em, left-aligned on the page margin, 24 below. */
 @Composable

@@ -10,6 +10,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.resonance.app.ui.ResonanceRoot
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -56,13 +58,20 @@ class MainActivity : ComponentActivity() {
         // A recreated activity (rotation, process restore) still holds the intent it was first started with.
         if (savedInstanceState == null) handleExtras(intent)
         setContent { ResonanceRoot(session, incomingRoute) }
-        // Once signed in: ask to show notifications (API 33+, once), and give this install's push token to the session.
+        // Once signed in: give this install's push token to the session.
         lifecycleScope.launch {
             session.phase.collect { phase ->
-                if (phase != Session.Phase.SignedIn) return@collect
-                if (PushCenter.takePermissionRequest()) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                PushCenter.fetchToken(config.usesEmulator)
+                if (phase == Session.Phase.SignedIn) PushCenter.fetchToken(config.usesEmulator)
             }
+        }
+        // Ask to show notifications (API 33+, once) when the app itself opens — not over the
+        // sign-in or pen-name steps, before there is anything to be notified about.
+        lifecycleScope.launch {
+            combine(session.phase, session.entry) { phase, entry -> phase == Session.Phase.SignedIn && entry == Session.Entry.App }
+                .distinctUntilChanged()
+                .collect { inApp ->
+                    if (inApp && PushCenter.takePermissionRequest()) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
         }
     }
 

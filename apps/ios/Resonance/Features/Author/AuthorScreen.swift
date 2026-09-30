@@ -163,13 +163,7 @@ struct AuthorScreen: View {
     }
 
     /// "TW" → "🇹🇼 台灣" in the reader's language; free text stays as it is.
-    static func regionLabel(_ region: String) -> String {
-        guard region.count == 2, region.allSatisfy(\.isLetter) else { return region }
-        let code = region.uppercased()
-        let flag = code.unicodeScalars.compactMap { Unicode.Scalar(127397 + $0.value) }.map(String.init).joined()
-        let name = Strings.shared.locale.localizedString(forRegionCode: code) ?? code
-        return "\(flag) \(name)"
-    }
+    static func regionLabel(_ region: String) -> String { ProfileRegion.label(region) }
 }
 
 /// The profile's loading state: the hero's avatar, name, bio and meta as

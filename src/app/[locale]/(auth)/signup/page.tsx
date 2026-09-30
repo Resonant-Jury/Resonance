@@ -5,6 +5,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { Link } from '@/i18n/navigation';
 import { sanitizeNextPath, nextQuery } from '@/lib/auth/nextPath';
+import { PROFILE_REGIONS, regionDisplayName, regionFlag } from '@/lib/regionName';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { AuthCard, Field } from '@/components/molecules/AuthCard/AuthCard';
 import { OrganicInput, OrganicSelect } from '@/components/atoms/OrganicInput/OrganicInput';
@@ -164,11 +165,11 @@ function SignUpPageInner() {
 
           <Field label={t('regionLabel')}>
             <OrganicSelect value={region} onChange={(e) => setRegion(e.target.value)}>
-              <option value="TW">🇹🇼 Taiwan</option>
-              <option value="JP">🇯🇵 Japan</option>
-              <option value="US">🇺🇸 United States</option>
-              <option value="KR">🇰🇷 Korea</option>
-              <option value="HK">🇭🇰 Hong Kong</option>
+              {PROFILE_REGIONS.map((r) => (
+                <option key={r} value={r}>
+                  {regionFlag(r)} {regionDisplayName(r, locale)}
+                </option>
+              ))}
             </OrganicSelect>
           </Field>
 

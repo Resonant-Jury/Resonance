@@ -157,9 +157,9 @@ final class SessionStore {
         uid = newUID
         me = nil
         profile = .unknown
-        // An account this install has seen with a profile opens straight onto the tabs.
-        landing = newUID != nil && UserDefaults.standard.string(forKey: Self.profiledKey) == newUID ? .tabs : .pending
         phase = newUID == nil ? .signedOut : .signedIn
+        // An account this install has seen with a profile opens straight onto the tabs.
+        land(newUID != nil && UserDefaults.standard.string(forKey: Self.profiledKey) == newUID ? .tabs : .pending)
         deletionDate = nil
         if let newUID {
             signedOutForDeletion = false
@@ -169,10 +169,7 @@ final class SessionStore {
                 await loadMe()
                 await refreshDeletion()
             }
-            Task {
-                await push.requestPermission()
-                await registerPush()
-            }
+            Task { await registerPush() }
         } else {
             notifications.stop()
             conversations.stop()
@@ -195,6 +192,15 @@ final class SessionStore {
     }
     #endif
 
+    /// Where a signed-in person lands. Reaching the tabs is when the app asks
+    /// to send notifications — not over the sign-in or pen-name steps, where
+    /// the question would come before there is anything to be notified about.
+    private func land(_ next: Landing) {
+        let arrived = next == .tabs && landing != .tabs
+        landing = next
+        if arrived, phase == .signedIn { Task { await push.requestPermission() } }
+    }
+
     /// The last account this install saw with a profile (see `landing`).
     static let profiledKey = "profiledAccount"
 
@@ -213,7 +219,7 @@ final class SessionStore {
             } else {
                 me = nil
                 profile = .missing
-                landing = landing.after(.missing)
+                land(landing.after(.missing))
                 if UserDefaults.standard.string(forKey: Self.profiledKey) == asked {
                     UserDefaults.standard.removeObject(forKey: Self.profiledKey)
                 }
@@ -221,7 +227,7 @@ final class SessionStore {
         } catch {
             guard uid == asked else { return }
             profile = .failed((error as? APIFailure)?.message ?? error.localizedDescription)
-            landing = landing.after(.failed)
+            land(landing.after(.failed))
         }
     }
 
@@ -231,7 +237,7 @@ final class SessionStore {
         guard let uid, found.id == uid else { return }
         me = found
         profile = .loaded
-        landing = landing.after(.found)
+        land(landing.after(.found))
         UserDefaults.standard.set(uid, forKey: Self.profiledKey)
     }
 

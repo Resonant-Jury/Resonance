@@ -83,18 +83,20 @@ struct PenNameField: View {
     }
 }
 
-/// The signup page's regions, in its order and with its labels.
+/// The signup page's regions, in its order, named in the interface's
+/// language (the web's regionDisplayName).
 enum ProfileRegion: String, CaseIterable {
     case tw = "TW", jp = "JP", us = "US", kr = "KR", hk = "HK"
 
-    var label: String {
-        switch self {
-        case .tw: "🇹🇼 Taiwan"
-        case .jp: "🇯🇵 Japan"
-        case .us: "🇺🇸 United States"
-        case .kr: "🇰🇷 Korea"
-        case .hk: "🇭🇰 Hong Kong"
-        }
+    var label: String { Self.label(rawValue) }
+
+    /// "TW" → "🇹🇼 台灣" in the reader's language; free text stays as it is.
+    static func label(_ region: String) -> String {
+        guard region.count == 2, region.allSatisfy(\.isLetter) else { return region }
+        let code = region.uppercased()
+        let flag = code.unicodeScalars.compactMap { Unicode.Scalar(127397 + $0.value) }.map(String.init).joined()
+        let name = Strings.shared.locale.localizedString(forRegionCode: code) ?? code
+        return "\(flag) \(name)"
     }
 }
 

@@ -7,7 +7,7 @@ import { Icon, type IconName } from '@/components/atoms/Icon';
 import { useAppChrome } from '@/components/providers/AppChrome';
 import { Field, Input, Select } from '@/components/atoms/Field/Field';
 import { SquareFlag } from '@/components/atoms/SquareFlag/SquareFlag';
-import { regionDisplayName } from '@/lib/regionName';
+import { PROFILE_REGIONS, regionDisplayName } from '@/lib/regionName';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { OrganicLink } from '@/components/atoms/OrganicLink/OrganicLink';
 import { OrganicSlider } from '@/components/atoms/OrganicSlider/OrganicSlider';
@@ -32,10 +32,6 @@ type Section =
   | 'appearance'
   | 'terms'
   | 'delete';
-
-/** Selectable home regions — each renders its masked square flag plus the
- *  country's full name localized to the current UI language. */
-const REGIONS = ['TW', 'JP', 'US', 'KR'] as const;
 
 const SECTIONS: Section[] = [
   'profile',
@@ -266,7 +262,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
             </Field>
             <Field label={t('profile.region')}>
               <Select seed={43} value={region} onChange={setRegion}>
-                {REGIONS.map((r) => (
+                {PROFILE_REGIONS.map((r) => (
                   <option key={r} value={r}>
                     <SquareFlag code={r.toLowerCase()} size={18} />
                     {regionDisplayName(r, locale)}

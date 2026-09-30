@@ -1,5 +1,8 @@
 package com.resonance.app.ui
 
+import android.icu.text.DisplayContext
+import android.icu.text.LocaleDisplayNames
+import android.icu.util.ULocale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -161,14 +164,11 @@ fun <T> ChoiceList(label: String, options: List<Pair<T, String>>, selected: T, s
 
 /** Regions a profile can name. */
 object Regions {
-    /** The signup step's options and labels, as the web writes them (signup/page.tsx). */
-    val signup = listOf(
-        "TW" to "🇹🇼 Taiwan",
-        "JP" to "🇯🇵 Japan",
-        "US" to "🇺🇸 United States",
-        "KR" to "🇰🇷 Korea",
-        "HK" to "🇭🇰 Hong Kong",
-    )
+    /** The signup step's regions, in the web's order (PROFILE_REGIONS in src/lib/regionName.ts). */
+    private val codes = listOf("TW", "JP", "US", "KR", "HK")
+
+    /** The signup step's options, named in the interface's language (the web's regionDisplayName). */
+    val signup: List<Pair<String, String>> get() = codes.map { it to label(it) }
 
     /**
      * Settings' options: the same regions named in the interface's language
@@ -176,15 +176,31 @@ object Regions {
      * another, so it is never silently replaced.
      */
     fun settings(current: String?): List<Pair<String, String>> {
-        val codes = signup.map { it.first } + listOfNotNull(current?.takeIf { c -> c.isNotBlank() && signup.none { it.first == c } })
-        return codes.map { it to label(it) }
+        val all = codes + listOfNotNull(current?.takeIf { c -> c.isNotBlank() && c !in codes })
+        return all.map { it to label(it) }
     }
 
-    private fun label(code: String): String {
-        val name = runCatching { Locale.Builder().setRegion(code).build().getDisplayCountry(Strings.language.locale) }.getOrNull()
-            ?.takeIf { it.isNotBlank() } ?: return code
+    /** "TW" → "🇹🇼 台灣" in the interface language; free text stays as it is. */
+    fun label(region: String): String {
+        val code = region.uppercase().takeIf { c -> c.length == 2 && c.all { it in 'A'..'Z' } } ?: return region
+        val name = runCatching { displayName(code) }.getOrNull()?.takeIf { it.isNotBlank() } ?: return code
         return flag(code)?.let { "$it $name" } ?: name
     }
+
+    /**
+     * The region's name; Hong Kong and Macau by their short one (香港, not the full
+     * 中國香港特別行政區), as the web's regionDisplayName and Apple's names read.
+     */
+    private fun displayName(code: String): String {
+        val locale = Strings.language.locale
+        if (code in SHORT_NAMED) {
+            LocaleDisplayNames.getInstance(ULocale.forLocale(locale), DisplayContext.LENGTH_SHORT).regionDisplayName(code)
+                ?.takeIf { it.isNotBlank() && it != code }?.let { return it }
+        }
+        return Locale.Builder().setRegion(code).build().getDisplayCountry(locale)
+    }
+
+    private val SHORT_NAMED = setOf("HK", "MO")
 
     /** A two-letter region's flag: its regional-indicator letters. */
     private fun flag(code: String): String? {
