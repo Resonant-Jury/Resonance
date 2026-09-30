@@ -156,4 +156,34 @@ describe('EditCardPage (client-fetched)', () => {
     );
     expect(screen.queryByTestId('write-workspace')).not.toBeInTheDocument();
   });
+
+  // Regression: the page read the card through an app-wide SWR cache, so a
+  // second visit mounted the editor on the first visit's copy — and the
+  // editor, which copies its initial values once, autosaved that older text
+  // over everything written in between.
+  it('opens the latest saved text on a second visit, never an earlier copy', async () => {
+    const cache = new Map();
+    const open = () =>
+      render(
+        <NextIntlClientProvider locale="en" messages={en}>
+          <SWRConfig value={{ provider: () => cache }}>
+            <EditCardPage />
+          </SWRConfig>
+        </NextIntlClientProvider>,
+      );
+
+    vi.mocked(getCardById).mockResolvedValue({ ...card('me'), story: 'v1' });
+    const first = open();
+    await waitFor(() => expect(screen.getByTestId('write-workspace')).toBeInTheDocument());
+    first.unmount();
+
+    // Autosave wrote v2 while the first editor was open.
+    vi.mocked(getCardById).mockResolvedValue({ ...card('me'), story: 'v2' });
+    workspaceSpy.mockClear();
+    open();
+    await waitFor(() => expect(screen.getByTestId('write-workspace')).toBeInTheDocument());
+    const stories = workspaceSpy.mock.calls.map(([props]) => (props as { initial: { story: string } }).initial.story);
+    expect(stories[0]).toBe('v2');
+    expect(stories).not.toContain('v1');
+  });
 });
