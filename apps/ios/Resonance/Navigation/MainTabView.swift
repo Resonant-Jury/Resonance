@@ -90,8 +90,8 @@ struct MainTabView: View {
             push.opened = nil
             if let id = opened.notificationId { session.notifications.markRead(id: id) }
             if let url = URL(string: opened.route, relativeTo: session.config.origin)?.absoluteURL,
-               Route(url: url, origin: session.config.origin) != nil {
-                open(url)
+               let route = Route(url: url, origin: session.config.origin) {
+                open(Self.withSender(route, of: opened.notificationId.flatMap { id in session.notifications.items.first { $0.id == id } }))
             } else {
                 tab = .notifications
             }
@@ -111,9 +111,21 @@ struct MainTabView: View {
     /// Site links (universal links, shared URLs) open on the current tab.
     private func open(_ url: URL) {
         guard let route = Route(url: url, origin: session.config.origin) else { return }
+        open(route)
+    }
+
+    private func open(_ route: Route) {
         // A conversation belongs to the Messages tab's stack.
         if case .thread = route { tab = .messages }
         paths[tab, default: NavigationPath()].append(route)
+    }
+
+    /// A push's link names the sender by pen name; its bell row (when it has
+    /// arrived) also knows their uid, which a conversation opens by.
+    static func withSender(_ route: Route, of item: NotificationsStore.Item?) -> Route {
+        guard case let .thread(handle, nil, note) = route, let item, item.fromHandle == handle,
+              let uid = item.fromUserId else { return route }
+        return .thread(handle: handle, uid: uid, note: note)
     }
 
     @ViewBuilder private func root(_ t: AppTab) -> some View {

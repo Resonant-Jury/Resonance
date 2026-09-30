@@ -4,8 +4,14 @@ import Observation
 import ResonanceKit
 
 /// One conversation (ThreadView.tsx): who it's with, whether you may write,
-/// the newest 50 messages live, and sending through the API. The conversation
-/// exists only after its first message, so its listeners start then.
+/// the newest 50 messages live, and sending through the API.
+///
+/// Opened with the other person's uid (from Messages, a notification, their
+/// page), it listens to the conversation by its pair id at once and asks for
+/// their profile alongside — only for their face and whether you may write.
+/// Opened by pen name alone (an older link), it asks who they are first.
+/// A conversation exists only after its first message: until then reading it
+/// is refused, which here means "no messages yet".
 @MainActor @Observable
 final class ThreadModel {
     struct Message: Identifiable, Equatable {
@@ -19,8 +25,11 @@ final class ThreadModel {
 
     enum Phase: Equatable { case loading, missing, ready }
 
+    /// The pen name the route named them by (it may have changed since).
     let handle: String
     private(set) var phase: Phase = .loading
+    /// Who the conversation is with, when known (from the start, when the route carried it).
+    private(set) var otherId: String?
     private(set) var other: Author?
     /// Whether you may write (connected, no block). Nil until known — the composer shows meanwhile.
     private(set) var connected: Bool?
@@ -42,17 +51,25 @@ final class ThreadModel {
     @ObservationIgnored private var listeners: [ListenerRegistration] = []
     @ObservationIgnored private var unreadForMe = 0
 
-    init(handle: String, noteRef: MessagingAPI.NoteRef?, session: SessionStore) {
+    init(handle: String, uid: String?, noteRef: MessagingAPI.NoteRef?, session: SessionStore) {
         self.handle = handle
         self.noteRef = noteRef
         self.session = session
+        if let uid, uid != session.uid {
+            otherId = uid
+            // Someone Messages already shows: their face and current pen name at once.
+            other = session.conversations.person(uid).map(Author.init(person:))
+        }
     }
 
     var me: String? { session.uid }
     var pairId: String? {
-        guard let me, let other else { return nil }
-        return [me, other.id].sorted().joined(separator: "_")
+        guard let me, let otherId else { return nil }
+        return Self.pairId(me, otherId)
     }
+
+    /// Their pen name as shown: the current one, once known.
+    var displayHandle: String { other?.handle ?? handle }
 
     /// ThreadView's `valid`: text or a card, within 2000, somewhere to send it.
     var canSend: Bool {
@@ -61,56 +78,122 @@ final class ThreadModel {
     }
 
     func load() async {
-        do {
-            let profile = try await session.reading.profile(handle)
-            guard !profile.isSelf else { return phase = .missing }
-            other = profile.author
-            isBlocked = profile.isBlocked
-            connected = profile.isConnected && !profile.isBlocked
+        if otherId != nil {
             phase = .ready
-        } catch {
-            phase = .missing
-            return
+            attach()
+            await refreshConnection()
+        } else if await refreshConnection() {
+            phase = .ready
+            attach()
         }
-        await openConversation()
     }
 
-    /// Re-reads whether you may still write (after a block, or coming back).
-    func refreshConnection() async {
-        guard let profile = try? await session.reading.profile(handle) else { return }
-        isBlocked = profile.isBlocked
-        connected = profile.isConnected && !profile.isBlocked
+    /// Re-reads who they are and whether you may still write (after a block,
+    /// or coming back). True when their profile arrived.
+    @discardableResult
+    func refreshConnection() async -> Bool {
+        do {
+            if let profile = try await currentProfile() {
+                other = profile.author
+                otherId = profile.author.id
+                isBlocked = profile.isBlocked
+                connected = profile.isConnected && !profile.isBlocked
+                return true
+            }
+            // Nobody by that name or uid (any more), or it's you.
+            stop()
+            phase = .missing
+        } catch {
+            // Offline or a server error: keep what's known. By pen name alone there is nothing to open yet.
+            if otherId == nil, !Task.isCancelled { phase = .missing }
+        }
+        return false
     }
 
-    /// Listens once the conversation exists: reading a missing one is refused.
-    private func openConversation() async {
+    /// Their profile as you see it. With their uid known, a pen name they've
+    /// since changed (or that someone else has since taken) is looked up afresh.
+    private func currentProfile() async throws -> Profile? {
+        let asked = displayHandle
+        if let profile = try await profile(asked), otherId == nil || profile.author.id == otherId {
+            return profile.isSelf ? nil : profile
+        }
+        guard let otherId, let current = try await currentHandle(of: otherId),
+              current.caseInsensitiveCompare(asked) != .orderedSame,
+              let profile = try await profile(current), profile.author.id == otherId else { return nil }
+        return profile
+    }
+
+    private func profile(_ handle: String) async throws -> Profile? {
+        do {
+            return try await session.reading.profile(handle)
+        } catch let failure as APIFailure where failure.isNotFound {
+            return nil
+        }
+    }
+
+    /// Their pen name now (users/{uid} is public); nil for an account that's gone.
+    private func currentHandle(of uid: String) async throws -> String? {
+        let data = try await Firestore.firestore().collection("users").document(uid).getDocument().data()
+        return Person(id: uid, data: data)?.handle
+    }
+
+    /// Back on screen (from a page pushed over the thread), or the conversation
+    /// just appeared in Messages: listening again if the listeners stopped.
+    func resume() {
+        guard phase == .ready, listeners.isEmpty else { return }
+        attach()
+    }
+
+    /// Listens to the conversation and its newest 50 messages, by pair id.
+    private func attach() {
         guard let pairId, listeners.isEmpty else { return }
         let ref = Firestore.firestore().collection("conversations").document(pairId)
-        guard let snap = try? await ref.getDocument(), snap.exists else {
-            threadReady = true
-            return
-        }
-        conversationExists = true
-        listeners.append(ref.addSnapshotListener { [weak self] snap, _ in
-            guard let snap, snap.exists else { return }
-            let unread = ((snap.get("unread") as? [String: Any])?[MainActor.assumeIsolated { self?.me } ?? ""] as? NSNumber)?.intValue ?? 0
+        listeners.append(ref.addSnapshotListener { [weak self] snap, error in
             MainActor.assumeIsolated {
-                self?.unreadForMe = unread
-                self?.markReadIfNeeded()
+                guard let self else { return }
+                if let error { return self.listenerFailed(error) }
+                guard let snap, snap.exists else { return }
+                self.conversationExists = true
+                self.unreadForMe = ((snap.get("unread") as? [String: Any])?[self.me ?? ""] as? NSNumber)?.intValue ?? 0
+                self.markReadIfNeeded()
             }
         })
         listeners.append(ref.collection("messages").order(by: "sentAt", descending: true).limit(to: 50)
-            .addSnapshotListener { [weak self] snap, _ in
-                guard let snap else { return }
-                // A pending server time (our own message, in flight) sorts last.
-                let messages = snap.documents.map(Self.message).reversed()
+            .addSnapshotListener { [weak self] snap, error in
                 MainActor.assumeIsolated {
-                    self?.messages = Array(messages)
-                    self?.threadReady = true
-                    self?.markReadIfNeeded()
-                    self?.loadCards()
+                    guard let self else { return }
+                    if let error { return self.listenerFailed(error) }
+                    guard let snap else { return }
+                    // A pending server time (our own message, in flight) sorts last.
+                    self.messages = Array(snap.documents.map(Self.message).reversed())
+                    self.threadReady = true
+                    self.markReadIfNeeded()
+                    self.loadCards()
                 }
             })
+    }
+
+    /// A listener that fails is over; `resume()` starts them again. Refused
+    /// means there is no conversation (yet, or any more): no messages, not an error.
+    private func listenerFailed(_ error: Error) {
+        stop()
+        threadReady = true
+        if Self.isNoConversation(error) {
+            conversationExists = false
+            messages = []
+            unreadForMe = 0
+        }
+    }
+
+    /// Reading a conversation that doesn't exist is refused by the rules (PERMISSION_DENIED).
+    nonisolated static func isNoConversation(_ error: Error) -> Bool {
+        let e = error as NSError
+        return e.domain == FirestoreErrorDomain && e.code == FirestoreErrorCode.permissionDenied.rawValue
+    }
+
+    /// Connections and conversations share the sorted `uid1_uid2` pair id.
+    nonisolated static func pairId(_ a: String, _ b: String) -> String {
+        [a, b].sorted().joined(separator: "_")
     }
 
     func stop() {
@@ -128,22 +211,27 @@ final class ThreadModel {
     private func loadCards() {
         for id in Set(messages.compactMap(\.cardRef)) where cards[id] == nil {
             cards[id] = .some(nil)
-            Task { cards[id] = .some(try? await session.reading.card(id)) }
+            Task {
+                let detail = try? await session.reading.card(id)
+                cards[id] = .some(detail)
+                if let detail { session.cardPreviews.remember(detail.card) }
+            }
         }
     }
 
     func send() async {
-        guard canSend, let other else { return }
+        guard canSend, let otherId else { return }
         sending = true
         error = nil
         defer { sending = false }
         do {
-            try await session.messaging.sendMessage(to: other.id, text: draft.trimmingCharacters(in: .whitespacesAndNewlines),
+            try await session.messaging.sendMessage(to: otherId, text: draft.trimmingCharacters(in: .whitespacesAndNewlines),
                                                     cardRef: pendingCard?.id, noteRef: noteRef)
             draft = ""
             pendingCard = nil
             noteRef = nil
-            await openConversation()
+            // The first message creates the conversation: listen to it now.
+            resume()
         } catch {
             self.error = L10n.Messages.sendError
         }
@@ -166,7 +254,7 @@ final class ThreadModel {
             return true
         } catch {
             self.error = L10n.Messages.deleteError
-            await openConversation()
+            resume()
             return false
         }
     }
@@ -206,5 +294,13 @@ final class ThreadModel {
             cardRef: doc.get("cardRef") as? String,
             noteRef: (note?["cardId"] as? String).flatMap { card in (note?["noteId"] as? String).map { .init(cardId: card, noteId: $0) } }
         )
+    }
+}
+
+extension Author {
+    /// Someone as Messages draws them, until their profile arrives.
+    init(person: Person) {
+        self.init(id: person.id, handle: person.handle, initials: person.initials, accentColor: person.accentColor ?? "",
+                  avatarUrl: person.avatarURL?.absoluteString, avatarSeed: person.avatarSeed, verified: false, region: nil)
     }
 }

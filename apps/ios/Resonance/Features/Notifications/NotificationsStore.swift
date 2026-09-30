@@ -10,6 +10,8 @@ final class NotificationsStore {
         let id: String
         let type: String
         let fromHandle: String?
+        /// Who it's from (a thread opened from it outlasts their change of pen name).
+        let fromUserId: String?
         let cardId: String?
         let preview: String?
         /// A note's id (to quote it when replying).
@@ -67,6 +69,7 @@ final class NotificationsStore {
             id: doc.documentID,
             type: doc.get("type") as? String ?? "",
             fromHandle: payload["fromHandle"] as? String,
+            fromUserId: payload["fromUserId"] as? String,
             cardId: payload["cardId"] as? String,
             preview: payload["preview"] as? String,
             noteId: payload["noteId"] as? String,

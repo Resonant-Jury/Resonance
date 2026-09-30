@@ -9,8 +9,10 @@ enum Route: Hashable {
     case author(String)
     case settings
     case settingsSection(SettingsSection)
-    /// A conversation, by the other person's pen name; `note` quotes a note to answer.
-    case thread(handle: String, note: MessagingAPI.NoteRef?)
+    /// A conversation, by the other person's pen name and, when the place it's
+    /// opened from knows it, their uid (which outlasts a change of pen name);
+    /// `note` quotes a note to answer.
+    case thread(handle: String, uid: String? = nil, note: MessagingAPI.NoteRef?)
     /// My thought map (me/thought-map).
     case thoughtMap
 }
@@ -60,7 +62,7 @@ extension View {
             case let .author(handle): AuthorScreen(handle: handle)
             case .settings: SettingsScreen()
             case let .settingsSection(section): SettingsSectionScreen(section: section)
-            case let .thread(handle, note): ThreadScreen(handle: handle, note: note)
+            case let .thread(handle, uid, note): ThreadScreen(handle: handle, uid: uid, note: note)
             case .thoughtMap: ThoughtMapScreen()
             }
         }

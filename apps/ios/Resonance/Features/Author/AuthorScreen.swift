@@ -71,7 +71,7 @@ struct AuthorScreen: View {
                 } else if !profile.isBlocked, profile.isConnected {
                     // Connected: a way into the conversation (the web's small ghost button with the chat glyph).
                     OrganicButton(L10n.Messages.messageLink, icon: .chat, variant: .ghost, size: .sm) {
-                        openRoute(.thread(handle: author.handle, note: nil))
+                        openRoute(.thread(handle: author.handle, uid: author.id, note: nil))
                     }
                     .padding(.top, 4)
                 }

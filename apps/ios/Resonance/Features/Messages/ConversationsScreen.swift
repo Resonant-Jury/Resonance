@@ -63,7 +63,7 @@ private struct ConversationRow: View {
     let unread: Int
 
     var body: some View {
-        NavigationLink(value: Route.thread(handle: person.handle, note: nil)) {
+        NavigationLink(value: Route.thread(handle: person.handle, uid: person.id, note: nil)) {
             HStack(spacing: 12) {
                 HandDrawnAvatar(initials: person.initials, imageURL: person.avatarURL,
                                 color: person.accentColor.flatMap(OKLCHColor.parse) ?? Tokens.terracottaLight,

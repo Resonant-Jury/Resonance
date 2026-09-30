@@ -83,8 +83,8 @@ struct NotificationsScreen: View {
         // NotificationBell: these open the conversation with that person; a note arrives quoted, ready to answer.
         case "note":
             let note = item.cardId.flatMap { card in item.noteId.map { MessagingAPI.NoteRef(cardId: card, noteId: $0) } }
-            return item.fromHandle.map { Route.thread(handle: $0, note: note) }
-        case "invite_accepted", "message", "resonance": return item.fromHandle.map { Route.thread(handle: $0, note: nil) }
+            return item.fromHandle.map { Route.thread(handle: $0, uid: item.fromUserId, note: note) }
+        case "invite_accepted", "message", "resonance": return item.fromHandle.map { Route.thread(handle: $0, uid: item.fromUserId, note: nil) }
         default: return nil
         }
     }

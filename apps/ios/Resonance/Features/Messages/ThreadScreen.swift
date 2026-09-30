@@ -8,6 +8,8 @@ import SwiftUI
 /// ⋯ holds search, what's been shared, report, block and delete.
 struct ThreadScreen: View {
     let handle: String
+    /// The other person's uid, when the place it was opened from knew it.
+    var uid: String?
     let note: MessagingAPI.NoteRef?
     @Environment(SessionStore.self) private var session
     @Environment(\.openRoute) private var openRoute
@@ -45,17 +47,32 @@ struct ThreadScreen: View {
         .background(Tokens.cream)
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            if model == nil {
-                let model = ThreadModel(handle: handle, noteRef: note, session: session)
-                #if DEBUG
-                // `-threadDraft "…"` fills the composer (screen checks; the simulator can't type into it).
-                if let draft = UserDefaults.standard.string(forKey: "threadDraft") { model.draft = draft }
-                #endif
-                self.model = model
-                await model.load()
+            if let model {
+                // Back from a page pushed over the thread (a profile, a shared card): the listeners
+                // stopped when it left, so new messages show and get read again; and a block made
+                // there shows here.
+                model.resume()
+                await model.refreshConnection()
+                return
             }
+            let model = ThreadModel(handle: handle, uid: uid, noteRef: note, session: session)
+            #if DEBUG
+            // `-threadDraft "…"` fills the composer (screen checks; the simulator can't type into it).
+            if let draft = UserDefaults.standard.string(forKey: "threadDraft") { model.draft = draft }
+            #endif
+            self.model = model
+            await model.load()
         }
         .onDisappear { model?.stop() }
+        // No conversation yet, then their first message arrives: it shows up in Messages, and here.
+        .onChange(of: conversationListed) { _, listed in
+            if listed { model?.resume() }
+        }
+    }
+
+    private var conversationListed: Bool {
+        guard let pair = model?.pairId else { return false }
+        return session.conversations.conversations.contains { $0.id == pair }
     }
 
     @ViewBuilder private func thread(_ model: ThreadModel) -> some View {
@@ -66,7 +83,7 @@ struct ThreadScreen: View {
         if model.connected == false {
             VStack(alignment: .leading, spacing: 10) {
                 Text(L10n.Messages.notConnected).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
-                Button(L10n.Messages.viewProfile) { openRoute(.author(handle)) }
+                Button(L10n.Messages.viewProfile) { openRoute(.author(model.displayHandle)) }
                     .font(AppFonts.body(13)).foregroundStyle(Tokens.terracotta).underline().buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -112,6 +129,9 @@ struct ThreadScreen: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint(L10n.Messages.viewProfile)
+                } else {
+                    // Opened by uid: the pen name the link carried, until their profile arrives.
+                    Text(model.displayHandle).font(AppFonts.heading(18)).foregroundStyle(Tokens.text).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 if model.conversationExists, let pair = model.pairId {
@@ -296,7 +316,7 @@ struct ThreadScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(L10n.Messages.attachCard)
                 TextField(text: $model.draft, prompt: fieldPrompt(L10n.Messages.placeholder), axis: .vertical) {
-                    Text(L10n.Messages.threadWith(handle: handle))
+                    Text(L10n.Messages.threadWith(handle: model.displayHandle))
                 }
                 .lineLimit(1...5)
                 .lineSpacing(15 * 0.6)
