@@ -380,16 +380,76 @@
         }
       }
     },
+    "/cards": {
+      "get": {
+        "operationId": "getCards",
+        "summary": "Several cards at once, by slug or id, as list summaries (no story)",
+        "description": "In the order asked, each card once; cards you may not read, or by someone you blocked, and unknown keys are left out. Anonymous cards come without a byline.",
+        "parameters": [
+          {
+            "name": "keys",
+            "in": "query",
+            "required": true,
+            "description": "Card slugs or ids, comma-separated (1–30)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cards/{key}": {
       "get": {
         "operationId": "getCard",
         "summary": "A card you may read, by slug or id, with its story",
+        "description": "With `include`, the lists its page shows come along — each exactly what its own endpoint answers (`resonances`, `related`, `links`) — and `embeds`: the cards its story embeds.",
         "parameters": [
           {
             "name": "key",
             "in": "path",
             "required": true,
             "description": "The card slug, or (older cards) its id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "description": "Lists to bring along, comma-separated (e.g. `resonances,related,links,embeds`): resonances, related, links, embeds. Unknown names are ignored.",
             "schema": {
               "type": "string"
             }
@@ -807,6 +867,7 @@
       "get": {
         "operationId": "getProfile",
         "summary": "A person's profile as you see it",
+        "description": "With `include`, what `/cards` (its first page, of `limit` cards) and `/links` answer come along.",
         "parameters": [
           {
             "name": "handle",
@@ -815,6 +876,26 @@
             "description": "Pen name (any script)",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "description": "Lists to bring along, comma-separated (e.g. `cards,links`): cards, links. Unknown names are ignored.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30,
+              "default": 12
             }
           }
         ],
@@ -1574,6 +1655,18 @@
                 "$ref": "#/components/schemas/FeedCard"
               }
             ]
+          },
+          "resonances": {
+            "$ref": "#/components/schemas/CardList"
+          },
+          "related": {
+            "$ref": "#/components/schemas/CardList"
+          },
+          "links": {
+            "$ref": "#/components/schemas/CardList"
+          },
+          "embeds": {
+            "$ref": "#/components/schemas/CardList"
           }
         },
         "required": [
@@ -1614,6 +1707,12 @@
           },
           "isBlocked": {
             "type": "boolean"
+          },
+          "cards": {
+            "$ref": "#/components/schemas/FeedPage"
+          },
+          "links": {
+            "$ref": "#/components/schemas/CardList"
           }
         },
         "required": [

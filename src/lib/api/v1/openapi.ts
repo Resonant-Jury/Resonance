@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiRegistry } from './schemas';
+import { apiRegistry, CARD_INCLUDES, CARD_KEYS_MAX, PROFILE_INCLUDES } from './schemas';
 
 type Json = Record<string, unknown>;
 
@@ -17,6 +17,13 @@ const get = (operationId: string, summary: string, schema: string, extra: Json =
 });
 const cardId = pathParam('key', 'The card id');
 const handle = pathParam('handle', 'Pen name (any script)');
+const include = (names: readonly string[], what: string) => ({
+  name: 'include',
+  in: 'query',
+  required: false,
+  description: `${what}, comma-separated (e.g. \`${names.join(',')}\`): ${names.join(', ')}. Unknown names are ignored.`,
+  schema: { type: 'string' },
+});
 
 /**
  * OpenAPI 3.0 for /api/v1, built from the Zod schemas in ./schemas.
@@ -31,9 +38,14 @@ export function buildOpenApi(): Json {
   // Components are referenced, not identified: drop JSON Schema `$id`s. And
   // drop `additionalProperties: false` — v1 grows by adding fields, so
   // clients must not reject ones they don't know yet.
+  // And an optional reference with nothing beside it is the reference itself
+  // (Zod wraps it in a one-item allOf, which the generators turn into a
+  // wrapper type for no reason).
   const clean = (node: unknown): unknown => {
     if (Array.isArray(node)) return node.map(clean);
     if (node && typeof node === 'object') {
+      const { allOf } = node as { allOf?: unknown[] };
+      if (Object.keys(node).length === 1 && Array.isArray(allOf) && allOf.length === 1) return clean(allOf[0]);
       const out: Json = {};
       for (const [k, v] of Object.entries(node)) {
         if (k === '$id' || (k === 'additionalProperties' && v === false)) continue;
@@ -94,9 +106,28 @@ export function buildOpenApi(): Json {
           'Answers at once from the latest picks. While today\'s are being prepared `status` is `stale` ' +
           '(earlier picks, or a quick first pass without reasons); ask again a little later for `fresh` ones.',
       }, [401]),
-      '/cards/{key}': get('getCard', 'A card you may read, by slug or id, with its story', 'CardDetail', {
-        parameters: [pathParam('key', 'The card slug, or (older cards) its id')],
-      }),
+      '/cards': get('getCards', 'Several cards at once, by slug or id, as list summaries (no story)', 'CardList', {
+        description:
+          'In the order asked, each card once; cards you may not read, or by someone you blocked, and unknown keys are left out. ' +
+          'Anonymous cards come without a byline.',
+        parameters: [
+          {
+            name: 'keys',
+            in: 'query',
+            required: true,
+            description: `Card slugs or ids, comma-separated (1–${CARD_KEYS_MAX})`,
+            schema: { type: 'string' },
+          },
+        ],
+      }, [400, 401]),
+      '/cards/{key}': {
+        ...get('getCard', 'A card you may read, by slug or id, with its story', 'CardDetail', {
+          description:
+            'With `include`, the lists its page shows come along — each exactly what its own endpoint answers ' +
+            '(`resonances`, `related`, `links`) — and `embeds`: the cards its story embeds.',
+          parameters: [pathParam('key', 'The card slug, or (older cards) its id'), include(CARD_INCLUDES, 'Lists to bring along')],
+        }),
+      },
       '/cards/{key}/resonances': get('getCardResonances', 'Public cards written in response to this one', 'CardList', { parameters: [cardId] }),
       '/cards/{key}/related': get('getRelatedCards', 'A few recent cards sharing its tags', 'CardList', { parameters: [cardId] }),
       '/cards/{key}/publish': {
@@ -125,7 +156,10 @@ export function buildOpenApi(): Json {
         },
       },
       '/cards/{key}/links': get('getCardLinks', 'Cards linking to it (empty unless you wrote it)', 'CardList', { parameters: [cardId] }),
-      '/users/{handle}': get('getProfile', "A person's profile as you see it", 'Profile', { parameters: [handle] }),
+      '/users/{handle}': get('getProfile', "A person's profile as you see it", 'Profile', {
+        description: 'With `include`, what `/cards` (its first page, of `limit` cards) and `/links` answer come along.',
+        parameters: [handle, include(PROFILE_INCLUDES, 'Lists to bring along'), pageParams[0]],
+      }),
       '/users/{handle}/cards': get('getProfileCards', 'Their public cards, newest first (never anonymous ones)', 'FeedPage', {
         parameters: [handle, ...pageParams],
       }),

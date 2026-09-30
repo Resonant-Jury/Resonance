@@ -1,11 +1,23 @@
-import { Timestamp, type Firestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
-import { cardByKey } from '@/lib/db/firestore/cardKey';
+import { Timestamp, type DocumentData, type Firestore, type QueryDocumentSnapshot, type QuerySnapshot } from 'firebase-admin/firestore';
+import { cardByKey, slugHolder } from '@/lib/db/firestore/cardKey';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card, RecommendationItem } from '@/lib/db/types';
+import { embeddedCardKeys } from './embeds';
 import { ApiFailure } from './http';
 import { blockedByViewer, canView, connected, loadAuthors, toAuthor, toFeedCard, visibleTo } from './present';
 import { properlyPublished } from './service';
-import type { CardBoxTabName, CardDetailBody, FeedCardBody, FeedPageBody, ProfileBody, RecommendedFeedBody } from './schemas';
+import {
+  CARD_KEYS_MAX,
+  type CardBoxTabName,
+  type CardDetailBody,
+  type CardInclude,
+  type CardListBody,
+  type FeedCardBody,
+  type FeedPageBody,
+  type ProfileBody,
+  type ProfileInclude,
+  type RecommendedFeedBody,
+} from './schemas';
 
 /**
  * v1 reads for the apps' reading screens (feed, card page, author page).
@@ -58,14 +70,28 @@ interface PresentOptions {
   blocked?: Set<string>;
 }
 
+/**
+ * Several lists at once, each as present() would answer it: whether the
+ * viewer is connected to each connections-only author, and each author's
+ * profile, are read once for all of them.
+ */
+async function presentAll(db: Firestore, viewerId: string, lists: Card[][], blocked: Set<string>, reasons?: Map<string, string>): Promise<FeedCardBody[][]> {
+  const unblocked = lists.map((cards) => cards.filter((c) => !blocked.has(c.authorId)));
+  const visible = new Set(await visibleTo(db, viewerId, unblocked.flat()));
+  const authors = await loadAuthors(db, [...visible]);
+  // An empty reason (a quick first pass has none) is no reason.
+  return unblocked.map((cards) =>
+    cards.filter((c) => visible.has(c)).map((c) => toFeedCard(c, authors.get(c.authorId), { reason: reasons?.get(c.id) || null })),
+  );
+}
+
 /** Cards the viewer may read, in the given order, minus blocked authors. */
 async function present(db: Firestore, viewerId: string, cards: Card[], opts: PresentOptions = {}): Promise<FeedCardBody[]> {
   const blocked = opts.blocked ?? (await blockedByViewer(db, viewerId));
-  const visible = await visibleTo(db, viewerId, cards.filter((c) => !blocked.has(c.authorId)));
-  const authors = await loadAuthors(db, visible);
-  // An empty reason (a quick first pass has none) is no reason.
-  return visible.map((c) => toFeedCard(c, authors.get(c.authorId), { reason: opts.reasons?.get(c.id) || null }));
+  return (await presentAll(db, viewerId, [cards], blocked, opts.reasons))[0];
 }
+
+const toCards = (snap: QuerySnapshot) => snap.docs.map((d) => mapCard(d.id, d.data()));
 
 async function cardsByIds(db: Firestore, ids: string[]): Promise<Card[]> {
   const unique = [...new Set(ids)].filter((id) => id && !id.includes('/'));
@@ -73,6 +99,50 @@ async function cardsByIds(db: Firestore, ids: string[]): Promise<Card[]> {
   const snaps = await db.getAll(...unique.map((id) => db.doc(`cards/${id}`)));
   const byId = new Map(snaps.filter((s) => s.exists).map((s) => [s.id, mapCard(s.id, s.data()!)]));
   return unique.map((id) => byId.get(id)).filter((c): c is Card => !!c);
+}
+
+/**
+ * cardByKey for many keys (slugs or ids): one query for the slugs, then one
+ * batched read for the keys no slug named. In key order, each card once (a
+ * card named by both its slug and its id comes back at the first); unknown
+ * keys drop out.
+ */
+async function cardsByKeys(db: Firestore, keys: string[]): Promise<Card[]> {
+  const unique = [...new Set(keys)].filter((k) => k && !k.includes('/')).slice(0, CARD_KEYS_MAX);
+  if (!unique.length) return [];
+  const bySlug = await db.collection('cards').where('slug', 'in', unique).get();
+  const sharing = new Map<string, QueryDocumentSnapshot[]>();
+  for (const d of bySlug.docs) {
+    const slug = String(d.get('slug'));
+    sharing.set(slug, [...(sharing.get(slug) ?? []), d]);
+  }
+  const named = new Map<string, QueryDocumentSnapshot>();
+  for (const [slug, docs] of sharing) {
+    const holder = slugHolder(docs);
+    if (holder) named.set(slug, holder);
+  }
+  const rest = unique.filter((k) => !named.has(k));
+  const byId = rest.length ? await db.getAll(...rest.map((k) => db.doc(`cards/${k}`))) : [];
+  const ids = new Map(byId.filter((s) => s.exists).map((s) => [s.id, s]));
+  const seen = new Set<string>();
+  const cards: Card[] = [];
+  for (const key of unique) {
+    const snap = named.get(key) ?? ids.get(key);
+    if (!snap || seen.has(snap.id)) continue;
+    seen.add(snap.id);
+    cards.push(mapCard(snap.id, snap.data()!));
+  }
+  return cards;
+}
+
+/**
+ * GET /cards?keys= — summaries of the cards named (slugs or ids), in the
+ * order asked, for previews: those the viewer may read, minus authors they
+ * blocked; anonymous ones without a byline.
+ */
+export async function getCardsByKeys(db: Firestore, viewerId: string, keys: string[]): Promise<CardListBody> {
+  const [cards, blocked] = await Promise.all([cardsByKeys(db, keys), blockedByViewer(db, viewerId)]);
+  return { cards: await present(db, viewerId, cards, { blocked }) };
 }
 
 /**
@@ -105,14 +175,37 @@ export async function getRecommendedFeed(
   };
 }
 
-export async function getCardDetail(db: Firestore, viewerId: string, key: string): Promise<CardDetailBody> {
+/**
+ * A card the viewer may read, with its story — and, as `include` asks, the
+ * lists its page shows: exactly what GET /cards/{id}/resonances, /related and
+ * /links answer, plus the cards its story embeds. One visibility check and
+ * one read of the viewer's blocks serve them all, and the lists' queries run
+ * side by side.
+ */
+export async function getCardDetail(
+  db: Firestore,
+  viewerId: string,
+  key: string,
+  include: ReadonlySet<CardInclude> = new Set(),
+): Promise<CardDetailBody> {
   const card = await visibleCard(db, viewerId, key);
-  const [authorSnap, reference, blocked] = await Promise.all([
+  const ownerLinks = include.has('links') && card.authorId === viewerId;
+  const embedKeys = include.has('embeds') ? embeddedCardKeys(String(card.story ?? '')) : [];
+  const [authorSnap, reference, blocked, resonances, recent, linking, embedded] = await Promise.all([
     card.anonymous ? null : db.doc(`users/${card.authorId}`).get(),
     card.referenceCardId ? cardDoc(db, card.referenceCardId) : null,
-    card.referenceCardId ? blockedByViewer(db, viewerId) : undefined,
+    card.referenceCardId || include.size ? blockedByViewer(db, viewerId) : new Set<string>(),
+    include.has('resonances') ? resonancesOf(db, card.id).get().then(toCards) : [],
+    include.has('related') ? recentPublic(db).get().then(toCards) : [],
+    ownerLinks ? cardsLinkingTo(db, card.id) : [],
+    embedKeys.length ? cardsByKeys(db, embedKeys) : [],
   ]);
-  const referenceCard = reference && (await present(db, viewerId, [reference], { blocked }))[0];
+  const [referenceCard, resonanceCards, relatedCards, linkCards, embedCards] = await presentAll(
+    db,
+    viewerId,
+    [reference ? [reference] : [], resonances, relatedPool(card, recent), linking, embedded],
+    blocked,
+  );
   return {
     card: toFeedCard(card, authorSnap?.exists ? authorSnap.data() : undefined),
     story: String(card.story ?? ''),
@@ -121,58 +214,61 @@ export async function getCardDetail(db: Firestore, viewerId: string, key: string
     resonanceCount: Number(card.resonanceCount ?? 0),
     coreInsight: card.signature?.coreInsight || null,
     isOwner: card.authorId === viewerId,
-    referenceCard: referenceCard ?? null,
+    referenceCard: referenceCard[0] ?? null,
+    ...(include.has('resonances') ? { resonances: { cards: resonanceCards } } : {}),
+    ...(include.has('related') ? { related: { cards: relatedCards.slice(0, RELATED_LIMIT) } } : {}),
+    ...(include.has('links') ? { links: { cards: linkCards } } : {}),
+    ...(include.has('embeds') ? { embeds: { cards: embedCards } } : {}),
   };
 }
 
+const resonancesOf = (db: Firestore, id: string) =>
+  db
+    .collection('cards')
+    .where('referenceCardId', '==', id)
+    .where('visibility', '==', 'public')
+    .where('publishedAt', '!=', null)
+    .orderBy('publishedAt', 'desc')
+    .limit(RESONANCE_LIMIT);
+
+const recentPublic = (db: Firestore) =>
+  db
+    .collection('cards')
+    .where('visibility', '==', 'public')
+    .where('publishedAt', '!=', null)
+    .orderBy('publishedAt', 'desc')
+    .limit(RELATED_LIMIT + 6);
+
+/** Recent cards other than `base`, those sharing the most of its tags first. */
+function relatedPool(base: Card, recent: Card[]): Card[] {
+  const tags = (base.tags ?? []).slice(0, 5);
+  const overlap = (c: Card) => (c.tags ?? []).filter((t) => tags.includes(t)).length;
+  return recent.filter((c) => c.id !== base.id).sort((a, b) => overlap(b) - overlap(a));
+}
+
+/** The cards whose card links point at this one, newest link first. */
+async function cardsLinkingTo(db: Firestore, cardId: string): Promise<Card[]> {
+  const links = await db.collection('cardLinks').where('targetCardId', '==', cardId).orderBy('createdAt', 'desc').limit(LINK_LIMIT).get();
+  return cardsByIds(db, links.docs.map((d) => String(d.get('sourceCardId') ?? '')).filter(Boolean));
+}
+
 /** Public cards written in response to this one, newest first. */
-export async function getResonances(db: Firestore, viewerId: string, id: string): Promise<{ cards: FeedCardBody[] }> {
-  const [, snap, blocked] = await Promise.all([
-    visibleCardById(db, viewerId, id),
-    db
-      .collection('cards')
-      .where('referenceCardId', '==', id)
-      .where('visibility', '==', 'public')
-      .where('publishedAt', '!=', null)
-      .orderBy('publishedAt', 'desc')
-      .limit(RESONANCE_LIMIT)
-      .get(),
-    blockedByViewer(db, viewerId),
-  ]);
-  return { cards: await present(db, viewerId, snap.docs.map((d) => mapCard(d.id, d.data())), { blocked }) };
+export async function getResonances(db: Firestore, viewerId: string, id: string): Promise<CardListBody> {
+  const [, snap, blocked] = await Promise.all([visibleCardById(db, viewerId, id), resonancesOf(db, id).get(), blockedByViewer(db, viewerId)]);
+  return { cards: await present(db, viewerId, toCards(snap), { blocked }) };
 }
 
 /** A few recent public cards, those sharing the most tags first (the web's getRelatedCards). */
-export async function getRelated(db: Firestore, viewerId: string, id: string): Promise<{ cards: FeedCardBody[] }> {
-  const [base, snap, blocked] = await Promise.all([
-    visibleCardById(db, viewerId, id),
-    db
-      .collection('cards')
-      .where('visibility', '==', 'public')
-      .where('publishedAt', '!=', null)
-      .orderBy('publishedAt', 'desc')
-      .limit(RELATED_LIMIT + 6)
-      .get(),
-    blockedByViewer(db, viewerId),
-  ]);
-  const tags = (base.tags ?? []).slice(0, 5);
-  const overlap = (c: Card) => (c.tags ?? []).filter((t) => tags.includes(t)).length;
-  const pool = snap.docs
-    .map((d) => mapCard(d.id, d.data()))
-    .filter((c) => c.id !== base.id)
-    .sort((a, b) => overlap(b) - overlap(a));
-  return { cards: (await present(db, viewerId, pool, { blocked })).slice(0, RELATED_LIMIT) };
+export async function getRelated(db: Firestore, viewerId: string, id: string): Promise<CardListBody> {
+  const [base, snap, blocked] = await Promise.all([visibleCardById(db, viewerId, id), recentPublic(db).get(), blockedByViewer(db, viewerId)]);
+  return { cards: (await present(db, viewerId, relatedPool(base, toCards(snap)), { blocked })).slice(0, RELATED_LIMIT) };
 }
 
 /** Cards that link to this one — shown to its author only, as on the web. */
-export async function getLinksToCard(db: Firestore, viewerId: string, id: string): Promise<{ cards: FeedCardBody[] }> {
+export async function getLinksToCard(db: Firestore, viewerId: string, id: string): Promise<CardListBody> {
   const card = await visibleCardById(db, viewerId, id);
   if (card.authorId !== viewerId) return { cards: [] };
-  const [links, blocked] = await Promise.all([
-    db.collection('cardLinks').where('targetCardId', '==', card.id).orderBy('createdAt', 'desc').limit(LINK_LIMIT).get(),
-    blockedByViewer(db, viewerId),
-  ]);
-  const cards = await cardsByIds(db, links.docs.map((d) => String(d.get('sourceCardId') ?? '')).filter(Boolean));
+  const [cards, blocked] = await Promise.all([cardsLinkingTo(db, card.id), blockedByViewer(db, viewerId)]);
   return { cards: await present(db, viewerId, cards, { blocked }) };
 }
 
@@ -182,14 +278,39 @@ async function userByHandle(db: Firestore, handle: string) {
   return snap.docs[0];
 }
 
-export async function getProfile(db: Firestore, viewerId: string, handle: string): Promise<ProfileBody> {
+/** GET /users/{handle}/cards' page size when none is asked for (FeedQuery's default). */
+const DEFAULT_PAGE = 12;
+const EMPTY_PAGE: FeedPageBody = { cards: [], nextCursor: null };
+
+/**
+ * A person's profile as the viewer sees it — and, as `include` asks, exactly
+ * what GET /users/{handle}/cards (its first page, of `limit` cards) and
+ * /links answer. The first page comes out of the query that counts their
+ * cards, and one read of the viewer's blocks serves the profile and its links.
+ */
+export async function getProfile(
+  db: Firestore,
+  viewerId: string,
+  handle: string,
+  opts: { include?: ReadonlySet<ProfileInclude>; limit?: number } = {},
+): Promise<ProfileBody> {
+  const include = opts.include ?? new Set();
+  // The count's query holds the page, so a page is never longer than it.
+  const limit = Math.min(opts.limit ?? DEFAULT_PAGE, PROFILE_COUNT_LIMIT);
   const user = await userByHandle(db, handle);
   const isSelf = user.id === viewerId;
-  const [blocked, isConnected, published] = await Promise.all([
-    isSelf ? Promise.resolve(false) : db.doc(`users/${viewerId}/blocks/${user.id}`).get().then((s) => s.exists),
+  const [blocks, isConnected, published, linking] = await Promise.all([
+    // The whole block list when the links need it (it answers isBlocked too), else the one document.
+    include.has('links')
+      ? blockedByViewer(db, viewerId)
+      : isSelf
+        ? null
+        : db.doc(`users/${viewerId}/blocks/${user.id}`).get().then((s) => (s.exists ? new Set([user.id]) : null)),
     isSelf ? Promise.resolve(false) : connected(db, viewerId, user.id),
     db.collection('cards').where('authorId', '==', user.id).where('visibility', '==', 'public').orderBy('publishedAt', 'desc').limit(PROFILE_COUNT_LIMIT).get(),
+    include.has('links') ? cardsLinkingToAuthor(db, user.id) : [],
   ]);
+  const blocked = !isSelf && !!blocks?.has(user.id);
   const cardCount = published.docs.filter((d) => d.get('publishedAt') && d.get('anonymous') !== true).length;
   const u = user.data();
   const joined = u.joinedAt instanceof Timestamp ? u.joinedAt.toDate() : new Date(0);
@@ -201,6 +322,21 @@ export async function getProfile(db: Firestore, viewerId: string, handle: string
     isSelf,
     isConnected,
     isBlocked: blocked,
+    ...(include.has('cards') ? { cards: blocked ? EMPTY_PAGE : profilePage(published.docs.slice(0, limit), u, limit) } : {}),
+    ...(include.has('links') ? { links: { cards: await present(db, viewerId, linking, { blocked: blocks ?? new Set() }) } } : {}),
+  };
+}
+
+/** A page of a profile's cards from its query's documents (`limit` asked): public, attributed, properly published. */
+function profilePage(docs: QueryDocumentSnapshot[], author: DocumentData, limit: number): FeedPageBody {
+  const cards = docs
+    .filter((d) => properlyPublished(d.get('publishedAt')))
+    .map((d) => mapCard(d.id, d.data()))
+    .filter((c) => !c.anonymous);
+  const last = docs.at(-1)?.get('publishedAt');
+  return {
+    cards: cards.map((c) => toFeedCard(c, author)),
+    nextCursor: docs.length === limit && last instanceof Timestamp ? last.toDate().toISOString() : null,
   };
 }
 
@@ -221,26 +357,20 @@ export async function getProfileCards(db: Firestore, viewerId: string, handle: s
     user.id === viewerId ? false : db.doc(`users/${viewerId}/blocks/${user.id}`).get().then((s) => s.exists),
     q.get(),
   ]);
-  if (blocked) return { cards: [], nextCursor: null };
-  const cards = snap.docs
-    .filter((d) => properlyPublished(d.get('publishedAt')))
-    .map((d) => mapCard(d.id, d.data()))
-    .filter((c) => !c.anonymous);
-  const last = snap.docs.at(-1)?.get('publishedAt');
-  return {
-    cards: cards.map((c) => toFeedCard(c, user.data())),
-    nextCursor: snap.size === limit && last instanceof Timestamp ? last.toDate().toISOString() : null,
-  };
+  if (blocked) return EMPTY_PAGE;
+  return profilePage(snap.docs, user.data(), limit);
+}
+
+/** Cards by others linking to this author's cards, newest link first. */
+async function cardsLinkingToAuthor(db: Firestore, userId: string): Promise<Card[]> {
+  const links = await db.collection('cardLinks').where('targetAuthorId', '==', userId).orderBy('createdAt', 'desc').limit(LINK_LIMIT).get();
+  return cardsByIds(db, links.docs.map((d) => String(d.get('sourceCardId') ?? '')).filter(Boolean));
 }
 
 /** Cards by others that link to this author's cards (the profile's "linked" tab). */
-export async function getProfileLinks(db: Firestore, viewerId: string, handle: string): Promise<{ cards: FeedCardBody[] }> {
+export async function getProfileLinks(db: Firestore, viewerId: string, handle: string): Promise<CardListBody> {
   const user = await userByHandle(db, handle);
-  const [links, blocked] = await Promise.all([
-    db.collection('cardLinks').where('targetAuthorId', '==', user.id).orderBy('createdAt', 'desc').limit(LINK_LIMIT).get(),
-    blockedByViewer(db, viewerId),
-  ]);
-  const cards = await cardsByIds(db, links.docs.map((d) => String(d.get('sourceCardId') ?? '')).filter(Boolean));
+  const [cards, blocked] = await Promise.all([cardsLinkingToAuthor(db, user.id), blockedByViewer(db, viewerId)]);
   return { cards: await present(db, viewerId, cards, { blocked }) };
 }
 

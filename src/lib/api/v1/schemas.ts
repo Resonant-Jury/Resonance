@@ -141,6 +141,21 @@ export const CardDetail = named(
     isOwner: z.boolean(),
     /** The card this one responds to, when the viewer may see it. */
     referenceCard: FeedCard.nullable(),
+    // The card page's lists, when asked for with `include` (absent otherwise):
+    // each is exactly what its own endpoint answers this viewer.
+    /** `include=resonances`: GET /cards/{id}/resonances. */
+    resonances: CardList.optional(),
+    /** `include=related`: GET /cards/{id}/related. */
+    related: CardList.optional(),
+    /** `include=links`: GET /cards/{id}/links (empty unless the viewer wrote the card). */
+    links: CardList.optional(),
+    /**
+     * `include=embeds`: the cards the story embeds (a card link standing alone
+     * in its paragraph), in reading order, each once — those the viewer may
+     * read, minus authors they blocked. Match a link's /card/{key} to a card's
+     * slug or id; a link with no card here is drawn as a plain link.
+     */
+    embeds: CardList.optional(),
   }),
   'CardDetail',
 );
@@ -156,6 +171,10 @@ export const Profile = named(
     isConnected: z.boolean(),
     /** The viewer blocked this person: their cards are not listed. */
     isBlocked: z.boolean(),
+    /** `include=cards`: the first page of GET /users/{handle}/cards (with this request's `limit`). */
+    cards: FeedPage.optional(),
+    /** `include=links`: GET /users/{handle}/links. */
+    links: CardList.optional(),
   }),
   'Profile',
 );
@@ -306,6 +325,23 @@ export const FeedQuery = z.object({
   cursor: z.iso.datetime().optional(),
 });
 
+/** A comma-separated list of names (`include=a,b`): the known ones, as a set; unknown names are ignored. */
+function includeList<const T extends readonly string[]>(names: T) {
+  return z
+    .string()
+    .max(200)
+    .optional()
+    .transform((v) => new Set((v ?? '').split(',').map((n) => n.trim()).filter((n): n is T[number] => (names as readonly string[]).includes(n))));
+}
+
+/** What GET /cards/{key} can bring along (`include=`). */
+export const CARD_INCLUDES = ['resonances', 'related', 'links', 'embeds'] as const;
+export const CardDetailQuery = z.object({ include: includeList(CARD_INCLUDES) });
+
+/** What GET /users/{handle} can bring along (`include=`), and the included cards page's size. */
+export const PROFILE_INCLUDES = ['cards', 'links'] as const;
+export const ProfileQuery = z.object({ include: includeList(PROFILE_INCLUDES), limit: FeedQuery.shape.limit });
+
 /** The card box's shelves (the web's me page). */
 export const CardBoxTab = z.enum(['published', 'private', 'draft', 'resonated', 'linked', 'bookmarks']);
 export const CardBoxQuery = z.object({ tab: CardBoxTab });
@@ -313,6 +349,14 @@ export const CardBoxQuery = z.object({ tab: CardBoxTab });
 /** A card's URL segment: its English slug or (older cards) its document id. */
 export const CardKey = z.string().regex(/^[A-Za-z0-9_-]{1,160}$/, 'Not a valid card.');
 export const CardIdParam = DocId;
+/** GET /cards?keys=: at most this many slugs or ids at once. */
+export const CARD_KEYS_MAX = 30;
+export const CardKeysQuery = z.object({
+  keys: z
+    .string()
+    .transform((v) => v.split(',').map((k) => k.trim()).filter(Boolean))
+    .pipe(z.array(CardKey).min(1).max(CARD_KEYS_MAX)),
+});
 export const NotificationIdParam = DocId;
 /** An app install's own stable id (a UUID it keeps; Firebase Installations' id also fits). */
 export const InstallationIdParam = z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, 'Not a valid installation id.');
@@ -331,3 +375,6 @@ export type CardBoxTabName = z.infer<typeof CardBoxTab>;
 export type CreateProfileInput = z.infer<typeof CreateProfileRequest>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileRequest>;
 export type ReportCardInput = z.infer<typeof ReportCardRequest>;
+export type CardListBody = z.infer<typeof CardList>;
+export type CardInclude = (typeof CARD_INCLUDES)[number];
+export type ProfileInclude = (typeof PROFILE_INCLUDES)[number];

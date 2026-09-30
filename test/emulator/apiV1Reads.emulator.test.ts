@@ -5,6 +5,7 @@ import { ApiFailure } from '@/lib/api/v1/http';
 import {
   getCardBox,
   getCardDetail,
+  getCardsByKeys,
   getLinksToCard,
   getProfile,
   getProfileCards,
@@ -330,5 +331,221 @@ describe('cards written before the rules closed publishedAt and slug', () => {
     await card('!copy', 'dana', 1, { slug: 'a-quiet-morning' });
     await card('!draft', 'dana', 0, { slug: 'a-quiet-morning', publishedAt: null });
     expect((await getCardDetail(db, 'alice', 'a-quiet-morning')).card.id).toBe('victim');
+  });
+});
+
+// One request for a whole screen (`include`): the card page and the profile
+// bring their lists along, and each must be exactly what its own endpoint
+// answers the same viewer — the owner, a connection, someone who blocked an
+// author, the person they blocked, a stranger — with one visibility check
+// and one read of the viewer's blocks behind it.
+describe('the card page in one request (GET /cards/{key}?include=)', () => {
+  const ALL = new Set(['resonances', 'related', 'links', 'embeds'] as const);
+  const withoutLists = ({ resonances: _r, related: _rel, links: _l, embeds: _e, ...rest }: Awaited<ReturnType<typeof getCardDetail>>) => rest;
+
+  async function page() {
+    await card('orig', 'bob', 60, { slug: 'a-walk', tags: ['雨', '散步'], story: 'A walk.\n\n[a friend](/card/by-dana)\n\n[hidden](/card/by-carol)' });
+    await card('by-dana', 'dana', 50, { tags: ['雨'] });
+    await card('by-carol', 'carol', 40, { tags: ['雨', '散步'] }); // alice blocked carol
+    await card('r-dana', 'dana', 5, { referenceCardId: 'orig' });
+    await card('r-carol', 'carol', 4, { referenceCardId: 'orig' });
+    await card('r-anon', 'erin', 3, { referenceCardId: 'orig', anonymous: true });
+    await card('r-alice', 'alice', 2, { referenceCardId: 'orig', tags: ['散步'] });
+    await card('r-priv', 'erin', 1, { referenceCardId: 'orig', visibility: 'private' });
+    await set('cardLinks/l1', { sourceCardId: 'by-dana', targetCardId: 'orig', targetAuthorId: 'bob', createdAt: minutesAgo(3) });
+    await set('cardLinks/l2', { sourceCardId: 'by-carol', targetCardId: 'orig', targetAuthorId: 'bob', createdAt: minutesAgo(2) });
+    await set('cardLinks/l3', { sourceCardId: 'r-anon', targetCardId: 'orig', targetAuthorId: 'bob', createdAt: minutesAgo(1) });
+  }
+
+  it('brings exactly what /resonances, /related and /links answer, for every kind of viewer, by slug or id', async () => {
+    await page();
+    // alice blocked carol (so carol is the blocked one looking); bob blocks erin too.
+    await set('users/bob/blocks/erin', { createdAt: minutesAgo(1) });
+    for (const viewer of ['bob', 'alice', 'carol', 'dana', 'erin']) {
+      for (const key of ['a-walk', 'orig']) {
+        const detail = await getCardDetail(db, viewer, key, ALL);
+        expect(detail.resonances, `${viewer} ${key}`).toEqual(await getResonances(db, viewer, 'orig'));
+        expect(detail.related, `${viewer} ${key}`).toEqual(await getRelated(db, viewer, 'orig'));
+        expect(detail.links, `${viewer} ${key}`).toEqual(await getLinksToCard(db, viewer, 'orig'));
+        expect(withoutLists(detail)).toEqual(await getCardDetail(db, viewer, key));
+      }
+    }
+    // What those lists hold, so the equalities above are not of empty lists.
+    const ids = async (viewer: string) => {
+      const d = await getCardDetail(db, viewer, 'a-walk', ALL);
+      return {
+        resonances: d.resonances!.cards.map((c) => c.id),
+        related: d.related!.cards.map((c) => c.id),
+        links: d.links!.cards.map((c) => c.id),
+        embeds: d.embeds!.cards.map((c) => c.id),
+      };
+    };
+    expect(await ids('alice')).toEqual({
+      resonances: ['r-alice', 'r-anon', 'r-dana'],
+      related: ['r-alice', 'by-dana', 'r-anon'],
+      links: [],
+      embeds: ['by-dana'],
+    });
+    expect((await ids('carol')).resonances).toEqual(['r-alice', 'r-anon', 'r-carol', 'r-dana']);
+    expect((await ids('carol')).embeds).toEqual(['by-dana', 'by-carol']);
+    // bob blocked erin: her anonymous resonance and her link drop out of his lists too.
+    expect(await ids('bob')).toMatchObject({ resonances: ['r-alice', 'r-carol', 'r-dana'], links: ['by-carol', 'by-dana'] });
+  });
+
+  it('asks for nothing it was not asked for', async () => {
+    await page();
+    const lists = (d: object) => Object.keys(d).filter((k) => ['resonances', 'related', 'links', 'embeds'].includes(k));
+    expect(lists(await getCardDetail(db, 'alice', 'a-walk'))).toEqual([]);
+    expect(lists(await getCardDetail(db, 'alice', 'a-walk', new Set(['resonances'] as const)))).toEqual(['resonances']);
+  });
+
+  it("is not_found as a whole when the viewer can't read the card, whatever it includes", async () => {
+    await card('conn', 'bob', 1, { visibility: 'connections', slug: 'between-us' });
+    await card('r1', 'dana', 1, { referenceCardId: 'conn' });
+    expect((await getCardDetail(db, 'alice', 'between-us', ALL)).resonances?.cards.map((c) => c.id)).toEqual(['r1']);
+    expect((await failure(getCardDetail(db, 'dana', 'between-us', ALL))).code).toBe('not_found');
+    expect((await failure(getResonances(db, 'dana', 'conn'))).code).toBe('not_found');
+  });
+
+  it('keeps an anonymous card anonymous: no byline on it, and only its author sees who links to it', async () => {
+    await card('anon', 'bob', 10, { anonymous: true });
+    await card('src', 'dana', 1);
+    await set('cardLinks/l1', { sourceCardId: 'src', targetCardId: 'anon', targetAuthorId: 'bob', createdAt: minutesAgo(1) });
+    const seen = await getCardDetail(db, 'alice', 'anon', ALL);
+    expect(seen.card.author).toBeNull();
+    expect(seen.links).toEqual({ cards: [] });
+    const own = await getCardDetail(db, 'bob', 'anon', ALL);
+    expect(own.links?.cards.map((c) => c.id)).toEqual(['src']);
+    expect(own.links).toEqual(await getLinksToCard(db, 'bob', 'anon'));
+  });
+});
+
+describe('embedded cards (include=embeds)', () => {
+  const EMBEDS = new Set(['embeds'] as const);
+  const story = [
+    'Before the rain.',
+    '[a walk](/card/a-walk)', // bob's, by slug
+    '[by id](/card/erin-card)',
+    '[between us](/card/conn)', // bob's, connections only
+    '[mine alone](/card/priv)', // bob's, private
+    '[someone](/card/anon)', // erin's, anonymous
+    '[blocked](/card/by-carol)', // alice blocked carol
+    '[gone](/card/missing)',
+    '[draft](/card/draft)', // bob's, unpublished
+    'Read [this one](/card/inline) in passing.', // a link inside a sentence is no embed
+    '[a walk again](/card/walk)', // the same card by its id: listed once
+  ].join('\n\n');
+
+  beforeEach(async () => {
+    await card('host', 'dana', 1, { story, slug: 'host' });
+    await card('walk', 'bob', 10, { slug: 'a-walk' });
+    await card('erin-card', 'erin', 11);
+    await card('conn', 'bob', 12, { visibility: 'connections' });
+    await card('priv', 'bob', 13, { visibility: 'private' });
+    await card('anon', 'erin', 14, { anonymous: true });
+    await card('by-carol', 'carol', 15);
+    await card('draft', 'bob', 0, { publishedAt: null });
+    await card('inline', 'erin', 16);
+  });
+
+  const embeds = async (viewer: string) => (await getCardDetail(db, viewer, 'host', EMBEDS)).embeds!.cards;
+
+  it('lists the cards standing alone in the story, in its order — only those the viewer may read', async () => {
+    expect((await embeds('alice')).map((c) => c.id)).toEqual(['walk', 'erin-card', 'conn', 'anon']);
+    expect((await embeds('dana')).map((c) => c.id)).toEqual(['walk', 'erin-card', 'anon', 'by-carol']);
+    expect((await embeds('bob')).map((c) => c.id)).toEqual(['walk', 'erin-card', 'conn', 'priv', 'anon', 'by-carol', 'draft']);
+  });
+
+  it('never carries an anonymous byline or a story — summaries, as a list shows them', async () => {
+    for (const viewer of ['alice', 'erin']) {
+      expect((await embeds(viewer)).find((c) => c.id === 'anon')).toMatchObject({ anonymous: true, author: null });
+    }
+    for (const c of await embeds('alice')) expect(c).not.toHaveProperty('story');
+    expect((await embeds('alice')).find((c) => c.id === 'walk')?.author?.id).toBe('bob');
+  });
+
+  it('answers the same summaries as GET /cards?keys= for those links', async () => {
+    const keys = ['a-walk', 'erin-card', 'conn', 'priv', 'anon', 'by-carol', 'missing', 'draft', 'walk'];
+    for (const viewer of ['alice', 'bob', 'dana']) {
+      expect(await embeds(viewer)).toEqual((await getCardsByKeys(db, viewer, keys)).cards);
+    }
+  });
+
+  it('is an empty list for a story that embeds nothing', async () => {
+    expect((await getCardDetail(db, 'alice', 'erin-card', EMBEDS)).embeds).toEqual({ cards: [] });
+  });
+});
+
+describe('getCardsByKeys (GET /cards?keys=)', () => {
+  it('answers summaries in the order asked, each card once, leaving out what the viewer may not read', async () => {
+    await card('walk', 'bob', 10, { slug: 'a-walk' });
+    await card('e1', 'erin', 11);
+    await card('priv', 'bob', 12, { visibility: 'private' });
+    await card('by-carol', 'carol', 13);
+    await card('anon', 'dana', 14, { anonymous: true });
+    await card('conn', 'bob', 15, { visibility: 'connections' });
+    const keys = ['e1', 'a-walk', 'walk', 'priv', 'missing', 'by-carol', 'anon', 'conn'];
+    const alice = (await getCardsByKeys(db, 'alice', keys)).cards;
+    expect(alice.map((c) => c.id)).toEqual(['e1', 'walk', 'anon', 'conn']);
+    expect(alice.find((c) => c.id === 'anon')?.author).toBeNull();
+    expect((await getCardsByKeys(db, 'dana', keys)).cards.map((c) => c.id)).toEqual(['e1', 'walk', 'by-carol', 'anon']);
+    expect((await getCardsByKeys(db, 'bob', keys)).cards.map((c) => c.id)).toEqual(['e1', 'walk', 'priv', 'by-carol', 'anon', 'conn']);
+  });
+
+  it("names a shared slug's first published holder, as GET /cards/{key} does", async () => {
+    await card('victim', 'bob', 60, { slug: 'a-quiet-morning' });
+    await card('!copy', 'dana', 1, { slug: 'a-quiet-morning' });
+    expect((await getCardsByKeys(db, 'alice', ['a-quiet-morning'])).cards.map((c) => c.id)).toEqual(['victim']);
+    expect((await getCardDetail(db, 'alice', 'a-quiet-morning')).card.id).toBe('victim');
+  });
+});
+
+describe('the profile in one request (GET /users/{handle}?include=)', () => {
+  const BOTH = new Set(['cards', 'links'] as const);
+
+  beforeEach(async () => {
+    await Promise.all(Array.from({ length: 14 }, (_, i) => card(`b${i}`, 'bob', i + 1)));
+    await card('b-anon', 'bob', 0, { anonymous: true });
+    await card('b-conn', 'bob', 0, { visibility: 'connections' });
+    await card('b-draft', 'bob', 0, { publishedAt: null });
+    await card('by-dana', 'dana', 30);
+    await card('by-carol', 'carol', 31);
+    await card('c1', 'carol', 32);
+    await set('cardLinks/l1', { sourceCardId: 'by-dana', targetCardId: 'b0', targetAuthorId: 'bob', createdAt: minutesAgo(2) });
+    await set('cardLinks/l2', { sourceCardId: 'by-carol', targetCardId: 'b1', targetAuthorId: 'bob', createdAt: minutesAgo(1) });
+    await set('cardLinks/l3', { sourceCardId: 'b2', targetCardId: 'c1', targetAuthorId: 'carol', createdAt: minutesAgo(1) });
+  });
+
+  it('brings exactly what /cards (its first page) and /links answer — self, connection, stranger, across a block', async () => {
+    const pairs: [string, string][] = [
+      ['bob', 'bob'], ['alice', 'bob'], ['carol', 'bob'], ['dana', 'bob'], ['erin', 'bob'],
+      ['alice', 'carol'], // alice blocked carol
+      ['carol', 'alice'], // and carol looks back
+    ];
+    for (const [viewer, handle] of pairs) {
+      const profile = await getProfile(db, viewer, handle, { include: BOTH });
+      expect(profile.cards, `${viewer} → ${handle}`).toEqual(await getProfileCards(db, viewer, handle, 12));
+      expect(profile.links, `${viewer} → ${handle}`).toEqual(await getProfileLinks(db, viewer, handle));
+      const { cards: _c, links: _l, ...rest } = profile;
+      expect(rest).toEqual(await getProfile(db, viewer, handle));
+      for (const limit of [1, 5, 14, 30]) {
+        expect((await getProfile(db, viewer, handle, { include: new Set(['cards'] as const), limit })).cards).toEqual(
+          await getProfileCards(db, viewer, handle, limit),
+        );
+      }
+    }
+    // Not empty lists: bob's first page is his newest 12 public cards less the anonymous one, with a way on.
+    const bob = await getProfile(db, 'alice', 'bob', { include: BOTH });
+    expect(bob.cards?.cards.map((c) => c.id)).toEqual(Array.from({ length: 11 }, (_, i) => `b${i}`));
+    expect(bob.cards?.nextCursor).not.toBeNull();
+    expect(bob.links?.cards.map((c) => c.id)).toEqual(['by-dana']); // carol's is left out: alice blocked her
+    expect((await getProfile(db, 'dana', 'bob', { include: BOTH })).links?.cards.map((c) => c.id)).toEqual(['by-carol', 'by-dana']);
+    expect((await getProfile(db, 'alice', 'carol', { include: BOTH })).cards).toEqual({ cards: [], nextCursor: null });
+  });
+
+  it('asks for nothing it was not asked for', async () => {
+    const profile = await getProfile(db, 'alice', 'bob');
+    expect(profile).not.toHaveProperty('cards');
+    expect(profile).not.toHaveProperty('links');
   });
 });
