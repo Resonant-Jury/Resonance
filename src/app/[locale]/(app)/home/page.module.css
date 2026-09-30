@@ -1,0 +1,44 @@
+/* Where 「今天的推薦準備好了」scrolls back to, clear of the fixed header. */
+.feedTop {
+  scroll-margin-top: calc(var(--app-header-h) + var(--page-pad-top));
+}
+
+/* Today's picks arrived after the latest cards: a small pill that rides just
+   under the header while the reader scrolls, instead of reshuffling the feed. */
+.picksHint {
+  position: sticky;
+  top: calc(var(--app-header-h) + 12px);
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+  pointer-events: none;
+  animation: picksHintIn 360ms ease-out both;
+}
+
+.picksHint > * {
+  pointer-events: auto;
+}
+
+.picksHintLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@keyframes picksHintIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picksHint {
+    animation: none;
+  }
+}

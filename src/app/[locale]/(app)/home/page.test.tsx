@@ -3,9 +3,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderWithIntl, screen, userEvent } from '@/../test/render';
 import type { Card, User } from '@/lib/db/types';
 
-// The page's data boundary is the SWR hook. We mock it to drive the page
-// through its three states (loading / loaded-with-cards / empty) and assert
-// that entering the page renders the fetched feed.
+// The page's data boundary is the SWR hooks. We mock them to drive the page
+// through its states (loading / loaded-with-cards / empty, and the latest and
+// recommended streams arriving in either order) and assert what the reader
+// sees.
 const mockUseFeed = vi.fn();
 const mockUseRecommendedFeed = vi.fn();
 vi.mock('@/lib/data/hooks', () => ({
@@ -150,5 +151,102 @@ describe('HomeFeedPage', () => {
     expect(
       screen.queryByText('because of “you both wrote about letting go”'),
     ).not.toBeInTheDocument();
+  });
+});
+
+// Today's picks come from a server call that can take a while; the latest
+// public cards come straight from Firestore. Whichever reaches the reader
+// first leads, and nothing already on screen is ever reshuffled or swapped
+// back for the skeleton.
+describe('HomeFeedPage — latest first, picks when they come', () => {
+  const latest = {
+    data: {
+      cards: [card('l1', 'a1', 'Latest one'), card('l2', 'a1', 'Latest two')],
+      authors: { a1: user('a1') },
+    },
+    isLoading: false,
+    hasMore: false,
+    loadMore: vi.fn(),
+  };
+  const picks = {
+    data: {
+      cards: [card('r1', 'a2', 'A pick for you')],
+      authors: { a2: user('a2') },
+      reasons: { r1: 'why' },
+    },
+    isLoading: false,
+  };
+  /** The card links on screen, in reading order. */
+  const shown = () =>
+    screen
+      .getAllByRole('link')
+      .map((a) => a.getAttribute('href'))
+      .filter((h) => h?.startsWith('/card/'));
+
+  it('shows the latest cards while the picks are still on their way', () => {
+    mockUseFeed.mockReturnValue(latest);
+    mockUseRecommendedFeed.mockReturnValue({ data: undefined, isLoading: true });
+    renderWithIntl(<HomeFeedPage />);
+    expect(screen.getAllByText('Latest one').length).toBeGreaterThan(0);
+    expect(shown()).toEqual(['/card/l1', '/card/l2']);
+  });
+
+  it('keeps the latest cards in place when the picks arrive after them, and offers the picks instead', async () => {
+    mockUseFeed.mockReturnValue(latest);
+    mockUseRecommendedFeed.mockReturnValue({ data: undefined, isLoading: true });
+    const { rerender } = renderWithIntl(<HomeFeedPage />);
+
+    mockUseRecommendedFeed.mockReturnValue(picks);
+    rerender(<HomeFeedPage />);
+
+    // Nothing moved: the reader is still looking at the same cards…
+    expect(shown()).toEqual(['/card/l1', '/card/l2']);
+    expect(screen.queryByText('A pick for you')).not.toBeInTheDocument();
+    // …and a small hint says today's picks are ready.
+    const hint = screen.getByRole('button', { name: "Today's picks are ready" });
+
+    await userEvent.setup().click(hint);
+    // Asked for, the picks go on top and the latest cards stay below them.
+    expect(shown()).toEqual(['/card/r1', '/card/l1', '/card/l2']);
+    expect(screen.queryByRole('button', { name: "Today's picks are ready" })).not.toBeInTheDocument();
+  });
+
+  it('never falls back to the skeleton once cards are showing', () => {
+    // A signed-in reader: the picks' request only starts once auth has
+    // restored, after the public latest cards are already up.
+    mockUseFeed.mockReturnValue(latest);
+    mockUseRecommendedFeed.mockReturnValue({ data: undefined, isLoading: false });
+    const { rerender } = renderWithIntl(<HomeFeedPage />);
+    expect(shown()).toEqual(['/card/l1', '/card/l2']);
+
+    mockUseRecommendedFeed.mockReturnValue({ data: undefined, isLoading: true });
+    rerender(<HomeFeedPage />);
+    expect(shown()).toEqual(['/card/l1', '/card/l2']);
+  });
+
+  it('leads with the picks when they are ready before the latest cards', async () => {
+    mockUseFeed.mockReturnValue({ data: undefined, isLoading: true, hasMore: false, loadMore: vi.fn() });
+    mockUseRecommendedFeed.mockReturnValue(picks);
+    const { rerender } = renderWithIntl(<HomeFeedPage />);
+    expect(shown()).toEqual(['/card/r1']);
+
+    // Latest cards arriving later wait behind「載入更多」, as they always have.
+    mockUseFeed.mockReturnValue(latest);
+    rerender(<HomeFeedPage />);
+    expect(shown()).toEqual(['/card/r1']);
+    expect(screen.queryByRole('button', { name: "Today's picks are ready" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Load more' }));
+    expect(shown()).toEqual(['/card/r1', '/card/l1', '/card/l2']);
+  });
+
+  it('waits for the picks before calling an empty latest feed empty', () => {
+    mockUseFeed.mockReturnValue({ data: { cards: [], authors: {} }, isLoading: false });
+    mockUseRecommendedFeed.mockReturnValue({ data: undefined, isLoading: true });
+    const { rerender } = renderWithIntl(<HomeFeedPage />);
+    expect(screen.queryByText('Write your first card')).not.toBeInTheDocument();
+
+    mockUseRecommendedFeed.mockReturnValue({ data: { cards: [], authors: {}, reasons: {} }, isLoading: false });
+    rerender(<HomeFeedPage />);
+    expect(screen.getByText('Write your first card')).toBeInTheDocument();
   });
 });

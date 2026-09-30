@@ -87,11 +87,13 @@ export interface RecommendedFeed extends CardsWithAuthors {
  * the API requires auth, and an anonymous user has no profile to match from.
  *
  * The request carries the viewer's ID token (like `callApi`), so it never
- * waits for the session cookie.
+ * waits for the session cookie. `isLoading` also covers the moments before
+ * the fetch can start (auth still restoring), so the home page can tell
+ * "not yet" from "nothing for you".
  */
 export function useRecommendedFeed() {
   const { user, loading } = useAuth();
-  return useSWR<RecommendedFeed>(user && !loading ? `feed:recommended:${user.id}` : null, async () => {
+  const swr = useSWR<RecommendedFeed>(user && !loading ? `feed:recommended:${user.id}` : null, async () => {
     let items: { cardId: string; reason: string }[];
     try {
       ({ items } = await callApi<{ items: { cardId: string; reason: string }[] }>('/api/recommend/feed'));
@@ -103,6 +105,7 @@ export function useRecommendedFeed() {
     for (const item of items) reasons[item.cardId] = item.reason;
     return { cards, authors, reasons };
   });
+  return { ...swr, isLoading: swr.isLoading || loading };
 }
 
 const FEED_PAGE_SIZE = 12;

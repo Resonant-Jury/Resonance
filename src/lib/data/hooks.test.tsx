@@ -612,6 +612,13 @@ describe('useRecommendedFeed', () => {
     expect(result.current.data!.reasons).toEqual({ r1: 'why' });
   });
 
+  it('counts as loading while auth is still restoring, so "none yet" never reads as "none"', async () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: true });
+    const { result } = renderHook(() => useRecommendedFeed(), { wrapper });
+    expect(result.current.isLoading).toBe(true);
+    expect(callApi).not.toHaveBeenCalled();
+  });
+
   it('comes back empty (not failed) when the server call fails', async () => {
     vi.mocked(callApi).mockRejectedValue(new Error('500'));
     const { result } = renderHook(() => useRecommendedFeed(), { wrapper });
