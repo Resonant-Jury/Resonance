@@ -30,6 +30,7 @@ import com.resonance.design.FieldLabel
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicRadio
 import com.resonance.design.SquareFlag
+import com.resonance.design.hasSquareFlag
 import com.resonance.design.OrganicTextField
 import com.resonance.design.WavyDivider
 import com.resonance.design.generated.IconName
@@ -161,7 +162,8 @@ fun <T> ChoiceList(
                         .plainClickable(role = Role.RadioButton) { onSelect(value) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    flag?.invoke(value)?.let { code ->
+                    // A region without the web's art gets no gap either: its name lines up with the others' flags' edge.
+                    flag?.invoke(value)?.takeIf(::hasSquareFlag)?.let { code ->
                         SquareFlag(code, 18.dp)
                         Spacer(Modifier.width(10.dp))
                     }

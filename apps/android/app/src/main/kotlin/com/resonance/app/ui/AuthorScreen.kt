@@ -183,7 +183,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
 
 /**
  * ProfileSafety's BlockedNotice: who is blocked and what that means, and a
- * small ghost Unblock that fades while it works; the page then re-reads.
+ * small terracotta-text Unblock (no frame of its own) that fades while it works; the page then re-reads.
  */
 @Composable
 private fun BlockedNotice(session: Session, userId: String, handle: String, onUnblocked: () -> Unit) {

@@ -176,7 +176,11 @@ struct TabScreen<Trailing: View, Content: View>: View {
             .padding(.bottom, 110)
         }
         .onHeaderScroll($scrolled)
-        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { old, new in
+        // The offset within the scrollable range only: a rubber-band past either end must not move the bar.
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            let limit = max(0, geo.contentSize.height + geo.contentInsets.top + geo.contentInsets.bottom - geo.containerSize.height)
+            return min(max(geo.contentOffset.y + geo.contentInsets.top, 0), limit)
+        } action: { old, new in
             hidden = new <= 0 ? 0 : min(travel, max(0, hidden + new - old))
         }
         .onScrollPhaseChange { _, phase, context in

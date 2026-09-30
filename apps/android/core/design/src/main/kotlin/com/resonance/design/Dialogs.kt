@@ -82,6 +82,8 @@ import com.resonance.geometry.rowRegion
 import com.resonance.geometry.wobCircle
 import com.resonance.geometry.wobRect
 import com.resonance.kit.l10n.L10n
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -335,6 +337,9 @@ fun OrganicMenuChip(
 /** The chip's touch target. */
 private val MenuHitBox = 44.dp
 
+/** How long a chosen row's panel stays, so its ink is seen. */
+private const val ChooseLingerMillis = 150L
+
 /** A bare trigger's touch target (OrganicIconButton's), and how far in its wash sits. */
 private val BareHitBox = 48.dp
 private val BareWashInset = 4.dp
@@ -358,6 +363,8 @@ fun OrganicMenu(
     trigger: MenuTrigger = MenuTrigger.Chip,
 ) {
     var open by remember { mutableStateOf(false) }
+    var choosing by remember { mutableStateOf(false) }
+    val menuScope = rememberCoroutineScope()
     val colors = remember(hue) { MenuColors(hue) }
     Box {
         OrganicMenuChip(triggerIcon, label, seed, size = triggerSize, expanded = open, hue = hue, trigger = trigger) { open = !open }
@@ -373,8 +380,15 @@ fun OrganicMenu(
                 properties = PopupProperties(focusable = true),
             ) {
                 MenuPanel(items, seed, colors) { item ->
-                    open = false
-                    item.onClick()
+                    if (choosing) return@MenuPanel
+                    choosing = true
+                    menuScope.launch {
+                        // A tap is shorter than the ink's spread: the panel stays long enough to show it.
+                        delay(ChooseLingerMillis)
+                        open = false
+                        choosing = false
+                        item.onClick()
+                    }
                 }
             }
         }

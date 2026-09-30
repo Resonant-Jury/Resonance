@@ -325,10 +325,11 @@ private struct DeleteAccountSettings: View {
             muted(L10n.Settings.Delete.exportHint)
             FlowRow(spacing: 12) {
                 if let exportFile {
+                    // Ready: the same frameless text as before (Android keeps it too), now handing the file over.
                     ShareLink(item: exportFile) {
-                        OrganicButtonLabel(L10n.Settings.Delete.export, icon: .document, variant: .ghost)
+                        OrganicButtonLabel(L10n.Settings.Delete.export, icon: .check, variant: .text)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(OrganicPressStyle(inset: 0))
                 } else {
                     OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .text) {
                         Task { await export() }

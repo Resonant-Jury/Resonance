@@ -80,6 +80,12 @@ public struct OrganicButton: View {
     @State private var ink: Double = 0
     @State private var pressed = false
     @State private var pressedAt: Date?
+    /// Bumped on every press, so a lift scheduled by an earlier tap can't wipe the ink of a later one.
+    @State private var generation = 0
+    @State private var bounds: CGSize = .zero
+    /// True while a finger is down; resets by itself when the touch ends *or is taken away* (the edge
+    /// swipe claiming it, an alert) — so the button can't stay stuck pressed.
+    @GestureState private var touching = false
     @Environment(\.isEnabled) private var isEnabled
 
     public var body: some View {
@@ -91,16 +97,16 @@ public struct OrganicButton: View {
                 GeometryReader { geo in
                     ZStack {
                         style.fillLayers(shape)
-                        // Ink reveal from the touch point.
-                        if let p = pressPoint {
-                            let maxR = hypot(max(p.x, geo.size.width - p.x), max(p.y, geo.size.height - p.y))
-                            Circle()
-                                .fill(style.filled ? Color.black.opacity(0.14) : Tokens.terracotta.opacity(0.14))
-                                .frame(width: revealed ? maxR * 2 : 0, height: revealed ? maxR * 2 : 0)
-                                .position(p)
-                                .clipShape(shape)
-                                .opacity(ink)
-                        }
+                        // Ink reveal from the touch point. The circle is always there (at nothing), so a
+                        // press grows it from 0 rather than inserting it at full size.
+                        let p = pressPoint ?? CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+                        let maxR = hypot(max(p.x, geo.size.width - p.x), max(p.y, geo.size.height - p.y))
+                        Circle()
+                            .fill(style.filled ? Color.black.opacity(0.14) : Tokens.terracotta.opacity(0.14))
+                            .frame(width: revealed ? maxR * 2 : 0, height: revealed ? maxR * 2 : 0)
+                            .position(p)
+                            .clipShape(shape)
+                            .opacity(ink)
                         if style.stroked {
                             shape.stroke(style.stroke, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
                         }
@@ -110,38 +116,55 @@ public struct OrganicButton: View {
             // Busy / inactive: the web dims the whole button (fill, grain, ink, label).
             .opacity(isEnabled ? 1 : 0.6)
             .scaleEffect(pressed ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.12), value: pressed)
             .contentShape(shape)
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { bounds = $0 }
             .gesture(
                 DragGesture(minimumDistance: 0)
+                    .updating($touching) { _, state, _ in state = true }
                     .onChanged { g in
                         guard isEnabled, !pressed else { return }
-                        pressed = true
-                        pressedAt = .now
-                        pressPoint = g.startLocation
-                        ink = 1
-                        revealed = false
-                        withAnimation(InkTiming.spread) { revealed = true }
+                        press(at: g.startLocation)
                     }
-                    .onEnded { _ in
-                        guard isEnabled else { return }
-                        pressed = false
+                    .onEnded { g in
+                        // A real button's rule: lifting the finger off it (with a little slop) cancels.
+                        guard isEnabled, CGRect(origin: .zero, size: bounds).insetBy(dx: -16, dy: -16).contains(g.location) else { return }
                         action()
-                        // A quick tap still shows the whole spread before it lifts.
-                        let wait = max(0, 0.3 - (pressedAt.map { Date.now.timeIntervalSince($0) } ?? 1))
-                        Task { @MainActor in
-                            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
-                            withAnimation(InkTiming.lift) { ink = 0 }
-                            try? await Task.sleep(for: .milliseconds(220))
-                            if !pressed { pressPoint = nil; revealed = false }
-                        }
                     }
             )
+            .onChange(of: touching) { _, down in
+                if !down { lift() }
+            }
             .sensoryFeedback(.impact(weight: .light), trigger: pressed) { _, new in new }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { if isEnabled { action() } }
+    }
+
+    private func press(at point: CGPoint) {
+        generation += 1
+        pressedAt = .now
+        pressPoint = point
+        ink = 1
+        revealed = false
+        withAnimation(.easeOut(duration: 0.12)) { pressed = true }
+        withAnimation(InkTiming.spread) { revealed = true }
+    }
+
+    /// The finger is up (or the touch was taken away): the ink finishes its spread, then lifts.
+    private func lift() {
+        guard pressed else { return }
+        withAnimation(.easeOut(duration: 0.12)) { pressed = false }
+        let mine = generation
+        let wait = max(0, 0.3 - (pressedAt.map { Date.now.timeIntervalSince($0) } ?? 1))
+        Task { @MainActor in
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard generation == mine else { return }
+            withAnimation(InkTiming.lift) { ink = 0 }
+            try? await Task.sleep(for: .milliseconds(220))
+            guard generation == mine else { return }
+            revealed = false
+        }
     }
 }
 

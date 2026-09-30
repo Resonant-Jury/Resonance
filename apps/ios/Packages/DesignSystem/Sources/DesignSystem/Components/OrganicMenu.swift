@@ -153,6 +153,7 @@ struct MenuStage: View {
     @State private var shown = false
     @State private var pressed: Int?
     @State private var ink = MenuInk()
+    @State private var choosing = false
 
     var body: some View {
         GeometryReader { geo in
@@ -178,7 +179,7 @@ struct MenuStage: View {
     private var panel: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
-                Button { close(item) } label: {
+                Button { choose(item) } label: {
                     HStack(spacing: 8) {
                         OrganicIcon(item.icon, size: 17, color: pressed == i ? colors.borderHover : colors.border, strokeWidth: Tokens.ink)
                         Text(item.title)
@@ -208,6 +209,18 @@ struct MenuStage: View {
         }
         .coordinateSpace(.named(MenuPanelShape.space))
         .accessibilityElement(children: .contain)
+    }
+}
+
+extension MenuStage {
+    /// A tap is shorter than the ink's spread: the panel stays long enough to show it, then goes.
+    fileprivate func choose(_ item: OrganicMenuItem) {
+        guard !choosing else { return }
+        choosing = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            close(item)
+        }
     }
 }
 

@@ -131,7 +131,7 @@ fun LazyListState.scrolledPast20(): Boolean {
 /**
  * A tab's root, as a phone shows the web's app pages: the pinned brand bar
  * (content scrolls under it and ends on its wavy line), the page title and
- * its lede, then the list, with room for the floating tab bar.
+ * its lede, then the list, with room for the docked tab bar.
  */
 @Composable
 fun TabScreen(
@@ -166,11 +166,16 @@ fun TabScreen(
     }
 }
 
-/** The brand bar's quick return: how far it has slid up (−bar height…0), fed by the list's scrolling. */
-class QuickReturn(private val range: Float) {
+/**
+ * The brand bar's quick return: how far it has slid up (−bar height…0), fed by
+ * the list's scrolling. A list too short to scroll keeps its bar: a drag there
+ * moves nothing, so neither does the bar.
+ */
+class QuickReturn(private val range: Float, private val list: LazyListState) {
     var offset by mutableFloatStateOf(0f)
     val connection = object : NestedScrollConnection {
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            if (!list.canScrollForward && !list.canScrollBackward) return Offset.Zero
             offset = (offset + available.y).coerceIn(-range, 0f)
             return Offset.Zero
         }
@@ -180,7 +185,7 @@ class QuickReturn(private val range: Float) {
 @Composable
 private fun rememberQuickReturn(list: LazyListState): QuickReturn {
     val range = with(LocalDensity.current) { BrandBarHeight.toPx() }
-    val q = remember(range) { QuickReturn(range) }
+    val q = remember(range, list) { QuickReturn(range, list) }
     // Let go half-way and it settles, shown or hidden — and it is always shown back at the top.
     LaunchedEffect(q, list.isScrollInProgress) {
         if (list.isScrollInProgress) return@LaunchedEffect

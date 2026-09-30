@@ -234,8 +234,13 @@ private struct BarAuthor: View {
                         .foregroundStyle(Tokens.text)
                         .lineLimit(1)
                 }
+                // The bar's other controls' 44pt target, and their ink on press.
+                .padding(.horizontal, 6)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(OrganicPressStyle(inset: 2))
+            .padding(.horizontal, -6)
         } else {
             HStack(spacing: 8) {
                 HandDrawnAvatar(initials: "·", color: Tokens.creamDark, size: 28, seed: 97)

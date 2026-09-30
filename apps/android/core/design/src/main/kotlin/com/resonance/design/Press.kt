@@ -123,8 +123,9 @@ class InkSpread {
         if (down > 0) return
         val pending = spreading
         scope.launch {
-            // A quick tap still shows the whole spread before it lifts.
+            // A quick tap still shows the whole spread before it lifts — unless the finger is down again by then.
             pending?.join()
+            if (down > 0) return@launch
             ink.animateTo(0f, tween(OrganicIndication.FadeMillis))
         }
     }

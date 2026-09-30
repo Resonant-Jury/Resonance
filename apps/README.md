@@ -37,6 +37,7 @@ npm run apps:generate   # tokens, string accessors, icons, openapi.json, editor 
 | the Swift API client (at build time) | `openapi/v1/openapi.json` | swift-openapi-generator |
 | the Kotlin API client (at build time) | `openapi/v1/openapi.json` | openapi-generator (`jvm-okhttp4`) |
 | `apps/shared/fonts/*.ttf` | Noto TC, Playfair, DM Sans, 陳宇落雁 | `scripts/native/subset-fonts.py` (rarely) |
+| `DesignSystem/.../Resources/Flags/flag-*.png`, `core/design/.../drawable-nodpi/flag_*.png` | `public/flags/*.svg` (the art the web's SquareFlag crops) | `scripts/apps/flags.ts` (by hand when a flag is added; not in `apps:generate`, not checked by CI) |
 
 Both apps also bundle the story editor island, `native/editor/dist/editor.html`
 (the writing screen's story field). It is built, not committed: run

@@ -347,7 +347,7 @@ private fun ThreadHeader(
             }
             val pair = model.pairId
             if (model.conversationExists && pair != null) {
-                // The chip is 34 across; its 44 hit box may spill into the row's margin.
+                // A bare glyph; its 48 hit box may spill into the row's margin.
                 Box(Modifier.size(34.dp).wrapContentSize(unbounded = true)) {
                     OrganicMenu(menu, L10n.Messages.moreMenu, seed = seedFromString(pair).toDouble(), triggerSize = 34.dp, trigger = MenuTrigger.Bare)
                 }

@@ -39,6 +39,8 @@ private struct PressWash<Label: View>: View {
     @State private var ink: Double = 0
     @State private var seed = Double(Int.random(in: 1..<9973))
     @State private var pressedAt: Date?
+    /// Bumped on every press, so a lift scheduled by an earlier tap can't wipe a later press's ink.
+    @State private var generation = 0
 
     var body: some View {
         label
@@ -59,6 +61,7 @@ private struct PressWash<Label: View>: View {
             }
             .onChange(of: isPressed) { _, pressed in
                 if pressed {
+                    generation += 1
                     seed = Double(Int.random(in: 1..<9973))
                     pressedAt = .now
                     ink = 1
@@ -68,8 +71,10 @@ private struct PressWash<Label: View>: View {
                     // A quick tap still shows the whole spread before it lifts.
                     let held = pressedAt.map { Date.now.timeIntervalSince($0) } ?? 1
                     let wait = max(0, 0.3 - held)
+                    let mine = generation
                     Task { @MainActor in
                         if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                        guard generation == mine else { return }
                         withAnimation(InkTiming.lift) { ink = 0 }
                     }
                 }

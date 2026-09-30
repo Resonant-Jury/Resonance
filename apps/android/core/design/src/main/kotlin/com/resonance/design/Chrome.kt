@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -79,6 +80,7 @@ fun <T> OrganicTabBar(items: List<OrganicTabItem<T>>, selection: T, onSelect: (T
     Row(
         modifier
             .fillMaxWidth()
+            .blocksTouches()
             .footerEdge()
             .padding(top = HeaderEdgeHeight)
             .navigationBarsPadding()
@@ -207,6 +209,7 @@ fun OrganicBrandBar(scrolled: Boolean, modifier: Modifier = Modifier, brand: Str
     Row(
         modifier
             .fillMaxWidth()
+            .blocksTouches()
             .headerEdge(edgeInk(scrolled))
             .statusBarsPadding()
             .padding(bottom = HeaderEdgeHeight)
@@ -253,6 +256,7 @@ fun OrganicInlineBar(
     Row(
         modifier
             .fillMaxWidth()
+            .blocksTouches()
             .headerEdge(edgeInk(scrolled))
             .statusBarsPadding()
             // Puts the arrow on the page's 20 margin, as the web's -8 margin + 8 padding does.
@@ -287,6 +291,13 @@ val InlineBarHeight = 52.dp
 /** Where a pushed page's content starts under its overlaid [OrganicInlineBar]. */
 @Composable
 fun inlineBarTop(): Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + InlineBarHeight + HeaderEdgeHeight
+
+/**
+ * A bar lies over the page's scrolling content, so it must take the touches
+ * that land on it — its blank middle and its wavy band included — or a tap
+ * there would reach a link or a card hidden under the paper.
+ */
+fun Modifier.blocksTouches(): Modifier = pointerInput(Unit) {}
 
 /** Room under a bar's content for its wavy edge (the web's HEADER_WAVE_H band). */
 val HeaderEdgeHeight = 10.dp
