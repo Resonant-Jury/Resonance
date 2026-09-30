@@ -38,7 +38,7 @@ App routes under `src/app/[locale]/`:
 
 - `page.tsx` — marketing landing page (`SiteHeader → HeroSection → CardFeedSection → CTASection → SiteFooter`)
 - `(auth)/` — `signin`, `signup`
-- `(app)/` — `home` (feed), `me`, `settings`, `messages` (DMs), `write/[id]` (editor), `card/[slug]` (card page), `u/[handle]` (public profile)
+- `(app)/` — `home` (feed), `me`, `settings`, `messages` (DMs), `write/[id]` (editor), `card/[slug]` (card page: ISR, `revalidate = 300`; a server component seeds `CardDetailClient` through `src/lib/data/cardSeed.ts` — a public card's story is in the HTML, an anonymous card's author never is — and the client replaces it with its own read through the rules; blocks stay client-side, `cardHold.ts` hides the card pre-paint in a signed-in browser until the block list is known), `u/[handle]` (public profile)
 
 ### Authentication
 
@@ -62,7 +62,7 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | Route | Purpose |
 | --- | --- |
 | `POST/DELETE /api/auth/session` | ID token ↔ session cookie / logout |
-| `GET /api/cards/resolve?key=` | slug or legacy doc id → Firestore doc id (id only, no content) |
+| `GET /api/cards/resolve?key=` | slug or legacy doc id → Firestore doc id (id only, no content); CDN-cached an hour on a hit (not longer: a deleted card's slug can be reassigned), never on a miss. The card page doesn't call it (its server render hands over the id) |
 | `POST /api/cards/tags` | LLM suggests 2–3 tags, informed by the author's tag history |
 | `POST /api/cards/insight` | pre-publish "mirror moment": distills the draft's core insight for the publish panel (returns only `coreInsight`) |
 | `POST /api/cards/index` | builds/refreshes a card's recommendation index entry (insight signature + vectors); fire-and-forget after publish, owner-gated |
@@ -75,22 +75,23 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | `GET /api/cron/purge-accounts` | Vercel Cron (daily, `Bearer $CRON_SECRET`): purges accounts past their grace period (`src/lib/account/deletion.ts`) |
 | `GET /api/v1/me` · `GET /api/v1/feed` · `GET /api/v1/feed/recommended` | versioned API for the native apps (contract below): the account, latest and recommended feeds (recommended as above, with an optional `status`: `fresh` \| `stale`) |
 | `POST/PATCH /api/v1/me` · `GET /api/v1/handles/{handle}` | onboarding and profile edits (pen-name uniqueness checked in the write's transaction), and the as-you-type availability check |
-| `GET /api/v1/cards/{key}` (+ `/resonances`, `/related`, `/links`) · `POST …/report` | a card by slug or id with its story, and the lists around it; reporting it (the server fills in an anonymous author) |
+| `GET /api/v1/cards/{key}` (+ `/resonances`, `/related`, `/links`; or `?include=resonances,related,links,embeds` in one request) · `GET /api/v1/cards?keys=` (≤ 30 slugs/ids → summaries in order) · `POST …/report` | a card by slug or id with its story, and the lists around it; reporting it (the server fills in an anonymous author) |
 | `POST /api/v1/cards/{id}/publish` | publish your card (web and apps): stamp once, slug (`assignSlug`: LLM-translated title, collision-safe, idempotent), a resonance's connection + bell; the slug is waited for ≤ 8 s (`SLUG_WAIT_MS`), else `slug: null` and it's written after the response; index and cache after the response |
-| `GET /api/v1/users/{handle}` (+ `/cards`, `/links`) | a profile as the viewer sees it, their public cards, cards linking to theirs |
+| `GET /api/v1/users/{handle}` (+ `/cards`, `/links`; or `?include=cards,links&limit=`) | a profile as the viewer sees it, their public cards, cards linking to theirs |
 | `POST /api/v1/cards/{id}/edits/apply` | apply a published card's pending edit (`cards/{id}/edits/current`) in one transaction, keeping its date and slug |
 | `POST /api/v1/notes` · `POST /api/v1/messages` | a note to a card's author (the server finds the author) · a message to a connection (opens the conversation; only the first rings the bell) |
 | `PUT/DELETE /api/v1/me/devices/{installationId}` | the apps' push registration: FCM token + UI language in `devices/{installationId}` (no client rule; purged with the account) |
-| `POST /api/notifications/{id}/push` | the web asks for the push of the one bell row it still writes from the browser, a legacy invite's `invite_accepted` (its sender only, while fresh) |
+| `PATCH/DELETE /api/v1/cards/{id}` | the owner changes a card's visibility / anonymity, or deletes it (with its pending edit and vectors); both revalidate the cached pages |
+| `POST /api/v1/invites/{id}/accept` | accept a legacy invite: invite, connection and bell in one transaction, then the push |
 | `GET /api/v1/openapi.json` | the v1 contract, for tools and client generators |
 
-**Push** (`src/lib/push`): every `notifications/*` row is also pushed to the recipient's devices through FCM (`pushNotification`: once-only via `pushedAt`, blocks re-checked, the bell's own `app.notifications.*` copy in each device's language, `data.route` a site path the apps open). Server writers call `ringAfter()` after their response; the one browser writer left (accepting a legacy invite) calls `ringNotification(id)`. A new notification writer belongs on the server. What a push says comes from the records, not the row: the sender's current pen name and, for a note, the note's own text.
+**Push** (`src/lib/push`): every `notifications/*` row is also pushed to the recipient's devices through FCM (`pushNotification`: once-only via `pushedAt`, blocks re-checked, the bell's own `app.notifications.*` copy in each device's language, `data.route` a site path the apps open). Every bell row is written by the server, which rings it with `ringAfter()` after its response (the rules refuse client creates of notifications and connections). Pushes that open a conversation carry `data.fromUserId`. What a push says comes from the records, not the row: the sender's current pen name and, for a note, the note's own text.
 
 **Rate limits** (`src/lib/api/rateLimit.ts`): costly or far-reaching endpoints spend a per-user budget (`spend()` in v1 routes, `limited()` elsewhere) kept in server-only `rateLimits/{uid}_{bucket}`; over budget answers 429 `rate_limited`. A new LLM, upload or notify endpoint should take a bucket.
 
 API routes authenticate with the `__session` cookie **or** `Authorization: Bearer <Firebase ID token>` (native apps) — both via `getCurrentUser()`.
 
-**`/api/v1` is a contract.** Zod schemas in `src/lib/api/v1/schemas.ts` are the source of truth: routes validate with them (`withUser` + `parse` in `http.ts`, errors always `{ error: { code, message, issues? } }`), and `npm run api:openapi` writes `openapi/v1/openapi.json`, from which the iOS (swift-openapi-generator) and Android (openapi-generator) clients are generated. Within v1 change additively only; clients tolerate unknown fields (no `additionalProperties: false`), and optional request fields accept `null` (Kotlin clients send it, Swift omits it). The services (`service.ts`, `reads.ts`; shapes in `present.ts`) run on the Admin SDK, which bypasses `firestore.rules` — every guarantee the rules give the web client (blocks, quotas, visibility) must be re-checked there and covered in `test/emulator/apiV1*.emulator.test.ts` (`canView` in `present.ts` is `cardVisible`). Routes whose parameter is a card id (resonances/related/links, notes' `cardId`, messages' `cardRef`) read by id only (`visibleCardById`); only `GET /cards/{key}` and report resolve slugs (`cardByKey`), before the document read, never beside it. Lists check visibility with `visibleTo()` (one batched connection read per author).
+**`/api/v1` is a contract.** Zod schemas in `src/lib/api/v1/schemas.ts` are the source of truth: routes validate with them (`withUser` + `parse` in `http.ts`, errors always `{ error: { code, message, issues? } }`), and `npm run api:openapi` writes `openapi/v1/openapi.json`, from which the iOS (swift-openapi-generator) and Android (openapi-generator) clients are generated. Within v1 change additively only; clients tolerate unknown fields (no `additionalProperties: false`), and optional request fields accept `null` (Kotlin clients send it, Swift omits it). The services (`service.ts`, `reads.ts`; shapes in `present.ts`) run on the Admin SDK, which bypasses `firestore.rules` — every guarantee the rules give the web client (blocks, quotas, visibility) must be re-checked there and covered in `test/emulator/apiV1*.emulator.test.ts` (`canView` in `present.ts` is `cardVisible`). Any server path that makes a card non-public, anonymous or gone revalidates its pages with `revalidateLocalized([...cardPagePaths(card), ...profilePagePaths(handle), ...landingPagePaths(before, after)])` from `src/lib/api/revalidate.ts` (the purge's `PurgeReport.pages` does it for the cron). Routes whose parameter is a card id (resonances/related/links, notes' `cardId`, messages' `cardRef`) read by id only (`visibleCardById`); only `GET /cards/{key}` and report resolve slugs (`cardByKey`), before the document read, never beside it. Lists check visibility with `visibleTo()` (one batched connection read per author).
 
 ### Safety (App Store 1.2 / 5.1.1(v))
 
@@ -147,6 +148,7 @@ Tests run on **Vitest** + **@testing-library/react** + **jsdom**. Config is `vit
 - **Co-locate** unit/component tests next to their source: `Foo.tsx` → `Foo.test.tsx`, `foo.ts` → `foo.test.ts`. This is the default.
 - **`test/`** holds only shared infra, not test cases:
   - `test/setup.ts` – global setup (jest-dom matchers, `afterEach` cleanup, jsdom `ResizeObserver`/`matchMedia` stubs that organic atoms need via `useElementSize`/`useIsMobile`).
+  - `test/fakeAdminDb.ts` – an in-memory Admin Firestore with a `reads` log, for rendering server pages and routes without the emulator.
   - `test/render.tsx` – `renderWithIntl()` wraps a component in `NextIntlClientProvider` (loads real `en` messages so assertions hit real copy); also re-exports the Testing Library surface + `userEvent`.
 
 ### Environment & the jsdom directive
