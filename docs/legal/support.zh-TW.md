@@ -1,7 +1,7 @@
 ---
 title: 支援
 description: 聯絡 Resonance、刪除帳號、下載資料、檢舉與封鎖的說明。
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 有問題、建議，或需要協助，歡迎寫信到 **assist.resonance@gmail.com**，我們會盡快回覆。
@@ -31,3 +31,4 @@ updated: 2026-09-30
 
 - [隱私權政策](./privacy.zh-TW.md)
 - [服務條款](./terms.zh-TW.md)
+- [兒童安全標準](./child-safety.zh-TW.md)

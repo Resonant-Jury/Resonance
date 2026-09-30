@@ -1,7 +1,7 @@
 ---
 title: Support
 description: Contacting Resonance, deleting your account, downloading your data, reporting and blocking.
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 Questions, ideas or need a hand? Email **assist.resonance@gmail.com** and we'll get back to you as soon as we can.
@@ -31,3 +31,4 @@ Make sure you're signed in and that Resonance is allowed to send notifications i
 
 - [Privacy Policy](./privacy.en.md)
 - [Terms of Use](./terms.en.md)
+- [Child Safety Standards](./child-safety.en.md)

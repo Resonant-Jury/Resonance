@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * The policy pages (/privacy, /terms, /support) are Markdown files in
- * docs/legal — `{key}.{zh-TW|en}.md`, a small front matter (title,
+ * The policy pages (/privacy, /terms, /support, /child-safety) are Markdown
+ * files in docs/legal — `{key}.{zh-TW|en}.md`, a small front matter (title,
  * description, updated) and the text. They are read when the site builds, so
  * editing a file and rebuilding is all a change takes. Links between them are
  * written as `./privacy.zh-TW.md` so they also work on GitHub; the site turns
  * them into its own paths.
  */
-export const LEGAL_KEYS = ['privacy', 'terms', 'support'] as const;
+export const LEGAL_KEYS = ['privacy', 'terms', 'support', 'child-safety'] as const;
 export type LegalDocKey = (typeof LEGAL_KEYS)[number];
 export type LegalLang = 'zh-TW' | 'en';
 
@@ -28,6 +28,8 @@ export function legalLang(locale: string): LegalLang {
   return locale === 'zh-TW' ? 'zh-TW' : 'en';
 }
 
+const FILE_LINK = new RegExp(`\\]\\(\\./(${LEGAL_KEYS.join('|')})\\.(zh-TW|en)\\.md\\)`, 'g');
+
 /** Split the front matter from the text and turn file links into site links. */
 export function parseLegalMarkdown(raw: string): LegalDoc {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
@@ -40,10 +42,7 @@ export function parseLegalMarkdown(raw: string): LegalDoc {
   for (const field of ['title', 'description', 'updated'] as const) {
     if (!meta[field]) throw new Error(`legal page without "${field}"`);
   }
-  const body = raw
-    .slice(match[0].length)
-    .replace(/\]\(\.\/(privacy|terms|support)\.(zh-TW|en)\.md\)/g, '](/$2/$1)')
-    .trim();
+  const body = raw.slice(match[0].length).replace(FILE_LINK, '](/$2/$1)').trim();
   return { title: meta.title, description: meta.description, updated: meta.updated, body };
 }
 

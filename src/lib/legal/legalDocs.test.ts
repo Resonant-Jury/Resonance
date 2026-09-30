@@ -43,9 +43,20 @@ describe('policy pages (docs/legal)', () => {
   it('turns links between the files into the site’s pages in the same language', () => {
     expect(loadLegalDoc('support', 'zh-TW').body).toContain('](/zh-TW/privacy)');
     expect(loadLegalDoc('support', 'en').body).toContain('](/en/terms)');
+    expect(loadLegalDoc('support', 'zh-TW').body).toContain('](/zh-TW/child-safety)');
+    expect(loadLegalDoc('child-safety', 'en').body).toContain('](/en/terms)');
     expect(loadLegalDoc('terms', 'ja').title).toBe('Terms of Use');
     for (const key of LEGAL_KEYS) {
       for (const lang of LANGS) expect(loadLegalDoc(key, lang).body).not.toContain('.md)');
+    }
+  });
+
+  it('gives Google Play’s child safety standards what the declaration asks for', () => {
+    for (const lang of LANGS) {
+      const body = loadLegalDoc('child-safety', lang).body;
+      // Names CSAE and CSAM, says how to report in the app, that CSAM goes to
+      // NCMEC and the authorities, and who the child-safety contact is.
+      for (const term of ['CSAE', 'CSAM', 'NCMEC', '⋯', '24']) expect(body, lang).toContain(term);
     }
   });
 
