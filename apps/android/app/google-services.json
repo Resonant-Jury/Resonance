@@ -14,11 +14,43 @@
       },
       "oauth_client": [
         {
+          "client_id": "1090298219401-9agjqcl72qhiep16hg5v7h2oeqpckhln.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.resonance.stories",
+            "certificate_hash": "98cdbd47232f1a07b559f81ea1f14d1c34ca164c"
+          }
+        },
+        {
           "client_id": "1090298219401-9n46k7o3i4qlh9c5m29ejo7tbk0becpr.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.resonance.stories",
             "certificate_hash": "30b8878af680d9d0b763171067a143de5c194b3d"
+          }
+        },
+        {
+          "client_id": "1090298219401-m1hsq27uc4fqn5q5nbfiar3d436kfv8j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.resonance.stories",
+            "certificate_hash": "7fb60bfc78f03ffa080c5bdb238f34780efbb804"
+          }
+        },
+        {
+          "client_id": "1090298219401-mrjmtbe57avhea7f12101jhkk1vvlejp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.resonance.stories",
+            "certificate_hash": "3ab07b93b10f36152a134544d3537034ef853075"
+          }
+        },
+        {
+          "client_id": "1090298219401-vsg3ncam6tpa1m1n9uo91ijbiuf19tts.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.resonance.stories",
+            "certificate_hash": "9da2ac421a410b6e13e071a4e6f428c7c8fe1e5b"
           }
         },
         {

@@ -5,7 +5,10 @@
       "namespace": "android_app",
       "package_name": "com.resonance.stories",
       "sha256_cert_fingerprints": [
-        "04:C4:71:67:B2:46:41:4D:E7:D1:54:86:D4:91:CC:F9:E1:8C:F6:3E:AB:55:32:6C:2B:C6:5B:07:52:0B:AC:97"
+        "69:0B:7A:FA:86:3A:72:04:EE:F4:9A:64:DF:14:11:EC:95:3A:75:C5:5A:D1:E7:E3:7B:0A:A5:CF:20:78:1D:C6",
+        "33:FC:AF:C4:B1:30:18:8F:08:97:E2:15:B3:15:ED:3F:CE:08:26:16:49:92:BE:E6:97:69:A1:D4:F0:70:7D:AF",
+        "E8:D8:9E:62:51:54:68:3D:8C:5C:E5:A3:DE:25:7F:35:56:2E:A1:25:65:D9:50:7D:FA:CC:99:82:E0:D9:BD:C2",
+        "1A:E1:46:3C:38:40:8A:BF:92:AC:C0:6E:7C:03:8F:14:F2:76:3B:F7:2F:65:B1:ED:AF:75:09:6D:68:FA:E1:1D"
       ]
     }
   }
