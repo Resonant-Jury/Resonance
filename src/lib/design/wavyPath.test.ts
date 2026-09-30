@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { wavyLine, wavyVertical, wavyPoints, pointsToBezier } from './wavyPath';
+import { penWave, penWavePoints, wavyLine, wavyVertical, wavyPoints, pointsToBezier } from './wavyPath';
 
 // Wavy paths are used as dividers and section edges. The contract that matters
 // downstream: deterministic per seed, endpoints pinned to the axis (so tiles
@@ -39,5 +39,31 @@ describe('wavyPoints + pointsToBezier', () => {
     const d = pointsToBezier(pts);
     expect(d.startsWith('M ')).toBe(true);
     expect(d).toContain('C');
+  });
+});
+
+describe('penWave', () => {
+  it('draws the same pen line for the same seed, another for another', () => {
+    expect(penWave(120, 17)).toBe(penWave(120, 17));
+    expect(penWave(120, 17)).not.toBe(penWave(120, 18));
+  });
+
+  it('starts and settles on the line at both ends, even when very short', () => {
+    for (const w of [4, 8, 120]) {
+      const d = penWave(w, 3);
+      expect(d.startsWith('M 0,0')).toBe(true);
+      expect(d.endsWith(`${w},0`)).toBe(true);
+    }
+  });
+
+  it('makes a crest every ~4.5px, alternating up and down', () => {
+    const pts = penWavePoints(90, 5, 1.2, 4.5);
+    expect(pts).toHaveLength(21);
+    const interior = pts.slice(1, -1);
+    interior.forEach(([, y], i) => {
+      expect(Math.sign(y)).toBe(i % 2 === 0 ? -1 : 1);
+      expect(Math.abs(y)).toBeGreaterThanOrEqual(1.2 * 0.65 - 1e-9);
+      expect(Math.abs(y)).toBeLessThanOrEqual(1.2 * 1.35 + 1e-9);
+    });
   });
 });
