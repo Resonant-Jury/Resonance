@@ -6,6 +6,7 @@ import type { MeBody } from '@/lib/api/v1/schemas';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
 import { ApiError, callApi } from './api';
+import { forgetCachedUser } from './reads';
 
 function requireUid(): string {
   const uid = getFirebaseClientAuth().currentUser?.uid;
@@ -68,13 +69,18 @@ export async function updateProfile(patch: {
 }): Promise<void> {
   const uid = requireUid();
   const { autoTranslateTo, avatarUrl, ...server } = patch;
-  if (Object.keys(server).length) {
-    await callApi<MeBody>('/api/v1/me', { method: 'PATCH', body: server });
+  try {
+    if (Object.keys(server).length) {
+      await callApi<MeBody>('/api/v1/me', { method: 'PATCH', body: server });
+    }
+    const local: Record<string, unknown> = {};
+    if (autoTranslateTo !== undefined) local.autoTranslateTo = autoTranslateTo;
+    if (avatarUrl !== undefined) local.avatarUrl = avatarUrl;
+    if (Object.keys(local).length) await setDoc(doc(getClientDb(), 'users', uid), local, { merge: true });
+  } finally {
+    // Bylines across the site show the new name / avatar on their next read.
+    forgetCachedUser(uid);
   }
-  const local: Record<string, unknown> = {};
-  if (autoTranslateTo !== undefined) local.autoTranslateTo = autoTranslateTo;
-  if (avatarUrl !== undefined) local.avatarUrl = avatarUrl;
-  if (Object.keys(local).length) await setDoc(doc(getClientDb(), 'users', uid), local, { merge: true });
 }
 
 /**
@@ -88,6 +94,8 @@ export async function createCurrentUserProfile(input: {
   region: string;
   primaryLocale: Locale;
 }): Promise<MeBody> {
-  requireUid();
-  return callApi<MeBody>('/api/v1/me', { method: 'POST', body: input });
+  const uid = requireUid();
+  const me = await callApi<MeBody>('/api/v1/me', { method: 'POST', body: input });
+  forgetCachedUser(uid);
+  return me;
 }

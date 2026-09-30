@@ -12,6 +12,10 @@ vi.mock('@/lib/data/hooks', () => ({
   useFeed: () => mockUseFeed(),
   useRecommendedFeed: () => mockUseRecommendedFeed(),
 }));
+// The grid seeds the card page's cache on click (cardPrefill), which reads the viewer.
+vi.mock('@/components/providers/AuthProvider', () => ({
+  useAuth: () => ({ user: { id: 'me' }, loading: false }),
+}));
 vi.mock('@/lib/hints', () => ({
   useHint: () => ({ visible: true, dismiss: vi.fn() }),
 }));

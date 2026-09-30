@@ -2,7 +2,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { SWR_DEFAULTS } from '@/components/providers/SWRProvider';
 import type { Card, User } from '@/lib/db/types';
 
 // --- module boundary mocks -------------------------------------------------
@@ -23,6 +24,11 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
   getUserByHandle: vi.fn(),
   getUsersByIds: vi.fn(),
   isConnected: vi.fn(),
+  listMyConnectionUids: vi.fn(),
+}));
+vi.mock('@/lib/db/firestore/client/messages', () => ({
+  listConversations: vi.fn(),
+  listenThread: vi.fn(),
 }));
 vi.mock('@/lib/db/firestore/client/api', () => ({
   callApi: vi.fn(),
@@ -60,7 +66,9 @@ import {
   getUserByHandle,
   getUsersByIds,
   isConnected,
+  listMyConnectionUids,
 } from '@/lib/db/firestore/client/reads';
+import { listConversations } from '@/lib/db/firestore/client/messages';
 import { callApi } from '@/lib/db/firestore/client/api';
 import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
 import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
@@ -68,7 +76,9 @@ import { loadMyThoughtMap } from '@/lib/db/firestore/client/thoughtMap';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import {
   useCard,
+  useConversations,
   useFeed,
+  useMyBlockedIds,
   useMyCardBox,
   useMyThoughtMap,
   useProfileByHandle,
@@ -522,6 +532,70 @@ describe('useResonators', () => {
 
     const list = result.current.data!;
     expect(list.map((u) => u.id)).toEqual(['a0', 'a2', 'a3']);
+  });
+});
+
+// The app-wide SWR defaults (SWRProvider): coming back to the tab doesn't
+// re-run every fetcher on the page — only what must stay live does.
+describe('revalidation on tab focus', () => {
+  function appWrapper({ children }: { children: ReactNode }) {
+    return (
+      // SWR ignores focus for 5 s after mount by default; tests don't wait that long.
+      <SWRConfig value={{ ...SWR_DEFAULTS, provider: () => new Map(), dedupingInterval: 0, focusThrottleInterval: 0 }}>
+        {children}
+      </SWRConfig>
+    );
+  }
+  const focusTab = async () => {
+    await new Promise((r) => setTimeout(r, 5));
+    act(() => void window.dispatchEvent(new Event('focus')));
+  };
+
+  it('leaves the feed alone', async () => {
+    vi.mocked(getLatestPublishedFeed).mockResolvedValue([card('c1', 'a1')]);
+    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
+    const { result } = renderHook(() => useFeed(), { wrapper: appWrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    await focusTab();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(getLatestPublishedFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refreshes conversations and the block list', async () => {
+    vi.mocked(listConversations).mockResolvedValue([]);
+    vi.mocked(listMyConnectionUids).mockResolvedValue([]);
+    vi.mocked(getUsersByIds).mockResolvedValue({});
+    // (Read `data` while rendering: SWR re-renders only for what a render used.)
+    const convos = renderHook(() => useConversations().data, { wrapper: appWrapper });
+    const blocks = renderHook(() => useMyBlockedIds().data, { wrapper: appWrapper });
+    await waitFor(() => expect(convos.result.current).toBeDefined());
+    await waitFor(() => expect(blocks.result.current).toBeDefined());
+    vi.mocked(listConversations).mockClear();
+    vi.mocked(getMyBlockedIds).mockClear();
+
+    await focusTab();
+    await waitFor(() => expect(listConversations).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(getMyBlockedIds).toHaveBeenCalled());
+  });
+});
+
+describe('useFeed paging', () => {
+  it('fetches only the next page on "load more", not page one again', async () => {
+    const page = (from: number) =>
+      Array.from({ length: 12 }, (_, i) => card(`c${from + i}`, 'a1', { publishedAt: new Date(2026, 0, 30, 0, from + i) }));
+    vi.mocked(getLatestPublishedFeed).mockImplementation(async (_n, cursor) => (cursor ? page(12) : page(0)));
+    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
+
+    const { result } = renderHook(() => useFeed(), { wrapper });
+    await waitFor(() => expect(result.current.data?.cards).toHaveLength(12));
+    act(() => result.current.loadMore());
+    await waitFor(() => expect(result.current.data?.cards).toHaveLength(24));
+
+    expect(vi.mocked(getLatestPublishedFeed).mock.calls.map(([, cursor]) => (cursor ? 'next' : 'first'))).toEqual([
+      'first',
+      'next',
+    ]);
   });
 });
 

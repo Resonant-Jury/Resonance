@@ -61,6 +61,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const { data: convo, mutate: mutateConvo } = useSWR(
     pairId ? `conversation:${pairId}` : null,
     () => getConversation(pairId!),
+    { revalidateOnFocus: true },
   );
   const { data: connected } = useSWR(
     user && other && user.id !== other.id ? `connected:${pairId}` : null,

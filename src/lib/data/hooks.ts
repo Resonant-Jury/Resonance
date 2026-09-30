@@ -29,6 +29,16 @@ import { listConversations, listenThread } from '@/lib/db/firestore/client/messa
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import { callApi } from '@/lib/db/firestore/client/api';
 import type { Conversation, Message } from '@/lib/db/types';
+import { anonymousAuthor, cardKey } from './cardPrefill';
+
+/**
+ * For what the viewer edits themselves — their card, card box, map, profile:
+ * SWR's own short deduping window instead of the app-wide 30 s
+ * (SWRProvider), so coming back from the editor reads their change.
+ */
+const OWN_CONTENT = { dedupingInterval: 2_000 } as const;
+/** Stays live when the reader returns to the tab (the app-wide default doesn't). */
+const LIVE_ON_FOCUS = { revalidateOnFocus: true } as const;
 
 export interface CardsWithAuthors {
   cards: Card[];
@@ -50,24 +60,6 @@ async function dropBlocked(cards: Card[]): Promise<Card[]> {
  */
 function bylineAuthorIds(cards: Card[], viewerId: string | undefined): string[] {
   return cards.filter((c) => !c.anonymous || c.authorId === viewerId).map((c) => c.authorId);
-}
-
-/** The author shown for someone else's anonymous card: its uid (already on the card) and nothing else. */
-function anonymousAuthor(card: Card): User {
-  return {
-    id: card.authorId,
-    handle: '',
-    region: '',
-    primaryLocale: card.originalLocale,
-    autoTranslateTo: [],
-    verified: false,
-    phoneHash: '',
-    avatarSeed: String((card.id.charCodeAt(0) ?? 7) * 31),
-    initials: '·',
-    accentColor: 'var(--color-cream-dark)',
-    joinedAt: new Date(0),
-    handleChangedAt: new Date(0),
-  };
 }
 
 /** Cards plus their authors. Lists show every anonymous card — the viewer's own too — under the anonymous byline, so no anonymous author is fetched. */
@@ -157,6 +149,8 @@ export function useFeed(): FeedState {
         cursorMs: last?.publishedAt ? last.publishedAt.getTime() : null,
       };
     },
+    // 「載入更多」fetches the next page only — not page one again.
+    { revalidateFirstPage: false },
   );
 
   const pages = data ?? [];
@@ -187,19 +181,25 @@ export function useCard(slugOrId: string | undefined) {
   // anonymous viewer and 404 the owner's own private card, which SWR would then
   // cache against a static key. Re-keying on the viewer id also refetches with
   // the right permissions when the viewer signs in or out.
+  // A list prefills this key when a card in it is clicked (cardPrefill.ts).
   const { user, loading } = useAuth();
-  const key = slugOrId && !loading ? `card:${slugOrId}:${user?.id ?? 'anon'}` : null;
-  const swr = useSWR(key, async () => {
-    const card = await getCardBySlugOrId(slugOrId!);
-    if (!card) return null;
-    const author = card.anonymous && card.authorId !== user?.id ? anonymousAuthor(card) : await getUserById(card.authorId);
-    return { card, author };
-  });
+  const key = slugOrId && !loading ? cardKey(slugOrId, user?.id) : null;
+  const swr = useSWR(
+    key,
+    async () => {
+      const card = await getCardBySlugOrId(slugOrId!);
+      if (!card) return null;
+      const author = card.anonymous && card.authorId !== user?.id ? anonymousAuthor(card) : await getUserById(card.authorId);
+      return { card, author };
+    },
+    OWN_CONTENT,
+  );
   // While auth is still settling (or we have no id yet) the SWR key is null, so
   // SWR reports isLoading=false with data=undefined — which would briefly render
   // the "not found" state before the real fetch begins. Treat that pre-fetch
-  // window as loading so the skeleton shows first.
-  return { ...swr, isLoading: swr.isLoading || (!!slugOrId && key === null) };
+  // window as loading so the skeleton shows first. A card already in hand (a
+  // list prefilled it) is never "loading", though SWR's first render says so.
+  return { ...swr, isLoading: swr.data === undefined && (swr.isLoading || (!!slugOrId && key === null)) };
 }
 
 /** Cards related to the given card, with authors. */
@@ -221,20 +221,21 @@ export function useHasWrittenCards() {
   const { user, loading } = useAuth();
   return useSWR<boolean>(
     !loading ? `hasCards:${user?.id ?? 'anon'}` : null,
-    () => (user ? hasAnyOwnCards() : true)
+    () => (user ? hasAnyOwnCards() : true),
+    OWN_CONTENT,
   );
 }
 
 /** The uids the signed-in viewer has blocked (empty set when signed out). */
 export function useMyBlockedIds() {
   const { user, loading } = useAuth();
-  return useSWR<Set<string>>(user && !loading ? `blocks:${user.id}` : null, () => getMyBlockedIds());
+  return useSWR<Set<string>>(user && !loading ? `blocks:${user.id}` : null, () => getMyBlockedIds(), LIVE_ON_FOCUS);
 }
 
 /** The signed-in viewer's own profile. */
 export function useMyProfile() {
   const { user } = useAuth();
-  return useSWR(user ? `profile:${user.id}` : null, () => getCurrentUserProfile());
+  return useSWR(user ? `profile:${user.id}` : null, () => getCurrentUserProfile(), OWN_CONTENT);
 }
 
 export interface MyCardBox {
@@ -268,7 +269,7 @@ export function useMyCardBox() {
     const all = [...published, ...priv, ...draft, ...resonated, ...linked, ...bookmarks];
     const authors = await getUsersByIds(bylineAuthorIds(all, uid));
     return { published, private: priv, draft, resonated, linked, bookmarks, authors };
-  });
+  }, OWN_CONTENT);
 }
 
 export interface MyThoughtMap extends ThoughtMapData {
@@ -303,7 +304,7 @@ export function useMyThoughtMap() {
     for (const c of await Promise.all(missing.map((id) => getCardById(id)))) if (c) cards[c.id] = c;
     // Drop nodes whose card has been deleted since being placed on the map.
     return { ...map, nodes: map.nodes.filter((n) => cards[n.cardId]), cards, resonatedIds };
-  });
+  }, OWN_CONTENT);
 }
 
 /**
@@ -338,7 +339,7 @@ export function useReferencedCard(cardId: string | undefined) {
 export function useMyResonance(cardId: string | undefined) {
   const { user, loading } = useAuth();
   const key = cardId && user && !loading ? `myResonance:${cardId}:${user.id}` : null;
-  return useSWR<Card | null>(key, () => getMyResonanceCard(cardId!));
+  return useSWR<Card | null>(key, () => getMyResonanceCard(cardId!), OWN_CONTENT);
 }
 
 /**
@@ -427,7 +428,7 @@ export function useConversations(refreshInterval = 30_000) {
       const unreadTotal = conversations.reduce((sum, c) => sum + (c.unread[uid] ?? 0), 0);
       return { conversations, people, connectedWithoutConversation, unreadTotal };
     },
-    { refreshInterval },
+    { refreshInterval, ...LIVE_ON_FOCUS },
   );
 }
 

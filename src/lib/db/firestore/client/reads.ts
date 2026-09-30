@@ -3,6 +3,7 @@
 import {
   collection,
   doc,
+  documentId,
   getDoc,
   getDocs,
   limit as fbLimit,
@@ -226,16 +227,109 @@ export async function hasAnyOwnCards(): Promise<boolean> {
 
 // --- users ---
 
-export async function getUserById(id: string): Promise<User | null> {
-  const snap = await getDoc(doc(getClientDb(), 'users', id));
-  return snap.exists() ? mapUser(snap.id, snap.data()) : null;
+// Profiles are public (`users/*` allows get and list to anyone), and every
+// list shows its cards' authors — the same few people over and over. So a
+// page-wide cache keeps them for a few minutes, and the ones it lacks are read
+// together, up to 30 per `documentId() in` query. (Cards are never read this
+// way: one card the viewer can't see would make the rules refuse the whole
+// query.)
+
+/** How long a cached profile is trusted. */
+const USER_TTL_MS = 5 * 60 * 1000;
+/** Firestore's cap on an `in` filter's values. */
+const IN_QUERY_MAX = 30;
+
+const userCache = new Map<string, { user: User | null; at: number }>();
+const userReads = new Map<string, Promise<User | null>>();
+
+function cachedUser(id: string): User | null | undefined {
+  const hit = userCache.get(id);
+  if (!hit) return undefined;
+  if (Date.now() - hit.at > USER_TTL_MS) {
+    userCache.delete(id);
+    return undefined;
+  }
+  return hit.user;
 }
 
+function remember(id: string, user: User | null): void {
+  userCache.set(id, { user, at: Date.now() });
+}
+
+/** Drop a cached profile — after the viewer edits their own, say. No id clears them all. */
+export function forgetCachedUser(id?: string): void {
+  if (id === undefined) userCache.clear();
+  else userCache.delete(id);
+}
+
+/** Read one chunk (≤ 30) of profiles in a single query and cache what came back — absent ones as null. */
+function readUserChunk(ids: string[]): Promise<Map<string, User>> {
+  const read = getDocs(query(collection(getClientDb(), 'users'), where(documentId(), 'in', ids))).then((snap) => {
+    const found = new Map<string, User>();
+    for (const d of snap.docs) found.set(d.id, mapUser(d.id, d.data()));
+    for (const id of ids) remember(id, found.get(id) ?? null);
+    return found;
+  });
+  for (const id of ids) {
+    const one = read.then((found) => found.get(id) ?? null);
+    userReads.set(id, one);
+    void one.catch(() => undefined).finally(() => {
+      if (userReads.get(id) === one) userReads.delete(id);
+    });
+  }
+  return read;
+}
+
+/** A profile by uid, from the cache when it has it. */
+export async function getUserById(id: string): Promise<User | null> {
+  const hit = cachedUser(id);
+  if (hit !== undefined) return hit;
+  const pending = userReads.get(id);
+  if (pending) return pending;
+  const read = getDoc(doc(getClientDb(), 'users', id)).then((snap) => {
+    const user = snap.exists() ? mapUser(snap.id, snap.data()) : null;
+    remember(id, user);
+    return user;
+  });
+  userReads.set(id, read);
+  try {
+    return await read;
+  } finally {
+    if (userReads.get(id) === read) userReads.delete(id);
+  }
+}
+
+/** Profiles by uid, keyed by uid (missing ones left out): cached ones as they are, the rest in batched reads. */
 export async function getUsersByIds(ids: string[]): Promise<Record<string, User>> {
-  const unique = Array.from(new Set(ids));
-  const list = await Promise.all(unique.map((id) => getUserById(id)));
+  const unique = Array.from(new Set(ids)).filter((id) => id && !id.includes('/'));
   const out: Record<string, User> = {};
-  for (const u of list) if (u) out[u.id] = u;
+  const waits: Promise<unknown>[] = [];
+  const missing: string[] = [];
+  for (const id of unique) {
+    const hit = cachedUser(id);
+    if (hit !== undefined) {
+      if (hit) out[id] = hit;
+      continue;
+    }
+    const pending = userReads.get(id);
+    if (pending) {
+      waits.push(
+        pending.then((u) => {
+          if (u) out[id] = u;
+        }),
+      );
+      continue;
+    }
+    missing.push(id);
+  }
+  for (let i = 0; i < missing.length; i += IN_QUERY_MAX) {
+    waits.push(
+      readUserChunk(missing.slice(i, i + IN_QUERY_MAX)).then((found) => {
+        for (const [id, u] of found) out[id] = u;
+      }),
+    );
+  }
+  await Promise.all(waits);
   return out;
 }
 
@@ -251,11 +345,18 @@ export async function getUserByHandle(handle: string): Promise<User | null> {
   return d ? mapUser(d.id, d.data()) : null;
 }
 
-/** The signed-in viewer's own profile document, or null if not signed in / no profile. */
+/**
+ * The signed-in viewer's own profile document, or null if not signed in / no
+ * profile. Always read fresh (it's what the viewer just edited), and handed to
+ * the cache for the lists that show them.
+ */
 export async function getCurrentUserProfile(): Promise<User | null> {
   const uid = getFirebaseClientAuth().currentUser?.uid;
   if (!uid) return null;
-  return getUserById(uid);
+  const snap = await getDoc(doc(getClientDb(), 'users', uid));
+  const user = snap.exists() ? mapUser(snap.id, snap.data()) : null;
+  remember(uid, user);
+  return user;
 }
 
 // --- connections ---

@@ -6,6 +6,7 @@ import { StoryCard } from '@/components/molecules/StoryCard/StoryCard';
 import type { Card, User } from '@/lib/db/types';
 import { cardToStory } from '@/lib/adapters/story';
 import { Link } from '@/i18n/navigation';
+import { usePrefillCard } from '@/lib/data/cardPrefill';
 import styles from './CardLinkGrid.module.css';
 
 export interface CardLinkGridProps {
@@ -65,6 +66,7 @@ function useFeedColumns(): number | null {
 export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCaption, deanonymize, quoteFor }: CardLinkGridProps) {
   const t = useTranslations('card');
   const cols = useFeedColumns();
+  const prefill = usePrefillCard();
 
   const renderItem = (card: Card, i: number) => {
     const author = authors[card.authorId];
@@ -76,6 +78,8 @@ export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCa
       <div key={card.id} className={styles.item} style={{ position: 'relative' }}>
         <Link
           href={cardHref ? cardHref(card) : `/card/${card.slug ?? card.id}`}
+          // The card page opens on what the list already has (see usePrefillCard).
+          onClick={cardHref ? undefined : () => prefill(card, author)}
           style={{
             textDecoration: 'none',
             color: 'inherit',

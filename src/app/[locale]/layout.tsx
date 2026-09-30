@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { NextIntlProvider } from '@/components/providers/NextIntlProvider';
 import { AuthProvider } from '@/components/providers/AuthProvider';
+import { SWRProvider } from '@/components/providers/SWRProvider';
 import TweaksPanel from '@/components/providers/TweaksPanel';
 import { OG_COVER_PATH, OG_COVER_SIZE } from '@/lib/og';
 import { siteUrl } from '@/lib/site';
@@ -94,7 +95,9 @@ export default async function LocaleLayout({
       </head>
       <body suppressHydrationWarning>
         <NextIntlProvider messages={messages} locale={locale}>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <SWRProvider>{children}</SWRProvider>
+          </AuthProvider>
           <TweaksPanel />
         </NextIntlProvider>
       </body>
