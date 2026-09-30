@@ -173,6 +173,25 @@ export function useFeed(): FeedState {
   };
 }
 
+/** A card and the byline a card page shows for it (null: its author's profile is gone). */
+export interface CardView {
+  card: Card;
+  author: User | null;
+}
+
+/**
+ * A card by URL segment (slug or legacy doc id), read through the rules, with
+ * the byline this viewer is shown: someone else's anonymous card gets the
+ * anonymous one, and the profile it is anonymous from is never downloaded.
+ * Null: no such card, or not one this viewer may read.
+ */
+export async function fetchCardView(key: string, viewerId: string | undefined): Promise<CardView | null> {
+  const card = await getCardBySlugOrId(key);
+  if (!card) return null;
+  if (card.anonymous && card.authorId !== viewerId) return { card, author: anonymousAuthor(card) };
+  return { card, author: await getUserById(card.authorId) };
+}
+
 /**
  * A single card plus its author, keyed by URL segment (slug or legacy doc id).
  * `data === null` means not found / not visible.
@@ -187,16 +206,7 @@ export function useCard(slugOrId: string | undefined) {
   // A list prefills this key when a card in it is clicked (cardPrefill.ts).
   const { user, loading } = useAuth();
   const key = slugOrId && !loading ? cardKey(slugOrId, user?.id) : null;
-  const swr = useSWR(
-    key,
-    async () => {
-      const card = await getCardBySlugOrId(slugOrId!);
-      if (!card) return null;
-      const author = card.anonymous && card.authorId !== user?.id ? anonymousAuthor(card) : await getUserById(card.authorId);
-      return { card, author };
-    },
-    OWN_CONTENT,
-  );
+  const swr = useSWR<CardView | null>(key, () => fetchCardView(slugOrId!, user?.id), OWN_CONTENT);
   // While auth is still settling (or we have no id yet) the SWR key is null, so
   // SWR reports isLoading=false with data=undefined — which would briefly render
   // the "not found" state before the real fetch begins. Treat that pre-fetch
