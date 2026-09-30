@@ -29,6 +29,20 @@ describe('sanitizeNextPath', () => {
     expect(sanitizeNextPath('/\\evil.com')).toBeNull();
   });
 
+  // The browser strips tabs and newlines while parsing a URL, and reads "\"
+  // as "/": each of these passes a naive prefix check, then lands off-site.
+  it('rejects hosts smuggled in with tabs, newlines or backslashes', () => {
+    expect(sanitizeNextPath('/\t/evil.example')).toBeNull();
+    expect(sanitizeNextPath('/\n/evil.example')).toBeNull();
+    expect(sanitizeNextPath('/\r\n/evil.example/phish')).toBeNull();
+    expect(sanitizeNextPath('/\\/evil.example')).toBeNull();
+    expect(sanitizeNextPath(decodeURIComponent('%2F%09%2Fevil.example'))).toBeNull();
+  });
+
+  it('keeps a pen-name path, as the browser will request it', () => {
+    expect(sanitizeNextPath('/zh-TW/u/小明')).toBe(`/zh-TW/u/${encodeURIComponent('小明')}`);
+  });
+
   it('rejects absolute URLs with a scheme', () => {
     expect(sanitizeNextPath('https://evil.com')).toBeNull();
     expect(sanitizeNextPath('javascript:alert(1)')).toBeNull();
