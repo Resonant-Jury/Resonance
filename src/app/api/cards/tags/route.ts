@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { suggestStoryTags } from '@/lib/ai/tasks';
 import { topTags } from '@/lib/ai/tags';
+import { limited } from '@/lib/api/rateLimit';
 
 export const runtime = 'nodejs';
 
@@ -35,6 +36,8 @@ export async function POST(req: Request) {
   if (!title.trim() && !story.trim()) {
     return NextResponse.json({ error: 'Nothing to tag' }, { status: 400 });
   }
+  const refused = await limited(getAdminDb(), user.id, 'tags');
+  if (refused) return refused;
 
   // Single-field index on authorId suffices — no orderBy, so no composite
   // index to deploy. Frequency ranking replaces recency ordering.

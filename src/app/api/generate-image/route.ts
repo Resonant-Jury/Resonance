@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
+import { limited } from '@/lib/api/rateLimit';
+import { getAdminDb } from '@/lib/db/firestore/admin';
 import { getStorageProvider } from '@/lib/storage';
 import { generateStoryImageStream } from '@/lib/ai/tasks';
 import { convertToAvif } from '@/lib/storage/image';
@@ -34,6 +36,10 @@ export async function POST(req: Request) {
   if (story.trim().length === 0) {
     return NextResponse.json({ error: 'Story is empty' }, { status: 400 });
   }
+  // The costliest call there is; counted before the stream starts, since
+  // once it has, the status is already 200.
+  const refused = await limited(getAdminDb(), user.id, 'illustration');
+  if (refused) return refused;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

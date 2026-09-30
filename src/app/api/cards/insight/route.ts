@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
+import { limited } from '@/lib/api/rateLimit';
+import { getAdminDb } from '@/lib/db/firestore/admin';
 import { extractInsightSignature } from '@/lib/ai/tasks';
 
 export const runtime = 'nodejs';
@@ -13,7 +15,7 @@ export const maxDuration = 60;
  * `coreInsight` — the insight score is server-side policy and is never shown.
  */
 export async function POST(req: Request) {
-  await requireUser();
+  const user = await requireUser();
 
   const body = (await req.json().catch(() => null)) as {
     thoughtCore?: unknown;
@@ -24,6 +26,8 @@ export async function POST(req: Request) {
   if (!story.trim() && !thoughtCore.trim()) {
     return NextResponse.json({ coreInsight: null });
   }
+  const refused = await limited(getAdminDb(), user.id, 'insight');
+  if (refused) return refused;
 
   try {
     const signature = await extractInsightSignature({ title: thoughtCore, story });

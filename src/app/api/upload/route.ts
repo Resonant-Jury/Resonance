@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { getStorageProvider } from '@/lib/storage';
+import { limited } from '@/lib/api/rateLimit';
+import { getAdminDb } from '@/lib/db/firestore/admin';
 
 const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
 const ALLOWED_IMAGES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -27,6 +29,10 @@ export async function POST(req: Request) {
   if (file.size > MAX_IMAGE_SIZE) {
     return NextResponse.json({ error: 'Image is too large' }, { status: 400 });
   }
+
+  const db = getAdminDb();
+  const refused = (await limited(db, user.id, 'upload')) ?? (await limited(db, user.id, 'uploadBytes', file.size));
+  if (refused) return refused;
 
   // Compression happens client-side (src/lib/images/compress.ts) so the
   // server only streams the already-small bytes to storage.

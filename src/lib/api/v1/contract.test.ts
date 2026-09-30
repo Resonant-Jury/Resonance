@@ -9,6 +9,8 @@ vi.mock('@/lib/api/v1/conversations', async (orig) => ({ ...(await orig()), send
 const ringAfter = vi.fn();
 vi.mock('@/lib/push/ring', () => ({ ringAfter: (...a: unknown[]) => ringAfter(...a) }));
 vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => ({}) }));
+const spend = vi.fn();
+vi.mock('@/lib/api/rateLimit', () => ({ spend: (...a: unknown[]) => spend(...a) }));
 
 const { buildOpenApi } = await import('./openapi');
 const { POST } = await import('@/app/api/v1/messages/route');
@@ -36,6 +38,16 @@ describe('POST /api/v1/messages (every write route shares these)', () => {
     getCurrentUser.mockReset().mockResolvedValue({ id: 'alice' });
     sendMessage.mockReset().mockResolvedValue({ conversationId: 'alice_bob', id: 'm1', notificationId: 'n1' });
     ringAfter.mockReset();
+    spend.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('is 429 once the sender has spent their budget, and sends nothing', async () => {
+    spend.mockRejectedValue(new ApiFailure('rate_limited', 'Too many requests. Please try again later.'));
+    const res = await post({ to: 'bob', text: 'hi' });
+    expect(res.status).toBe(429);
+    expect((await res.json()).error.code).toBe('rate_limited');
+    expect(spend).toHaveBeenCalledWith({}, 'alice', 'message');
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it('is 401 with the ApiError shape when nobody is signed in', async () => {

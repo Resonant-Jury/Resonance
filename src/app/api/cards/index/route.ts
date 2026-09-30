@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { indexCard } from '@/lib/recommend/indexCard';
+import { limited } from '@/lib/api/rateLimit';
 
 export const runtime = 'nodejs';
 // One LLM extraction + one embeddings call — comfortably under a minute.
@@ -28,6 +29,8 @@ export async function POST(req: Request) {
   if (snap.data()?.authorId !== user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const refused = await limited(getAdminDb(), user.id, 'index');
+  if (refused) return refused;
 
   const result = await indexCard(cardId);
   return NextResponse.json(result);

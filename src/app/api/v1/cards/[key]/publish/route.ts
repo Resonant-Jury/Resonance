@@ -5,6 +5,7 @@ import { publishCard } from '@/lib/api/v1/publish';
 import { CardIdParam } from '@/lib/api/v1/schemas';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { ringAfter } from '@/lib/push/ring';
+import { spend } from '@/lib/api/rateLimit';
 import { indexCard } from '@/lib/recommend/indexCard';
 import { routing } from '@/i18n/routing';
 
@@ -16,6 +17,7 @@ export const maxDuration = 60;
 export const POST = withUser(async (user, _req, ctx: RouteContext<'key'>) => {
   const id = parse(CardIdParam, await routeParam(ctx, 'key'));
   const db = getAdminDb();
+  await spend(db, user.id, 'publish');
   const { notificationId, ...result } = await publishCard(db, user.id, id);
   ringAfter(db, notificationId);
   after(async () => {
