@@ -10,9 +10,9 @@ import { INK_LIGHT } from '@/lib/design/strokes';
 const LINK_KEYS = ['about', 'contact', 'privacy', 'terms'] as const;
 const HREFS: Record<(typeof LINK_KEYS)[number], string> = {
   about: '/#about',
-  contact: 'mailto:hello@resonance.local',
-  privacy: '/#stories',
-  terms: '/#explore',
+  contact: '/support',
+  privacy: '/privacy',
+  terms: '/terms',
 };
 
 export function SiteFooter() {
@@ -37,15 +37,9 @@ export function SiteFooter() {
 
         <div className={styles.links}>
           {LINK_KEYS.map((k) => (
-            HREFS[k].startsWith('/') ? (
-              <Link key={k} href={HREFS[k] as '/#about' | '/#stories' | '/#explore'} className={styles.link}>
-                {t(k)}
-              </Link>
-            ) : (
-              <a key={k} href={HREFS[k]} className={styles.link}>
-                {t(k)}
-              </a>
-            )
+            <Link key={k} href={HREFS[k]} className={styles.link}>
+              {t(k)}
+            </Link>
           ))}
         </div>
 
