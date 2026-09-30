@@ -26,6 +26,15 @@ nonisolated struct AppConfig: Sendable {
     static var current: AppConfig {
         #if DEBUG
         let defaults = UserDefaults.standard
+        // The app hosts its unit tests: they never reach a backend, not even a
+        // simulator's saved account on production. Unless the run points the app
+        // at emulators (the defaults below), it gets a local stack that isn't there.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil, !defaults.bool(forKey: "emulator") {
+            var config = AppConfig(backend: .emulator, origin: URL(string: "http://127.0.0.1:9")!)
+            config.emulatorAuthPort = 9
+            config.emulatorFirestorePort = 9
+            return config
+        }
         if defaults.bool(forKey: "emulator") {
             var config = AppConfig.emulator
             if let port = Self.port(defaults, "emulatorApiPort") {

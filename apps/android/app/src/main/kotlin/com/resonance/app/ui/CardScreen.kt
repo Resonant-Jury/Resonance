@@ -310,7 +310,7 @@ private fun ArticleHead(card: FeedCard, anonymous: Boolean, openAuthor: (String)
 private fun CardPreview(card: FeedCard, openAuthor: (String) -> Unit) {
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 16.dp)) {
         ArticleHead(card, card.anonymous, openAuthor)
-        StorySkeleton(Modifier.semantics { contentDescription = "Loading" })
+        StorySkeleton(Modifier.semantics { contentDescription = L10n.Home.moreLoading })
     }
 }
 

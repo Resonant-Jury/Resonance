@@ -11,7 +11,8 @@ export async function POST(req: Request) {
   const expiresIn =
     Number(process.env.FIREBASE_SESSION_EXPIRES_IN_DAYS ?? 7) * 24 * 60 * 60 * 1000;
 
-  const res = NextResponse.json({ ok: true });
+  // The browser remembers when to mint the next one (ensureSession).
+  const res = NextResponse.json({ ok: true, expiresIn });
   res.cookies.set(SESSION_COOKIE_NAME, sessionCookie, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
