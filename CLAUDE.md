@@ -43,14 +43,15 @@ App routes under `src/app/[locale]/`:
 ### Authentication
 
 1. Browser signs in with the Firebase client SDK (Google / Email; phone OTP behind `NEXT_PUBLIC_ENABLE_PHONE_OTP`) and gets an ID token.
-2. `POST /api/auth/session` exchanges it for an httpOnly session cookie (`__session`, signed by firebase-admin); `DELETE` logs out.
-3. Server code verifies the cookie via `requireUser()` / `getCurrentUser()` in `src/lib/auth`.
-4. Client-side Firestore reads depend on Firebase Auth state restoration — hooks like `useCard` wait for auth to settle before querying, so anonymous-read rules (public cards/profiles) don't misfire.
+2. `POST /api/auth/session` exchanges it for an httpOnly session cookie (`__session`, signed by firebase-admin); `DELETE` logs out. The browser mints it in the background (`ensureSession()` in `src/lib/auth/firebase/client.ts`: deduped, only when missing or under a day from expiry, remembered in localStorage `resonance:session`); explicit sign-ins await it. `useAuth().loading` ends as soon as the SDK restores the user; only callers of cookie-authenticated `/api` routes wait for `useAuth().sessionReady` — prefer `callApi` (Bearer) for new calls. The sign-in pages keep the popup resolver (Safari blocks the popup otherwise).
+3. Server code verifies the cookie or ID token via `requireUser()` / `getCurrentUser()` in `src/lib/auth`, locally. Revocation and disabled state are asked of Firebase Auth live on writes, `/api/account/*`, upload and generate-image; v1 GETs and `/api/recommend/feed` use a per-instance cache (`REVOCATION_CACHE_MS`, 2 min) via `getCurrentUser({ revocation: 'cached' })`. Revoke with `revokeSessions(uid)` (clears the local entry), never a bare `revokeRefreshTokens`. An Auth outage is `AuthUnavailableError` → 500, never a 401.
+4. Firestore waits for Auth restoration on its own, so public reads (feed, related, resonances) don't gate on auth; reads of the viewer's own data wait for the user.
 
 ### Data Layer (dual-track Firestore)
 
 - **Server side**: `src/lib/db/firestore/*.ts` — repository classes (`FirestoreCardRepository`, `FirestoreUserRepository`, plus connection/invite/resonance/notification) using the admin SDK, enforcing visibility (`public` / `connections` / `private`) in code. Connections use a sorted `uid1_uid2` pair id.
 - **Client side**: `src/lib/db/firestore/client/*` — direct read/write modules (cards, feed reads, invites, notifications, profile, cardLinks) consumed by SWR hooks in `src/lib/data/hooks.ts`; security is enforced by `firebase/firestore.rules`. Writes that reach another person or must be unique — publishing, pen names, messages, notes — go through `/api/v1` like the apps (`callApi` in `client/api.ts` sends the ID token as a Bearer token), and the rules refuse them from the browser. What stays client-direct is the author's own drafts and settings, reads, and a few narrowly checked legacy paths. The repo and web config are public: a rule is the only guard on a client write, so every new one needs field-level checks and a `test/emulator/rules.emulator.test.ts` case.
+- **SWR defaults** live in `SWRProvider` (`SWR_DEFAULTS`: no focus revalidation, 30 s dedupe); hooks opt back in with `LIVE_ON_FOCUS` (conversations, block list) or keep a short window with `OWN_CONTENT` (anything the viewer edits). Profiles go through one page-wide cache (`getUsersByIds` in `client/reads.ts`: `documentId() in` batches of 30, 5-min TTL; `forgetCachedUser(uid)` after writing a profile). Never batch-read cards with `in` — the rules refuse the whole query when one card is unreadable. List clicks seed the card page's cache (`cardKey()` / `usePrefillCard()` in `src/lib/data/cardPrefill.ts`).
 
 Core entities live in `src/lib/db/types.ts`: `Card` (with `translations`, `tags`, `slug`, counters), `User` (`handle`/`handleLower`), `Connection`, `Invite`, `Resonance`, `CardLink`, `Notification`. `src/lib/adapters/` converts Firestore data to UI models.
 
@@ -65,17 +66,17 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | `POST /api/cards/tags` | LLM suggests 2–3 tags, informed by the author's tag history |
 | `POST /api/cards/insight` | pre-publish "mirror moment": distills the draft's core insight for the publish panel (returns only `coreInsight`) |
 | `POST /api/cards/index` | builds/refreshes a card's recommendation index entry (insight signature + vectors); fire-and-forget after publish, owner-gated |
-| `GET /api/recommend/feed` | reader's recommended feed — daily cached result, LLM funnel only on cache miss; returns card ids + reasons |
+| `GET /api/recommend/feed` | reader's recommended feed: answers at once from the stored result (`status: 'stale'` while today's is built after the response under a lease — one build per reader, no retry for 1 h after a failure); a first-time reader gets a quick build (≤ 6 s, else vector order without reasons); card ids + reasons + status |
 | `POST /api/generate-image` | doodle-style illustration from story text → AVIF → R2 (`maxDuration: 120`) |
 | `POST /api/upload` | image upload proxy to R2 (works around client-to-R2 TLS issues), 8 MB limit |
 | `POST /api/revalidate` | authenticated `revalidatePath` on allowlisted paths (expands locale prefixes) |
 | `GET/POST/DELETE /api/account/deletion` | read / schedule (7-day grace, revokes refresh tokens) / cancel account deletion |
 | `GET /api/account/export` | the signed-in user's own writing as a JSON download |
 | `GET /api/cron/purge-accounts` | Vercel Cron (daily, `Bearer $CRON_SECRET`): purges accounts past their grace period (`src/lib/account/deletion.ts`) |
-| `GET /api/v1/me` · `GET /api/v1/feed` · `GET /api/v1/feed/recommended` | versioned API for the native apps (contract below): the account, latest and recommended feeds |
+| `GET /api/v1/me` · `GET /api/v1/feed` · `GET /api/v1/feed/recommended` | versioned API for the native apps (contract below): the account, latest and recommended feeds (recommended as above, with an optional `status`: `fresh` \| `stale`) |
 | `POST/PATCH /api/v1/me` · `GET /api/v1/handles/{handle}` | onboarding and profile edits (pen-name uniqueness checked in the write's transaction), and the as-you-type availability check |
 | `GET /api/v1/cards/{key}` (+ `/resonances`, `/related`, `/links`) · `POST …/report` | a card by slug or id with its story, and the lists around it; reporting it (the server fills in an anonymous author) |
-| `POST /api/v1/cards/{id}/publish` | publish your card (web and apps): stamp once, slug (`assignSlug`: LLM-translated title, collision-safe, idempotent), a resonance's connection + bell; index and cache after the response |
+| `POST /api/v1/cards/{id}/publish` | publish your card (web and apps): stamp once, slug (`assignSlug`: LLM-translated title, collision-safe, idempotent), a resonance's connection + bell; the slug is waited for ≤ 8 s (`SLUG_WAIT_MS`), else `slug: null` and it's written after the response; index and cache after the response |
 | `GET /api/v1/users/{handle}` (+ `/cards`, `/links`) | a profile as the viewer sees it, their public cards, cards linking to theirs |
 | `POST /api/v1/cards/{id}/edits/apply` | apply a published card's pending edit (`cards/{id}/edits/current`) in one transaction, keeping its date and slug |
 | `POST /api/v1/notes` · `POST /api/v1/messages` | a note to a card's author (the server finds the author) · a message to a connection (opens the conversation; only the first rings the bell) |
@@ -89,7 +90,7 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 
 API routes authenticate with the `__session` cookie **or** `Authorization: Bearer <Firebase ID token>` (native apps) — both via `getCurrentUser()`.
 
-**`/api/v1` is a contract.** Zod schemas in `src/lib/api/v1/schemas.ts` are the source of truth: routes validate with them (`withUser` + `parse` in `http.ts`, errors always `{ error: { code, message, issues? } }`), and `npm run api:openapi` writes `openapi/v1/openapi.json`, from which the iOS (swift-openapi-generator) and Android (openapi-generator) clients are generated. Within v1 change additively only; clients tolerate unknown fields (no `additionalProperties: false`), and optional request fields accept `null` (Kotlin clients send it, Swift omits it). The services (`service.ts`, `reads.ts`; shapes in `present.ts`) run on the Admin SDK, which bypasses `firestore.rules` — every guarantee the rules give the web client (blocks, quotas, visibility) must be re-checked there and covered in `test/emulator/apiV1*.emulator.test.ts` (`canView` in `present.ts` is `cardVisible`).
+**`/api/v1` is a contract.** Zod schemas in `src/lib/api/v1/schemas.ts` are the source of truth: routes validate with them (`withUser` + `parse` in `http.ts`, errors always `{ error: { code, message, issues? } }`), and `npm run api:openapi` writes `openapi/v1/openapi.json`, from which the iOS (swift-openapi-generator) and Android (openapi-generator) clients are generated. Within v1 change additively only; clients tolerate unknown fields (no `additionalProperties: false`), and optional request fields accept `null` (Kotlin clients send it, Swift omits it). The services (`service.ts`, `reads.ts`; shapes in `present.ts`) run on the Admin SDK, which bypasses `firestore.rules` — every guarantee the rules give the web client (blocks, quotas, visibility) must be re-checked there and covered in `test/emulator/apiV1*.emulator.test.ts` (`canView` in `present.ts` is `cardVisible`). Routes whose parameter is a card id (resonances/related/links, notes' `cardId`, messages' `cardRef`) read by id only (`visibleCardById`); only `GET /cards/{key}` and report resolve slugs (`cardByKey`), before the document read, never beside it. Lists check visibility with `visibleTo()` (one batched connection read per author).
 
 ### Safety (App Store 1.2 / 5.1.1(v))
 
@@ -107,11 +108,11 @@ The iOS (SwiftUI, `apps/ios`) and Android (Compose) apps are a migration of this
 
 ### AI (`src/lib/ai/`)
 
-Card URLs use English slugs (LLM translates the title, then slugify + handle/numeric-suffix collision handling). `openai.ts` wraps API calls, `tasks.ts` defines the tasks (slug base, tag suggestions, story illustration), `slugify.ts`/`tags.ts` are pure logic with tests. OpenAI is only called from server routes — the key never reaches the client.
+Card URLs use English slugs (LLM translates the title, then slugify + handle/numeric-suffix collision handling). `openai.ts` wraps API calls, `tasks.ts` defines the tasks (slug base, tag suggestions, story illustration), `slugify.ts`/`tags.ts` are pure logic with tests. OpenAI is only called from server routes — the key never reaches the client — and every call carries a timeout (`signal`). Recommendations (`src/lib/recommend`) search the vector store by COSINE distance (smaller = closer).
 
 ### Storage & Image Pipeline
 
-`src/lib/storage/` is an abstraction over Cloudflare R2 (S3-compatible API via `@aws-sdk/client-s3`). Images are compressed client-side (`src/lib/images/compress.ts`), uploaded through `/api/upload` or `/api/generate-image`, converted to AVIF with sharp (`src/lib/storage/image.ts`), and served from `R2_PUBLIC_BASE`. R2 CORS config is in `r2-cors.json`.
+`src/lib/storage/` is an abstraction over Cloudflare R2 (S3-compatible API via `@aws-sdk/client-s3`). Images are compressed client-side (`src/lib/images/compress.ts`), uploaded through `/api/upload` or `/api/generate-image`, converted to AVIF with sharp (`src/lib/storage/image.ts`), and served from `R2_PUBLIC_BASE` with `Cache-Control: public, max-age=31536000, immutable` (keys are UUIDs, never rewritten). R2 CORS config is in `r2-cors.json`.
 
 ### Component Hierarchy
 
@@ -161,7 +162,7 @@ Default env is **node** (fast – suits pure-logic suites). Any test that render
 ### Conventions
 
 - **Mock at the module boundary**, not internals. Hooks/components that touch Firebase mock the read/write layer (`@/lib/db/firestore/client/*`), `useAuth`, and navigation (`@/i18n/navigation`) with `vi.mock`. Pure-logic suites (adapters, mappers, design utils) mock nothing.
-- **SWR hooks**: render via `renderHook` wrapped in `<SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>` so each test gets an isolated cache; `await waitFor(() => expect(result.current.data).toBeDefined())`.
+- **SWR hooks**: render via `renderHook` wrapped in `<SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>` so each test gets an isolated cache; `await waitFor(() => expect(result.current.data).toBeDefined())`. To test focus behaviour use `{ ...SWR_DEFAULTS, provider, dedupingInterval: 0, focusThrottleInterval: 0 }` (SWR ignores focus for 5 s after mount). When a hook returns the raw SWR object, read `.data` during render (`renderHook(() => useX().data)`) — SWR only re-renders for fields a render read. A component rendering CardLinkGrid needs `useAuth` mocked (the prefill reads the viewer).
 - **Query by role / label / text**, asserting the behavior a user sees – avoid implementation details.
 - **Component gotchas**: for a control gated by a `pointer-events: none` wrapper, use `userEvent.setup({ pointerEventsCheck: 0 })` to test the component's own validity gate. For long text input, prefer `fireEvent.change` over `userEvent.type`. Await async effects (e.g. a `useEffect` data load) before a test ends to avoid `act()` warnings.
 - **Determinism**: seeded design utils (`prng`, `wobRect`, `wavyPath`) are tested for same-seed stability – this is what guarantees SSR/CSR hydration parity.

@@ -75,6 +75,25 @@ account (`devices/*` in the emulator), and `xcrun simctl push booted
 com.resonance.stories <file.apns>` with top-level `route` and `notificationId`
 keys checks where tapping a push leads.
 
+`-feedPicksDelay <seconds>` holds back the recommended feed, to see the
+late-picks hint.
+
+Reading: the home feed asks for the latest and the recommended cards together.
+Picks that arrive within `FeedModel.defaultPatience` (800 ms) lead the feed;
+later ones wait behind the "今天的推薦準備好了" pill (TabScreen's `banner`)
+and never rearrange what's on screen. Cards seen in lists stay in
+`SessionStore.cardPreviews` (memory only, per account, emptied on sign-out
+and on any block change) as the card page's placeholder — the page always
+refetches. `Route.thread(handle:uid:note:)` takes the uid whenever the caller
+knows it; threads listen by pair id, and PERMISSION_DENIED means "no
+conversation yet".
+
+The app hosts its unit tests; run them with `xcodebuild test … -destination
+'id=<udid>'`. Under XCTest the app points at a local stack that isn't there
+(no backend, not even a simulator's saved account on production) unless the
+simulator's defaults say `emulator` (with `emulatorAuthPort`/…), e.g.
+`xcrun simctl spawn <udid> defaults write com.resonance.stories emulator -bool YES`.
+
 Push: the server pushes every bell row through FCM (`src/lib/push`); the app
 registers its token with `PUT /api/v1/me/devices/{installationId}` after
 sign-in and unregisters on sign-out. Real delivery needs the Apple team: an
@@ -109,6 +128,7 @@ cd apps/android
 ./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :core:kit:test        # API clients, localization, story format, cover hue
+./gradlew :app:testDebugUnitTest  # the app's JVM tests: routes, App Links, pen names, reading (FeedLoader, CardPageLoader, CardCache)
 ```
 
 Debug launch extras mirror iOS's arguments: `--ez emulator true` points
@@ -136,6 +156,13 @@ posts the notification a push that arrives while the app is open shows:
 adb shell am start -n com.resonance.stories/com.resonance.app.MainActivity \
   --es route /messages/alice --es notificationId x
 ```
+
+Reading: the feed shows the latest cards first; picks that answer later wait behind the
+"今天的推薦準備好了" hint. Lists pass their FeedCard as `Route.Card(key, preview)` and remember it in
+`Session.cardCache` (per account; cleared on sign-in/out, your own card changes and block changes) so
+the card page draws at once; reads that need a card's document id (resonances/related/links) take
+`card.id`, never the route key. `--es route /messages/<handle>` for the thread already on top leaves it
+in place.
 
 Push: the server pushes every bell row through FCM (`src/lib/push`, on the "activity" channel); the app
 asks for the notification permission once signed in (API 33+), registers its token with
