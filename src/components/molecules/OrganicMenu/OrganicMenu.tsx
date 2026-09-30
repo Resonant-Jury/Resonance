@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { Icon, type IconName } from '@/components/atoms/Icon';
+import { RowInkWash, useRowInk } from '@/components/atoms/RowInk/RowInk';
 import { wobRect } from '@/lib/design/wobRect';
 import { dividerPath, rowBoundary, rowRegion } from '@/lib/design/rowMenu';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
@@ -43,8 +44,9 @@ export interface OrganicMenuProps {
 
 /**
  * The organic「⋯」dropdown, extracted from the card menu's language: a wobbly
- * chip trigger dropping a hand-drawn panel with wavy pen dividers and per-row
- * washes. Closes on outside pointer-down or Escape.
+ * chip trigger dropping a hand-drawn panel with wavy pen dividers and a
+ * spreading ink wash on the hovered row. Closes on outside pointer-down or
+ * Escape.
  */
 export function OrganicMenu({
   items,
@@ -167,7 +169,6 @@ function MenuPanel({ uid, seed, items, busy, onChoose }: MenuPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const h = items.length * ROW_H;
   const [w, setW] = useState(0);
-  const [hovered, setHovered] = useState<number | null>(null);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -198,6 +199,15 @@ function MenuPanel({ uid, seed, items, busy, onChoose }: MenuPanelProps) {
   const ready = w > 0 && boundaries.length === items.length - 1;
   const dangerIndex = items.findIndex((it) => it.danger);
 
+  // Pointer-driven only: the rows are plain buttons the keyboard tabs through,
+  // so there is no active row to rest the ink on.
+  const ink = useRowInk({ panelRef: ref, w, h });
+  const washes = items.map((_, i) =>
+    i === dangerIndex
+      ? 'color-mix(in oklch, var(--color-yellow) 45%, var(--menu-cream))'
+      : 'color-mix(in oklch, var(--menu-border-hover) 15%, transparent)',
+  );
+
   return (
     <div ref={ref} className={styles.panel} style={{ height: `${h}px` }}>
       {w > 0 && (
@@ -222,15 +232,16 @@ function MenuPanel({ uid, seed, items, busy, onChoose }: MenuPanelProps) {
                 fill="color-mix(in oklch, var(--color-yellow) 25%, var(--menu-cream))"
               />
             )}
-            {/* hover wash for the active row */}
-            {ready && hovered !== null && (
-              <path
-                d={rowRegion(hovered, items.length, boundaries, w, h, pad)}
-                fill={
-                  hovered === dangerIndex
-                    ? 'color-mix(in oklch, var(--color-yellow) 45%, var(--menu-cream))'
-                    : 'color-mix(in oklch, var(--menu-border-hover) 15%, transparent)'
-                }
+            {/* the hovered row's ink, spreading from the pointer */}
+            {ready && (
+              <RowInkWash
+                uid={`organicmenu-${uid}`}
+                ink={ink}
+                boundaries={boundaries}
+                w={w}
+                h={h}
+                pad={pad}
+                fills={washes}
               />
             )}
           </g>
@@ -263,10 +274,9 @@ function MenuPanel({ uid, seed, items, busy, onChoose }: MenuPanelProps) {
             type="button"
             role="menuitem"
             className={styles.option}
-            data-active={hovered === i || undefined}
+            data-active={ink.index === i || undefined}
             disabled={busy}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered((v) => (v === i ? null : v))}
+            {...ink.rowProps(i)}
             onClick={() => onChoose(it.key)}
           >
             <span className={styles.optionIcon}>

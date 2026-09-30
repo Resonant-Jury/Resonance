@@ -1,6 +1,6 @@
-// Shared geometry for organic dropdown menus (Subnavbar, CardActionsMenu):
+// Shared geometry for organic dropdown menus (Subnavbar, OrganicMenu, Select):
 // wavy row boundaries, smooth cubic divider paths, and the closed per-row
-// regions used for hover washes. All functions are pure and deterministic
+// regions used for the row ink washes. All functions are pure and deterministic
 // (seeded), so menus render identically across SSR and hydration.
 
 import { makePrng } from './prng';

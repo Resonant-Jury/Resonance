@@ -19,8 +19,9 @@ import {
 } from 'react';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { Icon } from '@/components/atoms/Icon';
+import { RowInkWash, useRowInk } from '@/components/atoms/RowInk/RowInk';
 import { wobRect } from '@/lib/design/wobRect';
-import { makePrng } from '@/lib/design/prng';
+import { dividerPath, rowBoundary } from '@/lib/design/rowMenu';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
 import { INK, INK_LIGHT, INK_STRONG } from '@/lib/design/strokes';
 import styles from './Field.module.css';
@@ -429,79 +430,13 @@ interface DropdownPanelProps {
   menuMinWidth?: number | string;
 }
 
-// A gently wavy horizontal boundary between two option rows, as a point list so
-// the row fills and the stroked dividers share identical geometry. Runs from
-// -pad to w+pad so fills overshoot the panel and the outer clip trims them flush
-// to the wobbly border (no slivers, dividers reach the edges).
-function rowBoundary(
-  y: number,
-  w: number,
-  seed: number,
-  amp: number,
-  pad: number,
-): [number, number][] {
-  const steps = 4;
-  const rnd = makePrng(seed);
-  const f = (n: number): number => +n.toFixed(2);
-  const pts: [number, number][] = [[-pad, f(y)]];
-  for (let k = 0; k <= steps; k++) {
-    const x = (k / steps) * w;
-    const off = k === 0 || k === steps ? 0 : (rnd() - 0.5) * 2 * amp;
-    pts.push([f(x), f(y + off)]);
-  }
-  pts.push([w + pad, f(y)]);
-  return pts;
-}
-
-// Smooth cubic segments through the points, with horizontal control handles
-// (the same curve feel as wavyLine). Assumes the pen is already at pts[0].
-function segs(pts: [number, number][]): string {
-  const f = (n: number): number => +n.toFixed(2);
-  let d = '';
-  for (let i = 1; i < pts.length; i++) {
-    const [x0, y0] = pts[i - 1];
-    const [x1, y1] = pts[i];
-    const hx = (x1 - x0) / 3;
-    d += ` C ${f(x0 + hx)},${f(y0)} ${f(x1 - hx)},${f(y1)} ${f(x1)},${f(y1)}`;
-  }
-  return d;
-}
-
-const dividerPath = (pts: [number, number][]): string =>
-  `M ${pts[0][0]},${pts[0][1]}` + segs(pts);
-
-// Closed region for one option row, bounded by the wavy divider above and below
-// (or the padded panel edge for the first/last row), so a hover/selection wash
-// fills the *curve-divided* area rather than a rectangle. Both edges are drawn
-// as smooth curves so the wash hugs the divider exactly.
-function rowRegion(
-  i: number,
-  count: number,
-  boundaries: [number, number][][],
-  w: number,
-  h: number,
-  pad: number,
-): string {
-  const top: [number, number][] =
-    i === 0 ? [[-pad, -pad], [w + pad, -pad]] : boundaries[i - 1];
-  const bottom: [number, number][] =
-    i === count - 1 ? [[-pad, h + pad], [w + pad, h + pad]] : boundaries[i];
-  const botRev = [...bottom].reverse();
-  return (
-    `M ${top[0][0]},${top[0][1]}` +
-    segs(top) +
-    ` L ${botRev[0][0]},${botRev[0][1]}` +
-    segs(botRev) +
-    ' Z'
-  );
-}
-
 /**
  * The expanded panel. It **covers the closed box** (anchored at `top: 0`) and
  * reads as a self-contained card: a full closed wobbly border (no open top, so
  * left/right edges always meet), an opaque cream fill, the N options listed
  * inside separated by wavy hand-drawn dividers that reach both edges, and the
- * active option washed in along the *curved* divider regions (not a rectangle).
+ * active option washed by a spreading ink along the *curved* divider regions
+ * (not a rectangle).
  */
 function DropdownPanel({
   seed,
@@ -567,6 +502,16 @@ function DropdownPanel({
 
   const ready = w > 0 && h > 0 && boundaries.length === options.length - 1;
 
+  // The pointer inks the row it is on; otherwise the keyboard's active row
+  // keeps it (hovering sets the active row too, so it also stays where the
+  // pointer last was). The selected option's own styling is separate.
+  const ink = useRowInk({ panelRef: ref, rows, w, h, activeIndex });
+  const washes = useMemo(
+    () =>
+      options.map(() => 'color-mix(in oklch, var(--color-terracotta) 15%, var(--color-cream))'),
+    [options],
+  );
+
   return (
     <div
       ref={ref}
@@ -596,11 +541,16 @@ function DropdownPanel({
           <g clipPath={`url(#sel-clip-${uid})`}>
             {/* opaque card fill */}
             <path d={outerPath} fill="var(--color-cream)" />
-            {/* active row wash, clipped to the curved region */}
-            {ready && activeIndex >= 0 && (
-              <path
-                d={rowRegion(activeIndex, options.length, boundaries, w, h, pad)}
-                fill="color-mix(in oklch, var(--color-terracotta) 15%, var(--color-cream))"
+            {/* active row ink, clipped to the curved region */}
+            {ready && (
+              <RowInkWash
+                uid={`sel-${uid}`}
+                ink={ink}
+                boundaries={boundaries}
+                w={w}
+                h={h}
+                pad={pad}
+                fills={washes}
               />
             )}
           </g>
@@ -642,7 +592,7 @@ function DropdownPanel({
             className={styles.dropdownOption}
             data-selected={opt.value === value || undefined}
             onClick={() => onChoose(opt.value)}
-            onMouseEnter={() => onActivate(i)}
+            {...ink.rowProps(i, () => onActivate(i))}
           >
             <span className={styles.dropdownOptionLabel}>{opt.label}</span>
             {opt.value === value && (

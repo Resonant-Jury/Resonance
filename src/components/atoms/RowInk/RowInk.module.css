@@ -1,0 +1,11 @@
+/* The spread of the row ink: the same 340ms linear brush OrganicButton uses on
+   hover. It lives here rather than inline so the reduced-motion query can turn
+   it off — the wash then simply appears on the row. */
+.circle {
+  transition: r 340ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .circle {
+    transition: none;
+  }
+}

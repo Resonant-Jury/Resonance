@@ -9,11 +9,11 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
-  type MouseEvent,
 } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { Icon, type IconName } from '@/components/atoms/Icon';
+import { RowInkWash, useRowInk } from '@/components/atoms/RowInk/RowInk';
 import { SignOutConfirmModal } from '@/components/molecules/SignOutConfirmModal/SignOutConfirmModal';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useRouter } from '@/i18n/navigation';
@@ -38,6 +38,13 @@ const ITEMS: MenuItem[] = [
   { key: 'settings', icon: 'pen', href: '/settings' },
   { key: 'signOut', icon: 'logout', tone: 'danger' },
 ];
+
+// The ink of each row: terracotta, and the warning yellow for signing out.
+const INK_WASHES = ITEMS.map((item) =>
+  item.key === 'signOut'
+    ? 'color-mix(in oklch, var(--color-yellow) 40%, transparent)'
+    : 'color-mix(in oklch, var(--color-terracotta) 13%, transparent)',
+);
 
 export interface SubnavbarProps {
   user: {
@@ -236,10 +243,6 @@ function SubnavPanel({
   // Pre-defined static coordinates since every row option button is exactly ROW_H high
   const rows = useMemo(() => ITEMS.map((_, i) => ({ top: i * ROW_H, height: ROW_H })), []);
 
-  // Hover and mouse position tracking for the SegmentedActionBar style wash
-  const [hovered, setHovered] = useState<number | null>(null);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-
   const recompute = useCallback(() => {
     const el = ref.current;
     if (!el) return;
@@ -275,22 +278,15 @@ function SubnavPanel({
 
   const ready = w > 0 && h > 0 && boundaries.length === ITEMS.length - 1;
 
-  const recordPointer = (e: MouseEvent<HTMLButtonElement>) => {
-    const r = ref.current?.getBoundingClientRect();
-    if (!r) return;
-    setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
-  };
-
-  const hoverMaxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 4;
-  const currentHovered = hovered !== null ? hovered : (interactionMode === 'keyboard' ? activeIndex : null);
-
-  // Sync activeIndex changes (like keyboard arrows) to center the wash circle
-  useEffect(() => {
-    if (activeIndex >= 0 && rows[activeIndex] && w > 0) {
-      const r = rows[activeIndex];
-      setPos({ x: w / 2, y: r.top + r.height / 2 });
-    }
-  }, [activeIndex, rows, w]);
+  // The ink follows the pointer; the keyboard's row only counts while the
+  // keyboard is the one driving (after the pointer leaves, the wash withdraws).
+  const ink = useRowInk({
+    panelRef: ref,
+    rows,
+    w,
+    h,
+    activeIndex: interactionMode === 'keyboard' ? activeIndex : null,
+  });
 
   return (
     <div ref={ref} className={styles.panel} style={{ height: `${h}px` }}>
@@ -306,26 +302,6 @@ function SubnavPanel({
             <clipPath id={`subnav-clip-${uid}`}>
               <path d={outerPath} />
             </clipPath>
-            {/* One pointer-anchored reveal circle per row */}
-            {ITEMS.map((item, i) => (
-              <mask
-                key={item.key}
-                id={`subnav-hover-${uid}-${i}`}
-                maskUnits="userSpaceOnUse"
-                x={-w}
-                y={-h}
-                width={w * 3}
-                height={h * 3}
-              >
-                <circle
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={currentHovered === i ? hoverMaxR : 0}
-                  fill="white"
-                  style={{ transition: 'r 340ms linear' }}
-                />
-              </mask>
-            ))}
           </defs>
           <g clipPath={`url(#subnav-clip-${uid})`}>
             {/* opaque card fill */}
@@ -342,20 +318,18 @@ function SubnavPanel({
                 ) : null
               )
             }
-            {/* hover wash revealed through the circle masks */}
-            {ready &&
-              ITEMS.map((item, i) => (
-                <g key={item.key} mask={`url(#subnav-hover-${uid}-${i})`}>
-                  <path
-                    d={rowRegion(i, ITEMS.length, boundaries, w, h, pad)}
-                    fill={
-                      item.key === 'signOut'
-                        ? 'color-mix(in oklch, var(--color-yellow) 40%, transparent)'
-                        : 'color-mix(in oklch, var(--color-terracotta) 13%, transparent)'
-                    }
-                  />
-                </g>
-              ))}
+            {/* the ink: spreads from the pointer (or the keyboard row's centre) */}
+            {ready && (
+              <RowInkWash
+                uid={`subnav-${uid}`}
+                ink={ink}
+                boundaries={boundaries}
+                w={w}
+                h={h}
+                pad={pad}
+                fills={INK_WASHES}
+              />
+            )}
           </g>
           {/* wavy dividers — drawn past the edges, clipped flush to the border */}
           {ready &&
@@ -389,18 +363,14 @@ function SubnavPanel({
             role="menuitem"
             id={`${uid}-opt-${i}`}
             className={styles.option}
-            data-active={i === currentHovered || undefined}
+            data-active={i === ink.index || undefined}
             data-tone={item.tone}
             disabled={item.key === 'signOut' && signingOut}
             onClick={() => onChoose(i)}
-            onMouseEnter={(e) => {
-              recordPointer(e);
+            {...ink.rowProps(i, () => {
               onActivate(i);
-              setHovered(i);
               setInteractionMode('mouse');
-            }}
-            onMouseMove={recordPointer}
-            onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
+            })}
           >
             <Icon name={item.icon} size={18} strokeWidth={INK} className={styles.optionIcon} />
             <span className={styles.optionLabel}>
