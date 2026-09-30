@@ -28,6 +28,28 @@ fun wavyLine(W: Double, seed: Double = 1.0, amp: Double = 2.0, steps: Int = 5): 
     return path
 }
 
+/**
+ * A pen's wavy underline at its real width (wavyPath.ts `penWave`): a crest
+ * every ~`half`, alternating up and down, each crest's height and place nudged
+ * by the seed, settling on the line at both ends.
+ */
+fun penWavePoints(W: Double, seed: Double = 1.0, amp: Double = 1.2, half: Double = 4.5): List<Pt> {
+    val rnd = Prng(seed)
+    val n = max(2, jsRound(W / half).toInt())
+    val step = W / n
+    return (0..n).map { i ->
+        if (i == 0 || i == n) Pt(i * step, 0.0)
+        else {
+            val x = i * step + (rnd.next() - 0.5) * step * 0.3
+            val y = (if (i % 2 == 1) -1.0 else 1.0) * amp * (0.65 + 0.7 * rnd.next())
+            Pt(x, y)
+        }
+    }
+}
+
+fun penWave(W: Double, seed: Double = 1.0, amp: Double = 1.2, half: Double = 4.5): List<PathCommand> =
+    pointsToBezier(penWavePoints(W, seed, amp, half))
+
 /** Vertical sibling of [wavyLine] — runs down the y-axis, wobbling in x. */
 fun wavyVertical(H: Double, seed: Double = 1.0, amp: Double = 2.0, steps: Int = 5): List<PathCommand> {
     val rnd = Prng(seed)

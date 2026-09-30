@@ -20,6 +20,30 @@ public func wavyLine(_ W: Double, seed: Double = 1, amp: Double = 2, steps: Int 
     return path
 }
 
+/// A pen's wavy underline at its real width (wavyPath.ts `penWave`): a crest
+/// every ~`half`, alternating up and down, each crest's height and place
+/// nudged by the seed, settling on the line at both ends.
+public func penWavePoints(_ W: Double, seed: Double = 1, amp: Double = 1.2, half: Double = 4.5) -> [Point] {
+    var rnd = Prng(seed: seed)
+    let n = max(2, Int(jsRound(W / half)))
+    let step = W / Double(n)
+    var pts: [Point] = []
+    for i in 0...n {
+        if i == 0 || i == n {
+            pts.append((Double(i) * step, 0))
+            continue
+        }
+        let x = Double(i) * step + (rnd.next() - 0.5) * step * 0.3
+        let y = (i % 2 == 1 ? -1.0 : 1.0) * amp * (0.65 + 0.7 * rnd.next())
+        pts.append((x, y))
+    }
+    return pts
+}
+
+public func penWave(_ W: Double, seed: Double = 1, amp: Double = 1.2, half: Double = 4.5) -> [PathCommand] {
+    pointsToBezier(penWavePoints(W, seed: seed, amp: amp, half: half))
+}
+
 /// Vertical sibling of ``wavyLine`` — runs down the y-axis, wobbling in x.
 public func wavyVertical(_ H: Double, seed: Double = 1, amp: Double = 2, steps: Int = 5) -> [PathCommand] {
     var rnd = Prng(seed: seed)

@@ -17,7 +17,7 @@ import { wobRect, type WobRectOpts } from '../../src/lib/design/wobRect';
 import { wobCircle, type WobCircleOpts } from '../../src/lib/design/wobCircle';
 import { wobLoop, type WobLoopOpts } from '../../src/lib/design/wobLoop';
 import { wobTabRect, type WobTabRectOpts } from '../../src/lib/design/wobTabRect';
-import { pointsToBezier, wavyLine, wavyPoints, wavyVertical } from '../../src/lib/design/wavyPath';
+import { penWave, pointsToBezier, wavyLine, wavyPoints, wavyVertical } from '../../src/lib/design/wavyPath';
 import { arrowHeadPath, organicEdgePath, rectAnchor, type RectLike } from '../../src/lib/design/edgePath';
 import { dividerPath, rowBoundary, rowRegion } from '../../src/lib/design/rowMenu';
 
@@ -166,6 +166,18 @@ for (let i = 0; i < 40; i++) {
   wavyPointsCases.push({ args: [W, y0, amp, seed, steps], out: { points: pts, bezier: pointsToBezier(pts) } });
 }
 
+const penWaveCases: Case[] = [];
+for (const [W, seed, amp, half] of [[120, 17, 1.2, 4.5], [34, 3, 1.2, 4.5], [260, 53, 1.4, 5]] as const) {
+  penWaveCases.push({ args: [W, seed, amp, half], out: penWave(W, seed, amp, half) });
+}
+for (let i = 0; i < 30; i++) {
+  const W = range(4, 600);
+  const seed = int(1, 9999);
+  const amp = range(0, 3, 2);
+  const half = range(2, 9, 2);
+  penWaveCases.push({ args: [W, seed, amp, half], out: penWave(W, seed, amp, half) });
+}
+
 // --- thought-map edges -------------------------------------------------------
 const rect = (): RectLike => ({ x: range(-400, 800), y: range(-400, 800), w: range(0, 260), h: range(0, 180) });
 const edgeCases: Case[] = [];
@@ -216,6 +228,7 @@ const fixtures = {
   wobLoop: wobLoopCases,
   wobTabRect: wobTabRectCases,
   wavyLine: wavyLineCases,
+  penWave: penWaveCases,
   wavyVertical: wavyVerticalCases,
   wavyPoints: wavyPointsCases,
   rectAnchor: anchorCases,

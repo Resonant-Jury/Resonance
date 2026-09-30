@@ -169,6 +169,9 @@ class FixtureParityTest {
         cases("wavyLine").forEachIndexed { i, (a, out) ->
             expectSame(wavyLine(a[0].num, a[1].num, a[2].num, a[3].num.toInt()), out.jsonPrimitive.content, "wavyLine #$i", worst)
         }
+        cases("penWave").forEachIndexed { i, (a, out) ->
+            expectSame(penWave(a[0].num, a[1].num, a[2].num, a[3].num), out.jsonPrimitive.content, "penWave #$i", worst)
+        }
         cases("wavyVertical").forEachIndexed { i, (a, out) ->
             expectSame(wavyVertical(a[0].num, a[1].num, a[2].num, a[3].num.toInt()), out.jsonPrimitive.content, "wavyVertical #$i", worst)
         }

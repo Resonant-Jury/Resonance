@@ -180,6 +180,10 @@ struct FixtureParityTests {
             let native = wavyLine(num(c.args[0]), seed: num(c.args[1]), amp: num(c.args[2]), steps: Int(num(c.args[3])))
             expectSame(native, c.out as! String, "wavyLine #\(i)", worst)
         }
+        for (i, c) in cases("penWave").enumerated() {
+            let native = penWave(num(c.args[0]), seed: num(c.args[1]), amp: num(c.args[2]), half: num(c.args[3]))
+            expectSame(native, c.out as! String, "penWave #\(i)", worst)
+        }
         for (i, c) in cases("wavyVertical").enumerated() {
             let native = wavyVertical(num(c.args[0]), seed: num(c.args[1]), amp: num(c.args[2]), steps: Int(num(c.args[3])))
             expectSame(native, c.out as! String, "wavyVertical #\(i)", worst)
