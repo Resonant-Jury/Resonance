@@ -13,6 +13,12 @@ export interface TagPillProps {
   color?: string;
   seed?: number;
   size?: TagSize;
+  /**
+   * Draws the faint ink rim. Defaults to the size's own rule (lg / xl yes, sm /
+   * md no); pass `true` for a small pill that sits on bare page paper rather
+   * than inside a framed card, where its fill alone would vanish.
+   */
+  outlined?: boolean;
   /** Renders a removal × button on the right and calls back when clicked. */
   onRemove?: () => void;
   /** Whole pill is clickable (e.g. filter chip). */
@@ -27,11 +33,28 @@ const SIZE_FALLBACK_HEIGHT: Record<TagSize, number> = {
   xl: 38,
 };
 
+/** The pen outline is for the input-like sizes only (see {@link TagPill}). */
+const OUTLINED: ReadonlySet<TagSize> = new Set<TagSize>(['lg', 'xl']);
+
+/**
+ * A small pill of colour with a hand-drawn (wobbly) shape.
+ *
+ * sm / md are *data* — the tags on cards, in feeds and under a card's story —
+ * and are repeated 3–4 times a card, so they are a bare tinted fill with no
+ * outline (a stroked pill each time was clutter). lg / xl are *input-like*:
+ * the writer's chosen tags, removable with ×, so they keep the faint ink
+ * outline that marks a thing you can act on. (One frame per layer: an outline
+ * marks a container or an input, not a label.) The exception is a small pill
+ * that is not inside a framed card — the owner's "anonymous" badge under a card
+ * on the shelf is cream-dark on the cream page — which asks for its rim with
+ * `outlined`. The apps' TagPill has the same switch.
+ */
 export function TagPill({
   children,
   color = 'var(--color-yellow)',
   seed,
   size = 'md',
+  outlined = OUTLINED.has(size),
   onRemove,
   onClick,
   ariaLabel,
@@ -71,14 +94,15 @@ export function TagPill({
     >
       {/* Wobble params (segments / curve / mag) and stroke width stay on the
           auto defaults + INK pen — the same recipe as other small chips (e.g.
-          the editor's AI-suggest pill), so all pills read as one hand. */}
+          the editor's AI-suggest pill), so all pills read as one hand. With no
+          strokeColor HandDrawnBorder draws the fill alone. */}
       <HandDrawnBorder
         w={w}
         h={h}
         R={R}
         seed={autoSeed}
         fillColor={color}
-        strokeColor="oklch(32% 0.05 60 / 0.45)"
+        strokeColor={outlined ? 'oklch(32% 0.05 60 / 0.45)' : undefined}
       />
       <span className={styles.label}>{children}</span>
       {onRemove && (

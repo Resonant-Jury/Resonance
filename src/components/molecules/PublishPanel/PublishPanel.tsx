@@ -273,10 +273,10 @@ export function PublishPanel({
 
         <Divider seed={47} spacing={2} />
 
-        {/* 4 — publish */}
+        {/* 4 — publish. The modal is the frame: the verb is a solid fill, cancel plain text. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
-            <OrganicButton variant="primary" size="sm" onClick={() => onPublish({ visibility, anonymous })}>
+            <OrganicButton variant="solid" size="sm" onClick={() => onPublish({ visibility, anonymous })}>
               {updating
                 ? pending
                   ? t('updating')
@@ -286,7 +286,7 @@ export function PublishPanel({
                 : t('publish')}
             </OrganicButton>
           </div>
-          <OrganicButton variant="ghost" size="sm" onClick={onClose}>
+          <OrganicButton variant="text" size="sm" onClick={onClose}>
             {t('cancel')}
           </OrganicButton>
           {error && (

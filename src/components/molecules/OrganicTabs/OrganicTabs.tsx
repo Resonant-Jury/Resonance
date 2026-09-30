@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { wavyLine } from '@/lib/design/wavyPath';
-import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
+import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { useElementSize } from '@/lib/hooks/useElementSize';
 import styles from './OrganicTabs.module.css';
-import { INK, INK_STRONG } from '@/lib/design/strokes';
+import { INK_STRONG } from '@/lib/design/strokes';
 
 export interface OrganicTabItem<K extends string = string> {
   key: K;
@@ -17,7 +18,7 @@ export interface OrganicTabsProps<K extends string = string> {
   onChange: (key: K) => void;
   /** Horizontal tabs get a wavy underline; vertical get an organic highlight. */
   orientation?: 'horizontal' | 'vertical';
-  /** Style variant for the active tab indicator. Defaults to 'surface' for vertical and 'underline' for horizontal. */
+  /** Style variant for the active tab indicator: a wavy 'underline', or a 'surface' wash (no outline) behind the tab. Defaults to 'surface' for vertical and 'underline' for horizontal. */
   variant?: 'underline' | 'surface';
   /**
    * Horizontal only: keep every tab on one line and scroll sideways instead
@@ -31,10 +32,45 @@ export interface OrganicTabsProps<K extends string = string> {
 }
 
 /**
+ * The selected tab's wash: a wobbly tinted fill behind the button with no pen
+ * outline of its own — the same selected state as the native tab bar and the
+ * editor toolbar. A tab is a control, not a container, so it is washed in
+ * rather than framed (one frame per layer).
+ */
+function TabWash({
+  seed,
+  inline,
+  children,
+}: {
+  seed: number;
+  inline: boolean;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const { w, h } = useElementSize(ref);
+  return (
+    <span
+      ref={ref}
+      className={[styles.activeSurface, inline ? styles.inline : ''].filter(Boolean).join(' ')}
+    >
+      {/* No strokeColor: HandDrawnBorder then draws the fill path only. */}
+      <HandDrawnBorder
+        w={w}
+        h={h}
+        R={12}
+        seed={seed}
+        fillColor="color-mix(in oklch, var(--color-terracotta-light) 55%, transparent)"
+      />
+      <span className={styles.washContent}>{children}</span>
+    </span>
+  );
+}
+
+/**
  * Hand-drawn tab strip. Horizontal mode underlines the active tab with a wavy
- * pen stroke; vertical mode (e.g. settings nav) wraps the active item in a
- * wobbly tinted surface. Use for any in-page tab/section switcher so the
- * indicator matches the organic visual language.
+ * pen stroke; vertical mode (e.g. settings nav) washes the active item with a
+ * wobbly tinted fill — a wash only, no outline. Use for any in-page
+ * tab/section switcher so the indicator matches the organic visual language.
  */
 export function OrganicTabs<K extends string = string>({
   tabs,
@@ -100,19 +136,13 @@ export function OrganicTabs<K extends string = string>({
 
         if (resolvedVariant === 'surface' && isActive) {
           return (
-            <HandDrawnDashedSurface
+            <TabWash
               key={tab.key}
               seed={seed + tab.key.length * 7}
-              R={12}
-              strokeWidth={INK}
-              strokeColor="var(--color-terracotta)"
-              fillColor="color-mix(in oklch, var(--color-terracotta-light) 45%, transparent)"
-              className={styles.activeSurface}
               inline={orientation === 'horizontal'}
-              as={orientation === 'horizontal' ? 'span' : 'div'}
             >
               {button}
-            </HandDrawnDashedSurface>
+            </TabWash>
           );
         }
         return button;

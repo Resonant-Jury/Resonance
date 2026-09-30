@@ -121,13 +121,13 @@ export function InvitesInbox() {
               }}
             >
               <OrganicButton
-                variant="primary"
+                variant="solid"
                 onClick={() => accept(invite)}
               >
                 {pendingId === invite.id ? '…' : t('accept')}
               </OrganicButton>
               <OrganicButton
-                variant="ghost"
+                variant="text"
                 onClick={() => decline(invite)}
               >
                 {pendingId === invite.id ? '…' : t('decline')}

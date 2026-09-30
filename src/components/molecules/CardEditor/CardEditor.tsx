@@ -823,7 +823,7 @@ export function CardEditor({
           {(isPublished ? hasPendingEdit : true) && (
             <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
               <OrganicButton
-                variant="ghost"
+                variant="text"
                 onClick={() => void (isPublished ? discardEdits() : saveDraftAndLeave())}
               >
                 {isPublished ? t('discardChanges') : t('saveDraftAndLeave')}

@@ -121,7 +121,7 @@ export function AppMobileNavModal({ open, onClose, user, activeKey }: AppMobileN
             seed={Number(user.avatarSeed) || 77}
           />
         ) : (
-          <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: 14 }}>
+          <OrganicButton variant="solid" style={{ padding: '9px 22px', fontSize: 14 }}>
             {t('signIn')}
           </OrganicButton>
         )}

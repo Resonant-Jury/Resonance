@@ -16,12 +16,15 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { arrowHeadPath, organicEdgePath } from '@/lib/design/edgePath';
 import { seedFromString } from '@/lib/design/prng';
+import { wobRect } from '@/lib/design/wobRect';
+import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
 import { wavyLine } from '@/lib/design/wavyPath';
 import { INK, INK_LIGHT, INK_STRONG } from '@/lib/design/strokes';
 import type { Card } from '@/lib/db/types';
@@ -1134,29 +1137,24 @@ export function ThoughtMapCanvas({
       </div>
 
       {/* toolbar — phones drop to one-word labels so the pair fits beside the
-          zoom cluster without crowding the board */}
+          zoom cluster without crowding the board. It floats over the board, so
+          the tools are paper (no pen line) and the one verb — add a card — the
+          only terracotta thing, like the apps' toolbar. */}
       <div className={styles.toolbar}>
-        <OrganicButton variant="outline" size="sm" onClick={() => void addGroup()}>
+        <OrganicButton variant="paper" size="sm" onClick={() => void addGroup()}>
           <Icon name="frame" size={15} /> {isMobile ? t('addGroupShort') : t('addGroup')}
         </OrganicButton>
-        <OrganicButton variant="primary" size="sm" onClick={() => setTrayOpen((v) => !v)}>
+        <OrganicButton variant="solid" size="sm" onClick={() => setTrayOpen((v) => !v)}>
           <Icon name="plus" size={15} /> {isMobile ? t('addCardShort') : t('addCard')}
         </OrganicButton>
       </div>
 
-      {/* zoom cluster */}
-      <div className={styles.zoomCluster}>
-        <button type="button" className={styles.iconButton} aria-label={t('zoomOut')} onClick={() => zoom(1 / 1.25)}>
-          <Icon name="minus" size={16} />
-        </button>
-        <span className={styles.zoomPct}>{Math.round(camera.s * 100)}%</span>
-        <button type="button" className={styles.iconButton} aria-label={t('zoomIn')} onClick={() => zoom(1.25)}>
-          <Icon name="plus" size={16} />
-        </button>
-        <button type="button" className={styles.iconButton} aria-label={t('zoomFit')} onClick={fit}>
-          <Icon name="eye" size={16} />
-        </button>
-      </div>
+      <ZoomCluster
+        percent={Math.round(camera.s * 100)}
+        onZoomOut={() => zoom(1 / 1.25)}
+        onZoomIn={() => zoom(1.25)}
+        onFit={fit}
+      />
 
       {/* card picker — centered over the board, dismissed by the backdrop */}
       {trayOpen && (
@@ -1204,6 +1202,56 @@ export function ThoughtMapCanvas({
           </OrganicButton>
         </div>
       )}
+    </div>
+  );
+}
+
+interface ZoomClusterProps {
+  percent: number;
+  onZoomOut: () => void;
+  onZoomIn: () => void;
+  onFit: () => void;
+}
+
+// The sheet's corner radius and wobble seed — the apps draw theirs with the same
+// two numbers, so the cluster reads as one object on every platform.
+const ZOOM_R = 18;
+const ZOOM_SEED = 41;
+
+/**
+ * − 100% + and the eye (fit), floating over the board. Like the toolbar's paper
+ * buttons it sits on a wobbly sheet of the cards' own paper — card fill plus
+ * their grain, no pen line — so it reads over the busy board without framing
+ * itself. The sheet takes the cluster's measured size and is drawn behind the
+ * controls.
+ */
+function ZoomCluster({ percent, onZoomOut, onZoomIn, onFit }: ZoomClusterProps) {
+  const t = useTranslations('me.thoughtMap');
+  const ref = useRef<HTMLDivElement>(null);
+  const { w, h } = useElementSize(ref);
+  const paper = useMemo(() => {
+    if (!w || !h) return '';
+    return wobRect(w, h, ZOOM_R, ZOOM_SEED, autoMag(w, h), {
+      segmentsH: autoSegments(w),
+      segmentsV: autoSegments(h),
+      curve: autoCurve(w, h),
+    });
+  }, [w, h]);
+
+  return (
+    <div ref={ref} className={styles.zoomCluster}>
+      <HandDrawnBorder w={w} h={h} R={ZOOM_R} seed={ZOOM_SEED} fillColor="var(--color-card-bg)" />
+      <ShapeGrain w={w} h={h} d={paper} seed={ZOOM_SEED} opacity={0.3} frequency={0.88} />
+      <button type="button" className={styles.iconButton} aria-label={t('zoomOut')} onClick={onZoomOut}>
+        <Icon name="minus" size={16} />
+      </button>
+      <span className={styles.zoomPct}>{percent}%</span>
+      <button type="button" className={styles.iconButton} aria-label={t('zoomIn')} onClick={onZoomIn}>
+        <Icon name="plus" size={16} />
+      </button>
+      <button type="button" className={styles.iconButton} aria-label={t('zoomFit')} onClick={onFit}>
+        <Icon name="eye" size={16} />
+      </button>
     </div>
   );
 }

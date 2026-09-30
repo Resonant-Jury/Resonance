@@ -16,15 +16,19 @@ export interface ConfirmModalProps {
   onConfirm: () => void;
   /** Action in flight — dims the buttons and blocks dismissal. */
   busy?: boolean;
+  /** A permanent loss (delete a card, a conversation, the account): the verb in red. */
+  destructive?: boolean;
   seed?: number;
 }
 
 /**
  * The one confirm-dialog layout for the whole app (sign out, discard draft, …):
  * left-aligned title + body like any reading surface, actions bottom-right in
- * scanning order (ghost cancel, then the primary verb), standard Modal padding.
- * Keeping every confirm on this single component is what stops the layouts
- * from drifting apart again.
+ * scanning order (cancel, then the verb), standard Modal padding. The modal is
+ * the frame, so neither button draws one: cancel is plain text, the verb a
+ * solid fill — red when it can't be undone (`destructive`), as in the apps'
+ * confirm dialogs. Keeping every confirm on this single component is what
+ * stops the layouts from drifting apart again.
  */
 export function ConfirmModal({
   open,
@@ -35,6 +39,7 @@ export function ConfirmModal({
   onCancel,
   onConfirm,
   busy = false,
+  destructive = false,
   seed = 67,
 }: ConfirmModalProps) {
   return (
@@ -48,10 +53,10 @@ export function ConfirmModal({
       <h3 className={styles.title}>{title}</h3>
       <p className={styles.body}>{body}</p>
       <div className={styles.actions} data-busy={busy || undefined}>
-        <OrganicButton variant="ghost" size="sm" onClick={onCancel}>
+        <OrganicButton variant="text" size="sm" onClick={onCancel}>
           {cancelLabel}
         </OrganicButton>
-        <OrganicButton variant="primary" size="sm" onClick={onConfirm}>
+        <OrganicButton variant={destructive ? 'danger' : 'solid'} size="sm" onClick={onConfirm}>
           {busy ? '…' : confirmLabel}
         </OrganicButton>
       </div>

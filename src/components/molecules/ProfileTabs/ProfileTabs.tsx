@@ -192,7 +192,9 @@ export function ProfileTabs({
             managed
               ? (c) =>
                   c.anonymous ? (
-                    <TagPill size="sm" color="var(--color-cream-dark)">
+                    // On the bare page under the card, not inside a frame:
+                    // cream-dark on cream would vanish without its rim.
+                    <TagPill size="sm" color="var(--color-cream-dark)" outlined>
                       {t('anonymousBadge')}
                     </TagPill>
                   ) : null

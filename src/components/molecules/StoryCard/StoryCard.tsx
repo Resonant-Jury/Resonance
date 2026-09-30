@@ -166,6 +166,10 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
   const hueIdx = story?.accentHue != null ? cardHueIndex(nearestCardHue(story.accentHue)) : -1;
   const paletteIdx = hueIdx >= 0 ? hueIdx : index % CARD_FILLS.length;
   const accentFill = CARD_FILLS[paletteIdx];
+  // The tag pills are unstroked, and on desktop hover the card's interior
+  // washes to near accentFill — a pill in accentFill itself would blend into
+  // it. A few points deeper (StoryImage's stripeFill trick) keeps them readable.
+  const tagFill = accentFill.replace(/(\d+)%/, (_, n) => `${Math.max(0, +n - 5)}%`);
   const [bc1] = CARD_BORDERS[paletteIdx];
   const hue = CARD_HUES[paletteIdx];
   const seed = index * 77 + 13;
@@ -291,7 +295,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
             </>
           ) : (
             story!.tags?.slice(0, 4).map(t => (
-              <TagPill key={t} color={accentFill}>{t}</TagPill>
+              <TagPill key={t} color={tagFill}>{t}</TagPill>
             ))
           )}
         </div>

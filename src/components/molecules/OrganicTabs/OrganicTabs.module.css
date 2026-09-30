@@ -91,7 +91,28 @@
   overflow: visible;
 }
 
-/* Active vertical item — surface stretches full width; the wrapped button
+/* The selected tab's wash (TabWash): a wobbly fill drawn behind the button,
+   no outline. The fill svg is absolutely positioned; the button sits above it. */
+.activeSurface {
+  position: relative;
+  display: block;
+}
+
+.activeSurface.inline {
+  display: inline-block;
+}
+
+.washContent {
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+
+.activeSurface.inline > .washContent {
+  display: inline-block;
+}
+
+/* Active vertical item — the wash stretches full width; the wrapped button
  * keeps the same padding so nothing shifts. */
 .vertical .activeSurface {
   width: 100%;

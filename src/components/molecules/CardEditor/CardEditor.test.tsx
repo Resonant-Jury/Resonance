@@ -298,6 +298,8 @@ describe('CardEditor', () => {
       fireEvent.change(screen.getByLabelText('One-line title'), {
         target: { value: 'Enough for today' },
       });
+      // The page's way out is quiet text beside the one verb (Publish).
+      expect(screen.getByRole('button', { name: 'Save draft and leave' })).toHaveAttribute('data-variant', 'text');
       await userEvent.click(screen.getByRole('button', { name: 'Save draft and leave' }));
 
       await waitFor(() =>
@@ -383,6 +385,7 @@ describe('CardEditor', () => {
       renderWithIntl(
         <CardEditor locale="en" initial={{ ...livePost, hasPendingEdit: true }} />,
       );
+      expect(screen.getByRole('button', { name: 'Discard changes' })).toHaveAttribute('data-variant', 'text');
       await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
 
       await waitFor(() => expect(discardPendingCardEdit).toHaveBeenCalledWith('card-1'));

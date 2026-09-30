@@ -54,7 +54,7 @@ export function BlockedNotice({ user }: { user: User }) {
       <p className={styles.blockedTitle}>{t('blockedNotice', { handle: user.handle })}</p>
       <p className={styles.blockedBody}>{t('blockedNoticeBody')}</p>
       <div style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
-        <OrganicButton variant="ghost" size="sm" onClick={() => void unblock()}>
+        <OrganicButton variant="textAccent" size="sm" onClick={() => void unblock()}>
           {busy ? '…' : t('unblock')}
         </OrganicButton>
       </div>

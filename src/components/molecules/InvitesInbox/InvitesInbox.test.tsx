@@ -46,7 +46,13 @@ describe('InvitesInbox', () => {
     renderWithIntl(<InvitesInbox />);
     await screen.findByText('Loved your walk card');
 
-    await userEvent.click(screen.getAllByRole('button', { name: 'Decline' })[0]);
+    // Each invite already sits in its own box: accepting is the solid verb,
+    // declining plain text — neither adds a pen line to that frame.
+    expect(screen.getAllByRole('button', { name: 'Accept' })[0]).toHaveAttribute('data-variant', 'solid');
+    const decline = screen.getAllByRole('button', { name: 'Decline' })[0];
+    expect(decline).toHaveAttribute('data-variant', 'text');
+
+    await userEvent.click(decline);
     await waitFor(() => expect(screen.queryByText('Loved your walk card')).not.toBeInTheDocument());
     expect(declineInvite).toHaveBeenCalledWith('i1');
     expect(acceptInvite).not.toHaveBeenCalled();

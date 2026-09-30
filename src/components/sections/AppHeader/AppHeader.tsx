@@ -177,7 +177,7 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
                 Mobile: login lives inside the hamburger modal instead. */}
             {!isMobile && (
               <Link href="/signin" style={{ textDecoration: 'none' }}>
-                <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: 14 }}>
+                <OrganicButton variant="solid" style={{ padding: '9px 22px', fontSize: 14 }}>
                   {tNav('signIn')}
                 </OrganicButton>
               </Link>

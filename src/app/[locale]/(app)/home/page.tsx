@@ -154,7 +154,7 @@ export default function HomeFeedPage() {
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
               {(!latestVisible || hasMore) && (
                 <OrganicButton
-                  variant="outline"
+                  variant="textAccent"
                   onClick={() => (latestVisible ? loadMore() : setShowLatest(true))}
                 >
                   {isLoadingMore ? t('moreLoading') : t('moreBtn')}

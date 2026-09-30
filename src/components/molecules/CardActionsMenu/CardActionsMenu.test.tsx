@@ -86,6 +86,11 @@ describe('CardActionsMenu', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Delete this card?')).toBeInTheDocument();
 
+    // Deleting can't be undone: the verb is red, "keep it" plain text, and
+    // neither draws a pen line inside the modal's own frame.
+    expect(screen.getByRole('button', { name: 'Delete card' })).toHaveAttribute('data-variant', 'danger');
+    expect(screen.getByRole('button', { name: 'Keep it' })).toHaveAttribute('data-variant', 'text');
+
     await userEvent.click(screen.getByText('Delete card'));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('c3'));
     expect(onDeleted).toHaveBeenCalled();

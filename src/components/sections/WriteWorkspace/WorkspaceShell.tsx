@@ -90,7 +90,8 @@ export function WorkspaceShell({
           />
         )}
         <div className={styles.back}>
-          <OrganicButton variant="outline" size="sm" onClick={() => router.back()}>
+          {/* Floats over the map: paper to read on, no pen line of its own. */}
+          <OrganicButton variant="paper" size="sm" onClick={() => router.back()}>
             <span className={styles.backIcon}>
               <Icon
                 name="arrow-right"

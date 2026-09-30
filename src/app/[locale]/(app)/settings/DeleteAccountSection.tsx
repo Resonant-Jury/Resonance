@@ -65,7 +65,7 @@ export function DeleteAccountSection() {
       <p style={muted}>{t('warn')}</p>
       <p style={muted}>{t('exportHint')}</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <OrganicButton variant="ghost" onClick={() => void exportData()}>
+        <OrganicButton variant="text" onClick={() => void exportData()}>
           <Icon name="document" size={16} />
           {exporting ? t('exporting') : t('export')}
         </OrganicButton>
@@ -88,6 +88,7 @@ export function DeleteAccountSection() {
         onCancel={() => setConfirming(false)}
         onConfirm={() => void confirmDelete()}
         busy={busy}
+        destructive
         seed={73}
       />
     </div>

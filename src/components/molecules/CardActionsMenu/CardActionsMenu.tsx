@@ -134,10 +134,11 @@ export function CardActionsMenu({
           className={styles.confirmActions}
           style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
         >
-          <OrganicButton variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+          {/* The modal is the frame: "keep it" is plain text, and deleting — which can't be undone — is red. */}
+          <OrganicButton variant="text" size="sm" onClick={() => setConfirming(false)}>
             {t('deleteCancel')}
           </OrganicButton>
-          <OrganicButton variant="primary" size="sm" onClick={() => void confirmDelete()}>
+          <OrganicButton variant="danger" size="sm" onClick={() => void confirmDelete()}>
             {busy ? '…' : t('deleteConfirm')}
           </OrganicButton>
         </div>

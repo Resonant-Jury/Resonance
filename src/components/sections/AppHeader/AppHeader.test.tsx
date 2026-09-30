@@ -40,6 +40,15 @@ describe('AppHeader account slot', () => {
     expect(screen.queryByRole('combobox')).toBeNull();
   });
 
+  // The bar is the frame, so its one verb is a solid fill, not a second
+  // outline (the mobile menu's sign-in is solid too).
+  it('draws the sign-in button solid, without a pen outline of its own', () => {
+    renderWithIntl(<AppHeader user={user} signedIn={false} authReady />);
+
+    const button = screen.getByRole('link', { name: 'Sign in' }).querySelector('button');
+    expect(button).toHaveAttribute('data-variant', 'solid');
+  });
+
   it('shows the account controls when signed in', () => {
     renderWithIntl(<AppHeader user={user} signedIn authReady />);
 

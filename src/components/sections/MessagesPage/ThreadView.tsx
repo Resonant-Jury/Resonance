@@ -417,7 +417,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               className={styles.sendWrap}
               style={{ opacity: valid && !pending ? 1 : 0.5, pointerEvents: valid && !pending ? 'auto' : 'none' }}
             >
-              <OrganicButton variant="primary" size="sm" onClick={send} style={{ height: '100%' }}>
+              <OrganicButton variant="solid" size="sm" onClick={send} style={{ height: '100%' }}>
                 {pending ? '…' : t('send')}
               </OrganicButton>
             </div>
@@ -500,10 +500,10 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               className={styles.confirmActions}
               style={deleting ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
             >
-              <OrganicButton variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>
+              <OrganicButton variant="text" size="sm" onClick={() => setConfirmingDelete(false)}>
                 {t('deleteCancel')}
               </OrganicButton>
-              <OrganicButton variant="primary" size="sm" onClick={confirmDelete}>
+              <OrganicButton variant="danger" size="sm" onClick={confirmDelete}>
                 {deleting ? '…' : t('deleteConfirm')}
               </OrganicButton>
             </div>

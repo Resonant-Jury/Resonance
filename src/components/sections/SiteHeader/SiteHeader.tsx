@@ -160,7 +160,7 @@ export function SiteHeader() {
                 <>
                   {!user ? (
                     <Link href="/signin" style={{ textDecoration: 'none' }}>
-                      <OrganicButton variant="outline" style={{ padding: '9px 22px', fontSize: '14px' }}>
+                      <OrganicButton variant="solid" style={{ padding: '9px 22px', fontSize: '14px' }}>
                         {t('signIn')}
                       </OrganicButton>
                     </Link>

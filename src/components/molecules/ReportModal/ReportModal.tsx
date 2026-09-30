@@ -102,7 +102,7 @@ export function ReportModal({ open, target, offerBlock = true, onClose, onReport
           <p className={styles.body}>{t('doneBody')}</p>
           {done.blocked && <p className={styles.body}>{t('doneBlocked', { handle })}</p>}
           <div className={styles.actions}>
-            <OrganicButton variant="primary" size="sm" onClick={onClose}>
+            <OrganicButton variant="solid" size="sm" onClick={onClose}>
               {t('close')}
             </OrganicButton>
           </div>
@@ -152,10 +152,11 @@ export function ReportModal({ open, target, offerBlock = true, onClose, onReport
             </p>
           )}
           <div className={styles.actions} data-busy={busy || undefined}>
-            <OrganicButton variant="ghost" size="sm" onClick={onClose}>
+            {/* The modal is the frame: cancel is plain text, the verb a solid fill. */}
+            <OrganicButton variant="text" size="sm" onClick={onClose}>
               {tSafety('cancel')}
             </OrganicButton>
-            <OrganicButton variant="primary" size="sm" onClick={() => void send()}>
+            <OrganicButton variant="solid" size="sm" onClick={() => void send()}>
               {busy ? '…' : t('submit')}
             </OrganicButton>
           </div>

@@ -113,6 +113,8 @@ describe('HomeFeedPage', () => {
 
     const { unmount } = renderWithIntl(<HomeFeedPage />);
     const btn = screen.getByRole('button', { name: 'Load more' });
+    // A quiet, frameless action under the list — terracotta text, no pen line.
+    expect(btn).toHaveAttribute('data-variant', 'textAccent');
     await userEvent.setup().click(btn);
     expect(loadMore).toHaveBeenCalled();
     unmount();

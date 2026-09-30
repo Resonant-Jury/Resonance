@@ -159,6 +159,25 @@ describe('SettingsClient autosave', () => {
   });
 });
 
+describe('SettingsClient sign out', () => {
+  it('signs out only after confirming, with a solid (not red) verb — it is reversible', async () => {
+    const u = userEvent.setup({ pointerEventsCheck: 0 });
+    renderWithIntl(<SettingsClient initial={initial} />);
+
+    await u.click(screen.getByRole('tab', { name: 'Account' }));
+    await u.click(screen.getByRole('button', { name: 'Sign out' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Sign out?' });
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveAttribute('data-variant', 'text');
+    const confirm = within(dialog).getByRole('button', { name: 'Sign out' });
+    expect(confirm).toHaveAttribute('data-variant', 'solid');
+
+    await u.click(confirm);
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalled());
+  });
+});
+
 describe('SettingsClient account deletion', () => {
   it('schedules deletion only after confirming, then signs out', async () => {
     vi.mocked(scheduleMyAccountDeletion).mockResolvedValue({
@@ -173,7 +192,11 @@ describe('SettingsClient account deletion', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Delete your account?' });
     expect(scheduleMyAccountDeletion).not.toHaveBeenCalled();
-    await u.click(within(dialog).getByRole('button', { name: 'Delete account' }));
+    // Deleting the account is permanent: the verb is red, the way back plain text.
+    const confirm = within(dialog).getByRole('button', { name: 'Delete account' });
+    expect(confirm).toHaveAttribute('data-variant', 'danger');
+    expect(within(dialog).getByRole('button', { name: 'Keep my account' })).toHaveAttribute('data-variant', 'text');
+    await u.click(confirm);
 
     await waitFor(() => expect(scheduleMyAccountDeletion).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockSignOut).toHaveBeenCalled());
@@ -198,7 +221,10 @@ describe('SettingsClient account deletion', () => {
     renderWithIntl(<SettingsClient initial={initial} />);
 
     await u.click(screen.getByRole('tab', { name: 'Delete account' }));
-    await u.click(screen.getByRole('button', { name: 'Download my data' }));
+    // A quiet text action beside the delete verb: the section is the frame.
+    const download = screen.getByRole('button', { name: 'Download my data' });
+    expect(download).toHaveAttribute('data-variant', 'text');
+    await u.click(download);
     await waitFor(() => expect(downloadMyData).toHaveBeenCalledTimes(1));
   });
 

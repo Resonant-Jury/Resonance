@@ -141,15 +141,17 @@ export function NoteComposer({
         </p>
       )}
 
-      {/* Breathing room between the char-count line and the action row. */}
+      {/* Breathing room between the char-count line and the action row. The
+          panel (or the modal hosting it) is the frame, so cancel is plain text
+          and Send a solid fill — neither draws a pen line of its own. */}
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
         {onClose && (
-          <OrganicButton variant="ghost" size="sm" onClick={onClose}>
+          <OrganicButton variant="text" size="sm" onClick={onClose}>
             {t('cancel')}
           </OrganicButton>
         )}
         <div style={{ opacity: valid ? 1 : 0.5, pointerEvents: valid ? 'auto' : 'none' }}>
-          <OrganicButton variant="outline" size="sm" onClick={submit}>
+          <OrganicButton variant="solid" size="sm" onClick={submit}>
             {pending ? '…' : t('send')}
           </OrganicButton>
         </div>

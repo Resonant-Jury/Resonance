@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SWRConfig } from 'swr';
-import { renderWithIntl, screen, fireEvent, waitFor, userEvent } from '@/../test/render';
+import { renderWithIntl, screen, fireEvent, waitFor, userEvent, within } from '@/../test/render';
 import type { Conversation, Message, User } from '@/lib/db/types';
 import { MessagesPage } from './MessagesPage';
 
@@ -57,9 +57,11 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
 const mockSendMessage = vi.fn();
 const mockGetConversation = vi.fn();
 const mockMarkRead = vi.fn();
+const mockDeleteConversation = vi.fn();
 vi.mock('@/lib/db/firestore/client/messages', () => ({
   MESSAGE_MAX_LENGTH: 2000,
   conversationId: (a: string, b: string) => [a, b].sort().join('_'),
+  deleteConversation: (pairId: string) => mockDeleteConversation(pairId),
   getConversation: () => mockGetConversation(),
   markConversationRead: (pairId: string) => mockMarkRead(pairId),
   sendMessage: (...args: unknown[]) => mockSendMessage(...args),
@@ -137,6 +139,7 @@ beforeEach(() => {
   mockGetConversation.mockResolvedValue(conversation());
   mockSendMessage.mockResolvedValue({ conversationId: 'alice_me', id: 'm-new' });
   mockMarkRead.mockResolvedValue(undefined);
+  mockDeleteConversation.mockResolvedValue(undefined);
   mockBlockUser.mockResolvedValue(undefined);
   mockSubmitReport.mockResolvedValue(undefined);
 });
@@ -175,6 +178,8 @@ describe('MessagesPage thread', () => {
     fireEvent.change(screen.getByPlaceholderText('Write a message…'), {
       target: { value: 'a reply' },
     });
+    // The composer's Send is the thread's one verb: solid, no pen line.
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-variant', 'solid');
     await userEvent.setup({ pointerEventsCheck: 0 }).click(
       screen.getByRole('button', { name: 'Send' }),
     );
@@ -288,8 +293,37 @@ describe('MessagesPage thread safety menu', () => {
 
     expect(await screen.findByText('Block alice?')).toBeInTheDocument();
     expect(mockBlockUser).not.toHaveBeenCalled();
-    await u.click(screen.getByRole('button', { name: 'Block' }));
+    // Blocking can be undone, so the verb is solid — not the red of a deletion.
+    const block = screen.getByRole('button', { name: 'Block' });
+    expect(block).toHaveAttribute('data-variant', 'solid');
+    await u.click(block);
     await waitFor(() => expect(mockBlockUser).toHaveBeenCalledWith('alice'));
+  });
+
+  it('deletes the conversation only from a red verb, and keeps it on a plain-text cancel', async () => {
+    const u = userEvent.setup({ pointerEventsCheck: 0 });
+    renderPage(<MessagesPage activeHandle="alice" />);
+    await u.click(await screen.findByRole('button', { name: 'Conversation options' }));
+    await u.click(screen.getByRole('menuitem', { name: 'Delete conversation' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this conversation?' });
+    const keep = within(dialog).getByRole('button', { name: 'Keep it' });
+    const del = within(dialog).getByRole('button', { name: 'Delete' });
+    expect(keep).toHaveAttribute('data-variant', 'text');
+    expect(del).toHaveAttribute('data-variant', 'danger');
+
+    await u.click(keep);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete this conversation?' })).toBeNull());
+    expect(mockDeleteConversation).not.toHaveBeenCalled();
+
+    await u.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await u.click(screen.getByRole('menuitem', { name: 'Delete conversation' }));
+    await u.click(
+      within(await screen.findByRole('dialog', { name: 'Delete this conversation?' })).getByRole('button', {
+        name: 'Delete',
+      }),
+    );
+    await waitFor(() => expect(mockDeleteConversation).toHaveBeenCalledWith('alice_me'));
   });
 
   it('files a report about the conversation, with the chosen reason and details', async () => {
@@ -301,7 +335,11 @@ describe('MessagesPage thread safety menu', () => {
     fireEvent.change(await screen.findByLabelText('Details (optional)'), {
       target: { value: 'Keeps sending links' },
     });
-    await u.click(screen.getByRole('button', { name: 'Send report' }));
+    const submit = screen.getByRole('button', { name: 'Send report' });
+    // Inside the modal the verb is solid and cancel plain text: no pen lines.
+    expect(submit).toHaveAttribute('data-variant', 'solid');
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveAttribute('data-variant', 'text');
+    await u.click(submit);
 
     await waitFor(() =>
       expect(mockSubmitReport).toHaveBeenCalledWith({
@@ -314,6 +352,9 @@ describe('MessagesPage thread safety menu', () => {
       }),
     );
     expect(await screen.findByText('Thanks for telling us')).toBeInTheDocument();
+    // The thank-you's Close (the modal's own ✕ shares its name) is the verb: solid.
+    const close = screen.getAllByRole('button', { name: 'Close' }).find((b) => b.hasAttribute('data-variant'));
+    expect(close).toHaveAttribute('data-variant', 'solid');
     // Not blocked unless the "also block" switch was turned on.
     expect(mockBlockUser).not.toHaveBeenCalled();
   });

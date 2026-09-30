@@ -73,7 +73,7 @@ export function BlockedListModal({ open, onClose }: BlockedListModalProps) {
                   )}
                 </span>
                 <span style={pending ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
-                  <OrganicButton variant="ghost" size="sm" onClick={() => void unblock(row.uid)}>
+                  <OrganicButton variant="textAccent" size="sm" onClick={() => void unblock(row.uid)}>
                     {pending === row.uid ? '…' : tSafety('unblock')}
                   </OrganicButton>
                 </span>
@@ -83,7 +83,8 @@ export function BlockedListModal({ open, onClose }: BlockedListModalProps) {
         </ul>
       )}
       <div className={styles.actions}>
-        <OrganicButton variant="primary" size="sm" onClick={onClose}>
+        {/* Close sits beside the modal's ✕, so it is plain text — not a second frame. */}
+        <OrganicButton variant="text" size="sm" onClick={onClose}>
           {t('close')}
         </OrganicButton>
       </div>

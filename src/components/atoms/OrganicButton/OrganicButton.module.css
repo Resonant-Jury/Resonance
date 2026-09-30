@@ -14,6 +14,22 @@
   letter-spacing: 0.02em;
 }
 
+/* The frame-free variants have no pen line to tell a Tab-focused Cancel / Close /
+   Unblock from its neighbours (and `.btn` switches the browser's ring off), so
+   keyboard focus gets the focus colour as a ring round the pill — like
+   AvatarGroup's, and unlike the hover wash it needs no pointer. */
+.btn:is(
+    [data-variant='solid'],
+    [data-variant='danger'],
+    [data-variant='text'],
+    [data-variant='textAccent'],
+    [data-variant='paper']
+  ):focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 2px;
+  border-radius: 16px;
+}
+
 .label {
   position: relative;
   z-index: 1;

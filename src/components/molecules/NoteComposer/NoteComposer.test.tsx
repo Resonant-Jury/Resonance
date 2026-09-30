@@ -47,6 +47,20 @@ describe('NoteComposer', () => {
     expect(await screen.findByText('Your note is on its way.')).toBeInTheDocument();
   });
 
+  // The composer sits in a panel (or a modal): Send is a solid fill and
+  // cancel plain text, so neither adds a pen line to the frame around them.
+  it('sends with a solid verb beside a plain-text cancel', async () => {
+    const onClose = vi.fn();
+    renderWithIntl(<NoteComposer cardId="c1" onClose={onClose} />);
+
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-variant', 'solid');
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancel).toHaveAttribute('data-variant', 'text');
+    await user().click(cancel);
+    expect(onClose).toHaveBeenCalled();
+    expect(sendNote).not.toHaveBeenCalled();
+  });
+
   it('does not send an empty note', async () => {
     renderWithIntl(<NoteComposer cardId="c1" />);
     await user().click(screen.getByRole('button', { name: 'Send' }));
