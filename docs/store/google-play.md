@@ -10,12 +10,12 @@
 ## 2. 應用程式存取權（登入詳細資料）
 
 - 選「應用程式的所有功能或部分功能受到限制」（要登入才能使用）。
-- App 的正式版只能用 **Google 帳號**登入（電子郵件表單只在模擬器版出現），所以審查人員用自己的 Google 帳號即可。新增一組說明：
+- App 的正式版只能用 **Google 帳號**登入（電子郵件表單只在模擬器版出現），審查人員用自己的 Google 帳號即可；網站上的公開內容不需要帳號就能瀏覽。新增一組說明：
   - 名稱：`使用 Google 帳號登入`
-  - 使用者名稱／密碼：留空（若表單要求必填，**【你來填】** 另開一個專門給審查用的 Google 帳號，並先用它在 App 完成筆名設定）
+  - 使用者名稱／密碼：留空（暫不提供測試帳號）
   - 其他說明：
 
-    > Tap "Continue with Google" on the sign-in screen and use any Google account. On first sign-in, choose a pen name to finish setting up; after that every feature is available. No other credentials are needed.
+    > Most of Resonance is public and can be read without an account at https://resonance-world.vercel.app. The app asks you to sign in because it is built around writing and answering stories: tap "Continue with Google" on the sign-in screen and use any Google account. On first sign-in, choose a pen name to finish setting up; after that every feature is available. No other credentials are needed.
 
 ## 3. 廣告
 
@@ -60,9 +60,9 @@
 | --- | --- |
 | 是否收集或分享必要的使用者資料類型？ | 是 |
 | 所有收集的使用者資料是否都經過傳輸加密？ | 是（HTTPS） |
-| 使用者可以透過哪些方式建立帳戶？ | 使用者名稱與密碼（電子郵件）、OAuth（Google、Apple） |
+| 使用者可以透過哪些方式建立帳戶？ | OAuth（Android App 只有 Google 登入） |
 | 刪除帳戶的網址 | `https://resonance-world.vercel.app/zh-TW/support` |
-| 使用者能否要求刪除部分資料而不刪除帳戶？ | 是（可刪除自己的卡片、思想地圖上的內容） |
+| 使用者能否要求刪除部分資料而不刪除帳戶？ | 暫不填（選填；選「是」須附一個說明如何刪除的網址，支援頁目前只寫刪除帳號） |
 
 **資料類型**（全部：已收集、**不分享**給第三方、非暫時處理、與使用者身分相關）
 

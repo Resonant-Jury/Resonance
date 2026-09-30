@@ -72,11 +72,11 @@
 
 ## 5. App 審查資訊
 
-- **登入資訊**：取消勾選「需要登入」的示範帳號欄位，改在備註說明：App 的正式版只能用 **Sign in with Apple** 或 Google 登入，審查人員用自己的 Apple ID 即可。若 Apple 仍要求示範帳號，**【你來填】** 一組你自己能用的 Apple ID 或 Google 帳號（我不能代填密碼）。
+- **登入資訊**：不提供示範帳號（取消勾選「需要登入」）。在備註說明：網站上的公開內容不需要帳號就能瀏覽；App 需要登入，但可用審查人員自己的 Apple ID（Sign in with Apple）或 Google 帳號。
 - **聯絡資訊**：姓名、電話 **【你來填】**；電子郵件 `assist.resonance@gmail.com`
 - **備註**（英文，審查人員讀）：
 
-  > Resonance is a story-sharing app. Sign in with "Continue with Apple" (any Apple ID) or Google; no demo account is needed. On first sign-in, choose a pen name to finish setting up.
+  > Resonance is a story-sharing app. Most of its content is public and can be read without an account at https://resonance-world.vercel.app. The app itself asks you to sign in, since it is built around writing and answering stories: tap "Continue with Apple" (any Apple ID) or Google — no demo account is needed. On first sign-in, choose a pen name to finish setting up.
   >
   > User-generated content safeguards (Guideline 1.2):
   > - Terms of Use with a zero-tolerance clause: https://resonance-world.vercel.app/en/terms — users agree to them when they sign in.
