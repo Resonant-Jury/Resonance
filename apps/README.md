@@ -89,6 +89,7 @@ points Firebase at the emulators (project `demo-resonance`) and the API at
 ```bash
 npm run emulators                       # Auth + Firestore emulators
 npx tsx scripts/seed-emulator.ts        # seeded accounts
+npx tsx scripts/seed-store-demo.ts      # the store screenshot world (sign in as demo@resonance.test, same password); seed-emulator.ts restores the test world
 npm run dev:emulator -- --port 3100     # the web + API on the emulators
 xcrun simctl launch booted com.resonance.stories -emulator YES \
   -email alice@resonance.test -password <SEED_PASSWORD from scripts/seed-emulator.ts>
