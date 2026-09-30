@@ -5,6 +5,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { AuthCard } from '@/components/molecules/AuthCard/AuthCard';
+import { TermsConsent } from '@/components/molecules/TermsConsent/TermsConsent';
 import { GoogleMark } from '@/components/atoms/GoogleMark/GoogleMark';
 import { AppleMark } from '@/components/atoms/AppleMark/AppleMark';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -94,6 +95,7 @@ function SignInPageInner() {
       {error && (
         <p style={{ color: 'var(--color-terracotta)', fontSize: 13, marginTop: 12 }}>{error}</p>
       )}
+      <TermsConsent />
     </AuthCard>
   );
 }

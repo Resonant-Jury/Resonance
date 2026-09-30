@@ -484,7 +484,10 @@
     "back": "Back",
     "finish": "Finish",
     "welcome": "Welcome, {handle}. Start with your first card.",
-    "deletionScheduled": "Your account is scheduled for deletion. Sign in within 7 days to cancel."
+    "deletionScheduled": "Your account is scheduled for deletion. Sign in within 7 days to cancel.",
+    "agreeTerms": "By continuing, you agree to the {terms} and the {privacy}.",
+    "termsLink": "Terms of Use",
+    "privacyLink": "Privacy Policy"
   },
   "settings": {
     "title": "Settings",

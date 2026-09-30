@@ -896,6 +896,12 @@ public enum L10n {
         public static func welcome(handle: String) -> String { Strings.shared.format("auth.welcome", ["handle": handle]) }
         /// Your account is scheduled for deletion. Sign in within 7 days to cancel.
         public static var deletionScheduled: String { Strings.shared.string("auth.deletionScheduled") }
+        /// By continuing, you agree to the {terms} and the {privacy}.
+        public static func agreeTerms(terms: String, privacy: String) -> String { Strings.shared.format("auth.agreeTerms", ["terms": terms, "privacy": privacy]) }
+        /// Terms of Use
+        public static var termsLink: String { Strings.shared.string("auth.termsLink") }
+        /// Privacy Policy
+        public static var privacyLink: String { Strings.shared.string("auth.privacyLink") }
     }
     public enum Settings {
         /// Settings

@@ -898,6 +898,12 @@ object L10n {
         fun welcome(handle: String): String = Strings.format("auth.welcome", mapOf("handle" to handle))
         /** Your account is scheduled for deletion. Sign in within 7 days to cancel. */
         val deletionScheduled: String get() = Strings.string("auth.deletionScheduled")
+        /** By continuing, you agree to the {terms} and the {privacy}. */
+        fun agreeTerms(terms: String, privacy: String): String = Strings.format("auth.agreeTerms", mapOf("terms" to terms, "privacy" to privacy))
+        /** Terms of Use */
+        val termsLink: String get() = Strings.string("auth.termsLink")
+        /** Privacy Policy */
+        val privacyLink: String get() = Strings.string("auth.privacyLink")
     }
     object Settings {
         /** Settings */

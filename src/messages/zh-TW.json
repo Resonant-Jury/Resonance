@@ -484,7 +484,10 @@
     "back": "上一步",
     "finish": "完成建立",
     "welcome": "歡迎，{handle}。先寫第一張卡片吧。",
-    "deletionScheduled": "帳號已排定刪除。7 天內重新登入就能取消。"
+    "deletionScheduled": "帳號已排定刪除。7 天內重新登入就能取消。",
+    "agreeTerms": "繼續即表示你同意{terms}與{privacy}。",
+    "termsLink": "服務條款",
+    "privacyLink": "隱私權政策"
   },
   "settings": {
     "title": "設定",
