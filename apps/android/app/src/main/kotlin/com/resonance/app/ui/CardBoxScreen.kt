@@ -152,7 +152,7 @@ private fun LazyListScope.managedCards(session: Session, cards: List<FeedCard>, 
             Box {
                 StoryCard(
                     card.story(), i, i == cards.lastIndex,
-                    Modifier.plainClickable { open(if (resumesDrafts) Route.Write(cardId = card.id) else Route.Card(card.routeKey)) },
+                    Modifier.plainClickable { open(if (resumesDrafts) Route.Write(cardId = card.id) else Route.Card(card.routeKey, card)) },
                 )
                 // The chip 14 in from the card's corner (the card's box sits 20 in from the screen);
                 // the trigger's 44dp hit box reaches 3 past the 38dp chip.

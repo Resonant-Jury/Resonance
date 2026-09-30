@@ -74,6 +74,9 @@ class ConversationsStore {
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
 
+    /** Called when the person's blocks change after they were first read. */
+    var onBlocksChanged: (() -> Unit)? = null
+
     private var uid: String? = null
     private var listeners: List<ListenerRegistration> = emptyList()
     private var rawConversations: List<QueryDocumentSnapshot> = emptyList()
@@ -106,7 +109,10 @@ class ConversationsStore {
             db.collection("users").document(uid).collection("blocks")
                 .addSnapshotListener { snap, _ ->
                     snap ?: return@addSnapshotListener
-                    blocked = snap.documents.map { it.id }.toSet()
+                    val next = snap.documents.map { it.id }.toSet()
+                    val changed = "blocks" in ready && next != blocked
+                    blocked = next
+                    if (changed) onBlocksChanged?.invoke()
                     arrived("blocks")
                 },
         )

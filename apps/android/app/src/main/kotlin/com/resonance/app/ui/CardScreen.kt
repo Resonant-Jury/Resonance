@@ -47,7 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.resonance.api.models.CardDetail
+import androidx.compose.foundation.layout.size
 import com.resonance.api.models.FeedCard
 import com.resonance.app.SafetyService
 import com.resonance.app.Session
@@ -66,6 +66,7 @@ import com.resonance.design.MenuTrigger
 import com.resonance.design.OrganicMenuChip
 import com.resonance.design.inlineBarTop
 import com.resonance.design.StoryMarkdown
+import com.resonance.design.StorySkeleton
 import com.resonance.design.TagPill
 import com.resonance.design.cream
 import com.resonance.design.generated.IconName
@@ -76,16 +77,24 @@ import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.story.StoryBlock
 import com.resonance.kit.story.StoryParser
+import kotlinx.coroutines.CancellationException
 
-/** A card's page (card/[slug]/page.tsx, phone layout); `popToRoot` is where a deleted card leaves to. */
+/**
+ * A card's page (card/[slug]/page.tsx, phone layout); `popToRoot` is where a deleted card leaves to.
+ * It draws at once from what the app already has — the page as last read, or the card as the list
+ * it was tapped in had it (its byline, cover and title over the story's skeleton) — and always reads
+ * the card again, its lists beside it ([com.resonance.kit.reading.CardPageLoader]).
+ */
 @Composable
-fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: () -> Unit, back: () -> Unit) {
-    var phase by remember(key) { mutableStateOf("loading") }
-    var detail by remember(key) { mutableStateOf<CardDetail?>(null) }
-    var blocks by remember(key) { mutableStateOf<List<StoryBlock>>(emptyList()) }
-    var resonances by remember(key) { mutableStateOf<List<FeedCard>>(emptyList()) }
-    var related by remember(key) { mutableStateOf<List<FeedCard>>(emptyList()) }
-    var linked by remember(key) { mutableStateOf<List<FeedCard>>(emptyList()) }
+fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) -> Unit, popToRoot: () -> Unit, back: () -> Unit) {
+    val cached = remember(key) { session.cardCache.page(key) }
+    val placeholder = remember(key) { preview ?: session.cardCache.preview(key) }
+    var phase by remember(key) { mutableStateOf(if (cached != null) "loaded" else "loading") }
+    var detail by remember(key) { mutableStateOf(cached?.detail) }
+    var blocks by remember(key) { mutableStateOf(cached?.let { StoryParser.parse(it.detail.story) } ?: emptyList()) }
+    var resonances by remember(key) { mutableStateOf(cached?.resonances.orEmpty()) }
+    var related by remember(key) { mutableStateOf(cached?.related.orEmpty()) }
+    var linked by remember(key) { mutableStateOf(cached?.links.orEmpty()) }
     // Bumped by "try again".
     var attempt by remember(key) { mutableIntStateOf(0) }
     val uri = LocalUriHandler.current
@@ -98,18 +107,26 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
         // A first read (or a retry) shows the skeleton; a re-read keeps the page while it goes.
         if (phase != "loaded") phase = "loading"
         try {
-            val d = session.reading.card(key)
-            detail = d
-            blocks = StoryParser.parse(d.story)
-            phase = "loaded"
-            resonances = runCatching { session.reading.resonances(d.card.id) }.getOrDefault(emptyList())
-            related = runCatching { session.reading.related(d.card.id) }.getOrDefault(emptyList())
+            val page = session.cardPages.load(key, placeholder, session.uid) { d ->
+                if (d.story != detail?.story) blocks = StoryParser.parse(d.story)
+                detail = d
+                phase = "loaded"
+            }
+            resonances = page.resonances
+            related = page.related
             // Cards others linked to this one are shown to its author only (useLinkedToCard).
-            if (d.isOwner) linked = runCatching { session.reading.links(d.card.id) }.getOrDefault(emptyList())
+            linked = page.links
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: ApiFailure) {
-            phase = if (e.isNotFound) "notFound" else "failed"
+            if (e.isNotFound) {
+                session.cardCache.forget(key)
+                detail = null
+                phase = "notFound"
+            } else if (phase != "loaded") phase = "failed"
         } catch (e: Exception) {
-            phase = "failed"
+            // What is already on the page stays (it was read moments ago); only an empty page offers the retry.
+            if (phase != "loaded") phase = "failed"
         }
     }
 
@@ -134,8 +151,10 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
     Box(Modifier.fillMaxSize().cream()) {
     Column(Modifier.fillMaxSize().padding(top = if (phase == "loaded") 0.dp else top)) {
         when (phase) {
+            // The card as the list drew it, the story still shimmering below; or, knowing nothing yet,
             // CardDetailSkeleton: the article's own layout in shimmering blocks.
-            "loading" -> CardDetailSkeleton(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp))
+            "loading" -> if (placeholder != null) CardPreview(placeholder) { open(Route.Author(it)) }
+                else CardDetailSkeleton(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp))
             "notFound" -> OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = back, action = EmptyAction.Link)
             "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { attempt++ }, action = EmptyAction.Outline)
             else -> detail?.let { d ->
@@ -144,19 +163,7 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 40.dp)) {
                     item {
                         Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
-                            Byline(card, d.anonymous) { open(Route.Author(it)) }
-                            // The byline sits 28 above the cover (or the title); the cover keeps its 0.52 ratio and 20 below.
-                            Spacer(Modifier.height(28.dp))
-                            if (card.imageUrl != null) {
-                                OrganicImage(card.imageUrl, (card.accentHue ?: 55.0) + 11, Modifier.fillMaxWidth().aspectRatio(1 / 0.52f)) {
-                                    Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
-                                }
-                                Spacer(Modifier.height(20.dp))
-                            }
-                            CssText(
-                                card.title, AppFonts.Family.Heading, 28f, 700, lineHeight = 1.2f, letterSpacing = -0.015f,
-                                modifier = Modifier.padding(bottom = 28.dp).semantics { heading() },
-                            )
+                            ArticleHead(card, d.anonymous) { open(Route.Author(it)) }
                             StoryMarkdown(blocks, openUrl) { href, title -> CardEmbed(session, href, title, open) }
                             FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
@@ -275,6 +282,38 @@ private fun BarAuthor(card: FeedCard, anonymous: Boolean, visible: Boolean, open
     }
 }
 
+/**
+ * The article's head: the byline 28 above the cover (or the title), the cover at its 0.52 ratio
+ * and 20 below, then the title (the page's actions live in the bar).
+ */
+@Composable
+private fun ArticleHead(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> Unit) {
+    Byline(card, anonymous, openAuthor)
+    Spacer(Modifier.height(28.dp))
+    if (card.imageUrl != null) {
+        OrganicImage(card.imageUrl, (card.accentHue ?: 55.0) + 11, Modifier.fillMaxWidth().aspectRatio(1 / 0.52f)) {
+            Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
+        }
+        Spacer(Modifier.height(20.dp))
+    }
+    CssText(
+        card.title, AppFonts.Family.Heading, 28f, 700, lineHeight = 1.2f, letterSpacing = -0.015f,
+        modifier = Modifier.padding(bottom = 28.dp).semantics { heading() },
+    )
+}
+
+/**
+ * The page while the card is read, drawn from the list it was tapped in: the same head the page
+ * will have, and the story and tags still shimmering under it.
+ */
+@Composable
+private fun CardPreview(card: FeedCard, openAuthor: (String) -> Unit) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 16.dp)) {
+        ArticleHead(card, card.anonymous, openAuthor)
+        StorySkeleton(Modifier.semantics { contentDescription = "Loading" })
+    }
+}
+
 /** The phone byline: avatar, pen name (→ their page), verified mark, region · date. */
 @Composable
 private fun Byline(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> Unit) {
@@ -305,10 +344,21 @@ private fun Byline(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> U
 @Composable
 private fun CardEmbed(session: Session, href: String, title: String, open: (Route) -> Unit) {
     val key = href.substringAfterLast('/')
-    var state by remember(href) { mutableStateOf<Result<FeedCard>?>(null) }
-    LaunchedEffect(href) { state = runCatching { session.reading.card(key).card } }
-    val go = Modifier.plainClickable(onClickLabel = title) { open(Route.Card(key)) }
+    // A card already seen draws at once (and is still read: it may have gone, or been hidden).
+    var state by remember(href) { mutableStateOf(session.cardCache.preview(key)?.let { Result.success(it) }) }
+    LaunchedEffect(href) {
+        val read = try {
+            Result.success(session.reading.card(key).card.also(session.cardCache::rememberPreview))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+        // A card this reader can't see becomes the plain link; a bad connection keeps what was drawn.
+        if (read.isSuccess || (read.exceptionOrNull() as? ApiFailure)?.isNotFound == true || state == null) state = read
+    }
     val loaded = state
+    val go = Modifier.plainClickable(onClickLabel = title) { open(Route.Card(key, loaded?.getOrNull())) }
     when {
         loaded == null -> EmbedStoryCardPlaceholder(title)
         loaded.isSuccess -> loaded.getOrThrow().let { c ->

@@ -106,10 +106,13 @@ fun mediumDate(iso: String?): String? = iso?.let {
     runCatching { OffsetDateTime.parse(it).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Strings.language.locale)) }.getOrNull()
 }
 
-/** Cards as the web lists them on a phone: full-bleed bands, each opening its page (a plain link — no press chrome). */
+/**
+ * Cards as the web lists them on a phone: full-bleed bands, each opening its page (a plain link —
+ * no press chrome), which draws the card as the list had it while it reads the rest.
+ */
 fun LazyListScope.storyCards(cards: List<FeedCard>, open: (Route) -> Unit, onLast: (() -> Unit)? = null) {
     itemsIndexed(cards, key = { _, c -> c.id }) { i, card ->
-        StoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(Route.Card(card.routeKey)) })
+        StoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(Route.Card(card.routeKey, card)) })
         if (i == cards.lastIndex) onLast?.invoke()
     }
 }
@@ -117,7 +120,7 @@ fun LazyListScope.storyCards(cards: List<FeedCard>, open: (Route) -> Unit, onLas
 /** MiniCardGrid on a phone: the resonance and linked-cards lists, as pared-back bands. */
 fun LazyListScope.miniCards(cards: List<FeedCard>, open: (Route) -> Unit, keyPrefix: String) {
     itemsIndexed(cards, key = { _, c -> "$keyPrefix${c.id}" }) { i, card ->
-        MiniStoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(Route.Card(card.routeKey)) })
+        MiniStoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(Route.Card(card.routeKey, card)) })
     }
 }
 

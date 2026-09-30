@@ -98,6 +98,17 @@ fun CardDetailSkeleton(modifier: Modifier = Modifier) {
             Skeleton(Modifier.fillMaxWidth(0.9f), height = 38.dp)
             Skeleton(Modifier.fillMaxWidth(0.55f), height = 38.dp)
         }
+        StorySkeleton()
+    }
+}
+
+/**
+ * The lower half of [CardDetailSkeleton]: the story's first lines and a few tags — what a card
+ * page still waits for once its head is drawn from the list the card was opened in.
+ */
+@Composable
+fun StorySkeleton(modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth()) {
         Column(Modifier.padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             repeat(3) { Skeleton(height = 17.dp) }
             Skeleton(Modifier.fillMaxWidth(0.65f), height = 17.dp)

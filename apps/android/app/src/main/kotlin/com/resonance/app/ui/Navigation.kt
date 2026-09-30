@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import com.resonance.api.models.FeedCard
 import com.resonance.app.PushCenter
 import com.resonance.app.Session
 import com.resonance.kit.reading.FeedLoader
@@ -42,7 +43,8 @@ import com.resonance.kit.l10n.L10n
 /** Screens on a tab's back stack. */
 sealed interface Route {
     data class Root(val tab: Tab) : Route
-    data class Card(val key: String) : Route
+    /** A card's page; `preview` is the card as the list it was tapped in drew it (the page draws that at once). */
+    data class Card(val key: String, val preview: FeedCard? = null) : Route
     data class Author(val handle: String) : Route
     data object Settings : Route
     /** My thought map (me/thought-map). */
@@ -171,7 +173,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                     }
                 }
                 entry<Route.Card> { r ->
-                    CardScreen(session, r.key, push, popToRoot = { if (stack.size > 1) stack.removeRange(1, stack.size) }) { stack.removeLastOrNull() }
+                    CardScreen(session, r.key, r.preview, push, popToRoot = { if (stack.size > 1) stack.removeRange(1, stack.size) }) { stack.removeLastOrNull() }
                 }
                 entry<Route.Author> { r -> AuthorScreen(session, r.handle, push) { stack.removeLastOrNull() } }
                 entry<Route.Write> { r ->

@@ -23,6 +23,8 @@ import com.resonance.kit.api.SafetyApi
 import com.resonance.kit.api.WritingApi
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
+import com.resonance.kit.reading.CardCache
+import com.resonance.kit.reading.CardPageLoader
 import java.time.OffsetDateTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.MainScope
@@ -79,6 +81,13 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     private val safetyApi = SafetyApi(api)
     val notifications = NotificationsStore()
     val conversations = ConversationsStore()
+    /**
+     * Cards this account has seen, drawn at once when a page opens and then read again
+     * (per account: emptied when someone signs in or out, after the person's own card
+     * changes, and whenever the blocks change).
+     */
+    val cardCache = CardCache()
+    val cardPages = CardPageLoader(reading, cardCache)
 
     /** When a scheduled account deletion will run (the undo banner shows until then). */
     private val _deletionDate = MutableStateFlow<OffsetDateTime?>(null)
@@ -98,7 +107,10 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     private val _cardChanges = MutableStateFlow(0)
     val cardChanges: StateFlow<Int> = _cardChanges
 
-    fun noteCardChange() = _cardChanges.update { it + 1 }
+    fun noteCardChange() {
+        cardCache.clear()
+        _cardChanges.update { it + 1 }
+    }
 
     /** Asks the site to refresh its cached pages, without waiting on it (a card's page after a visibility change or a delete). */
     fun revalidate(paths: List<String>) {
@@ -124,6 +136,8 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     init {
         // Each new FCM token is registered under whoever is signed in.
         PushCenter.onToken = { scope.launch { registerPush() } }
+        // A block (from any device) hides cards the cache may still hold.
+        conversations.onBlocksChanged = { cardCache.clear() }
     }
 
     fun start(onSignedIn: suspend () -> Unit) {
@@ -131,6 +145,7 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
             val next = a.currentUser?.uid
             if (next == uid && _phase.value != Phase.Restoring) return@addAuthStateListener
             uid = next
+            cardCache.clear()
             _profile.value = Profile.Unknown
             // A profile this device has already seen lets the tabs open at once; otherwise wait for /me.
             _entry.value = if (next != null && prefs.getBoolean(profileKey(next), false)) Entry.App else Entry.Waiting
