@@ -72,11 +72,11 @@
 
 ## 5. App 審查資訊
 
-- **登入資訊**：需要登入。**【你來填】** 審查用帳號的電子郵件與密碼（與 Google Play 用同一組即可；請先在網站註冊、設定筆名，並發布一兩張公開卡片）。
+- **登入資訊**：取消勾選「需要登入」的示範帳號欄位，改在備註說明：App 的正式版只能用 **Sign in with Apple** 或 Google 登入，審查人員用自己的 Apple ID 即可。若 Apple 仍要求示範帳號，**【你來填】** 一組你自己能用的 Apple ID 或 Google 帳號（我不能代填密碼）。
 - **聯絡資訊**：姓名、電話 **【你來填】**；電子郵件 `assist.resonance@gmail.com`
 - **備註**（英文，審查人員讀）：
 
-  > Resonance is a story-sharing app. Sign in with the demo account (email + password on the sign-in screen).
+  > Resonance is a story-sharing app. Sign in with "Continue with Apple" (any Apple ID) or Google; no demo account is needed. On first sign-in, choose a pen name to finish setting up.
   >
   > User-generated content safeguards (Guideline 1.2):
   > - Terms of Use with a zero-tolerance clause: https://resonance-world.vercel.app/en/terms — users agree to them when they sign in.
@@ -95,6 +95,5 @@
 - 內容權利、廣告識別碼：不使用 IDFA。
 - 定價：免費，所有國家／地區。
 - 上架前還要完成：
-  - 登入畫面加上「繼續即表示你同意服務條款與隱私權政策」（1.2 要求使用者同意條款）。
-  - App 內的條款連結（正在做）。
   - 推播金鑰上傳到 Firebase。
+  - （已完成）登入畫面的「繼續即表示你同意服務條款與隱私權政策」、設定裡的條款連結。

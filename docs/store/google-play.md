@@ -10,10 +10,12 @@
 ## 2. 應用程式存取權（登入詳細資料）
 
 - 選「應用程式的所有功能或部分功能受到限制」（要登入才能使用）。
-- 新增一組說明：
-  - 名稱：`審查用帳號`
-  - 使用者名稱／密碼：**【你來填】** 請先在網站用電子郵件註冊一個專門給審查用的帳號（例如 assist.resonance@gmail.com 的別名信箱），完成筆名設定，並寫一兩張公開卡片，讓審查人員看得到內容。
-  - 其他說明：`在登入畫面輸入上述電子郵件與密碼，按「登入」。不需要雙重驗證。`
+- App 的正式版只能用 **Google 帳號**登入（電子郵件表單只在模擬器版出現），所以審查人員用自己的 Google 帳號即可。新增一組說明：
+  - 名稱：`使用 Google 帳號登入`
+  - 使用者名稱／密碼：留空（若表單要求必填，**【你來填】** 另開一個專門給審查用的 Google 帳號，並先用它在 App 完成筆名設定）
+  - 其他說明：
+
+    > Tap "Continue with Google" on the sign-in screen and use any Google account. On first sign-in, choose a pen name to finish setting up; after that every feature is available. No other credentials are needed.
 
 ## 3. 廣告
 
