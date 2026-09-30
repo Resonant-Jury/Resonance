@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -21,6 +21,7 @@ import {
   getUsersByIds,
   isConnected,
   listMyConnectionUids,
+  resolveCardId,
 } from '@/lib/db/firestore/client/reads';
 import { listLinksToAuthor, listLinksToCard } from '@/lib/db/firestore/client/cardLinks';
 import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
@@ -30,6 +31,7 @@ import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import { callApi } from '@/lib/db/firestore/client/api';
 import type { Conversation, Message } from '@/lib/db/types';
 import { anonymousAuthor, cardKey } from './cardPrefill';
+import type { CardSeed, PublicCardView } from './cardSeed';
 
 /**
  * For what the viewer edits themselves — their card, card box, map, profile:
@@ -180,23 +182,101 @@ export interface CardView {
 }
 
 /**
+ * Card URL segment → the document id it names, as the card page's server
+ * render found it (and as the browser learnt since). Every reader of a card's
+ * SWR key fetches through {@link fetchCardView} — the page, and the floating
+ * write button beside it, whose fetch may well be the one that runs (SWR
+ * starts a hook holding fallbackData a frame later) — so whichever does skips
+ * the slug lookup.
+ */
+const serverCardIds = new Map<string, string>();
+
+/**
  * A card by URL segment (slug or legacy doc id), read through the rules, with
  * the byline this viewer is shown: someone else's anonymous card gets the
  * anonymous one, and the profile it is anonymous from is never downloaded.
  * Null: no such card, or not one this viewer may read.
+ *
+ * `knownId` is the id the page's server render found for the segment (by
+ * default, whatever {@link useCard} was handed for it): it is read directly,
+ * and the server is asked again only when it no longer reads (the slug may
+ * have gone to another card since that render).
  */
-export async function fetchCardView(key: string, viewerId: string | undefined): Promise<CardView | null> {
-  const card = await getCardBySlugOrId(key);
+export async function fetchCardView(
+  key: string,
+  viewerId: string | undefined,
+  knownId: string | undefined = serverCardIds.get(key),
+): Promise<CardView | null> {
+  let card: Card | null;
+  if (knownId) {
+    card = await getCardById(knownId);
+    if (!card) {
+      const id = await resolveCardId(key);
+      if (id) serverCardIds.set(key, id);
+      else serverCardIds.delete(key);
+      card = id && id !== knownId ? await getCardById(id) : null;
+    }
+  } else {
+    card = await getCardBySlugOrId(key);
+  }
   if (!card) return null;
   if (card.anonymous && card.authorId !== viewerId) return { card, author: anonymousAuthor(card) };
   return { card, author: await getUserById(card.authorId) };
 }
 
+/** The server render's public card (see CardSeed) in the shapes the page draws. */
+export function seedCardView({ card: c, author: a }: PublicCardView): CardView {
+  const card: Card = {
+    id: c.id,
+    authorId: c.authorId,
+    ...(c.slug ? { slug: c.slug } : {}),
+    thoughtCore: c.thoughtCore,
+    story: c.story,
+    tags: c.tags,
+    ...(c.media ? { media: c.media } : {}),
+    originalLocale: c.originalLocale,
+    translations: {},
+    visibility: 'public',
+    ...(c.referenceCardId ? { referenceCardId: c.referenceCardId } : {}),
+    publishedAt: c.publishedAt ? new Date(c.publishedAt) : null,
+    readCount: 0,
+    resonanceCount: c.resonanceCount,
+    inviteCount: 0,
+    ...(c.accentHue != null ? { accentHue: c.accentHue } : {}),
+    anonymous: c.anonymous,
+  };
+  const author: User = a
+    ? {
+        id: a.id,
+        handle: a.handle,
+        ...(a.bio ? { bio: a.bio } : {}),
+        region: a.region,
+        primaryLocale: c.originalLocale,
+        autoTranslateTo: [],
+        verified: a.verified,
+        phoneHash: '',
+        avatarSeed: a.avatarSeed,
+        ...(a.avatarUrl ? { avatarUrl: a.avatarUrl } : {}),
+        initials: a.initials,
+        accentColor: a.accentColor,
+        joinedAt: new Date(0),
+        handleChangedAt: new Date(0),
+      }
+    : anonymousAuthor(card);
+  return { card, author };
+}
+
 /**
  * A single card plus its author, keyed by URL segment (slug or legacy doc id).
  * `data === null` means not found / not visible.
+ *
+ * `seed` is what the card page's server render found (see CardSeed): its id
+ * spares the browser the slug lookup, and a public card is shown at once
+ * (`fromServer`) until the browser's own read — through the rules, as this
+ * viewer — replaces it, or turns it into not-found when the card is no longer
+ * one this viewer may read.
  */
-export function useCard(slugOrId: string | undefined) {
+export function useCard(slugOrId: string | undefined, seed?: CardSeed | null) {
   // A card may be public (anonymous-readable) or private/connections (only its
   // owner / connected viewers). Wait for auth to *settle* before fetching:
   // firing during the client SDK's async auth restoration would read as an
@@ -206,13 +286,26 @@ export function useCard(slugOrId: string | undefined) {
   // A list prefills this key when a card in it is clicked (cardPrefill.ts).
   const { user, loading } = useAuth();
   const key = slugOrId && !loading ? cardKey(slugOrId, user?.id) : null;
-  const swr = useSWR<CardView | null>(key, () => fetchCardView(slugOrId!, user?.id), OWN_CONTENT);
+  const view = seed?.view;
+  const fallback = useMemo(() => (view ? seedCardView(view) : undefined), [view]);
+  // Recorded while rendering, before any hook's fetch can start (see serverCardIds).
+  if (slugOrId && seed?.id && !serverCardIds.has(slugOrId)) serverCardIds.set(slugOrId, seed.id);
+  const swr = useSWR<CardView | null>(key, () => fetchCardView(slugOrId!, user?.id), {
+    ...OWN_CONTENT,
+    fallbackData: fallback,
+  });
   // While auth is still settling (or we have no id yet) the SWR key is null, so
   // SWR reports isLoading=false with data=undefined — which would briefly render
   // the "not found" state before the real fetch begins. Treat that pre-fetch
   // window as loading so the skeleton shows first. A card already in hand (a
-  // list prefilled it) is never "loading", though SWR's first render says so.
-  return { ...swr, isLoading: swr.data === undefined && (swr.isLoading || (!!slugOrId && key === null)) };
+  // list prefilled it, or the server rendered it) is never "loading", though
+  // SWR's first render says so.
+  return {
+    ...swr,
+    isLoading: swr.data === undefined && (swr.isLoading || (!!slugOrId && key === null)),
+    /** What's shown is still the server render's, not yet this browser's own read. */
+    fromServer: fallback !== undefined && swr.data === fallback,
+  };
 }
 
 /** Cards related to the given card, with authors. */

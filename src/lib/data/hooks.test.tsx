@@ -5,6 +5,7 @@ import { SWRConfig } from 'swr';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { SWR_DEFAULTS } from '@/components/providers/SWRProvider';
 import type { Card, User } from '@/lib/db/types';
+import type { CardSeed } from './cardSeed';
 
 // --- module boundary mocks -------------------------------------------------
 // The hooks compose calls to the firestore client read layer. We mock that
@@ -25,6 +26,7 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
   getUsersByIds: vi.fn(),
   isConnected: vi.fn(),
   listMyConnectionUids: vi.fn(),
+  resolveCardId: vi.fn(),
 }));
 vi.mock('@/lib/db/firestore/client/messages', () => ({
   listConversations: vi.fn(),
@@ -67,6 +69,7 @@ import {
   getUsersByIds,
   isConnected,
   listMyConnectionUids,
+  resolveCardId,
 } from '@/lib/db/firestore/client/reads';
 import { listConversations } from '@/lib/db/firestore/client/messages';
 import { callApi } from '@/lib/db/firestore/client/api';
@@ -323,6 +326,108 @@ describe('useCard auth-settle gating', () => {
     await waitFor(() => expect(result.current.data).not.toBeUndefined());
     expect(result.current.data).toBeNull();
     expect(getUserById).not.toHaveBeenCalled();
+  });
+});
+
+// The card page's server render hands over the card's id and, for a public
+// card, its content (CardSeed). The browser shows that at once and replaces it
+// with its own read through the rules.
+describe('useCard with the server render', () => {
+  const seed: CardSeed = {
+    id: 'doc1',
+    view: {
+      card: {
+        id: 'doc1',
+        authorId: 'a1',
+        slug: 'a-slug',
+        thoughtCore: 'From the server',
+        story: 'Rendered into the HTML.',
+        tags: ['t'],
+        media: null,
+        originalLocale: 'en',
+        referenceCardId: null,
+        publishedAt: '2026-01-01T00:00:00.000Z',
+        resonanceCount: 0,
+        accentHue: null,
+        anonymous: false,
+      },
+      author: {
+        id: 'a1',
+        handle: 'writer',
+        bio: null,
+        region: 'TW',
+        verified: false,
+        avatarSeed: '1',
+        avatarUrl: null,
+        initials: 'W',
+        accentColor: 'c',
+      },
+    },
+  };
+
+  it("starts from the server's card (fallbackData) — even before auth settles", () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: true });
+    const { result } = renderHook(() => useCard('a-slug', seed), { wrapper });
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.fromServer).toBe(true);
+    expect(result.current.data!.card.story).toBe('Rendered into the HTML.');
+    expect(result.current.data!.author!.handle).toBe('writer');
+    expect(getCardById).not.toHaveBeenCalled();
+  });
+
+  it('reads the card by the id the server found, skipping the slug lookup, and takes over', async () => {
+    vi.mocked(getCardById).mockResolvedValue(card('doc1', 'a1', { story: 'Fresh from the rules' }));
+    vi.mocked(getUserById).mockResolvedValue(user('a1', 'writer'));
+    const { result } = renderHook(() => useCard('a-slug', seed), { wrapper });
+    await waitFor(() => expect(result.current.fromServer).toBe(false));
+    expect(result.current.data!.card.story).toBe('Fresh from the rules');
+    expect(getCardById).toHaveBeenCalledWith('doc1');
+    expect(getCardBySlugOrId).not.toHaveBeenCalled();
+    expect(resolveCardId).not.toHaveBeenCalled();
+  });
+
+  it("lets another reader of the card's key (the write button beside the page) fetch by the server's id too", async () => {
+    vi.mocked(getCardById).mockResolvedValue(card('doc1', 'a1'));
+    vi.mocked(getUserById).mockResolvedValue(user('a1', 'writer'));
+    // Rendered together; the button holds no fallbackData, so SWR starts its
+    // fetch first (the page's waits a frame) and the page rides along on it.
+    const { result } = renderHook(() => ({ page: useCard('b-slug', seed), button: useCard('b-slug') }), { wrapper });
+    await waitFor(() => expect(result.current.button.data?.card.id).toBe('doc1'));
+    await waitFor(() => expect(result.current.page.fromServer).toBe(false));
+    expect(getCardById).toHaveBeenCalledTimes(1);
+    expect(getCardById).toHaveBeenCalledWith('doc1');
+    expect(getCardBySlugOrId).not.toHaveBeenCalled();
+    expect(resolveCardId).not.toHaveBeenCalled();
+  });
+
+  it('turns into not-found when the card no longer reads (gone private or deleted)', async () => {
+    vi.mocked(getCardById).mockResolvedValue(null);
+    vi.mocked(resolveCardId).mockResolvedValue('doc1');
+    const { result } = renderHook(() => useCard('a-slug', seed), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeNull());
+    // The slug still names the same id: it isn't read a second time.
+    expect(getCardById).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an anonymous card's author unknown and unread, as without the server", async () => {
+    const anon: CardSeed = {
+      id: 'doc1',
+      view: { card: { ...seed.view!.card, authorId: '', anonymous: true }, author: null },
+    };
+    mockUseAuth.mockReturnValue({ user: null, loading: true });
+    const { result } = renderHook(() => useCard('a-slug', anon), { wrapper });
+    expect(result.current.data!.author).toMatchObject({ id: '', handle: '', initials: '·' });
+    expect(getUserById).not.toHaveBeenCalled();
+  });
+
+  it('with only an id (a card the server may not show), reads it by that id with nothing shown first', async () => {
+    vi.mocked(getCardById).mockResolvedValue(card('doc1', 'me', { visibility: 'private' }));
+    vi.mocked(getUserById).mockResolvedValue(user('me'));
+    const { result } = renderHook(() => useCard('a-slug', { id: 'doc1', view: null }), { wrapper });
+    expect(result.current.data).toBeUndefined();
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data!.card.visibility).toBe('private');
+    expect(getCardBySlugOrId).not.toHaveBeenCalled();
   });
 });
 

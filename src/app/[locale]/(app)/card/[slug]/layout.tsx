@@ -1,22 +1,22 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
-import { getAdminDb } from '@/lib/db/firestore/admin';
-import { cardByKey } from '@/lib/db/firestore/cardKey';
-import { mapCard } from '@/lib/db/firestore/mapper';
-import { FirestoreUserRepository } from '@/lib/db/firestore/user';
 import type { Locale } from '@/lib/db/types';
 import { buildCardMetadata } from '@/lib/og';
 import { siteUrl } from '@/lib/site';
+import { loadCard } from './cardPageData';
 
 export const runtime = 'nodejs';
 
-// ISR: each card page (shell + share metadata) is rendered once on demand and
-// served from the CDN cache. Freshness is event-driven, not polled: every
-// mutation that can change the metadata (publish/edit in CardEditor,
-// visibility/delete in CardActionsMenu) calls /api/revalidate for this card's
-// path. The long interval below is only a self-healing backstop in case a
-// best-effort revalidate call was dropped (offline, closed tab).
-export const revalidate = 86400;
+// ISR: each card page (share metadata, and a public card's story) is rendered
+// once on demand and served from the CDN cache. Paths that make a card
+// non-public, anonymous or gone revalidate it on the server, and the browser
+// re-reads the card through the rules and replaces whatever the HTML showed
+// — but a write no server sees (an older app build changing visibility or
+// deleting straight through Firestore) would keep the old HTML up for as long
+// as this lasts. Five minutes bounds that for crawlers and readers without
+// JavaScript, and costs one server read per card per five minutes of traffic
+// (an idle card costs nothing: regeneration happens on the next request).
+export const revalidate = 300;
 
 // No slugs at build time — an empty list opts the segment into on-demand
 // static generation (without it, Next renders every request dynamically and
@@ -26,13 +26,13 @@ export function generateStaticParams(): { slug: string }[] {
 }
 
 /**
- * Server-rendered <head> for a card page. The page component itself is a client
- * component (SWR-driven), so this sibling layout is where per-card Open Graph /
- * Twitter metadata lives.
+ * Server-rendered <head> for a card page, from the same server read as the
+ * page body (loadCard: one read per render).
  *
- * Privacy: we resolve the card with *no viewer*, so only `public` cards get
- * their real title/excerpt/image. Private or connections-only cards fall
- * through to the site-level default metadata — nothing leaks in the share card.
+ * Privacy: the card is read with *no viewer*, so only public, published cards
+ * get their real title/excerpt/image. Private, connections-only and draft
+ * cards fall through to the site-level default metadata — nothing leaks in
+ * the share card.
  */
 export async function generateMetadata({
   params,
@@ -40,22 +40,13 @@ export async function generateMetadata({
   params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
   const { locale, slug } = await params;
-  const db = getAdminDb();
+  const loaded = await loadCard(slug);
+  if (!loaded?.card) return {};
 
-  // slug → doc (the same resolver as /api/cards/resolve: slug, else id).
-  const snap = await cardByKey(db, slug);
-  if (!snap) return {};
-
-  const card = mapCard(snap.id, snap.data() ?? {});
-  // Only public cards are shareable with real content.
-  if (card.visibility !== 'public') return {};
-
-  const author = card.anonymous ? null : await new FirestoreUserRepository().findById(card.authorId);
   const t = await getTranslations({ locale, namespace: 'card' });
-
   return buildCardMetadata({
-    card,
-    author,
+    card: loaded.card,
+    author: loaded.author,
     locale: locale as Locale,
     base: siteUrl(),
     anonymousLabel: t('anonymousAuthor'),

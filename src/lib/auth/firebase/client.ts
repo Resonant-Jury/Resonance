@@ -56,7 +56,8 @@ export const EMULATOR_FIRESTORE_PORT = Number(process.env.NEXT_PUBLIC_EMULATOR_F
 // and only when it's missing or has under a day left. The browser can't read
 // an httpOnly cookie, so when it expires is remembered here, beside it.
 
-const SESSION_MARK_KEY = 'resonance:session';
+/** Where this browser remembers its session cookie (read before hydration too: see the card page). */
+export const SESSION_MARK_KEY = 'resonance:session';
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** The server's cookie lifetime when its answer doesn't say (FIREBASE_SESSION_EXPIRES_IN_DAYS' default). */
 const DEFAULT_SESSION_MS = 7 * DAY_MS;
@@ -82,6 +83,16 @@ function readSessionMark(): SessionMark | null {
   } catch {
     return null; // storage blocked (private mode, sandboxed frame) — treat as no cookie
   }
+}
+
+/**
+ * Someone signed in in this browser, as far as it remembers — known at once,
+ * before the SDK has restored its user. Pages that must not show something to
+ * a signed-in viewer until they know who it is (the card page and the
+ * viewer's blocks) hold it back on this.
+ */
+export function hasSessionMark(): boolean {
+  return typeof window !== 'undefined' && readSessionMark() !== null;
 }
 
 function writeSessionMark(mark: SessionMark): void {
