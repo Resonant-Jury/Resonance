@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -60,6 +62,7 @@ import com.resonance.design.OrganicLink
 import com.resonance.design.OrganicListEmpty
 import com.resonance.design.OrganicModal
 import com.resonance.design.OrganicRadio
+import com.resonance.design.SquareFlag
 import com.resonance.design.OrganicTextField
 import com.resonance.design.SketchLoader
 import com.resonance.design.WavyDivider
@@ -214,7 +217,7 @@ private fun ProfileSettings(session: Session) {
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         PenNameField(L10n.Settings.Profile.handle, handle, { handle = it; saved = false; failed = false }, availability.value, onRetry = { retry++ })
         OrganicTextField(L10n.Settings.Profile.bio, bio, { bio = it; saved = false; failed = false }, seed = 37.0, maxLength = BIO_MAX)
-        ChoiceList(L10n.Settings.Profile.region, Regions.settings(me.region), region, seed = 43.0) { region = it; saved = false; failed = false }
+        ChoiceList(L10n.Settings.Profile.region, Regions.settings(me.region), region, seed = 43.0, flag = { it }) { region = it; saved = false; failed = false }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OrganicButton(
                 if (saving) "…" else L10n.Write.saveChanges,
@@ -288,15 +291,15 @@ private fun LanguageSettings(session: Session) {
             style = AppFonts.body(Tokens.LabelSize, 600, color = Tokens.TextMuted).copy(letterSpacing = 0.06.em),
         )
         Column {
-            LanguageRow(session, Strings.Language.ZhTW, "繁體中文", 71.0)
+            LanguageRow(session, Strings.Language.ZhTW, "繁體中文", "tw", 71.0)
             WavyDivider(seed = 67.0, modifier = Modifier.padding(vertical = 2.dp))
-            LanguageRow(session, Strings.Language.En, "English", 73.0)
+            LanguageRow(session, Strings.Language.En, "English", "gb", 73.0)
         }
     }
 }
 
 @Composable
-private fun LanguageRow(session: Session, language: Strings.Language, label: String, seed: Double) {
+private fun LanguageRow(session: Session, language: Strings.Language, label: String, flag: String, seed: Double) {
     val selected = Strings.language == language
     Row(
         Modifier
@@ -306,6 +309,9 @@ private fun LanguageRow(session: Session, language: Strings.Language, label: Str
             .plainClickable(role = Role.RadioButton) { session.setLanguage(language) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The web's language select sets each name after its SquareFlag.
+        SquareFlag(flag, 18.dp)
+        Spacer(Modifier.width(10.dp))
         BasicText(
             label,
             style = AppFonts.body(15f, if (selected) 600 else 400, color = if (selected) Tokens.Terracotta else Tokens.Text),

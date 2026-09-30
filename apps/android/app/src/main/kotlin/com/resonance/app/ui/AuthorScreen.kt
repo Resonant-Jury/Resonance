@@ -40,6 +40,7 @@ import com.resonance.design.AppFonts
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicInlineBar
+import com.resonance.design.SquareFlag
 import com.resonance.design.inlineBarTop
 import com.resonance.design.ButtonVariant
 import com.resonance.design.EmptyAction
@@ -114,7 +115,13 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
                                 itemVerticalAlignment = Alignment.CenterVertically,
                             ) {
-                                a.region?.let { BasicText(regionLabel(it), style = meta) }
+                                // page.module.css .metaItem: the SquareFlag, 5 before the name.
+                                a.region?.let {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        SquareFlag(it, 16.dp)
+                                        BasicText(regionLabel(it), style = meta)
+                                    }
+                                }
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                     OrganicIcon(IconName.Cards, size = 14.dp, color = Tokens.TextMuted)
                                     BasicText(L10n.Profile.cardCount(count = p.cardCount), style = meta)
@@ -220,7 +227,7 @@ private fun ProfileHeroSkeleton() {
     Spacer(Modifier.height(28.dp))
 }
 
-/** "TW" → "🇹🇼 台灣" in the interface language; free text stays as it is. */
+/** "TW" → "台灣" in the interface language (its SquareFlag is drawn beside it); free text stays as it is. */
 fun regionLabel(region: String): String = Regions.label(region)
 
 /** page.module.css .sectionHeading on a phone: 20/700, -0.01em, left-aligned on the page margin, 24 below. */

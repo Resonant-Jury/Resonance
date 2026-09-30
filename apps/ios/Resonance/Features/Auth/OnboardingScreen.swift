@@ -56,7 +56,7 @@ struct OnboardingScreen: View {
                 PenNameField(label: L10n.Auth.handleLabel, text: $handle, status: $status)
                 ChoiceList(label: L10n.Auth.regionLabel,
                            options: ProfileRegion.allCases.map { ($0.rawValue, $0.label) },
-                           selection: $region, seed: 41)
+                           selection: $region, seed: 41, flag: { $0 })
                 ChoiceList(label: L10n.Auth.primaryLocaleLabel,
                            options: [(Strings.Language.zhTW, "繁體中文"), (.en, "English")],
                            selection: $language, seed: 61)

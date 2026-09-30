@@ -82,7 +82,7 @@ fun OnboardingScreen(session: Session) {
             BasicText(L10n.Auth.stepHandle, style = AppFonts.body(14f, lineHeight = 1.6f, color = Tokens.TextMuted), modifier = Modifier.padding(bottom = 24.dp))
             Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 PenNameField(L10n.Auth.handleLabel, handle, { handle = it; error = null }, availability.value, onRetry = { retry++ })
-                ChoiceList(L10n.Auth.regionLabel, Regions.signup, region, seed = 131.0) { region = it }
+                ChoiceList(L10n.Auth.regionLabel, Regions.signup, region, seed = 131.0, flag = { it }) { region = it }
                 ChoiceList(L10n.Auth.primaryLocaleLabel, WritingLanguages, primaryLocale, seed = 151.0) { primaryLocale = it }
                 // The web's Finish sits at the end of the row, dimmed until the name is free.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

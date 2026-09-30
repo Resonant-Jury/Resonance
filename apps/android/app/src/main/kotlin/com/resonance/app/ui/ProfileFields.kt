@@ -6,6 +6,8 @@ import android.icu.util.ULocale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -27,6 +29,7 @@ import com.resonance.design.AppFonts
 import com.resonance.design.FieldLabel
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicRadio
+import com.resonance.design.SquareFlag
 import com.resonance.design.OrganicTextField
 import com.resonance.design.WavyDivider
 import com.resonance.design.generated.IconName
@@ -135,7 +138,15 @@ fun PenNameField(label: String, value: String, onValueChange: (String) -> Unit, 
  * choice beside its hand-drawn radio, between wavy rules.
  */
 @Composable
-fun <T> ChoiceList(label: String, options: List<Pair<T, String>>, selected: T, seed: Double, onSelect: (T) -> Unit) {
+fun <T> ChoiceList(
+    label: String,
+    options: List<Pair<T, String>>,
+    selected: T,
+    seed: Double,
+    /** A choice's flag, as the web's settings set a SquareFlag before a region or a language. */
+    flag: ((T) -> String?)? = null,
+    onSelect: (T) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FieldLabel(label)
         Column(Modifier.selectableGroup()) {
@@ -150,6 +161,10 @@ fun <T> ChoiceList(label: String, options: List<Pair<T, String>>, selected: T, s
                         .plainClickable(role = Role.RadioButton) { onSelect(value) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    flag?.invoke(value)?.let { code ->
+                        SquareFlag(code, 18.dp)
+                        Spacer(Modifier.width(10.dp))
+                    }
                     BasicText(
                         text,
                         style = AppFonts.body(15f, if (chosen) 600 else 400, color = if (chosen) Tokens.Terracotta else Tokens.Text),
@@ -180,11 +195,10 @@ object Regions {
         return all.map { it to label(it) }
     }
 
-    /** "TW" → "🇹🇼 台灣" in the interface language; free text stays as it is. */
+    /** "TW" → "台灣" in the interface language (its SquareFlag is drawn beside it); free text stays as it is. */
     fun label(region: String): String {
         val code = region.uppercase().takeIf { c -> c.length == 2 && c.all { it in 'A'..'Z' } } ?: return region
-        val name = runCatching { displayName(code) }.getOrNull()?.takeIf { it.isNotBlank() } ?: return code
-        return flag(code)?.let { "$it $name" } ?: name
+        return runCatching { displayName(code) }.getOrNull()?.takeIf { it.isNotBlank() } ?: code
     }
 
     /**
@@ -201,12 +215,6 @@ object Regions {
     }
 
     private val SHORT_NAMED = setOf("HK", "MO")
-
-    /** A two-letter region's flag: its regional-indicator letters. */
-    private fun flag(code: String): String? {
-        val letters = code.uppercase().takeIf { c -> c.length == 2 && c.all { it in 'A'..'Z' } } ?: return null
-        return letters.map { c -> String(Character.toChars(0x1F1E6 + (c - 'A'))) }.joinToString("")
-    }
 }
 
 /** The writing languages a profile can name, in the web's order and labels. */

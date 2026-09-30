@@ -150,7 +150,7 @@ private struct ProfileSettings: View {
                     }
                 ChoiceList(label: L10n.Settings.Profile.region,
                            options: ProfileRegion.allCases.map { (Optional($0.rawValue), $0.label) },
-                           selection: $region, seed: 43)
+                           selection: $region, seed: 43, flag: { $0 })
                 VStack(alignment: .leading, spacing: 12) {
                     OrganicButton(saving ? L10n.Write.saving : L10n.Write.saveChanges) { Task { await save(me) } }
                         .disabled(!canSave(me) || saving)
@@ -259,17 +259,19 @@ private struct LanguageSettings: View {
                 .tracking(Tokens.labelSize * 0.06)
                 .foregroundStyle(Tokens.textMuted)
             VStack(spacing: 0) {
-                row(.zhTW, "繁體中文", seed: 71)
+                row(.zhTW, "繁體中文", flag: "tw", seed: 71)
                 WavyDivider(seed: 67).padding(.vertical, 2)
-                row(.en, "English", seed: 73)
+                row(.en, "English", flag: "gb", seed: 73)
             }
         }
     }
 
-    private func row(_ language: Strings.Language, _ label: String, seed: Double) -> some View {
+    /// The web's language select sets each name after its SquareFlag.
+    private func row(_ language: Strings.Language, _ label: String, flag: String, seed: Double) -> some View {
         let selected = Strings.shared.language == language
         return Button { session.setLanguage(language) } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
+                SquareFlag(flag, size: 18)
                 Text(label)
                     .font(AppFonts.body(15, weight: selected ? .semibold : .regular))
                     .foregroundStyle(selected ? Tokens.terracotta : Tokens.text)

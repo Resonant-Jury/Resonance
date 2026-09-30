@@ -151,7 +151,12 @@ struct AuthorScreen: View {
         } ?? ""
         return FlowRow(spacing: 14) {
             if let region = author.region {
-                Text(Self.regionLabel(region)).metaStyle()
+                // page.module.css .metaItem: the SquareFlag, 5 before the name.
+                HStack(spacing: 5) {
+                    SquareFlag(region, size: 16)
+                    Text(Self.regionLabel(region))
+                }
+                .metaStyle()
             }
             Label { Text(L10n.Profile.cardCount(count: profile.cardCount)) } icon: { OrganicIcon(.cards, size: 16, strokeWidth: Tokens.ink) }.metaStyle()
             Text(L10n.Profile.joined(date: joined)).metaStyle()
@@ -162,7 +167,7 @@ struct AuthorScreen: View {
         }
     }
 
-    /// "TW" → "🇹🇼 台灣" in the reader's language; free text stays as it is.
+    /// "TW" → "台灣" in the reader's language (its SquareFlag is drawn beside it); free text stays as it is.
     static func regionLabel(_ region: String) -> String { ProfileRegion.label(region) }
 }
 
