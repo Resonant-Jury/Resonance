@@ -3,6 +3,7 @@ import type { BatchResponse, MulticastMessage } from 'firebase-admin/messaging';
 import { createTranslator } from 'next-intl';
 import en from '@/messages/en.json';
 import zhTW from '@/messages/zh-TW.json';
+import { NOTE_PREVIEW_CHARS } from '@/lib/api/v1/conversations';
 import { deviceLocale, type DeviceLocale } from './devices';
 
 /** What sends the push; `getAdminMessaging()` in production, a fake in tests. */
@@ -32,6 +33,8 @@ const DEAD_TOKEN = new Set(['messaging/registration-token-not-registered', 'mess
 
 type Payload = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
+/** Cut by code points, so an emoji is never split in half. */
+const cutText = (text: string, n: number) => Array.from(text).slice(0, n).join('');
 
 /**
  * Where tapping the push leads: a site path both apps already open (the web
@@ -96,12 +99,28 @@ export async function pushNotification(db: Firestore, id: string, sender: PushSe
 
   const to = str(claimed.userId);
   const type = str(claimed.type);
-  const payload: Payload = claimed.payload ?? {};
+  let payload: Payload = claimed.payload ?? {};
   const from = str(payload.fromUserId);
   if (!to || !TEXT_KEY[type]) return null;
   if (from) {
-    const [out, inn] = await Promise.all([db.doc(`users/${to}/blocks/${from}`).get(), db.doc(`users/${from}/blocks/${to}`).get()]);
+    const noteId = type === 'note' ? str(payload.noteId) : '';
+    const [out, inn, sender, note] = await Promise.all([
+      db.doc(`users/${to}/blocks/${from}`).get(),
+      db.doc(`users/${from}/blocks/${to}`).get(),
+      db.doc(`users/${from}`).get(),
+      noteId ? db.doc(`notes/${noteId}`).get() : null,
+    ]);
     if (out.exists || inn.exists) return null;
+    // What a push says is read from the records, never from the row: the
+    // sender's pen name as it is now, and a note's words only when the note
+    // really went from them to the recipient. A row a client wrote can't put
+    // other words, or another name, on someone's lock screen.
+    const real = note?.exists && note.get('fromUserId') === from && note.get('toUserId') === to;
+    payload = {
+      ...payload,
+      fromHandle: str(sender.get('handle')),
+      preview: real ? cutText(str(note.get('text')), NOTE_PREVIEW_CHARS) : '',
+    };
   }
 
   const devices = await db.collection('devices').where('userId', '==', to).get();

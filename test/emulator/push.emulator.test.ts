@@ -132,6 +132,25 @@ describe('pushNotification', () => {
     expect(await exists('devices/carol-phone')).toBe(true);
   });
 
+  it("puts only the records' words on a lock screen: the sender's real pen name, and a real note's text", async () => {
+    // A row forged to look official, pointing at a note that isn't the sender's.
+    await db.doc('notes/theirs').set({ fromUserId: 'carol', toUserId: 'bob', cardId: 'walk', text: 'carol wrote this', readAt: null });
+    await db.doc('notifications/forged').set({
+      userId: 'bob',
+      type: 'note',
+      payload: { fromUserId: 'alice', fromHandle: 'Resonance 官方', preview: 'Verify your account at evil.example', noteId: 'theirs', cardId: 'walk' },
+      readAt: null,
+      createdAt: Timestamp.now(),
+    });
+    const fcm = fakeFcm();
+    await pushNotification(db, 'forged', fcm.sender);
+    const en = fcm.sent.find((m) => m.tokens[0] === 'bob-en')!;
+    expect(en.notification).toEqual({ title: '小明 sent you a little note' });
+    expect(en.data?.route).toBe(`/messages/${encodeURIComponent('小明')}?note=theirs&card=walk`);
+    expect(JSON.stringify(fcm.sent)).not.toContain('evil.example');
+    expect(JSON.stringify(fcm.sent)).not.toContain('Resonance 官方');
+  });
+
   it('sends nothing, and needs no FCM, for someone with no devices', async () => {
     await db.doc('notifications/n1').set({ userId: 'alice', type: 'card_link', payload: { fromUserId: 'bob', fromHandle: 'bob', cardId: 'walk' }, readAt: null, createdAt: Timestamp.now() });
     const fcm = fakeFcm();
@@ -141,8 +160,8 @@ describe('pushNotification', () => {
 });
 
 describe('assertRingable (the web asking to push a row it wrote)', () => {
-  const row = (id: string, from: string, created: Date) =>
-    db.doc(`notifications/${id}`).set({ userId: 'bob', type: 'message', payload: { fromUserId: from, fromHandle: 'x' }, readAt: null, createdAt: Timestamp.fromDate(created) });
+  const row = (id: string, from: string, created: Date, type = 'invite_accepted') =>
+    db.doc(`notifications/${id}`).set({ userId: 'bob', type, payload: { fromUserId: from, fromHandle: 'x' }, readAt: null, createdAt: Timestamp.fromDate(created) });
 
   it("only lets the row's sender ring it, and only while it is fresh", async () => {
     const now = new Date('2026-09-30T08:00:00Z');
@@ -153,5 +172,11 @@ describe('assertRingable (the web asking to push a row it wrote)', () => {
     await expect(assertRingable(db, 'carol', 'fresh', now.getTime())).rejects.toMatchObject({ code: 'not_found' });
     await expect(assertRingable(db, 'alice', 'stale', now.getTime())).rejects.toMatchObject({ code: 'forbidden' });
     await expect(assertRingable(db, 'alice', 'missing', now.getTime())).rejects.toBeInstanceOf(ApiFailure);
+  });
+
+  it('only for the kind the browser still writes — every other row is pushed by the server', async () => {
+    const now = new Date('2026-09-30T08:00:00Z');
+    await row('server-note', 'alice', new Date(now.getTime() - 60_000), 'note');
+    await expect(assertRingable(db, 'alice', 'server-note', now.getTime())).rejects.toMatchObject({ code: 'not_found' });
   });
 });
