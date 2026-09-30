@@ -15,12 +15,21 @@ const HREFS: Record<(typeof LINK_KEYS)[number], string> = {
   terms: '/terms',
 };
 
-export function SiteFooter() {
+export interface SiteFooterProps {
+  /**
+   * The colour above the footer's wave: the landing page's terracotta CTA
+   * band by default; a page that ends on plain paper passes the cream so
+   * the page runs straight into the wave.
+   */
+  edgeColor?: string;
+}
+
+export function SiteFooter({ edgeColor = 'var(--color-terracotta)' }: SiteFooterProps = {}) {
   const t = useTranslations('footer');
   return (
     <footer className={styles.footer}>
       <SectionEdge
-        topColor="var(--color-terracotta)"
+        topColor={edgeColor}
         seed={233}
         height={90}
         amplitude={0.14}

@@ -16,7 +16,7 @@ export default async function LegalLayout({
     <>
       <SiteHeader />
       {children}
-      <SiteFooter />
+      <SiteFooter edgeColor="var(--color-cream)" />
     </>
   );
 }

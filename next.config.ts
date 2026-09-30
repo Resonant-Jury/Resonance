@@ -14,6 +14,13 @@ const nextConfig: NextConfig = {
   // Next.js to resolve them via Node's native `require()` instead of
   // bundling, which handles scoped packages correctly.
   serverExternalPackages: ['firebase', 'firebase-admin'],
+
+  // The policy pages read their Markdown from docs/legal (src/lib/legal).
+  outputFileTracingIncludes: {
+    '/[locale]/privacy': ['./docs/legal/**/*'],
+    '/[locale]/terms': ['./docs/legal/**/*'],
+    '/[locale]/support': ['./docs/legal/**/*'],
+  },
 };
 
 export default withNextIntl(nextConfig);
