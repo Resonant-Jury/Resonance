@@ -11,17 +11,21 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   setLogLevel,
   updateDoc,
   where,
+  writeBatch,
   type Firestore,
 } from 'firebase/firestore';
 
@@ -36,6 +40,10 @@ function as(uid: string): Firestore {
   return env.authenticatedContext(uid).firestore() as unknown as Firestore;
 }
 
+function anonymous(): Firestore {
+  return env.unauthenticatedContext().firestore() as unknown as Firestore;
+}
+
 async function seed(fn: (db: Firestore) => Promise<void>) {
   await env.withSecurityRulesDisabled(async (ctx) => fn(ctx.firestore() as unknown as Firestore));
 }
@@ -46,14 +54,57 @@ async function seedConnection() {
     await setDoc(doc(db, 'conversations', PAIR), {
       participants: ['alice', 'bob'],
       lastMessage: null,
-      unread: { alice: 0, bob: 0 },
+      unread: { alice: 0, bob: 2 },
     });
+  });
+}
+
+async function seedProfiles() {
+  await seed(async (db) => {
+    for (const uid of ['alice', 'bob', 'carol']) {
+      await setDoc(doc(db, 'users', uid), { handle: uid, handleLower: uid, bio: '', verified: false, hintsSeen: {} });
+    }
   });
 }
 
 async function block(blocker: string, blocked: string) {
   await seed(async (db) => {
     await setDoc(doc(db, 'users', blocker, 'blocks', blocked), { blockedUid: blocked, createdAt: new Date() });
+  });
+}
+
+/** A pending legacy invite from `from` to `to`. */
+async function seedInvite(from = 'bob', to = 'alice', status = 'pending', id = 'i1') {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'invites', id), { fromUserId: from, toUserId: to, message: 'hi', status });
+  });
+}
+
+/**
+ * The web's acceptInvite: accept the invite, create the connection (naming
+ * the invite) and ring the sender's bell, in one transaction.
+ */
+function acceptInvite(db: Firestore, uid: string, opts: { inviteId?: string; other?: string; handle?: string; connect?: boolean } = {}) {
+  const inviteId = opts.inviteId ?? 'i1';
+  const other = opts.other ?? 'bob';
+  return runTransaction(db, async (tx) => {
+    const invite = doc(db, 'invites', inviteId);
+    await tx.get(invite);
+    tx.update(invite, { status: 'accepted' });
+    if (opts.connect !== false) {
+      tx.set(doc(db, 'connections', uid < other ? `${uid}_${other}` : `${other}_${uid}`), {
+        userIds: [uid, other].sort(),
+        establishedAt: serverTimestamp(),
+        inviteId,
+      });
+    }
+    tx.set(doc(collection(db, 'notifications')), {
+      userId: other,
+      type: 'invite_accepted',
+      payload: { inviteId, fromUserId: uid, fromHandle: opts.handle ?? uid },
+      readAt: null,
+      createdAt: serverTimestamp(),
+    });
   });
 }
 
@@ -126,79 +177,39 @@ describe('a block refuses contact in both directions', () => {
   for (const d of directions) {
     describe(d.name, () => {
       beforeEach(async () => {
+        await seedProfiles();
         await block(d.blocker, d.blocker === 'alice' ? 'bob' : 'alice');
       });
 
-      it('cannot create a connection', async () => {
-        await assertFails(
-          setDoc(doc(as(d.actor), 'connections', PAIR), { userIds: ['alice', 'bob'], establishedAt: new Date() }),
-        );
+      it('cannot connect by answering an old invite', async () => {
+        await seedInvite(d.target, d.actor);
+        await assertFails(acceptInvite(as(d.actor), d.actor, { other: d.target }));
       });
 
-      it('cannot send a message in an existing conversation', async () => {
-        await seedConnection();
-        await assertFails(
-          addDoc(collection(as(d.actor), 'conversations', PAIR, 'messages'), {
-            senderId: d.actor,
-            text: 'hi',
-            sentAt: new Date(),
-          }),
-        );
-      });
-
-      it('cannot send an invite, a note, or a notification', async () => {
-        const db = as(d.actor);
-        await assertFails(
-          addDoc(collection(db, 'invites'), { fromUserId: d.actor, toUserId: d.target, status: 'pending' }),
-        );
-        await assertFails(
-          addDoc(collection(db, 'notes'), {
-            fromUserId: d.actor,
-            toUserId: d.target,
-            cardId: 'c1',
-            text: 'hello',
-            readAt: null,
-          }),
-        );
-        await assertFails(
-          addDoc(collection(db, 'notifications'), {
-            userId: d.target,
-            type: 'note',
-            payload: { fromUserId: d.actor },
-            readAt: null,
-          }),
-        );
+      it('cannot answer a card with a resonance draft', async () => {
+        await seed(async (db) => {
+          await setDoc(doc(db, 'cards', 'orig'), publishedCard(d.target));
+        });
+        await assertFails(setDoc(doc(collection(as(d.actor), 'cards')), draft(d.actor, { referenceCardId: 'orig' })));
       });
     });
   }
 
   it('control: without a block the same contact is allowed', async () => {
-    await seedConnection();
-    const db = as('bob');
-    await assertSucceeds(
-      addDoc(collection(db, 'conversations', PAIR, 'messages'), { senderId: 'bob', text: 'hi', sentAt: new Date() }),
-    );
-    await assertSucceeds(
-      addDoc(collection(db, 'notifications'), {
-        userId: 'alice',
-        type: 'note',
-        payload: { fromUserId: 'bob' },
-        readAt: null,
-      }),
-    );
+    await seedProfiles();
+    await seedInvite('bob', 'alice');
+    await assertSucceeds(acceptInvite(as('alice'), 'alice'));
+    await seed(async (db) => {
+      await setDoc(doc(db, 'cards', 'orig'), publishedCard('bob'));
+    });
+    await assertSucceeds(setDoc(doc(collection(as('alice'), 'cards')), draft('alice', { referenceCardId: 'orig' })));
   });
 
   it('does not affect third parties', async () => {
+    await seedProfiles();
     await block('alice', 'bob');
-    await assertSucceeds(
-      addDoc(collection(as('carol'), 'notes'), {
-        fromUserId: 'carol',
-        toUserId: 'alice',
-        cardId: 'c1',
-        text: 'hello',
-        readAt: null,
-      }),
-    );
+    await seedInvite('alice', 'carol');
+    await assertSucceeds(acceptInvite(as('carol'), 'carol', { other: 'alice' }));
   });
 });
 
@@ -207,6 +218,328 @@ describe('ending a connection', () => {
     await seedConnection();
     await assertFails(deleteDoc(doc(as('carol'), 'connections', PAIR)));
     await assertSucceeds(deleteDoc(doc(as('bob'), 'connections', PAIR)));
+  });
+});
+
+describe('connections are made by the server, or by answering an invite', () => {
+  beforeEach(seedProfiles);
+
+  it('refuses a stranger connecting themselves to anyone', async () => {
+    await assertFails(
+      setDoc(doc(as('carol'), 'connections', 'alice_carol'), { userIds: ['alice', 'carol'], establishedAt: serverTimestamp() }),
+    );
+  });
+
+  it('accepts the recipient answering a pending invite, in one transaction', async () => {
+    await seedInvite('bob', 'alice');
+    await assertSucceeds(acceptInvite(as('alice'), 'alice'));
+    const conn = await getDoc(doc(as('alice'), 'connections', PAIR));
+    if (!conn.exists()) throw new Error('expected the connection');
+  });
+
+  it('refuses a connection naming an invite it does not accept', async () => {
+    // An invite already answered, one to someone else, one from someone else.
+    await seedInvite('bob', 'alice', 'declined');
+    await assertFails(acceptInvite(as('alice'), 'alice'));
+    await seedInvite('bob', 'carol', 'pending', 'i2');
+    await assertFails(acceptInvite(as('alice'), 'alice', { inviteId: 'i2' }));
+    await seedInvite('carol', 'alice', 'pending', 'i3');
+    await assertFails(acceptInvite(as('alice'), 'alice', { inviteId: 'i3', other: 'bob' }));
+    // Naming a pending invite without accepting it.
+    await seedInvite('bob', 'alice', 'pending', 'i4');
+    await assertFails(
+      setDoc(doc(as('alice'), 'connections', PAIR), { userIds: ['alice', 'bob'], establishedAt: serverTimestamp(), inviteId: 'i4' }),
+    );
+  });
+
+  it('refuses rewriting a connection (the unused muted flag included)', async () => {
+    await seedConnection();
+    await assertFails(updateDoc(doc(as('alice'), 'connections', PAIR), { muted: [{ by: 'alice' }] }));
+  });
+});
+
+describe('conversations and messages are written by the server', () => {
+  beforeEach(seedConnection);
+
+  it('refuses opening a conversation or sending a message from the client', async () => {
+    await assertFails(
+      setDoc(doc(as('alice'), 'conversations', 'alice_carol'), {
+        participants: ['alice', 'carol'], lastMessage: null, unread: { alice: 0, carol: 0 },
+      }),
+    );
+    await assertFails(
+      addDoc(collection(as('bob'), 'conversations', PAIR, 'messages'), { senderId: 'bob', text: 'hi', sentAt: serverTimestamp() }),
+    );
+  });
+
+  it('lets a participant zero their own unread counter — and nothing else', async () => {
+    const convo = doc(as('bob'), 'conversations', PAIR);
+    // Hiding the other side's unread messages (Bob has 2).
+    await assertFails(updateDoc(doc(as('alice'), 'conversations', PAIR), { 'unread.bob': 0 }));
+    await assertSucceeds(updateDoc(convo, { 'unread.bob': 0 }));
+    // Someone else's counter, a number other than zero, the preview, the order.
+    await assertFails(updateDoc(convo, { 'unread.alice': increment(5) }));
+    await assertFails(updateDoc(convo, { 'unread.bob': 7 }));
+    await assertFails(updateDoc(convo, { lastMessage: { text: 'forged', senderId: 'alice', sentAt: serverTimestamp() } }));
+    await assertFails(updateDoc(convo, { updatedAt: new Date('2099-01-01') }));
+    await assertFails(updateDoc(doc(as('carol'), 'conversations', PAIR), { 'unread.carol': 0 }));
+  });
+
+  it('lets either participant delete the whole thread in batches', async () => {
+    await seed(async (db) => {
+      for (let i = 0; i < 30; i++) {
+        await setDoc(doc(db, 'conversations', PAIR, 'messages', `m${i}`), { senderId: 'alice', text: `${i}`, sentAt: new Date() });
+      }
+    });
+    const db = as('bob');
+    const msgs = await getDocs(collection(db, 'conversations', PAIR, 'messages'));
+    const batch = writeBatch(db);
+    for (const m of msgs.docs) batch.delete(m.ref);
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(deleteDoc(doc(db, 'conversations', PAIR)));
+    await assertFails(getDocs(collection(as('carol'), 'conversations', PAIR, 'messages')));
+  });
+});
+
+describe('notifications', () => {
+  beforeEach(seedProfiles);
+
+  it('refuses every bell the server writes (resonance, note, message, card link, invite)', async () => {
+    await seedConnection();
+    const db = as('bob');
+    for (const type of ['resonance', 'note', 'message', 'card_link', 'invite', 'resonance_summary']) {
+      await assertFails(
+        addDoc(collection(db, 'notifications'), {
+          userId: 'alice',
+          type,
+          payload: { fromUserId: 'bob', fromHandle: 'bob', cardId: 'c1' },
+          readAt: null,
+          createdAt: serverTimestamp(),
+        }),
+      );
+    }
+  });
+
+  it('rings "invite accepted" only with the sender\'s real pen name, stamped now, in the accepting transaction', async () => {
+    await seedInvite('bob', 'alice');
+    await assertFails(acceptInvite(as('alice'), 'alice', { handle: 'Resonance 官方' }));
+    // A bell alone, for an invite that stays pending.
+    await assertFails(
+      addDoc(collection(as('alice'), 'notifications'), {
+        userId: 'bob',
+        type: 'invite_accepted',
+        payload: { inviteId: 'i1', fromUserId: 'alice', fromHandle: 'alice' },
+        readAt: null,
+        createdAt: serverTimestamp(),
+      }),
+    );
+    await assertSucceeds(acceptInvite(as('alice'), 'alice'));
+  });
+
+  it('lets only the recipient read their bell and mark it read', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'notifications', 'n1'), {
+        userId: 'alice', type: 'note', payload: { fromUserId: 'bob', fromHandle: 'bob' }, readAt: null, createdAt: new Date(),
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('alice'), 'notifications', 'n1')));
+    await assertFails(getDoc(doc(as('bob'), 'notifications', 'n1')));
+    await assertFails(updateDoc(doc(as('bob'), 'notifications', 'n1'), { readAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('alice'), 'notifications', 'n1'), { 'payload.fromHandle': 'x' }));
+    await assertSucceeds(updateDoc(doc(as('alice'), 'notifications', 'n1'), { readAt: serverTimestamp() }));
+  });
+});
+
+describe('profiles (users/{uid})', () => {
+  beforeEach(seedProfiles);
+
+  it('are created by the server only — never with a self-asserted pen name or badge', async () => {
+    await assertFails(
+      setDoc(doc(as('dave'), 'users', 'dave'), { handle: 'dave', handleLower: 'dave', phoneHash: '', verified: true }),
+    );
+    await assertFails(
+      setDoc(doc(as('dave'), 'users', 'dave'), { handle: 'dave', handleLower: 'dave', phoneHash: '' }),
+    );
+  });
+
+  it('keep the pen name and the badge out of the client\'s reach', async () => {
+    const me = doc(as('alice'), 'users', 'alice');
+    await assertFails(updateDoc(me, { handle: 'bob', handleLower: 'bob' }));
+    await assertFails(updateDoc(me, { handleLower: 'bob' }));
+    await assertFails(updateDoc(me, { handleChangedAt: serverTimestamp() }));
+    await assertFails(updateDoc(me, { verified: true }));
+  });
+
+  it('let the owner edit the fields that name no one else, within limits', async () => {
+    const me = doc(as('alice'), 'users', 'alice');
+    await assertSucceeds(updateDoc(me, { bio: 'hello', region: 'TW', primaryLocale: 'en', autoTranslateTo: ['zh-TW'] }));
+    await assertSucceeds(updateDoc(me, { avatarUrl: 'https://img.example/a.avif' }));
+    await assertSucceeds(updateDoc(me, { 'hintsSeen.editor': 2 }));
+    await assertFails(updateDoc(me, { bio: 'x'.repeat(81) }));
+    await assertFails(updateDoc(me, { primaryLocale: 'fr' }));
+    await assertFails(updateDoc(me, { avatarUrl: 'javascript:alert(1)' }));
+    await assertFails(updateDoc(doc(as('bob'), 'users', 'alice'), { bio: 'not mine' }));
+  });
+
+  it('stay readable by anyone, signed in or not', async () => {
+    await assertSucceeds(getDoc(doc(anonymous(), 'users', 'alice')));
+    await assertSucceeds(getDocs(query(collection(anonymous(), 'users'), where('handleLower', '==', 'alice'), limit(1))));
+  });
+});
+
+// Card fixtures. A draft as the web, iOS and Android create it.
+function draft(authorId: string, extra: Record<string, unknown> = {}) {
+  return {
+    authorId, thoughtCore: 'A title', story: 'A story', tags: ['one'], visibility: 'public', anonymous: false,
+    originalLocale: 'zh-TW', translations: {}, publishedAt: null, readCount: 0, resonanceCount: 0, inviteCount: 0,
+    createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...extra,
+  };
+}
+
+function publishedCard(authorId: string, extra: Record<string, unknown> = {}) {
+  return {
+    authorId, thoughtCore: 't', story: 's', tags: [], readCount: 0, resonanceCount: 0, inviteCount: 0,
+    visibility: 'public', anonymous: false, publishedAt: new Date('2026-09-01T08:00:00Z'), slug: 'a-title', ...extra,
+  };
+}
+
+describe('cards: what the author may write', () => {
+  it('creates a draft exactly as the web and the apps do', async () => {
+    const db = as('alice');
+    await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice')));
+    // iOS/Android: a cover with its hue, no counters beyond zero.
+    await assertSucceeds(
+      setDoc(doc(collection(db, 'cards')), draft('alice', {
+        media: { type: 'image', url: 'https://img.example/c.avif', label: 'IMG_0001.jpeg' },
+        accentHue: 55,
+      })),
+    );
+  });
+
+  it('refuses a draft that is already published, slugged, someone else\'s, back-dated or counted', async () => {
+    const db = as('alice');
+    const bad = [
+      draft('alice', { publishedAt: new Date('2099-01-01') }),
+      draft('alice', { publishedAt: serverTimestamp() }),
+      draft('alice', { slug: 'someone-elses-story' }),
+      draft('bob'),
+      draft('alice', { createdAt: new Date('2020-01-01') }),
+      draft('alice', { readCount: 5 }),
+      draft('alice', { resonanceCount: 1 }),
+      draft('alice', { verified: true }),
+      draft('alice', { visibility: 'everyone' }),
+      draft('alice', { translations: { en: { thoughtCore: 'x', story: 'y' } } }),
+      draft('alice', { media: { type: 'image', url: 'javascript:alert(1)' } }),
+    ];
+    for (const data of bad) await assertFails(setDoc(doc(collection(db, 'cards')), data));
+  });
+
+  it('refuses a hand-picked document id (slugs and ids share the card URL)', async () => {
+    await assertFails(setDoc(doc(as('alice'), 'cards', 'my-story'), draft('alice')));
+    await assertFails(setDoc(doc(as('alice'), 'cards', '!aaaaaaaaaaaaaaaaaaa'), draft('alice')));
+  });
+
+  it('lets a resonance answer only a card its author can read', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'cards', 'pub'), publishedCard('bob'));
+      await setDoc(doc(db, 'cards', 'priv'), publishedCard('bob', { visibility: 'private' }));
+      await setDoc(doc(db, 'cards', 'bobdraft'), publishedCard('bob', { publishedAt: null }));
+    });
+    const db = as('alice');
+    await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice', { referenceCardId: 'pub' })));
+    await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', { referenceCardId: 'priv' })));
+    await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', { referenceCardId: 'bobdraft' })));
+    await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', { referenceCardId: 'missing' })));
+  });
+
+  describe('updates', () => {
+    const ID = 'aaaaaaaaaaaaaaaaaaaa';
+    beforeEach(async () => {
+      await seed(async (db) => {
+        await setDoc(doc(db, 'cards', ID), { ...publishedCard('alice', { referenceCardId: 'orig', readCount: 3 }), accentHue: null });
+        await setDoc(doc(db, 'cards', 'draft1'), publishedCard('alice', { publishedAt: null, slug: null }));
+      });
+    });
+
+    it('lets the author edit the content, as the web and the apps write it', async () => {
+      const db = as('alice');
+      const ref = doc(db, 'cards', 'draft1');
+      // Web updateCardDraft / iOS / Android update: merge with a server stamp.
+      await assertSucceeds(setDoc(ref, { thoughtCore: 'New', story: 'Longer', tags: ['a', 'b'], visibility: 'private', anonymous: true, updatedAt: serverTimestamp() }, { merge: true }));
+      await assertSucceeds(setDoc(ref, { media: { type: 'image', url: 'https://img.example/x.avif', label: 'x' }, accentHue: 120, updatedAt: serverTimestamp() }, { merge: true }));
+      // A removed cover: media deleted, hue nulled.
+      await assertSucceeds(setDoc(ref, { media: deleteField(), accentHue: null, updatedAt: serverTimestamp() }, { merge: true }));
+      // The card box's 轉為公開／私人 and applying a pending edit on a published card.
+      await assertSucceeds(setDoc(doc(db, 'cards', ID), { visibility: 'private', updatedAt: serverTimestamp() }, { merge: true }));
+      await assertSucceeds(setDoc(doc(db, 'cards', ID), { thoughtCore: 'Edited', story: 'Edited', updatedAt: serverTimestamp() }, { merge: true }));
+    });
+
+    it('never lets the client publish, re-date, re-slug, re-attribute or re-point a card', async () => {
+      const db = as('alice');
+      await assertFails(updateDoc(doc(db, 'cards', 'draft1'), { publishedAt: serverTimestamp() }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { publishedAt: new Date('2099-01-01') }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { publishedAt: 'zzz' }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { publishedAt: null }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { slug: 'someone-elses-story' }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { authorId: 'bob' }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { referenceCardId: 'other' }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { readCount: 99 }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { translations: { en: {} } }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { visibility: 'everyone' }));
+      await assertFails(updateDoc(doc(db, 'cards', ID), { media: { type: 'image', url: 'http://tracker.example/p.gif' } }));
+      await assertFails(updateDoc(doc(as('bob'), 'cards', ID), { thoughtCore: 'not mine' }));
+    });
+
+    it('keeps the pending-edit buffer owner-only', async () => {
+      await assertSucceeds(setDoc(doc(as('alice'), 'cards', ID, 'edits', 'current'), { thoughtCore: 'wip', updatedAt: serverTimestamp() }));
+      await assertFails(getDoc(doc(as('bob'), 'cards', ID, 'edits', 'current')));
+      await assertFails(setDoc(doc(as('bob'), 'cards', ID, 'edits', 'current'), { thoughtCore: 'x' }));
+    });
+  });
+});
+
+describe('closed legacy write paths', () => {
+  beforeEach(seedProfiles);
+
+  it('refuses client-written notes (the server sends them)', async () => {
+    await assertFails(
+      addDoc(collection(as('carol'), 'notes'), { fromUserId: 'carol', toUserId: 'alice', cardId: 'c1', text: 'hello', readAt: null }),
+    );
+  });
+
+  it('lets a note\'s recipient mark it read, and nothing else', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'notes', 'n1'), { fromUserId: 'carol', toUserId: 'alice', cardId: 'c1', text: 'hi', readAt: null, createdAt: new Date() });
+    });
+    await assertSucceeds(getDoc(doc(as('carol'), 'notes', 'n1')));
+    await assertFails(getDoc(doc(as('bob'), 'notes', 'n1')));
+    await assertFails(updateDoc(doc(as('alice'), 'notes', 'n1'), { text: 'rewritten' }));
+    await assertSucceeds(updateDoc(doc(as('alice'), 'notes', 'n1'), { readAt: serverTimestamp() }));
+  });
+
+  it('refuses card links from the client (nothing creates them any more), but lets their author remove one', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'cards', 'mine'), publishedCard('carol'));
+      await setDoc(doc(db, 'cards', 'target'), publishedCard('alice'));
+      await setDoc(doc(db, 'cardLinks', 'old_target'), {
+        sourceCardId: 'old', sourceAuthorId: 'carol', targetCardId: 'target', targetAuthorId: 'alice', createdAt: new Date(),
+      });
+    });
+    await assertFails(
+      setDoc(doc(as('carol'), 'cardLinks', 'mine_target'), {
+        sourceCardId: 'mine', sourceAuthorId: 'carol', targetCardId: 'target', targetAuthorId: 'bob', createdAt: serverTimestamp(),
+      }),
+    );
+    await assertSucceeds(getDocs(query(collection(anonymous(), 'cardLinks'), where('targetCardId', '==', 'target'))));
+    await assertFails(deleteDoc(doc(as('alice'), 'cardLinks', 'old_target')));
+    await assertSucceeds(deleteDoc(doc(as('carol'), 'cardLinks', 'old_target')));
+  });
+
+  it('refuses writing resonance records, quotas and rate limits', async () => {
+    await assertFails(setDoc(doc(as('alice'), 'resonances', 'c1_alice'), { cardId: 'c1', userId: 'alice' }));
+    await assertFails(setDoc(doc(as('alice'), 'quotas', 'alice_2026-09-30'), { userId: 'alice', inviteCount: 0 }));
+    await assertFails(getDoc(doc(as('alice'), 'rateLimits', 'alice_notes')));
+    await assertFails(setDoc(doc(as('alice'), 'rateLimits', 'alice_notes'), { count: 0 }));
   });
 });
 
@@ -267,11 +600,6 @@ describe('account deletion requests', () => {
 });
 
 describe('legacy invites', () => {
-  const seedInvite = (status = 'pending') =>
-    seed(async (db) => {
-      await setDoc(doc(db, 'invites', 'i1'), { fromUserId: 'bob', toUserId: 'alice', message: 'hi', status });
-    });
-
   it('can no longer be sent, nor their bell rung, by anyone', async () => {
     await assertFails(addDoc(collection(as('bob'), 'invites'), { fromUserId: 'bob', toUserId: 'carol', status: 'pending' }));
     await seedInvite();
@@ -341,7 +669,7 @@ describe('cards: who can read which', () => {
     await assertFails(getDoc(doc(carol, 'cards', 'draft')));
     await assertSucceeds(getDoc(doc(as('alice'), 'cards', 'conn')));
     await assertFails(getDoc(doc(as('alice'), 'cards', 'draft')));
-    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore() as unknown as Firestore, 'cards', 'draft')));
+    await assertFails(getDoc(doc(anonymous(), 'cards', 'draft')));
     await assertSucceeds(getDoc(doc(as('bob'), 'cards', 'draft')));
   });
 
@@ -352,14 +680,14 @@ describe('cards: who can read which', () => {
     await assertFails(getDocs(query(collection(carol, 'cards'), where('authorId', '==', 'bob'))));
     // Public alone isn't enough: that would include drafts.
     await assertFails(getDocs(query(collection(carol, 'cards'), where('visibility', '==', 'public'))));
-    await assertFails(getDocs(collection(env.unauthenticatedContext().firestore() as unknown as Firestore, 'cards')));
+    await assertFails(getDocs(collection(anonymous(), 'cards')));
   });
 
   it("still runs every query the site and the apps make", async () => {
     const carol = as('carol');
     // The latest feed, signed in or not.
     await assertSucceeds(getDocs(feed(carol)));
-    await assertSucceeds(getDocs(feed(env.unauthenticatedContext().firestore() as unknown as Firestore)));
+    await assertSucceeds(getDocs(feed(anonymous())));
     // A profile's public cards.
     await assertSucceeds(getDocs(query(collection(carol, 'cards'), where('authorId', '==', 'bob'), where('visibility', '==', 'public'),
       where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'), limit(40))));

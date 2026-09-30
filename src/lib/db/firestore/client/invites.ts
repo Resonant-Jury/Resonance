@@ -40,8 +40,8 @@ function sortedConnectionId(a: string, b: string): string {
 export async function acceptInvite(inviteId: string): Promise<string> {
   const uid = requireUid();
   const db = getClientDb();
-  // Denormalized into the notification payload: notification rules cannot
-  // read other docs cheaply.
+  // Denormalized into the notification payload; the rules check it is your
+  // real pen name.
   const myHandle = await getCurrentUserHandle().catch(() => null);
   const bell = doc(collection(db, 'notifications'));
   const connected = await runTransaction(db, async (tx) => {
@@ -62,9 +62,12 @@ export async function acceptInvite(inviteId: string): Promise<string> {
     const already = await isConnected(uid, otherUid);
     tx.update(inviteRef, { status: 'accepted' });
     if (!already) {
+      // Naming the invite is what lets the rules allow this connection: it
+      // must be the one this transaction accepts.
       tx.set(connectionRef, {
         userIds: uid < otherUid ? [uid, otherUid] : [otherUid, uid],
         establishedAt: serverTimestamp(),
+        inviteId,
       });
     }
     tx.set(bell, {

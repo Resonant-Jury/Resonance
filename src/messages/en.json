@@ -188,7 +188,7 @@
       "back": "Back to home"
     },
     "anonymousAuthor": "Anonymous",
-    "anonymousOwnerNote": "This card was published anonymously — only you know it's yours."
+    "anonymousOwnerNote": "This card was published anonymously — your pen name isn't shown on it or on your profile."
   },
   "messages": {
     "title": "Messages",
@@ -504,7 +504,6 @@
     },
     "profile": {
       "handle": "Handle",
-      "handleCooldown": "Editable once every 30 days",
       "bio": "One-line bio (≤ 80 chars)",
       "region": "Region",
       "avatar": "Profile photo",

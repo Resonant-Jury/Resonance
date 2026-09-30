@@ -19,7 +19,7 @@ import { INK } from '@/lib/design/strokes';
 import { seedFromString } from '@/lib/design/prng';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { useMyBlockedIds, useMyProfile, useThread } from '@/lib/data/hooks';
+import { useMyBlockedIds, useThread } from '@/lib/data/hooks';
 import { getUserByHandle, isConnected } from '@/lib/db/firestore/client/reads';
 import {
   MESSAGE_MAX_LENGTH,
@@ -27,8 +27,6 @@ import {
   deleteConversation,
   getConversation,
   markConversationRead,
-  notifyConversationStarted,
-  openConversation,
   sendMessage,
 } from '@/lib/db/firestore/client/messages';
 import type { Card } from '@/lib/db/types';
@@ -53,7 +51,6 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const locale = useLocale();
   const router = useRouter();
   const { user } = useAuth();
-  const { data: me } = useMyProfile();
   const { mutate: globalMutate } = useSWRConfig();
 
   const { data: other, isLoading: loadingOther } = useSWR(
@@ -155,18 +152,10 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     const quotedNote = noteRef;
     start(async () => {
       try {
-        // The very first message rings the recipient's bell once; after that
-        // only the unread badge speaks (no per-message pings).
-        const isFirst = !convo?.lastMessage;
-        // Idempotent: creates the doc on the first message, no-ops after.
-        await openConversation(other.id);
-        await sendMessage(pairId, trimmed, {
-          cardRef: card?.id,
-          noteRef: quotedNote,
-          // A bodyless card share borrows the card title for the list preview.
-          previewFallback: card?.thoughtCore,
-        });
-        if (isFirst && me) void notifyConversationStarted(other.id, me.handle);
+        // The server opens the conversation with the first message and rings
+        // the recipient's bell for it once; after that only the unread badge
+        // speaks (no per-message pings).
+        await sendMessage(other.id, trimmed, { cardRef: card?.id, noteRef: quotedNote });
         setText('');
         setPendingCard(null);
         setNoteRef(undefined);

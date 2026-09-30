@@ -13,7 +13,12 @@ import { GoogleMark } from '@/components/atoms/GoogleMark/GoogleMark';
 import { AppleMark } from '@/components/atoms/AppleMark/AppleMark';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { isIosNativeApp } from '@/lib/auth/firebase/native';
-import { checkHandleAvailable, createCurrentUserProfile } from '@/lib/db/firestore/client/profile';
+import {
+  HANDLE_FORBIDDEN,
+  checkHandleAvailable,
+  createCurrentUserProfile,
+  isHandleTaken,
+} from '@/lib/db/firestore/client/profile';
 
 type Step = 'google' | 'profile';
 
@@ -45,16 +50,22 @@ function SignUpPageInner() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (step !== 'profile' || handle.length < 2) {
+    if (step !== 'profile' || handle.trim().length < 2) {
       setHandleState('idle');
       return;
     }
     setHandleState('checking');
-    const h = setTimeout(async () => {
-      const ok = await checkHandleAvailable(handle);
-      setHandleState(ok ? 'available' : 'taken');
+    let live = true;
+    const h = setTimeout(() => {
+      checkHandleAvailable(handle)
+        .then((ok) => live && setHandleState(ok ? 'available' : 'taken'))
+        // Unknown (offline, a hiccup): let the next keystroke ask again.
+        .catch(() => live && setHandleState('idle'));
     }, 350);
-    return () => clearTimeout(h);
+    return () => {
+      live = false;
+      clearTimeout(h);
+    };
   }, [handle, step]);
 
   // Apple ID is offered inside the iOS shell only (App Store requirement).
@@ -82,11 +93,13 @@ function SignUpPageInner() {
     setPending(true);
     setError(null);
     try {
-      await createCurrentUserProfile({ handle, region, primaryLocale });
+      await createCurrentUserProfile({ handle: handle.trim(), region, primaryLocale });
       const next = sanitizeNextPath(searchParams.get('next')) ?? `/${locale}/write`;
       window.location.href = next;
-    } catch {
-      setError(t('signUpError'));
+    } catch (err) {
+      // Someone took the name between the check and the save.
+      if (isHandleTaken(err)) setHandleState('taken');
+      else setError(t('signUpError'));
     } finally {
       setPending(false);
     }
@@ -132,7 +145,7 @@ function SignUpPageInner() {
             <OrganicInput
               type="text"
               value={handle}
-              onChange={(e) => setHandle(e.target.value.slice(0, 20))}
+              onChange={(e) => setHandle(e.target.value.replace(HANDLE_FORBIDDEN, '').slice(0, 20))}
             />
             <div style={{ marginTop: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
               {handleState === 'checking' && (

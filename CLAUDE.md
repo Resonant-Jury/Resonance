@@ -49,7 +49,7 @@ App routes under `src/app/[locale]/`:
 ### Data Layer (dual-track Firestore)
 
 - **Server side**: `src/lib/db/firestore/*.ts` — repository classes (`FirestoreCardRepository`, `FirestoreUserRepository`, plus connection/invite/resonance/notification) using the admin SDK, enforcing visibility (`public` / `connections` / `private`) in code. Connections use a sorted `uid1_uid2` pair id.
-- **Client side**: `src/lib/db/firestore/client/*` — direct read/write modules (cards, feed reads, invites, resonances, notifications, profile, cardLinks) consumed by SWR hooks in `src/lib/data/hooks.ts`; security is enforced by `firebase/firestore.rules`.
+- **Client side**: `src/lib/db/firestore/client/*` — direct read/write modules (cards, feed reads, invites, notifications, profile, cardLinks) consumed by SWR hooks in `src/lib/data/hooks.ts`; security is enforced by `firebase/firestore.rules`. Writes that reach another person or must be unique — publishing, pen names, messages, notes — go through `/api/v1` like the apps (`callApi` in `client/api.ts` sends the ID token as a Bearer token), and the rules refuse them from the browser. What stays client-direct is the author's own drafts and settings, reads, and a few narrowly checked legacy paths. The repo and web config are public: a rule is the only guard on a client write, so every new one needs field-level checks and a `test/emulator/rules.emulator.test.ts` case.
 
 Core entities live in `src/lib/db/types.ts`: `Card` (with `translations`, `tags`, `slug`, counters), `User` (`handle`/`handleLower`), `Connection`, `Invite`, `Resonance`, `CardLink`, `Notification`. `src/lib/adapters/` converts Firestore data to UI models.
 
@@ -61,7 +61,6 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | --- | --- |
 | `POST/DELETE /api/auth/session` | ID token ↔ session cookie / logout |
 | `GET /api/cards/resolve?key=` | slug or legacy doc id → Firestore doc id (id only, no content) |
-| `POST /api/cards/slug` | generate an English slug on publish (LLM-translated title, collision-safe, idempotent) |
 | `POST /api/cards/tags` | LLM suggests 2–3 tags, informed by the author's tag history |
 | `POST /api/cards/insight` | pre-publish "mirror moment": distills the draft's core insight for the publish panel (returns only `coreInsight`) |
 | `POST /api/cards/index` | builds/refreshes a card's recommendation index entry (insight signature + vectors); fire-and-forget after publish, owner-gated |
@@ -75,15 +74,17 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | `GET /api/v1/me` · `GET /api/v1/feed` · `GET /api/v1/feed/recommended` | versioned API for the native apps (contract below): the account, latest and recommended feeds |
 | `POST/PATCH /api/v1/me` · `GET /api/v1/handles/{handle}` | onboarding and profile edits (pen-name uniqueness checked in the write's transaction), and the as-you-type availability check |
 | `GET /api/v1/cards/{key}` (+ `/resonances`, `/related`, `/links`) · `POST …/report` | a card by slug or id with its story, and the lists around it; reporting it (the server fills in an anonymous author) |
-| `POST /api/v1/cards/{id}/publish` | publish your card: stamp once, slug (`assignSlug`, shared with `/api/cards/slug`), a resonance's connection + bell; index and cache after the response |
+| `POST /api/v1/cards/{id}/publish` | publish your card (web and apps): stamp once, slug (`assignSlug`: LLM-translated title, collision-safe, idempotent), a resonance's connection + bell; index and cache after the response |
 | `GET /api/v1/users/{handle}` (+ `/cards`, `/links`) | a profile as the viewer sees it, their public cards, cards linking to theirs |
 | `POST /api/v1/cards/{id}/edits/apply` | apply a published card's pending edit (`cards/{id}/edits/current`) in one transaction, keeping its date and slug |
 | `POST /api/v1/notes` · `POST /api/v1/messages` | a note to a card's author (the server finds the author) · a message to a connection (opens the conversation; only the first rings the bell) |
 | `PUT/DELETE /api/v1/me/devices/{installationId}` | the apps' push registration: FCM token + UI language in `devices/{installationId}` (no client rule; purged with the account) |
-| `POST /api/notifications/{id}/push` | the web asks for the push of a bell row it just wrote from the browser (its sender only, while fresh) |
+| `POST /api/notifications/{id}/push` | the web asks for the push of the one bell row it still writes from the browser, a legacy invite's `invite_accepted` (its sender only, while fresh) |
 | `GET /api/v1/openapi.json` | the v1 contract, for tools and client generators |
 
-**Push** (`src/lib/push`): every `notifications/*` row is also pushed to the recipient's devices through FCM (`pushNotification`: once-only via `pushedAt`, blocks re-checked, the bell's own `app.notifications.*` copy in each device's language, `data.route` a site path the apps open). Server writers call `ringAfter()` after their response; web writers that still write rows from the browser call `ringNotification(id)`. A new notification writer must do one or the other.
+**Push** (`src/lib/push`): every `notifications/*` row is also pushed to the recipient's devices through FCM (`pushNotification`: once-only via `pushedAt`, blocks re-checked, the bell's own `app.notifications.*` copy in each device's language, `data.route` a site path the apps open). Server writers call `ringAfter()` after their response; the one browser writer left (accepting a legacy invite) calls `ringNotification(id)`. A new notification writer belongs on the server. What a push says comes from the records, not the row: the sender's current pen name and, for a note, the note's own text.
+
+**Rate limits** (`src/lib/api/rateLimit.ts`): costly or far-reaching endpoints spend a per-user budget (`spend()` in v1 routes, `limited()` elsewhere) kept in server-only `rateLimits/{uid}_{bucket}`; over budget answers 429 `rate_limited`. A new LLM, upload or notify endpoint should take a bucket.
 
 API routes authenticate with the `__session` cookie **or** `Authorization: Bearer <Firebase ID token>` (native apps) — both via `getCurrentUser()`.
 

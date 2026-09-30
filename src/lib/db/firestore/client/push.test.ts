@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The bell rows the web still writes from the browser ask the server to push
-// them — each writer rings exactly the row it wrote, after its write landed,
-// and never when the write failed or there was no row.
+// The one bell row the web still writes from the browser (a legacy invite's
+// "accepted") asks the server to push it — exactly the row it wrote, after its
+// write landed, and never when the write failed. Every other bell is written
+// and pushed by the server.
 vi.mock('./init', () => ({ getClientDb: vi.fn(() => ({})) }));
 vi.mock('./profile', () => ({ getCurrentUserHandle: vi.fn(async () => 'alice') }));
 vi.mock('./reads', () => ({ isConnected: vi.fn(async () => false) }));
@@ -38,11 +39,7 @@ vi.mock('firebase/firestore', () => ({
   updateDoc: vi.fn(),
 }));
 
-import { setDoc } from 'firebase/firestore';
-import { notifyResonance } from './resonances';
-import { notifyConversationStarted } from './messages';
 import { acceptInvite } from './invites';
-import { createCardLink } from './cardLinks';
 
 const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 202 }));
 const rung = () => fetchMock.mock.calls.map(([url]) => url);
@@ -54,24 +51,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe('web bell rows ring their push', () => {
-  it('a resonance published from the web', async () => {
-    await notifyResonance('orig', { authorId: 'bob', fromHandle: 'alice' });
-    const [row] = batch.set.mock.calls[0] as unknown as [{ id: string }];
-    expect(rung()).toEqual([`/api/notifications/${row.id}/push`]);
-  });
-
-  it("but not the author's resonance to their own card, which writes no row", async () => {
-    await notifyResonance('orig', { authorId: 'alice', fromHandle: 'alice' });
-    expect(rung()).toEqual([]);
-  });
-
-  it("a conversation's first message", async () => {
-    await notifyConversationStarted('bob', 'alice');
-    const [row] = vi.mocked(setDoc).mock.calls[0] as unknown as [{ id: string }];
-    expect(rung()).toEqual([`/api/notifications/${row.id}/push`]);
-  });
-
+describe('the web bell row rings its push', () => {
   it('an accepted invite — only once the transaction committed', async () => {
     await acceptInvite('i1');
     const row = tx.set.mock.calls.find(([, v]) => (v as { type?: string }).type === 'invite_accepted')![0] as { id: string };
@@ -83,13 +63,9 @@ describe('web bell rows ring their push', () => {
     expect(rung()).toEqual([]);
   });
 
-  it("a card link to someone else's card, never to your own", async () => {
-    await createCardLink({ sourceCardId: 'mine', targetCardId: 'theirs', targetAuthorId: 'bob', fromHandle: 'alice' });
-    const row = batch.set.mock.calls.map(([ref]) => ref as { id: string }).find((r) => r.id.startsWith('notifications-'))!;
-    expect(rung()).toEqual([`/api/notifications/${row.id}/push`]);
-
-    fetchMock.mockClear();
-    await createCardLink({ sourceCardId: 'mine', targetCardId: 'also-mine', targetAuthorId: 'alice', fromHandle: 'alice' });
-    expect(rung()).toEqual([]);
+  it('connects the two people by naming the invite it accepts', async () => {
+    await acceptInvite('i1');
+    const connection = tx.set.mock.calls.find(([ref]) => (ref as { path?: string }).path?.startsWith('connections/'));
+    expect(connection?.[1]).toMatchObject({ userIds: ['alice', 'bob'], inviteId: 'i1' });
   });
 });

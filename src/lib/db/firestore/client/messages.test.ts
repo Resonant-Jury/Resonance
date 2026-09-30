@@ -2,11 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // --- Firebase boundary mocks ------------------------------------------------
 // The messages module is exercised against a mocked SDK: tests cover the pair
-// id conventions, the lazy/idempotent conversation open, and the send batch
-// (message doc + denormalized preview + the *other* side's unread counter).
+// id conventions and the send, which is one call to the server (the rules
+// refuse conversation and message writes from the browser).
 vi.mock('./init', () => ({ getClientDb: vi.fn(() => ({})) }));
 
-const mockAuth = { currentUser: { uid: 'bbb' } as { uid: string } | null };
+type MockUser = { uid: string; getIdToken: () => Promise<string> };
+const mockAuth = { currentUser: { uid: 'bbb', getIdToken: async () => 'id-token' } as MockUser | null };
 vi.mock('@/lib/auth/firebase/client', () => ({
   getFirebaseClientAuth: vi.fn(() => mockAuth),
 }));
@@ -30,17 +31,22 @@ vi.mock('firebase/firestore', () => ({
   writeBatch: vi.fn(() => batch),
 }));
 
-import { getDoc, setDoc } from 'firebase/firestore';
 import {
   conversationId,
   otherParticipant,
-  openConversation,
   sendMessage,
 } from './messages';
 
+const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+  new Response(JSON.stringify({ conversationId: 'aaa_bbb', id: 'm1' }), { status: 201 }),
+);
+vi.stubGlobal('fetch', fetchMock);
+const sent = () => JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mockAuth.currentUser = { uid: 'bbb' };
+  mockAuth.currentUser = { uid: 'bbb', getIdToken: async () => 'id-token' };
+  fetchMock.mockClear();
 });
 
 describe('pair id conventions', () => {
@@ -55,89 +61,37 @@ describe('pair id conventions', () => {
   });
 });
 
-describe('openConversation', () => {
-  it('creates the doc with sorted participants and zeroed unread counters', async () => {
-    vi.mocked(getDoc).mockResolvedValue({ exists: () => false } as never);
-    await expect(openConversation('aaa')).resolves.toBe('aaa_bbb');
-    expect(setDoc).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        participants: ['aaa', 'bbb'],
-        lastMessage: null,
-        unread: { aaa: 0, bbb: 0 },
-      }),
-    );
-  });
-
-  it('is idempotent — an existing conversation is not rewritten', async () => {
-    vi.mocked(getDoc).mockResolvedValue({ exists: () => true } as never);
-    await expect(openConversation('aaa')).resolves.toBe('aaa_bbb');
-    expect(setDoc).not.toHaveBeenCalled();
-  });
-
-  it('refuses to open a conversation with yourself', async () => {
-    await expect(openConversation('bbb')).rejects.toThrow();
-  });
-});
-
 describe('sendMessage', () => {
-  it('writes the message and bumps only the recipient unread counter', async () => {
-    await sendMessage('aaa_bbb', '  hello there  ');
-    expect(batch.set).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ senderId: 'bbb', text: 'hello there' }),
-    );
-    expect(batch.update).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        'unread.aaa': { __increment: 1 },
-        lastMessage: expect.objectContaining({ text: 'hello there', senderId: 'bbb' }),
-      }),
-    );
-    expect(batch.commit).toHaveBeenCalled();
-  });
-
-  it('rejects empty and over-length messages without writing', async () => {
-    await expect(sendMessage('aaa_bbb', '   ')).rejects.toThrow();
-    await expect(sendMessage('aaa_bbb', 'x'.repeat(2001))).rejects.toThrow();
+  it('sends through the API to the person, trimmed, with the ID token', async () => {
+    await expect(sendMessage('aaa', '  hello there  ')).resolves.toEqual({ conversationId: 'aaa_bbb', id: 'm1' });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/v1/messages');
+    expect(init?.method).toBe('POST');
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer id-token');
+    expect(sent()).toEqual({ to: 'aaa', text: 'hello there', cardRef: null, noteRef: null });
     expect(batch.commit).not.toHaveBeenCalled();
   });
 
-  it('truncates the denormalized list preview to 120 chars', async () => {
-    const long = 'y'.repeat(500);
-    await sendMessage('aaa_bbb', long);
-    const update = vi.mocked(batch.update).mock.calls[0][1] as {
-      lastMessage: { text: string };
-    };
-    expect(update.lastMessage.text).toHaveLength(120);
-    // The message itself keeps the full text.
-    expect(batch.set).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ text: long }),
-    );
+  it('rejects empty and over-length messages without sending', async () => {
+    await expect(sendMessage('aaa', '   ')).rejects.toThrow();
+    await expect(sendMessage('aaa', 'x'.repeat(2001))).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('attaches a shared card and a note reply, with a preview fallback', async () => {
-    await sendMessage('aaa_bbb', '', {
-      cardRef: 'card-1',
-      noteRef: { cardId: 'card-9', noteId: 'note-9' },
-      previewFallback: 'Untitled thought',
-    });
-    expect(batch.set).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        text: '',
-        cardRef: 'card-1',
-        noteRef: { cardId: 'card-9', noteId: 'note-9' },
-      }),
-    );
-    // A bodyless card share borrows the fallback for the list preview.
-    const update = vi.mocked(batch.update).mock.calls[0][1] as { lastMessage: { text: string } };
-    expect(update.lastMessage.text).toBe('Untitled thought');
+  it('attaches a shared card and a note reply', async () => {
+    await sendMessage('aaa', '', { cardRef: 'card-1', noteRef: { cardId: 'card-9', noteId: 'note-9' } });
+    expect(sent()).toEqual({ to: 'aaa', text: '', cardRef: 'card-1', noteRef: { cardId: 'card-9', noteId: 'note-9' } });
   });
 
   it('allows an empty body only when a card is attached', async () => {
-    await expect(sendMessage('aaa_bbb', '   ')).rejects.toThrow();
-    await expect(sendMessage('aaa_bbb', '   ', { cardRef: 'card-1' })).resolves.toBeTruthy();
+    await expect(sendMessage('aaa', '   ')).rejects.toThrow();
+    await expect(sendMessage('aaa', '   ', { cardRef: 'card-1' })).resolves.toBeTruthy();
+  });
+
+  it("surfaces the server's refusal (not connected, blocked)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { code: 'forbidden', message: 'You can message people you are connected with.' } }), { status: 403 }),
+    );
+    await expect(sendMessage('aaa', 'hi')).rejects.toThrow('You can message people you are connected with.');
   });
 });

@@ -27,9 +27,6 @@ vi.mock('@/lib/db/firestore/client/bookmarks', () => ({
   isBookmarked: vi.fn().mockResolvedValue(false),
   toggleBookmark: vi.fn().mockResolvedValue(true),
 }));
-vi.mock('@/lib/db/firestore/client/resonances', () => ({
-  notifyResonance: vi.fn(),
-}));
 vi.mock('@/lib/hints', () => ({
   useHint: () => ({ visible: true, dismiss: vi.fn() }),
 }));

@@ -188,7 +188,7 @@
       "back": "回到首頁"
     },
     "anonymousAuthor": "匿名",
-    "anonymousOwnerNote": "這張卡以匿名發布——只有你知道它是你的。"
+    "anonymousOwnerNote": "這張卡以匿名發布——卡片和你的個人頁都不會顯示你的筆名。"
   },
   "messages": {
     "title": "私訊",
@@ -504,7 +504,6 @@
     },
     "profile": {
       "handle": "筆名",
-      "handleCooldown": "每 30 天可修改一次",
       "bio": "一句話介紹 (≤ 80 字)",
       "region": "地區",
       "avatar": "個人頭像",

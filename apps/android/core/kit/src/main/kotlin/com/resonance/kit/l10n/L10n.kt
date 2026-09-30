@@ -336,7 +336,7 @@ object L10n {
         }
         /** Anonymous */
         val anonymousAuthor: String get() = Strings.string("card.anonymousAuthor")
-        /** This card was published anonymously — only you know it's yours. */
+        /** This card was published anonymously — your pen name isn't shown on it or on your profile. */
         val anonymousOwnerNote: String get() = Strings.string("card.anonymousOwnerNote")
     }
     object Messages {
@@ -931,8 +931,6 @@ object L10n {
         object Profile {
             /** Handle */
             val handle: String get() = Strings.string("settings.profile.handle")
-            /** Editable once every 30 days */
-            val handleCooldown: String get() = Strings.string("settings.profile.handleCooldown")
             /** One-line bio (≤ 80 chars) */
             val bio: String get() = Strings.string("settings.profile.bio")
             /** Region */

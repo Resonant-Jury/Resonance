@@ -334,7 +334,7 @@ public enum L10n {
         }
         /// Anonymous
         public static var anonymousAuthor: String { Strings.shared.string("card.anonymousAuthor") }
-        /// This card was published anonymously — only you know it's yours.
+        /// This card was published anonymously — your pen name isn't shown on it or on your profile.
         public static var anonymousOwnerNote: String { Strings.shared.string("card.anonymousOwnerNote") }
     }
     public enum Messages {
@@ -929,8 +929,6 @@ public enum L10n {
         public enum Profile {
             /// Handle
             public static var handle: String { Strings.shared.string("settings.profile.handle") }
-            /// Editable once every 30 days
-            public static var handleCooldown: String { Strings.shared.string("settings.profile.handleCooldown") }
             /// One-line bio (≤ 80 chars)
             public static var bio: String { Strings.shared.string("settings.profile.bio") }
             /// Region

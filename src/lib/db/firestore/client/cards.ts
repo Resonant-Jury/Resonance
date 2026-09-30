@@ -14,6 +14,7 @@ import type { Card, CardMedia, Locale, NewCard, Visibility } from '@/lib/db/type
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
 import { mapCard } from './map';
+import { callApi } from './api';
 
 function requireUid(): string {
   const uid = getFirebaseClientAuth().currentUser?.uid;
@@ -85,26 +86,27 @@ export async function updateCardDraft(
   return mapCard(snap.id, snap.data() ?? {});
 }
 
-export async function publishCard(id: string): Promise<Card> {
+/** What publishing answers (POST /api/v1/cards/{id}/publish). */
+export interface PublishedCard {
+  id: string;
+  /** The English URL slug; null if generating it failed (the card is live at its id). */
+  slug: string | null;
+  /** False when it was already live — publishing again never re-dates a card. */
+  firstPublish: boolean;
+}
+
+/**
+ * Publish one of your cards through the server, the same call the apps make.
+ * The rules keep `publishedAt` and the slug out of the client's reach: the
+ * server stamps the card once (re-stamping would re-date it in every feed),
+ * names it, and for a resonance connects the two authors and rings the
+ * original author's bell, re-checking visibility and blocks. Editing a
+ * published card goes through the pending-edit buffer (see ./cardEdits) and
+ * never comes here.
+ */
+export async function publishCard(id: string): Promise<PublishedCard> {
   requireUid();
-  const ref = doc(getClientDb(), 'cards', id);
-  const before = await getDoc(ref);
-  // Publishing stamps the card once. Re-stamping an already-published card
-  // would re-date it: every feed orders by publishedAt, so an edit would jump
-  // the card back to the top of everyone's home and change the date readers
-  // see. Editing a published card goes through the pending-edit buffer
-  // (see ./cardEdits) and never comes here.
-  const alreadyPublished = before.data()?.publishedAt != null;
-  await setDoc(
-    ref,
-    {
-      ...(alreadyPublished ? {} : { publishedAt: serverTimestamp() }),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
-  const snap = await getDoc(ref);
-  return mapCard(snap.id, snap.data() ?? {});
+  return callApi<PublishedCard>(`/api/v1/cards/${encodeURIComponent(id)}/publish`, { method: 'POST' });
 }
 
 /**

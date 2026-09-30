@@ -7,6 +7,8 @@ import { renderWithIntl, screen, fireEvent, waitFor, userEvent, within } from '@
 // boundary (plus revalidation) is what these tests pin down.
 vi.mock('@/lib/db/firestore/client/profile', () => ({
   updateProfile: vi.fn().mockResolvedValue(undefined),
+  isHandleTaken: (err: unknown) => (err as { code?: string } | null)?.code === 'conflict',
+  HANDLE_FORBIDDEN: /[/?#\\\p{Cc}]/gu,
 }));
 vi.mock('@/lib/db/firestore/client/revalidate', () => ({
   requestRevalidate: vi.fn().mockResolvedValue(undefined),
@@ -123,6 +125,37 @@ describe('SettingsClient autosave', () => {
     await waitFor(() =>
       expect(updateProfile).toHaveBeenCalledWith({ bio: 'left before the debounce' }),
     );
+  });
+
+  it('says so when the pen name is taken, without holding back the rest', async () => {
+    vi.useFakeTimers();
+    vi.mocked(updateProfile).mockImplementation(async (patch) => {
+      if (patch.handle) throw Object.assign(new Error('That pen name is taken.'), { code: 'conflict' });
+    });
+    renderWithIntl(<SettingsClient initial={initial} />);
+
+    fireEvent.change(screen.getByDisplayValue('ncc'), { target: { value: 'bob' } });
+    fireEvent.change(screen.getByDisplayValue('hello'), { target: { value: 'still saved' } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(updateProfile).toHaveBeenCalledWith({ bio: 'still saved' });
+    expect(updateProfile).toHaveBeenCalledWith({ handle: 'bob' });
+    expect(screen.getByText('Taken')).toBeInTheDocument();
+
+    // The refused name isn't sent again with the next edit.
+    fireEvent.change(screen.getByDisplayValue('still saved'), { target: { value: 'edited again' } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(vi.mocked(updateProfile).mock.calls.filter(([p]) => p.handle)).toHaveLength(1);
+  });
+
+  it('keeps path characters out of the pen name', async () => {
+    renderWithIntl(<SettingsClient initial={initial} />);
+    fireEvent.change(screen.getByDisplayValue('ncc'), { target: { value: 'a/b?c#d' } });
+    expect(screen.getByDisplayValue('abcd')).toBeInTheDocument();
   });
 });
 

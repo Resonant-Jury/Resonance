@@ -35,10 +35,6 @@ import {
   discardPendingCardEdit,
   savePendingCardEdit,
 } from '@/lib/db/firestore/client/cardEdits';
-import { ensureConnection } from '@/lib/db/firestore/client/connections';
-import { getCurrentUserHandle } from '@/lib/db/firestore/client/profile';
-import { getCardById } from '@/lib/db/firestore/client/reads';
-import { notifyResonance } from '@/lib/db/firestore/client/resonances';
 import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import type { Card, CardMedia, Visibility, Locale } from '@/lib/db/types';
 import type { GenerateImageEvent } from '@/app/api/generate-image/route';
@@ -395,52 +391,19 @@ export function CardEditor({
     try {
       const card = await saveDraft(choices);
       if (!card) throw new Error('Draft was not saved');
+      // One server call publishes it (POST /api/v1/cards/{id}/publish, as the
+      // apps do): it stamps the card once, gives it its English URL slug (the
+      // id stands in if that AI step fails — publishing never fails for it),
+      // and for a resonance's first publish connects the two authors and
+      // rings the original author's bell — never for an anonymous one, whose
+      // connection would name its author. The recommendation index and the
+      // card page's cache are refreshed after the response.
       const published = await publishCard(card.id);
-      // Auto-generate the English URL slug (LLM translation of the title, made
-      // collision-free server-side). Fall back to the doc id if it fails so
-      // publishing never blocks on the AI step.
-      let destination = published.id;
-      try {
-        const res = await fetch('/api/cards/slug', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cardId: published.id }),
-        });
-        if (res.ok) {
-          const { slug } = (await res.json()) as { slug?: string };
-          if (slug) destination = slug;
-        }
-      } catch {
-        // keep the doc-id destination
-      }
-      // Fire-and-forget: build the card's recommendation index (insight
-      // signature + vectors). Deliberately not awaited — publishing must never
-      // block on the AI step, and a failure here just means the card gets
-      // indexed on a later edit.
-      void fetch('/api/cards/index', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardId: published.id }),
-      }).catch(() => {});
-      // Bust the card page's ISR cache so the shell + share metadata reflect
-      // this publish/edit right away — freshness is event-driven, not polled.
-      void requestRevalidate([`/card/${destination}`]);
-      // 共振 reaches out: connect the two authors right away and ring the
-      // original author's bell. Skipped for anonymous resonances — a
-      // connection doc names both uids, which would unmask the author.
-      if (referenceCardId && !(choices?.anonymous ?? anonymous)) {
-        void (async () => {
-          const original = await getCardById(referenceCardId);
-          if (!original) return;
-          await ensureConnection(original.authorId).catch(() => {});
-          const fromHandle = (await getCurrentUserHandle().catch(() => null)) ?? '';
-          await notifyResonance(referenceCardId, { authorId: original.authorId, fromHandle });
-        })().catch(() => {});
-      }
+      const destination = published.slug ?? published.id;
       // Inline (resonance) mode stays on the page so the resonance section can
       // refresh in place; the page editor navigates to the new card.
       if (inline) {
-        onPublished?.({ ...published, slug: destination === published.id ? published.slug : destination });
+        onPublished?.({ ...card, publishedAt: card.publishedAt ?? new Date(), slug: published.slug ?? card.slug });
       } else {
         router.push(`/card/${destination}`);
       }

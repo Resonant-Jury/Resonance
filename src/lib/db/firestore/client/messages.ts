@@ -5,13 +5,10 @@ import {
   doc,
   getDoc,
   getDocs,
-  increment,
   limit as fbLimit,
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp,
-  setDoc,
   Timestamp,
   updateDoc,
   where,
@@ -20,13 +17,10 @@ import {
 import type { Conversation, Message } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
-import { ringNotification } from './push';
+import { callApi } from './api';
 
-/** Hard cap mirrored in firestore.rules — keep the two in sync. */
+/** Hard cap mirrored in the API's SendMessageRequest — keep the two in sync. */
 export const MESSAGE_MAX_LENGTH = 2000;
-
-/** How much of the last message the conversation list preview keeps. */
-const LAST_MESSAGE_PREVIEW = 120;
 
 function requireUid(): string {
   const uid = getFirebaseClientAuth().currentUser?.uid;
@@ -83,110 +77,36 @@ function mapMessage(id: string, data: Record<string, unknown>): Message {
   };
 }
 
-/**
- * Open (idempotently create) the conversation with a connected user and return
- * its id. Rules verify the corresponding connection doc exists, so calling
- * this against a stranger fails with permission-denied.
- */
-export async function openConversation(otherUid: string, originCardId?: string): Promise<string> {
-  const uid = requireUid();
-  if (otherUid === uid) throw new Error('Cannot message yourself');
-  const id = conversationId(uid, otherUid);
-  const db = getClientDb();
-  const ref = doc(db, 'conversations', id);
-  // Reading a *nonexistent* conversation is denied (the read rule dereferences
-  // resource.data), not returned as missing — treat denial as "not created yet"
-  // and let the create rule be the arbiter.
-  let exists = false;
-  try {
-    exists = (await getDoc(ref)).exists();
-  } catch {
-    exists = false;
-  }
-  if (exists) return id;
-  const participants = [uid, otherUid].sort();
-  await setDoc(ref, {
-    participants,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    lastMessage: null,
-    unread: { [participants[0]]: 0, [participants[1]]: 0 },
-    ...(originCardId ? { originCardId } : {}),
-  });
-  return id;
-}
-
 export interface MessageExtras {
   /** A shared card (renders as an EmbedStoryCard in the thread). */
   cardRef?: string;
   /** The 紙條 this message replies to (quote header in the thread). */
   noteRef?: { cardId: string; noteId: string };
-  /**
-   * List-preview text used when the message has no body of its own (e.g. a
-   * bare card share) — typically the card's title.
-   */
-  previewFallback?: string;
 }
 
 /**
- * Send a message: one batch writes the message doc and updates the parent's
- * denormalized preview + the recipient's unread counter. A message may carry a
- * shared card (`cardRef`) and/or reply to a note (`noteRef`); text is optional
- * only when a card is attached.
+ * Send a message to someone you're connected with, through the server
+ * (POST /api/v1/messages — the call the apps make). One transaction opens the
+ * conversation on the first message, writes the message, the list preview (a
+ * bodyless card share borrows the card's title) and the recipient's unread
+ * counter, and rings their bell for the first message only; it re-checks the
+ * connection, blocks, and that an attached card is one you can read. The
+ * rules refuse all of this from the browser. Text is optional only when a
+ * card is attached.
  */
 export async function sendMessage(
-  pairId: string,
+  toUserId: string,
   text: string,
   extras: MessageExtras = {},
-): Promise<string> {
-  const uid = requireUid();
+): Promise<{ conversationId: string; id: string }> {
+  requireUid();
   const trimmed = text.trim();
   if (!trimmed && !extras.cardRef) throw new Error('Message is empty');
   if (trimmed.length > MESSAGE_MAX_LENGTH) throw new Error('Message too long');
-
-  const db = getClientDb();
-  const batch = writeBatch(db);
-  const msgRef = doc(collection(db, 'conversations', pairId, 'messages'));
-  batch.set(msgRef, {
-    senderId: uid,
-    text: trimmed,
-    sentAt: serverTimestamp(),
-    ...(extras.cardRef ? { cardRef: extras.cardRef } : {}),
-    ...(extras.noteRef ? { noteRef: extras.noteRef } : {}),
+  return callApi('/api/v1/messages', {
+    method: 'POST',
+    body: { to: toUserId, text: trimmed, cardRef: extras.cardRef ?? null, noteRef: extras.noteRef ?? null },
   });
-  const preview = (trimmed || extras.previewFallback || '').slice(0, LAST_MESSAGE_PREVIEW);
-  batch.update(doc(db, 'conversations', pairId), {
-    lastMessage: {
-      text: preview,
-      senderId: uid,
-      sentAt: serverTimestamp(),
-    },
-    updatedAt: serverTimestamp(),
-    [`unread.${otherParticipant(pairId, uid)}`]: increment(1),
-  });
-  await batch.commit();
-  return msgRef.id;
-}
-
-/**
- * Notify the other participant that a conversation has opened. Called only for
- * the FIRST message (the plan's "no per-message pings" rule): afterwards the
- * unread badge carries the weight, never the bell.
- */
-export async function notifyConversationStarted(
-  toUserId: string,
-  fromHandle: string,
-): Promise<void> {
-  const uid = requireUid();
-  const bell = doc(collection(getClientDb(), 'notifications'));
-  await setDoc(bell, {
-    userId: toUserId,
-    type: 'message',
-    payload: { fromUserId: uid, fromHandle },
-    readAt: null,
-    createdAt: serverTimestamp(),
-  });
-  ringNotification(bell.id);
 }
 
 /** Zero the viewer's own unread counter on a conversation. */

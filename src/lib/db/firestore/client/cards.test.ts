@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./init', () => ({ getClientDb: vi.fn(() => ({})) }));
 
-const mockAuth = { currentUser: { uid: 'me' } as { uid: string } | null };
+const mockAuth = {
+  currentUser: { uid: 'me', getIdToken: async () => 'id-token' } as { uid: string; getIdToken: () => Promise<string> } | null,
+};
 vi.mock('@/lib/auth/firebase/client', () => ({
   getFirebaseClientAuth: vi.fn(() => mockAuth),
 }));
@@ -31,27 +33,39 @@ function snapshot(publishedAt: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockAuth.currentUser = { uid: 'me' };
+  mockAuth.currentUser = { uid: 'me', getIdToken: async () => 'id-token' };
 });
 
 describe('publishCard', () => {
-  it('stamps publishedAt the first time a card goes out', async () => {
-    vi.mocked(getDoc).mockResolvedValue(snapshot(null));
-    await publishCard('card-1');
-    expect(vi.mocked(setDoc).mock.calls[0][1]).toMatchObject({
-      publishedAt: '<server-time>',
-    });
+  // The rules keep publishedAt and the slug out of the browser's reach, so
+  // publishing is one server call — the same one the apps make. (That it never
+  // re-dates a published card is pinned in test/emulator/apiV1Publish.)
+  it('publishes through the API with the ID token, never writing the card itself', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ id: 'card-1', slug: 'a-quiet-morning', firstPublish: true }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(publishCard('card-1')).resolves.toEqual({ id: 'card-1', slug: 'a-quiet-morning', firstPublish: true });
+      const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe('/api/v1/cards/card-1/publish');
+      expect(init.method).toBe('POST');
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer id-token');
+      expect(setDoc).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
-  // Regression: re-stamping an already-published card re-dates it. Every feed
-  // orders by publishedAt, so a typo fix would shove the card back to the top
-  // of everyone's home page and change the date shown on the card.
-  it('leaves publishedAt alone on a card that is already published', async () => {
-    vi.mocked(getDoc).mockResolvedValue(snapshot(new Date('2026-01-02')));
-    await publishCard('card-1');
-    const patch = vi.mocked(setDoc).mock.calls[0][1] as Record<string, unknown>;
-    expect(patch).not.toHaveProperty('publishedAt');
-    expect(patch).toMatchObject({ updatedAt: '<server-time>' });
+  it('surfaces the server\'s refusal', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ error: { code: 'invalid_request', message: 'A card needs a title before it is published.' } }), { status: 400 }),
+    ));
+    try {
+      await expect(publishCard('card-1')).rejects.toThrow('A card needs a title before it is published.');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

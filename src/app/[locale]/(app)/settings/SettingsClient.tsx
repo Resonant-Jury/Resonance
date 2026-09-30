@@ -13,7 +13,7 @@ import { OrganicLink } from '@/components/atoms/OrganicLink/OrganicLink';
 import { OrganicSlider } from '@/components/atoms/OrganicSlider/OrganicSlider';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { AvatarUpload } from '@/components/molecules/AvatarUpload/AvatarUpload';
-import { updateProfile } from '@/lib/db/firestore/client/profile';
+import { HANDLE_FORBIDDEN, isHandleTaken, updateProfile } from '@/lib/db/firestore/client/profile';
 import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import { SignOutConfirmModal } from '@/components/molecules/SignOutConfirmModal/SignOutConfirmModal';
 import { BlockedListModal } from '@/components/molecules/BlockedListModal/BlockedListModal';
@@ -80,6 +80,7 @@ export interface SettingsClientProps {
 
 export function SettingsClient({ initial }: SettingsClientProps) {
   const t = useTranslations('settings');
+  const tAuth = useTranslations('auth');
   const tTweaks = useTranslations('tweaks');
   const tFooter = useTranslations('footer');
   const locale = useLocale();
@@ -94,6 +95,8 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   // and renders the side-nav + content grid.
   const [mobileView, setMobileView] = useState<'menu' | 'detail'>('menu');
   const [handle, setHandle] = useState(initial.handle);
+  // The server refused the typed pen name: someone else holds it.
+  const [handleTaken, setHandleTaken] = useState(false);
   const [bio, setBio] = useState(initial.bio);
   const [region, setRegion] = useState(initial.region);
   const [avatarUrl, setAvatarUrl] = useState(initial.avatarUrl);
@@ -165,27 +168,44 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   });
   const profileRef = useRef({ handle, bio, region, primaryLocale });
   profileRef.current = { handle, bio, region, primaryLocale };
+  // The last pen name the server refused, so later flushes don't resend it.
+  const refusedHandleRef = useRef<string | null>(null);
 
   const flushProfile = useCallback(() => {
     const prev = savedProfileRef.current;
     const cur = profileRef.current;
     const patch: Parameters<typeof updateProfile>[0] = {};
-    // An emptied handle is never saved — the field stays dirty until it holds
-    // a real name again.
-    if (cur.handle !== prev.handle && cur.handle.trim()) patch.handle = cur.handle;
     if (cur.bio !== prev.bio) patch.bio = cur.bio;
     if (cur.region !== prev.region) patch.region = cur.region;
     if (cur.primaryLocale !== prev.primaryLocale) patch.primaryLocale = cur.primaryLocale;
-    if (Object.keys(patch).length === 0) return;
-    const next = { ...cur, handle: patch.handle ? cur.handle : prev.handle };
-    void updateProfile(patch)
+    if (Object.keys(patch).length) {
+      const saved = { bio: cur.bio, region: cur.region, primaryLocale: cur.primaryLocale };
+      void updateProfile(patch)
+        .then(() => {
+          savedProfileRef.current = { ...savedProfileRef.current, ...saved };
+          void requestRevalidate(profilePaths(savedProfileRef.current.handle));
+        })
+        .catch((err) => console.error('Profile autosave failed:', err));
+    }
+
+    // The pen name saves on its own, so a name someone else holds never holds
+    // back the rest. One too short to be a name (an emptied field included)
+    // is never saved — the field stays dirty until it holds a real name again.
+    const name = cur.handle.trim();
+    if (name === prev.handle || name.length < 2 || name === refusedHandleRef.current) return;
+    void updateProfile({ handle: name })
       .then(() => {
-        savedProfileRef.current = next;
-        // Old handle too when it changed — that cached page must stop serving
-        // the profile under its former name.
-        void requestRevalidate(profilePaths(next.handle, prev.handle));
+        const old = savedProfileRef.current.handle;
+        savedProfileRef.current = { ...savedProfileRef.current, handle: name };
+        // Old handle too — that cached page must stop serving the profile
+        // under its former name.
+        void requestRevalidate(profilePaths(name, old));
       })
-      .catch((err) => console.error('Profile autosave failed:', err));
+      .catch((err) => {
+        if (!isHandleTaken(err)) return console.error('Profile autosave failed:', err);
+        refusedHandleRef.current = name;
+        setHandleTaken(true);
+      });
   }, []);
 
   useEffect(() => {
@@ -223,11 +243,18 @@ export function SettingsClient({ initial }: SettingsClientProps) {
                 );
               }}
             />
-            <Field label={t('profile.handle')} hint={t('profile.handleCooldown')}>
+            <Field
+              label={t('profile.handle')}
+              hint={handleTaken ? tAuth('handleTaken') : undefined}
+              hintTone={handleTaken ? 'error' : 'default'}
+            >
               <Input
                 seed={31}
                 value={handle}
-                onChange={(e) => setHandle(e.target.value.slice(0, 20))}
+                onChange={(e) => {
+                  setHandle(e.target.value.replace(HANDLE_FORBIDDEN, '').slice(0, 20));
+                  setHandleTaken(false);
+                }}
               />
             </Field>
             <Field label={t('profile.bio')}>

@@ -54,17 +54,13 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
   isConnected: () => mockIsConnected(),
 }));
 
-const mockOpenConversation = vi.fn();
 const mockSendMessage = vi.fn();
 const mockGetConversation = vi.fn();
-const mockNotifyStarted = vi.fn();
 vi.mock('@/lib/db/firestore/client/messages', () => ({
   MESSAGE_MAX_LENGTH: 2000,
   conversationId: (a: string, b: string) => [a, b].sort().join('_'),
   getConversation: () => mockGetConversation(),
   markConversationRead: vi.fn().mockResolvedValue(undefined),
-  notifyConversationStarted: (...args: unknown[]) => mockNotifyStarted(...args),
-  openConversation: (...args: unknown[]) => mockOpenConversation(...args),
   sendMessage: (...args: unknown[]) => mockSendMessage(...args),
 }));
 
@@ -138,8 +134,7 @@ beforeEach(() => {
   mockGetUserByHandle.mockResolvedValue(alice);
   mockIsConnected.mockResolvedValue(true);
   mockGetConversation.mockResolvedValue(conversation());
-  mockOpenConversation.mockResolvedValue('alice_me');
-  mockSendMessage.mockResolvedValue('m-new');
+  mockSendMessage.mockResolvedValue({ conversationId: 'alice_me', id: 'm-new' });
   mockBlockUser.mockResolvedValue(undefined);
   mockSubmitReport.mockResolvedValue(undefined);
 });
@@ -181,16 +176,14 @@ describe('MessagesPage thread', () => {
     await userEvent.setup({ pointerEventsCheck: 0 }).click(
       screen.getByRole('button', { name: 'Send' }),
     );
+    // One server call, addressed to the person (the server opens the
+    // conversation and decides whether the bell rings).
     await waitFor(() =>
-      expect(mockSendMessage).toHaveBeenCalledWith('alice_me', 'a reply', expect.anything()),
+      expect(mockSendMessage).toHaveBeenCalledWith('alice', 'a reply', expect.anything()),
     );
-    // Lazy-create runs before every send (idempotent no-op afterwards).
-    expect(mockOpenConversation).toHaveBeenCalledWith('alice');
-    // The conversation already has messages — no bell ping for replies.
-    expect(mockNotifyStarted).not.toHaveBeenCalled();
   });
 
-  it('rings the recipient bell exactly on the first message of a conversation', async () => {
+  it('sends the first message of a conversation that does not exist yet', async () => {
     mockGetConversation.mockResolvedValue(null);
     mockUseThread.mockReturnValue({ messages: [], ready: false, error: null });
 
@@ -204,9 +197,8 @@ describe('MessagesPage thread', () => {
       screen.getByRole('button', { name: 'Send' }),
     );
     await waitFor(() =>
-      expect(mockSendMessage).toHaveBeenCalledWith('alice_me', 'first hello', expect.anything()),
+      expect(mockSendMessage).toHaveBeenCalledWith('alice', 'first hello', expect.anything()),
     );
-    expect(mockNotifyStarted).toHaveBeenCalledWith('alice', 'me-handle');
   });
 
   it('blocks the composer for strangers and offers the profile instead', async () => {
@@ -239,7 +231,7 @@ describe('MessagesPage thread', () => {
     );
     await waitFor(() =>
       expect(mockSendMessage).toHaveBeenCalledWith(
-        'alice_me',
+        'alice',
         'thanks for the note',
         expect.objectContaining({ noteRef: { noteId: 'note-1', cardId: 'card-1' } }),
       ),
@@ -259,7 +251,7 @@ describe('MessagesPage thread', () => {
     await u.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() =>
       expect(mockSendMessage).toHaveBeenCalledWith(
-        'alice_me',
+        'alice',
         '',
         expect.objectContaining({ cardRef: 'card-42' }),
       ),
