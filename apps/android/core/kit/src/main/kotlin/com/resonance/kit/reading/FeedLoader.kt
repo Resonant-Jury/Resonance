@@ -1,0 +1,188 @@
+package com.resonance.kit.reading
+
+import com.resonance.api.models.FeedCard
+import com.resonance.kit.api.ReadingApi
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * The home feed (home/page.tsx): the latest public cards and today's picks,
+ * asked for together, each shown as soon as it arrives. Picks that come first
+ * lead the feed ("load more" then reveals the latest, deduped against them).
+ * Picks that come once the latest cards are on screen wait behind a hint
+ * (`home.recommended.ready`): nothing moves under the reader until they ask.
+ * A failed pick request (the day's first, while the server still builds them,
+ * can outlast the client's timeout) is asked once more a little later.
+ */
+class FeedLoader(
+    private val api: ReadingApi,
+    private val scope: CoroutineScope,
+    private val retryPicksAfter: Duration = 20.seconds,
+) {
+    enum class Phase { Loading, Loaded, Failed }
+
+    data class State(
+        val phase: Phase = Phase.Loading,
+        val recommended: List<FeedCard> = emptyList(),
+        val latest: List<FeedCard> = emptyList(),
+        val cursor: String? = null,
+        /** The reader asked for the latest cards below the picks. */
+        val showLatest: Boolean = false,
+        /** Picks that arrived after the latest cards were shown: the hint offers them. */
+        val waitingPicks: List<FeedCard> = emptyList(),
+        val loadingMore: Boolean = false,
+        internal val latestSettled: Boolean = false,
+        internal val latestFailed: Boolean = false,
+        internal val picksSettled: Boolean = false,
+    ) {
+        /** With no picks there is nothing to hold back: the latest cards show at once. */
+        val latestVisible: Boolean get() = recommended.isEmpty() || showLatest
+
+        /** What the feed shows, in order. */
+        val cards: List<FeedCard>
+            get() {
+                if (!latestVisible) return recommended
+                val picked = recommended.map { it.id }.toSet()
+                return recommended + latest.filter { it.id !in picked }
+            }
+
+        val canLoadMore: Boolean get() = !latestVisible || cursor != null
+        val picksReady: Boolean get() = waitingPicks.isNotEmpty()
+
+        /** Loading until either list has something to show, or both have answered. */
+        internal fun settled(): State {
+            val next = when {
+                cards.isNotEmpty() -> Phase.Loaded
+                !latestSettled || !picksSettled -> if (phase == Phase.Loaded) Phase.Loaded else Phase.Loading
+                latestFailed -> Phase.Failed
+                else -> Phase.Loaded
+            }
+            return copy(phase = next)
+        }
+    }
+
+    private val _state = MutableStateFlow(State())
+    val state: StateFlow<State> = _state
+
+    private var loading: Job? = null
+    private var generation = 0
+    private var loadedFor: String? = null
+    private var loadedVersion: Int? = null
+    private var loadedAt = 0L
+
+    /**
+     * Reads the feed when what it holds isn't current: for another reader, after a change to
+     * the reader's own cards (`version`: the session's count of them), after a failure, or once
+     * it is older than [maxAge]. Otherwise the screen comes back to it as it was left.
+     */
+    fun refresh(viewer: String?, version: Int, now: Long = System.currentTimeMillis(), maxAge: Duration = 30.minutes) {
+        val current = viewer == loadedFor && version == loadedVersion && now - loadedAt < maxAge.inWholeMilliseconds
+        if (current && _state.value.phase != Phase.Failed) return
+        if (viewer != loadedFor) {
+            loading?.cancel()
+            _state.value = State()
+        }
+        loadedFor = viewer
+        loadedVersion = version
+        loadedAt = now
+        load()
+    }
+
+    /**
+     * Reads the feed. A first read (or a retry after a failure) shows the
+     * skeleton; a re-read keeps what is on screen until the new lists arrive.
+     */
+    fun load(): Job {
+        loading?.cancel()
+        val run = ++generation
+        _state.update { s ->
+            if (s.phase == Phase.Loaded) s.copy(latestSettled = false, latestFailed = false, picksSettled = false)
+            else State()
+        }
+        return scope.launch {
+            launch {
+                val page = try {
+                    api.feed()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+                _state.update { s ->
+                    if (page == null) s.copy(latestSettled = true, latestFailed = true).settled()
+                    else s.copy(latest = page.cards, cursor = page.nextCursor, latestSettled = true, latestFailed = false).settled()
+                }
+            }
+            launch {
+                val picks = picks()
+                _state.update { s -> s.withPicks(picks.orEmpty()).copy(picksSettled = true).settled() }
+                if (picks == null) {
+                    delay(retryPicksAfter)
+                    val again = picks() ?: return@launch
+                    if (run == generation) _state.update { s -> s.withPicks(again).settled() }
+                }
+            }
+        }.also { loading = it }
+    }
+
+    /** Shows the picks the hint offered, above the latest cards (which stay). */
+    fun revealPicks() {
+        _state.update { s ->
+            if (s.waitingPicks.isEmpty()) s
+            else s.copy(recommended = s.waitingPicks, waitingPicks = emptyList(), showLatest = true)
+        }
+    }
+
+    /** First reveals the latest cards; after that, reads the next page of them. */
+    fun loadMore() {
+        val s = _state.value
+        if (s.loadingMore) return
+        if (!s.latestVisible) {
+            _state.update { it.copy(showLatest = true) }
+            return
+        }
+        val cursor = s.cursor ?: return
+        _state.update { it.copy(loadingMore = true) }
+        scope.launch {
+            val page = try {
+                api.feed(cursor = cursor)
+            } catch (e: CancellationException) {
+                _state.update { it.copy(loadingMore = false) }
+                throw e
+            } catch (e: Exception) {
+                null
+            }
+            _state.update { st ->
+                if (page == null) return@update st.copy(loadingMore = false)
+                val known = st.latest.map { it.id }.toSet()
+                st.copy(latest = st.latest + page.cards.filter { it.id !in known }, cursor = page.nextCursor, loadingMore = false)
+            }
+        }
+    }
+
+    private suspend fun picks(): List<FeedCard>? = try {
+        api.recommended()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun State.withPicks(picks: List<FeedCard>): State = when {
+        picks.isEmpty() -> this
+        // Already leading the feed (a re-read): they stay where they are.
+        recommended.isNotEmpty() -> copy(recommended = picks)
+        // The latest cards are on screen: the picks wait for the reader's tap.
+        phase == Phase.Loaded && cards.isNotEmpty() -> copy(waitingPicks = picks)
+        else -> copy(recommended = picks)
+    }
+}

@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -28,6 +29,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.resonance.app.PushCenter
 import com.resonance.app.Session
+import com.resonance.kit.reading.FeedLoader
 import com.resonance.app.thoughtmap.ThoughtMapScreen
 import com.resonance.app.thoughtmap.ThoughtMapStore
 import com.resonance.design.generated.IconName
@@ -110,6 +112,11 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     val mapOnStack = stacks.values.any { s -> s.any { it is Route.ThoughtMap } }
     LaunchedEffect(mapOnStack) { if (!mapOnStack) mapHolder.store = null }
 
+    // The home feed outlives its screen (which leaves the composition whenever a page covers it or
+    // another tab is chosen), so coming back finds it as it was left.
+    val scope = rememberCoroutineScope()
+    val feed = remember { FeedLoader(session.reading, scope) }
+
     // A site path from a link or a push. A conversation belongs to the Messages tab's stack; other pages open on the current tab.
     fun open(route: Route) {
         if (route is Route.Thread) tab = Tab.Messages
@@ -156,7 +163,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
             entryProvider = entryProvider {
                 entry<Route.Root> { r ->
                     when (r.tab) {
-                        Tab.Feed -> FeedScreen(session, push)
+                        Tab.Feed -> FeedScreen(session, feed, push)
                         Tab.Messages -> ConversationsScreen(session, push)
                         Tab.Notifications -> NotificationsScreen(session, push)
                         Tab.CardBox -> CardBoxScreen(session, push)

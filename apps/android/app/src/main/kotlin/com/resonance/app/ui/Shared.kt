@@ -16,6 +16,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -140,9 +141,11 @@ fun TabScreen(
     /** iOS's `headerSpacing` (its default is 20): the air between the title and the content when there is no lede. */
     headerSpacing: Dp = 20.dp,
     trailing: @Composable () -> Unit = {},
+    list: LazyListState = rememberLazyListState(),
+    /** Floats over the list, under nothing but the brand bar (the feed's picks hint). */
+    overlay: @Composable BoxScope.() -> Unit = {},
     content: LazyListScope.() -> Unit,
 ) {
-    val list = rememberLazyListState()
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight
     val quickReturn = rememberQuickReturn(list)
     Box(Modifier.fillMaxSize().cream().nestedScroll(quickReturn.connection)) {
@@ -162,6 +165,7 @@ fun TabScreen(
         // The bar slides up under the status bar while reading down and comes back on the way up
         // (the brand has nothing to press, so it gives the stories the room); the status bar keeps its paper.
         OrganicBrandBar(list.scrolledPast20(), Modifier.offset { IntOffset(0, quickReturn.offset.roundToInt()) })
+        overlay()
         Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Tokens.Cream))
     }
 }
