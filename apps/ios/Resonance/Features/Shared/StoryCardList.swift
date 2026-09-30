@@ -2,10 +2,12 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// Cards as the web lists them on a phone: full-bleed bands, each a link to its page.
+/// Cards as the web lists them on a phone: full-bleed bands, each a link to
+/// its page. A card on screen is remembered, so its page opens with it drawn.
 struct StoryCardList: View {
     let cards: [FeedCard]
     var onAppearLast: (() -> Void)? = nil
+    @Environment(SessionStore.self) private var session
 
     var body: some View {
         LazyVStack(spacing: 0) {
@@ -14,7 +16,10 @@ struct StoryCardList: View {
                     StoryCardView(card.story, position: i, isLast: i == cards.count - 1)
                 }
                 .buttonStyle(.plain)
-                .onAppear { if i == cards.count - 1 { onAppearLast?() } }
+                .onAppear {
+                    session.cardPreviews.remember(card)
+                    if i == cards.count - 1 { onAppearLast?() }
+                }
             }
         }
     }
@@ -23,6 +28,7 @@ struct StoryCardList: View {
 /// MiniCardGrid on a phone: the pared-back bands for resonances and linked cards.
 struct MiniCardList: View {
     let cards: [FeedCard]
+    @Environment(SessionStore.self) private var session
 
     var body: some View {
         LazyVStack(spacing: 0) {
@@ -31,6 +37,7 @@ struct MiniCardList: View {
                     MiniStoryCardView(card.mini, position: i, isLast: i == cards.count - 1)
                 }
                 .buttonStyle(.plain)
+                .onAppear { session.cardPreviews.remember(card) }
             }
         }
     }

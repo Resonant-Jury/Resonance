@@ -59,6 +59,8 @@ final class SessionStore {
     let writing: WritingAPI
     let notifications = NotificationsStore()
     let conversations = ConversationsStore()
+    /// Cards seen in lists, drawn while a card's page loads (this account's only).
+    let cardPreviews = CardPreviewCache()
     let push = PushCenter.shared
     @ObservationIgnored private var listener: AuthStateDidChangeListenerHandle?
     @ObservationIgnored private let apple = AppleSignIn()
@@ -76,6 +78,8 @@ final class SessionStore {
             MainActor.assumeIsolated { self?.apply(user?.uid) }
         }
         push.onToken = { [weak self] _ in Task { await self?.registerPush() } }
+        // Someone blocked or unblocked (here or on another device): what a list showed may no longer be theirs to see.
+        conversations.onBlocksChange = { [weak self] in self?.cardPreviews.clear() }
     }
 
     var reading: ReadingAPI { ReadingAPI(client: api) }
@@ -156,6 +160,7 @@ final class SessionStore {
         let wasRestoring = phase == .restoring
         uid = newUID
         me = nil
+        cardPreviews.clear()
         profile = .unknown
         phase = newUID == nil ? .signedOut : .signedIn
         // An account this install has seen with a profile opens straight onto the tabs.

@@ -186,6 +186,7 @@ private struct ManagedCardList: View {
     let cards: [FeedCard]
     let resumesDrafts: Bool
     @Environment(WriteLauncher.self) private var writer
+    @Environment(SessionStore.self) private var session
 
     var body: some View {
         LazyVStack(spacing: 0) {
@@ -199,6 +200,7 @@ private struct ManagedCardList: View {
                             NavigationLink(value: Route.card(card.routeKey)) {
                                 StoryCardView(card.story, position: i, isLast: i == cards.count - 1)
                             }
+                            .onAppear { session.cardPreviews.remember(card) }
                         }
                     }
                     .buttonStyle(.plain)

@@ -2,8 +2,8 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// A card's page (card/[slug]/page.tsx, phone layout): byline, cover, title
-/// (with its ⋯), the story, tags, what a reader can do next; then the
+/// A card's page (card/[slug]/page.tsx, phone layout): byline, cover, title,
+/// the story, tags, what a reader can do next; then the
 /// resonance and related sections, set straight on the page.
 struct CardScreen: View {
     let key: String
@@ -20,7 +20,8 @@ struct CardScreen: View {
         ScrollView {
             switch model?.phase ?? .loading {
             case .loading:
-                CardDetailSkeleton()
+                // Opened from a list: that list's byline, cover and title at once; the rest while it loads.
+                if let card = model?.placeholder { placeholderPage(card) } else { CardDetailSkeleton() }
             case .notFound:
                 OrganicEmptyState(title: L10n.Card.NotFound.title, titleSize: 24, actionTitle: L10n.Card.NotFound.back,
                                   actionStyle: .link) { openRoute.dismissToRoot() }
@@ -77,7 +78,13 @@ struct CardScreen: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            if model == nil { model = CardModel(key: key, api: session.reading) }
+            if model == nil {
+                let previews = session.cardPreviews
+                let model = CardModel(key: key, api: session.reading, placeholder: previews.card(for: key))
+                model.onLoaded = { previews.remember($0) }
+                model.onNotFound = { previews.forget($0) }
+                self.model = model
+            }
             // Also resumes a load that was cut short when the page left mid-way.
             if let model, model.detail == nil { await model.load() }
         }
@@ -92,18 +99,7 @@ struct CardScreen: View {
         let hue = card.accentHue ?? 55
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                byline(card, anonymous: detail.anonymous)
-                    .padding(.bottom, 28)
-                if let url = card.imageUrl.flatMap(URL.init(string:)) {
-                    OrganicImage(url: url, seed: hue + 11, fill: Tokens.creamDark)
-                        .aspectRatio(1 / 0.52, contentMode: .fit)
-                        .padding(.bottom, 20)
-                        .accessibilityLabel(card.imageLabel ?? card.title)
-                }
-                CSSText(card.title, font: AppFonts.uiFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
-                        tracking: -0.015 * 28)
-                    .accessibilityAddTraits(.isHeader)
-                    .padding(.bottom, 28)
+                head(card, anonymous: detail.anonymous)
                 StoryMarkdownView(blocks: model.blocks, onOpenURL: open) { href, title in
                     CardEmbedView(href: href, title: title)
                 }
@@ -143,6 +139,37 @@ struct CardScreen: View {
             // Room for the pen.
             Color.clear.frame(height: 96)
         }
+    }
+
+    /// Byline, cover and title: what a list already knows of the card (its
+    /// actions live in the bar).
+    private func head(_ card: FeedCard, anonymous: Bool) -> some View {
+        let hue = card.accentHue ?? 55
+        return VStack(alignment: .leading, spacing: 0) {
+            byline(card, anonymous: anonymous)
+                .padding(.bottom, 28)
+            if let url = card.imageUrl.flatMap(URL.init(string:)) {
+                OrganicImage(url: url, seed: hue + 11, fill: Tokens.creamDark)
+                    .aspectRatio(1 / 0.52, contentMode: .fit)
+                    .padding(.bottom, 20)
+                    .accessibilityLabel(card.imageLabel ?? card.title)
+            }
+            CSSText(card.title, font: AppFonts.uiFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
+                    tracking: -0.015 * 28)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.bottom, 28)
+        }
+    }
+
+    /// The page as a list knew the card: its head as it will stand, then the
+    /// story still loading.
+    private func placeholderPage(_ card: FeedCard) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            head(card, anonymous: card.anonymous)
+            StorySkeleton()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
     }
 
     /// The phone byline: avatar, pen name (→ their page), verified mark, region · date.
@@ -272,6 +299,19 @@ private struct CardDetailSkeleton: View {
                 SkeletonBlock(fraction: 0.55, height: 38)
             }
             .padding(.bottom, 28)
+            StorySkeleton()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .accessibilityElement()
+        .accessibilityLabel("Loading")
+    }
+}
+
+/// The story and its tags, still loading (under a real or skeleton head).
+private struct StorySkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
                 SkeletonBlock(height: 17)
                 SkeletonBlock(height: 17)
@@ -285,8 +325,6 @@ private struct CardDetailSkeleton: View {
                 SkeletonBlock(width: 56, height: 26, radius: 13)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
         .accessibilityElement()
         .accessibilityLabel("Loading")
     }
@@ -322,7 +360,17 @@ struct CardEmbedView: View {
         }
         .buttonStyle(.plain)
         .task(id: href) {
-            do { card = try await ReadingAPI(client: session.api).card(key).card } catch { failed = true }
+            // A card already seen draws at once; the server still decides whether it's here.
+            if card == nil { card = session.cardPreviews.card(for: key) }
+            do {
+                let fresh = try await session.reading.card(key).card
+                card = fresh
+                session.cardPreviews.remember(fresh)
+            } catch {
+                guard !Task.isCancelled else { return }
+                card = nil
+                failed = true
+            }
         }
     }
 }

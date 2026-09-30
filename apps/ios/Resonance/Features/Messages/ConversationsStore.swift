@@ -41,6 +41,8 @@ final class ConversationsStore {
     private(set) var starters: [Person] = []
     private(set) var loaded = false
     var unreadTotal: Int { conversations.reduce(0) { $0 + $1.unread } }
+    /// Called when the block list changes (not for the first read of it at sign-in).
+    @ObservationIgnored var onBlocksChange: (() -> Void)?
 
     @ObservationIgnored private var uid: String?
     @ObservationIgnored private var listeners: [ListenerRegistration] = []
@@ -72,7 +74,12 @@ final class ConversationsStore {
                 .addSnapshotListener { [weak self] snap, _ in
                     guard let snap else { return }
                     let ids = Set(snap.documents.map(\.documentID))
-                    MainActor.assumeIsolated { self?.blocked = ids; self?.arrived("blocks") }
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        if self.ready.contains("blocks"), ids != self.blocked { self.onBlocksChange?() }
+                        self.blocked = ids
+                        self.arrived("blocks")
+                    }
                 },
         ]
     }
