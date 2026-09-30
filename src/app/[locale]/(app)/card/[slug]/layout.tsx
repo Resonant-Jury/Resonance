@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { getAdminDb } from '@/lib/db/firestore/admin';
+import { cardByKey } from '@/lib/db/firestore/cardKey';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import { FirestoreUserRepository } from '@/lib/db/firestore/user';
 import type { Locale } from '@/lib/db/types';
@@ -41,16 +42,8 @@ export async function generateMetadata({
   const { locale, slug } = await params;
   const db = getAdminDb();
 
-  // slug → doc (mirrors /api/cards/resolve: match on slug, fall back to id).
-  let snap = null;
-  const bySlug = await db.collection('cards').where('slug', '==', slug).limit(1).get();
-  if (!bySlug.empty) {
-    snap = bySlug.docs[0];
-  } else {
-    const byId = await db.collection('cards').doc(slug).get();
-    if (byId.exists) snap = byId;
-  }
-
+  // slug → doc (the same resolver as /api/cards/resolve: slug, else id).
+  const snap = await cardByKey(db, slug);
   if (!snap) return {};
 
   const card = mapCard(snap.id, snap.data() ?? {});

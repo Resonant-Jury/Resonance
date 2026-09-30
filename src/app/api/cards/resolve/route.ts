@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/db/firestore/admin';
+import { cardByKey } from '@/lib/db/firestore/cardKey';
 
 export const runtime = 'nodejs';
 
@@ -14,12 +15,6 @@ export async function GET(req: Request) {
   const key = new URL(req.url).searchParams.get('key')?.trim();
   if (!key) return NextResponse.json({ id: null });
 
-  const db = getAdminDb();
-  const bySlug = await db.collection('cards').where('slug', '==', key).limit(1).get();
-  if (!bySlug.empty) {
-    return NextResponse.json({ id: bySlug.docs[0].id });
-  }
-
-  const byId = await db.collection('cards').doc(key).get();
-  return NextResponse.json({ id: byId.exists ? byId.id : null });
+  const card = await cardByKey(getAdminDb(), key);
+  return NextResponse.json({ id: card?.id ?? null });
 }

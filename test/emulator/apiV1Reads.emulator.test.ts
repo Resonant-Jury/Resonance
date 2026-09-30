@@ -242,6 +242,24 @@ describe('getCardBox', () => {
     expect(drafts[0].publishedAt).toBeNull();
   });
 
+  // Regression: the three shelves shared one "newest 40" query, so an author's
+  // 41st published card pushed every draft out of the box (publishedAt null
+  // sorts last), and a run of private cards crowded out the public ones.
+  it('keeps every shelf full however many cards the others hold', async () => {
+    await Promise.all(Array.from({ length: 41 }, (_, i) => card(`pub${i}`, 'alice', 100 + i)));
+    await Promise.all(Array.from({ length: 41 }, (_, i) => card(`priv${i}`, 'alice', i + 1, { visibility: 'private' })));
+    await card('older-draft', 'alice', 0, { publishedAt: null, updatedAt: minutesAgo(30) });
+    await card('newer-draft', 'alice', 0, { publishedAt: null, updatedAt: minutesAgo(1) });
+    const shelf = async (tab: Parameters<typeof getCardBox>[2]) => (await getCardBox(db, 'alice', tab)).cards.map((c) => c.id);
+    expect(await shelf('draft')).toEqual(['newer-draft', 'older-draft']);
+    const published = await shelf('published');
+    expect(published).toHaveLength(40);
+    expect(published[0]).toBe('pub0');
+    const priv = await shelf('private');
+    expect(priv).toHaveLength(40);
+    expect(priv[0]).toBe('priv0');
+  });
+
   it('lists the originals the viewer resonated with, cards linking to theirs, and bookmarks they can still read', async () => {
     await card('orig', 'bob', 10);
     await card('mine', 'alice', 1, { referenceCardId: 'orig' });
@@ -261,5 +279,27 @@ describe('getCardBox', () => {
     await card('anon', 'alice', 1, { anonymous: true });
     const [c] = (await getFeed(db, 'bob', 5)).cards;
     expect(c).toMatchObject({ id: 'anon', anonymous: true, author: null });
+  });
+});
+
+describe('cards written before the rules closed publishedAt and slug', () => {
+  // Clients used to be able to write both. A string publishedAt sorts above
+  // every timestamp and crashed the feed's cursor; a far-future one pinned a
+  // card to the top; a copied slug took over someone's URL.
+  it('leaves a card with a forged publishedAt out of the feed and the profile, without failing', async () => {
+    await card('real', 'bob', 5);
+    await card('stringy', 'dana', 0, { publishedAt: 'zzz' });
+    await card('future', 'dana', 0, { publishedAt: Timestamp.fromDate(new Date('2099-01-01')) });
+    const page = await getFeed(db, 'alice', 3);
+    expect(page.cards.map((c) => c.id)).toEqual(['real']);
+    expect((await getProfileCards(db, 'alice', 'dana', 10)).cards).toEqual([]);
+  });
+
+  it('resolves a shared slug to the card that was published with it first', async () => {
+    await card('victim', 'bob', 60, { slug: 'a-quiet-morning' });
+    // A later copy under an id that sorts first, and an unpublished one.
+    await card('!copy', 'dana', 1, { slug: 'a-quiet-morning' });
+    await card('!draft', 'dana', 0, { slug: 'a-quiet-morning', publishedAt: null });
+    expect((await getCardDetail(db, 'alice', 'a-quiet-morning')).card.id).toBe('victim');
   });
 });

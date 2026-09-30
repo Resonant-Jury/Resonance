@@ -1,8 +1,10 @@
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { Timestamp, type Firestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { cardByKey } from '@/lib/db/firestore/cardKey';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card, RecommendationItem } from '@/lib/db/types';
 import { ApiFailure } from './http';
 import { blockedByViewer, canView, connected, loadAuthors, toAuthor, toFeedCard } from './present';
+import { properlyPublished } from './service';
 import type { CardBoxTabName, CardDetailBody, FeedCardBody, FeedPageBody, ProfileBody } from './schemas';
 
 /**
@@ -25,8 +27,8 @@ async function cardDoc(db: Firestore, id: string): Promise<Card | null> {
 
 /** A card the viewer may read, by slug or document id — else not_found (never "forbidden": that would confirm it exists). */
 export async function visibleCard(db: Firestore, viewerId: string, key: string): Promise<Card> {
-  const bySlug = await db.collection('cards').where('slug', '==', key).limit(1).get();
-  const card = bySlug.empty ? await cardDoc(db, key) : mapCard(bySlug.docs[0].id, bySlug.docs[0].data());
+  const snap = await cardByKey(db, key);
+  const card = snap ? mapCard(snap.id, snap.data()!) : null;
   if (!card || !(await canView(db, card, viewerId))) throw new ApiFailure('not_found', 'No such card.');
   return card;
 }
@@ -179,11 +181,14 @@ export async function getProfileCards(db: Firestore, viewerId: string, handle: s
     .limit(limit);
   if (cursor) q = q.startAfter(Timestamp.fromDate(new Date(cursor)));
   const snap = await q.get();
-  const cards = snap.docs.map((d) => mapCard(d.id, d.data())).filter((c) => c.publishedAt && !c.anonymous);
-  const last = snap.docs.at(-1)?.get('publishedAt') as Timestamp | undefined;
+  const cards = snap.docs
+    .filter((d) => properlyPublished(d.get('publishedAt')))
+    .map((d) => mapCard(d.id, d.data()))
+    .filter((c) => !c.anonymous);
+  const last = snap.docs.at(-1)?.get('publishedAt');
   return {
     cards: cards.map((c) => toFeedCard(c, user.data())),
-    nextCursor: snap.size === limit && last ? last.toDate().toISOString() : null,
+    nextCursor: snap.size === limit && last instanceof Timestamp ? last.toDate().toISOString() : null,
   };
 }
 
@@ -196,6 +201,8 @@ export async function getProfileLinks(db: Firestore, viewerId: string, handle: s
 }
 
 const BOX_LIMIT = 40;
+/** How many drafts are read to find the most recently edited ones. */
+const DRAFT_SCAN = 200;
 
 /**
  * One shelf of the viewer's card box (the web's useMyCardBox): their own
@@ -205,13 +212,26 @@ const BOX_LIMIT = 40;
  */
 export async function getCardBox(db: Firestore, viewerId: string, tab: CardBoxTabName): Promise<{ cards: FeedCardBody[] }> {
   if (tab === 'published' || tab === 'private' || tab === 'draft') {
-    const snap = await db.collection('cards').where('authorId', '==', viewerId).orderBy('publishedAt', 'desc').limit(BOX_LIMIT).get();
-    const mine = snap.docs
-      .map((d) => mapCard(d.id, d.data()))
-      .filter((c) =>
-        tab === 'draft' ? !c.publishedAt : c.publishedAt && (tab === 'private' ? c.visibility === 'private' : c.visibility !== 'private'),
-      );
-    const me = await db.doc(`users/${viewerId}`).get();
+    // One query per shelf: with a shared "newest 40" query, an author's 41st
+    // published card pushed every draft (publishedAt null sorts last) out of
+    // the box, and private cards crowded out public ones.
+    const own = db.collection('cards').where('authorId', '==', viewerId);
+    const [snap, me] = await Promise.all([
+      tab === 'draft'
+        ? own.where('publishedAt', '==', null).limit(DRAFT_SCAN).get()
+        : own.where('visibility', 'in', tab === 'private' ? ['private'] : ['public', 'connections'])
+            .orderBy('publishedAt', 'desc').limit(BOX_LIMIT).get(),
+      db.doc(`users/${viewerId}`).get(),
+    ]);
+    const edited = (d: QueryDocumentSnapshot) => {
+      const at = d.get('updatedAt');
+      return at instanceof Timestamp ? at.toMillis() : 0;
+    };
+    const docs = tab === 'draft'
+      // Most recently edited first (sorted here: drafts are few, and this needs no composite index).
+      ? [...snap.docs].sort((a, b) => edited(b) - edited(a)).slice(0, BOX_LIMIT)
+      : snap.docs;
+    const mine = docs.map((d) => mapCard(d.id, d.data())).filter((c) => tab === 'draft' || c.publishedAt);
     return { cards: mine.map((c) => toFeedCard(c, me.data(), { deanonymize: true })) };
   }
   if (tab === 'resonated') {

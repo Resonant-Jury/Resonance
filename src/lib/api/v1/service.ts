@@ -33,6 +33,16 @@ export async function getMe(db: Firestore, uid: string): Promise<MeBody> {
 }
 
 /**
+ * Whether a card's publishedAt is a real server stamp. The rules only let the
+ * server set it now, but a card written before that could carry any value —
+ * a string (which Firestore sorts above every timestamp) or a far-future
+ * date — to sit on top of the feed; such a card is skipped, never fatal.
+ */
+export function properlyPublished(at: unknown, now = Date.now()): boolean {
+  return at instanceof Timestamp && at.toMillis() <= now + 60 * 60 * 1000;
+}
+
+/**
  * Latest public cards, newest first — the web's latest-feed query, minus
  * authors the viewer blocked. Pages are cut on the *raw* query so a page of
  * blocked authors doesn't end the feed early (same as useFeed on the web).
@@ -47,12 +57,14 @@ export async function getFeed(db: Firestore, viewerId: string, limit: number, cu
   if (cursor) q = q.startAfter(Timestamp.fromDate(new Date(cursor)));
   const [snap, blocked] = await Promise.all([q.get(), blockedByViewer(db, viewerId)]);
 
-  const cards = snap.docs.map((d) => mapCard(d.id, d.data())).filter((c) => !blocked.has(c.authorId));
+  const cards = snap.docs
+    .filter((d) => properlyPublished(d.get('publishedAt')))
+    .map((d) => mapCard(d.id, d.data()))
+    .filter((c) => !blocked.has(c.authorId));
   const authors = await loadAuthors(db, cards);
-  const last = snap.docs.at(-1);
-  const lastAt = last?.get('publishedAt') as Timestamp | undefined;
+  const lastAt = snap.docs.at(-1)?.get('publishedAt');
   return {
     cards: cards.map((c) => toFeedCard(c, authors.get(c.authorId))),
-    nextCursor: snap.size === limit && lastAt ? lastAt.toDate().toISOString() : null,
+    nextCursor: snap.size === limit && lastAt instanceof Timestamp ? lastAt.toDate().toISOString() : null,
   };
 }

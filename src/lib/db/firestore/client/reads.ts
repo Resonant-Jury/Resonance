@@ -150,20 +150,36 @@ export async function getCardsByAuthor(authorId: string, tab: CardBoxTab): Promi
     return cards.filter((c): c is Card => Boolean(c));
   }
 
+  // One query per shelf: with a shared "newest 40" query, an author's 41st
+  // published card pushed every draft (publishedAt null sorts last) out of
+  // the box, and private cards crowded out public ones.
+  const own = [collection(db, 'cards'), where('authorId', '==', authorId)] as const;
+  if (tab === 'draft') {
+    const snap = await getDocs(query(...own, where('publishedAt', '==', null), fbLimit(DRAFT_SCAN)));
+    // Most recently edited first (sorted here: drafts are few, and this needs no composite index).
+    const edited = (d: (typeof snap.docs)[number]) => {
+      const at = d.data().updatedAt;
+      return at instanceof Timestamp ? at.toMillis() : 0;
+    };
+    return [...snap.docs]
+      .sort((a, b) => edited(b) - edited(a))
+      .slice(0, BOX_LIMIT)
+      .map((d) => mapCard(d.id, d.data()));
+  }
   const snap = await getDocs(
     query(
-      collection(db, 'cards'),
-      where('authorId', '==', authorId),
+      ...own,
+      where('visibility', 'in', tab === 'private' ? ['private'] : ['public', 'connections']),
       orderBy('publishedAt', 'desc'),
-      fbLimit(40)
+      fbLimit(BOX_LIMIT)
     )
   );
-  let cards = snap.docs.map((d) => mapCard(d.id, d.data()));
-  if (tab === 'published') cards = cards.filter((c) => c.publishedAt && c.visibility !== 'private');
-  if (tab === 'private') cards = cards.filter((c) => c.publishedAt && c.visibility === 'private');
-  if (tab === 'draft') cards = cards.filter((c) => !c.publishedAt);
-  return cards;
+  return snap.docs.map((d) => mapCard(d.id, d.data())).filter((c) => c.publishedAt);
 }
+
+/** A card box shelf's size, and how many drafts are read to find the latest ones. */
+const BOX_LIMIT = 40;
+const DRAFT_SCAN = 200;
 
 /**
  * Public cards for an author's outward-facing profile, newest first.
