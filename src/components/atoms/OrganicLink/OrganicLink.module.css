@@ -17,9 +17,15 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -3px;
+  /* The stroke's centre rides 0.2em under the baseline — under the letters, not
+     under the line box — so it hugs them whatever the line-height around the
+     link is (the link's own box, and so the rhythm of the columns and sentences
+     it sits in, stays as it was). DM Sans sets its baseline (ascent - descent) / 2
+     = 0.34em below the middle of the line box; the svg is 6px tall, centred on
+     the pen's line, so its top is 3px above that. */
+  top: calc(50% + 0.54em - 3px);
   width: 100%;
-  height: 7px;
+  height: 6px;
   overflow: visible;
   pointer-events: none;
   opacity: 0.7;
