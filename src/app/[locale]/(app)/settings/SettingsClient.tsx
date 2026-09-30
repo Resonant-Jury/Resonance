@@ -9,7 +9,7 @@ import { Field, Input, Select } from '@/components/atoms/Field/Field';
 import { SquareFlag } from '@/components/atoms/SquareFlag/SquareFlag';
 import { regionDisplayName } from '@/lib/regionName';
 import { Divider } from '@/components/atoms/Divider/Divider';
-import { ToggleSwitch } from '@/components/atoms/ToggleSwitch/ToggleSwitch';
+import { OrganicLink } from '@/components/atoms/OrganicLink/OrganicLink';
 import { OrganicSlider } from '@/components/atoms/OrganicSlider/OrganicSlider';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { AvatarUpload } from '@/components/molecules/AvatarUpload/AvatarUpload';
@@ -28,10 +28,8 @@ type Section =
   | 'profile'
   | 'account'
   | 'privacy'
-  | 'notifications'
   | 'language'
   | 'appearance'
-  | 'ai'
   | 'terms'
   | 'delete';
 
@@ -43,10 +41,8 @@ const SECTIONS: Section[] = [
   'profile',
   'account',
   'privacy',
-  'notifications',
   'language',
   'appearance',
-  'ai',
   'terms',
   'delete',
 ];
@@ -63,10 +59,8 @@ const SECTION_ICONS: Record<Section, IconName> = {
   profile: 'user',
   account: 'key',
   privacy: 'lock',
-  notifications: 'bell',
   language: 'globe',
   appearance: 'palette',
-  ai: 'sparkle',
   terms: 'document',
   delete: 'trash',
 };
@@ -87,6 +81,7 @@ export interface SettingsClientProps {
 export function SettingsClient({ initial }: SettingsClientProps) {
   const t = useTranslations('settings');
   const tTweaks = useTranslations('tweaks');
+  const tFooter = useTranslations('footer');
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -155,20 +150,6 @@ export function SettingsClient({ initial }: SettingsClientProps) {
     }
   }
 
-  const [prefs, setPrefs] = useState({
-    searchable: true,
-    aiOptIn: false,
-    notifResonance: true,
-    notifConnection: true,
-    notifDm: true,
-    notifTranslation: true,
-    aiPolish: true,
-    aiTags: true,
-    aiHints: false,
-  });
-  function togglePref<K extends keyof typeof prefs>(k: K) {
-    setPrefs((p) => ({ ...p, [k]: !p[k] }));
-  }
 
   // Autosave: profile fields persist on their own a moment after editing stops
   // (no Save button). Values travel through refs so the debounce timer, the
@@ -294,31 +275,11 @@ export function SettingsClient({ initial }: SettingsClientProps) {
           </div>
         )}
         {active === 'privacy' && (
-          <>
-            <ToggleGroup
-              seed={71}
-              rows={[
-                { key: 'searchable', label: t('privacy.searchable'), on: prefs.searchable, onToggle: () => togglePref('searchable') },
-                { key: 'aiOptIn', label: t('privacy.aiOptIn'), on: prefs.aiOptIn, onToggle: () => togglePref('aiOptIn') },
-              ]}
-            />
-            <div style={{ marginTop: 28 }}>
-              <OrganicButton variant="outline" onClick={() => setBlockListOpen(true)}>
-                {t('privacy.manageBlocks')}
-              </OrganicButton>
-            </div>
-          </>
-        )}
-        {active === 'notifications' && (
-          <ToggleGroup
-            seed={83}
-            rows={[
-              { key: 'resonance', label: t('notifications.resonance'), on: prefs.notifResonance, onToggle: () => togglePref('notifResonance') },
-              { key: 'connection', label: t('notifications.connection'), on: prefs.notifConnection, onToggle: () => togglePref('notifConnection') },
-              { key: 'dm', label: t('notifications.dm'), on: prefs.notifDm, onToggle: () => togglePref('notifDm') },
-              { key: 'translation', label: t('notifications.translation'), on: prefs.notifTranslation, onToggle: () => togglePref('notifTranslation') },
-            ]}
-          />
+          <div>
+            <OrganicButton variant="outline" onClick={() => setBlockListOpen(true)}>
+              {t('privacy.manageBlocks')}
+            </OrganicButton>
+          </div>
         )}
         {active === 'language' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -414,20 +375,14 @@ export function SettingsClient({ initial }: SettingsClientProps) {
             </Field>
           </div>
         )}
-        {active === 'ai' && (
-          <ToggleGroup
-            seed={97}
-            rows={[
-              { key: 'polish', label: t('ai.polish'), on: prefs.aiPolish, onToggle: () => togglePref('aiPolish') },
-              { key: 'tags', label: t('ai.tags'), on: prefs.aiTags, onToggle: () => togglePref('aiTags') },
-              { key: 'hints', label: t('ai.hints'), on: prefs.aiHints, onToggle: () => togglePref('aiHints') },
-            ]}
-          />
-        )}
         {active === 'terms' && (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>
-            The terms page will live here — {t('sections.terms')}.
-          </p>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 18, fontSize: 16 }}>
+            {(['privacy', 'terms', 'contact'] as const).map((k) => (
+              <li key={k}>
+                <OrganicLink href={`/${locale}/${k === 'contact' ? 'support' : k}`}>{tFooter(k)}</OrganicLink>
+              </li>
+            ))}
+          </ul>
         )}
         {active === 'delete' && <DeleteAccountSection />}
     </section>
@@ -533,55 +488,6 @@ export function SettingsClient({ initial }: SettingsClientProps) {
       {sectionContent}
 
       {modal}
-    </div>
-  );
-}
-
-interface ToggleRowSpec {
-  key: string;
-  label: string;
-  on: boolean;
-  onToggle: () => void;
-}
-
-/** A stack of toggle rows separated by wavy hand-drawn dividers (no flat
- * borders), with generous row padding so the section breathes. */
-function ToggleGroup({ rows, seed = 17 }: { rows: ToggleRowSpec[]; seed?: number }) {
-  return (
-    <div>
-      {rows.map((row, i) => (
-        <Fragment key={row.key}>
-          {i > 0 && <Divider seed={seed + i * 4} spacing={6} />}
-          <ToggleRow label={row.label} on={row.on} onToggle={row.onToggle} seed={seed + i * 13} />
-        </Fragment>
-      ))}
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  on,
-  onToggle,
-  seed,
-}: {
-  label: string;
-  on: boolean;
-  onToggle: () => void;
-  seed?: number;
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 24,
-        padding: '20px 2px',
-      }}
-    >
-      <span style={{ fontSize: 15, lineHeight: 1.5, color: 'var(--color-text)' }}>{label}</span>
-      <ToggleSwitch checked={on} onChange={onToggle} ariaLabel={label} seed={seed} />
     </div>
   );
 }
