@@ -12,7 +12,7 @@ import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
-import { useProfileByHandle } from '@/lib/data/hooks';
+import { useProfileByHandle, useProfileCards, useProfileLinks } from '@/lib/data/hooks';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { BlockedNotice, ProfileSafetyMenu } from './ProfileSafety';
 import { regionDisplayName } from '@/lib/regionName';
@@ -36,9 +36,16 @@ export default function PublicProfilePage() {
   const t = useTranslations('profile');
   const tMsg = useTranslations('messages');
   const { user: viewer } = useAuth();
+  // Three reads side by side once the handle names someone: the viewer's
+  // standing with them (blocks + connection), their cards, and the cards
+  // linking to theirs. The page waits for the first two (the hero counts the
+  // cards); the links arrive when they do.
   const { data, isLoading } = useProfileByHandle(handle);
+  const { data: published, error: cardsError } = useProfileCards(handle);
+  const { data: links } = useProfileLinks(handle);
+  const cardsPending = !!data?.user && !data.isBlocked && published === undefined && !cardsError;
 
-  if (isLoading) {
+  if (isLoading || cardsPending) {
     return (
       <PageShell width="wide">
         <div className={styles.hero} role="status" aria-label="Loading profile">
@@ -68,7 +75,10 @@ export default function PublicProfilePage() {
     );
   }
 
-  const { user, isSelf, isConnected, isBlocked, published, linked, linkedAuthors } = data;
+  const { user, isSelf, isConnected, isBlocked } = data;
+  // Someone the viewer blocked shows none of their cards, nor what links to them.
+  const cards = isBlocked ? [] : (published ?? []);
+  const linked = isBlocked ? [] : (links?.cards ?? []);
   const authors: Record<string, User> = { [user.id]: user };
   const joined = new Date(user.joinedAt).toLocaleDateString(locale, {
     year: 'numeric',
@@ -106,7 +116,7 @@ export default function PublicProfilePage() {
           )}
           <span className={styles.metaItem}>
             <Icon name="cards" size={14} />
-            {t('cardCount', { count: published.length })}
+            {t('cardCount', { count: cards.length })}
           </span>
           <span className={styles.metaItem}>{t('joined', { date: joined })}</span>
           {/* Relationship mark: a person + tick instead of a "Connected" label —
@@ -150,11 +160,11 @@ export default function PublicProfilePage() {
       {/* Visitors with nothing to browse see no section at all — the hero's
           card-count line already states the fact, so a heading over an empty
           state would just restate it. The owner keeps the teaching moment. */}
-      {!isBlocked && (published.length > 0 || isSelf) && (
+      {!isBlocked && (cards.length > 0 || isSelf) && (
         <section className={styles.section}>
           <h2 className={styles.sectionHeading}>{t('publishedHeading')}</h2>
-          {published.length > 0 ? (
-            <CardLinkGrid cards={published} authors={authors} />
+          {cards.length > 0 ? (
+            <CardLinkGrid cards={cards} authors={authors} />
           ) : (
             // The owner's empty profile teaches instead of apologizing (ux §4).
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
@@ -172,7 +182,7 @@ export default function PublicProfilePage() {
       {linked.length > 0 && (
         <section className={styles.section}>
           <h2 className={styles.sectionHeading}>{t('linkedCards')}</h2>
-          <MiniCardGrid cards={linked} authors={linkedAuthors} />
+          <MiniCardGrid cards={linked} authors={links?.authors ?? {}} />
         </section>
       )}
     </PageShell>

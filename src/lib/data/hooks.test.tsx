@@ -82,6 +82,8 @@ import {
   useMyCardBox,
   useMyThoughtMap,
   useProfileByHandle,
+  useProfileCards,
+  useProfileLinks,
   useRecommendedFeed,
   useRelated,
   useResonators,
@@ -212,18 +214,31 @@ describe('blocked authors', () => {
     expect(result.current.hasMore).toBe(true);
   });
 
-  it('shows a blocked person\'s profile as blocked, with none of their cards', async () => {
+  it("shows a blocked person's profile as blocked (the page then shows none of their cards)", async () => {
     vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['u2']));
     vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'bob'));
-    vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('c1', 'u2')]);
+    vi.mocked(isConnected).mockResolvedValue(false);
 
     const { result } = renderHook(() => useProfileByHandle('bob'), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
 
     expect(result.current.data!.isBlocked).toBe(true);
     expect(result.current.data!.user!.id).toBe('u2');
-    expect(result.current.data!.published).toEqual([]);
-    expect(getPublicCardsByAuthor).not.toHaveBeenCalled();
+  });
+
+  it('drops blocked people from the cards linking to a profile', async () => {
+    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['bad']));
+    vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'bob'));
+    vi.mocked(listLinksToAuthor).mockResolvedValue([
+      { id: 'l1', sourceCardId: 'x1', sourceAuthorId: 'bad', targetCardId: 'p1', targetAuthorId: 'u2', createdAt: new Date() },
+      { id: 'l2', sourceCardId: 'x2', sourceAuthorId: 'a1', targetCardId: 'p1', targetAuthorId: 'u2', createdAt: new Date() },
+    ]);
+    vi.mocked(getCardById).mockImplementation(async (id) => card(id, id === 'x1' ? 'bad' : 'a1'));
+    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
+
+    const { result } = renderHook(() => useProfileLinks('bob').data, { wrapper });
+    await waitFor(() => expect(result.current).toBeDefined());
+    expect(result.current!.cards.map((c) => c.id)).toEqual(['x2']);
   });
 
   it('drops blocked people from resonance and related lists', async () => {
@@ -422,22 +437,52 @@ describe('useMyThoughtMap', () => {
   });
 });
 
-describe('useProfileByHandle', () => {
+// The profile page reads three things once the handle names someone — the
+// viewer's standing with them, their cards, the cards linking to theirs — side
+// by side, not one after another.
+describe('profile hooks', () => {
+  /** The three hooks as the profile page composes them, reading `.data` during render. */
+  function useProfilePage(handle: string) {
+    const head = useProfileByHandle(handle);
+    const cards = useProfileCards(handle);
+    const links = useProfileLinks(handle);
+    return { head: head.data, isLoading: head.isLoading, cards: cards.data, links: links.data };
+  }
+
   it('assembles a public profile (connection state, public cards) for another user', async () => {
     vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'other'));
     vi.mocked(isConnected).mockResolvedValue(true);
     vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('p1', 'u2')]);
     vi.mocked(getUsersByIds).mockResolvedValue({});
 
-    const { result } = renderHook(() => useProfileByHandle('other'), { wrapper });
-    await waitFor(() => expect(result.current.data).toBeDefined());
+    const { result } = renderHook(() => useProfilePage('other'), { wrapper });
+    await waitFor(() => expect(result.current.head && result.current.cards && result.current.links).toBeTruthy());
 
-    const data = result.current.data!;
-    expect(data.user!.id).toBe('u2');
-    expect(data.isSelf).toBe(false);
-    expect(data.isConnected).toBe(true);
-    expect(data.published.map((c) => c.id)).toEqual(['p1']);
+    const { head, cards } = result.current;
+    expect(head!.user!.id).toBe('u2');
+    expect(head!.isSelf).toBe(false);
+    expect(head!.isConnected).toBe(true);
+    expect(cards!.map((c) => c.id)).toEqual(['p1']);
     expect(getPublicCardsByAuthor).toHaveBeenCalledWith('u2');
+    // The three hooks share one lookup of the handle.
+    expect(getUserByHandle).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the viewer's blocks, the connection, the cards and the links together, not in a chain", async () => {
+    vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'other'));
+    // None of these answer until the test says so.
+    const never = () => new Promise<never>(() => {});
+    vi.mocked(getMyBlockedIds).mockImplementation(never);
+    vi.mocked(isConnected).mockImplementation(never);
+    vi.mocked(getPublicCardsByAuthor).mockImplementation(never);
+    vi.mocked(listLinksToAuthor).mockImplementation(never);
+
+    const { result } = renderHook(() => useProfilePage('other'), { wrapper });
+    await waitFor(() => expect(listLinksToAuthor).toHaveBeenCalledWith('u2'));
+    expect(getMyBlockedIds).toHaveBeenCalled();
+    expect(isConnected).toHaveBeenCalledWith('me', 'u2');
+    expect(getPublicCardsByAuthor).toHaveBeenCalledWith('u2');
+    expect(result.current.isLoading).toBe(true);
   });
 
   it('shows the viewer their own public profile and skips the connect round-trip', async () => {
@@ -446,13 +491,12 @@ describe('useProfileByHandle', () => {
     vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('p1', 'me')]);
     vi.mocked(getUsersByIds).mockResolvedValue({});
 
-    const { result } = renderHook(() => useProfileByHandle('myself'), { wrapper });
-    await waitFor(() => expect(result.current.data).toBeDefined());
+    const { result } = renderHook(() => useProfilePage('myself'), { wrapper });
+    await waitFor(() => expect(result.current.head && result.current.cards).toBeTruthy());
 
-    const data = result.current.data!;
-    expect(data.user!.id).toBe('me');
-    expect(data.isSelf).toBe(true);
-    expect(data.published.map((c) => c.id)).toEqual(['p1']);
+    expect(result.current.head!.user!.id).toBe('me');
+    expect(result.current.head!.isSelf).toBe(true);
+    expect(result.current.cards!.map((c) => c.id)).toEqual(['p1']);
     // self view never needs connection state
     expect(isConnected).not.toHaveBeenCalled();
   });
@@ -463,37 +507,38 @@ describe('useProfileByHandle', () => {
     vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('p1', 'u2')]);
     vi.mocked(getUsersByIds).mockResolvedValue({});
 
-    const { result } = renderHook(() => useProfileByHandle('other'), { wrapper });
-    await waitFor(() => expect(result.current.data).toBeDefined());
+    const { result } = renderHook(() => useProfilePage('other'), { wrapper });
+    await waitFor(() => expect(result.current.head && result.current.cards).toBeTruthy());
 
-    const data = result.current.data!;
-    expect(data.user!.id).toBe('u2');
-    expect(data.isSelf).toBe(false);
-    expect(data.published.map((c) => c.id)).toEqual(['p1']);
+    expect(result.current.head!.user!.id).toBe('u2');
+    expect(result.current.head!.isSelf).toBe(false);
+    expect(result.current.cards!.map((c) => c.id)).toEqual(['p1']);
     expect(isConnected).not.toHaveBeenCalled();
   });
 
   // The profile page renders "user not found" whenever it is not loading and has
-  // no user. While auth restores the SWR key is null, so plain SWR would report
-  // isLoading=false with no data — flashing not-found before the skeleton.
-  it('reports loading (not not-found) while auth is still restoring', async () => {
+  // no user. While auth restores the viewer's half can't start, so the head must
+  // report loading — not not-found. The public half (the person, their cards)
+  // doesn't wait: profiles and public cards read the same for everyone.
+  it('reports loading (not not-found) while auth is still restoring, and starts the public reads meanwhile', async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: true });
     vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'other'));
     vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('p1', 'u2')]);
     vi.mocked(getUsersByIds).mockResolvedValue({});
 
-    const { result, rerender } = renderHook(() => useProfileByHandle('other'), { wrapper });
-    await new Promise((r) => setTimeout(r, 0));
-    expect(getUserByHandle).not.toHaveBeenCalled();
-    expect(result.current.data).toBeUndefined();
+    const { result, rerender } = renderHook(() => useProfilePage('other'), { wrapper });
+    await waitFor(() => expect(result.current.cards).toBeDefined());
+    expect(result.current.head).toBeUndefined();
     expect(result.current.isLoading).toBe(true);
+    // Links are read as the viewer (connections-only cards, their blocks): they wait.
+    expect(listLinksToAuthor).not.toHaveBeenCalled();
 
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     rerender();
 
-    await waitFor(() => expect(result.current.data).toBeDefined());
+    await waitFor(() => expect(result.current.head).toBeDefined());
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.data!.user!.id).toBe('u2');
+    expect(result.current.head!.user!.id).toBe('u2');
   });
 
   it('still reports not-loading + empty profile for a handle that does not exist', async () => {
@@ -504,6 +549,7 @@ describe('useProfileByHandle', () => {
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.isLoading).toBe(false);
     expect(result.current.data!.user).toBeNull();
+    expect(getPublicCardsByAuthor).not.toHaveBeenCalled();
   });
 });
 

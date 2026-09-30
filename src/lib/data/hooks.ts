@@ -465,6 +465,7 @@ export function useThread(pairId: string | undefined): ThreadState {
   return state;
 }
 
+/** The head of a user's outward-facing profile: who they are, and how the viewer stands with them. */
 export interface PublicProfile {
   user: User | null;
   /** True when the signed-in viewer is looking at their own public page. */
@@ -472,56 +473,76 @@ export interface PublicProfile {
   isConnected: boolean;
   /** The signed-in viewer has blocked this person — their cards are hidden. */
   isBlocked: boolean;
-  published: Card[];
-  /** Cards that other people linked to one of this user's cards. */
-  linked: Card[];
-  linkedAuthors: Record<string, User>;
 }
 
-const emptyProfile: PublicProfile = {
-  user: null,
-  isSelf: false,
-  isConnected: false,
-  isBlocked: false,
-  published: [],
-  linked: [],
-  linkedAuthors: {},
-};
+const nobody: PublicProfile = { user: null, isSelf: false, isConnected: false, isBlocked: false };
+const strangers = { isConnected: false, isBlocked: false };
 
 /**
- * A user's outward-facing, blog-style profile keyed by handle.
+ * A person by pen name (null: nobody goes by it). Profiles are public, so this
+ * doesn't wait for auth; the profile page's hooks share the one read.
+ */
+function usePersonByHandle(handle: string | undefined) {
+  return useSWR<User | null>(handle ? `person:${handle}` : null, () => getUserByHandle(handle!));
+}
+
+/**
+ * A user's outward-facing, blog-style profile keyed by handle: the person, and
+ * whether the viewer is them, is connected with them, or has blocked them.
+ * Their cards and the cards linking to them are {@link useProfileCards} and
+ * {@link useProfileLinks}, read beside this rather than after it.
  *
- * Works for anonymous visitors as well as signed-in viewers: the profile and
- * its public cards are anonymous-readable, so the SWR key only waits for auth
- * to *settle* (not for a viewer to exist). It re-keys on the viewer id so
- * connection state and the self/visitor distinction refresh on sign-in/out.
- * The connection lookup is only fetched when a non-owner viewer is signed in
- * (that read requires auth).
+ * Works for anonymous visitors as well as signed-in viewers: the person is
+ * read at once, and the viewer's side — the block list and the connection,
+ * read together — once auth has settled (keyed on the viewer, so it refreshes
+ * on sign-in/out). A signed-out visitor or the person themselves needs no read.
  */
 export function useProfileByHandle(handle: string | undefined) {
   const { user: viewer, loading } = useAuth();
-  const key = handle && !loading ? `pubprofile:${handle}:${viewer?.id ?? 'anon'}` : null;
-  const swr = useSWR<PublicProfile>(key, async () => {
-    const user = await getUserByHandle(handle!);
-    if (!user) return emptyProfile;
-
-    const isSelf = !!viewer && viewer.id === user.id;
-    const isBlocked = !!viewer && !isSelf && (await getMyBlockedIds()).has(user.id);
-    if (isBlocked) {
-      return { ...emptyProfile, user, isBlocked };
-    }
-    const [published, links] = await Promise.all([
-      getPublicCardsByAuthor(user.id),
-      listLinksToAuthor(user.id),
-    ]);
-    const connected = viewer && !isSelf ? await isConnected(viewer.id, user.id) : false;
-    const { cards: linked, authors: linkedAuthors } = await withAuthors(
-      await cardsFromIds(links.map((l) => l.sourceCardId)),
-    );
-    return { user, isSelf, isConnected: connected, isBlocked, published, linked, linkedAuthors };
+  const person = usePersonByHandle(handle);
+  const uid = person.data?.id;
+  const relation = useSWR<typeof strangers>(uid && !loading ? `relation:${uid}:${viewer?.id ?? 'anon'}` : null, async () => {
+    if (!viewer || viewer.id === uid) return strangers;
+    const [blocked, connected] = await Promise.all([getMyBlockedIds(), isConnected(viewer.id, uid!)]);
+    return { isBlocked: blocked.has(uid!), isConnected: connected };
   });
-  // Same pre-fetch window as useCard: with a null key SWR reports
-  // isLoading=false / data=undefined, which would flash "user not found" before
-  // auth settles and the real read starts. Count that window as loading.
-  return { ...swr, isLoading: swr.isLoading || (!!handle && key === null) };
+  const personData = person.data;
+  const relationData = relation.data;
+  const data: PublicProfile | undefined =
+    personData === null
+      ? nobody
+      : personData && relationData
+        ? { user: personData, isSelf: !!viewer && viewer.id === personData.id, ...relationData }
+        : undefined;
+  const error = person.error ?? relation.error;
+  // Until both halves are in, this is loading — including the moments before
+  // auth settles, when the viewer's half hasn't started (a null SWR key reports
+  // isLoading=false, which would flash "user not found"). A failed read ends it.
+  return { data, error, isLoading: data === undefined && !error };
+}
+
+/**
+ * A person's public cards, newest first (anonymous ones never: ux §6). The
+ * same for every viewer and anonymous-readable, so it starts as soon as the
+ * person is known — beside the viewer's block and connection reads. The page
+ * shows none of them to a viewer who blocked the person.
+ */
+export function useProfileCards(handle: string | undefined) {
+  const uid = usePersonByHandle(handle).data?.id;
+  return useSWR<Card[]>(uid ? `profileCards:${uid}` : null, () => getPublicCardsByAuthor(uid!));
+}
+
+/**
+ * Cards by others that link to one of this person's cards (the newest few:
+ * listLinksToAuthor's limit), with their authors. Read as the viewer — a
+ * connections-only card shows to its author's connections, a blocked author's
+ * card to nobody who blocked them — so it waits for auth to settle.
+ */
+export function useProfileLinks(handle: string | undefined) {
+  const { user: viewer, loading } = useAuth();
+  const uid = usePersonByHandle(handle).data?.id;
+  return useSWR<CardsWithAuthors>(uid && !loading ? `profileLinks:${uid}:${viewer?.id ?? 'anon'}` : null, async () => {
+    const links = await listLinksToAuthor(uid!);
+    return withAuthors(await cardsFromIds(links.map((l) => l.sourceCardId)));
+  });
 }
