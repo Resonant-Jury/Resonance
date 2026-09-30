@@ -8,7 +8,7 @@ struct ReportForm: View {
     let target: SafetyService.Target
     /// The person's pen name, or nil for an anonymous card's author.
     let handle: String?
-    /// Offer "also block" (not when they're already blocked).
+    /// Offer "also block" (not when they're already blocked, nor for an anonymous card's author).
     var offerBlock = true
     @Binding var sending: Bool
     var onClose: () -> Void
@@ -106,8 +106,8 @@ struct ReportForm: View {
         defer { sending = false }
         do {
             try await safety.report(target, reason: reason, detail: detail)
-            if offerBlock && alsoBlock {
-                try await safety.block(target.userId)
+            if offerBlock && alsoBlock, let other = target.userId {
+                try await safety.block(other)
                 blocked = true
                 onBlocked()
             }
@@ -120,7 +120,8 @@ struct ReportForm: View {
 
 /// The "⋯" safety menu for someone else's card or page (the web's
 /// CardSafetyMenu / ProfileSafetyMenu): report, block/unblock, each through
-/// the web's dialogs.
+/// the web's dialogs. An anonymous card gets Report alone: the app doesn't
+/// know its author, so there is no one to block.
 struct SafetyMenu: View {
     let target: SafetyService.Target
     let handle: String?
@@ -141,7 +142,7 @@ struct SafetyMenu: View {
         OrganicMenu(items: items, label: L10n.Safety.menuLabel, seed: seed, triggerSize: triggerSize)
             .organicModal(isPresented: $reporting, seed: 83, maxWidth: 460, closeLabel: L10n.Safety.Report.close,
                           dismissible: !sendingReport) {
-                ReportForm(target: target, handle: handle, offerBlock: !isBlocked, sending: $sendingReport,
+                ReportForm(target: target, handle: handle, offerBlock: !isBlocked && target.userId != nil, sending: $sendingReport,
                            onClose: { reporting = false }, onBlocked: onChange)
             }
             .organicConfirm(isPresented: $confirmingBlock, title: L10n.Safety.blockTitle(handle: name),
@@ -154,6 +155,7 @@ struct SafetyMenu: View {
 
     private var items: [OrganicMenuItem] {
         let report = OrganicMenuItem(id: "report", title: reportTitle, icon: .flag) { reporting = true }
+        guard target.userId != nil else { return [report] }
         let block = isBlocked
             ? OrganicMenuItem(id: "unblock", title: L10n.Safety.unblock, icon: .ban) { Task { await unblock() } }
             : OrganicMenuItem(id: "block", title: L10n.Safety.block, icon: .ban, danger: true) {
@@ -172,11 +174,11 @@ struct SafetyMenu: View {
     }
 
     private func block() async {
-        guard !busy else { return }
+        guard !busy, let other = target.userId else { return }
         busy = true
         defer { busy = false }
         do {
-            try await session.safety?.block(target.userId)
+            try await session.safety?.block(other)
             confirmingBlock = false
             onChange()
         } catch {
@@ -185,7 +187,8 @@ struct SafetyMenu: View {
     }
 
     private func unblock() async {
-        try? await session.safety?.unblock(target.userId)
+        guard let other = target.userId else { return }
+        try? await session.safety?.unblock(other)
         onChange()
     }
 }

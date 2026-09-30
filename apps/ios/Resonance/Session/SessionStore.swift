@@ -14,10 +14,35 @@ final class SessionStore {
     enum Phase: Equatable { case restoring, signedOut, signedIn }
     enum ProfileState: Equatable { case unknown, loading, loaded, missing, failed(String) }
 
+    /// Where a signed-in person lands: the tabs, or onboarding (the pen-name
+    /// step) when the API says the account has no profile yet.
+    enum Landing: Equatable {
+        /// The loader, until the first answer about a new sign-in's profile —
+        /// so a new account never glimpses the tabs before onboarding.
+        case pending
+        case onboarding
+        case tabs
+
+        /// What an answer about the profile does to it. Only the API's own
+        /// "no profile yet" (404 not_found) opens onboarding; a failed request
+        /// (offline, a server error) can only let a waiting person into the
+        /// tabs, never send anyone to onboarding.
+        func after(_ answer: ProfileAnswer) -> Landing {
+            switch answer {
+            case .found: .tabs
+            case .missing: .onboarding
+            case .failed: self == .pending ? .tabs : self
+            }
+        }
+    }
+
+    enum ProfileAnswer { case found, missing, failed }
+
     private(set) var phase: Phase = .restoring
     private(set) var uid: String?
     private(set) var me: Components.Schemas.Me?
     private(set) var profile: ProfileState = .unknown
+    private(set) var landing: Landing = .pending
     private(set) var isSigningIn = false
     var signInError: String?
 
@@ -54,7 +79,8 @@ final class SessionStore {
     }
 
     var reading: ReadingAPI { ReadingAPI(client: api) }
-    var safety: SafetyService? { uid.map(SafetyService.init(uid:)) }
+    var profiles: ProfileAPI { ProfileAPI(client: api) }
+    var safety: SafetyService? { uid.map { SafetyService(uid: $0, api: SafetyAPI(client: api)) } }
     var bookmarks: BookmarkService? { uid.map(BookmarkService.init(uid:)) }
     var drafts: DraftService? { uid.map(DraftService.init(uid:)) }
     var hints: HintService? { uid.map(HintService.init(uid:)) }
@@ -131,6 +157,8 @@ final class SessionStore {
         uid = newUID
         me = nil
         profile = .unknown
+        // An account this install has seen with a profile opens straight onto the tabs.
+        landing = newUID != nil && UserDefaults.standard.string(forKey: Self.profiledKey) == newUID ? .tabs : .pending
         phase = newUID == nil ? .signedOut : .signedIn
         deletionDate = nil
         if let newUID {
@@ -167,23 +195,44 @@ final class SessionStore {
     }
     #endif
 
+    /// The last account this install saw with a profile (see `landing`).
+    static let profiledKey = "profiledAccount"
+
+    /// Asks for the account's profile. A failure keeps whatever was known
+    /// (the card box offers a retry); only the API's "no profile yet" sends
+    /// the person to onboarding (`Landing.after`).
     func loadMe() async {
+        guard let asked = uid else { return }
         profile = .loading
         do {
-            switch try await api.getMe() {
-            case let .ok(response):
-                me = try response.body.json
-                profile = .loaded
-            case .notFound:
+            let found = try await profiles.me()
+            // Signed out, or someone else signed in, while this was on its way.
+            guard uid == asked else { return }
+            if let found {
+                adopt(found)
+            } else {
+                me = nil
                 profile = .missing
-            case let .unauthorized(response):
-                profile = .failed(APIFailure(try response.body.json, status: 401).message)
-            case let .undocumented(status, _):
-                profile = .failed(APIFailure.unexpected(status: status).message)
+                landing = landing.after(.missing)
+                if UserDefaults.standard.string(forKey: Self.profiledKey) == asked {
+                    UserDefaults.standard.removeObject(forKey: Self.profiledKey)
+                }
             }
         } catch {
-            profile = .failed(error.localizedDescription)
+            guard uid == asked else { return }
+            profile = .failed((error as? APIFailure)?.message ?? error.localizedDescription)
+            landing = landing.after(.failed)
         }
+    }
+
+    /// A profile the API just returned (loaded, created in onboarding, saved
+    /// in settings) becomes the session's, and the tabs open.
+    func adopt(_ found: Components.Schemas.Me) {
+        guard let uid, found.id == uid else { return }
+        me = found
+        profile = .loaded
+        landing = landing.after(.found)
+        UserDefaults.standard.set(uid, forKey: Self.profiledKey)
     }
 
     // MARK: - Signing in

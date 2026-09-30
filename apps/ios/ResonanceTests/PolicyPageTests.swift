@@ -20,8 +20,8 @@ import Testing
     @Test func settingsListKeepsTheWebsOrderAndRuleSeeds() {
         // The web list is profile, account, privacy, language, appearance, terms, delete;
         // the rule above a row is seeded from its index there (40 + i * 6).
-        #expect(SettingsSection.allCases == [.account, .privacy, .language, .terms, .delete])
-        #expect(SettingsSection.allCases.map(\.webIndex) == [1, 2, 3, 5, 6])
+        #expect(SettingsSection.allCases == [.profile, .account, .privacy, .language, .terms, .delete])
+        #expect(SettingsSection.allCases.map(\.webIndex) == [0, 1, 2, 3, 5, 6])
     }
 }
 

@@ -26,4 +26,6 @@ public struct APIFailure: Error, Equatable, Sendable {
 
     public var isUnauthenticated: Bool { code == "unauthenticated" }
     public var isNotFound: Bool { code == "not_found" }
+    /// A pen name someone else holds (creating or renaming a profile).
+    public var isConflict: Bool { code == "conflict" }
 }

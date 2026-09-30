@@ -80,13 +80,14 @@ struct CardScreen: View {
                     CSSText(card.title, font: AppFonts.uiFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
                             tracking: -0.015 * 28)
                         .accessibilityAddTraits(.isHeader)
-                    // The ⋯ sits beside the title, as on the web: the owner's actions, or the reader's safety menu.
+                    // The ⋯ sits beside the title, as on the web: the owner's actions, or the reader's safety menu —
+                    // anonymous cards included (App Store 1.2), whose author only the server knows: Report alone.
                     if detail.isOwner {
                         CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, routeKey: card.routeKey, seed: hue + 3,
                                         showsCardAfterEdit: false, onDeleted: { openRoute.dismissToRoot() })
-                    } else if let authorId = detail.anonymous ? nil : card.author?.value1.id {
-                        SafetyMenu(target: .card(id: card.id, authorId: authorId), handle: card.author?.value1.handle,
-                                   seed: hue + 3)
+                    } else {
+                        let author = detail.anonymous ? nil : card.author?.value1
+                        SafetyMenu(target: .card(id: card.id, authorId: author?.id), handle: author?.handle, seed: hue + 3)
                     }
                 }
                 .padding(.bottom, 28)

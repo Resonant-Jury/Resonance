@@ -53,8 +53,6 @@ struct CardBoxScreen: View {
                 // The phone's settings entry: the pen (the app's settings glyph) in a small ghost chip.
                 OrganicButton(icon: .pen, label: L10n.Me.editProfile) { openRoute(.settings) }
             }
-        } else if case .missing = session.profile {
-            OrganicEmptyState(message: L10n.Auth.stepHandle)
         } else if case .failed = session.profile {
             OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
                 Task { await session.loadMe() }

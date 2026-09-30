@@ -1,13 +1,15 @@
 import DesignSystem
+import ResonanceAPI
 import ResonanceKit
 import SwiftUI
 
 /// The settings sections that apply to the app, in the web's order.
 enum SettingsSection: Hashable, CaseIterable {
-    case account, privacy, language, terms, delete
+    case profile, account, privacy, language, terms, delete
 
     var title: String {
         switch self {
+        case .profile: L10n.Settings.Sections.profile
         case .account: L10n.Settings.Sections.account
         case .privacy: L10n.Settings.Sections.privacy
         case .language: L10n.Settings.Sections.language
@@ -19,6 +21,7 @@ enum SettingsSection: Hashable, CaseIterable {
     /// SECTION_ICONS.
     var icon: IconName {
         switch self {
+        case .profile: .user
         case .account: .key
         case .privacy: .lock
         case .language: .globe
@@ -30,6 +33,7 @@ enum SettingsSection: Hashable, CaseIterable {
     /// Its place in the web's full list, which seeds the rule above its row.
     var webIndex: Int {
         switch self {
+        case .profile: 0
         case .account: 1
         case .privacy: 2
         case .language: 3
@@ -99,6 +103,7 @@ struct SettingsSectionScreen: View {
         ScrollView {
             Group {
                 switch section {
+                case .profile: ProfileSettings()
                 case .account: AccountSettings()
                 case .privacy: PrivacySettings()
                 case .language: LanguageSettings()
@@ -116,6 +121,95 @@ struct SettingsSectionScreen: View {
             OrganicInlineBar(section.title, backLabel: L10n.App.Nav.back, scrolled: scrolled)
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+/// Profile: the pen name (checked as it's typed; your own counts as free),
+/// the one-line bio (empty clears it) and the region, in the web's order and
+/// seeds. The web autosaves these; here they wait for Save changes, so a
+/// rename is never sent half-typed. Only what changed is sent. (The profile
+/// photo stays on the web for now.)
+private struct ProfileSettings: View {
+    @Environment(SessionStore.self) private var session
+    @State private var handle = ""
+    @State private var bio = ""
+    @State private var region: String?
+    @State private var status: PenNameStatus = .idle
+    @State private var filled = false
+    @State private var saving = false
+    @State private var error: String?
+
+    var body: some View {
+        if let me = session.me {
+            VStack(alignment: .leading, spacing: 24) {
+                PenNameField(label: L10n.Settings.Profile.handle, text: $handle, status: $status, current: me.handle, seed: 31)
+                OrganicTextField(L10n.Settings.Profile.bio, text: $bio, seed: 37)
+                    .onChange(of: bio) { _, typed in
+                        let capped = typed.prefix(utf16Units: PenName.bioMax)
+                        if capped != typed { bio = capped }
+                    }
+                ChoiceList(label: L10n.Settings.Profile.region,
+                           options: ProfileRegion.allCases.map { (Optional($0.rawValue), $0.label) },
+                           selection: $region, seed: 43)
+                VStack(alignment: .leading, spacing: 12) {
+                    OrganicButton(saving ? L10n.Write.saving : L10n.Write.saveChanges) { Task { await save(me) } }
+                        .disabled(!canSave(me) || saving)
+                    if let error { ModalError(error) }
+                }
+                .padding(.top, 4)
+            }
+            .disabled(saving)
+            .onAppear {
+                guard !filled else { return }
+                filled = true
+                handle = me.handle
+                bio = me.bio ?? ""
+                region = me.region
+            }
+        } else {
+            OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
+                Task { await session.loadMe() }
+            }
+        }
+    }
+
+    private struct Changes { var handle: String?; var bio: String?; var region: String? }
+
+    /// What differs from the saved profile (nil: unchanged, left out of the request).
+    private func changes(_ me: Components.Schemas.Me) -> Changes {
+        let name = PenName.normalized(handle)
+        let line = bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Changes(handle: name == me.handle ? nil : name,
+                       bio: line == (me.bio ?? "") ? nil : line,
+                       region: region == me.region ? nil : region)
+    }
+
+    /// Something changed, and a new pen name has been found free.
+    private func canSave(_ me: Components.Schemas.Me) -> Bool {
+        let c = changes(me)
+        guard c.handle != nil || c.bio != nil || c.region != nil else { return false }
+        return c.handle == nil || status == .available
+    }
+
+    private func save(_ me: Components.Schemas.Me) async {
+        guard canSave(me), !saving else { return }
+        let c = changes(me)
+        saving = true
+        error = nil
+        defer { saving = false }
+        do {
+            let saved = try await session.profiles.update(handle: c.handle, bio: c.bio, region: c.region)
+            session.adopt(saved)
+            handle = saved.handle
+            bio = saved.bio ?? ""
+            region = saved.region
+            status = .idle
+        } catch let failure as APIFailure where failure.isConflict {
+            // Someone took the name between the check and Save.
+            status = .taken
+        } catch {
+            self.error = L10n.Native.saveError
+        }
     }
 }
 

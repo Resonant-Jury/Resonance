@@ -1,10 +1,13 @@
 import FirebaseFirestore
 import Foundation
+import ResonanceKit
 
-/// Report and block, written straight to Firestore under the same rules the
-/// web's client uses (lib/db/firestore/client/reports.ts, blocks.ts):
-/// reports are create-only; the block list is owner-only, and blocking also
-/// ends the connection and withdraws the blocker's pending invites.
+/// Report and block. Card reports go through the API, which fills in the
+/// author (anonymous cards included); the rest is written straight to
+/// Firestore under the same rules the web's client uses
+/// (lib/db/firestore/client/reports.ts, blocks.ts): reports are create-only;
+/// the block list is owner-only, and blocking also ends the connection and
+/// withdraws the blocker's pending invites.
 struct SafetyService {
     enum Reason: String, CaseIterable, Identifiable {
         case spam, harassment, hate, sexual, selfHarm = "self_harm", violence, other
@@ -12,19 +15,13 @@ struct SafetyService {
     }
 
     enum Target {
-        case card(id: String, authorId: String)
+        /// `authorId` is nil for an anonymous card: the app never learns who wrote it.
+        case card(id: String, authorId: String?)
         case user(id: String)
         case message(id: String, senderId: String, conversationId: String)
 
-        var fields: [String: Any] {
-            switch self {
-            case let .card(id, author): ["targetType": "card", "targetId": id, "targetUserId": author]
-            case let .user(id): ["targetType": "user", "targetId": id, "targetUserId": id]
-            case let .message(id, sender, conversation): ["targetType": "message", "targetId": id, "targetUserId": sender, "contextId": conversation]
-            }
-        }
-
-        var userId: String {
+        /// The person behind it, when the app knows them (someone to block).
+        var userId: String? {
             switch self {
             case let .card(_, author): author
             case let .user(id): id
@@ -33,17 +30,30 @@ struct SafetyService {
         }
     }
 
-    /// Mirrors the cap in firestore.rules.
+    /// Mirrors the cap in firestore.rules (and the contract's REPORT_DETAIL_MAX).
     static let detailMax = 1000
 
     let uid: String
+    let api: SafetyAPI
     private var db: Firestore { Firestore.firestore() }
 
     func report(_ target: Target, reason: Reason, detail: String) async throws {
-        var data = target.fields
+        let detail = detail.trimmingCharacters(in: .whitespacesAndNewlines).prefix(utf16Units: Self.detailMax)
+        var data: [String: Any]
+        switch target {
+        case let .card(id, _):
+            // The server knows the author, and checks the card is one the reporter can see.
+            try await api.reportCard(id, reason: SafetyAPI.ReportReason(rawValue: reason.rawValue) ?? .other,
+                                     detail: detail.isEmpty ? nil : detail)
+            return
+        case let .user(id):
+            data = ["targetType": "user", "targetId": id, "targetUserId": id]
+        case let .message(id, sender, conversation):
+            data = ["targetType": "message", "targetId": id, "targetUserId": sender, "contextId": conversation]
+        }
         data["reporterId"] = uid
         data["reason"] = reason.rawValue
-        data["detail"] = String(detail.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.detailMax))
+        data["detail"] = detail
         data["createdAt"] = FieldValue.serverTimestamp()
         data["status"] = "open"
         let reports = db.collection("reports")

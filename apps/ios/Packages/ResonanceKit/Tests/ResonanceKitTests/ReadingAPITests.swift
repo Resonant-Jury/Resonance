@@ -9,7 +9,10 @@ import Testing
 final class StubTransport: ClientTransport, @unchecked Sendable {
     var status: HTTPResponse.Status
     var body: String
+    var contentType = "application/json"
     private(set) var requests: [HTTPRequest] = []
+    /// Each request's body as JSON (nil for a request without one).
+    private(set) var sentJSON: [[String: Any]?] = []
 
     init(status: HTTPResponse.Status = .ok, body: String) {
         self.status = status
@@ -18,8 +21,13 @@ final class StubTransport: ClientTransport, @unchecked Sendable {
 
     func send(_ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String) async throws -> (HTTPResponse, HTTPBody?) {
         requests.append(request)
+        var sent: [String: Any]?
+        if let body {
+            sent = try? JSONSerialization.jsonObject(with: try await Data(collecting: body, upTo: 1 << 20)) as? [String: Any]
+        }
+        sentJSON.append(sent)
         var response = HTTPResponse(status: status)
-        response.headerFields[.contentType] = "application/json"
+        response.headerFields[.contentType] = contentType
         return (response, HTTPBody(self.body))
     }
 }
