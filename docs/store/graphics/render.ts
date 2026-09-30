@@ -92,9 +92,9 @@ const SLIDES: Slide[] = [
   { key: 'feed', headline: '用故事回應故事', em: '回應', subline: '讀到觸動你的卡片，寫下你自己的經歷', accent: 'terracotta', side: 1, seed: 11 },
   { key: 'card', headline: '每張卡片都是一段人生', em: '人生', subline: '標題、故事、照片，慢慢讀', accent: 'sage', side: -1, seed: 23 },
   { key: 'write', headline: '寫下你的故事', em: '故事', subline: '在手繪紙張上，決定給誰看', accent: 'yellow', side: 1, seed: 37, cropBottom: { android: 0.0437 } },
-  { key: 'resonance', headline: '不按讚，而是共振', em: '共振', subline: '兩張卡片連在一起，你們也是', accent: 'lavender', side: -1, seed: 41 },
+  { key: 'resonance', headline: '不按讚，而是共振', em: '共振', subline: '兩張卡片連在一起，你們也是', accent: 'lavender', side: -1, seed: 41, cropBottom: { ios: 0.0377 } },
   { key: 'messages', headline: '因故事相遇，繼續聊', em: '相遇', subline: '連結之間的私訊', accent: 'sky', side: 1, seed: 53 },
-  { key: 'thoughtmap', headline: '看見想法怎麼長出來', em: '長出來', subline: '把卡片排在點點紙上，畫出它們的關係', accent: 'peach', side: -1, seed: 67 },
+  { key: 'thoughtmap', headline: '看見想法怎麼長出來', em: '長出來', subline: '把卡片排在點點紙上，畫出它們的關係', accent: 'peach', side: -1, seed: 67, cropBottom: { ios: 0.0237, android: 0.0404 } },
 ];
 
 const TAGLINE = { text: '讓生命影響生命', em: '影響' };
