@@ -1,16 +1,25 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { USE_FIREBASE_EMULATOR, firebaseClientAuthProvider } from '@/lib/auth/firebase/client';
 import type { AuthUser, SignInInput, SignUpInput } from '@/lib/auth/types';
 
 interface AuthContextValue {
   user: AuthUser | null;
+  /** True until the client SDK has restored (or ruled out) a signed-in user. */
   loading: boolean;
+  /**
+   * The server session cookie is in place for `user` (always true when signed
+   * out). Only what reads that cookie waits for it — an /api route called
+   * without a Bearer token; Firestore reads and the UI never do.
+   */
+  sessionReady: boolean;
   signIn(input: SignInInput): Promise<AuthUser>;
   signUp(input: SignUpInput): Promise<AuthUser>;
   signInWithGoogle(): Promise<AuthUser>;
   signInWithApple(): Promise<AuthUser>;
+  /** Mint the session cookie again for the signed-in user, and wait for it. */
+  refreshSession(): Promise<void>;
   signOut(): Promise<void>;
 }
 
@@ -19,14 +28,26 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
     // Subscribe (rather than a one-shot read) so the UI tracks token refreshes
-    // and sign-out across tabs, and so the server session cookie is kept fresh
-    // on every token tick — see FirebaseClientAuthProvider.subscribe.
-    const unsubscribe = firebaseClientAuthProvider.subscribe((next) => {
+    // and sign-out across tabs. The user shows up as soon as the SDK has it;
+    // the session cookie is refreshed behind it when it needs to be — see
+    // FirebaseClientAuthProvider.subscribe.
+    let tick = 0;
+    const unsubscribe = firebaseClientAuthProvider.subscribe((next, session) => {
+      const mine = ++tick;
       setUser(next);
       setLoading(false);
+      if (session.ready) {
+        setSessionReady(true);
+        return;
+      }
+      setSessionReady(false);
+      void session.settled.then(() => {
+        if (mine === tick) setSessionReady(true);
+      });
     });
     return unsubscribe;
   }, []);
@@ -47,10 +68,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const refreshSession = useCallback(() => firebaseClientAuthProvider.refreshSession(), []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       loading,
+      sessionReady,
+      refreshSession,
       async signIn(input) {
         const next = await firebaseClientAuthProvider.signIn(input);
         setUser(next);
@@ -76,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       },
     }),
-    [loading, user]
+    [loading, refreshSession, sessionReady, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

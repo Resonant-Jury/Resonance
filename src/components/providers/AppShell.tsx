@@ -34,7 +34,7 @@ function isPublicPath(pathname: string): boolean {
  * and route to /signin (no auth) or /signup (authed but no profile yet).
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user: authUser, loading } = useAuth();
+  const { user: authUser, loading, sessionReady } = useAuth();
   const { data: profile, isLoading: profileLoading } = useMyProfile();
   const router = useRouter();
   const pathname = usePathname();
@@ -72,7 +72,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <AppChromeProvider>
       {!bareChrome && <AppHeader user={headerUser} signedIn={!!authUser} authReady={!loading} />}
       <main style={{ minHeight: '100vh' }}>{children}</main>
-      {authUser && <AccountDeletionBanner belowHeader={!bareChrome} />}
+      {/* The banner's status comes from a cookie-authenticated /api route. */}
+      {authUser && sessionReady && <AccountDeletionBanner belowHeader={!bareChrome} />}
       {authUser && !bareChrome && <FloatingWriteButton />}
     </AppChromeProvider>
   );

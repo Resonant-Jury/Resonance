@@ -27,6 +27,7 @@ import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
 import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
 import { listConversations, listenThread } from '@/lib/db/firestore/client/messages';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
+import { callApi } from '@/lib/db/firestore/client/api';
 import type { Conversation, Message } from '@/lib/db/types';
 
 export interface CardsWithAuthors {
@@ -92,13 +93,19 @@ export interface RecommendedFeed extends CardsWithAuthors {
  * result (card ids + resonance reasons) from the server, then resolves each
  * card through the visibility-enforced read path. Gated on a signed-in viewer —
  * the API requires auth, and an anonymous user has no profile to match from.
+ *
+ * The request carries the viewer's ID token (like `callApi`), so it never
+ * waits for the session cookie.
  */
 export function useRecommendedFeed() {
   const { user, loading } = useAuth();
   return useSWR<RecommendedFeed>(user && !loading ? `feed:recommended:${user.id}` : null, async () => {
-    const res = await fetch('/api/recommend/feed');
-    if (!res.ok) return { cards: [], authors: {}, reasons: {} };
-    const { items } = (await res.json()) as { items: { cardId: string; reason: string }[] };
+    let items: { cardId: string; reason: string }[];
+    try {
+      ({ items } = await callApi<{ items: { cardId: string; reason: string }[] }>('/api/recommend/feed'));
+    } catch {
+      return { cards: [], authors: {}, reasons: {} };
+    }
     const { cards, authors } = await withAuthors(await cardsFromIds(items.map((i) => i.cardId)));
     const reasons: Record<string, string> = {};
     for (const item of items) reasons[item.cardId] = item.reason;

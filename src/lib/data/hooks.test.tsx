@@ -24,6 +24,9 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
   getUsersByIds: vi.fn(),
   isConnected: vi.fn(),
 }));
+vi.mock('@/lib/db/firestore/client/api', () => ({
+  callApi: vi.fn(),
+}));
 vi.mock('@/lib/db/firestore/client/cardLinks', () => ({
   listLinksToAuthor: vi.fn(),
   listLinksToCard: vi.fn(),
@@ -58,6 +61,7 @@ import {
   getUsersByIds,
   isConnected,
 } from '@/lib/db/firestore/client/reads';
+import { callApi } from '@/lib/db/firestore/client/api';
 import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
 import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
 import { loadMyThoughtMap } from '@/lib/db/firestore/client/thoughtMap';
@@ -68,6 +72,7 @@ import {
   useMyCardBox,
   useMyThoughtMap,
   useProfileByHandle,
+  useRecommendedFeed,
   useRelated,
   useResonators,
 } from './hooks';
@@ -517,5 +522,26 @@ describe('useResonators', () => {
 
     const list = result.current.data!;
     expect(list.map((u) => u.id)).toEqual(['a0', 'a2', 'a3']);
+  });
+});
+
+describe('useRecommendedFeed', () => {
+  it("asks with the viewer's ID token (callApi), so it never waits on the session cookie", async () => {
+    vi.mocked(callApi).mockResolvedValue({ items: [{ cardId: 'r1', reason: 'why' }] });
+    vi.mocked(getCardById).mockResolvedValue(card('r1', 'a2'));
+    vi.mocked(getUsersByIds).mockResolvedValue({ a2: user('a2') });
+
+    const { result } = renderHook(() => useRecommendedFeed(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(callApi).toHaveBeenCalledWith('/api/recommend/feed');
+    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['r1']);
+    expect(result.current.data!.reasons).toEqual({ r1: 'why' });
+  });
+
+  it('comes back empty (not failed) when the server call fails', async () => {
+    vi.mocked(callApi).mockRejectedValue(new Error('500'));
+    const { result } = renderHook(() => useRecommendedFeed(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data!.cards).toEqual([]);
   });
 });
