@@ -28,8 +28,8 @@ export const LIMITS = {
   /** /api/upload: files, and their bytes (see `weight`). */
   upload: { max: 50, windowMs: DAY },
   uploadBytes: { max: 200 * 1024 * 1024, windowMs: DAY },
-  /** The web asking to push a bell row it wrote. */
-  ring: { max: 60, windowMs: HOUR },
+  /** Accepting a legacy invite rings its sender. */
+  invite: { max: 60, windowMs: HOUR },
 } as const satisfies Record<string, { max: number; windowMs: number }>;
 
 export type Bucket = keyof typeof LIMITS;

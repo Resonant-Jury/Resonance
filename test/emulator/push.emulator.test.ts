@@ -2,10 +2,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import type { BatchResponse, MulticastMessage } from 'firebase-admin/messaging';
-import { ApiFailure } from '@/lib/api/v1/http';
 import { sendMessage, sendNote } from '@/lib/api/v1/conversations';
+import { acceptInvite } from '@/lib/api/v1/invites';
 import { registerDevice, unregisterDevice } from '@/lib/push/devices';
-import { assertRingable, RING_WINDOW_MS } from '@/lib/push/ring';
 import { pushNotification, type PushSender } from '@/lib/push/send';
 
 // Push against the Firestore emulator with a fake FCM: the device registry,
@@ -164,6 +163,23 @@ describe('pushNotification', () => {
     expect(await pushNotification(db, 'n1', fcm.sender)).toEqual({ sent: 0, pruned: 0 });
     expect(fcm.sent).toHaveLength(0);
   });
+});
+
+describe('an accepted legacy invite', () => {
+  it("rings its sender, opening the thread with the one who accepted, under their pen name as it is now", async () => {
+    await db.doc('invites/i1').set({ fromUserId: 'bob', toUserId: 'alice', status: 'pending', message: 'hi' });
+    await registerDevice(db, 'bob', 'bob-pixel', { token: 'bob-en', platform: 'android', locale: 'en' });
+    const { notificationId } = await acceptInvite(db, 'alice', 'i1');
+    const fcm = fakeFcm();
+    expect(await pushNotification(db, notificationId!, fcm.sender)).toEqual({ sent: 1, pruned: 0 });
+    expect(fcm.sent[0].notification?.title).toContain('小明');
+    expect(fcm.sent[0].data).toEqual({
+      notificationId,
+      type: 'invite_accepted',
+      route: `/messages/${encodeURIComponent('小明')}`,
+      fromUserId: 'alice',
+    });
+  });
 
   it('carries no sender uid on a push that opens no thread', async () => {
     await registerDevice(db, 'alice', 'alice-phone', { token: 'alice', platform: 'ios', locale: 'en' });
@@ -173,27 +189,5 @@ describe('pushNotification', () => {
     const fcm = fakeFcm();
     await pushNotification(db, 'link', fcm.sender);
     expect(fcm.sent[0].data).toEqual({ notificationId: 'link', type: 'card_link', route: '/card/walk' });
-  });
-});
-
-describe('assertRingable (the web asking to push a row it wrote)', () => {
-  const row = (id: string, from: string, created: Date, type = 'invite_accepted') =>
-    db.doc(`notifications/${id}`).set({ userId: 'bob', type, payload: { fromUserId: from, fromHandle: 'x' }, readAt: null, createdAt: Timestamp.fromDate(created) });
-
-  it("only lets the row's sender ring it, and only while it is fresh", async () => {
-    const now = new Date('2026-09-30T08:00:00Z');
-    await row('fresh', 'alice', new Date(now.getTime() - 60_000));
-    await row('stale', 'alice', new Date(now.getTime() - RING_WINDOW_MS - 1));
-
-    await expect(assertRingable(db, 'alice', 'fresh', now.getTime())).resolves.toBeUndefined();
-    await expect(assertRingable(db, 'carol', 'fresh', now.getTime())).rejects.toMatchObject({ code: 'not_found' });
-    await expect(assertRingable(db, 'alice', 'stale', now.getTime())).rejects.toMatchObject({ code: 'forbidden' });
-    await expect(assertRingable(db, 'alice', 'missing', now.getTime())).rejects.toBeInstanceOf(ApiFailure);
-  });
-
-  it('only for the kind the browser still writes — every other row is pushed by the server', async () => {
-    const now = new Date('2026-09-30T08:00:00Z');
-    await row('server-note', 'alice', new Date(now.getTime() - 60_000), 'note');
-    await expect(assertRingable(db, 'alice', 'server-note', now.getTime())).rejects.toMatchObject({ code: 'not_found' });
   });
 });

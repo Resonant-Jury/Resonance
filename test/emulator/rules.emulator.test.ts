@@ -81,8 +81,10 @@ async function seedInvite(from = 'bob', to = 'alice', status = 'pending', id = '
 }
 
 /**
- * The web's acceptInvite: accept the invite, create the connection (naming
- * the invite) and ring the sender's bell, in one transaction.
+ * What the web's acceptInvite wrote from the browser until the server took it
+ * over (POST /api/v1/invites/{id}/accept): accept the invite, create the
+ * connection (naming the invite) and ring the sender's bell, in one
+ * transaction. An old tab may still try it; the rules refuse every part.
  */
 function acceptInvite(db: Firestore, uid: string, opts: { inviteId?: string; other?: string; handle?: string; connect?: boolean } = {}) {
   const inviteId = opts.inviteId ?? 'i1';
@@ -181,11 +183,6 @@ describe('a block refuses contact in both directions', () => {
         await block(d.blocker, d.blocker === 'alice' ? 'bob' : 'alice');
       });
 
-      it('cannot connect by answering an old invite', async () => {
-        await seedInvite(d.target, d.actor);
-        await assertFails(acceptInvite(as(d.actor), d.actor, { other: d.target }));
-      });
-
       it('cannot answer a card with a resonance draft', async () => {
         await seed(async (db) => {
           await setDoc(doc(db, 'cards', 'orig'), publishedCard(d.target));
@@ -197,8 +194,6 @@ describe('a block refuses contact in both directions', () => {
 
   it('control: without a block the same contact is allowed', async () => {
     await seedProfiles();
-    await seedInvite('bob', 'alice');
-    await assertSucceeds(acceptInvite(as('alice'), 'alice'));
     await seed(async (db) => {
       await setDoc(doc(db, 'cards', 'orig'), publishedCard('bob'));
     });
@@ -208,8 +203,10 @@ describe('a block refuses contact in both directions', () => {
   it('does not affect third parties', async () => {
     await seedProfiles();
     await block('alice', 'bob');
-    await seedInvite('alice', 'carol');
-    await assertSucceeds(acceptInvite(as('carol'), 'carol', { other: 'alice' }));
+    await seed(async (db) => {
+      await setDoc(doc(db, 'cards', 'orig'), publishedCard('alice'));
+    });
+    await assertSucceeds(setDoc(doc(collection(as('carol'), 'cards')), draft('carol', { referenceCardId: 'orig' })));
   });
 });
 
@@ -221,7 +218,7 @@ describe('ending a connection', () => {
   });
 });
 
-describe('connections are made by the server, or by answering an invite', () => {
+describe('connections are made by the server only', () => {
   beforeEach(seedProfiles);
 
   it('refuses a stranger connecting themselves to anyone', async () => {
@@ -230,26 +227,17 @@ describe('connections are made by the server, or by answering an invite', () => 
     );
   });
 
-  it('accepts the recipient answering a pending invite, in one transaction', async () => {
+  it("refuses even the invite's recipient answering it from the browser — accepting is the server's now", async () => {
     await seedInvite('bob', 'alice');
-    await assertSucceeds(acceptInvite(as('alice'), 'alice'));
-    const conn = await getDoc(doc(as('alice'), 'connections', PAIR));
-    if (!conn.exists()) throw new Error('expected the connection');
-  });
-
-  it('refuses a connection naming an invite it does not accept', async () => {
-    // An invite already answered, one to someone else, one from someone else.
-    await seedInvite('bob', 'alice', 'declined');
     await assertFails(acceptInvite(as('alice'), 'alice'));
-    await seedInvite('bob', 'carol', 'pending', 'i2');
-    await assertFails(acceptInvite(as('alice'), 'alice', { inviteId: 'i2' }));
-    await seedInvite('carol', 'alice', 'pending', 'i3');
-    await assertFails(acceptInvite(as('alice'), 'alice', { inviteId: 'i3', other: 'bob' }));
-    // Naming a pending invite without accepting it.
-    await seedInvite('bob', 'alice', 'pending', 'i4');
+    // Any one part of it alone: the connection naming the invite, the invite marked accepted.
+    await assertFails(acceptInvite(as('alice'), 'alice', { connect: false }));
     await assertFails(
-      setDoc(doc(as('alice'), 'connections', PAIR), { userIds: ['alice', 'bob'], establishedAt: serverTimestamp(), inviteId: 'i4' }),
+      setDoc(doc(as('alice'), 'connections', PAIR), { userIds: ['alice', 'bob'], establishedAt: serverTimestamp(), inviteId: 'i1' }),
     );
+    await assertFails(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'accepted' }));
+    const conn = await getDoc(doc(as('alice'), 'connections', PAIR)).catch(() => null);
+    if (conn?.exists()) throw new Error('no connection expected');
   });
 
   it('refuses rewriting a connection (the unused muted flag included)', async () => {
@@ -320,10 +308,9 @@ describe('notifications', () => {
     }
   });
 
-  it('rings "invite accepted" only with the sender\'s real pen name, stamped now, in the accepting transaction', async () => {
+  it('refuses "invite accepted" too — the server rings it when it accepts the invite', async () => {
     await seedInvite('bob', 'alice');
-    await assertFails(acceptInvite(as('alice'), 'alice', { handle: 'Resonance 官方' }));
-    // A bell alone, for an invite that stays pending.
+    // Alone, and inside a transaction that really accepts that invite, with the real pen name.
     await assertFails(
       addDoc(collection(as('alice'), 'notifications'), {
         userId: 'bob',
@@ -333,7 +320,7 @@ describe('notifications', () => {
         createdAt: serverTimestamp(),
       }),
     );
-    await assertSucceeds(acceptInvite(as('alice'), 'alice'));
+    await assertFails(acceptInvite(as('alice'), 'alice'));
   });
 
   it('lets only the recipient read their bell and mark it read', async () => {
@@ -613,17 +600,19 @@ describe('legacy invites', () => {
     );
   });
 
-  it('are answered by their recipient only, and withdrawn by either side, while pending', async () => {
+  it('are declined by their recipient only, and withdrawn by either side, while pending — accepted by the server alone', async () => {
     await seedInvite();
     await assertFails(updateDoc(doc(as('bob'), 'invites', 'i1'), { status: 'accepted' }));
     await assertFails(updateDoc(doc(as('carol'), 'invites', 'i1'), { status: 'withdrawn' }));
+    // Its recipient accepts through POST /api/v1/invites/{id}/accept, never by writing the status.
+    await assertFails(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'accepted' }));
     await assertSucceeds(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'declined' }));
     // Closed: nothing reopens or re-answers it.
-    await assertFails(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'accepted' }));
+    await assertFails(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'pending' }));
     await assertFails(updateDoc(doc(as('bob'), 'invites', 'i1'), { status: 'withdrawn' }));
 
     await seedInvite();
-    await assertSucceeds(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'accepted' }));
+    await assertSucceeds(updateDoc(doc(as('bob'), 'invites', 'i1'), { status: 'withdrawn' }));
     await seedInvite();
     await assertSucceeds(updateDoc(doc(as('alice'), 'invites', 'i1'), { status: 'withdrawn' })); // a block does this
   });

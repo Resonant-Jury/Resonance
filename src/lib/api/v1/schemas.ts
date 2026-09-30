@@ -296,6 +296,14 @@ export const SendMessageResponse = named(
   'SendMessageResponse',
 );
 
+export const AcceptInviteResponse = named(
+  z.object({
+    /** connections/{id}: the two user ids, sorted, joined by "_". */
+    connectionId: z.string(),
+  }),
+  'AcceptInviteResponse',
+);
+
 export const RegisterDeviceRequest = named(
   z.object({
     /** The FCM registration token (iOS: FCM's token for the APNs one). */
@@ -366,6 +374,7 @@ export const CardKeysQuery = z.object({
     .transform((v) => v.split(',').map((k) => k.trim()).filter(Boolean))
     .pipe(z.array(CardKey).min(1).max(CARD_KEYS_MAX)),
 });
+export const InviteIdParam = DocId;
 export const NotificationIdParam = DocId;
 /** An app install's own stable id (a UUID it keeps; Firebase Installations' id also fits). */
 export const InstallationIdParam = z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, 'Not a valid installation id.');

@@ -7,9 +7,9 @@ rules_version = '2';
 // The rules are the only thing between a signed-in client and the database:
 // the repo and the web config are public, so assume any write shape a client
 // could send. Anything that reaches another person — publishing, pen names,
-// messages, notes, most bells — goes through the server (/api/v1, Admin SDK),
-// which re-checks what it needs; the client-side paths below are the author's
-// own documents plus a few narrowly checked legacy ones.
+// messages, notes, connections, every bell — goes through the server
+// (/api/v1, Admin SDK), which re-checks what it needs; the client-side paths
+// below are the author's own documents plus a few narrowly checked legacy ones.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -40,10 +40,11 @@ service cloud.firestore {
     }
 
     // Either side has blocked the other (users/{uid}/blocks/{otherUid}). Every
-    // way of reaching someone — connecting, messaging, inviting, notes,
-    // notifications, card links — is refused across a block, in both
-    // directions. get()/exists() here bypass read rules, so a user's private
-    // block list can still gate what others write.
+    // way of reaching someone is refused across a block, in both directions —
+    // the server re-checks it for what it writes (connections, messages,
+    // notes, bells); here it gates answering someone's card. get()/exists()
+    // here bypass read rules, so a user's private block list can still gate
+    // what others write.
     function blockedBetween(a, b) {
       return exists(/databases/$(database)/documents/users/$(a)/blocks/$(b))
         || exists(/databases/$(database)/documents/users/$(b)/blocks/$(a));
@@ -221,40 +222,12 @@ service cloud.firestore {
 
     // --- connections ---
     // Two people are connected by a story-shaped act, and the server makes
-    // it: a resonance's first publish or a note (/api/v1). The one client
-    // path left is answering a legacy invite, which must accept that very
-    // invite in the same transaction (its id rides along on the connection).
+    // it: a resonance's first publish, a note, or answering a legacy invite
+    // (/api/v1), each re-checking blocks. No client creates one.
     // The doc id is deterministic: min(uidA, uidB) + "_" + max(...).
-    function sortedConnectionId(a, b) {
-      return a < b ? a + "_" + b : b + "_" + a;
-    }
-    function otherOf(pair) {
-      return pair[0] == request.auth.uid ? pair[1] : pair[0];
-    }
-    // The invite is pending before this write and accepted by it, and it
-    // was sent by `other` to the caller.
-    function acceptsInvite(inviteId, other) {
-      return inviteId is string
-        && get(/databases/$(database)/documents/invites/$(inviteId)).data.status == "pending"
-        && getAfter(/databases/$(database)/documents/invites/$(inviteId)).data.status == "accepted"
-        && getAfter(/databases/$(database)/documents/invites/$(inviteId)).data.toUserId == request.auth.uid
-        && getAfter(/databases/$(database)/documents/invites/$(inviteId)).data.fromUserId == other;
-    }
     match /connections/{connectionId} {
       allow read: if signedIn() && request.auth.uid in resource.data.userIds;
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(["userIds", "establishedAt", "inviteId"])
-        && request.resource.data.userIds is list
-        && request.resource.data.userIds.size() == 2
-        && request.auth.uid in request.resource.data.userIds
-        && connectionId == sortedConnectionId(
-            request.resource.data.userIds[0],
-            request.resource.data.userIds[1]
-          )
-        && request.resource.data.establishedAt == request.time
-        && !blockedBetween(request.resource.data.userIds[0], request.resource.data.userIds[1])
-        && acceptsInvite(request.resource.data.inviteId, otherOf(request.resource.data.userIds));
-      allow update: if false;
+      allow create, update: if false;
       // Either party may end the connection (blocking does this). The
       // conversation stays readable but frozen: only the server sends.
       allow delete: if signedIn() && request.auth.uid in resource.data.userIds;
@@ -293,12 +266,14 @@ service cloud.firestore {
     }
 
     // --- invites ---
-    // Sender/recipient can read and update status.
+    // Sender/recipient can read them and close them.
     match /invites/{inviteId} {
       allow read: if signedIn()
         && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
       // Legacy: nothing sends invites any more (a resonance or a note connects
       // people), so none can be created; the pending ones are answered.
+      // Accepting one connects the two and rings the sender, so the server
+      // does it (POST /api/v1/invites/{id}/accept).
       allow create: if false;
       allow update: if signedIn()
         && resource.data.status == "pending"
@@ -307,9 +282,9 @@ service cloud.firestore {
           // Either side may withdraw it (blocking does, in both directions)…
           ((resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid)
             && request.resource.data.status == "withdrawn")
-          // …and only its recipient answers it.
+          // …and its recipient may decline it.
           || (resource.data.toUserId == request.auth.uid
-            && request.resource.data.status in ["accepted", "declined"])
+            && request.resource.data.status == "declined")
         );
       allow delete: if false;
     }
@@ -365,27 +340,10 @@ service cloud.firestore {
 
     // --- notifications ---
     // Recipients read their own bell and mark it read. The server writes
-    // almost every row (resonance, note, message, …) and pushes it. The one
-    // client-written kind left is the legacy "invite_accepted", checked to
-    // the field: the sender's real pen name, stamped now, and only in the
-    // transaction that accepts that invite.
-    function inviteAcceptedBell(d) {
-      return d.type == "invite_accepted"
-        && d.keys().hasOnly(["userId", "type", "payload", "readAt", "createdAt"])
-        && d.readAt == null
-        && d.createdAt == request.time
-        && d.userId is string
-        && d.userId != request.auth.uid
-        && d.payload.keys().hasOnly(["inviteId", "fromUserId", "fromHandle"])
-        && d.payload.fromUserId == request.auth.uid
-        && d.payload.fromHandle == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.handle
-        && acceptsInvite(d.payload.inviteId, d.userId);
-    }
+    // every row (resonance, note, message, invite accepted, …) and pushes it.
     match /notifications/{notificationId} {
       allow read: if signedIn() && resource.data.userId == request.auth.uid;
-      allow create: if signedIn()
-        && !blockedBetween(request.auth.uid, request.resource.data.userId)
-        && inviteAcceptedBell(request.resource.data);
+      allow create: if false;
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
         && changedKeys().hasOnly(["readAt"]);

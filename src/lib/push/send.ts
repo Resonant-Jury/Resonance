@@ -86,9 +86,9 @@ export interface PushResult {
  * (callers run it after their response) and a failure just means no buzz.
  *
  * Claimed with `pushedAt` in a transaction before anything is sent, so two
- * callers (a retry, the web's ring route racing a server writer) never push
- * twice. A block standing between the two people at send time silences it,
- * as the rules already refuse the notification itself across one.
+ * callers (a retry racing the writer's own ring) never push twice. A block
+ * standing between the two people at send time silences it, as the writers
+ * already refuse the notification itself across one.
  */
 export async function pushNotification(db: Firestore, id: string, sender: PushSender): Promise<PushResult | null> {
   const ref = db.doc(`notifications/${id}`);

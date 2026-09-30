@@ -177,6 +177,14 @@ export function buildOpenApi(): Json {
         parameters: [handle, ...pageParams],
       }),
       '/users/{handle}/links': get('getProfileLinks', "Cards by others that link to theirs", 'CardList', { parameters: [handle] }),
+      '/invites/{id}/accept': {
+        post: {
+          operationId: 'acceptInvite',
+          summary: "Accept a legacy invite sent to you: connects you two and rings its sender's bell (accepting again changes nothing)",
+          parameters: [pathParam('id', 'The invite id')],
+          responses: { '200': { description: 'OK', ...json(ref('AcceptInviteResponse')) }, ...errors(400, 401, 403, 404, 409) },
+        },
+      },
       '/notes': {
         post: {
           operationId: 'sendNote',

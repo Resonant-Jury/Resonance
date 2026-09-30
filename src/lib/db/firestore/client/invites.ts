@@ -7,16 +7,13 @@ import {
   orderBy,
   query,
   runTransaction,
-  serverTimestamp,
   Timestamp,
   where,
 } from 'firebase/firestore';
 import type { Invite } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
-import { getCurrentUserHandle } from './profile';
-import { isConnected } from './reads';
 import { getClientDb } from './init';
-import { ringNotification } from './push';
+import { callApi } from './api';
 
 function requireUid(): string {
   const uid = getFirebaseClientAuth().currentUser?.uid;
@@ -24,64 +21,22 @@ function requireUid(): string {
   return uid;
 }
 
-function sortedConnectionId(a: string, b: string): string {
-  return a < b ? `${a}_${b}` : `${b}_${a}`;
-}
-
 /**
- * Accept an invite. Performs three writes in a transaction:
- *   1. Flip the invite status to "accepted"
- *   2. Create the corresponding /connections/{sorted} doc
- *   3. Create a /notifications/{auto} "invite_accepted" for the inviter, so
- *      the sender learns the connection is live (closes the invite loop).
- *
- * Only the recipient (invite.toUserId) may accept.
+ * Accept an invite, through the server (POST /api/v1/invites/{id}/accept):
+ * in one transaction it marks the invite accepted, connects
+ * the two — keeping a connection a resonance or a note already made — and
+ * rings the sender's "invite accepted" bell, which it also pushes. It
+ * re-checks what the rules can't: that the invite is yours and still open,
+ * and that no block stands between you. Answers the connection's id; a retry
+ * after success answers it again and rings nothing.
  */
 export async function acceptInvite(inviteId: string): Promise<string> {
-  const uid = requireUid();
-  const db = getClientDb();
-  // Denormalized into the notification payload; the rules check it is your
-  // real pen name.
-  const myHandle = await getCurrentUserHandle().catch(() => null);
-  const bell = doc(collection(db, 'notifications'));
-  const connected = await runTransaction(db, async (tx) => {
-    const inviteRef = doc(db, 'invites', inviteId);
-    const snap = await tx.get(inviteRef);
-    if (!snap.exists()) throw new Error('Invite not found');
-    const data = snap.data();
-    if (data.toUserId !== uid) throw new Error('Only the recipient can accept');
-    if (data.status !== 'pending') throw new Error('Invite no longer pending');
-
-    const otherUid = String(data.fromUserId);
-    const connectionId = sortedConnectionId(uid, otherUid);
-    const connectionRef = doc(db, 'connections', connectionId);
-
-    // Already connected (a resonance or a note did it since): keep that connection
-    // as it is — rewriting it would be an update, which the rules refuse. (Not a
-    // transactional read: the rules deny reading a connection that doesn't exist.)
-    const already = await isConnected(uid, otherUid);
-    tx.update(inviteRef, { status: 'accepted' });
-    if (!already) {
-      // Naming the invite is what lets the rules allow this connection: it
-      // must be the one this transaction accepts.
-      tx.set(connectionRef, {
-        userIds: uid < otherUid ? [uid, otherUid] : [otherUid, uid],
-        establishedAt: serverTimestamp(),
-        inviteId,
-      });
-    }
-    tx.set(bell, {
-      userId: otherUid,
-      type: 'invite_accepted',
-      payload: { inviteId, fromUserId: uid, fromHandle: myHandle ?? '' },
-      readAt: null,
-      createdAt: serverTimestamp(),
-    });
-
-    return connectionId;
-  });
-  ringNotification(bell.id);
-  return connected;
+  requireUid();
+  const { connectionId } = await callApi<{ connectionId: string }>(
+    `/api/v1/invites/${encodeURIComponent(inviteId)}/accept`,
+    { method: 'POST' },
+  );
+  return connectionId;
 }
 
 /** The recipient says no: the invite closes, no connection, no notification. */
