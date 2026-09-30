@@ -1,4 +1,5 @@
 import type { DocumentReference, Firestore, Query } from 'firebase-admin/firestore';
+import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { DELETION_GRACE_DAYS } from './constants';
 
 export { DELETION_GRACE_DAYS };
@@ -70,6 +71,13 @@ export interface PurgeReport {
   trees: number;
   /** Single documents removed (records that point at the user). */
   documents: number;
+  /**
+   * The cached pages that showed the account (logical paths): its published
+   * cards, by id and slug, its profile, and the landing page when a public
+   * card could be on it. They must be revalidated, or the site would keep
+   * serving the deleted writing.
+   */
+  pages: string[];
 }
 
 /**
@@ -90,10 +98,19 @@ async function collectAccountData(db: Firestore, uid: string) {
     db.collection('recommendations').doc(uid),
   ];
 
-  const [cards, conversations] = await Promise.all([
+  const [cards, conversations, profile] = await Promise.all([
     db.collection('cards').where('authorId', '==', uid).get(),
     db.collection('conversations').where('participants', 'array-contains', uid).get(),
+    db.collection('users').doc(uid).get(),
   ]);
+  // Only a published card ever had a page someone could have cached; a
+  // public one may be on the landing page too.
+  const published = cards.docs.filter((d) => d.get('publishedAt') != null);
+  const pages = [
+    ...published.flatMap((d) => cardPagePaths({ id: d.id, slug: typeof d.get('slug') === 'string' ? d.get('slug') : null })),
+    ...profilePagePaths(profile.get('handle')),
+    ...landingPagePaths(...published.map((d) => d.data())),
+  ];
   cards.forEach((d) => trees.push(d.ref)); // card + its pending edits
   conversations.forEach((d) => trees.push(d.ref)); // conversation + messages
 
@@ -128,17 +145,17 @@ async function collectAccountData(db: Firestore, uid: string) {
       if (!treePaths.has(d.ref.path)) singles.set(d.ref.path, d.ref);
     }
   }
-  return { trees, singles: [...singles.values()] };
+  return { trees, singles: [...singles.values()], pages };
 }
 
 /** Remove every Firestore record of `uid` (see {@link collectAccountData}). */
 export async function purgeAccountData(db: Firestore, uid: string): Promise<PurgeReport> {
-  const { trees, singles } = await collectAccountData(db, uid);
+  const { trees, singles, pages } = await collectAccountData(db, uid);
   for (const ref of trees) await db.recursiveDelete(ref);
   const writer = db.bulkWriter();
   for (const ref of singles) void writer.delete(ref);
   await writer.close();
-  return { trees: trees.length, documents: singles.length };
+  return { trees: trees.length, documents: singles.length, pages };
 }
 
 export interface PurgeDeps {
@@ -147,6 +164,8 @@ export interface PurgeDeps {
   deleteAuthUser: (uid: string) => Promise<void>;
   /** Removes uploaded files under a key prefix; failures are logged, not fatal. */
   deleteStoragePrefix?: (prefix: string) => Promise<number>;
+  /** Drops cached pages (logical paths, `revalidateLocalized` in the cron); failures are logged, not fatal. */
+  revalidate?: (paths: string[]) => unknown;
 }
 
 /**
@@ -157,6 +176,13 @@ export interface PurgeDeps {
  */
 export async function purgeAccount(deps: PurgeDeps, uid: string): Promise<PurgeReport> {
   const report = await purgeAccountData(deps.db, uid);
+  if (deps.revalidate && report.pages.length) {
+    try {
+      deps.revalidate(report.pages);
+    } catch (err) {
+      console.error(`Account purge: revalidating ${uid}'s pages failed`, err);
+    }
+  }
   if (deps.deleteStoragePrefix) {
     for (const prefix of [`image/${uid}/`, `video/${uid}/`]) {
       try {

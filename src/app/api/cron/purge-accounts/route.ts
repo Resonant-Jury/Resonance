@@ -3,6 +3,7 @@ import { getAdminAuth } from '@/lib/auth/firebase/server';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { getStorageProvider } from '@/lib/storage';
 import { purgeDueAccounts } from '@/lib/account/deletion';
+import { revalidateLocalized } from '@/lib/api/revalidate';
 
 export const maxDuration = 300;
 
@@ -21,6 +22,8 @@ export async function GET(req: Request) {
     db: getAdminDb(),
     deleteAuthUser: (uid) => getAdminAuth().deleteUser(uid),
     deleteStoragePrefix: (prefix) => getStorageProvider().deletePrefix(prefix),
+    // The deleted writing must not live on in cached card and profile pages.
+    revalidate: revalidateLocalized,
   });
   return NextResponse.json({ purged: purged.length });
 }

@@ -1,5 +1,4 @@
 import { NextResponse, after } from 'next/server';
-import { revalidatePath } from 'next/cache';
 import { parse, routeParam, withUser, type RouteContext } from '@/lib/api/v1/http';
 import { publishCard } from '@/lib/api/v1/publish';
 import { CardIdParam } from '@/lib/api/v1/schemas';
@@ -7,7 +6,7 @@ import { getAdminDb } from '@/lib/db/firestore/admin';
 import { ringAfter } from '@/lib/push/ring';
 import { spend } from '@/lib/api/rateLimit';
 import { indexCard } from '@/lib/recommend/indexCard';
-import { routing } from '@/i18n/routing';
+import { cardPagePaths, revalidateLocalized } from '@/lib/api/revalidate';
 
 export const dynamic = 'force-dynamic';
 // The slug's LLM call is waited for 8 s at most (SLUG_WAIT_MS), then finished
@@ -27,9 +26,7 @@ export const POST = withUser(async (user, _req, ctx: RouteContext<'key'>) => {
       (async () => {
         // A slug that came late (the answer said null) is written once this resolves.
         const slug = result.slug ?? (pendingSlug ? await pendingSlug : null);
-        for (const key of new Set([slug ?? id, ...(pendingSlug ? [id] : [])])) {
-          for (const locale of routing.locales) revalidatePath(`/${locale}/card/${key}`);
-        }
+        revalidateLocalized(cardPagePaths({ id, slug }));
       })(),
       indexCard(id).catch((e) => console.error('[api/v1] index', e)),
     ]),

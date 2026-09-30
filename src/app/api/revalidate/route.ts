@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/auth';
-import { routing } from '@/i18n/routing';
+import { revalidateLocalized } from '@/lib/api/revalidate';
 
 const ALLOWED_PREFIXES = ['/home', '/me', '/card/', '/u/', '/settings'];
 
@@ -21,15 +20,7 @@ export async function POST(req: Request) {
   if (!paths.length) return NextResponse.json({ ok: true, revalidated: [] });
 
   // Routes are locale-prefixed (localePrefix: 'always'), so a logical path
-  // like `/home` lives at `/en/home` and `/zh-TW/home`. Expand each path to
-  // every locale before revalidating, otherwise nothing matches.
-  const revalidated: string[] = [];
-  for (const path of paths) {
-    for (const locale of routing.locales) {
-      const localized = `/${locale}${path}`;
-      revalidatePath(localized);
-      revalidated.push(localized);
-    }
-  }
-  return NextResponse.json({ ok: true, revalidated });
+  // like `/home` lives at `/en/home` and `/zh-TW/home`: each is revalidated
+  // in every locale, otherwise nothing matches.
+  return NextResponse.json({ ok: true, revalidated: revalidateLocalized(paths) });
 }

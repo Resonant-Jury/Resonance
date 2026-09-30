@@ -1,4 +1,5 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { ApiFailure } from './http';
 
 export interface ApplyEditResult {
@@ -7,6 +8,8 @@ export interface ApplyEditResult {
   slug: string | null;
   /** False when there was no pending edit to apply (a retry after success lands here). */
   applied: boolean;
+  /** The card, profile and landing pages the revision made stale, for the route to revalidate (never returned). */
+  stale: string[];
 }
 
 const VISIBILITIES = new Set(['public', 'connections', 'private']);
@@ -28,14 +31,14 @@ export async function applyCardEdit(db: Firestore, uid: string, id: string): Pro
   const ref = db.doc(`cards/${id}`);
   const editRef = db.doc(`cards/${id}/edits/current`);
   return db.runTransaction(async (tx) => {
-    const [snap, edit] = await Promise.all([tx.get(ref), tx.get(editRef)]);
+    const [snap, edit, me] = await Promise.all([tx.get(ref), tx.get(editRef), tx.get(db.doc(`users/${uid}`))]);
     // Someone else's card is as absent as a missing one.
     if (!snap.exists || snap.get('authorId') !== uid) throw new ApiFailure('not_found', 'No such card.');
     if (snap.get('publishedAt') == null) {
       throw new ApiFailure('invalid_request', 'A draft saves as you write; publish it instead.');
     }
     const slug = typeof snap.get('slug') === 'string' ? (snap.get('slug') as string) : null;
-    if (!edit.exists) return { id, slug, applied: false };
+    if (!edit.exists) return { id, slug, applied: false, stale: [] };
 
     const e = edit.data()!;
     const thoughtCore = typeof e.thoughtCore === 'string' ? e.thoughtCore : '';
@@ -52,7 +55,15 @@ export async function applyCardEdit(db: Firestore, uid: string, id: string): Pro
     };
     tx.set(ref, fields, { merge: true });
     tx.delete(editRef);
-    return { id, slug, applied: true };
+    // Its page under both names, its author's profile (which lists it — unless
+    // it just went private or anonymous), and the landing page if it was or is
+    // public there.
+    const stale = [
+      ...cardPagePaths({ id, slug }),
+      ...profilePagePaths(me.get('handle')),
+      ...landingPagePaths(snap.data(), { visibility: fields.visibility, publishedAt: snap.get('publishedAt') }),
+    ];
+    return { id, slug, applied: true, stale };
   });
 }
 

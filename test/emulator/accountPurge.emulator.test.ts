@@ -195,6 +195,29 @@ describe('purgeAccount', () => {
   });
 });
 
+describe('the pages that showed the account', () => {
+  it('are named for the cron to revalidate: each published card by id and slug, the profile, the landing page', async () => {
+    await seedWorld();
+    await db.doc('cards/alice-card').update({ slug: 'a-card', publishedAt: new Date() });
+    const revalidate = vi.fn();
+    const report = await purgeAccount({ db, deleteAuthUser: vi.fn(async () => {}), revalidate }, 'alice');
+    // alice-draft was never published: no page of it was ever cached. The
+    // public card may be on the landing page.
+    expect(report.pages).toEqual(['/card/alice-card', '/card/a-card', '/u/alice', '/']);
+    expect(revalidate).toHaveBeenCalledWith(report.pages);
+  });
+
+  it('never keep the account from being deleted when revalidating fails', async () => {
+    await seedWorld();
+    await db.doc('cards/alice-card').update({ publishedAt: new Date() });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const deleteAuthUser = vi.fn(async () => {});
+    await purgeAccount({ db, deleteAuthUser, revalidate: () => { throw new Error('no cache here'); } }, 'alice');
+    expect(await exists('users/alice')).toBe(false);
+    expect(deleteAuthUser).toHaveBeenCalledWith('alice');
+  });
+});
+
 describe('purgeDueAccounts', () => {
   it('purges only requests whose grace period has ended', async () => {
     await seedWorld();

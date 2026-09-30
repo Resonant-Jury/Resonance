@@ -27,6 +27,7 @@ beforeEach(async () => {
   await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, {
     method: 'DELETE',
   });
+  await db.doc('users/alice').set({ handle: '小安', handleLower: '小安' });
   await db.doc('cards/live').set({
     authorId: 'alice',
     thoughtCore: '安靜的夜晚',
@@ -71,7 +72,15 @@ async function failure(p: Promise<unknown>): Promise<ApiFailure> {
 describe('applyCardEdit', () => {
   it('makes the working copy the live card and clears it, keeping the date, slug and counts', async () => {
     await buffer();
-    await expect(applyCardEdit(db, 'alice', 'live')).resolves.toEqual({ id: 'live', slug: 'a-quiet-night', applied: true });
+    await expect(applyCardEdit(db, 'alice', 'live')).resolves.toEqual({
+      id: 'live',
+      slug: 'a-quiet-night',
+      applied: true,
+      // The route revalidates these after its response: the card under both
+      // names, the profile listing it, and the landing page it was public on
+      // (this edit took it to connections-only).
+      stale: ['/card/live', '/card/a-quiet-night', '/u/小安', `/u/${encodeURIComponent('小安')}`, '/'],
+    });
     const card = (await db.doc('cards/live').get()).data()!;
     expect(card).toMatchObject({
       thoughtCore: '更安靜的夜晚',
@@ -106,7 +115,7 @@ describe('applyCardEdit', () => {
   });
 
   it('changes nothing when there is no pending edit (a retry after success)', async () => {
-    await expect(applyCardEdit(db, 'alice', 'live')).resolves.toEqual({ id: 'live', slug: 'a-quiet-night', applied: false });
+    await expect(applyCardEdit(db, 'alice', 'live')).resolves.toEqual({ id: 'live', slug: 'a-quiet-night', applied: false, stale: [] });
     expect((await db.doc('cards/live').get()).get('story')).toBe('原本的故事');
   });
 

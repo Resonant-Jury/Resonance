@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
 import { parse, withUser } from '@/lib/api/v1/http';
 import { createProfile, updateProfile } from '@/lib/api/v1/profile';
 import { CreateProfileRequest, UpdateProfileRequest } from '@/lib/api/v1/schemas';
 import { getMe } from '@/lib/api/v1/service';
+import { profilePagePaths, revalidateLocalized } from '@/lib/api/revalidate';
 import { getAdminDb } from '@/lib/db/firestore/admin';
-import { routing } from '@/i18n/routing';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,8 +29,5 @@ export const PATCH = withUser(async (user, req) => {
 });
 
 function revalidateProfile(...handles: (string | null)[]) {
-  for (const handle of handles) {
-    if (!handle) continue;
-    for (const locale of routing.locales) revalidatePath(`/${locale}/u/${encodeURIComponent(handle)}`);
-  }
+  revalidateLocalized(handles.flatMap(profilePagePaths));
 }
