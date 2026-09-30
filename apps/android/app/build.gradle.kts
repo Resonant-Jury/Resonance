@@ -22,11 +22,26 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        // The Play upload key (Play App Signing keeps the key the store signs with).
+        // Its file and passwords stay off the repo, in ~/.gradle/gradle.properties:
+        // RESONANCE_UPLOAD_STORE_FILE, _STORE_PASSWORD, _KEY_ALIAS, _KEY_PASSWORD.
+        providers.gradleProperty("RESONANCE_UPLOAD_STORE_FILE").orNull?.let { path ->
+            create("upload") {
+                storeFile = file(path)
+                storePassword = providers.gradleProperty("RESONANCE_UPLOAD_STORE_PASSWORD").get()
+                keyAlias = providers.gradleProperty("RESONANCE_UPLOAD_KEY_ALIAS").get()
+                keyPassword = providers.gradleProperty("RESONANCE_UPLOAD_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug") // until a release key is set up
+            // Without the upload key (CI, another machine) a release still builds, debug-signed.
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
         }
     }
 
