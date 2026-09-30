@@ -127,10 +127,10 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
             horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OrganicButton(L10n.Card.Note.cancel, variant = ButtonVariant.Ghost, small = true, onClick = onClose)
+            OrganicButton(L10n.Card.Note.cancel, variant = ButtonVariant.Text, small = true, onClick = onClose)
             // The web's wrapper: dimmed to .5 and deaf to touches until there is something to send.
             Box(Modifier.dimmedUnless(valid && !pending)) {
-                OrganicButton(if (pending) "…" else L10n.Card.Note.send, variant = ButtonVariant.Outline, small = true) {
+                OrganicButton(if (pending) "…" else L10n.Card.Note.send, variant = ButtonVariant.Solid, small = true) {
                     if (!valid || pending) return@OrganicButton
                     pending = true
                     error = null

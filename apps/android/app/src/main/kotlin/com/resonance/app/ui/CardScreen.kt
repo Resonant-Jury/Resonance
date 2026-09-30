@@ -1,6 +1,12 @@
 package com.resonance.app.ui
 
 import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +28,7 @@ import com.resonance.design.OrganicIcon
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -30,10 +37,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -53,7 +62,9 @@ import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicImage
 import com.resonance.design.OrganicInlineBar
+import com.resonance.design.MenuTrigger
 import com.resonance.design.OrganicMenuChip
+import com.resonance.design.inlineBarTop
 import com.resonance.design.StoryMarkdown
 import com.resonance.design.TagPill
 import com.resonance.design.cream
@@ -113,17 +124,15 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().cream()) {
-        OrganicInlineBar(L10n.App.Nav.back, back, scrolled = list.scrolledPast20()) {
-            detail?.let { d ->
-                val hueSeed = d.card.accentHue ?: 55.0
-                OrganicMenuChip(IconName.Share, "Share", seed = hueSeed + 5) {
-                    val link = "${session.config.origin}/card/${d.card.routeKey}"
-                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link), null))
-                }
-            }
-        }
+    // The bar lies over the page, so the story scrolls right up to its pen line.
+    val top = inlineBarTop()
+    // Once the byline has scrolled under the bar, the bar names the author (Threads' header, in the byline's language).
+    val bylinePx = with(LocalDensity.current) { BylineBottom.toPx() }
+    val bylineGone by remember(list, bylinePx) {
+        derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > bylinePx }
+    }
+    Box(Modifier.fillMaxSize().cream()) {
+    Column(Modifier.fillMaxSize().padding(top = if (phase == "loaded") 0.dp else top)) {
         when (phase) {
             // CardDetailSkeleton: the article's own layout in shimmering blocks.
             "loading" -> CardDetailSkeleton(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp))
@@ -132,7 +141,7 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
             else -> detail?.let { d ->
                 val card = d.card
                 val resonance = (listOfNotNull(d.referenceCard) + resonances).distinctBy { it.id }
-                LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 40.dp)) {
                     item {
                         Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
                             Byline(card, d.anonymous) { open(Route.Author(it)) }
@@ -144,22 +153,10 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
                                 }
                                 Spacer(Modifier.height(20.dp))
                             }
-                            Row(Modifier.padding(bottom = 28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                CssText(
-                                    card.title, AppFonts.Family.Heading, 28f, 700, lineHeight = 1.2f, letterSpacing = -0.015f,
-                                    modifier = Modifier.weight(1f).semantics { heading() },
-                                )
-                                // The ⋯ sits beside the title, as on the web: the owner's actions, or the reader's safety menu.
-                                val menuSeed = (card.accentHue ?: 55.0) + 3
-                                if (d.isOwner) {
-                                    // Its own page is underneath the writer, so the card isn't opened again on the way out.
-                                    CardActionsMenu(session, card.id, card.visibility.value, card.routeKey, open, seed = menuSeed, showsCard = false, onDeleted = popToRoot)
-                                } else {
-                                    // An anonymous card hides its author: the menu only reports it (the server knows who wrote it).
-                                    val authorId = if (d.anonymous) null else card.author?.id
-                                    SafetyMenu(session, SafetyService.Target.Card(card.id, authorId), if (authorId == null) null else card.author?.handle, seed = menuSeed)
-                                }
-                            }
+                            CssText(
+                                card.title, AppFonts.Family.Heading, 28f, 700, lineHeight = 1.2f, letterSpacing = -0.015f,
+                                modifier = Modifier.padding(bottom = 28.dp).semantics { heading() },
+                            )
                             StoryMarkdown(blocks, openUrl) { href, title -> CardEmbed(session, href, title, open) }
                             FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
@@ -198,6 +195,28 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
             }
         }
     }
+    OrganicInlineBar(
+        L10n.App.Nav.back, back, scrolled = list.scrolledPast20(),
+        leading = { detail?.let { d -> BarAuthor(d.card, d.anonymous, visible = phase == "loaded" && bylineGone) { open(Route.Author(it)) } } },
+    ) {
+        detail?.let { d ->
+            val card = d.card
+            val hue = card.accentHue ?: 55.0
+            OrganicMenuChip(IconName.Share, L10n.Card.share, seed = hue + 5, trigger = MenuTrigger.Bare) {
+                val link = "${session.config.origin}/card/${card.routeKey}"
+                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link), null))
+            }
+            // The ⋯ lives in the bar, as phone apps keep a page's actions: the owner's, or the reader's safety menu.
+            if (d.isOwner) {
+                // Its own page is underneath the writer, so the card isn't opened again on the way out.
+                CardActionsMenu(session, card.id, card.visibility.value, card.routeKey, open, seed = hue + 3, showsCard = false, onDeleted = popToRoot, trigger = MenuTrigger.Bare)
+            } else {
+                // An anonymous card hides its author: the menu only reports it (the server knows who wrote it).
+                val authorId = if (d.anonymous) null else card.author?.id
+                SafetyMenu(session, SafetyService.Target.Card(card.id, authorId), if (authorId == null) null else card.author?.handle, seed = hue + 3, trigger = MenuTrigger.Bare)
+            }
+        }
+    }
     // The web's pen sits on the card page too: bottom right, 20 in.
     // On your own card the pen edits it (FloatingWriteButton's editsOwnCard), then comes back here.
     detail?.let { d ->
@@ -220,6 +239,39 @@ private fun LazyListScope.sectionHeading(title: String, below: Int) {
             style = AppFonts.heading(22f, lineHeight = 1.3f).copy(textAlign = TextAlign.Center, letterSpacing = (-0.01).em),
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = below.dp).semantics { heading() },
         )
+    }
+}
+
+/** Where the byline ends under the bar: its 16 of air and the 44 avatar. */
+private val BylineBottom = 60.dp
+
+/**
+ * The author in the bar once the byline has scrolled away: the avatar small
+ * and the pen name (→ their page), rising in as the byline leaves; an
+ * anonymous card shows its dot and "anonymous".
+ */
+@Composable
+private fun BarAuthor(card: FeedCard, anonymous: Boolean, visible: Boolean, openAuthor: (String) -> Unit) {
+    AnimatedVisibility(
+        visible,
+        enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { it / 3 },
+        exit = fadeOut(tween(140)) + slideOutVertically(tween(180)) { it / 3 },
+    ) {
+        val author = card.author
+        val shown = author != null && !anonymous
+        Row(
+            Modifier.padding(start = 2.dp).then(if (shown) Modifier.plainClickable(onClickLabel = author!!.handle) { openAuthor(author.handle) } else Modifier),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (shown) HandDrawnAvatar(author!!.initials, author.avatarUrl, author.accent(), 28.dp, author.avatarSeedValue())
+            else HandDrawnAvatar("·", color = Tokens.CreamDark, size = 28.dp, seed = 97.0)
+            BasicText(
+                if (shown) author!!.handle else L10n.Card.anonymousAuthor,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = AppFonts.body(15f, 600, color = if (shown) Tokens.Text else Tokens.TextMuted),
+            )
+        }
     }
 }
 

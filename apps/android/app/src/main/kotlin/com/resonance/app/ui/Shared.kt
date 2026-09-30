@@ -1,6 +1,20 @@
 package com.resonance.app.ui
 
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -130,7 +144,8 @@ fun TabScreen(
 ) {
     val list = rememberLazyListState()
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight
-    Box(Modifier.fillMaxSize().cream()) {
+    val quickReturn = rememberQuickReturn(list)
+    Box(Modifier.fillMaxSize().cream().nestedScroll(quickReturn.connection)) {
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 120.dp)) {
             item {
                 // The web's page padding: 40 under the header, the title block 40 above the content (home's header).
@@ -144,8 +159,36 @@ fun TabScreen(
             }
             content()
         }
-        OrganicBrandBar(list.scrolledPast20())
+        // The bar slides up under the status bar while reading down and comes back on the way up
+        // (the brand has nothing to press, so it gives the stories the room); the status bar keeps its paper.
+        OrganicBrandBar(list.scrolledPast20(), Modifier.offset { IntOffset(0, quickReturn.offset.roundToInt()) })
+        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Tokens.Cream))
     }
+}
+
+/** The brand bar's quick return: how far it has slid up (−bar height…0), fed by the list's scrolling. */
+class QuickReturn(private val range: Float) {
+    var offset by mutableFloatStateOf(0f)
+    val connection = object : NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            offset = (offset + available.y).coerceIn(-range, 0f)
+            return Offset.Zero
+        }
+    }
+}
+
+@Composable
+private fun rememberQuickReturn(list: LazyListState): QuickReturn {
+    val range = with(LocalDensity.current) { BrandBarHeight.toPx() }
+    val q = remember(range) { QuickReturn(range) }
+    // Let go half-way and it settles, shown or hidden — and it is always shown back at the top.
+    LaunchedEffect(q, list.isScrollInProgress) {
+        if (list.isScrollInProgress) return@LaunchedEffect
+        val atTop = list.firstVisibleItemIndex == 0 && list.firstVisibleItemScrollOffset < range
+        val target = if (atTop || q.offset > -range / 2) 0f else -range
+        animate(q.offset, target, animationSpec = tween(180)) { v, _ -> q.offset = v }
+    }
+    return q
 }
 
 /**

@@ -115,7 +115,7 @@ struct ThreadScreen: View {
                 }
                 Spacer(minLength: 0)
                 if model.conversationExists, let pair = model.pairId {
-                    OrganicMenu(items: menuItems(model), label: L10n.Messages.moreMenu, seed: Double(seedFromString(pair)), triggerSize: 34)
+                    OrganicMenu(items: menuItems(model), label: L10n.Messages.moreMenu, seed: Double(seedFromString(pair)), triggerSize: 34, trigger: .bare)
                 }
             }
         }
@@ -138,7 +138,7 @@ struct ThreadScreen: View {
         }
         .organicConfirm(isPresented: $confirmingDelete, title: L10n.Messages.deleteConfirmTitle, message: L10n.Messages.deleteConfirmBody,
                         cancelLabel: L10n.Messages.deleteCancel, confirmLabel: busy ? "…" : L10n.Messages.deleteConfirm,
-                        closeLabel: L10n.Messages.deleteCancel, busy: busy, seed: 59) {
+                        closeLabel: L10n.Messages.deleteCancel, busy: busy, destructive: true, seed: 59) {
             Task {
                 busy = true
                 let deleted = await model.deleteConversation()
@@ -309,7 +309,7 @@ struct ThreadScreen: View {
                 .onChange(of: model.draft) { _, new in
                     if new.utf16.count > 2000 { model.draft = String(new.utf16.prefix(2000)) ?? new }
                 }
-                OrganicButton(model.sending ? "…" : L10n.Messages.send, size: .sm) { Task { await model.send() } }
+                OrganicButton(model.sending ? "…" : L10n.Messages.send, variant: .solid, size: .sm) { Task { await model.send() } }
                     .fillingHeight()
                     .opacity(model.canSend ? 1 : 0.5)
                     .allowsHitTesting(model.canSend)

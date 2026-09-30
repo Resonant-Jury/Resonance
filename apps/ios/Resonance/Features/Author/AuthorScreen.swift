@@ -113,7 +113,7 @@ struct AuthorScreen: View {
             Text(L10n.Safety.blockedNotice(handle: author.handle)).font(AppFonts.heading(20)).foregroundStyle(Tokens.text)
             Text(L10n.Safety.blockedNoticeBody).font(AppFonts.body(14.5)).foregroundStyle(Tokens.textMuted)
                 .padding(.bottom, 8)
-            OrganicButton(unblocking ? "…" : L10n.Safety.unblock, variant: .ghost, size: .sm) {
+            OrganicButton(unblocking ? "…" : L10n.Safety.unblock, variant: .textAccent, size: .sm) {
                 Task { await unblock(author.id) }
             }
             .disabled(unblocking)

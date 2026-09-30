@@ -96,6 +96,6 @@ fun CardPickerContent(session: Session, title: String, subtitle: String, onPick:
             }
         }
         // iOS's picker sets the actions straight under the list (its rows carry their own 10).
-        ModalActions(topPadding = 0.dp) { OrganicButton(L10n.Write.Editor.CardModal.cancel, variant = ButtonVariant.Ghost, small = true, onClick = onCancel) }
+        ModalActions(topPadding = 0.dp) { OrganicButton(L10n.Write.Editor.CardModal.cancel, variant = ButtonVariant.Text, small = true, onClick = onCancel) }
     }
 }

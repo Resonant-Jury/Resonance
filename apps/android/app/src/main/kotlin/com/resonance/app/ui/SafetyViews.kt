@@ -35,6 +35,7 @@ import com.resonance.design.ModalTitle
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicConfirmDialog
 import com.resonance.design.OrganicIcon
+import com.resonance.design.MenuTrigger
 import com.resonance.design.OrganicMenu
 import com.resonance.design.OrganicMenuItem
 import com.resonance.design.OrganicModal
@@ -54,7 +55,16 @@ import java.time.OffsetDateTime
  * menu only reports: the app never learns who wrote it, so there is no one to block.
  */
 @Composable
-fun SafetyMenu(session: Session, target: SafetyService.Target, handle: String?, isBlocked: Boolean = false, seed: Double = 7.0, onChange: () -> Unit = {}) {
+fun SafetyMenu(
+    session: Session,
+    target: SafetyService.Target,
+    handle: String?,
+    isBlocked: Boolean = false,
+    seed: Double = 7.0,
+    /** Bare in a bar (the card page, a profile), a chip over content. */
+    trigger: MenuTrigger = MenuTrigger.Bare,
+    onChange: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     var reporting by remember { mutableStateOf(false) }
     var confirmingBlock by remember { mutableStateOf(false) }
@@ -62,7 +72,7 @@ fun SafetyMenu(session: Session, target: SafetyService.Target, handle: String?, 
     val name = handle ?: L10n.Safety.anonymousAuthor
     val person = target.userId
 
-    OrganicMenu(label = L10n.Safety.menuLabel, seed = seed, items = buildList {
+    OrganicMenu(label = L10n.Safety.menuLabel, seed = seed, trigger = trigger, items = buildList {
         add(OrganicMenuItem(if (target is SafetyService.Target.Card) L10n.Safety.reportCard else L10n.Safety.reportUser, IconName.Flag) { reporting = true })
         when {
             person == null -> Unit
@@ -123,7 +133,7 @@ fun ReportDialog(
             ModalTitle(L10n.Safety.Report.doneTitle)
             ModalBody(L10n.Safety.Report.doneBody)
             if (blocked) ModalBody(L10n.Safety.Report.doneBlocked(name))
-            ModalActions { OrganicButton(L10n.Safety.Report.close, small = true, onClick = onClose) }
+            ModalActions { OrganicButton(L10n.Safety.Report.close, variant = ButtonVariant.Solid, small = true, onClick = onClose) }
             return@OrganicModal
         }
         ModalTitle(title)
@@ -153,8 +163,8 @@ fun ReportDialog(
         }
         if (error) BasicText(L10n.Safety.actionError, style = AppFonts.body(13f, color = Tokens.Terracotta))
         ModalActions {
-            OrganicButton(L10n.Safety.cancel, variant = ButtonVariant.Ghost, small = true, enabled = !busy, onClick = onClose)
-            OrganicButton(if (busy) "…" else L10n.Safety.Report.submit, small = true, enabled = !busy) {
+            OrganicButton(L10n.Safety.cancel, variant = ButtonVariant.Text, small = true, enabled = !busy, onClick = onClose)
+            OrganicButton(if (busy) "…" else L10n.Safety.Report.submit, variant = ButtonVariant.Solid, small = true, enabled = !busy) {
                 scope.launch {
                     busy = true
                     error = false

@@ -83,8 +83,8 @@ struct NoteComposer: View {
             }
             HStack(spacing: 10) {
                 Spacer(minLength: 0)
-                OrganicButton(L10n.Card.Note.cancel, variant: .ghost, size: .sm, action: onClose)
-                OrganicButton(pending ? "…" : L10n.Card.Note.send, variant: .outline, size: .sm) { Task { await send() } }
+                OrganicButton(L10n.Card.Note.cancel, variant: .text, size: .sm, action: onClose)
+                OrganicButton(pending ? "…" : L10n.Card.Note.send, variant: .solid, size: .sm) { Task { await send() } }
                     .opacity(valid && !pending ? 1 : 0.5)
                     .allowsHitTesting(valid && !pending)
             }

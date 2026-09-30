@@ -326,6 +326,8 @@ public enum L10n {
         }
         /// Verified
         public static var verified: String { Strings.shared.string("card.verified") }
+        /// Share
+        public static var share: String { Strings.shared.string("card.share") }
         /// Private
         public static var `private`: String { Strings.shared.string("card.private") }
         /// Connections only

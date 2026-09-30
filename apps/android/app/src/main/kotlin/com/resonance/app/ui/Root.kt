@@ -5,13 +5,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.Session
+import com.resonance.design.OrganicIndication
 import com.resonance.design.SketchLoader
 import com.resonance.design.cream
 import com.resonance.design.generated.Tokens
@@ -23,6 +26,8 @@ import com.resonance.design.generated.Tokens
 @Composable
 fun ResonanceRoot(session: Session, incomingRoute: MutableState<String?>) {
     MaterialTheme(colorScheme = lightColorScheme(primary = Tokens.Terracotta, surface = Tokens.Cream, background = Tokens.Cream)) {
+    // Every press is the hand-drawn ink spread, never Material's rectangular ripple (it spilt past round chips and bare glyphs).
+    CompositionLocalProvider(LocalIndication provides OrganicIndication()) {
         val phase by session.phase.collectAsStateWithLifecycle()
         Crossfade(phase, Modifier.fillMaxSize().cream(), label = "phase") { p ->
             when (p) {
@@ -31,6 +36,7 @@ fun ResonanceRoot(session: Session, incomingRoute: MutableState<String?>) {
                 Session.Phase.SignedIn -> SignedIn(session, incomingRoute)
             }
         }
+    }
     }
 }
 

@@ -328,6 +328,8 @@ object L10n {
         }
         /** Verified */
         val verified: String get() = Strings.string("card.verified")
+        /** Share */
+        val share: String get() = Strings.string("card.share")
         /** Private */
         val private: String get() = Strings.string("card.private")
         /** Connections only */

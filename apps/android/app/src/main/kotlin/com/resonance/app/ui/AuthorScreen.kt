@@ -40,6 +40,7 @@ import com.resonance.design.AppFonts
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicInlineBar
+import com.resonance.design.inlineBarTop
 import com.resonance.design.ButtonVariant
 import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicButton
@@ -82,23 +83,25 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
     }
 
     val list = rememberLazyListState()
-    Column(Modifier.fillMaxSize().cream()) {
-        OrganicInlineBar(L10n.App.Nav.back, back, scrolled = list.scrolledPast20()) {
-            profile?.takeIf { !it.isSelf }?.let { p ->
-                SafetyMenu(session, SafetyService.Target.User(p.author.id), p.author.handle, p.isBlocked, seed = seedFromString(p.author.id).toDouble()) { reload++ }
-            }
-        }
+    // The bar lies over the page, so what scrolls shows right up to its pen line.
+    val top = inlineBarTop()
+    Box(Modifier.fillMaxSize().cream()) {
+    Column(Modifier.fillMaxSize()) {
         when (phase) {
             // The web's profile skeleton: the masthead's blocks, then four loading cards.
-            "loading" -> LazyColumn(Modifier.fillMaxSize(), userScrollEnabled = false) {
+            "loading" -> LazyColumn(Modifier.fillMaxSize(), userScrollEnabled = false, contentPadding = PaddingValues(top = top)) {
                 item { ProfileHeroSkeleton() }
                 storyCardSkeletons(4)
             }
-            "notFound" -> OrganicEmptyState(title = L10n.Profile.notFound, actionTitle = L10n.Profile.backHome, onAction = back, action = EmptyAction.Link, verticalPadding = 40.dp)
-            "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { reload++ }, action = EmptyAction.Outline)
+            "notFound" -> Box(Modifier.padding(top = top)) {
+                OrganicEmptyState(title = L10n.Profile.notFound, actionTitle = L10n.Profile.backHome, onAction = back, action = EmptyAction.Link, verticalPadding = 40.dp)
+            }
+            "failed" -> Box(Modifier.padding(top = top)) {
+                OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { reload++ }, action = EmptyAction.Outline)
+            }
             else -> profile?.let { p ->
                 val a = p.author
-                LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 48.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 48.dp)) {
                     item {
                         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             HandDrawnAvatar(a.initials, a.avatarUrl, a.accent(), 96.dp, a.avatarSeedValue())
@@ -163,6 +166,12 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
             }
         }
     }
+    OrganicInlineBar(L10n.App.Nav.back, back, scrolled = list.scrolledPast20()) {
+        profile?.takeIf { !it.isSelf }?.let { p ->
+            SafetyMenu(session, SafetyService.Target.User(p.author.id), p.author.handle, p.isBlocked, seed = seedFromString(p.author.id).toDouble()) { reload++ }
+        }
+    }
+    }
 }
 
 /**
@@ -184,7 +193,7 @@ private fun BlockedNotice(session: Session, userId: String, handle: String, onUn
             style = AppFonts.body(14.5f, lineHeight = 1.6f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
             modifier = Modifier.padding(bottom = 8.dp),
         )
-        OrganicButton(if (busy) "…" else L10n.Safety.unblock, variant = ButtonVariant.Ghost, small = true, enabled = !busy) {
+        OrganicButton(if (busy) "…" else L10n.Safety.unblock, variant = ButtonVariant.TextAccent, small = true, enabled = !busy) {
             busy = true
             scope.launch {
                 runCatching { session.safety?.unblock(userId) }.onSuccess { onUnblocked() }

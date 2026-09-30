@@ -13,16 +13,18 @@ extension View {
                                        closeLabel: closeLabel, dismissible: dismissible, card: content))
     }
 
-    /// ConfirmModal: title, a line of explanation, then ghost cancel and the
-    /// primary verb at the bottom right. `error` shows under the text in the
-    /// danger ink when the action didn't go through.
+    /// ConfirmModal: title, a line of explanation, then cancel and the verb at
+    /// the bottom right. The modal is the frame, so neither button draws one:
+    /// cancel is plain text, the verb a solid fill — red when it can't be
+    /// undone (`destructive`). `error` shows under the text in the danger ink
+    /// when the action didn't go through.
     public func organicConfirm(isPresented: Binding<Bool>, title: String, message: String, cancelLabel: String,
                                confirmLabel: String, closeLabel: String, busy: Bool = false, error: String? = nil,
-                               seed: Double = 67, onConfirm: @escaping () -> Void) -> some View {
+                               destructive: Bool = false, seed: Double = 67, onConfirm: @escaping () -> Void) -> some View {
         organicModal(isPresented: isPresented, seed: seed, maxWidth: 400, closeLabel: closeLabel, dismissible: !busy) {
             OrganicConfirmContent(title: title, message: message, cancelLabel: cancelLabel, confirmLabel: confirmLabel,
-                                  busy: busy, error: error, onCancel: { isPresented.wrappedValue = false },
-                                  onConfirm: onConfirm)
+                                  busy: busy, error: error, destructive: destructive,
+                                  onCancel: { isPresented.wrappedValue = false }, onConfirm: onConfirm)
         }
     }
 }
@@ -35,17 +37,19 @@ public struct OrganicConfirmContent: View {
     let confirmLabel: String
     var busy: Bool
     var error: String?
+    var destructive: Bool
     let onCancel: () -> Void
     let onConfirm: () -> Void
 
     public init(title: String, message: String, cancelLabel: String, confirmLabel: String, busy: Bool = false,
-                error: String? = nil, onCancel: @escaping () -> Void, onConfirm: @escaping () -> Void) {
+                error: String? = nil, destructive: Bool = false, onCancel: @escaping () -> Void, onConfirm: @escaping () -> Void) {
         self.title = title
         self.message = message
         self.cancelLabel = cancelLabel
         self.confirmLabel = confirmLabel
         self.busy = busy
         self.error = error
+        self.destructive = destructive
         self.onCancel = onCancel
         self.onConfirm = onConfirm
     }
@@ -58,8 +62,8 @@ public struct OrganicConfirmContent: View {
                 ModalError(error).padding(.bottom, 14)
             }
             ModalActions {
-                OrganicButton(cancelLabel, variant: .ghost, size: .sm, action: onCancel)
-                OrganicButton(busy ? "…" : confirmLabel, size: .sm, action: onConfirm)
+                OrganicButton(cancelLabel, variant: .text, size: .sm, action: onCancel)
+                OrganicButton(busy ? "…" : confirmLabel, variant: destructive ? .danger : .solid, size: .sm, action: onConfirm)
             }
             .disabled(busy)
         }
@@ -214,11 +218,11 @@ struct OrganicModalCard<Content: View>: View {
                     ModalCloseMark()
                         .stroke(Tokens.text, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
                         .frame(width: 18, height: 18)
+                        .opacity(0.55)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .opacity(0.55)
+                .buttonStyle(OrganicPressStyle(inset: 6))
                 .padding(.top, 17)
                 .padding(.trailing, 13)
                 .accessibilityLabel(closeLabel)

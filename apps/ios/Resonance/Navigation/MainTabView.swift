@@ -140,15 +140,21 @@ struct MainTabView: View {
     }
 }
 
-/// A tab's root screen: the pinned brand bar (the web's phone AppHeader),
-/// then the page title and the content scrolling under the bar, with room
-/// at the bottom for the floating tab bar.
+/// A tab's root screen: the brand bar (the web's phone AppHeader), then the
+/// page title and the content scrolling under the bar, with room at the
+/// bottom for the tab bar. The brand bar has nothing to press, so it gives the
+/// stories the room: it slides up under the status bar while reading down and
+/// comes back on the way up (settling shown or hidden when the scroll stops).
 struct TabScreen<Trailing: View, Content: View>: View {
     let title: String
     var headerSpacing: CGFloat
     let trailing: Trailing
     let content: Content
     @State private var scrolled = false
+    /// How far the brand bar has slid up (0…`travel`).
+    @State private var hidden: CGFloat = 0
+    /// The bar's row above its wavy edge: 4 of air and the 44 lockup.
+    private let travel: CGFloat = 48
 
     init(_ title: String, headerSpacing: CGFloat = 20, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
          @ViewBuilder content: () -> Content) {
@@ -170,8 +176,20 @@ struct TabScreen<Trailing: View, Content: View>: View {
             .padding(.bottom, 110)
         }
         .onHeaderScroll($scrolled)
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { old, new in
+            hidden = new <= 0 ? 0 : min(travel, max(0, hidden + new - old))
+        }
+        .onScrollPhaseChange { _, phase, context in
+            guard phase == .idle else { return }
+            let y = context.geometry.contentOffset.y + context.geometry.contentInsets.top
+            withAnimation(.easeOut(duration: 0.18)) { hidden = y < travel || hidden < travel / 2 ? 0 : travel }
+        }
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
-        .safeAreaInset(edge: .top, spacing: 0) { OrganicBrandBar(scrolled: scrolled) }
+        .safeAreaInset(edge: .top, spacing: 0) { OrganicBrandBar(scrolled: scrolled).offset(y: -hidden) }
+        // The status bar keeps its paper while the bar slides under it.
+        .overlay(alignment: .top) {
+            Color.clear.frame(height: 0).background(Tokens.cream.ignoresSafeArea(edges: .top))
+        }
     }
 }

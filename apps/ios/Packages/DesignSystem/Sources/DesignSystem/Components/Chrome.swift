@@ -23,14 +23,21 @@ public struct OrganicTabItem<ID: Hashable>: Identifiable {
     }
 }
 
-/// Floating hand-drawn tab bar: organic pill, ink outline, grain; the selected
-/// tab sits on a wobbly wash (the web's active nav item). Re-implements what
-/// the system bar gives for free: selection haptics, tab traits for
-/// VoiceOver, and the Large Content Viewer on long press.
+/// The tab bar, docked like the header and edged the same way: cream paper
+/// that begins on a wavy pen line (``FooterEdge``), so the top and bottom
+/// chrome are one pair and nothing floats or draws a frame. Tabs are the glyph
+/// over its label; the selected one inks terracotta on a small wobbly wash
+/// behind the glyph. The pen sits among them as a solid terracotta squircle
+/// the tabs' height — the one filled thing in the bar, without a rim.
+/// Re-implements what the system bar gives for free: selection haptics, tab
+/// traits for VoiceOver, and the Large Content Viewer on long press.
 public struct OrganicTabBar<ID: Hashable>: View {
     let items: [OrganicTabItem<ID>]
     let selection: ID
     let onSelect: (ID) -> Void
+
+    /// The bar's height above the home indicator, without its wavy edge.
+    public static var height: CGFloat { 60 }
 
     public init(items: [OrganicTabItem<ID>], selection: ID, onSelect: @escaping (ID) -> Void) {
         self.items = items
@@ -39,63 +46,141 @@ public struct OrganicTabBar<ID: Hashable>: View {
     }
 
     public var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 if item.isAction {
-                    actionButton(item, index: index)
+                    actionButton(item)
                 } else {
                     tabButton(item, index: index)
                 }
             }
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 6)
-        .organicSurface(fill: Tokens.cardBg, stroke: Tokens.modalBorder, radius: 26, seed: 131, grain: .tile, grainOpacity: 0.25)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 4)
+        .frame(height: Self.height)
+        .padding(.top, HeaderEdge.height)
+        .background { FooterEdge() }
         .sensoryFeedback(.selection, trigger: selection)
     }
 
     private func tabButton(_ item: OrganicTabItem<ID>, index: Int) -> some View {
         let selected = item.id == selection
         return Button { onSelect(item.id) } label: {
-            VStack(spacing: 2) {
+            VStack(spacing: 3) {
                 OrganicIcon(item.icon, size: 24)
                     .overlay(alignment: .topTrailing) {
                         // Where the web's chip hangs off its 34pt icon button.
                         if item.badge > 0 { UnreadBadge(count: item.badge).offset(x: 9, y: -8) }
                     }
+                    .frame(width: 54, height: 30)
+                    .background {
+                        WobRectShape(radius: 15, seed: Double(index * 29 + 7), mag: 1.2, options: WobRectOptions(
+                            curve: 1.4, cornerJitter: 2, segmentsH: .count(1), segmentsV: .count(1)))
+                            .fill(Tokens.terracottaLight.opacity(0.55))
+                            .opacity(selected ? 1 : 0)
+                            .animation(.easeOut(duration: 0.16), value: selected)
+                    }
                 Text(item.title).font(AppFonts.body(10.5, weight: selected ? .semibold : .regular)).lineLimit(1)
             }
             .foregroundStyle(selected ? Tokens.terracotta : Tokens.textMuted)
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .background {
-                if selected {
-                    WobRectShape(radius: 16, seed: Double(index * 29 + 7), mag: 1.3)
-                        .fill(Tokens.terracottaLight.opacity(0.45))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                }
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TabPressStyle())
         .accessibilityLabel(item.badge > 0 ? "\(item.title), \(item.badge)" : item.title)
         .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
         .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
     }
 
-    /// The pen: the web's write button, a little smaller to sit in the bar.
-    private func actionButton(_ item: OrganicTabItem<ID>, index: Int) -> some View {
+    /// The pen: a solid terracotta squircle as tall as a tab, the nib in cream; it darkens while pressed.
+    private func actionButton(_ item: OrganicTabItem<ID>) -> some View {
         Button { onSelect(item.id) } label: {
-            WriteButtonFace(size: 52, icon: item.icon)
-                .frame(maxWidth: .infinity, minHeight: 48)
+            PenChip(icon: item.icon)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PenPressStyle())
         .accessibilityLabel(item.title)
         .accessibilityAddTraits(.isButton)
         .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
+    }
+}
+
+/// A tab's press: the glyph's wash half-shown under the finger.
+private struct TabPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
+private struct PenPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .environment(\.penPressed, configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+private extension EnvironmentValues {
+    @Entry var penPressed = false
+}
+
+private struct PenChip: View {
+    let icon: IconName
+    @Environment(\.penPressed) private var pressed
+
+    var body: some View {
+        let shape = WobRectShape(radius: 17, seed: 3, mag: 1.1, options: WobRectOptions(
+            curve: 1.3, cornerJitter: 3, cornerOffset: 2.4, segmentsH: .count(1), segmentsV: .count(1)))
+        OrganicIcon(icon, size: 22, color: Tokens.cream)
+            .frame(width: 56, height: 40)
+            .background {
+                shape.fill(Tokens.terracotta)
+                GrainLayer(shape: shape, mode: .tile, opacity: 0.38, tile: "grain-button")
+                shape.fill(Color.black.opacity(pressed ? 0.14 : 0))
+            }
+    }
+}
+
+/// The tab bar's backdrop and top edge — ``HeaderEdge`` turned over: the cream
+/// begins on a wavy pen line (its own seed, 223) and runs down under the home
+/// indicator, so content scrolled beneath shows right down to the line. The
+/// line rests at half ink, like the header's before the page scrolls.
+public struct FooterEdge: View {
+    public init() {}
+
+    public var body: some View {
+        ZStack {
+            FooterEdgeShape(closed: true).fill(Tokens.cream)
+            FooterEdgeShape(closed: false)
+                .stroke(Tokens.fieldBorderHover, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                .opacity(0.5)
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .accessibilityHidden(true)
+    }
+}
+
+nonisolated struct FooterEdgeShape: Shape {
+    var closed: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let y0 = Double(rect.minY) + 1.4 + Double(Tokens.ink)
+        let pts = wavyPoints(Double(rect.width), y0: y0, amp: 1.4, seed: 223, steps: 12)
+            .map { CGPoint(x: Double(rect.minX) + $0.x, y: $0.y) }
+        var p = Path()
+        p.move(to: pts[0])
+        for i in 1..<pts.count {
+            let a = pts[i - 1], b = pts[i]
+            let midX = (a.x + b.x) / 2
+            p.addCurve(to: b, control1: CGPoint(x: midX, y: a.y), control2: CGPoint(x: midX, y: b.y))
+        }
+        if closed {
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            p.closeSubpath()
+        }
+        return p
     }
 }
 
@@ -221,18 +306,23 @@ public struct OrganicLargeHeader<Trailing: View>: View {
 }
 
 /// Pushed-screen bar (the web header taken over by a sub-screen): the bare
-/// back arrow, then the screen's title set like the brand, then any actions.
-public struct OrganicInlineBar<Trailing: View>: View {
+/// back arrow, then the screen's title set like the brand (or, with no title,
+/// `leading` — the card page's author once the byline has scrolled away), then
+/// any actions, as bare glyphs.
+public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     let title: String
     let backLabel: String
     var scrolled: Bool
+    let leading: Leading
     let trailing: Trailing
     @Environment(\.dismiss) private var dismiss
 
-    public init(_ title: String, backLabel: String, scrolled: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+    public init(_ title: String, backLabel: String, scrolled: Bool = false,
+                @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
         self.title = title
         self.backLabel = backLabel
         self.scrolled = scrolled
+        self.leading = leading()
         self.trailing = trailing()
     }
 
@@ -241,20 +331,37 @@ public struct OrganicInlineBar<Trailing: View>: View {
             // The arrow's own 8pt pad sits in the gutter (margin-left −8 on the web).
             OrganicIconButton(.arrowRight, label: backLabel, size: 18, mirrored: true) { dismiss() }
                 .padding(.leading, -13)
-            Text(title)
-                .font(AppFonts.heading(22))
-                .tracking(-0.02 * 22)
-                .lineLimit(1)
-                .foregroundStyle(Tokens.text)
-                .accessibilityAddTraits(.isHeader)
+            if !title.isEmpty {
+                Text(title)
+                    .font(AppFonts.heading(22))
+                    .tracking(-0.02 * 22)
+                    .lineLimit(1)
+                    .foregroundStyle(Tokens.text)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            leading
             Spacer(minLength: 8)
-            trailing
+            // Bare glyphs sit on the page's 20 margin, as the arrow does on the other side.
+            HStack(spacing: 0) { trailing }
+                .padding(.trailing, -12)
         }
         .frame(minHeight: 44)
         .padding(.horizontal, 20)
         .padding(.top, 4)
         .padding(.bottom, HeaderEdge.height)
         .background { HeaderEdge(scrolled: scrolled) }
+    }
+}
+
+extension OrganicInlineBar where Leading == EmptyView {
+    public init(_ title: String, backLabel: String, scrolled: Bool = false, @ViewBuilder trailing: () -> Trailing) {
+        self.init(title, backLabel: backLabel, scrolled: scrolled, leading: { EmptyView() }, trailing: trailing)
+    }
+}
+
+extension OrganicInlineBar where Leading == EmptyView, Trailing == EmptyView {
+    public init(_ title: String, backLabel: String, scrolled: Bool = false) {
+        self.init(title, backLabel: backLabel, scrolled: scrolled, leading: { EmptyView() }, trailing: { EmptyView() })
     }
 }
 
@@ -330,7 +437,9 @@ nonisolated struct HeaderEdgeShape: Shape {
 }
 
 /// A bare hand-drawn icon control with a 44pt hit area — the web's header
-/// buttons draw no frame around the glyph.
+/// buttons draw no frame around the glyph. The header's other actions (share,
+/// ⋯) are bare glyphs too: a bar is chrome enough, so nothing in it draws a
+/// frame of its own.
 public struct OrganicIconButton: View {
     let icon: IconName
     let label: String
@@ -355,7 +464,8 @@ public struct OrganicIconButton: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // A press washes a wobbly squircle round the glyph, like every other control's.
+        .buttonStyle(OrganicPressStyle())
         .accessibilityLabel(label)
     }
 }
@@ -375,6 +485,44 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
     }
 
     public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        viewControllers.count > 1
+        guard viewControllers.count > 1 else { return false }
+        // A page with drags of its own (the thought map's canvas) goes back from the edge only.
+        if #available(iOS 26.0, *), gestureRecognizer === interactiveContentPopGestureRecognizer,
+           let top = topViewController, EdgeSwipeBack.pages.contains(top) {
+            return false
+        }
+        return true
+    }
+}
+
+/// Pages that go back from the screen's edge only (see `swipeBackFromEdgeOnly()`).
+@MainActor enum EdgeSwipeBack {
+    static let pages = NSHashTable<UIViewController>.weakObjects()
+}
+
+extension View {
+    /// iOS 26 lets a drag anywhere on a pushed page go back. On a page whose
+    /// content is itself dragged — a canvas taking raw touches, like the
+    /// thought map — that drag would leave the page, so this one keeps only
+    /// the edge swipe.
+    public func swipeBackFromEdgeOnly() -> some View {
+        background(EdgeSwipeMarker().frame(width: 0, height: 0).accessibilityHidden(true))
+    }
+}
+
+/// Finds the page it sits in (the controller the navigation stack holds) and files it under ``EdgeSwipeBack``.
+private struct EdgeSwipeMarker: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Marker { Marker() }
+    func updateUIViewController(_ controller: Marker, context: Context) {}
+
+    final class Marker: UIViewController {
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            var page: UIViewController? = self
+            while let current = page, let parent = current.parent, !(parent is UINavigationController) {
+                page = parent
+            }
+            if let page, page.parent is UINavigationController { EdgeSwipeBack.pages.add(page) }
+        }
     }
 }

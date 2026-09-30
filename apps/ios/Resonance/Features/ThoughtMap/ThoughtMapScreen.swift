@@ -37,6 +37,8 @@ struct ThoughtMapScreen: View {
         .ignoresSafeArea(.keyboard)
         .background(Tokens.cardBg)
         .toolbar(.hidden, for: .navigationBar)
+        // The canvas takes every drag: going back is from the screen's edge only.
+        .swipeBackFromEdgeOnly()
         .task {
             store.onOpen = { card in open(card) }
             if let uid = session.uid, !store.loaded { await store.load(uid: uid) }

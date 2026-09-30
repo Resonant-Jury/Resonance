@@ -226,7 +226,7 @@ private fun WriteForm(session: Session, referenceCardId: String?, story: String?
                         publishing = true
                     }
                     if (model.hasPendingEdit) {
-                        OrganicButton(L10n.Write.discardChanges, variant = ButtonVariant.Ghost, enabled = !discarding) {
+                        OrganicButton(L10n.Write.discardChanges, variant = ButtonVariant.Text, enabled = !discarding) {
                             if (discarding) return@OrganicButton
                             discarding = true
                             actionError = null
@@ -248,7 +248,7 @@ private fun WriteForm(session: Session, referenceCardId: String?, story: String?
                         actionError = null
                         publishing = true
                     }
-                    OrganicButton(L10n.Write.saveDraftAndLeave, variant = ButtonVariant.Ghost, onClick = leave)
+                    OrganicButton(L10n.Write.saveDraftAndLeave, variant = ButtonVariant.Text, onClick = leave)
                 }
             }
             actionError?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
@@ -436,7 +436,7 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
             } else {
                 if (pending) L10n.Write.PublishPanel.publishing else L10n.Write.PublishPanel.publish
             }
-            OrganicButton(label, small = true, enabled = !pending) {
+            OrganicButton(label, variant = ButtonVariant.Solid, small = true, enabled = !pending) {
                 // The server refuses a card without a title; say so in the writer's words.
                 if (model.values.title.isBlank()) {
                     error = L10n.Write.titleRequired
@@ -457,7 +457,7 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
                     pending = false
                 }
             }
-            OrganicButton(L10n.Write.PublishPanel.cancel, variant = ButtonVariant.Ghost, small = true, enabled = !pending, onClick = onCancel)
+            OrganicButton(L10n.Write.PublishPanel.cancel, variant = ButtonVariant.Text, small = true, enabled = !pending, onClick = onCancel)
         }
         error?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
     }

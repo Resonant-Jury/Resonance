@@ -17,6 +17,8 @@ struct CardActionsMenu: View {
     var showsCardAfterEdit = true
     var onChanged: () -> Void = {}
     var onDeleted: () -> Void = {}
+    /// A chip over a card's cover (the card box), bare in the card page's bar.
+    var trigger: MenuTrigger = .chip
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
     @State private var confirming = false
@@ -25,7 +27,7 @@ struct CardActionsMenu: View {
     private var isPrivate: Bool { visibility == "private" }
 
     var body: some View {
-        OrganicMenu(items: items, label: L10n.Me.Actions.menuLabel, seed: seed, hue: hue)
+        OrganicMenu(items: items, label: L10n.Me.Actions.menuLabel, seed: seed, hue: hue, trigger: trigger)
             .opacity(busy && !confirming ? 0.6 : 1)
             .organicModal(isPresented: $confirming, seed: seed + 5, maxWidth: 400, closeLabel: L10n.Me.Actions.deleteCancel,
                           dismissible: !busy) {
@@ -53,8 +55,9 @@ struct CardActionsMenu: View {
                 .padding(.bottom, 24)
             HStack(spacing: 10) {
                 Spacer(minLength: 0)
-                OrganicButton(L10n.Me.Actions.deleteCancel, variant: .ghost, size: .sm) { confirming = false }
-                OrganicButton(busy ? "…" : L10n.Me.Actions.deleteConfirm, size: .sm) { Task { await delete() } }
+                // The modal is the frame: "keep it" is plain text, and deleting — which can't be undone — is red.
+                OrganicButton(L10n.Me.Actions.deleteCancel, variant: .text, size: .sm) { confirming = false }
+                OrganicButton(busy ? "…" : L10n.Me.Actions.deleteConfirm, variant: .danger, size: .sm) { Task { await delete() } }
             }
             .opacity(busy ? 0.6 : 1)
             .allowsHitTesting(!busy)

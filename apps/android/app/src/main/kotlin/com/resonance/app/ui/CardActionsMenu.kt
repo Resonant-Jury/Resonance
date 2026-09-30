@@ -24,6 +24,7 @@ import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.CssText
 import com.resonance.design.OrganicButton
+import com.resonance.design.MenuTrigger
 import com.resonance.design.OrganicMenu
 import com.resonance.design.OrganicMenuItem
 import com.resonance.design.OrganicModal
@@ -53,6 +54,8 @@ fun CardActionsMenu(
     showsCard: Boolean = true,
     onChanged: () -> Unit = {},
     onDeleted: () -> Unit = {},
+    /** A chip over a card's cover (the card box), bare in the card page's bar. */
+    trigger: MenuTrigger = MenuTrigger.Chip,
 ) {
     val scope = rememberCoroutineScope()
     var confirming by remember { mutableStateOf(false) }
@@ -88,7 +91,7 @@ fun CardActionsMenu(
     )
 
     Box(Modifier.alpha(if (busy && !confirming) 0.6f else 1f)) {
-        OrganicMenu(items, L10n.Me.Actions.menuLabel, seed, hue = hue)
+        OrganicMenu(items, L10n.Me.Actions.menuLabel, seed, hue = hue, trigger = trigger)
     }
     if (confirming) {
         OrganicModal(
@@ -108,8 +111,9 @@ fun CardActionsMenu(
                 CssText(L10n.Me.Actions.deleteConfirmBody, AppFonts.Family.Body, 14f, lineHeight = 1.6f, color = Tokens.TextMuted)
                 Spacer(Modifier.height(24.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-                    OrganicButton(L10n.Me.Actions.deleteCancel, variant = ButtonVariant.Ghost, small = true, enabled = !busy) { confirming = false }
-                    OrganicButton(if (busy) "…" else L10n.Me.Actions.deleteConfirm, small = true, enabled = !busy) {
+                    // The modal is the frame: "keep it" is plain text, and deleting — which can't be undone — is red.
+                    OrganicButton(L10n.Me.Actions.deleteCancel, variant = ButtonVariant.Text, small = true, enabled = !busy) { confirming = false }
+                    OrganicButton(if (busy) "…" else L10n.Me.Actions.deleteConfirm, variant = ButtonVariant.Danger, small = true, enabled = !busy) {
                         val drafts = session.drafts
                         if (busy || drafts == null) return@OrganicButton
                         busy = true

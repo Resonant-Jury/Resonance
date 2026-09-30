@@ -30,7 +30,7 @@ struct ReportForm: View {
                 ModalTitle(L10n.Safety.Report.doneTitle)
                 ModalBody(L10n.Safety.Report.doneBody)
                 if blocked { ModalBody(L10n.Safety.Report.doneBlocked(handle: name)) }
-                ModalActions { OrganicButton(L10n.Safety.Report.close, size: .sm, action: onClose) }
+                ModalActions { OrganicButton(L10n.Safety.Report.close, variant: .solid, size: .sm, action: onClose) }
             } else {
                 ModalTitle(title)
                 ModalBody(L10n.Safety.Report.intro)
@@ -69,8 +69,8 @@ struct ReportForm: View {
                 }
                 if let error { ModalError(error) }
                 ModalActions {
-                    OrganicButton(L10n.Safety.cancel, variant: .ghost, size: .sm, action: onClose)
-                    OrganicButton(sending ? "…" : L10n.Safety.Report.submit, size: .sm) { Task { await submit() } }
+                    OrganicButton(L10n.Safety.cancel, variant: .text, size: .sm, action: onClose)
+                    OrganicButton(sending ? "…" : L10n.Safety.Report.submit, variant: .solid, size: .sm) { Task { await submit() } }
                         .disabled(reason == nil)
                 }
                 .disabled(sending)
@@ -128,6 +128,8 @@ struct SafetyMenu: View {
     var isBlocked = false
     var seed: Double = 7
     var triggerSize: CGFloat = 38
+    /// Bare in a bar (the card page, a profile), a chip over content.
+    var trigger: MenuTrigger = .bare
     var onChange: () -> Void = {}
     @Environment(SessionStore.self) private var session
     @State private var reporting = false
@@ -139,7 +141,7 @@ struct SafetyMenu: View {
     private var name: String { handle ?? L10n.Safety.anonymousAuthor }
 
     var body: some View {
-        OrganicMenu(items: items, label: L10n.Safety.menuLabel, seed: seed, triggerSize: triggerSize)
+        OrganicMenu(items: items, label: L10n.Safety.menuLabel, seed: seed, triggerSize: triggerSize, trigger: trigger)
             .organicModal(isPresented: $reporting, seed: 83, maxWidth: 460, closeLabel: L10n.Safety.Report.close,
                           dismissible: !sendingReport) {
                 ReportForm(target: target, handle: handle, offerBlock: !isBlocked && target.userId != nil, sending: $sendingReport,
@@ -213,7 +215,7 @@ struct AccountDeletionBanner: View {
                 .lineSpacing(14.5 * 0.5)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            OrganicButton(busy ? "…" : L10n.AccountDeletion.cancel, size: .sm) { Task { await cancel() } }
+            OrganicButton(busy ? "…" : L10n.AccountDeletion.cancel, variant: .textAccent, size: .sm) { Task { await cancel() } }
                 .disabled(busy)
         }
         .frame(maxWidth: .infinity)

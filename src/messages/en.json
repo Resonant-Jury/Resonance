@@ -183,6 +183,7 @@
       "inviteRequests": "Invites"
     },
     "verified": "Verified",
+    "share": "Share",
     "private": "Private",
     "connections": "Connections only",
     "notFound": {

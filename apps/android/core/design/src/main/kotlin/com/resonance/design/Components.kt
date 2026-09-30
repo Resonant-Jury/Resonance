@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -72,12 +73,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.SegValue
 import com.resonance.geometry.WobLoopOptions
 import com.resonance.geometry.WobRectOptions
+import com.resonance.geometry.penWave
 import com.resonance.geometry.seedFromString
 import com.resonance.geometry.wobLoop
 import kotlin.math.hypot
@@ -241,12 +244,12 @@ fun WavyDivider(
 
 /**
  * The web's OrganicLink (OrganicLink.tsx): a text link in terracotta with no
- * straight underline — a wavy pen stroke sits under it instead, seeded from
- * the link's `href` so each link wobbles its own way (and the same way the
- * web's does; the twin of iOS's OrganicLink). The stroke is
- * `wavyLine(100, seed, 2.4, 5)` in a 100×10 box stretched to the text: 7dp
- * tall and 3dp below it, INK wide, at 70% — 100% while pressed, like the
- * web's hover. `href` only seeds the wobble; `onClick` decides where a tap goes.
+ * straight underline — a pen's wavy stroke sits under it instead, seeded from
+ * the link's `href` so each link wobbles its own way (the twin of iOS's
+ * OrganicLink). The stroke is `penWave` at the text's real width — a crest
+ * every ~4.5dp, 1.2 high — centred 0.2em under the baseline, INK wide, at 70%
+ * (100% while pressed, like the web's hover). `href` only seeds the wobble;
+ * `onClick` decides where a tap goes.
  *
  * The box is the text's own CSS line box (`line-height: normal`: Compose
  * lines take the fallback face's height too, so Han labels stand taller than
@@ -265,16 +268,17 @@ fun OrganicLink(
     val pressed by source.collectIsPressedAsState()
     val opacity by animateFloatAsState(if (pressed) 1f else 0.7f, tween(160), label = "organicLinkUnderline")
     val seed = remember(href) { seedFromString(href).toDouble() }
+    var baseline by remember { mutableFloatStateOf(Float.NaN) }
     Box(
         modifier
             .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
             .drawWithCache {
                 val stroke = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-                // preserveAspectRatio="none" scales y by 7/10: the 2.4 amplitude reads 1.68.
-                val underline = wavyLinePath(size.width, 7.dp.toPx(), density, seed, 2.4 * 0.7, 5)
+                val underline = penWave((size.width / density).toDouble(), seed).toPath(density)
                 onDrawBehind {
-                    // bottom: -3px, 7px tall → its top is 4px above the text box's bottom.
-                    translate(top = size.height - 4.dp.toPx()) { drawPath(underline, Tokens.Terracotta, alpha = opacity, style = stroke) }
+                    // Under the letters, not under the line box: 0.2em below the baseline.
+                    val y = if (baseline.isNaN()) size.height - 3.dp.toPx() else baseline + sizeSp.sp.toPx() * 0.2f
+                    translate(top = y) { drawPath(underline, Tokens.Terracotta, alpha = opacity, style = stroke) }
                 }
             },
     ) {
@@ -284,14 +288,16 @@ fun OrganicLink(
             style = AppFonts.body(sizeSp, color = Tokens.Terracotta).copy(lineHeight = TextUnit.Unspecified, lineHeightStyle = null),
             maxLines = 1,
             softWrap = false,
+            onTextLayout = { baseline = it.firstBaseline },
         )
     }
 }
 
 /**
  * OrganicButton: a wobbly pill; primary is filled terracotta with grain. A
- * press grows the web's hover wash from the touch point; a disabled or busy
- * button fades as a whole (the web's 0.6).
+ * press spreads the web's hover wash from the touch point ([OrganicIndication],
+ * the same ink every control uses); a disabled or busy button fades as a whole
+ * (the web's 0.6).
  */
 @Composable
 fun OrganicButton(
@@ -316,21 +322,26 @@ fun OrganicButton(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    var pressAt by remember { mutableStateOf(Offset.Unspecified) }
-    LaunchedEffect(interaction) {
-        interaction.interactions.collect { if (it is PressInteraction.Press) pressAt = it.pressPosition }
-    }
-    // The web's hover brush: a circle from the pointer to the far corner over 340ms.
-    val reveal by animateFloatAsState(if (pressed) 1f else 0f, tween(340, easing = LinearEasing), label = "reveal")
     val haptic = LocalHapticFeedback.current
     val (fill, stroke, text) = when (variant) {
         ButtonVariant.Primary -> Triple(Tokens.Terracotta, Tokens.TerracottaInk, Tokens.Cream)
         ButtonVariant.Ghost -> Triple(Color.Transparent, Tokens.GhostStroke, Tokens.Text)
         ButtonVariant.Outline -> Triple(Color.Transparent, Mixes.TerracottaOutline, Tokens.Terracotta)
+        ButtonVariant.Solid -> Triple(Tokens.Terracotta, Color.Transparent, Tokens.Cream)
+        ButtonVariant.Danger -> Triple(Mixes.Danger, Color.Transparent, Tokens.Cream)
+        ButtonVariant.Text -> Triple(Color.Transparent, Color.Transparent, Tokens.TextMuted)
+        ButtonVariant.TextAccent -> Triple(Color.Transparent, Color.Transparent, Tokens.Terracotta)
     }
-    val overlay = if (variant == ButtonVariant.Primary) Color.Black.copy(0.14f) else Tokens.Terracotta.copy(0.14f)
+    val filled = variant == ButtonVariant.Primary || variant == ButtonVariant.Solid || variant == ButtonVariant.Danger
+    val overlay = if (filled) OrganicIndication.OnFill else OrganicIndication.Wash
     // The web's BTN_SEEDS, so each variant wobbles like its web twin.
-    val shape = OrganicButtonShape(when (variant) { ButtonVariant.Primary -> 3.0; ButtonVariant.Ghost -> 401.0; ButtonVariant.Outline -> 601.0 })
+    val shape = remember(variant) {
+        OrganicButtonShape(when (variant) {
+            ButtonVariant.Primary, ButtonVariant.Solid, ButtonVariant.Danger -> 3.0
+            ButtonVariant.Ghost, ButtonVariant.Text -> 401.0
+            ButtonVariant.Outline, ButtonVariant.TextAccent -> 601.0
+        })
+    }
     val padding = when {
         iconOnly && roomy -> if (small) PaddingValues(horizontal = 18.dp, vertical = 9.dp) else PaddingValues(horizontal = 32.dp, vertical = 14.dp)
         iconOnly -> PaddingValues(horizontal = 11.dp, vertical = 9.dp)
@@ -343,21 +354,16 @@ fun OrganicButton(
             .scale(if (pressed) 0.97f else 1f)
             .drawWithCache {
                 val o = shape.createOutline(size, layoutDirection, this)
-                val path = (o as? Outline.Generic)?.path
-                val grain = if (variant == ButtonVariant.Primary) Grain.brush(GrainMode.Tile, "grain-button", size, density, 0.38f) else null
+                val grain = if (filled) Grain.brush(GrainMode.Tile, "grain-button", size, density, 0.38f) else null
                 val ink = Stroke(Tokens.Ink.toPx(), join = StrokeJoin.Round)
                 onDrawBehind {
                     drawOutline(o, fill)
                     grain?.let { drawOutline(o, it, alpha = 0.38f) }
-                    if (reveal > 0f && path != null) {
-                        val c = if (pressAt.isSpecified) pressAt else center
-                        val far = hypot(max(c.x, size.width - c.x), max(c.y, size.height - c.y)) + 4.dp.toPx()
-                        clipPath(path) { drawCircle(overlay, far * reveal, c) }
-                    }
-                    drawOutline(o, stroke, style = ink)
+                    if (stroke != Color.Transparent) drawOutline(o, stroke, style = ink)
                 }
             }
-            .clickable(interaction, indication = null, enabled = enabled, role = Role.Button) {
+            // The web's hover brush as a press: ink spreading from the finger, inside the pill.
+            .clickable(interaction, indication = remember(overlay, shape) { OrganicIndication(overlay, shape = shape) }, enabled = enabled, role = Role.Button) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             }
@@ -373,7 +379,14 @@ fun OrganicButton(
     }
 }
 
-enum class ButtonVariant { Primary, Ghost, Outline }
+/**
+ * Primary, Ghost and Outline are the web's; the rest keep a control from
+ * adding a pen line inside something already framed (a modal, a card, a bar):
+ * Solid is primary without its rim, Danger the same in red for what can't be
+ * undone, and Text / TextAccent draw no frame at all — only the organic wash
+ * while pressed (Cancel beside a confirm, "load more" under a list).
+ */
+enum class ButtonVariant { Primary, Ghost, Outline, Solid, Danger, Text, TextAccent }
 
 /**
  * OrganicButton.tsx's outline: a calm pill — radius 16, two or three gentle
@@ -392,14 +405,17 @@ class OrganicButtonShape(private val seed: Double) : Shape {
 
 /**
  * A bare hand-drawn glyph with a 48dp hit area — the web header's back
- * control (arrow-right mirrored, 18px, no frame); `mirrored` flips it.
+ * control (arrow-right mirrored, 18px, no frame); `mirrored` flips it. The
+ * header's other actions (share, ⋯) are bare glyphs too: a bar is chrome
+ * enough, so nothing in it draws a frame of its own.
  */
 @Composable
 fun OrganicIconButton(icon: IconName, label: String, mirrored: Boolean = false, size: Dp = 18.dp, color: Color = Tokens.Text, onClick: () -> Unit) {
     Box(
         Modifier
             .size(48.dp)
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            // A press washes a wobbly squircle round the glyph, inside the hit box.
+            .clickable(interactionSource = null, indication = OrganicIndication(inset = 4.dp), role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) { OrganicIcon(icon, size = size, color = color, mirrored = mirrored) }

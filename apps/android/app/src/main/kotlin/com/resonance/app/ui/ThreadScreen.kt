@@ -89,6 +89,7 @@ import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicConfirmDialog
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicImage
+import com.resonance.design.MenuTrigger
 import com.resonance.design.OrganicMenu
 import com.resonance.design.OrganicMenuItem
 import com.resonance.design.OrganicModal
@@ -235,6 +236,7 @@ fun ThreadScreen(session: Session, handle: String, note: MessagingApi.Note?, ope
                     title = L10n.Messages.deleteConfirmTitle,
                     body = L10n.Messages.deleteConfirmBody,
                     cancelLabel = L10n.Messages.deleteCancel,
+                    destructive = true,
                     confirmLabel = L10n.Messages.deleteConfirm,
                     onCancel = { confirmingDelete = false },
                     onConfirm = {
@@ -347,7 +349,7 @@ private fun ThreadHeader(
             if (model.conversationExists && pair != null) {
                 // The chip is 34 across; its 44 hit box may spill into the row's margin.
                 Box(Modifier.size(34.dp).wrapContentSize(unbounded = true)) {
-                    OrganicMenu(menu, L10n.Messages.moreMenu, seed = seedFromString(pair).toDouble(), triggerSize = 34.dp)
+                    OrganicMenu(menu, L10n.Messages.moreMenu, seed = seedFromString(pair).toDouble(), triggerSize = 34.dp, trigger = MenuTrigger.Bare)
                 }
             }
         }
@@ -548,7 +550,7 @@ private fun Composer(model: ThreadModel, handle: String, onPickCard: () -> Unit,
             }
             // `height: 100%`: Send stretches to the field's height; dimmed and deaf until there is something to send.
             Box(Modifier.fillMaxHeight().dimmedUnless(model.canSend)) {
-                OrganicButton(if (model.sending) "…" else L10n.Messages.send, Modifier.fillMaxHeight(), small = true) {
+                OrganicButton(if (model.sending) "…" else L10n.Messages.send, Modifier.fillMaxHeight(), variant = ButtonVariant.Solid, small = true) {
                     if (model.canSend) scope.launch { model.send() }
                 }
             }

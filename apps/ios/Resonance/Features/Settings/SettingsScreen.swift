@@ -328,7 +328,7 @@ private struct DeleteAccountSettings: View {
                     }
                     .buttonStyle(.plain)
                 } else {
-                    OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .ghost) {
+                    OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .text) {
                         Task { await export() }
                     }
                     .disabled(exporting)
@@ -341,7 +341,7 @@ private struct DeleteAccountSettings: View {
                         message: L10n.Settings.Delete.confirmBody(date: Self.purgeDate.formatted(
                             Date.FormatStyle(date: .long, time: .omitted, locale: Strings.shared.locale))),
                         cancelLabel: L10n.Settings.Delete.cancel, confirmLabel: L10n.Settings.Delete.confirm,
-                        closeLabel: L10n.Settings.Delete.cancel, busy: busy, seed: 73) {
+                        closeLabel: L10n.Settings.Delete.cancel, busy: busy, destructive: true, seed: 73) {
             Task { await deleteAccount() }
         }
     }
@@ -400,7 +400,7 @@ private struct BlockedListContent: View {
             } else {
                 SketchLoader(size: 44).frame(maxWidth: .infinity).padding(.vertical, 18)
             }
-            ModalActions { OrganicButton(L10n.Safety.BlockedList.close, size: .sm, action: onClose) }
+            ModalActions { OrganicButton(L10n.Safety.BlockedList.close, variant: .text, size: .sm, action: onClose) }
                 .padding(.top, 16)
         }
         .task { people = (try? await session.safety?.blocked()) ?? [] }
@@ -423,7 +423,7 @@ private struct BlockedListContent: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            OrganicButton(pending == person.id ? "…" : L10n.Safety.unblock, variant: .ghost, size: .sm) {
+            OrganicButton(pending == person.id ? "…" : L10n.Safety.unblock, variant: .textAccent, size: .sm) {
                 Task { await unblock(person.id) }
             }
             .disabled(pending != nil)

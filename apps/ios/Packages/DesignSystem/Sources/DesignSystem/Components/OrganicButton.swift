@@ -4,9 +4,15 @@ import SwiftUI
 
 /// OrganicButton. On the web the fill reveal grows from the *cursor* on hover;
 /// touch has no hover, so the same reveal grows from the *finger* on press —
-/// plus a light haptic and a slight scale, which the web cannot do.
+/// the ink every control shares (``OrganicPressStyle``), spreading its full
+/// course and then lifting — plus a light haptic and a slight scale.
 public struct OrganicButton: View {
-    public enum Variant: Sendable { case primary, ghost, outline }
+    /// primary, ghost and outline are the web's; the rest keep a control from
+    /// adding a pen line inside something already framed (a modal, a card, a
+    /// bar): `solid` is primary without its rim, `danger` the same in red for
+    /// what can't be undone, and `text` / `textAccent` draw no frame at all —
+    /// only the ink while pressed (Cancel beside a confirm, "load more").
+    public enum Variant: Sendable { case primary, ghost, outline, solid, danger, text, textAccent }
     /// `sm` is the web's dense size (dialog actions, list rows, the deletion banner).
     public enum Size: Sendable { case md, sm }
 
@@ -71,6 +77,9 @@ public struct OrganicButton: View {
 
     @State private var pressPoint: CGPoint? = nil
     @State private var revealed = false
+    @State private var ink: Double = 0
+    @State private var pressed = false
+    @State private var pressedAt: Date?
     @Environment(\.isEnabled) private var isEnabled
 
     public var body: some View {
@@ -86,37 +95,49 @@ public struct OrganicButton: View {
                         if let p = pressPoint {
                             let maxR = hypot(max(p.x, geo.size.width - p.x), max(p.y, geo.size.height - p.y))
                             Circle()
-                                .fill(variant == .primary ? Color.black.opacity(0.14) : Tokens.terracotta.opacity(0.14))
+                                .fill(style.filled ? Color.black.opacity(0.14) : Tokens.terracotta.opacity(0.14))
                                 .frame(width: revealed ? maxR * 2 : 0, height: revealed ? maxR * 2 : 0)
                                 .position(p)
                                 .clipShape(shape)
+                                .opacity(ink)
                         }
-                        shape.stroke(style.stroke, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
+                        if style.stroked {
+                            shape.stroke(style.stroke, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
+                        }
                     }
                 }
             }
             // Busy / inactive: the web dims the whole button (fill, grain, ink, label).
             .opacity(isEnabled ? 1 : 0.6)
-            .scaleEffect(revealed ? 0.97 : 1)
+            .scaleEffect(pressed ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.12), value: pressed)
             .contentShape(shape)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { g in
-                        guard isEnabled, pressPoint == nil else { return }
+                        guard isEnabled, !pressed else { return }
+                        pressed = true
+                        pressedAt = .now
                         pressPoint = g.startLocation
-                        withAnimation(.linear(duration: 0.34)) { revealed = true }
+                        ink = 1
+                        revealed = false
+                        withAnimation(InkTiming.spread) { revealed = true }
                     }
                     .onEnded { _ in
                         guard isEnabled else { return }
+                        pressed = false
                         action()
-                        withAnimation(.easeOut(duration: 0.2)) { revealed = false }
+                        // A quick tap still shows the whole spread before it lifts.
+                        let wait = max(0, 0.3 - (pressedAt.map { Date.now.timeIntervalSince($0) } ?? 1))
                         Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(200))
-                            pressPoint = nil
+                            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                            withAnimation(InkTiming.lift) { ink = 0 }
+                            try? await Task.sleep(for: .milliseconds(220))
+                            if !pressed { pressPoint = nil; revealed = false }
                         }
                     }
             )
-            .sensoryFeedback(.impact(weight: .light), trigger: revealed) { _, new in new }
+            .sensoryFeedback(.impact(weight: .light), trigger: pressed) { _, new in new }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
             .accessibilityAddTraits(.isButton)
@@ -160,7 +181,9 @@ public struct OrganicButtonLabel: View {
             .background {
                 ZStack {
                     style.fillLayers(shape)
-                    shape.stroke(style.stroke, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
+                    if style.stroked {
+                        shape.stroke(style.stroke, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
+                    }
                 }
             }
             .contentShape(shape)
@@ -175,15 +198,30 @@ struct OrganicButtonStyle {
     /// The web's BTN_SEEDS, so each variant wobbles like its web twin.
     var seed: Double {
         switch variant {
-        case .primary: 3
-        case .ghost: 401
-        case .outline: 601
+        case .primary, .solid, .danger: 3
+        case .ghost, .text: 401
+        case .outline, .textAccent: 601
+        }
+    }
+    /// A filled face (the ink over it darkens rather than tints).
+    var filled: Bool {
+        switch variant {
+        case .primary, .solid, .danger: true
+        case .ghost, .outline, .text, .textAccent: false
+        }
+    }
+    /// Whether the pen line is drawn: only the web's own three variants.
+    var stroked: Bool {
+        switch variant {
+        case .primary, .ghost, .outline: true
+        case .solid, .danger, .text, .textAccent: false
         }
     }
     var fill: Color {
         switch variant {
-        case .primary: Tokens.terracotta
-        case .ghost, .outline: .clear
+        case .primary, .solid: Tokens.terracotta
+        case .danger: Tokens.danger
+        case .ghost, .outline, .text, .textAccent: .clear
         }
     }
     var stroke: Color {
@@ -192,13 +230,15 @@ struct OrganicButtonStyle {
         case .ghost: Tokens.ghostStroke
         // Darker than the label: the pen line reads apart from the text.
         case .outline: Tokens.terracottaOutline
+        case .solid, .danger, .text, .textAccent: .clear
         }
     }
     var textColor: Color {
         switch variant {
-        case .primary: Tokens.cream
+        case .primary, .solid, .danger: Tokens.cream
         case .ghost: Tokens.text
-        case .outline: Tokens.terracotta
+        case .text: Tokens.textMuted
+        case .outline, .textAccent: Tokens.terracotta
         }
     }
 
@@ -217,7 +257,7 @@ struct OrganicButtonStyle {
 
     @ViewBuilder func fillLayers(_ shape: OrganicButtonShape) -> some View {
         shape.fill(fill)
-        if variant == .primary {
+        if filled {
             GrainLayer(shape: shape, mode: .tile, opacity: 0.38, tile: "grain-button")
         }
     }

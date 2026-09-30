@@ -171,12 +171,31 @@ public nonisolated struct WavyRuleShape: Shape {
     }
 }
 
+/// A pen's wavy underline at the box's real width (wavyPath.ts `penWave`): a
+/// crest every ~4.5pt, alternating, each nudged by the seed; centred on the
+/// box's middle.
+public nonisolated struct PenWaveShape: Shape {
+    public var seed: Double
+    public var amp: Double
+
+    public init(seed: Double, amp: Double = 1.2) {
+        self.seed = seed
+        self.amp = amp
+    }
+
+    public func path(in rect: CGRect) -> Path {
+        penWave(Double(rect.width), seed: seed, amp: amp)
+            .path(offsetX: Double(rect.minX), offsetY: Double(rect.midY))
+    }
+}
+
 /// The web's OrganicLink (OrganicLink.tsx): a text link in terracotta with no
-/// straight underline — a wavy pen stroke sits under it instead, seeded from
+/// straight underline — a pen's wavy stroke sits under it instead, seeded from
 /// the link's `href` so each link wobbles its own way (and the same way the
-/// web's does). The stroke is 100 units of `wavyLine(_, seed, 2.4, 5)` in a
-/// 100×10 box stretched to the text (7pt tall, 3pt below it), INK wide, at 70%
-/// — 100% while pressed, like the web's hover.
+/// web's does). The stroke is `penWave` at the text's width — a crest every
+/// ~4.5pt, 1.2 high — centred 0.2em under the baseline (under the letters, not
+/// under the line box), INK wide, at 70% — 100% while pressed, like the web's
+/// hover.
 public struct OrganicLink: View {
     let title: String
     let href: String
@@ -204,26 +223,28 @@ public struct OrganicLink: View {
                 .lineLimit(1)
                 .fixedSize()
                 // The web's inline-block is a full CSS line box, taller over Han text (the
-                // fallback face raises it); the text keeps the bottom, so the stroke does too.
+                // fallback face raises it); the text keeps the bottom.
                 .frame(minHeight: AppFonts.normalLineBox(.body, size: size, text: title) * scale, alignment: .bottom)
         }
-        .buttonStyle(OrganicLinkStyle(seed: Double(seedFromString(href))))
+        .buttonStyle(OrganicLinkStyle(seed: Double(seedFromString(href)), drop: size * scale * 0.2))
         .accessibilityAddTraits(.isLink)
     }
 }
 
 private struct OrganicLinkStyle: ButtonStyle {
     let seed: Double
+    /// How far under the baseline the stroke's centre sits.
+    let drop: CGFloat
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(alignment: .bottom) {
-                // preserveAspectRatio="none" scales y by 7/10: the 2.4 amplitude reads 1.68.
-                WavyRuleShape(seed: seed, amp: 2.4 * 0.7, steps: 5)
+            .overlay(alignment: Alignment(horizontal: .leading, vertical: .firstTextBaseline)) {
+                PenWaveShape(seed: seed)
                     .stroke(Tokens.terracotta, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, lineJoin: .round))
-                    .frame(height: 7)
-                    .offset(y: 3)
+                    .frame(height: 6)
+                    .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] - drop }
                     .opacity(configuration.isPressed ? 1 : 0.7)
+                    .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
             // A touch target past the text's own box, short of the neighbouring link's.

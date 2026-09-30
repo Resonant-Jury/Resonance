@@ -262,14 +262,14 @@ struct WriteScreen: View {
                         publishing = true
                     }
                     if model.hasPendingEdit {
-                        OrganicButton(L10n.Write.discardChanges, variant: .ghost) { Task { await discard(model) } }
+                        OrganicButton(L10n.Write.discardChanges, variant: .text) { Task { await discard(model) } }
                     }
                 } else {
                     OrganicButton(L10n.Write.publish) {
                         actionError = nil
                         publishing = true
                     }
-                    OrganicButton(L10n.Write.saveDraftAndLeave, variant: .ghost) {
+                    OrganicButton(L10n.Write.saveDraftAndLeave, variant: .text) {
                         Task {
                             await model.saveNow()
                             writer.close()
@@ -393,11 +393,11 @@ private struct PublishPanel: View {
             HStack(spacing: 12) {
                 OrganicButton(updating
                               ? (pending ? L10n.Write.PublishPanel.updating : L10n.Write.PublishPanel.update)
-                              : (pending ? L10n.Write.PublishPanel.publishing : L10n.Write.PublishPanel.publish), size: .sm) {
+                              : (pending ? L10n.Write.PublishPanel.publishing : L10n.Write.PublishPanel.publish), variant: .solid, size: .sm) {
                     Task { await publish() }
                 }
                 .disabled(pending)
-                OrganicButton(L10n.Write.PublishPanel.cancel, variant: .ghost, size: .sm, action: onCancel)
+                OrganicButton(L10n.Write.PublishPanel.cancel, variant: .text, size: .sm, action: onCancel)
                     .disabled(pending)
             }
             if let error { Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta) }

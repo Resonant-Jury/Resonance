@@ -55,6 +55,7 @@ import com.resonance.design.OrganicConfirmDialog
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicInlineBar
+import com.resonance.design.inlineBarTop
 import com.resonance.design.OrganicLink
 import com.resonance.design.OrganicListEmpty
 import com.resonance.design.OrganicModal
@@ -114,9 +115,9 @@ enum class SettingsSection(
 @Composable
 fun SettingsScreen(open: (Route) -> Unit, back: () -> Unit) {
     val scroll = rememberScrollState()
-    Column(Modifier.fillMaxSize().cream()) {
-        OrganicInlineBar(L10n.App.Nav.back, back, scrolled = scroll.scrolledPast20())
-        Column(Modifier.verticalScroll(scroll).padding(20.dp).padding(bottom = 40.dp)) {
+    // The bar lies over the page, so what scrolls shows right up to its pen line.
+    Box(Modifier.fillMaxSize().cream()) {
+        Column(Modifier.verticalScroll(scroll).padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
             BasicText(
                 L10n.Settings.title,
                 style = AppFonts.heading(28f, lineHeight = 1.2f),
@@ -127,6 +128,7 @@ fun SettingsScreen(open: (Route) -> Unit, back: () -> Unit) {
                 MenuRow(section) { open(Route.SettingsSection(section)) }
             }
         }
+        OrganicInlineBar(L10n.App.Nav.back, back, scrolled = scroll.scrolledPast20())
     }
 }
 
@@ -157,9 +159,8 @@ private fun MenuRow(section: SettingsSection, onClick: () -> Unit) {
 fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -> Unit) {
     val scroll = rememberScrollState()
     // The keyboard shortens the page, so the profile's fields scroll into view above it.
-    Column(Modifier.fillMaxSize().cream().imePadding()) {
-        OrganicInlineBar(L10n.App.Nav.back, back, title = section.title, scrolled = scroll.scrolledPast20())
-        Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(20.dp).padding(bottom = 40.dp)) {
+    Box(Modifier.fillMaxSize().cream().imePadding()) {
+        Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
             when (section) {
                 SettingsSection.Profile -> ProfileSettings(session)
                 SettingsSection.Account -> AccountSettings(session)
@@ -169,6 +170,7 @@ fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -
                 SettingsSection.Delete -> DeleteAccountSettings(session)
             }
         }
+        OrganicInlineBar(L10n.App.Nav.back, back, title = section.title, scrolled = scroll.scrolledPast20())
     }
 }
 
@@ -367,7 +369,7 @@ private fun DeleteAccountSettings(session: Session) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OrganicButton(
                 if (exporting) L10n.Settings.Delete.exporting else L10n.Settings.Delete.export,
-                variant = ButtonVariant.Ghost,
+                variant = ButtonVariant.Text,
                 icon = if (exported) IconName.Check else IconName.Document,
                 enabled = !exporting,
             ) { save.launch("resonance-backup-${LocalDate.now()}.json") }
@@ -383,6 +385,7 @@ private fun DeleteAccountSettings(session: Session) {
         ),
         cancelLabel = L10n.Settings.Delete.cancel,
         confirmLabel = L10n.Settings.Delete.confirm,
+        destructive = true,
         busy = busy,
         seed = 73.0,
         onCancel = { confirming = false },
@@ -437,7 +440,7 @@ private fun ColumnScope.BlockedListContent(session: Session, onClose: () -> Unit
                     }
                     OrganicButton(
                         if (pending == person.id) "…" else L10n.Safety.unblock,
-                        variant = ButtonVariant.Ghost,
+                        variant = ButtonVariant.TextAccent,
                         small = true,
                         enabled = pending == null,
                     ) {
@@ -451,7 +454,7 @@ private fun ColumnScope.BlockedListContent(session: Session, onClose: () -> Unit
             }
         }
     }
-    ModalActions { OrganicButton(L10n.Safety.BlockedList.close, small = true, onClick = onClose) }
+    ModalActions { OrganicButton(L10n.Safety.BlockedList.close, variant = ButtonVariant.Text, small = true, onClick = onClose) }
 }
 
 /** Past the web header's 20px scroll threshold, when its pen line inks in fully. */

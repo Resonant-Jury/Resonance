@@ -82,7 +82,7 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
                                 CssText(L10n.Home.endOfDay, AppFonts.Family.Heading, 20f, 700, lineHeight = 1.3f)
                             }
                             if (canLoadMore) {
-                                OrganicButton(if (loadingMore) L10n.Home.moreLoading else L10n.Home.moreBtn, variant = ButtonVariant.Outline) {
+                                OrganicButton(if (loadingMore) L10n.Home.moreLoading else L10n.Home.moreBtn, variant = ButtonVariant.TextAccent) {
                                     if (!latestVisible) showLatest = true
                                     else cursor?.let { c ->
                                         loadingMore = true

@@ -20,10 +20,17 @@ public struct OrganicMenuItem: Identifiable {
     }
 }
 
-/// The web's organic「⋯」dropdown: a wobbly chip that drops a hand-drawn
-/// panel — wavy pen lines between the rows, a wash under the one being
-/// pressed, and the warning wash under a destructive row. Rides the theme
-/// terracotta, or a card's hue.
+/// How a menu's trigger is drawn. In a bar (the card page's header) it is a
+/// `bare` glyph like the back arrow beside it — the bar is the frame. Over
+/// content (a card's cover in the card box) it is a `chip`: a wobbly cream
+/// squircle with no rim, so it stays legible over a picture without adding a
+/// pen line.
+public enum MenuTrigger: Sendable { case chip, bare }
+
+/// The web's organic「⋯」dropdown: a trigger that drops a hand-drawn panel —
+/// wavy pen lines between the rows, ink spreading from the finger under the
+/// one being pressed (every control's press), and the warning wash under a
+/// destructive row. Rides the theme terracotta, or a card's hue.
 public struct OrganicMenu: View {
     let items: [OrganicMenuItem]
     let label: String
@@ -31,15 +38,17 @@ public struct OrganicMenu: View {
     var hue: Double?
     var triggerSize: CGFloat
     var icon: IconName
+    var trigger: MenuTrigger
 
     public init(items: [OrganicMenuItem], label: String, seed: Double = 7, hue: Double? = nil,
-                triggerSize: CGFloat = 38, icon: IconName = .dots) {
+                triggerSize: CGFloat = 38, icon: IconName = .dots, trigger: MenuTrigger = .chip) {
         self.items = items
         self.label = label
         self.seed = seed
         self.hue = hue
         self.triggerSize = triggerSize
         self.icon = icon
+        self.trigger = trigger
     }
 
     @State private var open = false
@@ -53,15 +62,22 @@ public struct OrganicMenu: View {
             panelSeed = Double(Int.random(in: 0..<10_000))
             withTransaction(\.disablesAnimations, true) { open = true }
         } label: {
-            OrganicMenuChip(size: triggerSize, seed: seed, icon: icon, colors: colors, active: open)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+            Group {
+                if trigger == .bare {
+                    OrganicIcon(icon, size: 20, color: open ? Tokens.terracotta : Tokens.text)
+                } else {
+                    OrganicMenuChip(size: triggerSize, seed: seed, icon: icon, colors: colors, active: open)
+                }
+            }
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(OrganicPressStyle(inset: trigger == .bare ? 4 : max(0, (44 - triggerSize) / 2)))
         .accessibilityLabel(label)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { anchor = $0 }
         .fullScreenCover(isPresented: $open) {
-            MenuStage(items: items, seed: panelSeed, colors: colors, anchor: anchor, triggerSize: triggerSize) { item in
+            // A bare glyph's wash is 36 in its 44 box: the panel hangs from that, as from a chip.
+            MenuStage(items: items, seed: panelSeed, colors: colors, anchor: anchor, triggerSize: trigger == .bare ? 36 : triggerSize) { item in
                 withTransaction(\.disablesAnimations, true) { open = false }
                 // After the cover is gone, so a dialog the row opens can present.
                 if let item {
@@ -76,30 +92,39 @@ public struct OrganicMenu: View {
     }
 }
 
-/// OrganicMenu's trigger chip as a face of its own, for other header actions
-/// that should read as the same control (a ShareLink's label).
+/// OrganicMenu's trigger as a face of its own, for other header actions that
+/// should read as the same control (a ShareLink's label): bare in a bar, a
+/// chip over content.
 public struct OrganicChipFace: View {
     let icon: IconName
     var size: CGFloat
     var seed: Double
     var hue: Double?
+    var trigger: MenuTrigger
 
-    public init(_ icon: IconName, size: CGFloat = 38, seed: Double = 7, hue: Double? = nil) {
+    public init(_ icon: IconName, size: CGFloat = 38, seed: Double = 7, hue: Double? = nil, trigger: MenuTrigger = .chip) {
         self.icon = icon
         self.size = size
         self.seed = seed
         self.hue = hue
+        self.trigger = trigger
     }
 
     public var body: some View {
-        OrganicMenuChip(size: size, seed: seed, icon: icon, colors: MenuColors(hue: hue), active: false)
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
+        Group {
+            if trigger == .bare {
+                OrganicIcon(icon, size: 20, color: Tokens.text)
+            } else {
+                OrganicMenuChip(size: size, seed: seed, icon: icon, colors: MenuColors(hue: hue), active: false)
+            }
+        }
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
     }
 }
 
 /// The trigger: a squircle chip (radius 0.42 of its side, one turn a side)
-/// in the menu's cream at 90% with its ink rim, the glyph at 0.53 of the side.
+/// in the menu's cream, no rim, the glyph at 0.53 of the side in the pen.
 struct OrganicMenuChip: View {
     let size: CGFloat
     let seed: Double
@@ -112,10 +137,7 @@ struct OrganicMenuChip: View {
             curve: 1.4, cornerJitter: 2.4, segmentsH: .count(1), segmentsV: .count(1)))
         OrganicIcon(icon, size: (size * 0.53).rounded(), color: active ? colors.borderHover : colors.border, strokeWidth: Tokens.ink)
             .frame(width: size, height: size)
-            .background {
-                shape.fill(colors.cream.opacity(0.9))
-                shape.stroke(colors.border, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
-            }
+            .background { shape.fill(colors.cream.opacity(0.94)) }
     }
 }
 
@@ -130,6 +152,7 @@ struct MenuStage: View {
     let close: (OrganicMenuItem?) -> Void
     @State private var shown = false
     @State private var pressed: Int?
+    @State private var ink = MenuInk()
 
     var body: some View {
         GeometryReader { geo in
@@ -167,7 +190,11 @@ struct MenuStage: View {
                     .frame(maxWidth: .infinity, minHeight: MenuPanelShape.rowHeight, maxHeight: MenuPanelShape.rowHeight, alignment: .leading)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(MenuRowStyle(index: i, pressed: $pressed))
+                .buttonStyle(MenuRowStyle(index: i, pressed: $pressed, ink: $ink))
+                // Where the finger landed, in the panel's space: the ink spreads from there.
+                .simultaneousGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named(MenuPanelShape.space)).onChanged { g in
+                    if g.translation == .zero { ink.origin = g.startLocation }
+                })
             }
         }
         .frame(minWidth: 180 - 16, alignment: .leading)
@@ -176,70 +203,126 @@ struct MenuStage: View {
         .background {
             GeometryReader { geo in
                 MenuPanelBackground(size: geo.size, seed: seed, colors: colors,
-                                    dangerIndex: items.firstIndex(where: \.danger), pressed: pressed, count: items.count)
+                                    dangerIndex: items.firstIndex(where: \.danger), ink: ink, count: items.count)
             }
         }
+        .coordinateSpace(.named(MenuPanelShape.space))
         .accessibilityElement(children: .contain)
     }
 }
 
-/// Reports the pressed row, so the panel can wash its wavy region.
+/// The pressed row's ink: where it started, how far it has spread (0…1 of
+/// the way to the panel's far corner) and how much is still on the paper.
+struct MenuInk {
+    var row: Int?
+    var origin: CGPoint?
+    var reach: CGFloat = 0
+    var opacity: Double = 0
+}
+
+/// Reports the pressed row and runs its ink: the spread on press, the lift
+/// once the finger is up and the spread has run its course.
 struct MenuRowStyle: ButtonStyle {
     let index: Int
     @Binding var pressed: Int?
+    @Binding var ink: MenuInk
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .onChange(of: configuration.isPressed) { _, isPressed in
-                if isPressed { pressed = index } else if pressed == index { pressed = nil }
+                if isPressed {
+                    pressed = index
+                    ink.row = index
+                    ink.opacity = 1
+                    ink.reach = 0
+                    withAnimation(InkTiming.spread) { ink.reach = 1 }
+                } else {
+                    if pressed == index { pressed = nil }
+                    // A quick tap still shows the spread before it lifts (unless another row has the ink by then).
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(200))
+                        guard ink.row == index, pressed == nil else { return }
+                        withAnimation(InkTiming.lift) { ink.opacity = 0 }
+                    }
+                }
             }
     }
 }
 
-/// The panel's paper, washes, pen dividers and rim (rowMenu.ts), drawn in
-/// one pass so every wash stops exactly at the wobbly outline.
+/// The panel's paper, washes, pen dividers and rim (rowMenu.ts), every wash
+/// stopping exactly at the wobbly outline. The pen line wobbles a little past
+/// the panel's box, so the drawing has `bleed` of room on every side — a
+/// canvas cut at the box would show the outline clipped straight.
 struct MenuPanelBackground: View {
     let size: CGSize
     let seed: Double
     let colors: MenuColors
     let dangerIndex: Int?
-    let pressed: Int?
+    let ink: MenuInk
     let count: Int
+    private let bleed: CGFloat = 6
 
     var body: some View {
         let geometry = MenuPanelShape(seed: seed, count: count)
-        Canvas { ctx, size in
-            let rect = CGRect(origin: .zero, size: size)
-            let outer = geometry.outline(in: rect)
-            let boundaries = geometry.boundaries(width: Double(size.width))
-            let pad = geometry.pad(height: Double(size.height))
-            var inside = ctx
-            inside.clip(to: outer)
-            inside.fill(outer, with: .color(colors.cream))
-            func region(_ i: Int) -> Path {
-                rowRegion(i, count: count, boundaries: boundaries, w: Double(size.width), h: Double(size.height), pad: pad).path()
+        let rect = CGRect(origin: .zero, size: size)
+        let w = Double(size.width), h = Double(size.height)
+        let boundaries = geometry.boundaries(width: w)
+        let pad = geometry.pad(height: h)
+        let outer = geometry.outline(in: rect)
+        ZStack(alignment: .topLeading) {
+            Canvas { ctx, _ in
+                ctx.translateBy(x: bleed, y: bleed)
+                var inside = ctx
+                inside.clip(to: outer)
+                inside.fill(outer, with: .color(colors.cream))
+                if let dangerIndex {
+                    let region = rowRegion(dangerIndex, count: count, boundaries: boundaries, w: w, h: h, pad: pad).path()
+                    inside.fill(region, with: .color(colors.dangerWash(pressed: false)))
+                }
             }
-            if let dangerIndex {
-                inside.fill(region(dangerIndex), with: .color(colors.dangerWash(pressed: pressed == dangerIndex)))
+            if let row = ink.row, row < count {
+                let origin = ink.origin ?? CGPoint(x: size.width / 2, y: (CGFloat(row) + 0.5) * MenuPanelShape.rowHeight)
+                let far = hypot(max(origin.x, size.width - origin.x), max(origin.y, size.height - origin.y)) + 4
+                let region = rowRegion(row, count: count, boundaries: boundaries, w: w, h: h, pad: pad).path()
+                Circle()
+                    .fill(row == dangerIndex ? colors.dangerWash(pressed: true) : colors.borderHover.opacity(0.15))
+                    .frame(width: far * 2 * ink.reach, height: far * 2 * ink.reach)
+                    .position(origin)
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(PathShape(path: region.intersection(outer)))
+                    .opacity(ink.opacity)
+                    .offset(x: bleed, y: bleed)
             }
-            if let pressed, pressed != dangerIndex {
-                inside.fill(region(pressed), with: .color(colors.borderHover.opacity(0.15)))
+            Canvas { ctx, _ in
+                ctx.translateBy(x: bleed, y: bleed)
+                var inside = ctx
+                inside.clip(to: outer)
+                for pts in boundaries {
+                    inside.stroke(dividerPath(pts).path(), with: .color(colors.divider),
+                                  style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
+                }
+                ctx.stroke(outer, with: .color(colors.border), style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, lineJoin: .round))
             }
-            for pts in boundaries {
-                inside.stroke(dividerPath(pts).path(), with: .color(colors.divider),
-                              style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
-            }
-            ctx.stroke(outer, with: .color(colors.border), style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, lineJoin: .round))
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: size.width + 2 * bleed, height: size.height + 2 * bleed)
+        .offset(x: -bleed, y: -bleed)
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
         .allowsHitTesting(false)
     }
+}
+
+/// A fixed path as a shape (a row's region, for clipping its ink).
+private nonisolated struct PathShape: Shape {
+    let path: Path
+    func path(in rect: CGRect) -> Path { path }
 }
 
 /// OrganicMenu's geometry: 42pt rows, a radius-16 outline with the auto
 /// wobble, and a wavy boundary (amplitude 2) between each pair of rows.
 nonisolated struct MenuPanelShape {
     static let rowHeight: CGFloat = 42
+    /// The panel's coordinate space, where a row's press is placed.
+    static let space = "organicMenuPanel"
     let seed: Double
     let count: Int
 

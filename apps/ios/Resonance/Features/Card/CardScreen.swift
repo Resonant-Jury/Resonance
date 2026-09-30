@@ -13,6 +13,8 @@ struct CardScreen: View {
     @Environment(\.openURL) private var openURL
     @State private var model: CardModel?
     @State private var scrolled = false
+    /// The byline has scrolled under the bar, which then names the author.
+    @State private var bylineGone = false
 
     var body: some View {
         ScrollView {
@@ -31,13 +33,35 @@ struct CardScreen: View {
             }
         }
         .onHeaderScroll($scrolled)
+        // Where the byline ends: its 16 of air and the 44 avatar.
+        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 60 } action: { _, gone in
+            withAnimation(.easeOut(duration: 0.2)) { bylineGone = gone }
+        }
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
             OrganicInlineBar("", backLabel: L10n.App.Nav.back, scrolled: scrolled) {
+                if let detail = model?.detail, model?.phase == .loaded, bylineGone {
+                    BarAuthor(card: detail.card, anonymous: detail.anonymous)
+                        .transition(.opacity.combined(with: .offset(y: 8)))
+                }
+            } trailing: {
                 if let detail = model?.detail {
-                    ShareLink(item: session.config.origin.appending(path: "card/\(detail.card.routeKey)")) {
-                        OrganicChipFace(.share, seed: (detail.card.accentHue ?? 55) + 5)
+                    let card = detail.card
+                    let hue = card.accentHue ?? 55
+                    ShareLink(item: session.config.origin.appending(path: "card/\(card.routeKey)")) {
+                        OrganicChipFace(.share, seed: hue + 5, trigger: .bare)
+                    }
+                    .buttonStyle(OrganicPressStyle())
+                    .accessibilityLabel(L10n.Card.share)
+                    // The ⋯ lives in the bar, as phone apps keep a page's actions: the owner's, or the reader's safety menu —
+                    // anonymous cards included (App Store 1.2), whose author only the server knows: Report alone.
+                    if detail.isOwner {
+                        CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, routeKey: card.routeKey, seed: hue + 3,
+                                        showsCardAfterEdit: false, onDeleted: { openRoute.dismissToRoot() }, trigger: .bare)
+                    } else {
+                        let author = detail.anonymous ? nil : card.author?.value1
+                        SafetyMenu(target: .card(id: card.id, authorId: author?.id), handle: author?.handle, seed: hue + 3)
                     }
                 }
             }
@@ -76,21 +100,10 @@ struct CardScreen: View {
                         .padding(.bottom, 20)
                         .accessibilityLabel(card.imageLabel ?? card.title)
                 }
-                HStack(alignment: .center, spacing: 16) {
-                    CSSText(card.title, font: AppFonts.uiFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
-                            tracking: -0.015 * 28)
-                        .accessibilityAddTraits(.isHeader)
-                    // The ⋯ sits beside the title, as on the web: the owner's actions, or the reader's safety menu —
-                    // anonymous cards included (App Store 1.2), whose author only the server knows: Report alone.
-                    if detail.isOwner {
-                        CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, routeKey: card.routeKey, seed: hue + 3,
-                                        showsCardAfterEdit: false, onDeleted: { openRoute.dismissToRoot() })
-                    } else {
-                        let author = detail.anonymous ? nil : card.author?.value1
-                        SafetyMenu(target: .card(id: card.id, authorId: author?.id), handle: author?.handle, seed: hue + 3)
-                    }
-                }
-                .padding(.bottom, 28)
+                CSSText(card.title, font: AppFonts.uiFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
+                        tracking: -0.015 * 28)
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.bottom, 28)
                 StoryMarkdownView(blocks: model.blocks, onOpenURL: open) { href, title in
                     CardEmbedView(href: href, title: title)
                 }
@@ -198,6 +211,39 @@ struct CardScreen: View {
             openRoute(route)
         } else {
             openURL(absolute)
+        }
+    }
+}
+
+/// The author in the bar once the byline has scrolled away: the avatar small
+/// and the pen name (→ their page); an anonymous card shows its dot and
+/// "anonymous".
+private struct BarAuthor: View {
+    let card: FeedCard
+    let anonymous: Bool
+    @Environment(\.openRoute) private var openRoute
+
+    var body: some View {
+        if let author = card.author?.value1, !anonymous {
+            Button { openRoute(.author(author.handle)) } label: {
+                HStack(spacing: 8) {
+                    HandDrawnAvatar(initials: author.initials, imageURL: author.avatarUrl.flatMap(URL.init(string:)),
+                                    color: author.accent, size: 28, seed: author.avatarSeedValue)
+                    Text(author.handle)
+                        .font(AppFonts.body(15, weight: .semibold))
+                        .foregroundStyle(Tokens.text)
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(.plain)
+        } else {
+            HStack(spacing: 8) {
+                HandDrawnAvatar(initials: "·", color: Tokens.creamDark, size: 28, seed: 97)
+                Text(L10n.Card.anonymousAuthor)
+                    .font(AppFonts.body(15, weight: .semibold))
+                    .foregroundStyle(Tokens.textMuted)
+                    .lineLimit(1)
+            }
         }
     }
 }

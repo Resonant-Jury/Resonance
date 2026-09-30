@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +33,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +43,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -166,7 +170,9 @@ fun Modifier.plainClickable(role: Role? = null, onClickLabel: String? = null, on
 
 /**
  * ConfirmModal.tsx — the one confirm layout: title and body left-aligned,
- * then ghost cancel and the primary verb, small, at the bottom right.
+ * then cancel and the verb, small, at the bottom right. The modal is the
+ * frame, so neither button draws one: cancel is plain text, the verb a solid
+ * fill — red when it can't be undone (`destructive`).
  */
 @Composable
 fun OrganicConfirmDialog(
@@ -180,6 +186,8 @@ fun OrganicConfirmDialog(
     seed: Double = 67.0,
     /** What went wrong, under the body (a block that didn't go through); the dialog stays for another try. */
     error: String? = null,
+    /** A permanent loss (delete a card, a conversation, the account): the verb in red. */
+    destructive: Boolean = false,
 ) {
     OrganicModal(if (busy) null else onCancel, title, seed) {
         // ConfirmModal: 8 between title and body, 18 before the actions (14 + ModalActions' 4).
@@ -197,8 +205,11 @@ fun OrganicConfirmDialog(
             },
         )
         ModalActions {
-            OrganicButton(cancelLabel, variant = ButtonVariant.Ghost, small = true, enabled = !busy, onClick = onCancel)
-            OrganicButton(if (busy) "…" else confirmLabel, small = true, enabled = !busy, onClick = onConfirm)
+            OrganicButton(cancelLabel, variant = ButtonVariant.Text, small = true, enabled = !busy, onClick = onCancel)
+            OrganicButton(
+                if (busy) "…" else confirmLabel, variant = if (destructive) ButtonVariant.Danger else ButtonVariant.Solid,
+                small = true, enabled = !busy, onClick = onConfirm,
+            )
         }
     }
 }
@@ -265,19 +276,46 @@ internal class MenuColors(hue: Double?) {
 }
 
 /**
- * OrganicMenu's trigger: a wobbly squircle chip (R 0.42s, one turn a side)
- * on cream with a terracotta pen (or a card's hue), the glyph at 0.53s. Also
- * the header's other round actions (share), so they read as one set. The chip
- * sits centred in a 44dp hit box.
+ * How a menu's trigger is drawn. In a bar (the card page's header) it is a
+ * [Bare] glyph like the back arrow beside it — the bar is the frame. Over
+ * content (a card's cover in the card box) it is a [Chip]: a wobbly cream
+ * squircle (R 0.42s, one turn a side) with no rim, so it stays legible over a
+ * picture without adding a pen line.
+ */
+enum class MenuTrigger { Chip, Bare }
+
+/**
+ * OrganicMenu's trigger (and the header's other actions, share): the glyph in
+ * the menu's pen (or a card's hue) at 0.53 of the chip, or bare at 20dp in the
+ * text ink. A press washes an organic squircle — never a rectangle.
  */
 @Composable
-fun OrganicMenuChip(icon: IconName, label: String, seed: Double, size: Dp = 38.dp, expanded: Boolean = false, hue: Double? = null, onClick: () -> Unit) {
+fun OrganicMenuChip(
+    icon: IconName,
+    label: String,
+    seed: Double,
+    size: Dp = 38.dp,
+    expanded: Boolean = false,
+    hue: Double? = null,
+    trigger: MenuTrigger = MenuTrigger.Chip,
+    onClick: () -> Unit,
+) {
     val colors = remember(hue) { MenuColors(hue) }
+    if (trigger == MenuTrigger.Bare) {
+        Box(
+            Modifier
+                .size(BareHitBox)
+                .clickable(interactionSource = null, indication = OrganicIndication(inset = BareWashInset), role = Role.Button, onClickLabel = label, onClick = onClick)
+                .semantics { contentDescription = label },
+            contentAlignment = Alignment.Center,
+        ) { OrganicIcon(icon, size = 20.dp, color = if (expanded) Tokens.Terracotta else Tokens.Text) }
+        return
+    }
     val ink = if (expanded) colors.borderHover else colors.border
     Box(
         Modifier
             .size(MenuHitBox)
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .clickable(interactionSource = null, indication = OrganicIndication(inset = (MenuHitBox - size) / 2), role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
@@ -287,11 +325,7 @@ fun OrganicMenuChip(icon: IconName, label: String, seed: Double, size: Dp = 38.d
                 val o = WobRectShape(s * 0.42, seed, mag = s * 0.03, options = WobRectOptions(
                     curve = 1.4, cornerJitter = 2.4, segmentsH = SegValue.Count(1.0), segmentsV = SegValue.Count(1.0),
                 )).createOutline(this.size, layoutDirection, this)
-                val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-                onDrawBehind {
-                    drawOutline(o, colors.cream.copy(alpha = 0.9f))
-                    drawOutline(o, colors.border, style = pen)
-                }
+                onDrawBehind { drawOutline(o, colors.cream.copy(alpha = 0.94f)) }
             },
             contentAlignment = Alignment.Center,
         ) { OrganicIcon(icon, size = (size.value * 0.53f).roundToInt().dp, color = ink, strokeWidth = Tokens.Ink.value) }
@@ -300,6 +334,10 @@ fun OrganicMenuChip(icon: IconName, label: String, seed: Double, size: Dp = 38.d
 
 /** The chip's touch target. */
 private val MenuHitBox = 44.dp
+
+/** A bare trigger's touch target (OrganicIconButton's), and how far in its wash sits. */
+private val BareHitBox = 48.dp
+private val BareWashInset = 4.dp
 
 /** OrganicMenu's rows are 42 tall. */
 private const val MenuRowHeight = 42.0
@@ -317,15 +355,18 @@ fun OrganicMenu(
     triggerIcon: IconName = IconName.Dots,
     hue: Double? = null,
     triggerSize: Dp = 38.dp,
+    trigger: MenuTrigger = MenuTrigger.Chip,
 ) {
     var open by remember { mutableStateOf(false) }
     val colors = remember(hue) { MenuColors(hue) }
     Box {
-        OrganicMenuChip(triggerIcon, label, seed, size = triggerSize, expanded = open, hue = hue) { open = !open }
+        OrganicMenuChip(triggerIcon, label, seed, size = triggerSize, expanded = open, hue = hue, trigger = trigger) { open = !open }
         if (open) {
             val gap = with(LocalDensity.current) { 8.dp.roundToPx() }
-            // The chip is centred in its hit box: the panel hangs from the chip, not from the box.
-            val inset = with(LocalDensity.current) { ((MenuHitBox - triggerSize) / 2).roundToPx() }
+            // The chip (or a bare glyph's wash) is centred in its hit box: the panel hangs from it, not from the box.
+            val inset = with(LocalDensity.current) {
+                (if (trigger == MenuTrigger.Bare) BareWashInset else (MenuHitBox - triggerSize) / 2).roundToPx()
+            }
             Popup(
                 popupPositionProvider = remember(gap, inset) { BelowTrailingEdge(gap, inset) },
                 onDismissRequest = { open = false },
@@ -352,12 +393,20 @@ private class BelowTrailingEdge(private val gap: Int, private val inset: Int) : 
 private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuColors, onChoose: (OrganicMenuItem) -> Unit) {
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) { appear.animateTo(1f, tween(180, easing = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f))) }
+    // The row being pressed, and its ink spreading from the finger (every control's press, [InkSpread]).
     var pressed by remember { mutableStateOf<Int?>(null) }
+    val spread = remember { InkSpread() }
+    val scope = rememberCoroutineScope()
+    val rowPx = with(LocalDensity.current) { MenuRowHeight.dp.toPx() }
+    val padPx = with(LocalDensity.current) { 8.dp.toPx() }
     val danger = items.indexOfFirst { it.destructive }
     Column(
         Modifier
             .graphicsLayer {
                 val v = appear.value
+                // Faded per drawing, not through an offscreen layer: a layer is cut at the panel's box,
+                // and the pen line wobbles past it — the outline would show clipped straight until opaque.
+                compositingStrategy = CompositingStrategy.ModulateAlpha
                 alpha = v
                 scaleX = 0.94f + 0.06f * v
                 scaleY = scaleX
@@ -382,7 +431,7 @@ private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuCo
                     clipPath(outline) {
                         drawPath(outline, colors.cream)
                         if (danger >= 0) drawPath(regions[danger], colors.dangerWash)
-                        pressed?.let { drawPath(regions[it], if (it == danger) colors.dangerWashPressed else colors.borderHover.copy(alpha = 0.15f)) }
+                        pressed?.let { with(spread) { draw(regions[it], if (it == danger) colors.dangerWashPressed else colors.borderHover.copy(alpha = 0.15f)) } }
                         dividers.forEach { drawPath(it, colors.divider, style = light) }
                     }
                     drawPath(outline, colors.border, style = pen)
@@ -393,7 +442,18 @@ private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuCo
         items.forEachIndexed { i, item ->
             val source = remember { MutableInteractionSource() }
             val down by source.collectIsPressedAsState()
-            LaunchedEffect(down) { if (down) pressed = i else if (pressed == i) pressed = null }
+            LaunchedEffect(source) {
+                source.interactions.collect {
+                    when (it) {
+                        is PressInteraction.Press -> {
+                            pressed = i
+                            // The row's touch point, in the panel's space.
+                            spread.press(scope, Offset(it.pressPosition.x + padPx, it.pressPosition.y + i * rowPx))
+                        }
+                        is PressInteraction.Release, is PressInteraction.Cancel -> spread.release(scope)
+                    }
+                }
+            }
             val ink = if (down) colors.borderHover else colors.border
             Row(
                 Modifier
@@ -426,7 +486,8 @@ fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: S
                 toggleableState = ToggleableState(checked)
                 stateDescription = if (checked) "on" else "off"
             }
-            .clickable(role = Role.Switch) { onCheckedChange(!checked) }
+            // The knob's slide is the feedback; no wash over the track.
+            .clickable(interactionSource = null, indication = null, role = Role.Switch) { onCheckedChange(!checked) }
             .drawWithCache {
                 val track = wobRect(50.0, 28.0, 14.0, seed, 1.1, WobRectOptions(
                     curve = 1.5, cornerJitter = 0.6, segmentsH = SegValue.Range(1, 2), segmentsV = SegValue.Range(3, 4),
@@ -459,6 +520,6 @@ fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: S
 fun OrganicAlert(title: String, okLabel: String, seed: Double = 71.0, onDismiss: () -> Unit) {
     OrganicModal(onDismiss, title, seed) {
         ModalTitle(title)
-        ModalActions { OrganicButton(okLabel, small = true, onClick = onDismiss) }
+        ModalActions { OrganicButton(okLabel, variant = ButtonVariant.Solid, small = true, onClick = onDismiss) }
     }
 }
