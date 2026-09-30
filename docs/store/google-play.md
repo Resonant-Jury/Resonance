@@ -101,36 +101,38 @@
 
 ### 繁體中文（zh-TW，預設）
 
+> 標點：單句的說明、標語、短句不加句尾「。」；兩句以上的段落照常使用句號（台灣慣例）。小標用【】——App Store 不接受「✦」這類符號，兩邊統一。
+
 - **應用程式名稱**（30）：`Resonance`
 - **簡短說明**（80）：
 
-  > 寫下一段人生故事，讓另一個人用自己的故事回應你。
+  > 寫下一段人生故事，讓另一個人用自己的故事回應你
 
 - **完整說明**（4000）：
 
-  > Resonance（共振）是一個用故事卡片彼此交流的地方。
+  > Resonance（共振）是一個用故事卡片彼此交流的地方
   >
   > 在這裡，回應不是按讚，而是另一段故事。讀到觸動你的卡片時，你可以寫下自己的經歷來「共振」它；兩張卡片從此連在一起，你們也成為彼此的連結。
   >
-  > ✦ 寫卡片
+  > 【寫卡片】
   > 用溫暖的手繪紙張寫下一段經歷：標題、故事、照片。每張卡片都能決定給誰看——所有人、你的連結，或只有自己。
   >
-  > ✦ 用故事回應故事
+  > 【用故事回應故事】
   > 共振一張卡片，就是寫一張回應它的卡片。也可以給作者留一張紙條，不必公開。
   >
-  > ✦ 連結與私訊
-  > 因為故事而相遇的人，可以在私訊裡繼續聊。
+  > 【連結與私訊】
+  > 因為故事而相遇的人，可以在私訊裡繼續聊
   >
-  > ✦ 思想地圖
-  > 把自己的卡片放在點點紙上，分區、畫箭頭、寫下它們之間的關係，看見自己的想法怎麼長出來。
+  > 【思想地圖】
+  > 把自己的卡片放在點點紙上，分區、畫箭頭、寫下它們之間的關係，看見自己的想法怎麼長出來
   >
-  > ✦ 為你挑選的故事
-  > 依你自己寫過的卡片，推薦可能和你共振的故事。
+  > 【為你挑選的故事】
+  > 依你自己寫過的卡片，推薦可能和你共振的故事
   >
-  > ✦ 安心的空間
+  > 【安心的空間】
   > 每張卡片、每個人、每段對話都能檢舉或封鎖；我們在 24 小時內處理檢舉。沒有廣告，不追蹤你。可以隨時下載或刪除你的所有資料。
   >
-  > 讓生命影響生命。
+  > 讓生命影響生命
 
 ### English (en-US)
 
@@ -145,22 +147,22 @@
   >
   > Here a reply isn't a like — it's another story. When a card moves you, write your own experience to resonate with it; the two cards are linked, and so are the two of you.
   >
-  > ✦ Write cards
+  > WRITE CARDS
   > On warm, hand-drawn paper: a title, a story, a photo. Choose who sees each card — everyone, your connections, or only you.
   >
-  > ✦ Answer stories with stories
+  > ANSWER STORIES WITH STORIES
   > Resonating with a card means writing a card in response. Or leave the author a private note.
   >
-  > ✦ Connections and messages
+  > CONNECTIONS AND MESSAGES
   > People who meet through their stories can keep talking in private messages.
   >
-  > ✦ Thought map
+  > THOUGHT MAP
   > Lay your cards out on dotted paper, group them, draw arrows and label how they relate — and watch your thinking take shape.
   >
-  > ✦ Stories picked for you
+  > STORIES PICKED FOR YOU
   > Recommendations based on the cards you've written.
   >
-  > ✦ A safe place
+  > A SAFE PLACE
   > Report or block any card, person or conversation; we act on reports within 24 hours. No ads, no tracking. Download or delete everything you've written at any time.
   >
   > Let lives touch lives.
