@@ -63,7 +63,7 @@ fun FeedCard.story(): StoryCardContent {
         authorInitials = a?.initials ?: "·",
         authorImageUrl = a?.avatarUrl,
         avatarSeed = a?.avatarSeedValue() ?: ((id.firstOrNull()?.code ?: 7) * 31).toDouble(),
-        readTime = "$readMinutes min",
+        readTime = L10n.App.readMinutes(readMinutes),
         tags = tags,
         imageUrl = imageUrl,
         imageLabel = imageLabel ?: title.take(24),

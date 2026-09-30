@@ -15,7 +15,7 @@ extension FeedCard {
             authorInitials: author?.initials ?? "·",
             authorImageURL: author?.avatarUrl.flatMap(URL.init(string:)),
             avatarSeed: author.map { $0.avatarSeedValue } ?? anonymousSeed,
-            readTime: "\(readMinutes) min",
+            readTime: L10n.App.readMinutes(count: readMinutes),
             tags: tags,
             imageURL: imageUrl.flatMap(URL.init(string:)),
             imageLabel: imageLabel ?? String(title.prefix(24)),

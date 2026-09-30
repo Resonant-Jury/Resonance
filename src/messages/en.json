@@ -97,7 +97,8 @@
       "body": "You'll need to sign in again to get back to your card box.",
       "confirm": "Sign out",
       "cancel": "Cancel"
-    }
+    },
+    "readMinutes": "{count} min"
   },
   "home": {
     "heading": "Stories picked for you",

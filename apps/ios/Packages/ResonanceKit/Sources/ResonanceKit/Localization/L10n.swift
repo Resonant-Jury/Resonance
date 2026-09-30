@@ -180,6 +180,8 @@ public enum L10n {
             /// Cancel
             public static var cancel: String { Strings.shared.string("app.signOutConfirm.cancel") }
         }
+        /// {count} min
+        public static func readMinutes(count: Int) -> String { Strings.shared.format("app.readMinutes", ["count": count]) }
     }
     public enum Home {
         /// Stories picked for you

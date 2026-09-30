@@ -182,6 +182,8 @@ object L10n {
             /** Cancel */
             val cancel: String get() = Strings.string("app.signOutConfirm.cancel")
         }
+        /** {count} min */
+        fun readMinutes(count: Int): String = Strings.format("app.readMinutes", mapOf("count" to count))
     }
     object Home {
         /** Stories picked for you */
