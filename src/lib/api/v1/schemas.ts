@@ -226,6 +226,15 @@ export const UpdateProfileRequest = named(
   'Only the fields sent change.',
 );
 
+export const UpdateCardRequest = named(
+  z.object({
+    visibility: z.enum(['public', 'connections', 'private']).nullish(),
+    anonymous: z.boolean().nullish(),
+  }),
+  'UpdateCardRequest',
+  'Your card\'s visibility and byline; only the fields sent change.',
+);
+
 export const PublishResponse = named(
   z.object({
     id: z.string(),
@@ -375,6 +384,7 @@ export type CardBoxTabName = z.infer<typeof CardBoxTab>;
 export type CreateProfileInput = z.infer<typeof CreateProfileRequest>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileRequest>;
 export type ReportCardInput = z.infer<typeof ReportCardRequest>;
+export type UpdateCardInput = z.infer<typeof UpdateCardRequest>;
 export type CardListBody = z.infer<typeof CardList>;
 export type CardInclude = (typeof CARD_INCLUDES)[number];
 export type ProfileInclude = (typeof PROFILE_INCLUDES)[number];
