@@ -209,6 +209,8 @@ object L10n {
         object Recommended {
             /** The insights you write decide which stories find you. */
             val hint: String get() = Strings.string("home.recommended.hint")
+            /** Today's picks are ready */
+            val ready: String get() = Strings.string("home.recommended.ready")
         }
         object ColdStart {
             /** Your first card becomes the point this world starts arranging itself around. */

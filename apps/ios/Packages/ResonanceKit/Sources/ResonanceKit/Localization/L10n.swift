@@ -207,6 +207,8 @@ public enum L10n {
         public enum Recommended {
             /// The insights you write decide which stories find you.
             public static var hint: String { Strings.shared.string("home.recommended.hint") }
+            /// Today's picks are ready
+            public static var ready: String { Strings.shared.string("home.recommended.ready") }
         }
         public enum ColdStart {
             /// Your first card becomes the point this world starts arranging itself around.

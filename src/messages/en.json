@@ -113,7 +113,8 @@
     },
     "matchReason": "because of “{reason}”",
     "recommended": {
-      "hint": "The insights you write decide which stories find you."
+      "hint": "The insights you write decide which stories find you.",
+      "ready": "Today's picks are ready"
     },
     "coldStart": {
       "title": "Your first card becomes the point this world starts arranging itself around.",
