@@ -10,9 +10,9 @@ export const runtime = 'nodejs';
  * deleted card's slug can be given to a new card, and until the cached answer
  * lapses its URL still names the old id (which then reads as not found).
  */
-export const RESOLVE_HIT_CACHE = 'public, s-maxage=3600, stale-while-revalidate=86400';
+const RESOLVE_HIT_CACHE = 'public, s-maxage=3600, stale-while-revalidate=86400';
 /** A miss is never cached: the card may be about to exist (a slug assigned a moment later). */
-export const RESOLVE_MISS_CACHE = 'no-store';
+const RESOLVE_MISS_CACHE = 'no-store';
 
 /**
  * Resolve a card URL segment (slug or legacy doc id) to its Firestore doc id.
