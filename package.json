@@ -14,6 +14,7 @@
     "test:ui": "vitest --ui",
     "test:emulator": "cd firebase && firebase emulators:exec --only auth,firestore --project demo-resonance 'cd .. && vitest run -c vitest.emulator.config.ts'",
     "emulators": "cd firebase && firebase emulators:start --only auth,firestore --project demo-resonance",
+    "emulators:at": "node scripts/emulators-at.mjs",
     "moderation": "tsx scripts/moderation/reports.ts",
     "api:openapi": "tsx scripts/api-openapi.ts",
     "native:editor": "tsc -p native/editor/tsconfig.json && node scripts/native/build-editor.mjs",

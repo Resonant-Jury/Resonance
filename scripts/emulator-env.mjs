@@ -9,6 +9,15 @@
  */
 export const EMULATOR_PROJECT_ID = 'demo-resonance';
 
+/**
+ * The emulators' ports: firebase/firebase.json's by default. Another pair
+ * (EMULATOR_AUTH_PORT / EMULATOR_FIRESTORE_PORT, as `npm run emulators:at`
+ * starts them) lets a second checkout or session run its own emulators
+ * beside the shared ones.
+ */
+export const EMULATOR_AUTH_PORT = process.env.EMULATOR_AUTH_PORT || '9099';
+export const EMULATOR_FIRESTORE_PORT = process.env.EMULATOR_FIRESTORE_PORT || '8080';
+
 export const emulatorEnv = {
   NEXT_PUBLIC_FIREBASE_EMULATOR: 'true',
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: EMULATOR_PROJECT_ID,
@@ -19,8 +28,10 @@ export const emulatorEnv = {
   FIREBASE_PROJECT_ID: EMULATOR_PROJECT_ID,
   FIREBASE_CLIENT_EMAIL: '',
   FIREBASE_PRIVATE_KEY: '',
-  FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
-  FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
+  NEXT_PUBLIC_EMULATOR_AUTH_PORT: EMULATOR_AUTH_PORT,
+  NEXT_PUBLIC_EMULATOR_FIRESTORE_PORT: EMULATOR_FIRESTORE_PORT,
+  FIRESTORE_EMULATOR_HOST: `127.0.0.1:${EMULATOR_FIRESTORE_PORT}`,
+  FIREBASE_AUTH_EMULATOR_HOST: `127.0.0.1:${EMULATOR_AUTH_PORT}`,
   R2_ENDPOINT: '',
   R2_ACCESS_KEY_ID: '',
   R2_SECRET_ACCESS_KEY: '',

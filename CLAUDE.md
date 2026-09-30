@@ -15,6 +15,7 @@ npm run test:ui    # Vitest browser UI
 npm run emulators       # Firebase Auth + Firestore emulators (needs Java; project demo-resonance)
 npm run dev:emulator    # Next dev server wired to the emulators (no real Firebase/R2 is touched)
 npm run test:emulator   # Rules + Admin SDK suites in test/emulator (starts/stops the emulators itself)
+EMULATOR_AUTH_PORT=9199 EMULATOR_FIRESTORE_PORT=8180 npm run emulators:at [-- "<command>"]   # a private pair of emulators beside the shared ones (dev:emulator, seeds and the apps' emulatorAuthPort/emulatorFirestorePort/emulatorApiPort launch args follow the same variables)
 npm run moderation -- list [--emulator]   # read the report queue (reports are write-only for clients)
 npm run api:openapi     # regenerate openapi/v1/openapi.json from the Zod contract (a test fails when stale)
 npm run native:editor   # typecheck + build the native apps' editor island (native/editor/dist/editor.html)

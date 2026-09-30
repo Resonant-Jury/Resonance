@@ -36,7 +36,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val emulator = BuildConfig.DEBUG && intent.getBooleanExtra("emulator", false)
-        val config = AppConfig(usesEmulator = emulator)
+        val config = if (!emulator) AppConfig(usesEmulator = false) else {
+            fun port(name: String, default: Int) = intent.getIntExtra(name, default).takeIf { it in 1..65535 } ?: default
+            AppConfig(
+                usesEmulator = true,
+                emulatorAuthPort = port("emulatorAuthPort", 9099),
+                emulatorFirestorePort = port("emulatorFirestorePort", 8080),
+                emulatorApiPort = port("emulatorApiPort", 3100),
+            )
+        }
         AppFirebase.configure(this, config)
         val session = (application as ResonanceApp).session(config)
         this.session = session

@@ -16,9 +16,9 @@ enum FirebaseBootstrap {
             // A stand-in in the shape Firebase checks (39 characters, "A…"; Installations refuses others).
             options.apiKey = "AIzaSyDemoResonanceLocalEmulators000000"
             FirebaseApp.configure(options: options)
-            Auth.auth().useEmulator(withHost: config.emulatorHost, port: 9099)
+            Auth.auth().useEmulator(withHost: config.emulatorHost, port: config.emulatorAuthPort)
             let settings = Firestore.firestore().settings
-            settings.host = "\(config.emulatorHost):8080"
+            settings.host = "\(config.emulatorHost):\(config.emulatorFirestorePort)"
             settings.isSSLEnabled = false
             settings.cacheSettings = MemoryCacheSettings()
             Firestore.firestore().settings = settings

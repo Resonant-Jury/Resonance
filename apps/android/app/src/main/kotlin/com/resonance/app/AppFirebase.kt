@@ -32,9 +32,9 @@ object AppFirebase {
             .setApiKey("demo-key")
             .build()
         app = FirebaseApp.initializeApp(context, options, "emulator")
-        FirebaseAuth.getInstance(app).useEmulator(AppConfig.EMULATOR_HOST, 9099)
+        FirebaseAuth.getInstance(app).useEmulator(AppConfig.EMULATOR_HOST, config.emulatorAuthPort)
         FirebaseFirestore.getInstance(app).apply {
-            useEmulator(AppConfig.EMULATOR_HOST, 8080)
+            useEmulator(AppConfig.EMULATOR_HOST, config.emulatorFirestorePort)
             firestoreSettings = FirebaseFirestoreSettings.Builder().setLocalCacheSettings(memoryCacheSettings {}).build()
         }
     }

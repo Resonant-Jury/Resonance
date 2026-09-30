@@ -36,6 +36,9 @@ export function getFirebaseClientApp() {
 
 /** Local-emulator mode (`npm run dev:emulator`); see scripts/emulator-env.mjs. */
 export const USE_FIREBASE_EMULATOR = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR === 'true';
+/** The emulators' ports (scripts/emulator-env.mjs; firebase/firebase.json's by default). */
+export const EMULATOR_AUTH_PORT = Number(process.env.NEXT_PUBLIC_EMULATOR_AUTH_PORT || 9099);
+export const EMULATOR_FIRESTORE_PORT = Number(process.env.NEXT_PUBLIC_EMULATOR_FIRESTORE_PORT || 8080);
 
 let authEmulatorConnected = false;
 
@@ -43,7 +46,7 @@ export function getFirebaseClientAuth() {
   const auth = getAuth(getFirebaseClientApp());
   if (USE_FIREBASE_EMULATOR && !authEmulatorConnected) {
     authEmulatorConnected = true;
-    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+    connectAuthEmulator(auth, `http://127.0.0.1:${EMULATOR_AUTH_PORT}`, { disableWarnings: true });
   }
   return auth;
 }
