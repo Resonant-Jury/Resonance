@@ -94,6 +94,12 @@ describe('sendNote', () => {
     expect(await docs('notes')).toHaveLength(0);
     expect(await docs('notifications')).toHaveLength(0);
   });
+
+  it("takes the card's id (the contract's cardId): a slug names no card here", async () => {
+    await db.doc('cards/walk').set({ slug: 'a-rainy-walk' }, { merge: true });
+    expect((await failure(sendNote(db, 'alice', { cardId: 'a-rainy-walk', text: 'hi' }))).code).toBe('not_found');
+    expect(await docs('notes')).toHaveLength(0);
+  });
 });
 
 describe('sendMessage', () => {
@@ -130,6 +136,9 @@ describe('sendMessage', () => {
     expect((await failure(sendMessage(db, 'alice', { to: 'alice', text: 'hi' }))).code).toBe('invalid_request');
     expect((await failure(sendMessage(db, 'alice', { to: 'bob', text: '' }))).code).toBe('invalid_request');
     expect((await failure(sendMessage(db, 'alice', { to: 'bob', text: '', cardRef: 'secret' }))).code).toBe('not_found');
+    // A card is attached by its id; a slug names none.
+    await db.doc('cards/walk').set({ slug: 'a-rainy-walk' }, { merge: true });
+    expect((await failure(sendMessage(db, 'alice', { to: 'bob', text: '', cardRef: 'a-rainy-walk' }))).code).toBe('not_found');
     await db.doc('notes/n1').set({ cardId: 'walk', fromUserId: 'carol', toUserId: 'bob', text: 'x' });
     expect((await failure(sendMessage(db, 'alice', { to: 'bob', text: 'hi', noteRef: { cardId: 'walk', noteId: 'n1' } }))).code).toBe('invalid_request');
     await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });

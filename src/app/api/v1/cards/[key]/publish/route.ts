@@ -10,7 +10,8 @@ import { indexCard } from '@/lib/recommend/indexCard';
 import { routing } from '@/i18n/routing';
 
 export const dynamic = 'force-dynamic';
-// The slug's LLM call runs inside the request; the recommendation index after it.
+// The slug's LLM call is waited for 8 s at most (SLUG_WAIT_MS), then finished
+// after the response, followed by the recommendation index.
 export const maxDuration = 60;
 
 /** POST /api/v1/cards/{id}/publish — publish your card (see publishCard). */
@@ -18,12 +19,20 @@ export const POST = withUser(async (user, _req, ctx: RouteContext<'key'>) => {
   const id = parse(CardIdParam, await routeParam(ctx, 'key'));
   const db = getAdminDb();
   await spend(db, user.id, 'publish');
-  const { notificationId, ...result } = await publishCard(db, user.id, id);
+  const { notificationId, pendingSlug, ...result } = await publishCard(db, user.id, id);
   ringAfter(db, notificationId);
-  after(async () => {
-    // Same grace notes as the web editor: never awaited by the writer, never failing the publish.
-    for (const locale of routing.locales) revalidatePath(`/${locale}/card/${result.slug ?? id}`);
-    await indexCard(id).catch((e) => console.error('[api/v1] index', e));
-  });
+  // Same grace notes as the web editor: never awaited by the writer, never failing the publish.
+  after(() =>
+    Promise.all([
+      (async () => {
+        // A slug that came late (the answer said null) is written once this resolves.
+        const slug = result.slug ?? (pendingSlug ? await pendingSlug : null);
+        for (const key of new Set([slug ?? id, ...(pendingSlug ? [id] : [])])) {
+          for (const locale of routing.locales) revalidatePath(`/${locale}/card/${key}`);
+        }
+      })(),
+      indexCard(id).catch((e) => console.error('[api/v1] index', e)),
+    ]),
+  );
   return NextResponse.json(result);
 });

@@ -162,6 +162,35 @@ describe('getResonances / getRelated / getLinksToCard', () => {
     expect((await getLinksToCard(db, 'bob', 'target')).cards.map((c) => c.id)).toEqual(['src']);
     expect((await getLinksToCard(db, 'alice', 'target')).cards).toEqual([]);
   });
+
+  it("name the card by its id only (a slug is the card page's, never looked up here), and hide what the viewer can't read", async () => {
+    await card('orig', 'bob', 10, { slug: 'a-walk' });
+    await card('r1', 'dana', 1, { referenceCardId: 'orig' });
+    await card('priv', 'bob', 2, { visibility: 'private' });
+    await card('r2', 'dana', 1, { referenceCardId: 'priv' });
+    expect((await getResonances(db, 'alice', 'orig')).cards.map((c) => c.id)).toEqual(['r1']);
+    for (const read of [getResonances, getRelated, getLinksToCard]) {
+      expect((await failure(read(db, 'bob', 'a-walk'))).code).toBe('not_found');
+      expect((await failure(read(db, 'alice', 'priv'))).code).toBe('not_found');
+      expect((await failure(read(db, 'alice', 'nope'))).code).toBe('not_found');
+    }
+  });
+});
+
+describe('connections-only cards in a list', () => {
+  it("show to their author's connections only, whichever authors the list mixes", async () => {
+    await card('b1', 'bob', 1, { visibility: 'connections' });
+    await card('d1', 'dana', 2, { visibility: 'connections' });
+    await card('a1', 'alice', 3, { visibility: 'connections' });
+    await card('b2', 'bob', 4, { visibility: 'connections' });
+    await card('e1', 'erin', 5);
+    const load = async () => ({
+      items: ['b1', 'd1', 'a1', 'b2', 'e1'].map((cardId) => ({ cardId, reason: 'r', channel: 'insight' as const, score: 1 })),
+    });
+    // alice ↔ bob are connected; dana is connected to no one.
+    expect((await getRecommendedFeed(db, 'alice', load)).cards.map((c) => c.id)).toEqual(['b1', 'a1', 'b2', 'e1']);
+    expect((await getRecommendedFeed(db, 'dana', load)).cards.map((c) => c.id)).toEqual(['d1', 'e1']);
+  });
 });
 
 describe('profiles', () => {

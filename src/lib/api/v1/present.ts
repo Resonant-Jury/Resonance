@@ -89,10 +89,14 @@ export function toFeedCard(c: Card, author: DocumentData | undefined, opts: Feed
   };
 }
 
-/** Profiles of the given (non-anonymous) authors, by id. */
+/** A document id that can safely be put in a path (hand-edited data could hold anything). */
+const docIdOk = (id: unknown): id is string => typeof id === 'string' && id.length > 0 && !id.includes('/');
+
+/** Profiles of the given (non-anonymous) authors, by id — one batched read. */
 export async function loadAuthors(db: Firestore, cards: Card[]): Promise<Map<string, DocumentData>> {
-  const ids = [...new Set(cards.filter((c) => !c.anonymous).map((c) => c.authorId))];
-  const snaps = await Promise.all(ids.map((id) => db.doc(`users/${id}`).get()));
+  const ids = [...new Set(cards.filter((c) => !c.anonymous).map((c) => c.authorId))].filter(docIdOk);
+  if (!ids.length) return new Map();
+  const snaps = await db.getAll(...ids.map((id) => db.doc(`users/${id}`)));
   return new Map(snaps.filter((s) => s.exists).map((s) => [s.id, s.data()!]));
 }
 
@@ -108,11 +112,39 @@ export async function connected(db: Firestore, a: string, b: string): Promise<bo
   return (await db.doc(`connections/${pair}`).get()).exists;
 }
 
-/** firestore.rules `cardVisible`, for the Admin SDK (which bypasses rules). */
-export async function canView(db: Firestore, card: Card, viewerId: string): Promise<boolean> {
+/**
+ * firestore.rules `cardVisible` once the viewer's connection to the author is
+ * known — `isConnected` is only asked for a published connections card.
+ */
+function cardVisible(card: Card, viewerId: string, isConnected: (authorId: string) => boolean): boolean {
   if (card.authorId === viewerId) return true;
   // A draft is its author's alone, whatever visibility it will be published with.
   if (!card.publishedAt) return false;
   if (card.visibility === 'public') return true;
-  return card.visibility === 'connections' && (await connected(db, viewerId, card.authorId));
+  return card.visibility === 'connections' && isConnected(card.authorId);
+}
+
+const needsConnection = (card: Card, viewerId: string) =>
+  card.authorId !== viewerId && !!card.publishedAt && card.visibility === 'connections';
+
+/** firestore.rules `cardVisible`, for the Admin SDK (which bypasses rules). */
+export async function canView(db: Firestore, card: Card, viewerId: string): Promise<boolean> {
+  const isConnected = needsConnection(card, viewerId) && (await connected(db, viewerId, card.authorId));
+  return cardVisible(card, viewerId, () => isConnected);
+}
+
+/**
+ * The cards the viewer may read, in order (canView for a list): whether the
+ * viewer is connected to each connections-only author is read once per
+ * author, in one batch.
+ */
+export async function visibleTo(db: Firestore, viewerId: string, cards: Card[]): Promise<Card[]> {
+  const authors = [...new Set(cards.filter((c) => needsConnection(c, viewerId)).map((c) => c.authorId))].filter(docIdOk);
+  const linked = new Set<string>();
+  if (authors.length) {
+    const byPair = new Map(authors.map((a) => [viewerId < a ? `${viewerId}_${a}` : `${a}_${viewerId}`, a]));
+    const snaps = await db.getAll(...[...byPair.keys()].map((pair) => db.doc(`connections/${pair}`)));
+    for (const s of snaps) if (s.exists) linked.add(byPair.get(s.id)!);
+  }
+  return cards.filter((c) => cardVisible(c, viewerId, (a) => linked.has(a)));
 }

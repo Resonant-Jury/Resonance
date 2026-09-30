@@ -1,6 +1,6 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from './http';
-import { visibleCard } from './reads';
+import { visibleCardById } from './reads';
 
 /** notes.ts / firestore.rules: a note's length, and the bell's preview of it. */
 export const NOTE_MAX_LENGTH = 2000;
@@ -29,7 +29,7 @@ export interface SentNote {
 }
 
 export async function sendNote(db: Firestore, uid: string, input: { cardId: string; text: string }): Promise<SentNote> {
-  const card = await visibleCard(db, uid, input.cardId);
+  const card = await visibleCardById(db, uid, input.cardId);
   if (!card.publishedAt) throw new ApiFailure('not_found', 'No such card.');
   const author = card.authorId;
   if (author === uid) throw new ApiFailure('invalid_request', 'You cannot send a note to yourself.');
@@ -99,7 +99,7 @@ export async function sendMessage(
   const other = input.to;
   if (other === uid) throw new ApiFailure('invalid_request', 'You cannot message yourself.');
   if (!input.text && !input.cardRef) throw new ApiFailure('invalid_request', 'A message needs text or a card.');
-  const card = input.cardRef ? await visibleCard(db, uid, input.cardRef) : null;
+  const card = input.cardRef ? await visibleCardById(db, uid, input.cardRef) : null;
   if (card && !card.publishedAt) throw new ApiFailure('not_found', 'No such card.');
   const pair = pairOf(uid, other);
   const conversation = db.doc(`conversations/${pair}`);

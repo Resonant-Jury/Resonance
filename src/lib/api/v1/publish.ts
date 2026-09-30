@@ -4,14 +4,30 @@ import { mapCard } from '@/lib/db/firestore/mapper';
 import { ApiFailure } from './http';
 import { canView } from './present';
 
+/** How long publishing waits for the slug (an LLM call) before answering without it. */
+export const SLUG_WAIT_MS = 8_000;
+
 export interface PublishResult {
   id: string;
-  /** The English URL slug; null when generating it failed (the card is live at its id). */
+  /** The English URL slug; null when generating it failed or is still under way (the card is live at its id). */
   slug: string | null;
   /** False when the card was already live — publishing again never re-dates it. */
   firstPublish: boolean;
   /** A resonance's bell row on the original author's side, for its push (never returned to the client). */
   notificationId: string | null;
+  /** The slug still being made when the answer went out (never returned): the route awaits it after the response. */
+  pendingSlug: Promise<string | null> | null;
+}
+
+const LATE = Symbol('late');
+
+/** `p`'s value, or LATE when it takes longer than `ms` (p goes on). */
+function within<T>(p: Promise<T>, ms: number): Promise<T | typeof LATE> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<typeof LATE>((resolve) => {
+    timer = setTimeout(() => resolve(LATE), ms);
+  });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
 }
 
 /**
@@ -23,6 +39,10 @@ export interface PublishResult {
  * visible to the resonator and no block may stand between them. Anonymous
  * resonances do neither: a connection names both uids.
  *
+ * The slug and the resonance are made side by side. The slug is waited for
+ * `slugWaitMs` at most: past that the answer says `slug: null` (the id is a
+ * working URL) and the slug is written when it comes (`pendingSlug`).
+ *
  * The recommendation index and the page cache are the route's (after the
  * response); `slugBase` is injectable so tests need no LLM.
  */
@@ -31,6 +51,7 @@ export async function publishCard(
   uid: string,
   id: string,
   slugBase?: (title: string) => Promise<string>,
+  opts: { slugWaitMs?: number } = {},
 ): Promise<PublishResult> {
   const ref = db.doc(`cards/${id}`);
   const card = await db.runTransaction(async (tx) => {
@@ -43,14 +64,22 @@ export async function publishCard(
     return { data: snap.data()!, firstPublish };
   });
 
-  // Publishing never waits on — or fails for — the AI step; the id is a working URL.
-  const slug = await assignSlug(db, id, slugBase).catch(() => null);
-
+  // Publishing never waits long on — or fails for — the AI step; the id is a working URL.
+  const slugP = assignSlug(db, id, slugBase).catch((e) => (console.error('[api/v1] slug', e), null));
   const referenceCardId = typeof card.data.referenceCardId === 'string' ? card.data.referenceCardId : null;
-  const notificationId = card.firstPublish && referenceCardId && card.data.anonymous !== true
-    ? await connectResonance(db, uid, referenceCardId).catch((e) => (console.error('[api/v1] resonance', e), null))
-    : null;
-  return { id, slug, firstPublish: card.firstPublish, notificationId };
+  const [slug, notificationId] = await Promise.all([
+    within(slugP, opts.slugWaitMs ?? SLUG_WAIT_MS),
+    card.firstPublish && referenceCardId && card.data.anonymous !== true
+      ? connectResonance(db, uid, referenceCardId).catch((e) => (console.error('[api/v1] resonance', e), null))
+      : null,
+  ]);
+  return {
+    id,
+    slug: slug === LATE ? null : slug,
+    firstPublish: card.firstPublish,
+    notificationId,
+    pendingSlug: slug === LATE ? slugP : null,
+  };
 }
 
 /** Connect the two authors and ring the original's bell; the bell row's id, or null when nothing rang. */

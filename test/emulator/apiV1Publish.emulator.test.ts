@@ -49,12 +49,12 @@ describe('publishCard', () => {
   it('stamps publishedAt once and gives the card its slug with the handle', async () => {
     await draft('c1');
     const first = await publishCard(db, 'alice', 'c1', slugBase);
-    expect(first).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: true, notificationId: null });
+    expect(first).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: true, notificationId: null, pendingSlug: null });
     const stamped = (await db.doc('cards/c1').get()).get('publishedAt') as Timestamp;
     expect(stamped).toBeInstanceOf(Timestamp);
 
     const again = await publishCard(db, 'alice', 'c1', slugBase);
-    expect(again).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: false, notificationId: null });
+    expect(again).toEqual({ id: 'c1', slug: 'a-quiet-night', firstPublish: false, notificationId: null, pendingSlug: null });
     expect(((await db.doc('cards/c1').get()).get('publishedAt') as Timestamp).isEqual(stamped)).toBe(true);
   });
 
@@ -69,7 +69,23 @@ describe('publishCard', () => {
     const result = await publishCard(db, 'alice', 'c1', async () => {
       throw new Error('LLM down');
     });
+    expect(result).toEqual({ id: 'c1', slug: null, firstPublish: true, notificationId: null, pendingSlug: null });
+  });
+
+  it('answers without the slug when it is slow, and writes it once it comes', async () => {
+    await draft('c1');
+    const slow = async () => {
+      await new Promise((r) => setTimeout(r, 300));
+      return 'a-quiet-night';
+    };
+    const started = Date.now();
+    const { pendingSlug, ...result } = await publishCard(db, 'alice', 'c1', slow, { slugWaitMs: 50 });
+    expect(Date.now() - started).toBeLessThan(300);
     expect(result).toEqual({ id: 'c1', slug: null, firstPublish: true, notificationId: null });
+    expect((await db.doc('cards/c1').get()).get('publishedAt')).toBeInstanceOf(Timestamp);
+    // The route awaits this after its response (revalidating the page).
+    expect(await pendingSlug).toBe('a-quiet-night');
+    expect((await db.doc('cards/c1').get()).get('slug')).toBe('a-quiet-night');
   });
 
   it("is not_found for someone else's card, and refuses an untitled one", async () => {
@@ -94,6 +110,18 @@ describe('publishCard', () => {
       expect(first.notificationId).toBe(bell.docs[0].id);
       expect(again.notificationId).toBeNull();
       expect(bell.docs[0].data()).toMatchObject({ type: 'resonance', readAt: null, payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' } });
+    });
+
+    it("connects the authors without waiting for a slow slug", async () => {
+      await draft('r1', { referenceCardId: 'orig' });
+      let release!: () => void;
+      const stalled = () => new Promise<string>((resolve) => (release = () => resolve('a-quiet-night')));
+      const result = await publishCard(db, 'alice', 'r1', stalled, { slugWaitMs: 200 });
+      expect(result.slug).toBeNull();
+      expect(result.notificationId).toBe((await notifications()).docs[0].id);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(true);
+      release();
+      expect(await result.pendingSlug).toBe('a-quiet-night');
     });
 
     it('stays anonymous: no connection, no notification, no handle in the slug', async () => {
