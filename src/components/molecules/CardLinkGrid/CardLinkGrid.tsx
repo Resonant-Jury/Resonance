@@ -68,7 +68,8 @@ export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCa
 
   const renderItem = (card: Card, i: number) => {
     const author = authors[card.authorId];
-    const story = author
+    // An anonymous card needs no author: its byline is the anonymous one.
+    const story = author || card.anonymous
       ? cardToStory(card, author, { anonymousLabel: t('anonymousAuthor'), deanonymize })
       : { title: card.thoughtCore, excerpt: '', author: '—', authorInitials: '?', readTime: '—', tags: card.tags };
     return (

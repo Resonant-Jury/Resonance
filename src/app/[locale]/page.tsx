@@ -17,11 +17,17 @@ export default async function LandingPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const cards = await repos.card.findLatestPublishedFeed(6);
-  const authorIds = Array.from(new Set(cards.map((c) => c.authorId)));
+  // Everything passed to the client below is serialized into this cached,
+  // public HTML — so only what a card surface shows: no author for an
+  // anonymous card (not even its uid), no recommendation internals, and of
+  // each author only their byline.
+  const cards = (await repos.card.findLatestPublishedFeed(6)).map(({ signature: _s, indexedAt: _i, ...card }) =>
+    card.anonymous ? { ...card, authorId: '' } : card,
+  );
+  const authorIds = Array.from(new Set(cards.map((c) => c.authorId).filter(Boolean)));
   const authorList = await Promise.all(authorIds.map((id) => repos.user.findById(id)));
   const authors: Record<string, User> = {};
-  for (const u of authorList) if (u) authors[u.id] = u;
+  for (const u of authorList) if (u) authors[u.id] = byline(u);
 
   return (
     <>
@@ -34,4 +40,23 @@ export default async function LandingPage({
       <SiteFooter />
     </>
   );
+}
+
+/** An author as a card's byline needs them. */
+function byline(u: User): User {
+  return {
+    id: u.id,
+    handle: u.handle,
+    initials: u.initials,
+    avatarUrl: u.avatarUrl,
+    avatarSeed: u.avatarSeed,
+    accentColor: u.accentColor,
+    region: '',
+    primaryLocale: u.primaryLocale,
+    autoTranslateTo: [],
+    verified: u.verified,
+    phoneHash: '',
+    joinedAt: new Date(0),
+    handleChangedAt: new Date(0),
+  };
 }

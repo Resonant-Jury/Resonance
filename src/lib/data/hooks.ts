@@ -40,9 +40,39 @@ async function dropBlocked(cards: Card[]): Promise<Card[]> {
   return blocked.size ? cards.filter((c) => !blocked.has(c.authorId)) : cards;
 }
 
+/**
+ * Whose profiles a list of cards may fetch: every byline except someone
+ * else's anonymous card. The card itself still names its author's uid (rules
+ * can't redact a field), but the viewer's browser never downloads the
+ * profile a card is anonymous from — every surface shows the anonymous
+ * byline for it anyway.
+ */
+function bylineAuthorIds(cards: Card[], viewerId: string | undefined): string[] {
+  return cards.filter((c) => !c.anonymous || c.authorId === viewerId).map((c) => c.authorId);
+}
+
+/** The author shown for someone else's anonymous card: its uid (already on the card) and nothing else. */
+function anonymousAuthor(card: Card): User {
+  return {
+    id: card.authorId,
+    handle: '',
+    region: '',
+    primaryLocale: card.originalLocale,
+    autoTranslateTo: [],
+    verified: false,
+    phoneHash: '',
+    avatarSeed: String((card.id.charCodeAt(0) ?? 7) * 31),
+    initials: '·',
+    accentColor: 'var(--color-cream-dark)',
+    joinedAt: new Date(0),
+    handleChangedAt: new Date(0),
+  };
+}
+
+/** Cards plus their authors. Lists show every anonymous card — the viewer's own too — under the anonymous byline, so no anonymous author is fetched. */
 async function withAuthors(cards: Card[]): Promise<CardsWithAuthors> {
   const visible = await dropBlocked(cards);
-  const authors = await getUsersByIds(visible.map((c) => c.authorId));
+  const authors = await getUsersByIds(bylineAuthorIds(visible, undefined));
   return { cards: visible, authors };
 }
 
@@ -155,7 +185,7 @@ export function useCard(slugOrId: string | undefined) {
   const swr = useSWR(key, async () => {
     const card = await getCardBySlugOrId(slugOrId!);
     if (!card) return null;
-    const author = await getUserById(card.authorId);
+    const author = card.anonymous && card.authorId !== user?.id ? anonymousAuthor(card) : await getUserById(card.authorId);
     return { card, author };
   });
   // While auth is still settling (or we have no id yet) the SWR key is null, so
@@ -229,7 +259,7 @@ export function useMyCardBox() {
       cardsFromIds(bookmarkIds),
     ]);
     const all = [...published, ...priv, ...draft, ...resonated, ...linked, ...bookmarks];
-    const authors = await getUsersByIds(all.map((c) => c.authorId));
+    const authors = await getUsersByIds(bylineAuthorIds(all, uid));
     return { published, private: priv, draft, resonated, linked, bookmarks, authors };
   });
 }
@@ -312,7 +342,7 @@ export function useMyResonance(cardId: string | undefined) {
 export function useResonators(cardId: string | undefined, referenceCardId?: string) {
   return useSWR<User[]>(cardId ? `resonators:${cardId}:${referenceCardId ?? 'none'}` : null, async () => {
     const cards = await getResonanceCards(cardId!);
-    const authors = await getUsersByIds(cards.map((c) => c.authorId));
+    const authors = await getUsersByIds(bylineAuthorIds(cards, undefined));
     // One avatar per unique resonator, in card (newest-first) order.
     const seen = new Set<string>();
     const out: User[] = [];

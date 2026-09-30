@@ -47,15 +47,19 @@ export function anonymousByline(card: Card, label: string) {
   };
 }
 
+/**
+ * `author` may be missing only for an anonymous card shown anonymously — its
+ * author is never fetched (see bylineAuthorIds in lib/data/hooks).
+ */
 export function cardToStory(
   card: Card,
-  author: Pick<User, 'handle' | 'initials' | 'avatarUrl' | 'avatarSeed'>,
+  author: Pick<User, 'handle' | 'initials' | 'avatarUrl' | 'avatarSeed'> | null | undefined,
   opts?: CardToStoryOptions,
 ): Story {
   const wordCount = card.story.replace(/\s+/g, '').length;
   const minutes = Math.max(1, Math.round(wordCount / 320));
   const excerpt = card.story.replace(/\n+/g, ' ').slice(0, 96) + (card.story.length > 96 ? '…' : '');
-  const anonymized = card.anonymous && !opts?.deanonymize;
+  const anonymized = (card.anonymous && !opts?.deanonymize) || !author;
   const byline = anonymized
     ? anonymousByline(card, opts?.anonymousLabel ?? '匿名')
     : {

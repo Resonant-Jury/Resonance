@@ -147,6 +147,34 @@ describe('useFeed', () => {
   });
 });
 
+// An anonymous card still carries its author's uid (rules can't redact a
+// field), but the browser must never download the profile it is anonymous
+// from — every surface shows the anonymous byline for it anyway.
+describe('anonymous cards', () => {
+  it("don't fetch their author's profile in a list", async () => {
+    vi.mocked(getLatestPublishedFeed).mockResolvedValue([card('c1', 'a1'), card('anon', 'secret', { anonymous: true })]);
+    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
+    const { result } = renderHook(() => useFeed(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['c1', 'anon']);
+    expect(getUsersByIds).toHaveBeenCalledWith(['a1']);
+  });
+
+  it("don't fetch their author on the card page — unless the viewer wrote it", async () => {
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(card('anon', 'secret', { anonymous: true }));
+    const { result } = renderHook(() => useCard('anon'), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(getUserById).not.toHaveBeenCalled();
+    expect(result.current.data!.author).toMatchObject({ id: 'secret', handle: '' });
+
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(card('mine', 'me', { anonymous: true }));
+    vi.mocked(getUserById).mockResolvedValue(user('me'));
+    const own = renderHook(() => useCard('mine'), { wrapper });
+    await waitFor(() => expect(own.result.current.data).toBeDefined());
+    expect(getUserById).toHaveBeenCalledWith('me');
+  });
+});
+
 // Blocking hides the blocked person's cards from every feed surface, but the
 // feed must keep paginating on the raw Firestore page: a page that comes back
 // short only because a blocked author was dropped is not the end of the feed.
