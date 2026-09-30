@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.resonance.app.PushCenter
@@ -66,7 +67,8 @@ sealed interface Route {
         /**
          * Site paths the app can show itself: /card/{slug}, /u/{handle}, /me/thought-map, and
          * /messages/{handle}?note={noteId}&card={cardId} (a note's reply link keeps its
-         * query), with or without a locale.
+         * query), with or without a locale. The manifest's App Links filter claims these
+         * prefixes and no others — keep the two in step.
          */
         fun fromPath(path: String): Route? {
             val bare = path.substringBefore('?')
@@ -114,9 +116,20 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         stacks.getValue(tab).add(route)
     }
 
+    // Just past onboarding: the writer opens on the first tab, as the web's signup goes to /write
+    // (unless a link brought the person here, which wins, as the web's `next` does).
+    LaunchedEffect(Unit) {
+        if (!session.justOnboarded) return@LaunchedEffect
+        session.justOnboarded = false
+        if (incomingRoute.value == null) stack.add(Route.Write())
+    }
+
+    // A site page the app doesn't show itself opens in the in-app browser rather than being dropped.
+    val context = LocalContext.current
     LaunchedEffect(incomingRoute.value) {
-        incomingRoute.value?.let { Route.fromPath(it) }?.let(::open)
+        val path = incomingRoute.value ?: return@LaunchedEffect
         incomingRoute.value = null
+        Route.fromPath(path)?.let(::open) ?: InAppBrowser.open(context, session.config.origin.trimEnd('/') + "/" + path.trimStart('/'))
     }
 
     // A tapped push: its page, or the notifications when it has none (also after a cold start, which leaves it waiting here).

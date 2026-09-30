@@ -10,9 +10,9 @@ class SettingsSectionTest {
      */
     @Test fun settingsListKeepsTheWebsOrderAndRuleSeeds() {
         assertEquals(
-            listOf(SettingsSection.Account, SettingsSection.Privacy, SettingsSection.Language, SettingsSection.Terms, SettingsSection.Delete),
+            listOf(SettingsSection.Profile, SettingsSection.Account, SettingsSection.Privacy, SettingsSection.Language, SettingsSection.Terms, SettingsSection.Delete),
             SettingsSection.entries,
         )
-        assertEquals(listOf(1, 2, 3, 5, 6), SettingsSection.entries.map { it.webIndex })
+        assertEquals(listOf(0, 1, 2, 3, 5, 6), SettingsSection.entries.map { it.webIndex })
     }
 }

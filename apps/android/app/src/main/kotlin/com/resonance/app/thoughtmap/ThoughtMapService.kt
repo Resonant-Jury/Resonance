@@ -157,19 +157,29 @@ class ThoughtMapService(private val uid: String) {
     data class CardSet(val cards: Map<String, MapCard>, val resonated: Set<String>)
 
     /**
-     * My own cards (getCardsByAuthor: the newest 40, drafts among them) and the
-     * originals I resonated with (my latest 60 cards' references, each read under
-     * the rules — one I can no longer read just isn't there).
+     * My own cards (getCardsByAuthor: the newest 40 published, and my drafts
+     * read apart — the 40 last edited, newest first) and the originals I
+     * resonated with (my latest 60 cards' references, each read under the
+     * rules — one I can no longer read just isn't there).
      */
     suspend fun cards(): CardSet = coroutineScope {
         val cardsCol = db.collection("cards")
-        val own = async { cardsCol.whereEqualTo("authorId", uid).orderBy("publishedAt", Query.Direction.DESCENDING).limit(40).get().await() }
+        val own = async { cardsCol.whereEqualTo("authorId", uid).orderBy("publishedAt", Query.Direction.DESCENDING).limit(OWN_LIMIT.toLong()).get().await() }
+        // A draft's publishedAt is null, which sorts last in the read above: past 40 published
+        // cards, every draft fell off the tray. Read them on their own (equality filters only, so
+        // no composite index) and keep the most recently edited, as the web and /api/v1 do.
+        val drafts = async { cardsCol.whereEqualTo("authorId", uid).whereEqualTo("publishedAt", null).limit(DRAFT_SCAN.toLong()).get().await() }
         val replies = async { cardsCol.whereEqualTo("authorId", uid).limit(60).get().await() }
         val refs = replies.await().documents.mapNotNull { it.getString("referenceCardId") }.distinct()
         val originals = refs.map { id -> async { attempt { card(cardsCol.document(id).get().await()) } } }.awaitAll().filterNotNull()
         val byId = LinkedHashMap<String, MapCard>()
         for (c in originals) byId[c.id] = c
-        for (d in own.await().documents) card(d)?.let { byId[it.id] = it }
+        for (d in own.await().documents) card(d)?.takeIf { it.publishedAt != null }?.let { byId[it.id] = it }
+        val recentDrafts = drafts.await().documents
+            .sortedByDescending { it.getTimestamp("updatedAt")?.toDate()?.time ?: 0L }
+            .take(OWN_LIMIT)
+        // In this order: the store keeps drafts as they come (newest edit first).
+        for (d in recentDrafts) card(d)?.let { byId[it.id] = it }
         CardSet(byId, originals.filter { it.authorId != uid }.map { it.id }.toSet())
     }
 
@@ -207,5 +217,10 @@ class ThoughtMapService(private val uid: String) {
 
     companion object {
         fun edgeId(source: String, target: String) = "${source}_$target"
+
+        /** A shelf's size (the web's BOX_LIMIT). */
+        private const val OWN_LIMIT = 40
+        /** How many drafts are read to find the most recently edited ones (DRAFT_SCAN). */
+        private const val DRAFT_SCAN = 200
     }
 }

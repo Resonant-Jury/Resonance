@@ -16,19 +16,40 @@ import com.resonance.design.SketchLoader
 import com.resonance.design.cream
 import com.resonance.design.generated.Tokens
 
-/** Signed out → sign-in; signed in → the tabs; restoring → the paper and a loader. */
+/**
+ * Signed out → sign-in; signed in → the tabs, or first the pen-name step for
+ * a new account (see [Session.Entry]); restoring → the paper and a loader.
+ */
 @Composable
 fun ResonanceRoot(session: Session, incomingRoute: MutableState<String?>) {
     MaterialTheme(colorScheme = lightColorScheme(primary = Tokens.Terracotta, surface = Tokens.Cream, background = Tokens.Cream)) {
         val phase by session.phase.collectAsStateWithLifecycle()
         Crossfade(phase, Modifier.fillMaxSize().cream(), label = "phase") { p ->
             when (p) {
-                Session.Phase.Restoring -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { SketchLoader(56.dp) }
+                Session.Phase.Restoring -> Loading()
                 Session.Phase.SignedOut -> SignInScreen(session)
-                Session.Phase.SignedIn -> MainTabs(session, incomingRoute)
+                Session.Phase.SignedIn -> SignedIn(session, incomingRoute)
             }
         }
     }
+}
+
+/** A link that arrives meanwhile waits in `incomingRoute` until the tabs open it. */
+@Composable
+private fun SignedIn(session: Session, incomingRoute: MutableState<String?>) {
+    val entry by session.entry.collectAsStateWithLifecycle()
+    Crossfade(entry, Modifier.fillMaxSize().cream(), label = "entry") { e ->
+        when (e) {
+            Session.Entry.Waiting -> Loading()
+            Session.Entry.Onboarding -> OnboardingScreen(session)
+            Session.Entry.App -> MainTabs(session, incomingRoute)
+        }
+    }
+}
+
+@Composable
+private fun Loading() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { SketchLoader(56.dp) }
 }
 
 private val Int.dp get() = androidx.compose.ui.unit.Dp(this.toFloat())

@@ -5,6 +5,18 @@
     <!-- Push (API 33+ asks at run time, once the person is signed in). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- The in-app browser picks a browser to run the page in (never this app, see InAppBrowser). -->
+    <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".ResonanceApp"
         android:label="@string/app_name"
@@ -25,12 +37,29 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Site links (/card/…, /u/…) open in the app once assetlinks.json is published. -->
+            <!-- Site links open in the app (public/.well-known/assetlinks.json verifies them,
+                 for the Play key, the upload key and the debug key alike) — only the pages the
+                 app shows itself (Route.fromPath: /card/…, /u/…, /messages/…, /me/thought-map,
+                 bare or under a locale). Everything else on the site, the policy pages first,
+                 stays with the browser, so the in-app browser can show it. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="resonance-world.vercel.app" />
+                <data android:scheme="https" />
+                <data android:host="resonance-world.vercel.app" />
+                <data android:pathPrefix="/card/" />
+                <data android:pathPrefix="/u/" />
+                <data android:pathPrefix="/messages/" />
+                <data android:pathPrefix="/me/thought-map" />
+                <data android:pathPrefix="/en/card/" />
+                <data android:pathPrefix="/en/u/" />
+                <data android:pathPrefix="/en/messages/" />
+                <data android:pathPrefix="/en/me/thought-map" />
+                <data android:pathPrefix="/zh-TW/card/" />
+                <data android:pathPrefix="/zh-TW/u/" />
+                <data android:pathPrefix="/zh-TW/messages/" />
+                <data android:pathPrefix="/zh-TW/me/thought-map" />
             </intent-filter>
         </activity>
 

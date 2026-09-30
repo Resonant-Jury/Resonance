@@ -54,6 +54,8 @@ class BearerAuthInterceptor(private val idToken: suspend (Boolean) -> String?) :
 data class ApiFailure(val code: String, override val message: String, val status: Int?) : Exception(message) {
     val isNotFound get() = code == "not_found"
     val isUnauthenticated get() = code == "unauthenticated"
+    /** A pen name someone else took (onboarding, a rename). */
+    val isConflict get() = code == "conflict"
 }
 
 private val json = Json { ignoreUnknownKeys = true }

@@ -103,8 +103,14 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
     }
 
     val openUrl: (String) -> Unit = { url ->
-        val route = if (url.startsWith("/")) Route.fromPath(url) else if (url.startsWith(session.config.origin)) Route.fromPath(url.removePrefix(session.config.origin)) else null
-        if (route != null) open(route) else runCatching { uri.openUri(url) }
+        val sitePath = if (url.startsWith("/")) url else if (url.startsWith(session.config.origin)) url.removePrefix(session.config.origin) else null
+        val route = sitePath?.let(Route::fromPath)
+        when {
+            route != null -> open(route)
+            // A page of the site the app doesn't show itself (a policy page): the in-app browser, never back into the app.
+            sitePath != null -> InAppBrowser.open(context, session.config.origin.trimEnd('/') + "/" + sitePath.trimStart('/'))
+            else -> runCatching { uri.openUri(url) }
+        }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -144,13 +150,14 @@ fun CardScreen(session: Session, key: String, open: (Route) -> Unit, popToRoot: 
                                     modifier = Modifier.weight(1f).semantics { heading() },
                                 )
                                 // The ⋯ sits beside the title, as on the web: the owner's actions, or the reader's safety menu.
-                                val authorId = card.author?.id
                                 val menuSeed = (card.accentHue ?: 55.0) + 3
                                 if (d.isOwner) {
                                     // Its own page is underneath the writer, so the card isn't opened again on the way out.
                                     CardActionsMenu(session, card.id, card.visibility.value, card.routeKey, open, seed = menuSeed, showsCard = false, onDeleted = popToRoot)
-                                } else if (!d.anonymous && authorId != null) {
-                                    SafetyMenu(session, SafetyService.Target.Card(card.id, authorId), card.author?.handle, seed = menuSeed)
+                                } else {
+                                    // An anonymous card hides its author: the menu only reports it (the server knows who wrote it).
+                                    val authorId = if (d.anonymous) null else card.author?.id
+                                    SafetyMenu(session, SafetyService.Target.Card(card.id, authorId), if (authorId == null) null else card.author?.handle, seed = menuSeed)
                                 }
                             }
                             StoryMarkdown(blocks, openUrl) { href, title -> CardEmbed(session, href, title, open) }

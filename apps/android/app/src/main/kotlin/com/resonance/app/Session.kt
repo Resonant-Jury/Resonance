@@ -16,8 +16,10 @@ import com.resonance.kit.api.AccountApi
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.MessagingApi
+import com.resonance.kit.api.ProfileApi
 import com.resonance.kit.api.PushApi
 import com.resonance.kit.api.ReadingApi
+import com.resonance.kit.api.SafetyApi
 import com.resonance.kit.api.WritingApi
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
@@ -45,6 +47,15 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
         data object Failed : Profile
     }
 
+    /**
+     * What a signed-in person sees: the tabs, or first the pen-name step (a new
+     * account), or — before this device knows which — the paper and a loader.
+     * Only the API's own `not_found` for /me sends someone to onboarding; any
+     * other failure lets them in (the card box offers the retry), so a bad
+     * connection never traps an existing account there.
+     */
+    enum class Entry { Waiting, Onboarding, App }
+
     private val _phase = MutableStateFlow(Phase.Restoring)
     val phase: StateFlow<Phase> = _phase
     private val _profile = MutableStateFlow<Profile>(Profile.Unknown)
@@ -53,6 +64,10 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     val signingIn: StateFlow<Boolean> = _signingIn
     private val _signInError = MutableStateFlow<String?>(null)
     val signInError: StateFlow<String?> = _signInError
+    private val _entry = MutableStateFlow(Entry.Waiting)
+    val entry: StateFlow<Entry> = _entry
+    /** Set when this sign-in just finished onboarding: the tabs open the writer, as the web's signup goes to /write. */
+    var justOnboarded = false
 
     val api = ApiConfiguration(config.origin) { force -> idToken(force) }
     val reading = ReadingApi(api)
@@ -60,6 +75,8 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     val writing = WritingApi(api)
     val messaging = MessagingApi(api)
     val pushApi = PushApi(api)
+    val profiles = ProfileApi(api)
+    private val safetyApi = SafetyApi(api)
     val notifications = NotificationsStore()
     val conversations = ConversationsStore()
 
@@ -91,7 +108,7 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     var uid: String? = null
         private set
 
-    val safety: SafetyService? get() = uid?.let(::SafetyService)
+    val safety: SafetyService? get() = uid?.let { SafetyService(it, safetyApi) }
     val bookmarks: BookmarkService? get() = uid?.let(::BookmarkService)
     val drafts: DraftService? get() = uid?.let(::DraftService)
     val hints: HintService? get() = uid?.let { HintService(it, prefs) }
@@ -115,6 +132,9 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
             if (next == uid && _phase.value != Phase.Restoring) return@addAuthStateListener
             uid = next
             _profile.value = Profile.Unknown
+            // A profile this device has already seen lets the tabs open at once; otherwise wait for /me.
+            _entry.value = if (next != null && prefs.getBoolean(profileKey(next), false)) Entry.App else Entry.Waiting
+            justOnboarded = false
             _deletionDate.value = null
             _phase.value = if (next == null) Phase.SignedOut else Phase.SignedIn
             if (next != null) {
@@ -143,15 +163,60 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     }
 
     suspend fun loadMe() {
+        val asked = uid ?: return
         _profile.value = Profile.Loading
-        _profile.value = try {
+        val result = try {
             Profile.Loaded(reading.me())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: ApiFailure) {
+            // Only the contract's "this account has no profile yet" — not a bare 404 from a proxy.
             if (e.isNotFound) Profile.Missing else Profile.Failed
         } catch (e: Exception) {
             Profile.Failed
         }
+        // Someone else signed in meanwhile: their own load decides.
+        if (uid != asked) return
+        when (result) {
+            is Profile.Loaded -> setMe(result.me)
+            Profile.Missing -> {
+                _profile.value = Profile.Missing
+                prefs.edit().remove(profileKey(asked)).apply()
+                _entry.value = Entry.Onboarding
+            }
+            else -> {
+                _profile.value = result
+                if (_entry.value == Entry.Waiting) _entry.value = Entry.App
+            }
+        }
     }
+
+    /**
+     * Onboarding: the new account's pen name, region and writing language
+     * (POST /api/v1/me). An account that already had a profile gets it back
+     * unchanged; a name taken meanwhile throws a conflict [ApiFailure].
+     */
+    suspend fun createProfile(handle: String, region: String, primaryLocale: String) {
+        val me = profiles.create(handle, region, primaryLocale)
+        justOnboarded = true
+        setMe(me)
+    }
+
+    /** Settings' profile fields (PATCH /api/v1/me): null leaves one as it is. */
+    suspend fun updateProfile(handle: String? = null, bio: String? = null, region: String? = null): Me {
+        val me = profiles.update(handle, bio, region)
+        setMe(me)
+        return me
+    }
+
+    /** The profile as the API returned it; the device remembers the account has one. */
+    private fun setMe(me: Me) {
+        _profile.value = Profile.Loaded(me)
+        uid?.let { prefs.edit().putBoolean(profileKey(it), true).apply() }
+        _entry.value = Entry.App
+    }
+
+    private fun profileKey(uid: String) = "hasProfile:$uid"
 
     suspend fun signInWithGoogle(context: Context) = signIn {
         val option = GetGoogleIdOption.Builder()

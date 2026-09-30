@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
@@ -20,9 +21,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,11 +37,13 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.SafetyService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.CssText
+import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.Mixes
 import com.resonance.design.ModalActions
@@ -47,6 +52,7 @@ import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicConfirmDialog
+import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicInlineBar
 import com.resonance.design.OrganicLink
@@ -62,8 +68,10 @@ import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.PolicyPage
+import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,6 +88,7 @@ enum class SettingsSection(
     /** Its place in the web's full list, which seeds the rule above its row. */
     val webIndex: Int,
 ) {
+    Profile(IconName.User, 0),
     Account(IconName.Key, 1),
     Privacy(IconName.Lock, 2),
     Language(IconName.Globe, 3),
@@ -88,6 +97,7 @@ enum class SettingsSection(
 
     val title: String
         get() = when (this) {
+            Profile -> L10n.Settings.Sections.profile
             Account -> L10n.Settings.Sections.account
             Privacy -> L10n.Settings.Sections.privacy
             Language -> L10n.Settings.Sections.language
@@ -146,10 +156,12 @@ private fun MenuRow(section: SettingsSection, onClick: () -> Unit) {
 @Composable
 fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -> Unit) {
     val scroll = rememberScrollState()
-    Column(Modifier.fillMaxSize().cream()) {
+    // The keyboard shortens the page, so the profile's fields scroll into view above it.
+    Column(Modifier.fillMaxSize().cream().imePadding()) {
         OrganicInlineBar(L10n.App.Nav.back, back, title = section.title, scrolled = scroll.scrolledPast20())
         Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(20.dp).padding(bottom = 40.dp)) {
             when (section) {
+                SettingsSection.Profile -> ProfileSettings(session)
                 SettingsSection.Account -> AccountSettings(session)
                 SettingsSection.Privacy -> PrivacySettings(session)
                 SettingsSection.Language -> LanguageSettings(session)
@@ -159,6 +171,82 @@ fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -
         }
     }
 }
+
+/**
+ * Profile: the pen name (checked as it is typed; your own counts as free),
+ * the one-line bio (≤ 80, empty clears it) and the region. The web saves
+ * them as you type; here one Save changes sends what changed (PATCH
+ * /api/v1/me), and only once a new name has checked out as free. No 30-day
+ * hint: nothing enforces it. The photo stays a web task for now.
+ */
+@Composable
+private fun ProfileSettings(session: Session) {
+    val profile by session.profile.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val me = (profile as? Session.Profile.Loaded)?.me
+    if (me == null) {
+        if (profile is Session.Profile.Failed) {
+            OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { session.loadMe() } }, action = EmptyAction.Outline, verticalPadding = 24.dp)
+        } else {
+            Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) { SketchLoader(44.dp) }
+        }
+        return
+    }
+    // Keyed on the account, so a save (which hands back the new profile) doesn't reset what is being typed.
+    var handle by rememberSaveable(me.id) { mutableStateOf(me.handle) }
+    var bio by rememberSaveable(me.id) { mutableStateOf(me.bio.orEmpty()) }
+    var region by rememberSaveable(me.id) { mutableStateOf(me.region.orEmpty()) }
+    var retry by remember { mutableIntStateOf(0) }
+    val availability = rememberPenNameAvailability(session, handle, own = me.handle, retry = retry)
+    var saving by remember { mutableStateOf(false) }
+    var saved by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+
+    val name = handle.trim()
+    val handleChange = name.takeIf { it != me.handle }
+    val bioChange = bio.takeIf { it.trim() != me.bio.orEmpty() }
+    val regionChange = region.takeIf { it.isNotBlank() && it != me.region.orEmpty() }
+    val nameOk = handleChange == null || availability.value == Availability.Available
+    val canSave = (handleChange != null || bioChange != null || regionChange != null) && nameOk && !saving
+
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        PenNameField(L10n.Settings.Profile.handle, handle, { handle = it; saved = false; failed = false }, availability.value, onRetry = { retry++ })
+        OrganicTextField(L10n.Settings.Profile.bio, bio, { bio = it; saved = false; failed = false }, seed = 37.0, maxLength = BIO_MAX)
+        ChoiceList(L10n.Settings.Profile.region, Regions.settings(me.region), region, seed = 43.0) { region = it; saved = false; failed = false }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OrganicButton(
+                if (saving) "…" else L10n.Write.saveChanges,
+                icon = if (saved) IconName.Check else null,
+                enabled = canSave,
+            ) {
+                scope.launch {
+                    saving = true
+                    failed = false
+                    try {
+                        val updated = session.updateProfile(handle = handleChange, bio = bioChange, region = regionChange)
+                        // The server's own trim of what was saved.
+                        handle = updated.handle
+                        bio = updated.bio.orEmpty()
+                        // The server refreshes the cached profile pages itself (under the old name too, after a rename).
+                        saved = true
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: ApiFailure) {
+                        if (e.isConflict) availability.value = Availability.Taken else failed = true
+                    } catch (e: Exception) {
+                        failed = true
+                    } finally {
+                        saving = false
+                    }
+                }
+            }
+            if (failed) BasicText(L10n.Native.saveError, style = AppFonts.body(13f, color = Mixes.Danger))
+        }
+    }
+}
+
+/** The web's bio limit (BIO_MAX in lib/api/v1/schemas.ts). */
+private const val BIO_MAX = 80
 
 /** Account: the sign-in email and phone (read-only), and signing out — after the web's "Sign out?" confirmation. */
 @Composable

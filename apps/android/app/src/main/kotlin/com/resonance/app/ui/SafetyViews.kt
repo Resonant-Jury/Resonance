@@ -50,7 +50,8 @@ import java.time.OffsetDateTime
 
 /**
  * The ⋯ on a card or a person: report, and block or unblock — in the web's
- * organic menu, confirming a block in its ConfirmModal.
+ * organic menu, confirming a block in its ConfirmModal. An anonymous card's
+ * menu only reports: the app never learns who wrote it, so there is no one to block.
  */
 @Composable
 fun SafetyMenu(session: Session, target: SafetyService.Target, handle: String?, isBlocked: Boolean = false, seed: Double = 7.0, onChange: () -> Unit = {}) {
@@ -59,20 +60,21 @@ fun SafetyMenu(session: Session, target: SafetyService.Target, handle: String?, 
     var confirmingBlock by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     val name = handle ?: L10n.Safety.anonymousAuthor
+    val person = target.userId
 
     OrganicMenu(label = L10n.Safety.menuLabel, seed = seed, items = buildList {
         add(OrganicMenuItem(if (target is SafetyService.Target.Card) L10n.Safety.reportCard else L10n.Safety.reportUser, IconName.Flag) { reporting = true })
-        if (isBlocked) {
-            add(OrganicMenuItem(L10n.Safety.unblock, IconName.UserCheck) {
-                scope.launch { runCatching { session.safety?.unblock(target.userId) }.onSuccess { onChange() }.onFailure { failed = true } }
+        when {
+            person == null -> Unit
+            isBlocked -> add(OrganicMenuItem(L10n.Safety.unblock, IconName.UserCheck) {
+                scope.launch { runCatching { session.safety?.unblock(person) }.onSuccess { onChange() }.onFailure { failed = true } }
             })
-        } else {
-            add(OrganicMenuItem(L10n.Safety.block, IconName.Ban, destructive = true) { confirmingBlock = true })
+            else -> add(OrganicMenuItem(L10n.Safety.block, IconName.Ban, destructive = true) { confirmingBlock = true })
         }
     })
 
-    if (reporting) ReportDialog(session, target, handle, onBlocked = onChange) { reporting = false }
-    if (confirmingBlock) OrganicConfirmDialog(
+    if (reporting) ReportDialog(session, target, handle, onBlocked = onChange, offerBlock = person != null && !isBlocked) { reporting = false }
+    if (confirmingBlock && person != null) OrganicConfirmDialog(
         title = L10n.Safety.blockTitle(name),
         body = L10n.Safety.blockBody,
         cancelLabel = L10n.Safety.cancel,
@@ -80,7 +82,7 @@ fun SafetyMenu(session: Session, target: SafetyService.Target, handle: String?, 
         onCancel = { confirmingBlock = false },
         onConfirm = {
             confirmingBlock = false
-            scope.launch { runCatching { session.safety?.block(target.userId) }.onSuccess { onChange() }.onFailure { failed = true } }
+            scope.launch { runCatching { session.safety?.block(person) }.onSuccess { onChange() }.onFailure { failed = true } }
         },
     )
     if (failed) OrganicAlert(L10n.Safety.actionError, "OK") { failed = false }
@@ -96,7 +98,7 @@ fun ReportDialog(
     target: SafetyService.Target,
     handle: String?,
     onBlocked: () -> Unit,
-    /** Offer "also block" (not when they're already blocked). */
+    /** Offer "also block" (not when they're already blocked, nor for an anonymous card). */
     offerBlock: Boolean = true,
     onClose: () -> Unit,
 ) {
@@ -108,6 +110,7 @@ fun ReportDialog(
     var error by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf<Boolean?>(null) }
     val name = handle ?: L10n.Safety.anonymousAuthor
+    val blocks = offerBlock && target.userId != null
     val title = when (target) {
         is SafetyService.Target.Card -> L10n.Safety.Report.titleCard
         is SafetyService.Target.User -> L10n.Safety.Report.titleUser(name)
@@ -144,7 +147,7 @@ fun ReportDialog(
         }
         OrganicTextField(L10n.Safety.Report.detail, detail, { detail = it.take(SafetyService.DETAIL_MAX) }, L10n.Safety.Report.detailPlaceholder, seed = 89.0, multiline = true)
         // The web's blockRow: the label, then the switch at the far end.
-        if (offerBlock) Row(verticalAlignment = Alignment.CenterVertically) {
+        if (blocks) Row(verticalAlignment = Alignment.CenterVertically) {
             BasicText(L10n.Safety.Report.alsoBlock(name), style = AppFonts.body(14.5f), modifier = Modifier.weight(1f).padding(end = 16.dp))
             OrganicToggle(alsoBlock, { alsoBlock = it }, L10n.Safety.Report.alsoBlock(name), seed = 91.0)
         }
@@ -158,10 +161,10 @@ fun ReportDialog(
                     runCatching {
                         val safety = session.safety ?: error("signed out")
                         safety.report(target, reason, detail)
-                        if (offerBlock && alsoBlock) safety.block(target.userId)
+                        target.userId?.let { if (blocks && alsoBlock) safety.block(it) }
                     }.onSuccess {
-                        done = offerBlock && alsoBlock
-                        if (offerBlock && alsoBlock) onBlocked()
+                        done = blocks && alsoBlock
+                        if (blocks && alsoBlock) onBlocked()
                     }.onFailure { error = true }
                     busy = false
                 }

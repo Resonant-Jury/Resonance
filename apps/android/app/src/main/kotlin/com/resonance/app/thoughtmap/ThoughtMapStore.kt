@@ -236,7 +236,8 @@ class ThoughtMapStore {
 
     private fun applyCards(byId: Map<String, MapCard>, resonated: Set<String>) {
         cards = byId
-        // Newest first, drafts (no date) last — the order the web's query hands them over.
+        // Newest first, drafts (no date) last — the order the web's query hands them over;
+        // drafts keep the order they were read in (the last edited first; the sort is stable).
         cardOrder = byId.values.sortedWith { a, b ->
             val pa = a.publishedAt
             val pb = b.publishedAt
@@ -244,7 +245,7 @@ class ThoughtMapStore {
                 pa != null && pb != null -> pb.compareTo(pa)
                 pa != null -> -1
                 pb != null -> 1
-                else -> a.id.compareTo(b.id)
+                else -> 0
             }
         }.map { it.id }
         this.resonated = resonated

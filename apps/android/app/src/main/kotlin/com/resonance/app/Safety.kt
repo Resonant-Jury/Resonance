@@ -2,35 +2,34 @@ package com.resonance.app
 
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
+import com.resonance.kit.api.SafetyApi
 import kotlinx.coroutines.tasks.await
 import java.util.Date
 
 /**
- * Report and block, written straight to Firestore under the same rules the
- * web's client uses (lib/db/firestore/client/reports.ts, blocks.ts): reports
- * are create-only; the block list is owner-only, and blocking also ends the
- * connection and withdraws the blocker's pending invites. The twin of iOS's
- * SafetyService.
+ * Report and block. A card's report goes through the API, which fills in its
+ * author (so anonymous cards can be reported too); the rest is written
+ * straight to Firestore under the same rules the web's client uses
+ * (lib/db/firestore/client/reports.ts, blocks.ts): reports are create-only;
+ * the block list is owner-only, and blocking also ends the connection and
+ * withdraws the blocker's pending invites. The twin of iOS's SafetyService.
  */
-class SafetyService(private val uid: String) {
+class SafetyService(private val uid: String, private val api: SafetyApi) {
     enum class Reason(val key: String) { Spam("spam"), Harassment("harassment"), Hate("hate"), Sexual("sexual"), SelfHarm("self_harm"), Violence("violence"), Other("other") }
 
     sealed interface Target {
-        val userId: String
-        val fields: Map<String, Any>
+        /** Who a block would apply to; null for an anonymous card (the app never learns its author). */
+        val userId: String?
 
-        data class Card(val id: String, val authorId: String) : Target {
+        data class Card(val id: String, val authorId: String?) : Target {
             override val userId get() = authorId
-            override val fields get() = mapOf("targetType" to "card", "targetId" to id, "targetUserId" to authorId)
         }
         data class User(val id: String) : Target {
             override val userId get() = id
-            override val fields get() = mapOf("targetType" to "user", "targetId" to id, "targetUserId" to id)
         }
         /** A conversation, reported from its ⋯: its pair id names it, and the other person is who is reported. */
         data class Message(val id: String, val senderId: String, val conversationId: String) : Target {
             override val userId get() = senderId
-            override val fields get() = mapOf("targetType" to "message", "targetId" to id, "targetUserId" to senderId, "contextId" to conversationId)
         }
     }
 
@@ -47,10 +46,19 @@ class SafetyService(private val uid: String) {
     private val db get() = AppFirebase.db
 
     suspend fun report(target: Target, reason: Reason, detail: String) {
-        val data = target.fields + mapOf(
+        val text = detail.trim().take(DETAIL_MAX)
+        val fields = when (target) {
+            is Target.Card -> {
+                api.reportCard(target.id, reason.key, text)
+                return
+            }
+            is Target.User -> mapOf("targetType" to "user", "targetId" to target.id, "targetUserId" to target.id)
+            is Target.Message -> mapOf("targetType" to "message", "targetId" to target.id, "targetUserId" to target.senderId, "contextId" to target.conversationId)
+        }
+        val data = fields + mapOf(
             "reporterId" to uid,
             "reason" to reason.key,
-            "detail" to detail.trim().take(DETAIL_MAX),
+            "detail" to text,
             "createdAt" to FieldValue.serverTimestamp(),
             "status" to "open",
         )
