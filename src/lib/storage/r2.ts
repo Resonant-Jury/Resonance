@@ -15,6 +15,9 @@ function env(name: string) {
   return value;
 }
 
+/** The Cache-Control an uploaded object is served with. */
+export const IMMUTABLE = 'public, max-age=31536000, immutable';
+
 function extension(filename: string) {
   const ext = filename.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '');
   return ext ? `.${ext}` : '';
@@ -58,6 +61,9 @@ export class R2StorageProvider implements IStorageProvider {
         Body: body,
         ContentType: intent.contentType,
         ContentLength: body.byteLength,
+        // Every key is a fresh UUID and an object is never rewritten: browsers
+        // and the CDN may keep it for good.
+        CacheControl: IMMUTABLE,
       })
     );
     return { key, publicUrl: this.getPublicUrl(key) };
