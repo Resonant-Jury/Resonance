@@ -42,8 +42,9 @@ export async function scheduleAccountDeletion(
 ): Promise<AccountDeletion> {
   const deletion = { uid, requestedAt: now, purgeAfter: new Date(now.getTime() + DELETION_GRACE_DAYS * DAY_MS) };
   await db.collection(DELETIONS_COLLECTION).doc(uid).set(deletion);
-  // Scheduling signs every session out, so the apps can't unregister themselves:
-  // their phones stop buzzing now (signing back in to cancel registers again).
+  // Scheduling revokes every session (each device is signed out within the
+  // hour, see revokeSessions), and a signed-out app can't unregister itself:
+  // its phone stops buzzing now (signing back in to cancel registers again).
   const devices = await db.collection('devices').where('userId', '==', uid).get();
   if (!devices.empty) {
     const batch = db.batch();

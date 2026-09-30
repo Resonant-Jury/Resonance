@@ -3,9 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockGetCurrentUser = vi.fn();
 vi.mock('@/lib/auth', () => ({ getCurrentUser: () => mockGetCurrentUser() }));
 const mockRevoke = vi.fn();
-vi.mock('@/lib/auth/firebase/server', () => ({
-  getAdminAuth: () => ({ revokeRefreshTokens: mockRevoke }),
-}));
+vi.mock('@/lib/auth/firebase/server', () => ({ revokeSessions: (uid: string) => mockRevoke(uid) }));
 vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => ({}) }));
 vi.mock('@/lib/account/deletion', () => ({
   scheduleAccountDeletion: vi.fn(),

@@ -48,11 +48,21 @@ export function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T
 /**
  * Wrap a v1 handler: require a user (session cookie or `Authorization:
  * Bearer <Firebase ID token>`), map ApiFailure to its status, and never leak
- * internals on unexpected errors.
+ * internals on unexpected errors. Reads (GET) accept this instance's recent
+ * answer on whether the session was revoked; every write asks Firebase Auth
+ * (see "Revocation" in lib/auth/firebase/server). When Firebase Auth can't
+ * be asked the answer is 500, not 401: the app must not sign its user out.
  */
 export function withUser<A extends unknown[]>(handler: (user: AuthUser, req: Request, ...rest: A) => Promise<Response>) {
   return async (req: Request, ...rest: A): Promise<Response> => {
-    const user = await getCurrentUser();
+    const read = req.method === 'GET' || req.method === 'HEAD';
+    let user: AuthUser | null;
+    try {
+      user = await getCurrentUser({ revocation: read ? 'cached' : 'live' });
+    } catch (e) {
+      console.error('[api/v1] auth', e);
+      return apiError('internal', 'Something went wrong.');
+    }
     if (!user) return apiError('unauthenticated', 'Sign in, or send a Firebase ID token as a Bearer token.');
     try {
       return await handler(user, req, ...rest);

@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getCurrentUser = vi.fn();
-vi.mock('@/lib/auth', () => ({ getCurrentUser: () => getCurrentUser() }));
+vi.mock('@/lib/auth', () => ({ getCurrentUser: (...a: unknown[]) => getCurrentUser(...a) }));
 const sendMessage = vi.fn();
 vi.mock('@/lib/api/v1/conversations', async (orig) => ({ ...(await orig()), sendMessage: (...a: unknown[]) => sendMessage(...a) }));
 const ringAfter = vi.fn();
@@ -14,7 +14,9 @@ vi.mock('@/lib/api/rateLimit', () => ({ spend: (...a: unknown[]) => spend(...a) 
 
 const { buildOpenApi } = await import('./openapi');
 const { POST } = await import('@/app/api/v1/messages/route');
+const { GET: getFeedRoute } = await import('@/app/api/v1/feed/route');
 const { ApiFailure } = await import('./http');
+const { AuthUnavailableError } = await import('@/lib/auth/firebase/server');
 
 // The v1 contract as the native apps see it: the committed OpenAPI file is
 // what their clients are generated from, and every error has the same shape.
@@ -105,5 +107,27 @@ describe('POST /api/v1/messages (every write route shares these)', () => {
     const res = await post({ to: 'bob', text: 'hi' });
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain('secret');
+  });
+});
+
+describe('signing requests in (every route shares this)', () => {
+  beforeEach(() => {
+    getCurrentUser.mockReset().mockResolvedValue(null);
+  });
+
+  it("asks Firebase Auth whether the session still stands on every write; reads may use the instance's recent answer", async () => {
+    await POST(new Request('http://localhost/api/v1/messages', { method: 'POST', body: '{}' }));
+    expect(getCurrentUser).toHaveBeenLastCalledWith({ revocation: 'live' });
+    const res = await getFeedRoute(new Request('http://localhost/api/v1/feed'));
+    expect(res.status).toBe(401);
+    expect(getCurrentUser).toHaveBeenLastCalledWith({ revocation: 'cached' });
+  });
+
+  it("is 500, never 401, when Firebase Auth can't be asked — the app must not sign its user out", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    getCurrentUser.mockRejectedValue(new AuthUnavailableError(new Error('socket hang up')));
+    const res = await getFeedRoute(new Request('http://localhost/api/v1/feed'));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: { code: 'internal', message: expect.any(String) } });
   });
 });
