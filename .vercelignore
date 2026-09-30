@@ -1,0 +1,16 @@
+# `vercel deploy` uploads the working tree and doesn't read .gitignore:
+# never send secrets, local state or native build output with it.
+.env*
+!.env.example
+keys/
+*.jks
+*.keystore
+*.p8
+*.p12
+.claude/
+docs/store/graphics/raw/
+apps/**/build/
+apps/**/.gradle/
+apps/android/local.properties
+native/**/build/
+native/**/.gradle/
