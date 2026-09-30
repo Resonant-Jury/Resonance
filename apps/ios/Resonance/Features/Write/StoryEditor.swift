@@ -31,7 +31,11 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler {
         config.userContentController = controller
         webView = WKWebView(frame: .zero, configuration: config)
         super.init()
-        controller.add(self, name: "editor")
+        // The content controller keeps its handlers alive, and the web view
+        // (which this bridge holds) keeps the controller: registered directly,
+        // the bridge and its web view would never be freed. The go-between
+        // holds the bridge weakly, so closing the writer lets both go.
+        controller.add(WeakScriptMessageHandler(self), name: "editor")
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
@@ -91,6 +95,19 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler {
         default:
             break
         }
+    }
+}
+
+/// Passes the island's messages to a handler it doesn't keep alive.
+final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    private weak var target: WKScriptMessageHandler?
+
+    init(_ target: WKScriptMessageHandler) {
+        self.target = target
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(controller, didReceive: message)
     }
 }
 
