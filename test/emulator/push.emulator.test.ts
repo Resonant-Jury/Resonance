@@ -97,6 +97,8 @@ describe('pushNotification', () => {
       notificationId,
       type: 'note',
       route: `/messages/${encodeURIComponent('小明')}?note=${id}&card=walk`,
+      // The apps open the thread by uid (the pen name in the route may have changed by the tap).
+      fromUserId: 'alice',
     });
     expect(byToken['bob-en'].android?.notification?.channelId).toBe('activity');
     expect((await db.doc(`notifications/${notificationId}`).get()).get('pushedAt')).toBeInstanceOf(Timestamp);
@@ -126,7 +128,12 @@ describe('pushNotification', () => {
     const { notificationId } = await sendMessage(db, 'alice', { to: 'bob', text: '嗨' });
     const fcm = fakeFcm(['bob-zh']);
     expect(await pushNotification(db, notificationId!, fcm.sender)).toEqual({ sent: 1, pruned: 1 });
-    expect(fcm.sent.find((m) => m.tokens[0] === 'bob-en')?.data?.route).toBe(`/messages/${encodeURIComponent('小明')}`);
+    expect(fcm.sent.find((m) => m.tokens[0] === 'bob-en')?.data).toEqual({
+      notificationId,
+      type: 'message',
+      route: `/messages/${encodeURIComponent('小明')}`,
+      fromUserId: 'alice',
+    });
     expect(await exists('devices/bob-iphone')).toBe(false);
     expect(await exists('devices/bob-pixel')).toBe(true);
     expect(await exists('devices/carol-phone')).toBe(true);
@@ -156,6 +163,16 @@ describe('pushNotification', () => {
     const fcm = fakeFcm();
     expect(await pushNotification(db, 'n1', fcm.sender)).toEqual({ sent: 0, pruned: 0 });
     expect(fcm.sent).toHaveLength(0);
+  });
+
+  it('carries no sender uid on a push that opens no thread', async () => {
+    await registerDevice(db, 'alice', 'alice-phone', { token: 'alice', platform: 'ios', locale: 'en' });
+    await db.doc('notifications/link').set({
+      userId: 'alice', type: 'card_link', payload: { fromUserId: 'bob', fromHandle: 'bob', cardId: 'walk' }, readAt: null, createdAt: Timestamp.now(),
+    });
+    const fcm = fakeFcm();
+    await pushNotification(db, 'link', fcm.sender);
+    expect(fcm.sent[0].data).toEqual({ notificationId: 'link', type: 'card_link', route: '/card/walk' });
   });
 });
 

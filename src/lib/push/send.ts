@@ -28,6 +28,9 @@ const TEXT_KEY: Record<string, keyof typeof en.app.notifications> = {
   resonance_summary: 'resonanceSummary',
 };
 
+/** The kinds whose push opens a conversation with their sender (pushRoute's thread). */
+const OPENS_THREAD = new Set(['note', 'message', 'resonance', 'invite_accepted']);
+
 /** Tokens FCM will never deliver to again — the app was uninstalled or the token rotated. */
 const DEAD_TOKEN = new Set(['messaging/registration-token-not-registered', 'messaging/invalid-registration-token']);
 
@@ -136,6 +139,9 @@ export async function pushNotification(db: Firestore, id: string, sender: PushSe
   }
 
   const route = pushRoute(type, payload);
+  // The sender's uid beside the route, for a push that opens their thread: the
+  // apps open a conversation by uid (a pen name can change before the tap).
+  const data: Record<string, string> = { notificationId: id, type, route, ...(from && OPENS_THREAD.has(type) ? { fromUserId: from } : {}) };
   let sent = 0;
   const dead: DocumentReference[] = [];
   for (const [locale, targets] of byLocale) {
@@ -144,7 +150,7 @@ export async function pushNotification(db: Firestore, id: string, sender: PushSe
     const res = await sender.sendEachForMulticast({
       tokens: targets.map((t) => t.token),
       notification: text,
-      data: { notificationId: id, type, route },
+      data,
       android: { notification: { channelId: ANDROID_CHANNEL, tag: id } },
       apns: { payload: { aps: { sound: 'default', threadId: type } } },
     });
