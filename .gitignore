@@ -14,6 +14,10 @@ dist
 # Android release signing (back up the keystore privately; never commit)
 android/keystore.properties
 *.keystore
+# Signing keys and their passwords (Play upload key, APNs .p8): kept here, never committed
+/keys/
+*.jks
+*.p8
 
 # Firebase emulator logs
 *-debug.log

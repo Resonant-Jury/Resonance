@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -23,15 +25,17 @@ android {
     }
 
     signingConfigs {
-        // The Play upload key (Play App Signing keeps the key the store signs with).
-        // Its file and passwords stay off the repo, in ~/.gradle/gradle.properties:
-        // RESONANCE_UPLOAD_STORE_FILE, _STORE_PASSWORD, _KEY_ALIAS, _KEY_PASSWORD.
-        providers.gradleProperty("RESONANCE_UPLOAD_STORE_FILE").orNull?.let { path ->
+        // The Play upload key (Play App Signing keeps the key the store signs with):
+        // keys/android-upload.properties + the keystore it names, in the repo's
+        // git-ignored keys/ folder (storeFile, storePassword, keyAlias, keyPassword).
+        val upload = rootProject.file("../../keys/android-upload.properties")
+        if (upload.exists()) {
+            val props = Properties().apply { upload.inputStream().use { load(it) } }
             create("upload") {
-                storeFile = file(path)
-                storePassword = providers.gradleProperty("RESONANCE_UPLOAD_STORE_PASSWORD").get()
-                keyAlias = providers.gradleProperty("RESONANCE_UPLOAD_KEY_ALIAS").get()
-                keyPassword = providers.gradleProperty("RESONANCE_UPLOAD_KEY_PASSWORD").get()
+                storeFile = upload.parentFile.resolve(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
             }
         }
     }
