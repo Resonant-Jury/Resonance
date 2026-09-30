@@ -74,6 +74,14 @@ class ConversationsStore {
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
 
+    /**
+     * The ids of every conversation the person is in, as soon as Firestore has them (before the
+     * rows are built, blocked people included): an open thread with no conversation yet watches
+     * for its own to appear here.
+     */
+    private val _ids = MutableStateFlow<Set<String>>(emptySet())
+    val ids: StateFlow<Set<String>> = _ids
+
     /** Called when the person's blocks change after they were first read. */
     var onBlocksChanged: (() -> Unit)? = null
 
@@ -98,6 +106,7 @@ class ConversationsStore {
                 .addSnapshotListener { snap, _ ->
                     snap ?: return@addSnapshotListener
                     rawConversations = snap.documents.filterIsInstance<QueryDocumentSnapshot>()
+                    _ids.value = rawConversations.map { it.id }.toSet()
                     arrived("conversations")
                 },
             db.collection("connections").whereArrayContains("userIds", uid)
@@ -124,6 +133,7 @@ class ConversationsStore {
         rebuilding?.cancel()
         uid = null
         rawConversations = emptyList()
+        _ids.value = emptySet()
         connectionUids = emptyList()
         blocked = emptySet()
         ready.clear()
@@ -175,6 +185,9 @@ class ConversationsStore {
         val starters = connectionUids.filter { it !in talking && it !in blocked }.mapNotNull { people[it] }
         _state.value = State(conversations, starters, loaded = ready.containsAll(SOURCES))
     }
+
+    /** Someone this list has read (with their pen name as it is now), if it has. */
+    fun person(id: String): Person? = people[id]
 
     private fun other(doc: QueryDocumentSnapshot, me: String): String? =
         (doc.get("participants") as? List<*>)?.firstOrNull { it != me } as? String

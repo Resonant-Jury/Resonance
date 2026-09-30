@@ -121,10 +121,10 @@ import java.util.Date
  * ThreadScreen.
  */
 @Composable
-fun ThreadScreen(session: Session, handle: String, note: MessagingApi.Note?, open: (Route) -> Unit, back: () -> Unit) {
+fun ThreadScreen(session: Session, handle: String, uid: String?, note: MessagingApi.Note?, open: (Route) -> Unit, back: () -> Unit) {
     val scope = rememberCoroutineScope()
-    val model = rememberSaveable(handle, saver = threadSaver(handle, session)) {
-        ThreadModel(handle, note, session).also { m ->
+    val model = rememberSaveable(handle, uid, saver = threadSaver(handle, uid, session)) {
+        ThreadModel(handle, uid, note, session).also { m ->
             // The debug `threadDraft` extra fills the composer (screen checks; the emulator's keyboard is slow to drive).
             if (BuildConfig.DEBUG) DebugLaunch.threadDraft?.let { m.draft = it }
         }
@@ -181,7 +181,7 @@ fun ThreadScreen(session: Session, handle: String, note: MessagingApi.Note?, ope
                         BasicText(
                             L10n.Messages.viewProfile,
                             style = AppFonts.body(13f, lineHeight = 1.3f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline),
-                            modifier = Modifier.plainClickable(role = Role.Button) { open(Route.Author(handle)) },
+                            modifier = Modifier.plainClickable(role = Role.Button) { open(Route.Author(model.other?.handle ?: handle)) },
                         )
                     }
                 } else {
@@ -390,9 +390,10 @@ private fun ColumnScope.Messages(model: ThreadModel, searching: Boolean, query: 
         else -> null
     }
     val list = rememberLazyListState()
-    // Newest at the bottom, and back at the bottom on every change of the message count (the web's
-    // `scrollTop = scrollHeight`, no animation). A reversed list keeps that end pinned however the rows measure.
-    LaunchedEffect(model.messages.size) { list.scrollToItem(0) }
+    // Newest at the bottom, and back at the bottom whenever a newer message arrives (the web's
+    // `scrollTop = scrollHeight`, no animation) — keyed by the newest message, not the count, which
+    // stops changing once the thread holds its 50. A reversed list keeps that end pinned however the rows measure.
+    LaunchedEffect(model.messages.lastOrNull()?.id) { list.scrollToItem(0) }
     val newestFirst = shown.asReversed()
     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
         // The stack is at most 72% of the screen's width (iOS's own number).
@@ -441,7 +442,7 @@ private fun MessageRow(message: ThreadModel.Message, model: ThreadModel, rowMax:
                     imageUrl = detail.card.imageUrl,
                     hue = detail.card.accentHue,
                     seed = seedFromId(detail.card.id, start = 11),
-                    modifier = Modifier.widthIn(max = 320.dp).plainClickable(role = Role.Button) { open(Route.Card(detail.card.routeKey)) },
+                    modifier = Modifier.widthIn(max = 320.dp).plainClickable(role = Role.Button) { open(Route.Card(detail.card.routeKey, detail.card)) },
                 )
             }
             if (message.text.isNotEmpty() || message.noteRef != null) Bubble(message, mine)
@@ -608,7 +609,7 @@ private fun SharedMediaContent(model: ThreadModel, open: (Route) -> Unit) {
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .plainClickable(role = Role.Button) { open(Route.Card(detail.card.routeKey)) }
+                            .plainClickable(role = Role.Button) { open(Route.Card(detail.card.routeKey, detail.card)) }
                             .padding(vertical = 10.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),

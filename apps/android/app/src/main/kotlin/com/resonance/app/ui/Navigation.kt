@@ -61,9 +61,17 @@ sealed interface Route {
         /** Words to start from (a note grown into a resonance). */
         val story: String? = null,
     ) : Route
-    /** A conversation, by the other person's pen name; a note (`noteCardId` + `noteId`) quotes one to answer. */
-    data class Thread(val handle: String, val noteCardId: String? = null, val noteId: String? = null) : Route {
+    /**
+     * A conversation, by the other person's pen name — and their `uid` when the place it opens
+     * from knows it (the conversation list, a notification), so the thread listens at once and
+     * still opens after a rename. A note (`noteCardId` + `noteId`) quotes one to answer.
+     */
+    data class Thread(val handle: String, val noteCardId: String? = null, val noteId: String? = null, val uid: String? = null) : Route {
         val note: MessagingApi.Note? get() = if (noteCardId != null && noteId != null) MessagingApi.Note(noteCardId, noteId) else null
+
+        /** The same person's conversation (by uid when both know it; pen names are unique whatever their case). */
+        fun samePerson(other: Thread): Boolean =
+            if (uid != null && other.uid != null) uid == other.uid else handle.equals(other.handle, ignoreCase = true)
     }
     data class SettingsSection(val section: com.resonance.app.ui.SettingsSection) : Route
 
@@ -98,6 +106,19 @@ sealed interface Route {
 enum class Tab { Feed, Messages, Write, Notifications, CardBox }
 
 /**
+ * Opens a conversation from outside the screens (a push, a link) on the Messages stack. When
+ * that conversation is already on top — a push for the thread being read — it stays as it is
+ * instead of being stacked a second time; a note to quote takes its place.
+ */
+internal fun openThread(stack: MutableList<Route>, route: Route.Thread) {
+    val top = stack.lastOrNull() as? Route.Thread
+    when {
+        top == null || !top.samePerson(route) -> stack.add(route)
+        route.note != null && route.note != top.note -> stack[stack.lastIndex] = route.copy(uid = route.uid ?: top.uid)
+    }
+}
+
+/**
  * Four tabs and the pen. Each tab keeps its own back stack; re-selecting a
  * tab pops to its root; system back (with the predictive-back animation)
  * pops the current tab's stack. The bar hides on pushed screens.
@@ -121,7 +142,11 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
 
     // A site path from a link or a push. A conversation belongs to the Messages tab's stack; other pages open on the current tab.
     fun open(route: Route) {
-        if (route is Route.Thread) tab = Tab.Messages
+        if (route is Route.Thread) {
+            tab = Tab.Messages
+            openThread(stacks.getValue(Tab.Messages), route)
+            return
+        }
         stacks.getValue(tab).add(route)
     }
 
@@ -147,7 +172,10 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         val opened = tappedPush ?: return@LaunchedEffect
         PushCenter.consume()
         opened.notificationId?.let { session.notifications.markRead(it) }
-        val route = Route.fromPath(opened.route)
+        // A push names the sender by pen name; its bell row (once the list has it) knows who they are.
+        val route = Route.fromPath(opened.route)?.let { r ->
+            if (r is Route.Thread && r.uid == null) r.copy(uid = session.notifications.sender(opened.notificationId)) else r
+        }
         if (route != null) open(route) else tab = Tab.Notifications
     }
 
@@ -191,7 +219,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                         if (r.showsCard) stack.add(Route.Card(key))
                     }
                 }
-                entry<Route.Thread> { r -> ThreadScreen(session, r.handle, r.note, push) { stack.removeLastOrNull() } }
+                entry<Route.Thread> { r -> ThreadScreen(session, r.handle, r.uid, r.note, push) { stack.removeLastOrNull() } }
                 entry<Route.Settings> { SettingsScreen(push) { stack.removeLastOrNull() } }
                 entry<Route.ThoughtMap> {
                     val store = mapHolder.store ?: ThoughtMapStore().also { mapHolder.store = it }

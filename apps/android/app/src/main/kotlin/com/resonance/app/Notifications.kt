@@ -18,6 +18,8 @@ class NotificationsStore {
         val id: String,
         val type: String,
         val fromHandle: String?,
+        /** Who it is from (their conversation opens by it, whatever their pen name is now). */
+        val fromUserId: String?,
         val cardId: String?,
         val preview: String?,
         /** A note's id (to quote it when replying). */
@@ -67,6 +69,9 @@ class NotificationsStore {
         AppFirebase.db.collection("notifications").document(id).update("readAt", FieldValue.serverTimestamp())
     }
 
+    /** Who a notification (a tapped push's row) is from, once the list has it. */
+    fun sender(id: String?): String? = id?.let { i -> _items.value.firstOrNull { it.id == i }?.fromUserId }
+
     private fun item(doc: QueryDocumentSnapshot): Item {
         @Suppress("UNCHECKED_CAST")
         val payload = doc.get("payload") as? Map<String, Any?> ?: emptyMap()
@@ -74,6 +79,7 @@ class NotificationsStore {
             id = doc.id,
             type = doc.getString("type") ?: "",
             fromHandle = payload["fromHandle"] as? String,
+            fromUserId = payload["fromUserId"] as? String,
             cardId = payload["cardId"] as? String,
             preview = payload["preview"] as? String,
             noteId = payload["noteId"] as? String,

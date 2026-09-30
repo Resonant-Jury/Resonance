@@ -7,17 +7,21 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.resonance.api.models.Author
 import com.resonance.api.models.CardDetail
+import com.resonance.api.models.Profile
 import com.resonance.app.AppFirebase
+import com.resonance.app.Person
 import com.resonance.app.Session
 import com.resonance.kit.api.MessagingApi
 import com.resonance.kit.l10n.L10n
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -26,11 +30,19 @@ import java.util.Date
 
 /**
  * One conversation (ThreadView.tsx): who it's with, whether you may write, the
- * newest 50 messages live, and sending through the API. The conversation
- * exists only after its first message, so its listeners start then. The twin
- * of iOS's ThreadModel.
+ * newest 50 messages live, and sending through the API. The twin of iOS's
+ * ThreadModel.
+ *
+ * Opened from somewhere that knows the other person's uid (the conversation
+ * list, a notification), it listens to the conversation by its pair id at once
+ * and reads their profile beside it, only to learn whether you may write; by
+ * pen name alone (a link, a push), the profile comes first to find them. A
+ * conversation exists only after its first message, and reading one that
+ * doesn't is refused: that refusal means "no conversation yet", and the thread
+ * then watches for it to appear among the person's conversations — whoever
+ * writes first — and listens from then on.
  */
-class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val session: Session) {
+class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?, private val session: Session) {
     data class Message(
         val id: String,
         val senderId: String,
@@ -48,6 +60,9 @@ class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val s
     var phase by mutableStateOf(Phase.Loading)
         private set
     var other by mutableStateOf<Author?>(null)
+        private set
+    /** The other person's uid: from where the thread was opened, or their profile. */
+    var otherId by mutableStateOf(uid)
         private set
     /** Whether you may write (connected, no block). Null until known — the composer shows meanwhile. */
     var connected by mutableStateOf<Boolean?>(null)
@@ -72,6 +87,11 @@ class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val s
     var error by mutableStateOf<String?>(null)
 
     private var listeners: List<ListenerRegistration> = emptyList()
+    /** Which [listen] the live listeners belong to (a late callback of a removed one is ignored). */
+    private var listening = 0
+    /** Refusals met while the conversation list already had it (a creation racing the first read). */
+    private var refusals = 0
+    private var watching: Job? = null
     private var unreadForMe = 0
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -79,8 +99,8 @@ class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val s
     val pairId: String?
         get() {
             val me = me ?: return null
-            val other = other ?: return null
-            return listOf(me, other.id).sorted().joinToString("_")
+            val other = otherId ?: return null
+            return listOf(me, other).sorted().joinToString("_")
         }
 
     /** ThreadView's `valid`: text or a card, within 2000, somewhere to send it. */
@@ -91,63 +111,95 @@ class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val s
         }
 
     suspend fun load() {
-        try {
-            val profile = session.reading.profile(handle)
-            if (profile.isSelf) {
-                phase = Phase.Missing
-                return
+        otherId?.let { id ->
+            // The conversation list already drew them: the header shows at once, beside the messages.
+            session.conversations.person(id)?.let { person ->
+                other = person.asAuthor()
+                phase = Phase.Ready
             }
-            other = profile.author
-            isBlocked = profile.isBlocked
-            connected = profile.isConnected && !profile.isBlocked
-            phase = Phase.Ready
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            phase = Phase.Missing
+            watch()
+        }
+        val profile = profile()
+        if (profile == null || profile.isSelf) {
+            // Nobody by that name (or it's you). With their uid and a header to show, a failed read keeps the thread.
+            if (profile != null || other == null) {
+                close()
+                phase = Phase.Missing
+            }
             return
         }
-        openConversation()
+        other = profile.author
+        otherId = profile.author.id
+        isBlocked = profile.isBlocked
+        connected = profile.isConnected && !profile.isBlocked
+        phase = Phase.Ready
+        watch()
     }
 
     /** Re-reads whether you may still write (after a block, or coming back). */
     suspend fun refreshConnection() {
-        val profile = try {
-            session.reading.profile(handle)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            return
-        }
+        val profile = read(other?.handle ?: handle)?.takeIf { p -> otherId.let { it == null || it == p.author.id } } ?: return
         isBlocked = profile.isBlocked
         connected = profile.isConnected && !profile.isBlocked
     }
 
-    /** Listens once the conversation exists: reading a missing one is refused. */
-    private suspend fun openConversation() {
-        val pair = pairId ?: return
-        if (listeners.isNotEmpty()) return
-        val ref = AppFirebase.db.collection("conversations").document(pair)
-        val snap = try {
-            ref.get().await()
+    /**
+     * The other person's profile: by the pen name the route carries — or, when their uid is
+     * known and that name isn't theirs any more (renamed since the row or the notification was
+     * written), by the one they have now.
+     */
+    private suspend fun profile(): Profile? {
+        val id = otherId ?: return read(handle)
+        val name = session.conversations.person(id)?.handle ?: handle
+        read(name)?.takeIf { it.author.id == id }?.let { return it }
+        val current = try {
+            AppFirebase.db.collection("users").document(id).get().await().getString("handle")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            null // A denied read of a conversation that isn't there yet.
+            null
         }
-        if (snap == null || !snap.exists()) {
-            threadReady = true
-            return
+        if (current == null || current == name) return null
+        return read(current)?.takeIf { it.author.id == id }
+    }
+
+    private suspend fun read(handle: String): Profile? = try {
+        session.reading.profile(handle)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Listens to the conversation, and watches for it to appear should it not exist yet. */
+    private fun watch() {
+        val pair = pairId ?: return
+        if (watching == null) {
+            watching = scope.launch {
+                session.conversations.ids.collect { ids -> if (pair in ids && listeners.isEmpty()) listen(pair) }
+            }
         }
-        conversationExists = true
+        if (listeners.isEmpty()) listen(pair)
+    }
+
+    private fun listen(pair: String) {
+        stop()
+        val run = ++listening
+        val ref = AppFirebase.db.collection("conversations").document(pair)
         listeners = listOf(
-            ref.addSnapshotListener { doc, _ ->
+            ref.addSnapshotListener { doc, error ->
+                if (run != listening) return@addSnapshotListener
+                if (error != null) return@addSnapshotListener refused(pair, error)
                 if (doc == null || !doc.exists()) return@addSnapshotListener
+                conversationExists = true
+                refusals = 0
                 unreadForMe = ((doc.get("unread") as? Map<*, *>)?.get(me ?: "") as? Number)?.toInt() ?: 0
                 markReadIfNeeded()
             },
             ref.collection("messages").orderBy("sentAt", Query.Direction.DESCENDING).limit(50)
-                .addSnapshotListener { docs, _ ->
+                .addSnapshotListener { docs, error ->
+                    if (run != listening) return@addSnapshotListener
+                    if (error != null) return@addSnapshotListener refused(pair, error)
                     docs ?: return@addSnapshotListener
                     // A pending server time (our own message, in flight) sorts last.
                     messages = docs.documents.map { message(it) }.reversed()
@@ -158,13 +210,29 @@ class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val s
         )
     }
 
+    /**
+     * A listener was refused: the conversation isn't there (not yet, or deleted). Nothing to
+     * show until it appears among the person's conversations, when [watch] listens again —
+     * at once if the list already has it (it was created while this read was on its way).
+     */
+    private fun refused(pair: String, error: FirebaseFirestoreException) {
+        stop()
+        conversationExists = false
+        messages = emptyList()
+        threadReady = true
+        if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED && pair in session.conversations.ids.value && refusals++ < 3) {
+            listen(pair)
+        }
+    }
+
     /** Stops listening (the screen is going away, or the conversation is being deleted). */
     fun stop() {
+        listening++
         listeners.forEach { it.remove() }
         listeners = emptyList()
     }
 
-    /** The screen is gone: listeners and card lookups stop. */
+    /** The screen is gone: listeners, the watch and card lookups stop. */
     fun close() {
         stop()
         scope.cancel()
@@ -184,7 +252,7 @@ class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val s
             cards[id] = null
             scope.launch {
                 cards[id] = try {
-                    session.reading.card(id)
+                    session.reading.card(id).also { session.cardCache.rememberPreview(it.card) }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -195,16 +263,17 @@ class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val s
     }
 
     suspend fun send() {
-        val other = other ?: return
+        val other = otherId ?: return
         if (!canSend) return
         sending = true
         error = null
         try {
-            session.messaging.sendMessage(other.id, draft.trim(), pendingCard?.id, noteRef)
+            session.messaging.sendMessage(other, draft.trim(), pendingCard?.id, noteRef)
             draft = ""
             pendingCard = null
             noteRef = null
-            openConversation()
+            // The first message made the conversation: listen to it now.
+            pairId?.let { if (!conversationExists) listen(it) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -233,7 +302,7 @@ class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val s
             throw e
         } catch (e: Exception) {
             error = L10n.Messages.deleteError
-            openConversation()
+            listen(pair)
             false
         }
     }
@@ -285,15 +354,21 @@ class ThreadModel(val handle: String, noteRef: MessagingApi.Note?, private val s
  * the top screen, so without this the person would come back to an empty field;
  * on iOS the covered screen simply stays alive.
  */
-internal fun threadSaver(handle: String, session: Session): Saver<ThreadModel, Any> = listSaver(
+internal fun threadSaver(handle: String, uid: String?, session: Session): Saver<ThreadModel, Any> = listSaver(
     save = { m ->
         listOf(m.draft, m.noteRef?.cardId.orEmpty(), m.noteRef?.noteId.orEmpty(), m.pendingCard?.id.orEmpty(), m.pendingCard?.title.orEmpty())
     },
     restore = { v ->
         val note = if (v[1].isNotEmpty() && v[2].isNotEmpty()) MessagingApi.Note(v[1], v[2]) else null
-        ThreadModel(handle, note, session).also { m ->
+        ThreadModel(handle, uid, note, session).also { m ->
             m.draft = v[0]
             if (v[3].isNotEmpty()) m.pendingCard = ThreadModel.Attachment(v[3], v[4])
         }
     },
+)
+
+/** The header's person as the conversation list drew them, until their profile arrives. */
+private fun Person.asAuthor() = Author(
+    id = id, handle = handle, initials = initials, accentColor = accentColor ?: "",
+    avatarUrl = avatarUrl, avatarSeed = avatarSeed, verified = false, region = null,
 )

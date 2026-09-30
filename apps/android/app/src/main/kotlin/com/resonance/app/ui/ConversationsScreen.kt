@@ -120,7 +120,7 @@ private fun ConversationRow(person: Person, preview: String, time: String?, unre
                 ).createOutline(size, layoutDirection, this)
                 onDrawBehind { if (pressed) drawOutline(outline, Color.Black.copy(alpha = 0.045f)) }
             }
-            .clickable(source, indication = null, role = Role.Button) { open(Route.Thread(person.handle)) }
+            .clickable(source, indication = null, role = Role.Button) { open(Route.Thread(person.handle, uid = person.id)) }
             .padding(vertical = 12.dp, horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),

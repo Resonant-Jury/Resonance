@@ -53,6 +53,8 @@ import com.resonance.design.generated.Tokens
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
+import com.resonance.kit.reading.profilePage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /** A person's page (u/[handle]/page.tsx). */
@@ -70,12 +72,15 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
     LaunchedEffect(handle, reload) {
         if (profile == null) phase = "loading"
         try {
-            profile = session.reading.profile(handle)
-            val page = session.reading.profileCards(handle)
-            cards = page.cards
-            cursor = page.nextCursor
-            linked = runCatching { session.reading.profileLinks(handle) }.getOrDefault(emptyList())
+            // The profile, their cards and the cards linking to theirs, asked for together.
+            val page = session.reading.profilePage(handle)
+            profile = page.profile
+            cards = page.cards.cards
+            cursor = page.cards.nextCursor
+            linked = page.links
             phase = "loaded"
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: ApiFailure) {
             phase = if (e.isNotFound) "notFound" else "failed"
         } catch (e: Exception) {
@@ -134,7 +139,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                             // Connected: a way into the conversation (the web's small ghost button with the chat glyph).
                             if (!p.isBlocked && !p.isSelf && p.isConnected) {
                                 OrganicButton(L10n.Messages.messageLink, Modifier.padding(top = 4.dp), variant = ButtonVariant.Ghost, icon = IconName.Chat, small = true) {
-                                    open(Route.Thread(a.handle))
+                                    open(Route.Thread(a.handle, uid = a.id))
                                 }
                             }
                         }

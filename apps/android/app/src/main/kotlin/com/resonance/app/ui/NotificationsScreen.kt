@@ -99,15 +99,12 @@ private fun textFor(item: NotificationsStore.Item): String {
 
 /**
  * Where a notification leads (the web's hrefs, NotificationBell): these open the
- * conversation with that person; a note arrives quoted, ready to answer.
+ * conversation with that person (by who they are, so a pen name changed since
+ * still finds them); a note arrives quoted, ready to answer.
  */
 private fun routeFor(item: NotificationsStore.Item): Route? = when (item.type) {
-    "translation_done", "card_link" -> item.cardId?.let(Route::Card)
-    "note" -> item.fromHandle?.let { handle ->
-        val card = item.cardId
-        val note = item.noteId
-        if (card != null && note != null) Route.Thread(handle, card, note) else Route.Thread(handle)
-    }
-    "invite_accepted", "message", "resonance" -> item.fromHandle?.let { Route.Thread(it) }
+    "translation_done", "card_link" -> item.cardId?.let { Route.Card(it) }
+    "note" -> item.fromHandle?.let { handle -> Route.Thread(handle, item.cardId?.takeIf { item.noteId != null }, item.noteId?.takeIf { item.cardId != null }, item.fromUserId) }
+    "invite_accepted", "message", "resonance" -> item.fromHandle?.let { Route.Thread(it, uid = item.fromUserId) }
     else -> null
 }
