@@ -12,7 +12,11 @@ public struct OrganicButton: View {
     /// bar): `solid` is primary without its rim, `danger` the same in red for
     /// what can't be undone, and `text` / `textAccent` draw no frame at all —
     /// only the ink while pressed (Cancel beside a confirm, "load more").
-    public enum Variant: Sendable { case primary, ghost, outline, solid, danger, text, textAccent }
+    /// `paper` is the card's own paper (grain and all, as the modal's) with no
+    /// rim and ink for a label: a control floating over busy content (the
+    /// thought map's toolbar) that needs a ground to read on but no outline
+    /// of its own.
+    public enum Variant: Sendable { case primary, ghost, outline, solid, danger, text, textAccent, paper }
     /// `sm` is the web's dense size (dialog actions, list rows, the deletion banner).
     public enum Size: Sendable { case md, sm }
 
@@ -222,28 +226,30 @@ struct OrganicButtonStyle {
     var seed: Double {
         switch variant {
         case .primary, .solid, .danger: 3
-        case .ghost, .text: 401
+        case .ghost, .text, .paper: 401
         case .outline, .textAccent: 601
         }
     }
-    /// A filled face (the ink over it darkens rather than tints).
+    /// A filled face (the ink over it darkens rather than tints). The paper
+    /// is light, so it tints terracotta like the frameless variants.
     var filled: Bool {
         switch variant {
         case .primary, .solid, .danger: true
-        case .ghost, .outline, .text, .textAccent: false
+        case .ghost, .outline, .text, .textAccent, .paper: false
         }
     }
     /// Whether the pen line is drawn: only the web's own three variants.
     var stroked: Bool {
         switch variant {
         case .primary, .ghost, .outline: true
-        case .solid, .danger, .text, .textAccent: false
+        case .solid, .danger, .text, .textAccent, .paper: false
         }
     }
     var fill: Color {
         switch variant {
         case .primary, .solid: Tokens.terracotta
         case .danger: Tokens.danger
+        case .paper: Tokens.cardBg
         case .ghost, .outline, .text, .textAccent: .clear
         }
     }
@@ -253,13 +259,13 @@ struct OrganicButtonStyle {
         case .ghost: Tokens.ghostStroke
         // Darker than the label: the pen line reads apart from the text.
         case .outline: Tokens.terracottaOutline
-        case .solid, .danger, .text, .textAccent: .clear
+        case .solid, .danger, .text, .textAccent, .paper: .clear
         }
     }
     var textColor: Color {
         switch variant {
         case .primary, .solid, .danger: Tokens.cream
-        case .ghost: Tokens.text
+        case .ghost, .paper: Tokens.text
         case .text: Tokens.textMuted
         case .outline, .textAccent: Tokens.terracotta
         }
@@ -282,6 +288,9 @@ struct OrganicButtonStyle {
         shape.fill(fill)
         if filled {
             GrainLayer(shape: shape, mode: .tile, opacity: 0.38, tile: "grain-button")
+        } else if variant == .paper {
+            // The cards' own tile, at the strength the modal's paper carries it.
+            GrainLayer(shape: shape, mode: .tile, opacity: 0.3, tile: "grain-card")
         }
     }
 }

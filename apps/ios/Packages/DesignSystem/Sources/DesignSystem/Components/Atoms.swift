@@ -17,15 +17,22 @@ public struct TagPill: View {
     var fill: Color
     var seed: Double?
     var size: Size
+    var outlined: Bool
     var onRemove: (() -> Void)?
 
-    /// The web's TagPill: auto wobble, the given fill, a faint ink outline;
-    /// `onRemove` adds its hand-drawn × (the writer's chosen tags).
-    public init(_ text: String, fill: Color = Tokens.yellow, seed: Double? = nil, size: Size = .md, onRemove: (() -> Void)? = nil) {
+    /// The web's TagPill: auto wobble and the given fill. A tag on a card (sm,
+    /// md) sits inside a frame already, so the fill alone marks it; the
+    /// writer's lg pill is a control on its own and keeps a faint ink outline.
+    /// `outlined` overrides that (default: lg only) for a pill that sits on
+    /// bare page paper rather than inside a framed card — the shelves'
+    /// "anonymous" badge is cream-dark on the cream page and vanishes without
+    /// its rim. `onRemove` adds its hand-drawn × (the writer's chosen tags).
+    public init(_ text: String, fill: Color = Tokens.yellow, seed: Double? = nil, size: Size = .md, outlined: Bool? = nil, onRemove: (() -> Void)? = nil) {
         self.text = text
         self.fill = fill
         self.seed = seed
         self.size = size
+        self.outlined = outlined ?? (size == .lg)
         self.onRemove = onRemove
     }
 
@@ -67,7 +74,7 @@ public struct TagPill: View {
             GeometryReader { geo in
                 let shape = WobRectShape(radius: geo.size.height / 2, seed: seed ?? Self.autoSeed(text))
                 shape.fill(fill)
-                shape.stroke(Tokens.tagStroke, lineWidth: Tokens.ink)
+                if outlined { shape.stroke(Tokens.tagStroke, lineWidth: Tokens.ink) }
             }
         }
         .accessibilityElement(children: .combine)

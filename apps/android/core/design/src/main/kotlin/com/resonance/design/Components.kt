@@ -86,7 +86,7 @@ import com.resonance.geometry.wobLoop
 import kotlin.math.hypot
 import kotlin.math.max
 
-/** A hand-drawn filled surface with grain and its ink outline — the StoryCard / Panel frame. */
+/** A hand-drawn filled surface with grain and its ink outline — the StoryCard / Panel frame. A transparent `stroke` draws no pen line (paper). */
 fun Modifier.organicSurface(
     fill: Color,
     stroke: Color,
@@ -103,7 +103,7 @@ fun Modifier.organicSurface(
     onDrawBehind {
         drawOutline(outline, fill)
         grainBrush?.let { drawOutline(outline, it, alpha = grainAlpha) }
-        drawOutline(outline, stroke, style = ink)
+        if (stroke != Color.Transparent) drawOutline(outline, stroke, style = ink)
     }
 }
 
@@ -134,10 +134,23 @@ enum class TagSize(val font: Float, val tracking: Float, val padX: Dp, val padY:
 /**
  * The web's TagPill: small caps — sm 10px/600 at 0.04em, padding 3×10; md
  * 11px, 4×14; lg 13px at 0.05em, 7×18 — on an auto-wobbled pill of the given
- * fill with a faint ink outline. `onRemove` adds its hand-drawn × (the writer's tags).
+ * fill. A tag in a card's footer or on an arrow sits on a surface that is
+ * framed already, so sm and md are the colour alone; lg (the writer's) is the
+ * one that stands by itself among fields and keeps a faint ink outline.
+ * `outlined` overrides that for a pill on bare page paper rather than inside a
+ * framed card (the anonymous badge under a card on the shelves, cream-dark on
+ * the cream page, vanishes without its rim). `onRemove` adds its hand-drawn ×
+ * (the writer's tags).
  */
 @Composable
-fun TagPill(text: String, fill: Color = Tokens.Yellow, seed: Double? = null, size: TagSize = TagSize.Md, onRemove: (() -> Unit)? = null) {
+fun TagPill(
+    text: String,
+    fill: Color = Tokens.Yellow,
+    seed: Double? = null,
+    size: TagSize = TagSize.Md,
+    outlined: Boolean = size == TagSize.Lg,
+    onRemove: (() -> Unit)? = null,
+) {
     val s = seed ?: autoSeed(text)
     Row(
         Modifier
@@ -146,7 +159,7 @@ fun TagPill(text: String, fill: Color = Tokens.Yellow, seed: Double? = null, siz
                 val stroke = Stroke(Tokens.Ink.toPx())
                 onDrawBehind {
                     drawOutline(o, fill)
-                    drawOutline(o, Color(0.25f, 0.19f, 0.13f, 0.45f), style = stroke)
+                    if (outlined) drawOutline(o, Color(0.25f, 0.19f, 0.13f, 0.45f), style = stroke)
                 }
             }
             .padding(horizontal = size.padX, vertical = size.padY),
@@ -329,6 +342,7 @@ fun OrganicButton(
         ButtonVariant.Outline -> Triple(Color.Transparent, Mixes.TerracottaOutline, Tokens.Terracotta)
         ButtonVariant.Solid -> Triple(Tokens.Terracotta, Color.Transparent, Tokens.Cream)
         ButtonVariant.Danger -> Triple(Mixes.Danger, Color.Transparent, Tokens.Cream)
+        ButtonVariant.Paper -> Triple(Tokens.CardBg, Color.Transparent, Tokens.Text)
         ButtonVariant.Text -> Triple(Color.Transparent, Color.Transparent, Tokens.TextMuted)
         ButtonVariant.TextAccent -> Triple(Color.Transparent, Color.Transparent, Tokens.Terracotta)
     }
@@ -338,7 +352,7 @@ fun OrganicButton(
     val shape = remember(variant) {
         OrganicButtonShape(when (variant) {
             ButtonVariant.Primary, ButtonVariant.Solid, ButtonVariant.Danger -> 3.0
-            ButtonVariant.Ghost, ButtonVariant.Text -> 401.0
+            ButtonVariant.Ghost, ButtonVariant.Text, ButtonVariant.Paper -> 401.0
             ButtonVariant.Outline, ButtonVariant.TextAccent -> 601.0
         })
     }
@@ -354,11 +368,17 @@ fun OrganicButton(
             .scale(if (pressed) 0.97f else 1f)
             .drawWithCache {
                 val o = shape.createOutline(size, layoutDirection, this)
-                val grain = if (filled) Grain.brush(GrainMode.Tile, "grain-button", size, density, 0.38f) else null
+                // Ink grain darkens a terracotta face; paper carries the cards' own tile.
+                val grainOpacity = if (variant == ButtonVariant.Paper) 0.3f else 0.38f
+                val grain = when {
+                    filled -> Grain.brush(GrainMode.Tile, "grain-button", size, density, grainOpacity)
+                    variant == ButtonVariant.Paper -> Grain.brush(GrainMode.Tile, "grain-card", size, density, grainOpacity)
+                    else -> null
+                }
                 val ink = Stroke(Tokens.Ink.toPx(), join = StrokeJoin.Round)
                 onDrawBehind {
                     drawOutline(o, fill)
-                    grain?.let { drawOutline(o, it, alpha = 0.38f) }
+                    grain?.let { drawOutline(o, it, alpha = grainOpacity) }
                     if (stroke != Color.Transparent) drawOutline(o, stroke, style = ink)
                 }
             }
@@ -384,9 +404,12 @@ fun OrganicButton(
  * adding a pen line inside something already framed (a modal, a card, a bar):
  * Solid is primary without its rim, Danger the same in red for what can't be
  * undone, and Text / TextAccent draw no frame at all — only the organic wash
- * while pressed (Cancel beside a confirm, "load more" under a list).
+ * while pressed (Cancel beside a confirm, "load more" under a list). Paper is
+ * for a control floating over busy content (the thought map's toolbar): the
+ * cards' paper with their grain, no rim, in the ink colour, so it stays
+ * legible over whatever passes under it without a frame of its own.
  */
-enum class ButtonVariant { Primary, Ghost, Outline, Solid, Danger, Text, TextAccent }
+enum class ButtonVariant { Primary, Ghost, Outline, Solid, Danger, Paper, Text, TextAccent }
 
 /**
  * OrganicButton.tsx's outline: a calm pill — radius 16, two or three gentle

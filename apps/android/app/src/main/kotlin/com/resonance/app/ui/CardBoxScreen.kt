@@ -25,10 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -162,7 +159,8 @@ private fun LazyListScope.managedCards(session: Session, cards: List<FeedCard>, 
             }
             if (card.anonymous) {
                 Box(Modifier.padding(start = 34.dp, end = 34.dp, top = 8.dp, bottom = 4.dp)) {
-                    TagPill(L10n.Me.anonymousBadge, fill = Tokens.CreamDark, size = TagSize.Sm)
+                    // Under the card, on the page's own paper: cream-dark on cream needs its rim.
+                    TagPill(L10n.Me.anonymousBadge, fill = Tokens.CreamDark, size = TagSize.Sm, outlined = true)
                 }
             }
         }
@@ -173,8 +171,9 @@ private val ShelfOrder = listOf(TabGetCardBox.published, TabGetCardBox.`private`
 
 /**
  * The shelves as OrganicTabs' scrollable `surface` strip: the chosen one on a
- * hand-drawn surface — terracotta pen around a light wash, R 12, its wobble
- * sized to the tab, seed 23 + the key's length × 7 as on the web.
+ * hand-drawn wash — a light terracotta fill, R 12, its wobble sized to the
+ * tab, seed 23 + the key's length × 7 as on the web. The strip is no frame
+ * and the tab is one of its own, so the wash marks it without a pen line.
  */
 @Composable
 private fun ShelfTabs(selection: TabGetCardBox, openMap: () -> Unit, onSelect: (TabGetCardBox) -> Unit) {
@@ -191,12 +190,8 @@ private fun ShelfTabs(selection: TabGetCardBox, openMap: () -> Unit, onSelect: (
                 modifier = Modifier
                     .drawWithCache {
                         val o = WobRectShape(12.0, 23.0 + s.value.length * 7).createOutline(size, layoutDirection, this)
-                        val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                         onDrawBehind {
-                            if (selected) {
-                                drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.45f))
-                                drawOutline(o, Tokens.Terracotta, style = pen)
-                            }
+                            if (selected) drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.55f))
                         }
                     }
                     .semantics { this.selected = selected }

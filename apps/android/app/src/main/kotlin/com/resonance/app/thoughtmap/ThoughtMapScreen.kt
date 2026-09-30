@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
@@ -75,6 +76,7 @@ import com.resonance.design.WavyDivider
 import com.resonance.design.WobRectShape
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
+import com.resonance.design.organicSurface
 import com.resonance.design.plainClickable
 import com.resonance.design.wavyLinePath
 import com.resonance.geometry.seedFromString
@@ -138,23 +140,25 @@ private fun BoxScope.Chrome(store: ThoughtMapStore, session: Session, leave: () 
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val scope = rememberCoroutineScope()
 
+    // The controls float over the map's boxes and arrows, so none is framed in a pen line
+    // that would tangle with theirs: the tools are paper, the one verb (add a card) solid.
     // Leave: the web's back control, arrow-right mirrored (icon only on a phone).
     OrganicButton(
         L10n.Me.ThoughtMap.leave,
         Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = top),
-        variant = ButtonVariant.Outline, icon = IconName.ArrowRight, small = true, iconOnly = true, iconSize = 15.dp, mirrorIcon = true, roomy = true,
+        variant = ButtonVariant.Paper, icon = IconName.ArrowRight, small = true, iconOnly = true, iconSize = 15.dp, mirrorIcon = true, roomy = true,
     ) {
         store.commitEditors()
         leave()
     }
 
     Row(Modifier.align(Alignment.TopEnd).padding(end = 20.dp, top = top), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        OrganicButton(L10n.Me.ThoughtMap.addGroupShort, variant = ButtonVariant.Outline, icon = IconName.Frame, small = true, iconSize = 15.dp) {
+        OrganicButton(L10n.Me.ThoughtMap.addGroupShort, variant = ButtonVariant.Paper, icon = IconName.Frame, small = true, iconSize = 15.dp) {
             // The web's blur commits a title being typed before the new region takes over the editor.
             store.commitEditors()
             addGroup()
         }
-        OrganicButton(L10n.Me.ThoughtMap.addCardShort, variant = ButtonVariant.Primary, icon = IconName.Plus, small = true, iconSize = 15.dp) {
+        OrganicButton(L10n.Me.ThoughtMap.addCardShort, variant = ButtonVariant.Solid, icon = IconName.Plus, small = true, iconSize = 15.dp) {
             store.commitEditors()
             store.trayOpen = !store.trayOpen
         }
@@ -189,13 +193,16 @@ private fun BoxScope.Chrome(store: ThoughtMapStore, session: Session, leave: () 
     }
 }
 
-/** The zoom cluster: − 100% + and the eye (fit), on a plain rounded card. */
+/**
+ * The zoom cluster: − 100% + and the eye (fit), on a wobbly sheet of card paper
+ * — the cards' fill and grain, no pen line — like the paper buttons above.
+ */
 @Composable
 private fun ZoomCluster(store: ThoughtMapStore, modifier: Modifier) {
     val pct by remember(store) { derivedStateOf { (store.camera.s * 100).roundToInt() } }
     Row(
         modifier
-            .background(Tokens.CardBg, RoundedCornerShape(18.dp))
+            .organicSurface(Tokens.CardBg, Color.Transparent, radius = 18.0, seed = 41.0)
             .padding(vertical = 6.dp, horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),

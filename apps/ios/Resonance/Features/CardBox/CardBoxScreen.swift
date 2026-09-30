@@ -61,7 +61,8 @@ struct CardBoxScreen: View {
     }
 
     /// OrganicTabs' surface variant: the active shelf sits on a hand-drawn
-    /// wash in a terracotta rim (seeded per tab key, as on the web).
+    /// wash (seeded per tab key, as on the web), with no rim — the wash alone
+    /// marks it, one frame per layer.
     private var tabs: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
@@ -77,8 +78,7 @@ struct CardBoxScreen: View {
                             .background {
                                 if active {
                                     let shape = WobRectShape(radius: 12, seed: Double(23 + Self.webKey(s).count * 7))
-                                    shape.fill(Tokens.terracottaLight.opacity(0.45))
-                                    shape.stroke(Tokens.terracotta, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
+                                    shape.fill(Tokens.terracottaLight.opacity(0.55))
                                 }
                             }
                     }
@@ -212,7 +212,7 @@ private struct ManagedCardList: View {
                             .padding(.trailing, 34 - 3)
                     }
                     if card.anonymous {
-                        TagPill(L10n.Me.anonymousBadge, fill: Tokens.creamDark, size: .sm)
+                        TagPill(L10n.Me.anonymousBadge, fill: Tokens.creamDark, size: .sm, outlined: true)
                             .padding(.top, 8)
                             .padding(.horizontal, 34)
                             .padding(.bottom, 4)

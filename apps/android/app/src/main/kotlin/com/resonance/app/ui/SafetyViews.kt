@@ -197,6 +197,7 @@ private fun reasonLabel(r: SafetyService.Reason) = when (r) {
 @Composable
 fun AccountDeletionBanner(session: Session, date: OffsetDateTime) {
     val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     Row(
         Modifier
@@ -208,13 +209,15 @@ fun AccountDeletionBanner(session: Session, date: OffsetDateTime) {
     ) {
         BasicText(L10n.AccountDeletion.banner(mediumDate(date.toString()) ?: ""), style = AppFonts.body(14f, 600), modifier = Modifier.weight(1f))
         Spacer(Modifier.size(8.dp))
-        BasicText(
-            L10n.AccountDeletion.cancel,
-            style = AppFonts.body(14f, 600, color = Tokens.Terracotta),
-            modifier = Modifier.clickable(role = Role.Button) {
-                scope.launch { runCatching { session.cancelDeletion() }.onFailure { failed = true } }
-            }.padding(vertical = 8.dp),
-        )
+        // The banner has its own pen line, so its undo draws none (as on the web and iOS).
+        OrganicButton(if (busy) "…" else L10n.AccountDeletion.cancel, variant = ButtonVariant.TextAccent, small = true, enabled = !busy) {
+            scope.launch {
+                busy = true
+                failed = false
+                runCatching { session.cancelDeletion() }.onFailure { failed = true }
+                busy = false
+            }
+        }
     }
     if (failed) OrganicAlert(L10n.AccountDeletion.error, "OK") { failed = false }
 }

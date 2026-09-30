@@ -60,15 +60,15 @@ struct ThoughtMapScreen: View {
     @ViewBuilder private func chrome(insets: EdgeInsets, size: CGSize) -> some View {
         let top = insets.top + 8
         ZStack(alignment: .topLeading) {
-            OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .outline, size: .sm) { dismiss() }
+            OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .paper, size: .sm) { dismiss() }
                 .mirroringIcon()
                 .roomy()
                 .offset(x: 20, y: top)
             HStack(spacing: 10) {
-                OrganicButton(L10n.Me.ThoughtMap.addGroupShort, icon: .frame, variant: .outline, size: .sm) {
+                OrganicButton(L10n.Me.ThoughtMap.addGroupShort, icon: .frame, variant: .paper, size: .sm) {
                     Task { await store.addGroup() }
                 }
-                OrganicButton(L10n.Me.ThoughtMap.addCardShort, icon: .plus, variant: .primary, size: .sm) {
+                OrganicButton(L10n.Me.ThoughtMap.addCardShort, icon: .plus, variant: .solid, size: .sm) {
                     store.commitEditors()
                     store.trayOpen.toggle()
                 }
@@ -96,7 +96,8 @@ struct ThoughtMapScreen: View {
         }
     }
 
-    /// The zoom cluster: − 100% + and the eye (fit), on a plain rounded card.
+    /// The zoom cluster: − 100% + and the eye (fit), on a wobbly sheet of card
+    /// paper with no pen line (like the toolbar's paper buttons above).
     private var zoomCluster: some View {
         HStack(spacing: 4) {
             zoomButton(.minus, L10n.Me.ThoughtMap.zoomOut) { store.zoom(by: 1 / 1.25) }
@@ -110,7 +111,12 @@ struct ThoughtMapScreen: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
-        .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 18))
+        .background {
+            // The paper buttons' paper: card fill and the cards' own grain tile.
+            let shape = WobRectShape(radius: 18, seed: 41)
+            shape.fill(Tokens.cardBg)
+            GrainLayer(shape: shape, mode: .tile, opacity: 0.3, tile: "grain-card")
+        }
     }
 
     private func zoomButton(_ icon: IconName, _ label: String, action: @escaping () -> Void) -> some View {
