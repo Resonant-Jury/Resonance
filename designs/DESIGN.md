@@ -135,8 +135,29 @@ R: height / 2   (pill shape)
 | `outline` | `transparent` | `var(--color-terracotta)` | `oklch(52% 0.13 45)` | `oklch(40% 0.11 45)` | `oklch(62% 0.14 45 / 0.14)` |
 | `ctaLight` | `var(--color-cream)` | `var(--color-terracotta)` | `oklch(80% 0.04 75)` | `oklch(70% 0.04 75)` | `oklch(0% 0 0 / 0.08)` |
 | `ctaGhost` | `transparent` | `var(--color-cream)` | `oklch(88% 0.02 75 / 0.65)` | `oklch(80% 0.02 75 / 0.38)` | `oklch(96% 0.015 75 / 0.18)` |
+| `solid` | `var(--color-terracotta)` | `var(--color-cream)` | — | — | `oklch(0% 0 0 / 0.14)` |
+| `danger` | `var(--color-danger, oklch(58% 0.16 25))` | `var(--color-cream)` | — | — | `oklch(0% 0 0 / 0.14)` |
+| `text` | `transparent` | `var(--color-text-muted)` | — | — | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
+| `textAccent` | `transparent` | `var(--color-terracotta)` | — | — | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
+| `paper` | `var(--color-card-bg)` | `var(--color-text)` | — | — | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
 
-**Seeds per variant:** primary=3, secondary=201, ghost=401, outline=601, ctaLight=801, ctaGhost=1001
+`—` = no pen line is drawn. `paper` takes the cards' own grain (`opacity: 0.3`, `frequency: 0.88`, as the Modal) instead of the button grain.
+
+**Seeds per variant:** primary=3, secondary=201, ghost=401, outline=601, ctaLight=801, ctaGhost=1001; the frame-free ones borrow the seed of the variant they replace: solid=danger=3, text=paper=401, textAccent=601
+
+**One frame per layer.** A pen outline marks a *container* (Modal, Panel, StoryCard, a bar, a floating toolbar) or an *input* (Field, Select, the writer's `lg` tag). A control inside a frame draws none — a second outline is clutter. The standalone variants (`primary`, `outline`, `ghost`, `cta*`, `secondary*`) sit on bare page paper and keep their own pen line. Inside a frame:
+
+| You want… | Variant |
+|---|---|
+| Cancel / Keep / Close / Export — a secondary action beside a verb | `text` |
+| A secondary action in accent (Unblock, "load more") | `textAccent` |
+| The verb of the dialog, panel or bar (Publish, Sign in, Confirm) | `solid` |
+| The verb that can't be undone (delete a card, the account) | `danger` |
+| A control floating over busy content (the thought map's toolbar and back button) | `paper` |
+
+The hover brush is the same for every variant (`r 340ms linear`, spreading from the pointer). The frame-free variants have no pen line to show focus, so `:focus-visible` rings them (`2px var(--field-border-focus)`, offset 2px). The dropdown rows (`Select`, `OrganicMenu`, the avatar menu) follow the same rule: no boxed hover region, the active row takes the same spreading ink (`RowInk`) along its wavy region.
+
+The thought map's zoom cluster is a sheet of the same paper drawn behind its controls (`card-bg` + grain 0.3, `R 18`, `seed 41`, no stroke), not a CSS box.
 
 ---
 
@@ -208,6 +229,8 @@ mag: Math.min(w, h) * 0.025
 
 **Hover reveal:** radial mask expanding from cursor, `transition: r 460ms linear`
 
+**Tags:** unoutlined `TagPill`s filled 5 lightness points deeper than the card's fill, so they stay readable once the hovered interior (`92.5%`) washes toward it.
+
 **Image placeholder:** 16% × 62% aspect ratio area; diagonal stripe pattern `strokeOpacity: 0.28`, `strokeWidth: 1.5`; `GrainOverlay opacity: 0.055`
 
 **Wavy separator line:**
@@ -244,7 +267,7 @@ arrow icon   { opacity: hovered ? 0.7 : 0.28; transition: opacity 180ms; }
 
 **File:** [`src/components/atoms/TagPill/TagPill.tsx`](../src/components/atoms/TagPill/TagPill.tsx)
 
-Renders with `HandDrawnBorder` and `ShapeGrain`. Background color passed from parent.
+Renders with `HandDrawnBorder`; background color passed from parent. `sm` / `md` are data (the tags on cards, in feeds, under a story) and draw a bare tinted fill; `lg` / `xl` are input-like (removable chips) and keep the faint ink outline — see §14.
 
 **CSS** ([`TagPill.module.css`](../src/components/atoms/TagPill/TagPill.module.css)):
 ```css
@@ -643,7 +666,10 @@ the first heading of a page.
 <TagPill size="xl" />  // 14px / pad 9·22  (page eyebrow / hero)
 ```
 
+Outline: `sm` / `md` are a bare fill (one frame per layer — a label inside a framed card needs no rim); `lg` / `xl` keep the ink outline. A small pill that sits on bare page paper rather than inside a framed card (the owner's "anonymous" badge under a shelf card: cream-dark on cream) passes `outlined` to get its rim back. The thought map's edge labels stay unoutlined.
+
 Additional props:
+- `outlined?: boolean` — force the rim on (or off); defaults to the size's rule above.
 - `onRemove?: () => void` — renders a × button on the right.
 - `onClick?: () => void` — whole pill becomes a button (filter chip pattern).
 - `seed` — explicit wobble seed; otherwise derived from the label.

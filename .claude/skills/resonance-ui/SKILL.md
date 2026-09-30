@@ -24,8 +24,9 @@ When building UI in this repo, **always reach for these primitives before writin
 | Separate stacked rows/sections | `<Divider seed={N} spacing={6} />` — wavy pen rule, never a flat 1px border |
 | Group related controls into a side panel | one `<Panel>` with `<Divider />` between sub-sections |
 | Show a status icon | `<Icon name="…" size=… />` — full name list lives in `src/components/atoms/Icon/registry.ts` (don't trust any hand-copied list here; it goes stale) |
-| Show a tag / chip | `<TagPill size="sm|md|lg|xl" onRemove? onClick?>` |
-| Primary action | `<OrganicButton variant="primary|outline|ghost">` |
+| Show a tag / chip | `<TagPill size="sm|md|lg|xl" outlined? onRemove? onClick?>` — sm/md are a bare fill; lg/xl (and `outlined`, for a small pill on bare page paper) carry the ink rim |
+| Primary action on the page | `<OrganicButton variant="primary|outline|ghost">` |
+| A button **inside** a modal / panel / bar / toolbar | `<OrganicButton variant="text|textAccent|solid|danger|paper">` — see rule 14 |
 | Vertical/horizontal separator | `<Divider seed={N} />` |
 | Wrap something in a hand-drawn surface | `<HandDrawnDashedSurface seed={N} state="idle|hover|focus">` |
 | Emphasize a word with a curvy underline | `<Emphasis color="…">…</Emphasis>` |
@@ -45,6 +46,7 @@ When building UI in this repo, **always reach for these primitives before writin
 11. **Table of Contents (ToC) vertical rules:** The vertical curve line running down the left of the headings list is generated via `wavyVertical` (with amplitude `5` and stroke `3`). It is rendered in a fixed-width `div.rail` with explicit inline pixel dimensions (`width: ${railW}px`, `height: ${listH}px`) to prevent browsers from collapsing it to 0 height/width in flex layouts, and the SVG itself uses inline pixel style matching these dimensions.
 12. **SegmentedActionBar hover wash animations:** Instead of using a single shared reveal circle that teleports when hovering between options, each segment owns its own reveal circle (radius grows to max for the hovered one, stays at 0 for others). This allows the hover wash to shrink/grow independently per segment during pointer movement.
 13. **Card design on mobile/phones:** On mobile screens, cards (such as story cards, login cards, settings cards) must not be rendered with wobbly borders. Instead, they degrade to a full-bleed block/section styled with an interior background color (using the card's specific theme/fill color), a grain texture overlay (`<GrainOverlay>`), and framed by wavy divider rules at the top and bottom (matching the card's border color). They should bleed to the edge of the screen (typically using negative horizontal margins matching the layout padding), rather than being simple uncolored sections separated by dividers.
+14. **One frame per layer.** A pen outline marks a *container* (Modal, Panel, card, bar, floating toolbar) or an *input* (Field, Select, the writer's `lg` tag) — a control inside a frame draws none. So `primary` / `outline` / `ghost` / `cta*` are for buttons standing on bare page paper; inside a frame use the frame-free variants: `text` (Cancel / Keep / Close / a secondary action), `textAccent` (an accent secondary: Unblock, "load more"), `solid` (the verb — Publish, Sign in, Confirm), `danger` (the irreversible: delete a card or the account), `paper` (a control floating over busy content, e.g. the thought map's toolbar). `TagPill` follows it too: unoutlined at `sm` / `md`, outlined at `lg` / `xl` or with `outlined` when it sits on bare page paper. Dropdown rows (`Select`, `OrganicMenu`, the avatar menu) have no boxed hover region either: the active row takes the same spreading ink as a button's hover (`RowInk`).
 
 ## Common props quick reference
 
@@ -99,6 +101,7 @@ When building UI in this repo, **always reach for these primitives before writin
 
 // Tags
 <TagPill size="lg" color="oklch(92% 0.075 88)" onRemove={() => …}>記憶</TagPill>
+<TagPill size="sm" color="var(--color-cream-dark)" outlined>匿名</TagPill>  // on bare page paper
 
 // Icons (defaults: size 26, strokeWidth INK_STRONG)
 <Icon name="bell" size={22} ariaLabel="Notifications" />
@@ -111,8 +114,10 @@ When building UI in this repo, **always reach for these primitives before writin
 // Curve underline for emphasis
 <Emphasis color="var(--color-terracotta)">記憶</Emphasis>
 
-// Buttons
+// Buttons — standalone (draw their own pen line)
 <OrganicButton variant="primary|outline|ghost|ctaLight|ctaGhost">…</OrganicButton>
+// Buttons — inside a frame (no pen line; focus-visible rings them)
+<OrganicButton variant="text|textAccent|solid|danger|paper">…</OrganicButton>
 ```
 
 ## When extending the system
