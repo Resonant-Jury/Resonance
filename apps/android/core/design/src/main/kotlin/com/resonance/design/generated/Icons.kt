@@ -209,9 +209,9 @@ enum class IconName(val key: String) {
                 IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 6f, 6.1f, 2f, 9.9f, 9.8f, 14f, 13.9f, 17.9f, 17.9f)),
             ))
             Share -> IconGlyph(24f, fillable = false, strokes = listOf(
-                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 8.3f, 10.3f, 2f, 6.8f, 10.2f, 5.6f, 10.4f, 5f, 10.8f, 2f, 4.6f, 13.8f, 4.7f, 17.1f, 5f, 19.6f, 2f, 9.4f, 20.1f, 14.7f, 20f, 19f, 19.6f, 2f, 19.4f, 16.9f, 19.4f, 13.7f, 19.1f, 10.8f, 2f, 18.5f, 10.4f, 17.3f, 10.2f, 15.8f, 10.3f)),
-                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 12.1f, 15.3f, 2f, 11.8f, 11.6f, 12.3f, 7.6f, 11.9f, 3.7f)),
-                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 8.5f, 7.1f, 2f, 9.8f, 5.8f, 11f, 4.6f, 11.9f, 3.6f, 2f, 13f, 4.7f, 14.2f, 5.9f, 15.6f, 7f)),
+                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 8.7f, 9.6f, 2f, 7f, 9.5f, 5.7f, 9.9f, 4.7f, 10.8f, 2f, 4.4f, 13.6f, 4.5f, 16.8f, 5.4f, 19.9f, 2f, 8.2f, 20.6f, 11.6f, 20.3f, 14.2f, 20.1f, 2f, 15.9f, 20f, 17.5f, 19.9f, 18.8f, 19.2f, 2f, 19.5f, 16.3f, 19.6f, 13.3f, 19.2f, 10.5f, 2f, 18.4f, 9.9f, 17.1f, 9.7f, 15.4f, 10f, 2f, 15.1f, 10f, 14.9f, 10.1f, 14.7f, 10.2f)),
+                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 11.9f, 16.2f, 2f, 12.4f, 13.1f, 11.5f, 9.7f, 12.2f, 6.4f, 2f, 12.4f, 5.4f, 12.3f, 4.4f, 12.4f, 3.4f)),
+                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 8.3f, 7.9f, 2f, 9.8f, 6.3f, 11.1f, 4.9f, 12.5f, 3.1f, 2f, 13.5f, 4.3f, 14.8f, 5.6f, 16.3f, 6.6f)),
             ))
             Sliders -> IconGlyph(24f, fillable = false, strokes = listOf(
                 IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 4.2f, 7.9f, 2f, 5.3f, 7.8f, 6.2f, 7.8f, 6.9f, 7.8f)),

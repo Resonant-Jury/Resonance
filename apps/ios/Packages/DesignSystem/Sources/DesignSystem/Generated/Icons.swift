@@ -206,9 +206,9 @@ extension IconName {
             IconStroke(filled: false, width: 1, commands: [0, 6, 6.1, 2, 9.9, 9.8, 14, 13.9, 17.9, 17.9]),
         ])
         case .share: IconGlyph(viewBox: 24, fillable: false, strokes: [
-            IconStroke(filled: false, width: 1, commands: [0, 8.3, 10.3, 2, 6.8, 10.2, 5.6, 10.4, 5, 10.8, 2, 4.6, 13.8, 4.7, 17.1, 5, 19.6, 2, 9.4, 20.1, 14.7, 20, 19, 19.6, 2, 19.4, 16.9, 19.4, 13.7, 19.1, 10.8, 2, 18.5, 10.4, 17.3, 10.2, 15.8, 10.3]),
-            IconStroke(filled: false, width: 1, commands: [0, 12.1, 15.3, 2, 11.8, 11.6, 12.3, 7.6, 11.9, 3.7]),
-            IconStroke(filled: false, width: 1, commands: [0, 8.5, 7.1, 2, 9.8, 5.8, 11, 4.6, 11.9, 3.6, 2, 13, 4.7, 14.2, 5.9, 15.6, 7]),
+            IconStroke(filled: false, width: 1, commands: [0, 8.7, 9.6, 2, 7, 9.5, 5.7, 9.9, 4.7, 10.8, 2, 4.4, 13.6, 4.5, 16.8, 5.4, 19.9, 2, 8.2, 20.6, 11.6, 20.3, 14.2, 20.1, 2, 15.9, 20, 17.5, 19.9, 18.8, 19.2, 2, 19.5, 16.3, 19.6, 13.3, 19.2, 10.5, 2, 18.4, 9.9, 17.1, 9.7, 15.4, 10, 2, 15.1, 10, 14.9, 10.1, 14.7, 10.2]),
+            IconStroke(filled: false, width: 1, commands: [0, 11.9, 16.2, 2, 12.4, 13.1, 11.5, 9.7, 12.2, 6.4, 2, 12.4, 5.4, 12.3, 4.4, 12.4, 3.4]),
+            IconStroke(filled: false, width: 1, commands: [0, 8.3, 7.9, 2, 9.8, 6.3, 11.1, 4.9, 12.5, 3.1, 2, 13.5, 4.3, 14.8, 5.6, 16.3, 6.6]),
         ])
         case .sliders: IconGlyph(viewBox: 24, fillable: false, strokes: [
             IconStroke(filled: false, width: 1, commands: [0, 4.2, 7.9, 2, 5.3, 7.8, 6.2, 7.8, 6.9, 7.8]),
