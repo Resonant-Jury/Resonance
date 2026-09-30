@@ -355,13 +355,14 @@
       "get": {
         "operationId": "getRecommendedFeed",
         "summary": "Today's picks for you, each with the reason it was picked",
+        "description": "Answers at once from the latest picks. While today's are being prepared `status` is `stale` (earlier picks, or a quick first pass without reasons); ask again a little later for `fresh` ones.",
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardList"
+                  "$ref": "#/components/schemas/RecommendedFeed"
                 }
               }
             }
@@ -1510,6 +1511,29 @@
         "required": [
           "cards"
         ]
+      },
+      "RecommendedFeed": {
+        "type": "object",
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedCard"
+            }
+          },
+          "status": {
+            "description": "fresh: today's picks. stale: earlier (or quick, reason-less) picks while today's are prepared; ask again later. Absent: fresh.",
+            "type": "string",
+            "enum": [
+              "fresh",
+              "stale"
+            ]
+          }
+        },
+        "required": [
+          "cards"
+        ],
+        "description": "Today's picks (a CardList, plus whether they are today's)."
       },
       "CardDetail": {
         "type": "object",

@@ -1,3 +1,4 @@
+import type { Firestore } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 
 /**
@@ -7,24 +8,26 @@ import { getAdminDb } from '@/lib/db/firestore/admin';
  * deliberate act — the strongest evidence of genuine resonance we have. We use
  * it as a light retrieval boost, and the data stays joinable for future offline
  * tuning.
+ *
+ * Reads only the two fields it needs (never the stories), the originals in
+ * one batch.
  */
-export async function getEngagedAuthorIds(uid: string): Promise<Set<string>> {
-  const db = getAdminDb();
+export async function getEngagedAuthorIds(uid: string, db: Firestore = getAdminDb()): Promise<Set<string>> {
   // The reader's own cards that reference another card = their resonances.
-  const mine = await db.collection('cards').where('authorId', '==', uid).limit(100).get();
+  const mine = await db.collection('cards').where('authorId', '==', uid).select('referenceCardId').limit(100).get();
   const refIds = Array.from(
     new Set(
       mine.docs
-        .map((d) => d.data().referenceCardId)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+        .map((d) => d.get('referenceCardId'))
+        .filter((id): id is string => typeof id === 'string' && id.length > 0 && !id.includes('/'))
     )
   );
   if (refIds.length === 0) return new Set();
 
-  const referenced = await Promise.all(refIds.map((id) => db.collection('cards').doc(id).get()));
+  const referenced = await db.getAll(...refIds.map((id) => db.collection('cards').doc(id)), { fieldMask: ['authorId'] });
   const authors = new Set<string>();
   for (const snap of referenced) {
-    const authorId = snap.data()?.authorId;
+    const authorId = snap.get('authorId');
     if (typeof authorId === 'string' && authorId !== uid) authors.add(authorId);
   }
   return authors;

@@ -10,10 +10,11 @@ export interface RerankCandidate {
 /**
  * Build the batch-rerank prompt. The whole point of this stage is cost: the
  * candidate signatures are tiny, so a few dozen fit in ONE cheap-model call
- * that scores fit far better than raw vector distance — without producing long
- * output. Returns a JSON object `{ scores: [{ ref, score }] }`.
+ * that scores fit far better than raw vector distance — and it answers only
+ * for its best `keep` (a score for each of 200 candidates was most of the
+ * call's time). Returns a JSON object `{ scores: [{ ref, score }] }`.
  */
-export function buildRerankMessages(summaries: string[], candidates: RerankCandidate[]): ChatMessage[] {
+export function buildRerankMessages(summaries: string[], candidates: RerankCandidate[], keep = 30): ChatMessage[] {
   const reader = summaries.length > 0 ? summaries.map((s) => `- ${s}`).join('\n') : '（暫無）';
   const items = candidates
     .map((c) => `[${c.ref}] 體悟：${c.coreInsight}${c.situation ? `；情境：${c.situation}` : ''}`)
@@ -24,7 +25,7 @@ export function buildRerankMessages(summaries: string[], candidates: RerankCandi
       content: [
         'You rank story cards by how deeply they would RESONATE with a particular reader.',
         "The reader's own insights/experiences are given. For each candidate, judge whether the reader would feel genuine resonance — a shared realization or a shared kind of experience — not mere topical overlap.",
-        'Reply with ONLY a JSON object: {"scores":[{"ref":"<ref>","score":<0..1>}]}. Include every candidate exactly once. Higher score = stronger resonance.',
+        `Reply with ONLY a JSON object: {"scores":[{"ref":"<ref>","score":<0..1>}]}, listing at most ${keep} candidates — the ones with the strongest resonance, best first, each at most once. Higher score = stronger resonance; leave the rest out.`,
       ].join('\n'),
     },
     {

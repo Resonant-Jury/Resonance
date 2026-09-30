@@ -30,6 +30,8 @@ async function readOwnSummaries(uid: string): Promise<string[]> {
     .collection('cards')
     .where('authorId', '==', uid)
     .orderBy('publishedAt', 'desc')
+    // Only the signature: the stories would be most of the bytes.
+    .select('signature')
     .limit(40)
     .get();
   const lines: string[] = [];

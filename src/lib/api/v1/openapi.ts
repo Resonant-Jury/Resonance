@@ -89,7 +89,11 @@ export function buildOpenApi(): Json {
         ],
       }, [400, 401]),
       '/feed': get('getFeed', 'Latest public cards, newest first (authors you blocked are left out)', 'FeedPage', { parameters: pageParams }, [400, 401]),
-      '/feed/recommended': get('getRecommendedFeed', "Today's picks for you, each with the reason it was picked", 'CardList', {}, [401]),
+      '/feed/recommended': get('getRecommendedFeed', "Today's picks for you, each with the reason it was picked", 'RecommendedFeed', {
+        description:
+          'Answers at once from the latest picks. While today\'s are being prepared `status` is `stale` ' +
+          '(earlier picks, or a quick first pass without reasons); ask again a little later for `fresh` ones.',
+      }, [401]),
       '/cards/{key}': get('getCard', 'A card you may read, by slug or id, with its story', 'CardDetail', {
         parameters: [pathParam('key', 'The card slug, or (older cards) its id')],
       }),

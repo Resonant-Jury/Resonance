@@ -5,7 +5,7 @@ import type { Card, RecommendationItem } from '@/lib/db/types';
 import { ApiFailure } from './http';
 import { blockedByViewer, canView, connected, loadAuthors, toAuthor, toFeedCard, visibleTo } from './present';
 import { properlyPublished } from './service';
-import type { CardBoxTabName, CardDetailBody, FeedCardBody, FeedPageBody, ProfileBody } from './schemas';
+import type { CardBoxTabName, CardDetailBody, FeedCardBody, FeedPageBody, ProfileBody, RecommendedFeedBody } from './schemas';
 
 /**
  * v1 reads for the apps' reading screens (feed, card page, author page).
@@ -76,25 +76,33 @@ async function cardsByIds(db: Firestore, ids: string[]): Promise<Card[]> {
 }
 
 /**
- * Today's recommendations with their reasons, resolved to cards the viewer may
- * read. The funnel (LLM) runs at most once a day per reader; if it fails the
- * reader still gets the latest feed, so this answers empty rather than 500.
+ * The reader's recommendations with their reasons, resolved to cards the
+ * viewer may read, and whether they are today's (`status`). The recommender
+ * answers from what it stored and builds today's after the response
+ * (lib/recommend/daily); if it fails the reader still gets the latest feed,
+ * so this answers empty rather than 500.
  */
 export async function getRecommendedFeed(
   db: Firestore,
   viewerId: string,
-  load: (db: Firestore, uid: string) => Promise<{ items: RecommendationItem[] }>,
-): Promise<{ cards: FeedCardBody[] }> {
-  let items: RecommendationItem[] = [];
+  load: (db: Firestore, uid: string) => Promise<{ items: RecommendationItem[]; status?: 'fresh' | 'stale' }>,
+): Promise<RecommendedFeedBody> {
+  let loaded: { items: RecommendationItem[]; status?: 'fresh' | 'stale' };
   try {
-    items = (await load(db, viewerId)).items;
+    loaded = await load(db, viewerId);
   } catch (e) {
     console.error('recommendations failed', e);
-    return { cards: [] };
+    return { cards: [], status: 'stale' };
   }
-  const reasons = new Map(items.map((i) => [i.cardId, i.reason]));
-  const [cards, blocked] = await Promise.all([cardsByIds(db, items.map((i) => i.cardId)), blockedByViewer(db, viewerId)]);
-  return { cards: await present(db, viewerId, cards.filter((c) => c.publishedAt), { reasons, blocked }) };
+  const reasons = new Map(loaded.items.map((i) => [i.cardId, i.reason]));
+  const [cards, blocked] = await Promise.all([
+    cardsByIds(db, loaded.items.map((i) => i.cardId)),
+    blockedByViewer(db, viewerId),
+  ]);
+  return {
+    cards: await present(db, viewerId, cards.filter((c) => c.publishedAt), { reasons, blocked }),
+    status: loaded.status ?? 'fresh',
+  };
 }
 
 export async function getCardDetail(db: Firestore, viewerId: string, key: string): Promise<CardDetailBody> {

@@ -33,15 +33,33 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ChatOptions {
+  model?: string;
+  /** Abandons the call (e.g. `AbortSignal.timeout(ms)`): the promise rejects with the signal's reason. */
+  signal?: AbortSignal;
+  /** Caps the reply, reasoning included (`max_completion_tokens`). */
+  maxTokens?: number;
+}
+
+function chatBody(messages: ChatMessage[], opts: ChatOptions, extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    model: opts.model ?? llmModel(),
+    messages,
+    ...(opts.maxTokens ? { max_completion_tokens: opts.maxTokens } : {}),
+    ...extra,
+  });
+}
+
 /** Single-turn chat completion; returns the assistant's trimmed text. */
-export async function chat(messages: ChatMessage[]): Promise<string> {
+export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
   const res = await fetch(`${API_BASE}/chat/completions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey()}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ model: llmModel(), messages }),
+    body: chatBody(messages, opts),
+    signal: opts.signal,
   });
   if (!res.ok) {
     throw new Error(`OpenAI chat failed: ${res.status} ${await res.text()}`);
@@ -59,7 +77,7 @@ export async function chat(messages: ChatMessage[]): Promise<string> {
  */
 export async function chatJSON<T = unknown>(
   messages: ChatMessage[],
-  opts: { model?: string } = {}
+  opts: ChatOptions = {}
 ): Promise<T> {
   const res = await fetch(`${API_BASE}/chat/completions`, {
     method: 'POST',
@@ -67,11 +85,8 @@ export async function chatJSON<T = unknown>(
       Authorization: `Bearer ${apiKey()}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: opts.model ?? llmModel(),
-      messages,
-      response_format: { type: 'json_object' },
-    }),
+    body: chatBody(messages, opts, { response_format: { type: 'json_object' } }),
+    signal: opts.signal,
   });
   if (!res.ok) {
     throw new Error(`OpenAI chat failed: ${res.status} ${await res.text()}`);
@@ -84,11 +99,11 @@ export async function chatJSON<T = unknown>(
 }
 
 /**
- * Embed one or more texts. Returns **unit-normalized** vectors so the vector
- * store can use DOT_PRODUCT distance (mathematically equivalent to cosine but
- * faster, per the Firestore guidance). Server-only.
+ * Embed one or more texts. Returns **unit-normalized** vectors, so the vector
+ * store's COSINE distance is 1 − their dot product (smaller = closer).
+ * Server-only.
  */
-export async function embed(texts: string[]): Promise<number[][]> {
+export async function embed(texts: string[], opts: { signal?: AbortSignal } = {}): Promise<number[][]> {
   if (texts.length === 0) return [];
   const res = await fetch(`${API_BASE}/embeddings`, {
     method: 'POST',
@@ -97,6 +112,7 @@ export async function embed(texts: string[]): Promise<number[][]> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ model: embedModel(), input: texts }),
+    signal: opts.signal,
   });
   if (!res.ok) {
     throw new Error(`OpenAI embeddings failed: ${res.status} ${await res.text()}`);

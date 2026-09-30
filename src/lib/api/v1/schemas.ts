@@ -109,6 +109,24 @@ export const FeedPage = named(
 
 export const CardList = named(z.object({ cards: z.array(FeedCard) }), 'CardList');
 
+export const RecommendedFeed = named(
+  z.object({
+    cards: z.array(FeedCard),
+    /**
+     * `fresh`: today's picks. `stale`: earlier picks, or a quick first pass
+     * without reasons, while today's are being prepared — asking again a
+     * minute or so later brings them. Absent means `fresh`. No other value
+     * is added within v1.
+     */
+    status: z
+      .enum(['fresh', 'stale'])
+      .optional()
+      .describe("fresh: today's picks. stale: earlier (or quick, reason-less) picks while today's are prepared; ask again later. Absent: fresh."),
+  }),
+  'RecommendedFeed',
+  "Today's picks (a CardList, plus whether they are today's).",
+);
+
 export const CardDetail = named(
   z.object({
     card: FeedCard,
@@ -305,6 +323,7 @@ export type ApiErrorBody = z.infer<typeof ApiError>;
 export type MeBody = z.infer<typeof Me>;
 export type FeedCardBody = z.infer<typeof FeedCard>;
 export type FeedPageBody = z.infer<typeof FeedPage>;
+export type RecommendedFeedBody = z.infer<typeof RecommendedFeed>;
 export type AuthorBody = z.infer<typeof Author>;
 export type CardDetailBody = z.infer<typeof CardDetail>;
 export type ProfileBody = z.infer<typeof Profile>;

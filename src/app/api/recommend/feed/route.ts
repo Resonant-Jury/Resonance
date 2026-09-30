@@ -1,19 +1,22 @@
-import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { NextResponse, after } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { dailyRecommendations } from '@/lib/recommend/daily';
 
 export const runtime = 'nodejs';
-// The funnel runs the rerank + select LLM calls; only on a cache miss.
-export const maxDuration = 120;
+// A new day's build runs after the response (its LLM steps time out well inside this).
+export const maxDuration = 60;
 
 /**
- * The reader's recommended feed. Returns a cached daily result when fresh, and
- * only runs the (LLM-bearing) funnel on a cache miss — keeping per-read cost
- * near zero. Returns only card ids + reasons; the client resolves the cards
- * through the visibility-enforced read path.
+ * The reader's recommended feed: the stored result at once (`status: 'stale'`
+ * while today's is built after the response), or — for a reader with nothing
+ * yet — a quick build within a few seconds. Returns only card ids + reasons;
+ * the client resolves the cards through the visibility-enforced read path.
  */
 export async function GET() {
-  const user = await requireUser();
-  return NextResponse.json(await dailyRecommendations(getAdminDb(), user.id));
+  const user = await getCurrentUser({ revocation: 'cached' });
+  if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  const { items, cached, status, refresh } = await dailyRecommendations(getAdminDb(), user.id);
+  if (refresh) after(refresh);
+  return NextResponse.json({ items, cached, status });
 }
