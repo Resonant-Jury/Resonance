@@ -56,11 +56,12 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
 
 const mockSendMessage = vi.fn();
 const mockGetConversation = vi.fn();
+const mockMarkRead = vi.fn();
 vi.mock('@/lib/db/firestore/client/messages', () => ({
   MESSAGE_MAX_LENGTH: 2000,
   conversationId: (a: string, b: string) => [a, b].sort().join('_'),
   getConversation: () => mockGetConversation(),
-  markConversationRead: vi.fn().mockResolvedValue(undefined),
+  markConversationRead: (pairId: string) => mockMarkRead(pairId),
   sendMessage: (...args: unknown[]) => mockSendMessage(...args),
 }));
 
@@ -135,6 +136,7 @@ beforeEach(() => {
   mockIsConnected.mockResolvedValue(true);
   mockGetConversation.mockResolvedValue(conversation());
   mockSendMessage.mockResolvedValue({ conversationId: 'alice_me', id: 'm-new' });
+  mockMarkRead.mockResolvedValue(undefined);
   mockBlockUser.mockResolvedValue(undefined);
   mockSubmitReport.mockResolvedValue(undefined);
 });
@@ -314,5 +316,46 @@ describe('MessagesPage thread safety menu', () => {
     expect(await screen.findByText('Thanks for telling us')).toBeInTheDocument();
     // Not blocked unless the "also block" switch was turned on.
     expect(mockBlockUser).not.toHaveBeenCalled();
+  });
+});
+
+// The open thread listens to its newest 50 messages. Past 50, a new message
+// pushes the oldest out, so the count stays 50 — the thread must still notice
+// it: clear the unread badge and scroll to it.
+describe('MessagesPage thread past 50 messages', () => {
+  const at = (i: number) => new Date(2026, 0, 1, 0, i);
+  const window50 = (from: number, senderOfLast = 'me'): Message[] =>
+    Array.from({ length: 50 }, (_, k) => {
+      const i = from + k;
+      return { id: `m${i}`, senderId: k === 49 ? senderOfLast : 'me', text: `message ${i}`, sentAt: at(i) };
+    });
+
+  it('marks a new incoming message read and scrolls to it, though the count stays 50', async () => {
+    mockGetConversation.mockResolvedValue(conversation({ unread: { me: 0, alice: 0 } }));
+    mockUseThread.mockReturnValue({ messages: window50(0), ready: true, error: null });
+    const scrolls = vi.fn();
+    const scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+    Object.defineProperty(Element.prototype, 'scrollTop', {
+      configurable: true,
+      get: () => 0,
+      set: scrolls,
+    });
+    try {
+      const view = renderPage(<MessagesPage activeHandle="alice" />);
+      await waitFor(() => expect(screen.getByText('message 49')).toBeInTheDocument());
+      await waitFor(() => expect(mockUseThread).toHaveBeenLastCalledWith('alice_me'));
+      expect(mockMarkRead).not.toHaveBeenCalled(); // nothing unread yet
+      const scrollsBefore = scrolls.mock.calls.length;
+
+      // alice writes: the oldest message drops out, the newest is hers.
+      mockUseThread.mockReturnValue({ messages: window50(1, 'alice'), ready: true, error: null });
+      view.rerender(<SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}><MessagesPage activeHandle="alice" /></SWRConfig>);
+
+      await waitFor(() => expect(screen.getByText('message 50')).toBeInTheDocument());
+      await waitFor(() => expect(mockMarkRead).toHaveBeenCalledWith('alice_me'));
+      expect(scrolls.mock.calls.length).toBeGreaterThan(scrollsBefore);
+    } finally {
+      Object.defineProperty(Element.prototype, 'scrollTop', scrollTop);
+    }
   });
 });

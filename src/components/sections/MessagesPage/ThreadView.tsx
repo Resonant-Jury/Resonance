@@ -88,6 +88,10 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // Subscribe only once the conversation doc exists — the messages read rule
   // get()s the parent doc, so listening earlier would just error.
   const thread = useThread(convo ? pairId : undefined);
+  // The newest message. The listener keeps only the latest 50, so once a
+  // thread passes 50 the count stops changing — what changes is the last one.
+  const lastMessage = thread.messages[thread.messages.length - 1];
+  const lastMessageId = lastMessage?.id;
 
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -111,8 +115,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // one isn't ours — also triggers the reset (writing 0 is idempotent).
   useEffect(() => {
     if (!convo || !user || !pairId) return;
-    const last = thread.messages[thread.messages.length - 1];
-    const incoming = !!last && last.senderId !== user.id;
+    const incoming = !!lastMessage && lastMessage.senderId !== user.id;
     if (incoming || (convo.unread[user.id] ?? 0) > 0) {
       void markConversationRead(pairId).then(() => {
         void mutateConvo();
@@ -120,7 +123,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [convo, user?.id, pairId, thread.messages.length]);
+  }, [convo, user?.id, pairId, lastMessageId]);
 
   // Keep the newest message in view.
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -129,7 +132,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   useEffect(() => {
     const el = scrollerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread.messages.length]);
+  }, [lastMessageId]);
 
   // Auto-grow: the input rests at one line and takes its height from the
   // content (the CSS max-height caps it, after which it scrolls).
