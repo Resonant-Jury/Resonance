@@ -3,24 +3,59 @@ import ResonanceKit
 import SwiftUI
 
 /// The home feed (home/page.tsx): the heading and its line, today's picks,
-/// then "load more" for the latest cards, and the prompt to write.
+/// then "load more" for the latest cards, and the prompt to write. Picks
+/// that come after the latest cards are showing wait behind a hint.
 struct FeedScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
     @State private var model: FeedModel?
+    private static let listTop = "feed.top"
 
     var body: some View {
-        TabScreen(L10n.Home.heading, headerSpacing: 12) {
-            CSSText(L10n.Home.subheading, font: AppFonts.uiFont(.body, size: 15), lineHeight: 1.6, color: UIColor(Tokens.textMuted))
-                .padding(.horizontal, 20)
-                .padding(.bottom, 40)
-            content
+        ScrollViewReader { proxy in
+            TabScreen(L10n.Home.heading, headerSpacing: 12, banner: { picksHint(proxy) }) {
+                CSSText(L10n.Home.subheading, font: AppFonts.uiFont(.body, size: 15), lineHeight: 1.6, color: UIColor(Tokens.textMuted))
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 40)
+                content.id(Self.listTop)
+            }
+            .animation(.easeInOut(duration: 0.25), value: model?.picksReady ?? false)
         }
         .refreshable { await model?.refresh() }
         .task {
-            if model == nil { model = FeedModel(api: ReadingAPI(client: session.api)) }
+            if model == nil { model = makeModel() }
             if model?.phase == .idle { await model?.load() }
         }
+    }
+
+    /// Picks that came after the latest cards were showing: they head the feed
+    /// once asked for, and the feed goes up to meet them.
+    @ViewBuilder private func picksHint(_ proxy: ScrollViewProxy) -> some View {
+        if let model, model.picksReady {
+            OrganicButton(L10n.Home.Recommended.ready, icon: .sparkle, size: .sm) {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    model.revealPicks()
+                    proxy.scrollTo(Self.listTop, anchor: .top)
+                }
+            }
+            .padding(.top, 10)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
+    private func makeModel() -> FeedModel {
+        let api = session.reading
+        #if DEBUG
+        // `-feedPicksDelay <seconds>` holds today's picks back (screen checks of the late-picks hint).
+        let delay = UserDefaults.standard.double(forKey: "feedPicksDelay")
+        if delay > 0 {
+            return FeedModel(feed: { try await api.feed(cursor: $0) }, recommended: {
+                try? await Task.sleep(for: .seconds(delay))
+                return try await api.recommended()
+            })
+        }
+        #endif
+        return FeedModel(api: api)
     }
 
     @ViewBuilder private var content: some View {

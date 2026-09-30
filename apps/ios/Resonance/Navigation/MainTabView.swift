@@ -145,10 +145,12 @@ struct MainTabView: View {
 /// bottom for the tab bar. The brand bar has nothing to press, so it gives the
 /// stories the room: it slides up under the status bar while reading down and
 /// comes back on the way up (settling shown or hidden when the scroll stops).
-struct TabScreen<Trailing: View, Content: View>: View {
+/// A `banner` floats just under the bar, over the content, and moves with it.
+struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     let title: String
     var headerSpacing: CGFloat
     let trailing: Trailing
+    let banner: Banner
     let content: Content
     @State private var scrolled = false
     /// How far the brand bar has slid up (0…`travel`).
@@ -157,10 +159,11 @@ struct TabScreen<Trailing: View, Content: View>: View {
     private let travel: CGFloat = 48
 
     init(_ title: String, headerSpacing: CGFloat = 20, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
-         @ViewBuilder content: () -> Content) {
+         @ViewBuilder banner: () -> Banner, @ViewBuilder content: () -> Content) {
         self.title = title
         self.headerSpacing = headerSpacing
         self.trailing = trailing()
+        self.banner = banner()
         self.content = content()
     }
 
@@ -190,10 +193,18 @@ struct TabScreen<Trailing: View, Content: View>: View {
         }
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
+        .overlay(alignment: .top) { banner.offset(y: -hidden) }
         .safeAreaInset(edge: .top, spacing: 0) { OrganicBrandBar(scrolled: scrolled).offset(y: -hidden) }
         // The status bar keeps its paper while the bar slides under it.
         .overlay(alignment: .top) {
             Color.clear.frame(height: 0).background(Tokens.cream.ignoresSafeArea(edges: .top))
         }
+    }
+}
+
+extension TabScreen where Banner == EmptyView {
+    init(_ title: String, headerSpacing: CGFloat = 20, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
+         @ViewBuilder content: () -> Content) {
+        self.init(title, headerSpacing: headerSpacing, trailing: trailing, banner: { EmptyView() }, content: content)
     }
 }
