@@ -77,6 +77,18 @@ class FeedLoaderTest {
         assertTrue(revealed.canLoadMore)
     }
 
+    @Test fun picksAMomentBehindTheLatestStillLead() = runBlocking {
+        routes.on("/feed") { json(pageJson("a", "b")) }
+        routes.on("/feed/recommended") {
+            Thread.sleep(150)
+            json(listJson("p1"))
+        }
+        loader.load()
+        val shown = until { it.phase == FeedLoader.Phase.Loaded }
+        assertEquals(listOf("p1"), shown.cards.map { it.id })
+        assertFalse(shown.picksReady)
+    }
+
     @Test fun picksThatComeFirstLeadAndTheLatestWaitsBehindLoadMore() = runBlocking {
         routes.on("/feed") { held(latestGate, pageJson("a", "p1")) }
         routes.on("/feed/recommended") { json(listJson("p1", "p2")) }

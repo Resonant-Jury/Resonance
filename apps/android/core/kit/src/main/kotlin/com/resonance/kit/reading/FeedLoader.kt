@@ -8,25 +8,30 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * The home feed (home/page.tsx): the latest public cards and today's picks,
  * asked for together, each shown as soon as it arrives. Picks that come first
- * lead the feed ("load more" then reveals the latest, deduped against them).
- * Picks that come once the latest cards are on screen wait behind a hint
- * (`home.recommended.ready`): nothing moves under the reader until they ask.
- * A failed pick request (the day's first, while the server still builds them,
- * can outlast the client's timeout) is asked once more a little later.
+ * — or within [picksGrace] of the latest — lead the feed ("load more" then
+ * reveals the latest, deduped against them). Picks that come once the latest
+ * cards are on screen wait behind a hint (`home.recommended.ready`): nothing
+ * moves under the reader until they ask. A failed pick request (the day's
+ * first, while the server still builds them, can outlast the client's
+ * timeout) is asked once more a little later.
  */
 class FeedLoader(
     private val api: ReadingApi,
     private val scope: CoroutineScope,
     private val retryPicksAfter: Duration = 20.seconds,
+    private val picksGrace: Duration = 400.milliseconds,
 ) {
     enum class Phase { Loading, Loaded, Failed }
 
@@ -116,6 +121,10 @@ class FeedLoader(
                     throw e
                 } catch (e: Exception) {
                     null
+                }
+                // Picks answering a moment later still lead: a first read waits that moment for them (never longer).
+                if (page != null && _state.value.phase == Phase.Loading) {
+                    withTimeoutOrNull(picksGrace) { _state.first { it.picksSettled } }
                 }
                 _state.update { s ->
                     if (page == null) s.copy(latestSettled = true, latestFailed = true).settled()
