@@ -62,16 +62,21 @@ targets:
         SWIFT_APPROACHABLE_CONCURRENCY: "YES"
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_ENTITLEMENTS: Resonance/Resonance.entitlements
-        # Simulator builds sign ad hoc ("Sign to Run Locally"): no team needed,
-        # and Firebase Auth gets the keychain access it stores the session in.
+        # Device builds sign automatically with the team signed into Xcode
+        # (archives: xcodebuild … -allowProvisioningUpdates). Simulator builds
+        # sign ad hoc ("Sign to Run Locally"), and Firebase Auth gets the
+        # keychain access it stores the session in.
+        DEVELOPMENT_TEAM: V7H59QAJPL
+        CODE_SIGN_STYLE: Automatic
         "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
-        CODE_SIGN_STYLE: Manual
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_USER_SCRIPT_SANDBOXING: "YES"
     info:
       path: Resonance/Info.plist
       properties:
         CFBundleDisplayName: Resonance
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleLocalizations: [en, zh-Hant]
         UILaunchScreen:
           UIColorName: LaunchBackground
