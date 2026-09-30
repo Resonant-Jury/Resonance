@@ -254,6 +254,12 @@ fun OrganicButton(
     small: Boolean = false,
     /** Just the glyph (the /me pen chip): `title` becomes its accessible name. */
     iconOnly: Boolean = false,
+    /** The glyph's size, when the design asks for another than 16 (17 in an icon-only chip). */
+    iconSize: Dp? = null,
+    /** Flip the glyph (arrow-right as "back": the web's `transform: scaleX(-1)`). */
+    mirrorIcon: Boolean = false,
+    /** An icon-only chip at the size's own padding (sm: 9×18) instead of the tight 9×11. */
+    roomy: Boolean = false,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -274,6 +280,7 @@ fun OrganicButton(
     // The web's BTN_SEEDS, so each variant wobbles like its web twin.
     val shape = OrganicButtonShape(when (variant) { ButtonVariant.Primary -> 3.0; ButtonVariant.Ghost -> 401.0; ButtonVariant.Outline -> 601.0 })
     val padding = when {
+        iconOnly && roomy -> if (small) PaddingValues(horizontal = 18.dp, vertical = 9.dp) else PaddingValues(horizontal = 32.dp, vertical = 14.dp)
         iconOnly -> PaddingValues(horizontal = 11.dp, vertical = 9.dp)
         small -> PaddingValues(horizontal = 18.dp, vertical = 9.dp)
         else -> PaddingValues(horizontal = 32.dp, vertical = 14.dp)
@@ -308,7 +315,7 @@ fun OrganicButton(
         // The web's label gap is 7; a brand mark sits in its own 10-gap span (signin/page.tsx).
         horizontalArrangement = Arrangement.spacedBy(if (image != null) 10.dp else 7.dp),
     ) {
-        if (icon != null) OrganicIcon(icon, size = if (iconOnly) 17.dp else 16.dp, color = text)
+        if (icon != null) OrganicIcon(icon, size = iconSize ?: if (iconOnly) 17.dp else 16.dp, color = text, mirrored = mirrorIcon)
         if (image != null) Image(image, contentDescription = null, modifier = Modifier.size(18.dp))
         if (!iconOnly) BasicText(title, style = AppFonts.body(if (small) 14f else 15f, 600, lineHeight = 1.3f, color = text).copy(letterSpacing = 0.02.em))
     }

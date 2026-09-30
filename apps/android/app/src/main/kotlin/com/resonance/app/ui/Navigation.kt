@@ -27,6 +27,8 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.resonance.app.PushCenter
 import com.resonance.app.Session
+import com.resonance.app.thoughtmap.ThoughtMapScreen
+import com.resonance.app.thoughtmap.ThoughtMapStore
 import com.resonance.design.generated.IconName
 import com.resonance.design.OrganicTabBar
 import com.resonance.design.OrganicTabItem
@@ -40,6 +42,8 @@ sealed interface Route {
     data class Card(val key: String) : Route
     data class Author(val handle: String) : Route
     data object Settings : Route
+    /** My thought map (me/thought-map). */
+    data object ThoughtMap : Route
     /**
      * Writing a card; a resonance answers `referenceCardId`. With a `cardId` it edits one of
      * your cards (a draft, or a published card's revision). `showsCard` is whether the card
@@ -60,7 +64,7 @@ sealed interface Route {
 
     companion object {
         /**
-         * Site paths the app can show itself: /card/{slug}, /u/{handle}, and
+         * Site paths the app can show itself: /card/{slug}, /u/{handle}, /me/thought-map, and
          * /messages/{handle}?note={noteId}&card={cardId} (a note's reply link keeps its
          * query), with or without a locale.
          */
@@ -72,6 +76,7 @@ sealed interface Route {
             return when (parts[0]) {
                 "card" -> Card(parts[1])
                 "u" -> Author(android.net.Uri.decode(parts[1]))
+                "me" -> if (parts[1] == "thought-map") ThoughtMap else null
                 "messages" -> {
                     val params = query.split('&').filter { it.isNotEmpty() }.associate { it.substringBefore('=') to android.net.Uri.decode(it.substringAfter('=', "")) }
                     val card = params["card"]
@@ -97,6 +102,11 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     val stacks = remember { Tab.entries.associateWith { mutableStateListOf<Route>(Route.Root(it)) } }
     val stack: SnapshotStateList<Route> = stacks.getValue(tab)
     val push: (Route) -> Unit = { stack.add(it) }
+    // The thought map keeps its camera, selection and cards while a card of it is open in the writer above it
+    // (its entry leaves the composition then); leaving the map for good drops it, so the next visit reads afresh.
+    val mapHolder = remember { object { var store: ThoughtMapStore? = null } }
+    val mapOnStack = stacks.values.any { s -> s.any { it is Route.ThoughtMap } }
+    LaunchedEffect(mapOnStack) { if (!mapOnStack) mapHolder.store = null }
 
     // A site path from a link or a push. A conversation belongs to the Messages tab's stack; other pages open on the current tab.
     fun open(route: Route) {
@@ -161,6 +171,10 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                 }
                 entry<Route.Thread> { r -> ThreadScreen(session, r.handle, r.note, push) { stack.removeLastOrNull() } }
                 entry<Route.Settings> { SettingsScreen(push) { stack.removeLastOrNull() } }
+                entry<Route.ThoughtMap> {
+                    val store = mapHolder.store ?: ThoughtMapStore().also { mapHolder.store = it }
+                    ThoughtMapScreen(session, store, push) { stack.removeLastOrNull() }
+                }
                 entry<Route.SettingsSection> { r -> SettingsSectionScreen(session, r.section) { stack.removeLastOrNull() } }
             },
         ) }

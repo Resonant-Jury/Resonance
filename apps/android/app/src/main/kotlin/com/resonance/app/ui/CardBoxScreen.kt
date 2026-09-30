@@ -111,7 +111,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
                 }
             }
         }
-        item { ShelfTabs(shelf) { shelf = it } }
+        item { ShelfTabs(shelf, openMap = { open(Route.ThoughtMap) }) { shelf = it } }
         val cards = shelves[shelf]
         when {
             cards == null && failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { load(shelf, force = true) } }, action = EmptyAction.Outline) }
@@ -177,7 +177,7 @@ private val ShelfOrder = listOf(TabGetCardBox.published, TabGetCardBox.`private`
  * sized to the tab, seed 23 + the key's length × 7 as on the web.
  */
 @Composable
-private fun ShelfTabs(selection: TabGetCardBox, onSelect: (TabGetCardBox) -> Unit) {
+private fun ShelfTabs(selection: TabGetCardBox, openMap: () -> Unit, onSelect: (TabGetCardBox) -> Unit) {
     val haptic = LocalHapticFeedback.current
     Row(
         Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 7.dp).padding(top = 20.dp, bottom = 28.dp),
@@ -207,6 +207,14 @@ private fun ShelfTabs(selection: TabGetCardBox, onSelect: (TabGetCardBox) -> Uni
                     .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 14.dp),
             )
         }
+        // The thought map is the strip's last tab; it opens its own screen (OrganicTabs' thoughtMapHref).
+        BasicText(
+            L10n.Me.Tabs.thoughtMap,
+            style = AppFonts.body(14f, 500, lineHeight = 1.3f, color = Tokens.TextMuted),
+            modifier = Modifier
+                .plainClickable(role = Role.Button, onClick = openMap)
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 14.dp),
+        )
     }
 }
 

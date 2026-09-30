@@ -24,6 +24,11 @@ object OklchColor {
         val c = m.groupValues[3].toDouble()
         val h = m.groupValues[4].toDouble()
         val alpha = m.groupValues[5].toDoubleOrNull() ?: 1.0
+        return of(l, c, h, alpha)
+    }
+
+    /** `oklch(L C H / alpha)` from numbers (L in 0..1), for colors computed at run time (the thought map's per-hue inks). */
+    fun of(l: Double, c: Double, h: Double, alpha: Double = 1.0): Color {
         val a = c * cos(Math.toRadians(h))
         val b = c * sin(Math.toRadians(h))
         val lp = (l + 0.3963377774 * a + 0.2158037573 * b).pow(3)

@@ -115,6 +115,8 @@ Firebase at the emulators (`10.0.2.2`) and the API at `http://10.0.2.2:3100`,
 `--es route /card/<slug>` (or `/u/<handle>`) opens that page,
 `--es writeTitle … --es writeStory …` start a new card with that text, and
 `--es threadDraft …` fills a conversation's composer (`--es route /messages/<handle>` opens one),
+`--es route /me/thought-map` opens the thought map (the seed gives alice one: a region, three cards, a
+labelled arrow; `npx tsx scripts/seed-thought-map-bench.ts` swaps in a 100-card one, `seed-emulator.ts` puts hers back),
 and `--es pushToken <any>` registers a stand-in push token under the signed-in account
 (`devices/*` in the emulator; it lasts until the process ends, and emulator builds never touch FCM):
 
