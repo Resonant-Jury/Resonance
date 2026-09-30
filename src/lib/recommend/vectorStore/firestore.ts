@@ -5,6 +5,12 @@ import type { AuthorVector, NearestHit, VectorChannel, VectorQuery, VectorRecord
 
 const COLLECTION = 'cardVectors';
 const DISTANCE_FIELD = '__distance';
+/**
+ * What a hit carries back: the signature, not the 1536-float vector (six
+ * centroids × 60 hits would otherwise download megabytes per feed). The
+ * distance field must be in the projection or Firestore leaves it out.
+ */
+const HIT_FIELDS = ['cardId', 'authorId', 'visibility', 'channel', 'insightScore', 'coreInsight', 'situation', 'lifeDomain', DISTANCE_FIELD];
 
 /** Deterministic doc id so re-indexing a card overwrites its vectors in place. */
 function docId(cardId: string, channel: VectorChannel): string {
@@ -19,11 +25,14 @@ function docId(cardId: string, channel: VectorChannel): string {
  * access to this collection).
  *
  * Requires a composite vector index on `(visibility, channel, vector)` — see
- * `firestore.indexes.json`.
+ * `firestore.indexes.json` (an index serves every distance measure).
  */
 export class FirestoreVectorStore implements IVectorStore {
+  /** `firestore` for tests against the emulator; the app's admin database otherwise. */
+  constructor(private readonly firestore?: Firestore) {}
+
   private db(): Firestore {
-    return getAdminDb();
+    return this.firestore ?? getAdminDb();
   }
 
   async upsert(records: VectorRecord[]): Promise<void> {
@@ -74,11 +83,15 @@ export class FirestoreVectorStore implements IVectorStore {
       .collection(COLLECTION)
       .where('visibility', '==', query.filter.visibility)
       .where('channel', '==', query.channel)
+      .select(...HIT_FIELDS)
       .findNearest({
         vectorField: 'vector',
         queryVector: FieldValue.vector(query.vector),
         limit: query.limit,
-        distanceMeasure: 'DOT_PRODUCT',
+        // COSINE answers 1 − cos θ: smaller is closer, as the funnel ranks.
+        // (DOT_PRODUCT answers the product itself — larger is closer — which
+        // the funnel's "keep the smallest" would have turned upside down.)
+        distanceMeasure: 'COSINE',
         distanceResultField: DISTANCE_FIELD,
       })
       .get();
@@ -98,9 +111,7 @@ export class FirestoreVectorStore implements IVectorStore {
           authorId: String(data.authorId),
           visibility: data.visibility,
           channel: data.channel,
-          // The stored Firestore VectorValue isn't needed downstream; rerank
-          // works off the signature fields. Re-hydrate as empty to keep the
-          // payload light.
+          // Not fetched (HIT_FIELDS): rerank works off the signature fields.
           vector: [],
           insightScore: Number(data.insightScore ?? 0),
           coreInsight: String(data.coreInsight ?? ''),

@@ -20,7 +20,7 @@ export interface VectorRecord {
   /** Mirrors the card's visibility — the hard privacy filter at query time. */
   visibility: Visibility;
   channel: VectorChannel;
-  /** Unit-normalized embedding (paired with DOT_PRODUCT distance). */
+  /** Unit-normalized embedding (searched by COSINE distance). */
   vector: number[];
   /** Card-level insight score, denormalized for cheap candidate filtering. */
   insightScore: number;
@@ -53,6 +53,6 @@ export interface AuthorVector {
 /** A single nearest-neighbour result: the stored record plus its distance. */
 export interface NearestHit {
   record: VectorRecord;
-  /** DOT_PRODUCT distance from Firestore; smaller = closer for normalized vectors. */
+  /** COSINE distance from Firestore, 1 − cos θ (0–2): smaller = closer. */
   distance: number;
 }
