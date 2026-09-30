@@ -4,13 +4,14 @@ import SwiftUI
 
 /// The settings sections that apply to the app, in the web's order.
 enum SettingsSection: Hashable, CaseIterable {
-    case account, privacy, language, delete
+    case account, privacy, language, terms, delete
 
     var title: String {
         switch self {
         case .account: L10n.Settings.Sections.account
         case .privacy: L10n.Settings.Sections.privacy
         case .language: L10n.Settings.Sections.language
+        case .terms: L10n.Settings.Sections.terms
         case .delete: L10n.Settings.Sections.delete
         }
     }
@@ -21,6 +22,7 @@ enum SettingsSection: Hashable, CaseIterable {
         case .account: .key
         case .privacy: .lock
         case .language: .globe
+        case .terms: .document
         case .delete: .trash
         }
     }
@@ -30,8 +32,9 @@ enum SettingsSection: Hashable, CaseIterable {
         switch self {
         case .account: 1
         case .privacy: 2
-        case .language: 4
-        case .delete: 8
+        case .language: 3
+        case .terms: 5
+        case .delete: 6
         }
     }
 }
@@ -99,6 +102,7 @@ struct SettingsSectionScreen: View {
                 case .account: AccountSettings()
                 case .privacy: PrivacySettings()
                 case .language: LanguageSettings()
+                case .terms: TermsSettings()
                 case .delete: DeleteAccountSettings()
                 }
             }
@@ -183,6 +187,24 @@ private struct LanguageSettings: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// Terms: the three policy pages (privacy, terms, contact), each an
+/// OrganicLink 18pt apart in 16pt text. They open the live pages in the
+/// language of the interface, inside the app.
+private struct TermsSettings: View {
+    @Environment(SessionStore.self) private var session
+
+    var body: some View {
+        let language = Strings.shared.language
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(PolicyPage.allCases, id: \.self) { page in
+                OrganicLink(page.label, href: page.path(language)) {
+                    InAppBrowser.open(page.url(origin: session.config.origin, language: language))
+                }
+            }
+        }
     }
 }
 

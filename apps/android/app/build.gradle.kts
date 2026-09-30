@@ -72,6 +72,8 @@ android {
 dependencies {
     implementation(project(":core:design"))
     implementation("androidx.activity:activity-compose:1.13.0")
+    // Custom Tabs: the policy pages open inside the app (Play wants the privacy policy reachable there).
+    implementation("androidx.browser:browser:1.8.0")
     // The Google libraries below pull in an old Fragment (1.2.5), which lint refuses next to the ActivityResult API (the notification permission).
     implementation("androidx.fragment:fragment:1.8.9")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
@@ -86,4 +88,5 @@ dependencies {
     implementation("androidx.credentials:credentials:1.6.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
+    testImplementation("junit:junit:4.13.2")
 }

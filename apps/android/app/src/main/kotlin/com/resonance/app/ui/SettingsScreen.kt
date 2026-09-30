@@ -49,6 +49,7 @@ import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicConfirmDialog
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicInlineBar
+import com.resonance.design.OrganicLink
 import com.resonance.design.OrganicListEmpty
 import com.resonance.design.OrganicModal
 import com.resonance.design.OrganicRadio
@@ -60,6 +61,7 @@ import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
 import com.resonance.geometry.seedFromString
+import com.resonance.kit.PolicyPage
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
 import kotlinx.coroutines.Dispatchers
@@ -80,14 +82,16 @@ enum class SettingsSection(
 ) {
     Account(IconName.Key, 1),
     Privacy(IconName.Lock, 2),
-    Language(IconName.Globe, 4),
-    Delete(IconName.Trash, 8);
+    Language(IconName.Globe, 3),
+    Terms(IconName.Document, 5),
+    Delete(IconName.Trash, 6);
 
     val title: String
         get() = when (this) {
             Account -> L10n.Settings.Sections.account
             Privacy -> L10n.Settings.Sections.privacy
             Language -> L10n.Settings.Sections.language
+            Terms -> L10n.Settings.Sections.terms
             Delete -> L10n.Settings.Sections.delete
         }
 }
@@ -149,6 +153,7 @@ fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -
                 SettingsSection.Account -> AccountSettings(session)
                 SettingsSection.Privacy -> PrivacySettings(session)
                 SettingsSection.Language -> LanguageSettings(session)
+                SettingsSection.Terms -> TermsSettings(session)
                 SettingsSection.Delete -> DeleteAccountSettings(session)
             }
         }
@@ -217,6 +222,24 @@ private fun LanguageRow(session: Session, language: Strings.Language, label: Str
             modifier = Modifier.weight(1f),
         )
         OrganicRadio(selected, seed)
+    }
+}
+
+/**
+ * Terms: the three policy pages (privacy, terms, contact), each an OrganicLink
+ * 18dp apart in 16sp text. They open the live pages in the language of the
+ * interface, inside the app.
+ */
+@Composable
+private fun TermsSettings(session: Session) {
+    val context = LocalContext.current
+    val language = Strings.language
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        PolicyPage.entries.forEach { page ->
+            OrganicLink(page.label, href = page.path(language)) {
+                InAppBrowser.open(context, page.url(session.config.origin, language))
+            }
+        }
     }
 }
 

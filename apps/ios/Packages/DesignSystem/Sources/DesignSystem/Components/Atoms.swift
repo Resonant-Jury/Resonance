@@ -171,6 +171,66 @@ public nonisolated struct WavyRuleShape: Shape {
     }
 }
 
+/// The web's OrganicLink (OrganicLink.tsx): a text link in terracotta with no
+/// straight underline — a wavy pen stroke sits under it instead, seeded from
+/// the link's `href` so each link wobbles its own way (and the same way the
+/// web's does). The stroke is 100 units of `wavyLine(_, seed, 2.4, 5)` in a
+/// 100×10 box stretched to the text (7pt tall, 3pt below it), INK wide, at 70%
+/// — 100% while pressed, like the web's hover.
+public struct OrganicLink: View {
+    let title: String
+    let href: String
+    var size: CGFloat
+    let action: () -> Void
+
+    /// `href` is the site path the web's link would carry (`/en/privacy`): it
+    /// only seeds the wobble here — `action` decides where the tap goes.
+    public init(_ title: String, href: String, size: CGFloat = 16, action: @escaping () -> Void) {
+        self.title = title
+        self.href = href
+        self.size = size
+        self.action = action
+    }
+
+    // Dynamic Type grows the line box the way it grows the text.
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+
+    public var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(AppFonts.body(size))
+                .foregroundStyle(Tokens.terracotta)
+                // Short links stay whole (white-space: nowrap), so the stroke is one line.
+                .lineLimit(1)
+                .fixedSize()
+                // The web's inline-block is a full CSS line box, taller over Han text (the
+                // fallback face raises it); the text keeps the bottom, so the stroke does too.
+                .frame(minHeight: AppFonts.normalLineBox(.body, size: size, text: title) * scale, alignment: .bottom)
+        }
+        .buttonStyle(OrganicLinkStyle(seed: Double(seedFromString(href))))
+        .accessibilityAddTraits(.isLink)
+    }
+}
+
+private struct OrganicLinkStyle: ButtonStyle {
+    let seed: Double
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(alignment: .bottom) {
+                // preserveAspectRatio="none" scales y by 7/10: the 2.4 amplitude reads 1.68.
+                WavyRuleShape(seed: seed, amp: 2.4 * 0.7, steps: 5)
+                    .stroke(Tokens.terracotta, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, lineJoin: .round))
+                    .frame(height: 7)
+                    .offset(y: 3)
+                    .opacity(configuration.isPressed ? 1 : 0.7)
+                    .accessibilityHidden(true)
+            }
+            // A touch target past the text's own box, short of the neighbouring link's.
+            .contentShape(Rectangle().inset(by: -8))
+    }
+}
+
 /// The web's organic toggle (ToggleSwitch.tsx): wobbly pill track + wobbly knob.
 public struct OrganicToggle: View {
     @Binding var isOn: Bool

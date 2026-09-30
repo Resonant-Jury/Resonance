@@ -72,6 +72,7 @@ struct SignInScreen: View {
                     .foregroundStyle(Tokens.terracotta)
                     .padding(.top, 12)
             }
+            TermsConsentLine().padding(.top, 24)
         }
         .padding(.horizontal, 36)
         .padding(.vertical, 42)
@@ -100,5 +101,100 @@ struct SignInScreen: View {
         }
         .padding(.horizontal, 36)
         .accessibilityIdentifier("emulator-sign-in")
+    }
+}
+
+/// TermsConsent (web): "By continuing, you agree to the Terms of Use and the
+/// Privacy Policy" under the buttons, 13pt muted, the two policy pages as
+/// OrganicLinks inside the sentence (App Store 1.2: people agree to the terms
+/// before they can post). The sentence wraps like text around the links.
+private struct TermsConsentLine: View {
+    @Environment(SessionStore.self) private var session
+
+    private enum Piece: Hashable {
+        case text(String)
+        case link(PolicyPage)
+    }
+
+    var body: some View {
+        let language = Strings.shared.language
+        InlineFlow(lineSpacing: 5) {
+            ForEach(Array(Self.pieces().enumerated()), id: \.offset) { _, piece in
+                switch piece {
+                case let .text(t):
+                    Text(t).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+                case let .link(page):
+                    OrganicLink(page == .terms ? L10n.Auth.termsLink : L10n.Auth.privacyLink, href: page.path(language), size: 13) {
+                        InAppBrowser.open(page.url(origin: session.config.origin, language: language))
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    /// The sentence split around its two links, so each language keeps its own
+    /// word order. Words break at spaces (kept as no-break spaces, so they're
+    /// measured); text without spaces (Han) breaks between characters.
+    private static func pieces() -> [Piece] {
+        let mark = "\u{1}"
+        let sentence = L10n.Auth.agreeTerms(terms: "\(mark)terms\(mark)", privacy: "\(mark)privacy\(mark)")
+        var out: [Piece] = []
+        for (i, part) in sentence.components(separatedBy: mark).enumerated() where !part.isEmpty {
+            if i % 2 == 1 {
+                out.append(.link(part == "terms" ? .terms : .privacy))
+            } else if part.contains(" ") {
+                let words = part.split(separator: " ", omittingEmptySubsequences: false)
+                for (j, word) in words.enumerated() {
+                    let text = String(word) + (j < words.count - 1 ? "\u{00A0}" : "")
+                    if !text.isEmpty { out.append(.text(text)) }
+                }
+            } else {
+                out.append(contentsOf: part.map { .text(String($0)) })
+            }
+        }
+        return out
+    }
+}
+
+/// Lays its children out left to right like inline text, wrapping to a new
+/// line when the next one doesn't fit, each line's children sitting on a
+/// common bottom (their baselines, since they share a font).
+private struct InlineFlow: Layout {
+    var lineSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let lines = arrange(proposal.width ?? .infinity, subviews)
+        let height = lines.map(\.height).reduce(0, +) + lineSpacing * CGFloat(max(0, lines.count - 1))
+        return CGSize(width: proposal.width ?? (lines.map(\.width).max() ?? 0), height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for line in arrange(bounds.width, subviews) {
+            var x = bounds.minX
+            for index in line.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y + line.height - size.height), proposal: ProposedViewSize(size))
+                x += size.width
+            }
+            y += line.height + lineSpacing
+        }
+    }
+
+    private struct Line { var indices: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+
+    private func arrange(_ maxWidth: CGFloat, _ subviews: Subviews) -> [Line] {
+        var lines = [Line()]
+        for (i, view) in subviews.enumerated() {
+            let size = view.sizeThatFits(.unspecified)
+            if lines[lines.count - 1].width + size.width > maxWidth, !lines[lines.count - 1].indices.isEmpty {
+                lines.append(Line())
+            }
+            lines[lines.count - 1].indices.append(i)
+            lines[lines.count - 1].width += size.width
+            lines[lines.count - 1].height = max(lines[lines.count - 1].height, size.height)
+        }
+        return lines.filter { !$0.indices.isEmpty }
     }
 }

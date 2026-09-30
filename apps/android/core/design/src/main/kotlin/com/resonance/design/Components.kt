@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -68,6 +69,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import coil3.compose.AsyncImage
@@ -76,6 +78,7 @@ import com.resonance.design.generated.Tokens
 import com.resonance.geometry.SegValue
 import com.resonance.geometry.WobLoopOptions
 import com.resonance.geometry.WobRectOptions
+import com.resonance.geometry.seedFromString
 import com.resonance.geometry.wobLoop
 import kotlin.math.hypot
 import kotlin.math.max
@@ -234,6 +237,55 @@ fun WavyDivider(
                 onDrawBehind { drawPath(p, color, style = s) }
             },
     )
+}
+
+/**
+ * The web's OrganicLink (OrganicLink.tsx): a text link in terracotta with no
+ * straight underline — a wavy pen stroke sits under it instead, seeded from
+ * the link's `href` so each link wobbles its own way (and the same way the
+ * web's does; the twin of iOS's OrganicLink). The stroke is
+ * `wavyLine(100, seed, 2.4, 5)` in a 100×10 box stretched to the text: 7dp
+ * tall and 3dp below it, INK wide, at 70% — 100% while pressed, like the
+ * web's hover. `href` only seeds the wobble; `onClick` decides where a tap goes.
+ *
+ * The box is the text's own CSS line box (`line-height: normal`: Compose
+ * lines take the fallback face's height too, so Han labels stand taller than
+ * Latin ones, like in the browser); Compose already reaches a 48dp touch
+ * target past it, short of the neighbouring link's.
+ */
+@Composable
+fun OrganicLink(
+    text: String,
+    href: String,
+    modifier: Modifier = Modifier,
+    sizeSp: Float = 16f,
+    onClick: () -> Unit,
+) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val opacity by animateFloatAsState(if (pressed) 1f else 0.7f, tween(160), label = "organicLinkUnderline")
+    val seed = remember(href) { seedFromString(href).toDouble() }
+    Box(
+        modifier
+            .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
+            .drawWithCache {
+                val stroke = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                // preserveAspectRatio="none" scales y by 7/10: the 2.4 amplitude reads 1.68.
+                val underline = wavyLinePath(size.width, 7.dp.toPx(), density, seed, 2.4 * 0.7, 5)
+                onDrawBehind {
+                    // bottom: -3px, 7px tall → its top is 4px above the text box's bottom.
+                    translate(top = size.height - 4.dp.toPx()) { drawPath(underline, Tokens.Terracotta, alpha = opacity, style = stroke) }
+                }
+            },
+    ) {
+        BasicText(
+            text,
+            // Short links stay whole (white-space: nowrap), so the stroke is one line.
+            style = AppFonts.body(sizeSp, color = Tokens.Terracotta).copy(lineHeight = TextUnit.Unspecified, lineHeightStyle = null),
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
 }
 
 /**

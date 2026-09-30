@@ -54,6 +54,21 @@ public enum AppFonts {
         return UIFont(descriptor: UIFontDescriptor(fontAttributes: attributes), size: size)
     }
 
+    /// The height of a CSS line box at `line-height: normal`. It is the face's
+    /// ascent plus descent — until some of the text needs the CJK fallback
+    /// (DM Sans has no Han glyphs): then the browser stacks the fallback's own
+    /// box on the same baseline, so the line takes the taller ascent over the
+    /// taller descent (DM Sans 16 → 20.8, its Han text → 23.5). UIKit and
+    /// SwiftUI keep to the primary face's box, which is why this exists.
+    public static func normalLineBox(_ family: Family, size: CGFloat, text: String) -> CGFloat {
+        let primary = uiFont(family, size: size)
+        let box = primary.ascender - primary.descender
+        let covered = CTFontCopyCharacterSet(primary as CTFont) as CharacterSet
+        guard !text.unicodeScalars.allSatisfy(covered.contains) else { return box }
+        let fallback = UIFont(descriptor: UIFontDescriptor(fontAttributes: [.family: family.cjkFallback]), size: size)
+        return max(primary.ascender, fallback.ascender) + max(-primary.descender, -fallback.descender)
+    }
+
     /// Scales with Dynamic Type relative to `textStyle`, like the system fonts do.
     public static func font(_ family: Family, size: CGFloat, weight: UIFont.Weight = .regular, oblique: Bool = false,
                             relativeTo textStyle: UIFont.TextStyle = .body) -> Font {

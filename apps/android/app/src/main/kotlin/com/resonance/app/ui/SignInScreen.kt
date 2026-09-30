@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,13 +40,16 @@ import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicIcon
+import com.resonance.design.OrganicLink
 import com.resonance.design.OrganicTextField
 import com.resonance.design.WavyDivider
 import com.resonance.design.cream
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.grainOverlay
+import com.resonance.kit.PolicyPage
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.l10n.Strings
 import kotlinx.coroutines.launch
 
 /**
@@ -102,6 +107,7 @@ fun SignInScreen(session: Session) {
                         scope.launch { session.signInWithGoogle(context) }
                     }
                     error?.let { BasicText(it, style = AppFonts.body(13f, color = Tokens.Terracotta), modifier = Modifier.padding(top = 12.dp)) }
+                    TermsConsentLine(session, Modifier.padding(top = 24.dp))
                 }
                 WavyDivider(Tokens.AuthBorder, seed = 313.0, modifier = Modifier.align(Alignment.TopCenter).offset(y = (-3).dp))
                 WavyDivider(Tokens.AuthBorder, seed = 324.0, modifier = Modifier.align(Alignment.BottomCenter).offset(y = 3.dp))
@@ -115,6 +121,46 @@ fun SignInScreen(session: Session) {
                         scope.launch { session.signIn(email, password) }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * TermsConsent (web): "By continuing, you agree to the Terms of Use and the
+ * Privacy Policy" under the buttons, 13sp muted, the two policy pages as
+ * OrganicLinks inside the sentence (App Store 1.2 / the same promise on
+ * Play: people agree to the terms before they can post). The sentence wraps
+ * like text around the links; words break at spaces, Han between characters.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TermsConsentLine(session: Session, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val language = Strings.language
+    val mark = "\u0001"
+    val sentence = L10n.Auth.agreeTerms(terms = "${mark}terms$mark", privacy = "${mark}privacy$mark")
+    val text = AppFonts.body(13f, lineHeight = 1.8f, color = Tokens.TextMuted)
+    FlowRow(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        sentence.split(mark).forEachIndexed { i, part ->
+            when {
+                part.isEmpty() -> Unit
+                i % 2 == 1 -> {
+                    val page = if (part == "terms") PolicyPage.Terms else PolicyPage.Privacy
+                    OrganicLink(
+                        if (page == PolicyPage.Terms) L10n.Auth.termsLink else L10n.Auth.privacyLink,
+                        href = page.path(language),
+                        sizeSp = 13f,
+                        modifier = Modifier.alignByBaseline(),
+                    ) { InAppBrowser.open(context, page.url(session.config.origin, language)) }
+                }
+                ' ' in part -> part.split(' ').let { words ->
+                    words.forEachIndexed { j, w ->
+                        val piece = w + if (j < words.lastIndex) "\u00A0" else ""
+                        if (piece.isNotEmpty()) BasicText(piece, style = text, modifier = Modifier.alignByBaseline())
+                    }
+                }
+                else -> part.forEach { c -> BasicText(c.toString(), style = text, modifier = Modifier.alignByBaseline()) }
             }
         }
     }
