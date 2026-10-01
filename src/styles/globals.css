@@ -54,6 +54,24 @@ html.res-hide-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
   .res-shape-fade-in { animation: none; }
 }
 
+/* Until it is measured — the server's HTML, a browser still loading its
+   scripts or running none — an organic shape's host stands in as a plain
+   rounded shape of the same fill and pen (data-shape-pending, with
+   --shape-fill / --shape-ink / --shape-ink-width / --shape-radius set by the
+   component), so a cream label never sits on cream. It fades out as the
+   drawn shape fades in. */
+.res-shape-stand-in {
+  border-radius: var(--shape-radius, 16px);
+  transition: background-color 280ms ease-out, box-shadow 280ms ease-out;
+}
+.res-shape-stand-in[data-shape-pending] {
+  background-color: var(--shape-fill, transparent);
+  box-shadow: inset 0 0 0 var(--shape-ink-width, 0px) var(--shape-ink, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .res-shape-stand-in { transition: none; }
+}
+
 /* ── Modal entrance animations ───────────────────────────────────── */
 @keyframes resModalFadeIn {
   from { opacity: 0; }

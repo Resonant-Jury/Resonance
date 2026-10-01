@@ -31,7 +31,7 @@ describe('StoryCard tags', () => {
     const { container } = render(<StoryCard story={story} index={index} />);
 
     // The cover placeholder is painted in the card's accent fill.
-    const [accentL, accentRest] = lightness(container.querySelector('svg rect')?.getAttribute('fill') ?? null);
+    const [accentL, accentRest] = lightness(container.querySelector('svg rect[fill]')?.getAttribute('fill') ?? null);
 
     for (const tag of ['tea', 'rest']) {
       const pill = screen.getByText(tag).parentElement as HTMLElement;

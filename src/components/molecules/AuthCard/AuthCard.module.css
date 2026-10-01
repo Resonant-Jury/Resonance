@@ -1,0 +1,76 @@
+/* The sign-in / sign-up card. Its two designs are both in the HTML and CSS
+   picks one (640px), so a phone's first paint — before any script, or with
+   none — is already the phone's. */
+.card {
+  /* Derived from the accent token so the Tweaks themes (sage / lavender /
+     gold …) re-tint the card instead of it staying locked to terracotta. */
+  --auth-interior: color-mix(in oklch, var(--color-terracotta-light) 14%, var(--color-card-bg));
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  padding: 48px clamp(24px, 5vw, 48px);
+}
+
+.desktopChrome,
+.mobileChrome {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mobileChrome {
+  display: none;
+}
+
+.edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 5;
+}
+.edge[data-edge='top'] {
+  top: -3px;
+}
+.edge[data-edge='bottom'] {
+  bottom: -3px;
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: var(--color-text);
+}
+
+/* On phones the card chrome (border + grain) is dropped in favor of a
+   borderless "section" framed by top/bottom wavy rules — mirroring how the
+   home feed cards degrade to dividers on small screens. */
+@media (max-width: 640px) {
+  .card {
+    align-self: stretch;
+    width: auto;
+    max-width: none;
+    margin: 0 -24px;
+    background: var(--auth-interior);
+    padding: 42px clamp(32px, 9vw, 64px);
+  }
+
+  .desktopChrome {
+    display: none;
+  }
+
+  .mobileChrome {
+    display: block;
+  }
+
+  .title {
+    font-size: 24px;
+    margin-bottom: 22px;
+  }
+}

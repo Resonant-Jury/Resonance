@@ -66,10 +66,9 @@ export interface AppHeaderProps {
 export function AppHeader({ user, signedIn = true, authReady = true, activeKey }: AppHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Phone or wide is the module CSS's to decide (720px; the thread's 900px):
+  // the server's HTML is then already right. This only closes the menu.
   const isMobile = useIsMobile(720);
-  // Matches MessagesPage's single-pane CSS breakpoint (900px), not the
-  // hamburger breakpoint — the two must flip together.
-  const isSinglePane = useIsMobile(900);
   const tNav = useTranslations('app.nav');
   const { mobileHeader } = useAppChrome();
   const pathname = usePathname();
@@ -94,10 +93,6 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
     return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
   }, [maskD, W]);
 
-  // Single-pane phones give an open conversation the whole screen: the app
-  // header steps aside and the thread's own header (back + person) takes over.
-  if (isSinglePane && onThread) return null;
-
   // Shared wavy backdrop + bottom stroke — reused by the normal header and the
   // mobile takeover so they read as the exact same chrome.
   const chromeBg = (
@@ -105,10 +100,10 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
       <div
         aria-hidden="true"
         className={styles.bg}
+        // Phones keep the header fully opaque (the module CSS: the PWA wants
+        // a solid band there); wider, it firms up once the page scrolls.
+        data-scrolled={scrolled || undefined}
         style={{
-          // Phones keep the header fully opaque — see the media query in the
-          // module CSS for why the PWA wants a solid band here.
-          opacity: isMobile || scrolled ? 1 : 0.82,
           WebkitMaskImage: maskUrl,
           maskImage: maskUrl,
         }}
@@ -130,6 +125,20 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
         />
       </svg>
     </>
+  );
+
+  // Phones open the menu from here; wider screens have the sign-in button or
+  // the account dropdown instead (the module CSS hides it there).
+  const menuButton = (
+    <button
+      aria-label={tNav('openMenu')}
+      aria-expanded={menuOpen}
+      onClick={() => setMenuOpen(true)}
+      className={`${styles.menuBtn} ${styles.phoneOnly}`}
+      style={{ padding: 6, transform: 'translateY(3px)' }}
+    >
+      <HamburgerIcon size={22} />
+    </button>
   );
 
   // A page (e.g. a settings detail screen) can claim the header on phones: just
@@ -158,7 +167,10 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
   }
 
   return (
-    <header className={styles.header} style={{ height: HEADER_TOTAL_H }}>
+    // Single-pane phones give an open conversation the whole screen: the app
+    // header steps aside (the module CSS, 900px — MessagesPage's breakpoint)
+    // and the thread's own header (back + person) takes over.
+    <header className={styles.header} style={{ height: HEADER_TOTAL_H }} data-on-thread={onThread || undefined}>
       {chromeBg}
 
       <div className={styles.row} style={{ height: HEADER_BODY_H }}>
@@ -175,49 +187,23 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
           <div className={styles.account}>
             {/* Desktop: login button visible directly (no hamburger menu).
                 Mobile: login lives inside the hamburger modal instead. */}
-            {!isMobile && (
-              <Link href="/signin" style={{ textDecoration: 'none' }}>
-                <OrganicButton variant="solid" style={{ padding: '9px 22px', fontSize: 14 }}>
-                  {tNav('signIn')}
-                </OrganicButton>
-              </Link>
-            )}
+            <Link href="/signin" className={styles.wideOnly} style={{ textDecoration: 'none' }}>
+              <OrganicButton variant="solid" style={{ padding: '9px 22px', fontSize: 14 }}>
+                {tNav('signIn')}
+              </OrganicButton>
+            </Link>
             {/* Signed-out phones still get the menu — the 共振 Feed entry
                 (and the 登入 shortcut) live in the same modal as always. */}
-            {isMobile && (
-              <button
-                aria-label={tNav('openMenu')}
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen(true)}
-                className={styles.menuBtn}
-                style={{ padding: 6, transform: 'translateY(3px)' }}
-              >
-                <HamburgerIcon size={22} />
-              </button>
-            )}
-          </div>
-        ) : isMobile ? (
-          <div className={styles.account}>
-            <MessagesEntry />
-            <NotificationBell />
-            <button
-              aria-label={tNav('openMenu')}
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen(true)}
-              className={styles.menuBtn}
-              style={{
-                padding: 6,
-                transform: 'translateY(3px)',
-              }}
-            >
-              <HamburgerIcon size={22} />
-            </button>
+            {menuButton}
           </div>
         ) : (
           <div className={styles.account}>
             <MessagesEntry />
             <NotificationBell />
-            <Subnavbar user={user} />
+            {menuButton}
+            <div className={styles.wideOnly}>
+              <Subnavbar user={user} />
+            </div>
           </div>
         )}
       </div>

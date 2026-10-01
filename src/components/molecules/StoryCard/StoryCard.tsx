@@ -12,7 +12,6 @@ import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { Icon } from '@/components/atoms/Icon';
 import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
 import { useElementSize } from '@/lib/hooks/useElementSize';
-import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
 import { wavyLine } from '@/lib/design/wavyPath';
 import { CARD_HUES, cardHueIndex, nearestCardHue } from '@/lib/design/dominantHue';
@@ -153,7 +152,6 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const cardRef = useRef<HTMLElement>(null);
   const { w, h } = useElementSize(cardRef, 340, 480);
-  const isMobile = useIsMobile();
   const maskId = useId().replace(/:/g, '');
 
   const recordPointer = (e: MouseEvent<HTMLElement>) => {
@@ -219,56 +217,72 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
             <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} />
           </div>
         </>
-      ) : isMobile ? (
-        <>
-          <GrainOverlay opacity={STORY_GRAIN.band} />
-          <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} />
-        </>
       ) : (
+        // Both chromes render; the module CSS (640px) shows one, so the
+        // server's paint is already the right one for the screen.
         <>
-          <HandDrawnBorder
-            w={w} h={h} R={R} seed={seed} mag={mag}
-            fillColor={cardInterior}
-            strokeColor="transparent"
-            strokeWidth={0}
-            chalkSeed={index}
-            segmentsH={[3, 4]} segmentsV={[5, 6]}
-            curve={0.55} cornerJitter={0.7} cornerOffset={4}
-          />
-          {w > 0 && h > 0 && (
-            <svg
-              aria-hidden="true"
-              width={w} height={h}
-              viewBox={`0 0 ${w} ${h}`}
-              style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible', pointerEvents: 'none', zIndex: 0 }}
-            >
-              <defs>
-                <mask
-                  id={`brush-${maskId}`}
-                  maskUnits="userSpaceOnUse"
-                  x={-w} y={-h} width={w * 3} height={h * 3}
-                >
-                  <circle
-                    cx={pos.x} cy={pos.y}
-                    r={hovered ? maxR : 0}
-                    fill="white"
-                    style={{ transition: 'r 460ms linear' }}
-                  />
-                </mask>
-              </defs>
-              <g mask={`url(#brush-${maskId})`}>
-                <path d={borderPath} fill={cardHovered} />
-              </g>
-            </svg>
-          )}
-          <ShapeGrain w={w} h={h} d={borderPath} opacity={STORY_GRAIN.paper} frequency={0.85} seed={seed} />
-          <HandDrawnBorder
-            w={w} h={h} R={R} seed={seed} mag={mag}
-            strokeColor={bc1}
-            strokeWidth={INK}
-            segmentsH={[3, 4]} segmentsV={[5, 6]}
-            curve={0.55} cornerJitter={0.7} cornerOffset={4}
-          />
+          <div className={styles.mobileChrome} aria-hidden>
+            <GrainOverlay opacity={STORY_GRAIN.band} />
+            <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} />
+          </div>
+          <div
+            className={`${styles.desktopChrome} res-shape-stand-in`}
+            aria-hidden
+            // A plain card of the same paper and pen until measured.
+            data-shape-pending={w > 0 && h > 0 ? undefined : ''}
+            style={
+              {
+                '--shape-fill': cardInterior,
+                '--shape-ink': bc1,
+                '--shape-ink-width': `${INK}px`,
+                '--shape-radius': `${R}px`,
+              } as CSSProperties
+            }
+          >
+            <HandDrawnBorder
+              w={w} h={h} R={R} seed={seed} mag={mag}
+              fillColor={cardInterior}
+              strokeColor="transparent"
+              strokeWidth={0}
+              chalkSeed={index}
+              segmentsH={[3, 4]} segmentsV={[5, 6]}
+              curve={0.55} cornerJitter={0.7} cornerOffset={4}
+            />
+            {w > 0 && h > 0 && (
+              <svg
+                aria-hidden="true"
+                width={w} height={h}
+                viewBox={`0 0 ${w} ${h}`}
+                style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible', pointerEvents: 'none', zIndex: 0 }}
+              >
+                <defs>
+                  <mask
+                    id={`brush-${maskId}`}
+                    maskUnits="userSpaceOnUse"
+                    x={-w} y={-h} width={w * 3} height={h * 3}
+                  >
+                    <circle
+                      cx={pos.x} cy={pos.y}
+                      r={hovered ? maxR : 0}
+                      fill="white"
+                      style={{ transition: 'r 460ms linear' }}
+                    />
+                  </mask>
+                </defs>
+                <g mask={`url(#brush-${maskId})`}>
+                  <path d={borderPath} fill={cardHovered} />
+                </g>
+              </svg>
+            )}
+            <ShapeGrain w={w} h={h} d={borderPath} opacity={STORY_GRAIN.paper} frequency={0.85} seed={seed} />
+            <HandDrawnBorder
+              w={w} h={h} R={R} seed={seed} mag={mag}
+              strokeColor={bc1}
+              strokeWidth={INK}
+              segmentsH={[3, 4]} segmentsV={[5, 6]}
+              curve={0.55} cornerJitter={0.7} cornerOffset={4}
+            />
+          </div>
         </>
       )}
 

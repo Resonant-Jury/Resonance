@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useMemo, useRef } from 'react';
+import { type CSSProperties, ReactNode, useMemo, useRef } from 'react';
 import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import styles from './TagPill.module.css';
@@ -71,10 +71,22 @@ export function TagPill({
   const R = h > 0 ? h * 0.5 : SIZE_FALLBACK_HEIGHT[size] * 0.5;
   const interactive = Boolean(onClick);
 
+  const rim = outlined ? 'oklch(32% 0.05 60 / 0.45)' : undefined;
+
   const tag = (
     <span
       ref={ref}
-      className={styles.pill}
+      // A plain pill of the same fill (and rim) until measured: see .res-shape-stand-in.
+      className={`${styles.pill} res-shape-stand-in`}
+      style={
+        {
+          '--shape-fill': color,
+          '--shape-ink': rim ?? 'transparent',
+          '--shape-ink-width': `${INK}px`,
+          '--shape-radius': '999px',
+        } as CSSProperties
+      }
+      data-shape-pending={w > 0 && h > 0 ? undefined : ''}
       data-size={size}
       data-interactive={interactive || undefined}
       role={interactive ? 'button' : undefined}
@@ -102,7 +114,7 @@ export function TagPill({
         R={R}
         seed={autoSeed}
         fillColor={color}
-        strokeColor={outlined ? 'oklch(32% 0.05 60 / 0.45)' : undefined}
+        strokeColor={rim}
       />
       <span className={styles.label}>{children}</span>
       {onRemove && (

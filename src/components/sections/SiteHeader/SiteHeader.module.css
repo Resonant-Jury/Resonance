@@ -139,3 +139,17 @@
 .langSelectCompact {
   width: auto;
 }
+/* Which account cluster a screen gets is decided here, not after hydration:
+   both are in the HTML (see SiteHeader). Last in the file so it wins over
+   .account / .nav. */
+.phoneOnly {
+  display: none;
+}
+@media (max-width: 720px) {
+  .phoneOnly {
+    display: flex;
+  }
+  .wideOnly {
+    display: none;
+  }
+}

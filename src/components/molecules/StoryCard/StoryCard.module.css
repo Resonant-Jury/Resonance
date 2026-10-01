@@ -22,6 +22,27 @@
   }
 }
 
+/* The loaded card's two chromes, both in the HTML: the hand-drawn card on
+   wider screens, the section's grain and wavy rules on phones. CSS picks one,
+   so the server's paint is the right one before any script runs. */
+.desktopChrome,
+.mobileChrome {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.mobileChrome {
+  display: none;
+}
+@media (max-width: 640px) {
+  .desktopChrome {
+    display: none;
+  }
+  .mobileChrome {
+    display: block;
+  }
+}
+
 /* Loading placeholder chrome: a plain rounded border drawn purely in CSS so
    it paints instantly at the correct size — no measure-then-draw step and no
    organic SVG to flash. Mirrors the real card's interior tint and footprint.

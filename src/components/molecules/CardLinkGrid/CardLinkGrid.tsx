@@ -40,8 +40,8 @@ export interface CardLinkGridProps {
 
 /**
  * Column count mirroring the grid's CSS breakpoints (640 / 1024). Resolves
- * only on the client — `null` during SSR/hydration, where the CSS-columns
- * fallback renders instead.
+ * only on the client — `null` during SSR/hydration, where the CSS
+ * fallback grid renders instead.
  */
 function useFeedColumns(): number | null {
   const [cols, setCols] = useState<number | null>(null);
@@ -60,8 +60,9 @@ function useFeedColumns(): number | null {
  * once a row is full — card `i` lives in column `i % n`, so「載入更多」appends
  * after the last card instead of reshuffling the columns (CSS `columns` is
  * column-major: it would pour everything top-to-bottom again). Before the
- * column count is known (SSR / first paint) a CSS-columns version renders so
- * the landing page still ships cards in its HTML.
+ * column count is known (SSR / first paint) a plain grid lays the cards out
+ * the same way — card i in column i % n, by the CSS breakpoints — so the
+ * landing page ships its cards in its HTML where they will stay.
  */
 export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCaption, deanonymize, quoteFor }: CardLinkGridProps) {
   const t = useTranslations('card');

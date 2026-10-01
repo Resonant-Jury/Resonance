@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
+import { renderToString } from 'react-dom/server';
 import { render, screen, fireEvent, userEvent } from '@/../test/render';
 import { mockElementSize, penLines } from '@/../test/organic';
 import { OrganicButton, type OrganicButtonVariant } from './OrganicButton';
@@ -76,5 +77,30 @@ describe('OrganicButton variants', () => {
     render(<OrganicButton variant="text" onClick={onClick}>Cancel</OrganicButton>);
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The server's HTML has no measured size, so no drawn shape: a primary's cream
+// label stood on the cream hero, invisible until the scripts ran (or forever
+// without them). Until measured the button is a plain pill of its own fill
+// and pen — `.res-shape-stand-in` in globals.css, which the drawn one replaces.
+describe('before it is measured', () => {
+  it('stands in as a plain pill of its own fill and pen in the server HTML', () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderToString(<OrganicButton variant="primary">Explore</OrganicButton>);
+    const btn = host.querySelector('button')!;
+    expect(btn).toHaveAttribute('data-shape-pending');
+    expect(btn.classList).toContain('res-shape-stand-in');
+    expect(btn.style.getPropertyValue('--shape-fill')).toBe('var(--color-terracotta)');
+    expect(btn.style.getPropertyValue('--shape-ink')).toContain('var(--color-terracotta)');
+
+    const css = readFileSync(join(process.cwd(), 'src/styles/globals.css'), 'utf8');
+    const [, rule] = css.match(/\.res-shape-stand-in\[data-shape-pending\]\s*\{([^}]*)\}/) ?? [];
+    expect(rule).toMatch(/background-color:\s*var\(--shape-fill/);
+    expect(rule).toMatch(/box-shadow:\s*inset 0 0 0 var\(--shape-ink-width[^)]*\) var\(--shape-ink/);
+  });
+
+  it('drops the stand-in once drawn', () => {
+    expect(renderVariant('primary')).not.toHaveAttribute('data-shape-pending');
   });
 });

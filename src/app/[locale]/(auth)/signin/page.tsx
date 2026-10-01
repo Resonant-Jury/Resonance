@@ -1,8 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { useSearchParams } from 'next/navigation';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { AuthCard } from '@/components/molecules/AuthCard/AuthCard';
 import { TermsConsent } from '@/components/molecules/TermsConsent/TermsConsent';
@@ -45,37 +44,42 @@ function BusyLabel({ busy, idle, working }: { busy: boolean; idle: string; worki
   );
 }
 
-export default function SignInPage() {
-  return (
-    <Suspense fallback={null}>
-      <SignInPageInner />
-    </Suspense>
-  );
+/** A query parameter of the page's own address — read in the browser, at the moment it is needed. */
+function queryParam(name: string): string | null {
+  return new URLSearchParams(window.location.search).get(name);
 }
 
-function SignInPageInner() {
+/**
+ * The sign-in page renders whole on the server: nothing it draws depends on
+ * the query string, which is read in the browser only when needed (`next` on
+ * a sign-in, the notice once mounted). Reading it while rendering
+ * (useSearchParams) left the static HTML without the form — and a reader
+ * waiting on scripts, or running none, without the sign-in button.
+ */
+export default function SignInPage() {
   const t = useTranslations('auth');
   const locale = useLocale();
-  const searchParams = useSearchParams();
   const auth = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   // Apple ID is offered inside the iOS shell only (App Store requirement).
   // Detected in an effect so SSR and first client render agree.
   const [showApple, setShowApple] = useState(false);
+  const [deletionScheduled, setDeletionScheduled] = useState(false);
   useEffect(() => {
     setShowApple(isIosNativeApp());
+    setDeletionScheduled(queryParam('notice') === 'deletion-scheduled');
   }, []);
 
   // Sent here by the middleware (a protected page with no session cookie)
   // while still signed in — the cookie is refreshed in the background, and a
   // page opened before it landed, or after it lapsed, arrives here. Mint it
   // and carry on to where the reader was going.
-  const resumeTo = sanitizeNextPath(searchParams.get('next'));
   const { loading: authLoading, refreshSession } = auth;
   const signedInId = auth.user?.id;
   const resumed = useRef(false);
   useEffect(() => {
+    const resumeTo = sanitizeNextPath(queryParam('next'));
     if (resumed.current || authLoading || !signedInId || !resumeTo || !claimResume()) return;
     resumed.current = true;
     refreshSession().then(
@@ -84,7 +88,7 @@ function SignInPageInner() {
         // Couldn't mint it — the sign-in button below still can.
       },
     );
-  }, [authLoading, signedInId, resumeTo, refreshSession]);
+  }, [authLoading, signedInId, refreshSession]);
 
   async function signInWith(provider: 'google' | 'apple') {
     setPending(true);
@@ -92,7 +96,7 @@ function SignInPageInner() {
     try {
       if (provider === 'apple') await auth.signInWithApple();
       else await auth.signInWithGoogle();
-      const next = sanitizeNextPath(searchParams.get('next')) ?? `/${locale}/home`;
+      const next = sanitizeNextPath(queryParam('next')) ?? `/${locale}/home`;
       window.location.href = next;
     } catch {
       setError(t('signInError'));
@@ -114,7 +118,7 @@ function SignInPageInner() {
       >
         {t('googleIntro')}
       </p>
-      {searchParams.get('notice') === 'deletion-scheduled' && (
+      {deletionScheduled && (
         <p
           role="status"
           style={{

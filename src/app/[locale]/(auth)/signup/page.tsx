@@ -1,8 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { useSearchParams } from 'next/navigation';
 import { Link } from '@/i18n/navigation';
 import { sanitizeNextPath, nextQuery } from '@/lib/auth/nextPath';
 import { PROFILE_REGIONS, regionDisplayName, regionFlag } from '@/lib/regionName';
@@ -23,19 +22,23 @@ import {
 
 type Step = 'google' | 'profile';
 
-export default function SignUpPage() {
-  return (
-    <Suspense fallback={null}>
-      <SignUpPageInner />
-    </Suspense>
-  );
+/** The page's own `next` parameter — read in the browser, when it is needed. */
+function nextParam(): string | null {
+  return new URLSearchParams(window.location.search).get('next');
 }
 
-function SignUpPageInner() {
+/**
+ * Renders whole on the server, like the sign-in page: the query string is
+ * read in the browser only (useSearchParams while rendering left the static
+ * HTML without the form).
+ */
+export default function SignUpPage() {
   const t = useTranslations('auth');
   const locale = useLocale();
-  const searchParams = useSearchParams();
   const auth = useAuth();
+  // Carried to the sign-in link once mounted (the server can't know it).
+  const [signInHref, setSignInHref] = useState('/signin');
+  useEffect(() => setSignInHref(`/signin${nextQuery(nextParam())}`), []);
   const [step, setStep] = useState<Step>('google');
 
   useEffect(() => {
@@ -95,7 +98,7 @@ function SignUpPageInner() {
     setError(null);
     try {
       await createCurrentUserProfile({ handle: handle.trim(), region, primaryLocale });
-      const next = sanitizeNextPath(searchParams.get('next')) ?? `/${locale}/write`;
+      const next = sanitizeNextPath(nextParam()) ?? `/${locale}/write`;
       window.location.href = next;
     } catch (err) {
       // Someone took the name between the check and the save.
@@ -211,7 +214,7 @@ function SignUpPageInner() {
       >
         {t('switchToSignIn')}{' '}
         <Link
-          href={`/signin${nextQuery(searchParams.get('next'))}`}
+          href={signInHref}
           style={{ color: 'var(--color-terracotta)' }}
         >
           {t('signIn')}

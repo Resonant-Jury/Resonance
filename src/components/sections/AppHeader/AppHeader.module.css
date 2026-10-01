@@ -124,15 +124,46 @@
   gap: 12px;
 }
 
+/* Wider screens: a touch see-through over the page at rest, solid once it
+   scrolls. */
+.bg {
+  opacity: 0.82;
+}
+.bg[data-scrolled] {
+  opacity: 1;
+}
+
 /* Phones: fully opaque, no blur. The PWA paints the status-bar strip in the
    solid theme color, and a translucent blurred header directly beneath it
-   reads as two mismatched bands — so the mobile header is plain cream.
-   (The always-1 opacity is set inline from AppHeader's isMobile.) */
+   reads as two mismatched bands — so the mobile header is plain cream. */
 @media (max-width: 720px) {
   .bg {
     background: var(--color-cream);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    opacity: 1;
+  }
+}
+
+/* Phone or wide is decided here, not after hydration: both are in the HTML,
+   so the first paint (scripts loading, or none) is already the right one. */
+.phoneOnly {
+  display: none;
+}
+@media (max-width: 720px) {
+  .phoneOnly {
+    display: flex;
+  }
+  .wideOnly {
+    display: none;
+  }
+}
+
+/* Single-pane phones give an open conversation the whole screen: the
+   thread's own header (back + person) takes over (MessagesPage's 900px). */
+@media (max-width: 900px) {
+  .header[data-on-thread] {
+    display: none;
   }
 }
 

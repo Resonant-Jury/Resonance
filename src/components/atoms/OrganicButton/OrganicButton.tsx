@@ -5,6 +5,7 @@ import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
 import { ShapeGrain } from '../ShapeGrain/ShapeGrain';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wobRect } from '@/lib/design/wobRect';
+import { INK } from '@/lib/design/strokes';
 import styles from './OrganicButton.module.css';
 
 /**
@@ -105,6 +106,15 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', onCl
   }, [w, h, R, seed, mag, cornerOff]);
 
   const { fillColor: _fill, ...restStyle } = style;
+  // Until measured (the server's HTML, a browser still loading or running no
+  // scripts) the button stands in as a plain pill of its own fill and pen
+  // (.res-shape-stand-in): a primary's cream label never sits on cream.
+  const standIn = {
+    '--shape-fill': style.fillColor || v.fill,
+    '--shape-ink': v.stroke ?? 'transparent',
+    '--shape-ink-width': `${INK}px`,
+    '--shape-radius': `${R}px`,
+  } as CSSProperties;
 
   return (
     <button
@@ -112,9 +122,10 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', onCl
       onClick={onClick}
       onMouseEnter={(e) => { recordPointer(e); setHovered(true); }}
       onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
-      className={`${size === 'sm' ? `${styles.btn} ${styles.sm}` : styles.btn} ${className || ''}`}
-      style={{ color: v.text, ...restStyle }}
+      className={`${size === 'sm' ? `${styles.btn} ${styles.sm}` : styles.btn} res-shape-stand-in ${className || ''}`}
+      style={{ color: v.text, ...standIn, ...restStyle }}
       data-variant={variant}
+      data-shape-pending={w > 0 && h > 0 ? undefined : ''}
     >
       <HandDrawnBorder
         w={w} h={h} R={R} seed={seed} mag={mag}

@@ -140,53 +140,53 @@ export function SiteHeader() {
           <span className={styles.brand}>Resonance</span>
         </Link>
 
-        {isMobile ? (
-          <div className={styles.account}>
-            <LanguageSelect compact />
-            <button
-              aria-label={t('openMenu')}
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen(true)}
-              className={styles.menuBtn}
-            >
-              <HamburgerIcon size={26} />
-            </button>
-          </div>
-        ) : (
-          <>
-            {NAV_KEYS.length > 0 && (
-              <nav className={styles.nav}>
-                {NAV_KEYS.map((key) => (
-                  <a
-                    key={key}
-                    href={`/${locale}/#${NAV_TARGETS[key]}`}
-                    onClick={(e) => handleNavClick(e, NAV_TARGETS[key])}
-                    className={styles.navLink}
-                  >
-                    {t(key)}
-                  </a>
-                ))}
-              </nav>
-            )}
+        {/* Phones: the globe and the menu. Wider: the language by name and
+            the account. Both are in the HTML and CSS shows one (720px), so the
+            first paint — scripts loading, or none — is the right one. */}
+        <div className={`${styles.account} ${styles.phoneOnly}`}>
+          <LanguageSelect compact />
+          <button
+            aria-label={t('openMenu')}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(true)}
+            className={styles.menuBtn}
+          >
+            <HamburgerIcon size={26} />
+          </button>
+        </div>
 
-            <div className={styles.account}>
-              <LanguageSelect />
-              {mounted && !loading && (
-                <>
-                  {!user ? (
-                    <Link href="/signin" style={{ textDecoration: 'none' }}>
-                      <OrganicButton variant="solid" style={{ padding: '9px 22px', fontSize: '14px' }}>
-                        {t('signIn')}
-                      </OrganicButton>
-                    </Link>
-                  ) : (
-                    <SiteHeaderAvatar />
-                  )}
-                </>
-              )}
-            </div>
-          </>
+        {NAV_KEYS.length > 0 && (
+          <nav className={`${styles.nav} ${styles.wideOnly}`}>
+            {NAV_KEYS.map((key) => (
+              <a
+                key={key}
+                href={`/${locale}/#${NAV_TARGETS[key]}`}
+                onClick={(e) => handleNavClick(e, NAV_TARGETS[key])}
+                className={styles.navLink}
+              >
+                {t(key)}
+              </a>
+            ))}
+          </nav>
         )}
+
+        <div className={`${styles.account} ${styles.wideOnly}`}>
+          <LanguageSelect />
+          {mounted && !loading && (
+            <>
+              {!user ? (
+                <Link href="/signin" style={{ textDecoration: 'none' }}>
+                  <OrganicButton variant="solid" style={{ padding: '9px 22px', fontSize: '14px' }}>
+                    {t('signIn')}
+                  </OrganicButton>
+                </Link>
+              ) : (
+                // The avatar reads the viewer's profile: not on a phone, whose header doesn't show it.
+                !isMobile && <SiteHeaderAvatar />
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Signed in, the menu mounts at once so the profile it shows is read

@@ -1,8 +1,12 @@
-/* SSR / pre-hydration fallback: CSS multi-columns (column-major). The JS
-   masonry below takes over once the viewport is known. */
+/* SSR / pre-hydration fallback: the masonry's own arrangement — card i in
+   column i % n, rows left to right — as a plain grid, so when the JS masonry
+   takes over (once the column count is known) every card stays in its column
+   and only moves up to close the gaps. (CSS `columns` poured the cards top
+   to bottom instead: four of six changed places on hydration.) */
 .grid {
-  columns: 1;
-  column-gap: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
 }
 
 /* Row-major masonry: one flex column per feed column, card i in column i%n,
@@ -56,7 +60,7 @@
 /* tablet: two columns */
 @media (min-width: 640px) {
   .grid {
-    columns: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 24px;
   }
 
@@ -72,6 +76,6 @@
 /* desktop: three columns */
 @media (min-width: 1024px) {
   .grid {
-    columns: 3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
