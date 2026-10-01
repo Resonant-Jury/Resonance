@@ -1,9 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { OpenedCardPane } from '@/components/sections/WriteWorkspace/OpenedCardPane';
+import dynamic from 'next/dynamic';
+import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { WorkspaceShell } from '@/components/sections/WriteWorkspace/WorkspaceShell';
 import type { Card } from '@/lib/db/types';
+import styles from '@/components/sections/WriteWorkspace/WriteWorkspace.module.css';
+
+// The pane holds the card editor (Tiptap) — most of this page's weight, and
+// needed only once a card is opened. It shows the pane's own loader meanwhile.
+const OpenedCardPane = dynamic(
+  () => import('@/components/sections/WriteWorkspace/OpenedCardPane').then((m) => m.OpenedCardPane),
+  {
+    loading: () => (
+      <div className={styles.editorCol} aria-busy="true" style={{ display: 'grid', placeItems: 'center' }}>
+        <SketchLoader />
+      </div>
+    ),
+  },
+);
 
 /**
  * The standalone thought-map page, in the unified workspace shell: the map

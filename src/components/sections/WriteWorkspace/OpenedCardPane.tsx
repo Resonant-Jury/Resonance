@@ -7,7 +7,7 @@ import { PageTitle } from '@/components/molecules/PageShell/PageShell';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { getPendingCardEdit } from '@/lib/db/firestore/client/cardEdits';
-import { OriginalCardPanel } from './OriginalCardPanel';
+import { OriginalCardPanel } from './LazyOriginalCardPanel';
 import type { Card, Locale } from '@/lib/db/types';
 import styles from './WriteWorkspace.module.css';
 

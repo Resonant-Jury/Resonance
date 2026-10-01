@@ -5,7 +5,7 @@ import { CardEditor, type CardEditorProps } from '@/components/molecules/CardEdi
 import { FirstCardGuide } from '@/components/molecules/FirstCardGuide/FirstCardGuide';
 import { PageTitle } from '@/components/molecules/PageShell/PageShell';
 import { OpenedCardPane } from './OpenedCardPane';
-import { OriginalCardPanel } from './OriginalCardPanel';
+import { OriginalCardPanel } from './LazyOriginalCardPanel';
 import { WorkspaceShell } from './WorkspaceShell';
 import { useHasWrittenCards } from '@/lib/data/hooks';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
