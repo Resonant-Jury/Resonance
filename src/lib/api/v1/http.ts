@@ -46,14 +46,18 @@ export function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T
   return result.data;
 }
 
-/** Requests this instance has served: the first one paid for its cold start. */
+/**
+ * Requests served by this copy of the module: the first one paid for its
+ * cold start. (Each route bundle may hold its own copy — `next dev` does — so
+ * it is "the first request this route served on this instance".)
+ */
 let served = 0;
 
 /**
  * Where an answer's time went, for measuring from the outside (region,
  * transport, cold starts): `auth` (verifying the caller), `app` (the
- * handler: mostly Firestore round trips) and `cold` on an instance's first
- * request. Durations only — nothing the caller couldn't time itself.
+ * handler: mostly Firestore round trips) and `cold` on the first request
+ * (see `served`). Durations only — nothing the caller couldn't time itself.
  */
 function timed(res: Response, auth: number, app: number | null, cold: boolean): Response {
   const parts = [`auth;dur=${auth.toFixed(1)}`, ...(app === null ? [] : [`app;dur=${app.toFixed(1)}`]), ...(cold ? ['cold'] : [])];
