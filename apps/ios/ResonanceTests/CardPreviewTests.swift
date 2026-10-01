@@ -3,7 +3,8 @@ import Testing
 @testable import Resonance
 
 /// A card opened from a list draws what the list knew at once, asks for the
-/// lists under it alongside the card, and never outlives the server's answer.
+/// card with everything its page shows in one request, and never outlives
+/// the server's answer.
 @MainActor @Suite struct CardPreviewTests {
     @Test func theCacheFindsACardBySlugOrIdAndForgets() {
         let cache = CardPreviewCache()
@@ -31,50 +32,71 @@ import Testing
         #expect(cache.count == 0)
     }
 
-    @Test func aCardFromAListDrawsAtOnceAndAsksForItsListsAlongside() async {
+    @Test func aCardFromAListDrawsAtOnceThenItsWholePageArrivesInOneRequest() async {
         let listed = Fixture.card("c1", slug: "a-walk", title: "A walk")
         let card = Gate<CardDetail>()
         let calls = Calls<String>()
-        let model = CardModel(key: "a-walk", placeholder: listed, card: { _ in await card.wait() }, list: { list, id in
-            await calls.record("\(list):\(id)")
-            return list == .resonances ? [Fixture.card("r1")] : [Fixture.card("rel1")]
-        })
+        let model = CardModel(key: "a-walk", placeholder: listed) { key in
+            await calls.record(key)
+            return await card.wait()
+        }
 
         let loading = Task { await model.load() }
-        // Before the card arrives: the list's copy on screen, the lists already asked for by id (not slug).
+        // Before the card arrives: the list's copy on screen.
         #expect(model.placeholder?.title == "A walk")
         #expect(model.phase == .loading)
-        #expect(await eventually { await calls.all.count == 2 })
-        #expect(Set(await calls.all) == ["resonances:c1", "related:c1"])
 
-        await card.open(Fixture.detail(Fixture.card("c1", slug: "a-walk", title: "A walk, edited")))
+        let source = Fixture.card("src")
+        await card.open(Fixture.detail(Fixture.card("c1", slug: "a-walk", title: "A walk, edited"), isOwner: true, reference: source,
+                                       resonances: [Fixture.card("r1"), source], related: [Fixture.card("rel1")],
+                                       links: [Fixture.card("l1")], embeds: [Fixture.card("e1", slug: "rain")]))
         await loading.value
         #expect(model.phase == .loaded)
         #expect(model.placeholder == nil)
         #expect(model.detail?.card.title == "A walk, edited")
-        #expect(model.resonances.map(\.id) == ["r1"])
+        // The lists came with the card: the source first, each once.
+        #expect(model.resonanceSection.map(\.id) == ["src", "r1"])
         #expect(model.related.map(\.id) == ["rel1"])
-        // Nothing asked twice.
-        #expect(await calls.all.count == 2)
+        #expect(model.links.map(\.id) == ["l1"])
+        #expect(model.embeds.map(\.id) == ["e1"])
+        // One request, by the key the page was opened with.
+        #expect(await calls.all == ["a-walk"])
     }
 
-    @Test func withoutACopyTheListsWaitForTheCardsId() async {
-        let calls = Calls<String>()
-        let model = CardModel(key: "a-walk", card: { _ in Fixture.detail(Fixture.card("c1", slug: "a-walk"), isOwner: true) },
-                              list: { list, id in
-                                  await calls.record("\(list):\(id)")
-                                  return []
-                              })
+    @Test func storyEmbedsDrawFromThePagesSummariesAndTheRestStayLinks() async {
+        let model = CardModel(key: "a-walk") { _ in
+            Fixture.detail(Fixture.card("c1", slug: "a-walk"), story: "[雨](/card/rain)\n\n[old](/card/legacy-id)\n\n[gone](/card/gone)",
+                           embeds: [Fixture.card("e1", slug: "rain"), Fixture.card("legacy-id")])
+        }
+        var remembered: [String] = []
+        model.onLoaded = { remembered.append($0.id) }
+        await model.load()
+        #expect(model.blocks.count == 3)
+        // Matched by slug, or by id (a card from before slugs); decoded, without its query.
+        #expect(model.embed(for: "/card/rain")?.id == "e1")
+        #expect(model.embed(for: "/card/rain?from=story#top")?.id == "e1")
+        #expect(model.embed(for: "/card/legacy-id")?.id == "legacy-id")
+        // A card the reader can't see isn't in the list: the link is drawn as a plain link.
+        #expect(model.embed(for: "/card/gone") == nil)
+        #expect(model.embed(for: "https://example.com/card/rain") == nil)
+        // The page's previews keep the card and its embeds, so opening one draws at once.
+        #expect(remembered == ["c1", "e1", "legacy-id"])
+    }
+
+    @Test func aPageWithoutItsListsShowsNone() async {
+        // An answer without the lists (a server that ignored `include`): the page, nothing under it.
+        let model = CardModel(key: "a-walk") { _ in Fixture.detail(Fixture.card("c1", slug: "a-walk")) }
         await model.load()
         #expect(model.phase == .loaded)
-        #expect(Set(await calls.all) == ["resonances:c1", "related:c1", "links:c1"])
+        #expect(model.resonanceSection.isEmpty && model.related.isEmpty && model.links.isEmpty && model.embeds.isEmpty)
+        #expect(model.embed(for: "/card/rain") == nil)
     }
 
     @Test func aCardThatIsGoneDropsTheListsCopy() async {
         var forgotten: [String] = []
-        let model = CardModel(key: "a-walk", placeholder: Fixture.card("c1", slug: "a-walk"),
-                              card: { _ in throw APIFailure(code: "not_found", message: "No such card.", status: 404) },
-                              list: { _, _ in [] })
+        let model = CardModel(key: "a-walk", placeholder: Fixture.card("c1", slug: "a-walk")) { _ in
+            throw APIFailure(code: "not_found", message: "No such card.", status: 404)
+        }
         model.onNotFound = { forgotten.append($0) }
         await model.load()
         #expect(model.phase == .notFound)

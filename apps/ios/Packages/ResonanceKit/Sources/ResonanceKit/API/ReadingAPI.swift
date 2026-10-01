@@ -9,7 +9,8 @@ public typealias Author = Components.Schemas.Author
 
 /// The reading side of /api/v1 (feed, card page, author page) as plain async
 /// calls: each returns the contract's type or throws an `APIFailure` whose
-/// code the screen can act on (`not_found` → "this card isn't here").
+/// code the screen can act on (`not_found` → "this card isn't here"). A page
+/// is one request: the card or the profile brings its lists along (`include`).
 public struct ReadingAPI: Sendable {
     let client: Client
 
@@ -34,8 +35,27 @@ public struct ReadingAPI: Sendable {
         }
     }
 
-    public func card(_ key: String) async throws -> CardDetail {
-        switch try await client.getCard(path: .init(key: key)) {
+    /// What a card's page brings along with the card (GET /cards/{key}?include=).
+    public enum CardInclude: String, Sendable, CaseIterable {
+        /// Public cards written in response (= /resonances).
+        case resonances
+        /// Cards sharing its tags (= /related).
+        case related
+        /// Cards linking to it; empty unless the reader wrote it (= /links).
+        case links
+        /// Summaries of the cards its story embeds, in reading order, each once.
+        case embeds
+
+        /// Everything the card page shows.
+        public static let page = Set(allCases)
+    }
+
+    /// A card with its story — and, as `include` asks, the lists its page
+    /// shows and the cards its story embeds, in the same request.
+    public func card(_ key: String, include: Set<CardInclude> = []) async throws -> CardDetail {
+        let names = CardInclude.allCases.filter(include.contains).map(\.rawValue)
+        let query = Operations.GetCard.Input.Query(include: names.isEmpty ? nil : names.joined(separator: ","))
+        switch try await client.getCard(path: .init(key: key), query: query) {
         case let .ok(r): return try r.body.json
         case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
         case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
@@ -44,36 +64,39 @@ public struct ReadingAPI: Sendable {
         }
     }
 
-    public enum CardList: Sendable { case resonances, related, links }
+    /// How many cards one GET /cards takes.
+    public static let cardKeysLimit = 30
 
-    public func cards(_ list: CardList, of id: String) async throws -> [FeedCard] {
-        let path = Operations.GetCardResonances.Input.Path(key: id)
-        switch list {
-        case .resonances:
-            switch try await client.getCardResonances(path: path) {
-            case let .ok(r): return try r.body.json.cards
-            case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
-            case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
-            case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
-            case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
-            }
-        case .related:
-            switch try await client.getRelatedCards(path: .init(key: id)) {
-            case let .ok(r): return try r.body.json.cards
-            case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
-            case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
-            case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
-            case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
-            }
-        case .links:
-            switch try await client.getCardLinks(path: .init(key: id)) {
-            case let .ok(r): return try r.body.json.cards
-            case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
-            case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
-            case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
-            case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
-            }
+    /// Several cards' summaries (no story), by slug or id — what a screen that
+    /// only draws a title and a cover needs (GET /cards?keys=). In the order
+    /// asked, each once; those the reader may not see are left out. A key that
+    /// can't name a card is never sent (the server would refuse the whole
+    /// request for it), and more than 30 go out as requests side by side.
+    public func cards(keys: [String]) async throws -> [FeedCard] {
+        var asked = Set<String>()
+        let valid = keys.filter { CardKey.isValid($0) && asked.insert($0).inserted }
+        let chunks = stride(from: 0, to: valid.count, by: Self.cardKeysLimit).map {
+            Array(valid[$0..<min($0 + Self.cardKeysLimit, valid.count)])
         }
+        let client = client
+        let pages = try await withThrowingTaskGroup(of: (Int, [FeedCard]).self) { group in
+            for (i, chunk) in chunks.enumerated() {
+                group.addTask {
+                    switch try await client.getCards(query: .init(keys: chunk.joined(separator: ","))) {
+                    case let .ok(r): return (i, try r.body.json.cards)
+                    case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
+                    case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
+                    case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
+                    }
+                }
+            }
+            var pages = [[FeedCard]](repeating: [], count: chunks.count)
+            for try await (i, cards) in group { pages[i] = cards }
+            return pages
+        }
+        // A card asked for by both its slug and its id comes back once.
+        var seen = Set<String>()
+        return pages.joined().filter { seen.insert($0.id).inserted }
     }
 
     public typealias CardBoxShelf = Operations.GetCardBox.Input.Query.TabPayload
@@ -88,8 +111,24 @@ public struct ReadingAPI: Sendable {
         }
     }
 
-    public func profile(_ handle: String) async throws -> Profile {
-        switch try await client.getProfile(path: .init(handle: handle)) {
+    /// What a person's page brings along with their profile (GET /users/{handle}?include=).
+    public enum ProfileInclude: String, Sendable, CaseIterable {
+        /// The first page of their public cards (= /cards at `limit`).
+        case cards
+        /// Cards linking to theirs (= /links).
+        case links
+
+        /// Everything their page shows.
+        public static let page = Set(allCases)
+    }
+
+    /// A person's profile as the reader sees it — and, as `include` asks, the
+    /// first `limit` of their cards and the cards linking to theirs, in the same request.
+    public func profile(_ handle: String, include: Set<ProfileInclude> = [], limit: Int? = nil) async throws -> Profile {
+        let names = ProfileInclude.allCases.filter(include.contains).map(\.rawValue)
+        let query = Operations.GetProfile.Input.Query(include: names.isEmpty ? nil : names.joined(separator: ","),
+                                                      limit: include.contains(.cards) ? limit : nil)
+        switch try await client.getProfile(path: .init(handle: handle), query: query) {
         case let .ok(r): return try r.body.json
         case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
         case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
@@ -98,6 +137,7 @@ public struct ReadingAPI: Sendable {
         }
     }
 
+    /// Their public cards after the first page (the profile brings that one).
     public func profileCards(_ handle: String, limit: Int = 12, cursor: String? = nil) async throws -> FeedPage {
         switch try await client.getProfileCards(path: .init(handle: handle), query: .init(limit: limit, cursor: cursor.flatMap(ISO8601.date))) {
         case let .ok(r): return try r.body.json
@@ -107,15 +147,24 @@ public struct ReadingAPI: Sendable {
         case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
         }
     }
+}
 
-    public func profileLinks(_ handle: String) async throws -> [FeedCard] {
-        switch try await client.getProfileLinks(path: .init(handle: handle)) {
-        case let .ok(r): return try r.body.json.cards
-        case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
-        case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
-        case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
-        case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
+/// A card's URL segment: its slug, or (older cards) its id.
+public enum CardKey {
+    /// What the contract accepts as a card key (schemas.ts CardKey).
+    public static func isValid(_ key: String) -> Bool {
+        (1...160).contains(key.utf8.count) && key.unicodeScalars.allSatisfy {
+            ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0) || $0 == "-" || $0 == "_"
         }
+    }
+
+    /// The card a story's `/card/{key}` link names, or nil for any other link
+    /// (the web's cardKeyFromHref: query and fragment dropped, the key decoded).
+    public static func of(href: String) -> String? {
+        guard href.hasPrefix("/card/") else { return nil }
+        let segment = href.dropFirst("/card/".count).prefix { $0 != "/" && $0 != "?" && $0 != "#" }
+        guard !segment.isEmpty else { return nil }
+        return segment.removingPercentEncoding ?? String(segment)
     }
 }
 

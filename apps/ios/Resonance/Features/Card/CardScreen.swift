@@ -101,7 +101,7 @@ struct CardScreen: View {
             VStack(alignment: .leading, spacing: 0) {
                 head(card, anonymous: detail.anonymous)
                 StoryMarkdownView(blocks: model.blocks, onOpenURL: open) { href, title in
-                    CardEmbedView(href: href, title: title)
+                    CardEmbedView(href: href, title: title, card: model.embed(for: href))
                 }
                 .padding(.bottom, 32)
                 if !card.tags.isEmpty {
@@ -330,47 +330,32 @@ private struct StorySkeleton: View {
     }
 }
 
-/// A card link standing alone in a story: the linked card as an embed, or the
-/// plain link when the viewer can't see it (web: CardEmbedLink).
+/// A card link standing alone in a story: the linked card as an embed, drawn
+/// from the summary the card page brought along, or the plain link when the
+/// viewer can't see it (web: CardEmbedLink).
 struct CardEmbedView: View {
     let href: String
     let title: String
-    @Environment(SessionStore.self) private var session
+    /// The page's summary of the linked card; nil draws the plain link.
+    let card: FeedCard?
     @Environment(\.openRoute) private var openRoute
-    @State private var card: FeedCard?
-    @State private var failed = false
-
-    private var key: String { String(href.split(separator: "/").last ?? "") }
 
     var body: some View {
-        Button { openRoute(.card(key)) } label: {
+        Button {
+            if let key = card?.routeKey ?? CardKey.of(href: href) { openRoute(.card(key)) }
+        } label: {
             if let card {
                 EmbedStoryCard(title: card.title, author: card.author?.value1.handle ?? L10n.Card.anonymousAuthor,
                                imageURL: card.imageUrl.flatMap(URL.init(string:)), hue: card.accentHue,
                                seed: Double(seedFromString(href)))
-            } else if failed {
+            } else {
                 Text(title)
                     .font(AppFonts.body(17))
                     .underline()
                     .foregroundStyle(Tokens.terracotta)
                     .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                EmbedStoryCardPlaceholder(title: title)
             }
         }
         .buttonStyle(.plain)
-        .task(id: href) {
-            // A card already seen draws at once; the server still decides whether it's here.
-            if card == nil { card = session.cardPreviews.card(for: key) }
-            do {
-                let fresh = try await session.reading.card(key).card
-                card = fresh
-                session.cardPreviews.remember(fresh)
-            } catch {
-                guard !Task.isCancelled else { return }
-                card = nil
-                failed = true
-            }
-        }
     }
 }

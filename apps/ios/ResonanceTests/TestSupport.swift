@@ -49,17 +49,36 @@ enum Fixture {
         """)
     }
 
-    static func detail(_ card: FeedCard, story: String = "A story.", isOwner: Bool = false) -> CardDetail {
-        let cardJSON = String(decoding: try! JSONEncoder().encode(card), as: UTF8.self)
+    /// A card page; each list given comes along as `include` brings it.
+    static func detail(_ card: FeedCard, story: String = "A story.", isOwner: Bool = false, reference: FeedCard? = nil,
+                       resonances: [FeedCard]? = nil, related: [FeedCard]? = nil, links: [FeedCard]? = nil,
+                       embeds: [FeedCard]? = nil) -> CardDetail {
+        let lists = [("resonances", resonances), ("related", related), ("links", links), ("embeds", embeds)]
+            .compactMap { name, cards in cards.map { #","\#(name)":{"cards":\#(json($0))}"# } }
+            .joined()
+        let storyJSON = String(decoding: try! JSONEncoder().encode(story), as: UTF8.self)
         return decode("""
-        {"card":\(cardJSON),"story":"\(story)","visibility":"public","anonymous":\(card.anonymous),
-         "resonanceCount":0,"coreInsight":null,"isOwner":\(isOwner),"referenceCard":null}
+        {"card":\(json(card)),"story":\(storyJSON),"visibility":"public","anonymous":\(card.anonymous),
+         "resonanceCount":0,"coreInsight":null,"isOwner":\(isOwner),"referenceCard":\(reference.map { json($0) } ?? "null")\(lists)}
         """)
     }
 
     static func page(_ cards: [FeedCard], next: String? = nil) -> FeedPage {
-        let cardsJSON = String(decoding: try! JSONEncoder().encode(cards), as: UTF8.self)
-        return decode(#"{"cards":\#(cardsJSON),"nextCursor":\#(next.map { "\"\($0)\"" } ?? "null")}"#)
+        decode(#"{"cards":\#(json(cards)),"nextCursor":\#(next.map { "\"\($0)\"" } ?? "null")}"#)
+    }
+
+    /// A profile as the API sends it; `cards` and `links` come along as `include` brings them.
+    static func profile(_ handle: String, cards: FeedPage? = nil, links: [FeedCard]? = nil) -> Profile {
+        let lists = (cards.map { #","cards":\#(json($0))"# } ?? "") + (links.map { #","links":{"cards":\#(json($0))}"# } ?? "")
+        return decode("""
+        {"author":{"id":"\(handle)","handle":"\(handle)","initials":"BO","accentColor":"oklch(90% 0.05 60)","avatarUrl":null,
+         "avatarSeed":"42","verified":false,"region":"TW"},"bio":null,"joinedAt":"2026-01-01T00:00:00.000Z","cardCount":3,
+         "isSelf":false,"isConnected":false,"isBlocked":false\(lists)}
+        """)
+    }
+
+    private static func json<T: Encodable>(_ value: T) -> String {
+        String(decoding: try! JSONEncoder().encode(value), as: UTF8.self)
     }
 
     private static func decode<T: Decodable>(_ json: String) -> T {
