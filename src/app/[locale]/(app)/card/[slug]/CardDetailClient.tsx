@@ -254,6 +254,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
                 seed={hue + 11}
                 ratio={0.52}
                 className={styles.heroImage}
+                priority
               />
             )}
 

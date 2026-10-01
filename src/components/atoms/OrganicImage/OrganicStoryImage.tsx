@@ -28,6 +28,9 @@ export interface OrganicStoryImageProps {
  * full width a tall shot is several screens high, so the reader scrolls
  * through a wall of picture and loses the thread of the story. Capped, it
  * stays a picture *in* an article.
+ *
+ * Fetched lazily, as it nears the viewport. A story's Markdown stores no
+ * image size, so its box can't be held open before the photo arrives.
  */
 export function OrganicStoryImage({
   src,
@@ -83,6 +86,8 @@ export function OrganicStoryImage({
         <img
           src={src}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           draggable={draggable}
           style={{
             display: 'block',

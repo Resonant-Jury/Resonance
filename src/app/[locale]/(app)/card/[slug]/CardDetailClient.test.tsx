@@ -494,6 +494,44 @@ describe('the lists around the card and its embedded cards', () => {
   });
 });
 
+describe('its pictures', () => {
+  it("asks for the cover first, and for the story's photos and the author's picture only as the reader nears them", async () => {
+    vi.mocked(getCardById).mockReturnValue(new Promise(() => {}));
+    const s = seed();
+    renderPage({
+      seed: {
+        ...s,
+        view: {
+          card: {
+            ...s.view!.card,
+            media: { type: 'image', url: 'https://img.test/cover.avif', label: 'The kettle' },
+            story: `${STORY}\n\n![A street at dawn](https://img.test/street.avif)`,
+          },
+          author: { ...s.view!.author!, avatarUrl: 'https://img.test/author.avif' },
+        },
+      },
+    });
+
+    const cover = screen.getByRole('img', { name: 'The kettle' });
+    expect(cover).toHaveAttribute('src', 'https://img.test/cover.avif');
+    expect(cover).toHaveAttribute('loading', 'eager');
+    expect(cover).toHaveAttribute('fetchpriority', 'high');
+
+    const photo = screen.getByRole('img', { name: 'A street at dawn' });
+    expect(photo).toHaveAttribute('loading', 'lazy');
+    expect(photo).toHaveAttribute('decoding', 'async');
+
+    // The byline sits in the header and the aside (CSS shows one).
+    const avatars = screen.getAllByRole('img', { name: 'AU' });
+    expect(avatars.length).toBeGreaterThan(0);
+    for (const avatar of avatars) {
+      expect(avatar).toHaveAttribute('src', 'https://img.test/author.avif');
+      expect(avatar).toHaveAttribute('loading', 'lazy');
+    }
+    await waitFor(() => expect(getCardById).toHaveBeenCalled());
+  });
+});
+
 describe('storyGate', () => {
   const base = { signedInHere: true, authLoading: false, viewerId: 'me', blocked: new Set<string>(), authorId: 'a1', failed: false };
   it('lets the reader see their own card without waiting on anything', () => {

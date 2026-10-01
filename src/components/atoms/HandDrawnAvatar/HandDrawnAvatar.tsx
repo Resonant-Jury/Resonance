@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo } from 'react';
+import { useMemo } from 'react';
 import { wobRect } from '@/lib/design/wobRect';
 import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
 import { INK } from '@/lib/design/strokes';
@@ -42,7 +42,6 @@ export function HandDrawnAvatar({
   color = 'var(--color-terracotta-light)',
   seed = 1,
 }: HandDrawnAvatarProps) {
-  const uid = useId().replace(/:/g, '');
   const R = size * 0.4;
   const mag = size * 0.022;
   const cornerOffset = size * 0.06;
@@ -55,37 +54,43 @@ export function HandDrawnAvatar({
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
       {src ? (
-        <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          className="res-shape-fade-in"
-          role="img"
-          aria-label={initials}
-          style={{ position: 'absolute', inset: 0, overflow: 'visible' }}
-        >
-          <defs>
-            <clipPath id={`hdavatar-${uid}`}>
-              <path d={path} />
-            </clipPath>
-          </defs>
-          <image
-            href={src}
-            x={0}
-            y={0}
+        // The picture is a plain <img> clipped to the outline (an SVG <image>
+        // can't load lazily, and avatars sit on every card of a feed), with
+        // the drawn outline on top.
+        <span className="res-shape-fade-in" style={{ position: 'absolute', inset: 0 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={initials}
             width={size}
             height={size}
-            preserveAspectRatio="xMidYMid slice"
-            clipPath={`url(#hdavatar-${uid})`}
+            loading="lazy"
+            decoding="async"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: size,
+              height: size,
+              objectFit: 'cover',
+              clipPath: `path('${path}')`,
+            }}
           />
-          <path
-            d={path}
-            fill="none"
-            stroke="oklch(36% 0.06 60 / 0.55)"
-            strokeWidth={INK}
-            strokeLinejoin="round"
-          />
-        </svg>
+          <svg
+            width={size}
+            height={size}
+            viewBox={`0 0 ${size} ${size}`}
+            aria-hidden="true"
+            style={{ position: 'absolute', inset: 0, overflow: 'visible' }}
+          >
+            <path
+              d={path}
+              fill="none"
+              stroke="oklch(36% 0.06 60 / 0.55)"
+              strokeWidth={INK}
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
       ) : (
         <>
           <HandDrawnBorder

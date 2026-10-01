@@ -18,6 +18,12 @@ export interface OrganicImageProps {
   style?: CSSProperties;
   /** Overlays or fallback content rendered inside the clipped box. */
   children?: ReactNode;
+  /**
+   * The page's main picture (the card page's cover): requested at once, ahead
+   * of other images. Every other image waits until it nears the viewport —
+   * the box already holds its space (`ratio`), so nothing moves when it lands.
+   */
+  priority?: boolean;
 }
 
 /**
@@ -36,6 +42,7 @@ export function OrganicImage({
   className,
   style,
   children,
+  priority = false,
 }: OrganicImageProps) {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useElementSize(ref, 320, Math.round(320 * ratio));
@@ -81,6 +88,9 @@ export function OrganicImage({
           <img
             src={src}
             alt={alt}
+            loading={priority ? 'eager' : 'lazy'}
+            decoding={priority ? undefined : 'async'}
+            fetchPriority={priority ? 'high' : undefined}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           />
         )}
