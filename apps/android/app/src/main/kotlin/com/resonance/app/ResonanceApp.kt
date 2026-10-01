@@ -1,11 +1,15 @@
 package com.resonance.app
 
 import android.app.Application
+import android.os.Build
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
 import com.resonance.design.AppFonts
 import com.resonance.design.Grain
 import com.resonance.kit.l10n.Strings
 
-class ResonanceApp : Application() {
+class ResonanceApp : Application(), SingletonImageLoader.Factory {
     private var session: Session? = null
 
     /** One session for the process, so a recreated activity finds the same state and listeners. */
@@ -13,6 +17,13 @@ class ResonanceApp : Application() {
         session = it
         it.start { it.loadMe() }
     }
+
+    /** AVIF — the AI illustrations — needs its own decoder before Android 12. */
+    override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
+        .components {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || (BuildConfig.DEBUG && DebugLaunch.avifDecoder)) add(AvifDecoder.Factory())
+        }
+        .build()
 
     override fun onCreate() {
         super.onCreate()

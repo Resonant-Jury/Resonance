@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
  *   --es threadDraft …             fills a conversation's composer (--es route /messages/<handle> opens one)
  *   --es pushToken …               registers that stand-in push token under the signed-in account
  *   --es pushTitle … [--es pushBody … --es pushRoute … --es pushId … --es pushFromUserId …]   posts the notification a push received while open shows
+ *   --ez avifDecoder true          reads AVIF with the app's own decoder (Android 10–11's path) on any version
  */
 class MainActivity : ComponentActivity() {
     private val incomingRoute = mutableStateOf<String?>(null)
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
             DebugLaunch.writeStory = intent.getStringExtra("writeStory")
             DebugLaunch.writeCover = intent.getStringExtra("writeCover")
             DebugLaunch.threadDraft = intent.getStringExtra("threadDraft")
+            DebugLaunch.avifDecoder = intent.getBooleanExtra("avifDecoder", false)
         }
         incomingRoute.value = routeFrom(intent)
         // A recreated activity (rotation, process restore) still holds the intent it was first started with.
@@ -126,4 +128,6 @@ object DebugLaunch {
     var writeCover: String? = null
     /** A conversation's composer starts with this text. */
     var threadDraft: String? = null
+    /** Pictures in AVIF go through [AvifDecoder] whatever the Android version (its check on a recent emulator). */
+    var avifDecoder = false
 }
