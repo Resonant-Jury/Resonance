@@ -78,7 +78,12 @@ keys checks where tapping a push leads.
 `-feedPicksDelay <seconds>` holds back the recommended feed, to see the
 late-picks hint.
 
-Reading: the home feed asks for the latest and the recommended cards together.
+Reading: a card's page is one `GET /api/v1/cards/{key}?include=resonances,related,links,embeds`
+(story embeds come from `embeds`, matched by slug or id with `CardKey.of(href:)`; an unmatched link
+stays a plain link), a person's page one `GET /api/v1/users/{handle}?include=cards,links&limit=12`, and
+a conversation's shared cards one `GET /api/v1/cards?keys=` (`CardSummaries`). A card's ⋯ visibility
+change and delete go through `PATCH`/`DELETE /api/v1/cards/{id}`. A tapped push opens its thread by
+`data.fromUserId`. The home feed asks for the latest and the recommended cards together.
 Picks that arrive within `FeedModel.defaultPatience` (800 ms) lead the feed;
 later ones wait behind the "今天的推薦準備好了" pill (TabScreen's `banner`)
 and never rearrange what's on screen. Cards seen in lists stay in
@@ -128,7 +133,7 @@ cd apps/android
 ./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :core:kit:test        # API clients, localization, story format, cover hue
-./gradlew :app:testDebugUnitTest  # the app's JVM tests: routes, App Links, pen names, reading (FeedLoader, CardPageLoader, CardCache)
+./gradlew :app:testDebugUnitTest  # the app's JVM tests: routes, App Links, pen names, settings sections, push routing
 ```
 
 Debug launch extras mirror iOS's arguments: `--ez emulator true` points
@@ -157,11 +162,16 @@ adb shell am start -n com.resonance.stories/com.resonance.app.MainActivity \
   --es route /messages/alice --es notificationId x
 ```
 
-Reading: the feed shows the latest cards first; picks that answer later wait behind the
-"今天的推薦準備好了" hint. Lists pass their FeedCard as `Route.Card(key, preview)` and remember it in
-`Session.cardCache` (per account; cleared on sign-in/out, your own card changes and block changes) so
-the card page draws at once; reads that need a card's document id (resonances/related/links) take
-`card.id`, never the route key. `--es route /messages/<handle>` for the thread already on top leaves it
+Reading (tests in `:core:kit`: FeedLoader, CardPageLoader, CardCache): the feed shows the latest cards
+first; picks that answer later wait behind the "今天的推薦準備好了" hint. A card page is one
+`GET /api/v1/cards/{key}?include=resonances,related,links,embeds` (story embeds from `embeds`, matched
+by slug or id; an unmatched link stays plain), a person's page one `GET /users/{handle}?include=cards,links&limit=12`,
+and a thread's shared cards one `GET /cards?keys=` per batch of new ids. Lists pass their FeedCard as
+`Route.Card(key, preview)` and remember it in `Session.cardCache` (per account; cleared on sign-in/out,
+your own card changes and block changes) so the card page draws at once. The card ⋯ (visibility,
+delete) goes through `PATCH`/`DELETE /api/v1/cards/{id}`. `--es fromUserId <uid>` (and `--es pushFromUserId`
+for the notification posted while the app is open) fake a push carrying its sender's uid; the thread
+then opens by uid. `--es route /messages/<handle>` for the thread already on top leaves it
 in place.
 
 Push: the server pushes every bell row through FCM (`src/lib/push`, on the "activity" channel); the app
