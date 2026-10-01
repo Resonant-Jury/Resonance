@@ -76,12 +76,6 @@ async function getOrNull<T>(path: string): Promise<T | null> {
   }
 }
 
-/** Drop cards by people the viewer has blocked (see client/blocks.ts). */
-async function dropBlocked(cards: Card[]): Promise<Card[]> {
-  const blocked = await getMyBlockedIds();
-  return blocked.size ? cards.filter((c) => !blocked.has(c.authorId)) : cards;
-}
-
 /**
  * Whose profiles a list of cards may fetch: every byline except someone
  * else's anonymous card. The card itself still names its author's uid (rules
@@ -93,9 +87,16 @@ function bylineAuthorIds(cards: Card[], viewerId: string | undefined): string[] 
   return cards.filter((c) => !c.anonymous || c.authorId === viewerId).map((c) => c.authorId);
 }
 
-/** Cards plus their authors. Lists show every anonymous card — the viewer's own too — under the anonymous byline, so no anonymous author is fetched. */
-async function withAuthors(cards: Card[]): Promise<CardsWithAuthors> {
-  const visible = await dropBlocked(cards);
+/**
+ * Cards plus their authors, minus cards by people the viewer has blocked (see
+ * client/blocks.ts). The block list is read beside the cards, not after them:
+ * it waits for Auth to restore the viewer, as the cards' own read does.
+ * Lists show every anonymous card — the viewer's own too — under the
+ * anonymous byline, so no anonymous author is fetched.
+ */
+async function withAuthors(read: Card[] | Promise<Card[]>): Promise<CardsWithAuthors> {
+  const [cards, blocked] = await Promise.all([read, getMyBlockedIds()]);
+  const visible = blocked.size ? cards.filter((c) => !blocked.has(c.authorId)) : cards;
   const authors = await getUsersByIds(bylineAuthorIds(visible, undefined));
   return { cards: visible, authors };
 }
@@ -375,8 +376,7 @@ export function useRelated(id: string | undefined) {
   // Related cards come from the public feed, so this is anonymous-readable and
   // can fetch as soon as we have a card id.
   return useSWR<CardsWithAuthors>(id ? `related:${id}` : null, async () => {
-    const cards = await getRelatedCards(id!, 3);
-    return withAuthors(cards);
+    return withAuthors(getRelatedCards(id!, 3));
   });
 }
 
@@ -505,8 +505,7 @@ export function useMyThoughtMap() {
  */
 export function useResonanceCards(cardId: string | undefined) {
   return useSWR<CardsWithAuthors>(cardId ? `resonanceCards:${cardId}` : null, async () => {
-    const cards = await getResonanceCards(cardId!);
-    return withAuthors(cards);
+    return withAuthors(getResonanceCards(cardId!));
   });
 }
 
@@ -518,8 +517,7 @@ export function useResonanceCards(cardId: string | undefined) {
  */
 export function useReferencedCard(cardId: string | undefined) {
   return useSWR<CardsWithAuthors>(cardId ? `referencedCard:${cardId}` : null, async () => {
-    const card = await getCardById(cardId!);
-    return withAuthors(card ? [card] : []);
+    return withAuthors(getCardById(cardId!).then((card) => (card ? [card] : [])));
   });
 }
 

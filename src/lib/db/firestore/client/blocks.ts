@@ -55,10 +55,20 @@ function connectionId(a: string, b: string): string {
 // fetcher; keyed by uid so switching accounts never reuses another's list.
 let cache: { uid: string; ids: Promise<Set<string>> } | null = null;
 
-/** The uids the signed-in viewer has blocked (empty when signed out). */
-export function getMyBlockedIds(): Promise<Set<string>> {
-  const uid = getFirebaseClientAuth().currentUser?.uid;
-  if (!uid) return Promise.resolve(new Set());
+/**
+ * The uids the signed-in viewer has blocked (empty when signed out).
+ *
+ * Waits for Auth to restore a returning reader first: until it has,
+ * `currentUser` is null, and an empty list then would let a list that doesn't
+ * itself wait for the viewer (the home feed, related cards) through unfiltered
+ * — and cached that way. It costs no time: the Firestore reads beside it wait
+ * for the same restore (see ./init).
+ */
+export async function getMyBlockedIds(): Promise<Set<string>> {
+  const auth = getFirebaseClientAuth();
+  await auth.authStateReady();
+  const uid = auth.currentUser?.uid;
+  if (!uid) return new Set();
   if (cache?.uid !== uid) {
     const ids = getDocs(blocksCol(uid))
       .then((snap) => new Set(snap.docs.map((d) => d.id)))

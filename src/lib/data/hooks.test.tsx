@@ -249,6 +249,23 @@ describe('blocked authors', () => {
     expect(result.current.hasMore).toBe(true);
   });
 
+  // The block list waits for Auth to restore the viewer (client/blocks.ts), so
+  // reading it only after the cards came back would add that wait to every load.
+  it('reads the block list beside the cards, not after them', async () => {
+    let answer: (cards: Card[]) => void = () => {};
+    vi.mocked(getRelatedCards).mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['bad']));
+    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
+
+    const { result } = renderHook(() => useRelated('c0'), { wrapper });
+    await waitFor(() => expect(getMyBlockedIds).toHaveBeenCalled());
+    expect(result.current.data).toBeUndefined();
+
+    answer([card('c1', 'bad'), card('c2', 'a1')]);
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['c2']);
+  });
+
   it("shows a blocked person's profile as blocked (the page then shows none of their cards)", async () => {
     vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['u2']));
     vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'bob'));
