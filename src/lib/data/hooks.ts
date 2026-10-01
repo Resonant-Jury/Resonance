@@ -30,7 +30,7 @@ import { listConversations, listenThread } from '@/lib/db/firestore/client/messa
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import { ApiError, callApi } from '@/lib/db/firestore/client/api';
 import { hasSessionMark } from '@/lib/auth/firebase/client';
-import type { CardDetailBody } from '@/lib/api/v1/schemas';
+import type { CardDetailBody, CardListBody } from '@/lib/api/v1/schemas';
 import type { Conversation, Message } from '@/lib/db/types';
 import { anonymousAuthor, cardKey } from './cardPrefill';
 import type { CardSeed, PublicCardView } from './cardSeed';
@@ -615,6 +615,40 @@ export function useCardPageLists(id: string | undefined, referenceCardId: string
     links: EMPTY,
     embeds: null,
   };
+}
+
+/** GET /api/v1/cards?keys= takes at most this many (CARD_KEYS_MAX in lib/api/v1/schemas). */
+const CARD_KEYS_MAX = 30;
+
+/** Summaries of the cards named (ids or slugs), in the order asked: those the viewer may read, minus authors they blocked. */
+async function fetchCardSummaries(keys: string[]): Promise<CardsWithAuthors> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < keys.length; i += CARD_KEYS_MAX) chunks.push(keys.slice(i, i + CARD_KEYS_MAX));
+  const lists = await Promise.all(
+    chunks.map((chunk) => callApi<CardListBody>(`/api/v1/cards?keys=${chunk.map(encodeURIComponent).join(',')}`)),
+  );
+  return summaryList(lists.flatMap((l) => l.cards));
+}
+
+/**
+ * Previews of several cards by id or slug — the cards shared in a thread —
+ * in one request (GET /api/v1/cards?keys=, up to 30 a request) instead of
+ * one read each, for those cards' embeds to look up (see useCardEmbed).
+ * Signed-in viewers only. Null when there is nothing to fetch, or the
+ * request failed (each embed then reads its own card).
+ *
+ * When a card joins the list, what was already here stays up while the new
+ * list loads: lookups are by id, so the cards of an earlier list never stand
+ * in for another card.
+ */
+export function useCardSummaries(keys: string[]): CardEmbedSource | null {
+  const { user, loading } = useAuth();
+  const wanted = [...new Set(keys)].sort();
+  const key = user && !loading && wanted.length ? `cardSummaries:${user.id}:${wanted.join(',')}` : null;
+  const { data, error } = useSWR(key, () => fetchCardSummaries(wanted), { keepPreviousData: true });
+  // A failed request (the current list's, not an earlier one) leaves each embed to read its own card.
+  if (!key || error) return null;
+  return data ? { status: 'ready', cards: data } : { status: 'loading' };
 }
 
 export interface ConversationsData {

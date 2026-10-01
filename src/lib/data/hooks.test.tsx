@@ -87,6 +87,7 @@ import {
   useProfileByHandle,
   useProfileCards,
   useProfileLinks,
+  useCardSummaries,
   useRecommendedFeed,
   useRelated,
   useResonators,
@@ -775,5 +776,49 @@ describe('useRecommendedFeed', () => {
     const { result } = renderHook(() => useRecommendedFeed(), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data!.cards).toEqual([]);
+  });
+});
+
+describe('useCardSummaries', () => {
+  const summary = (id: string) => ({
+    id,
+    slug: null,
+    title: `Card ${id}`,
+    excerpt: '',
+    tags: [],
+    publishedAt: null,
+    author: null,
+    anonymous: true,
+    visibility: 'public',
+    imageUrl: null,
+    imageLabel: null,
+    accentHue: null,
+    readMinutes: 1,
+    referenceCardId: null,
+    reason: null,
+  });
+
+  it('asks for at most 30 cards a request, side by side, and puts the answers together', async () => {
+    const ids = Array.from({ length: 35 }, (_, i) => `c${String(i).padStart(2, '0')}`);
+    vi.mocked(callApi).mockImplementation(async (path: string) => ({
+      cards: new URL(path, 'http://x').searchParams.get('keys')!.split(',').map(summary),
+    }));
+
+    const { result } = renderHook(() => useCardSummaries([...ids, 'c00']), { wrapper });
+    await waitFor(() => expect(result.current?.status).toBe('ready'));
+    expect(callApi).toHaveBeenCalledTimes(2);
+    expect(callApi).toHaveBeenCalledWith(`/api/v1/cards?keys=${ids.slice(0, 30).join(',')}`);
+    expect(callApi).toHaveBeenCalledWith(`/api/v1/cards?keys=${ids.slice(30).join(',')}`);
+    const ready = result.current as { status: 'ready'; cards: { cards: Card[] } };
+    expect(ready.cards.cards.map((c) => c.id)).toEqual(ids);
+    // Summaries, for lists: no author on an anonymous card, never a story.
+    expect(ready.cards.cards[0]).toMatchObject({ authorId: '', anonymous: true, summary: { readMinutes: 1 } });
+  });
+
+  it('asks for nothing with nothing shared, or no one signed in', async () => {
+    expect(renderHook(() => useCardSummaries([]), { wrapper }).result.current).toBeNull();
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
+    expect(renderHook(() => useCardSummaries(['c1']), { wrapper }).result.current).toBeNull();
+    expect(callApi).not.toHaveBeenCalled();
   });
 });

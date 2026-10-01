@@ -20,10 +20,11 @@ export function cardKeyFromHref(href: string): string | null {
 
 /**
  * Cards a page already has for the embeds it draws — a signed-in card page's
- * `include=embeds` (useCardPageLists): one /api/v1 request, the server having
- * applied the viewer's visibility and blocks — so its embeds look themselves
- * up here instead of each reading its own card. Without a source (null), an
- * embed reads its card itself.
+ * `include=embeds` (useCardPageLists), a thread's shared cards
+ * (useCardSummaries): one /api/v1 request each, the server having applied the
+ * viewer's visibility and blocks — so its embeds look themselves up here
+ * instead of each reading its own card. Without a source (null), an embed
+ * reads its card itself.
  */
 export const CardEmbedSourceContext = createContext<CardEmbedSource | null>(null);
 

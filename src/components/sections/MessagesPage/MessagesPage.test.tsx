@@ -33,6 +33,7 @@ vi.mock('@/lib/data/hooks', () => ({
   useThread: (pairId: string | undefined) => mockUseThread(pairId),
   useMyProfile: () => mockUseMyProfile(),
   useMyBlockedIds: () => ({ data: new Set<string>() }),
+  useCardSummaries: () => null,
 }));
 
 const mockBlockUser = vi.fn();

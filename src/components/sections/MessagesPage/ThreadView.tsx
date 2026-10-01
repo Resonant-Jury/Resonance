@@ -13,13 +13,13 @@ import { Divider } from '@/components/atoms/Divider/Divider';
 import { InsertCardModal } from '@/components/molecules/MarkdownEditor/InsertCardModal';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { OrganicMenu } from '@/components/molecules/OrganicMenu/OrganicMenu';
-import { useCardEmbed } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
+import { CardEmbedSourceContext, useCardEmbed } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
 import { useSafetyActions } from '@/components/molecules/SafetyActions/useSafetyActions';
 import { INK } from '@/lib/design/strokes';
 import { seedFromString } from '@/lib/design/prng';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { useMyBlockedIds, useThread } from '@/lib/data/hooks';
+import { useCardSummaries, useMyBlockedIds, useThread } from '@/lib/data/hooks';
 import { getUserByHandle, isConnected } from '@/lib/db/firestore/client/reads';
 import {
   MESSAGE_MAX_LENGTH,
@@ -89,6 +89,11 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // Subscribe only once the conversation doc exists — the messages read rule
   // get()s the parent doc, so listening earlier would just error.
   const thread = useThread(convo ? pairId : undefined);
+  // The cards shared in this thread (its latest 50 messages), each once:
+  // their previews come in one request, which the cards in the bubbles and
+  // the「卡片與連結」list look up (MessageCardRef, SharedCardRow).
+  const sharedCardIds = [...new Set(thread.messages.flatMap((m) => (m.cardRef ? [m.cardRef] : [])))];
+  const sharedCards = useCardSummaries(sharedCardIds);
   // The newest message. The listener keeps only the latest 50, so once a
   // thread passes 50 the count stops changing — what changes is the last one.
   const lastMessage = thread.messages[thread.messages.length - 1];
@@ -205,14 +210,13 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     ? thread.messages.filter((m) => m.text.toLowerCase().includes(query))
     : thread.messages;
 
-  // Everything shareable in this thread: card embeds and links found in text.
-  const sharedCardIds = [...new Set(thread.messages.flatMap((m) => (m.cardRef ? [m.cardRef] : [])))];
+  // Everything shareable in this thread: card embeds (sharedCardIds) and links found in text.
   const sharedLinks = [
     ...new Set(thread.messages.flatMap((m) => m.text.match(/https?:\/\/[^\s)]+/g) ?? [])),
   ];
 
   return (
-    <>
+    <CardEmbedSourceContext.Provider value={sharedCards}>
       {/* In-thread search lives *in* the header: opening it swaps the
           avatar/name/menu for the input, and the close button sits exactly
           where the「⋯」trigger was. On single-pane phones the app header is
@@ -511,14 +515,14 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
           {safety.modals}
         </>
       )}
-    </>
+    </CardEmbedSourceContext.Provider>
   );
 }
 
 /**
  * One shared card as a compact row in the「卡片與連結」list: organic thumb +
- * title, linking to the card page. Resolved through the same visibility-
- * enforced path as an in-thread embed — a card the viewer can no longer see
+ * title, linking to the card page. Looked up in the thread's shared-card
+ * previews, like an in-thread embed — a card the viewer can no longer see
  * simply renders nothing.
  */
 function SharedCardRow({ cardId }: { cardId: string }) {

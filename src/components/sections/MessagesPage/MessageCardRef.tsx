@@ -16,10 +16,11 @@ export interface MessageCardRefProps {
 }
 
 /**
- * A card shared inside a conversation — resolved through the same visibility-
- * enforced path as an in-article embed, then rendered as an {@link
- * EmbedStoryCard} linking to the card page. A card the viewer can't see (gone
- * private, deleted) simply renders nothing.
+ * A card shared inside a conversation — looked up in the thread's shared-card
+ * previews (one request for the whole thread, see ThreadView), like an
+ * in-article embed, then rendered as an {@link EmbedStoryCard} linking to the
+ * card page. A card the viewer can't see (gone private, deleted, by someone
+ * they blocked) simply renders nothing.
  */
 export function MessageCardRef({ cardId }: MessageCardRefProps) {
   const data = useCardEmbed(`/card/${cardId}`);
