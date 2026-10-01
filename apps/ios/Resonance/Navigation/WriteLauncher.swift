@@ -23,7 +23,12 @@ final class WriteLauncher {
     var publishedCard: String?
     /// Counts the writer's visits that may have changed a card (saved,
     /// published, revised, discarded), so screens showing cards can refresh.
-    private(set) var changes = 0
+    private(set) var changes = 0 {
+        didSet { onChange?() }
+    }
+    /// Told of every change before any screen refreshes for it (drafts are
+    /// written straight to Firestore, where the HTTP cache can't see them).
+    @ObservationIgnored var onChange: (() -> Void)?
 
     func open(_ request: Request = Request()) {
         self.request = request

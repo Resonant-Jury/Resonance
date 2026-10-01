@@ -6,6 +6,8 @@ import Foundation
 /// owner-only, never counted and never notified.
 struct BookmarkService {
     let uid: String
+    /// Told after a bookmark is added or removed (the card box's shelf of them comes from the API).
+    var onWrite: @Sendable () -> Void = {}
     private var db: Firestore { Firestore.firestore() }
 
     private func ref(_ cardId: String) -> DocumentReference {
@@ -20,6 +22,7 @@ struct BookmarkService {
     /// Returns the new state.
     func toggle(_ cardId: String) async throws -> Bool {
         let doc = ref(cardId)
+        defer { onWrite() }
         if try await doc.getDocument().exists {
             try await doc.delete()
             return false

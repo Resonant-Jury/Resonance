@@ -36,10 +36,10 @@ actor Calls<Call: Sendable> {
 
 /// Contract-shaped values, decoded from JSON as the API sends them.
 enum Fixture {
-    static func card(_ id: String, slug: String? = nil, title: String? = nil, anonymous: Bool = false) -> FeedCard {
+    static func card(_ id: String, slug: String? = nil, title: String? = nil, anonymous: Bool = false, by author: String = "bob") -> FeedCard {
         let slugJSON = slug.map { "\"\($0)\"" } ?? "null"
         let author = anonymous ? "null" : """
-        {"id":"bob","handle":"bob","initials":"BO","accentColor":"oklch(90% 0.05 60)","avatarUrl":null,
+        {"id":"\(author)","handle":"\(author)","initials":"BO","accentColor":"oklch(90% 0.05 60)","avatarUrl":null,
          "avatarSeed":"42","verified":false,"region":"TW"}
         """
         return decode("""

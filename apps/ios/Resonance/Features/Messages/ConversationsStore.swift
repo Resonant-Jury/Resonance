@@ -41,8 +41,12 @@ final class ConversationsStore {
     private(set) var starters: [Person] = []
     private(set) var loaded = false
     var unreadTotal: Int { conversations.reduce(0) { $0 + $1.unread } }
+    /// The people this account has blocked, live (nil until the first read of the list).
+    private(set) var blockedIds: Set<String>?
     /// Called when the block list changes (not for the first read of it at sign-in).
     @ObservationIgnored var onBlocksChange: (() -> Void)?
+    /// Called with every read of the block list, the first included.
+    @ObservationIgnored var onBlocks: ((Set<String>) -> Void)?
 
     @ObservationIgnored private var uid: String?
     @ObservationIgnored private var listeners: [ListenerRegistration] = []
@@ -78,6 +82,8 @@ final class ConversationsStore {
                         guard let self else { return }
                         if self.ready.contains("blocks"), ids != self.blocked { self.onBlocksChange?() }
                         self.blocked = ids
+                        if self.blockedIds != ids { self.blockedIds = ids }
+                        self.onBlocks?(ids)
                         self.arrived("blocks")
                     }
                 },
@@ -91,6 +97,7 @@ final class ConversationsStore {
         rawConversations = []
         connectionUids = []
         blocked = []
+        blockedIds = nil
         ready = []
         conversations = []
         starters = []

@@ -76,6 +76,7 @@ struct MainTabView: View {
         .animation(.easeInOut(duration: 0.2), value: paths[tab]?.isEmpty ?? true)
         .background(Tokens.cream)
         .environment(writer)
+        .onAppear { writer.onChange = { [session] in session.noteOwnWrite() } }
         .fullScreenCover(isPresented: $writer.isPresented, onDismiss: {
             // A published card opens on the current tab once the writer is gone, as the web goes to it.
             if let key = writer.publishedCard {

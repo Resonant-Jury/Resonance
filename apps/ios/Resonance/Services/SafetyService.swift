@@ -35,6 +35,8 @@ struct SafetyService {
 
     let uid: String
     let api: SafetyAPI
+    /// Told after a block or an unblock: what the API answered before may show the wrong people now.
+    var onWrite: @Sendable () -> Void = {}
     private var db: Firestore { Firestore.firestore() }
 
     func report(_ target: Target, reason: Reason, detail: String) async throws {
@@ -67,6 +69,7 @@ struct SafetyService {
 
     func block(_ other: String) async throws {
         guard other != uid else { return }
+        defer { onWrite() }
         // The block goes first: once it exists the rules refuse any new contact,
         // so the cleanup below can't race a fresh connection.
         try await db.collection("users").document(uid).collection("blocks").document(other)
@@ -83,6 +86,7 @@ struct SafetyService {
     }
 
     func unblock(_ other: String) async throws {
+        defer { onWrite() }
         try await db.collection("users").document(uid).collection("blocks").document(other).delete()
     }
 

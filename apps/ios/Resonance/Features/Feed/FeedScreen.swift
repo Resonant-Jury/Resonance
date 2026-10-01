@@ -21,10 +21,18 @@ struct FeedScreen: View {
             }
             .animation(.easeInOut(duration: 0.25), value: model?.picksReady ?? false)
         }
-        .refreshable { await model?.refresh() }
+        .refreshable {
+            // Asked for by hand: the server answers, not the HTTP cache.
+            session.httpCache.freshness.invalidate()
+            await model?.refresh()
+        }
         .task {
             if model == nil { model = makeModel() }
             if model?.phase == .idle { await model?.load() }
+        }
+        // Back after a while: the feed asks again behind what it shows.
+        .onChange(of: session.awayRefreshes) {
+            Task { await model?.revalidate() }
         }
     }
 
@@ -45,6 +53,9 @@ struct FeedScreen: View {
 
     private func makeModel() -> FeedModel {
         let api = session.reading
+        // The last run's feed for this account, drawn at once on a cold start; blocked people left out.
+        let keeping = session.uid.map { FeedKeeping(session.kept, uid: $0) }
+        let blocked = { [session] in session.blockedIds }
         #if DEBUG
         // `-feedPicksDelay <seconds>` holds today's picks back (screen checks of the late-picks hint).
         let delay = UserDefaults.standard.double(forKey: "feedPicksDelay")
@@ -52,10 +63,10 @@ struct FeedScreen: View {
             return FeedModel(feed: { try await api.feed(cursor: $0) }, recommended: {
                 try? await Task.sleep(for: .seconds(delay))
                 return try await api.recommended()
-            })
+            }, keeping: keeping, blocked: blocked)
         }
         #endif
-        return FeedModel(api: api)
+        return FeedModel(api: api, keeping: keeping, blocked: blocked)
     }
 
     @ViewBuilder private var content: some View {

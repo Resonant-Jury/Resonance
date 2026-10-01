@@ -12,6 +12,11 @@ struct CardBoxScreen: View {
     @State private var shelf: ReadingAPI.CardBoxShelf = .published
     @State private var shelves: [ReadingAPI.CardBoxShelf: [FeedCard]] = [:]
     @State private var failed = false
+    /// The published shelf the last run kept has been looked for (once, on a cold start).
+    @State private var drewKept = false
+    /// Shelves on screen that the server hasn't answered for since they were
+    /// kept, or since the app came back after a while: asked for again when shown.
+    @State private var unconfirmed: Set<ReadingAPI.CardBoxShelf> = []
 
     private static let order: [ReadingAPI.CardBoxShelf] = [.published, ._private, .draft, .resonated, .linked, .bookmarks]
     /// The shelves of my own cards (OWNED_TABS): each card gets its ⋯.
@@ -24,6 +29,8 @@ struct CardBoxScreen: View {
             shelfContent
         }
         .refreshable {
+            // Asked for by hand: the server answers, not the HTTP cache.
+            session.httpCache.freshness.invalidate()
             await session.loadMe()
             await load(shelf, force: true)
         }
@@ -31,6 +38,12 @@ struct CardBoxScreen: View {
         // The writer or a card's ⋯ changed something: every shelf may have moved.
         .onChange(of: writer.changes) {
             shelves = [:]
+            unconfirmed = []
+            Task { await load(shelf) }
+        }
+        // Back after a while: every shelf asks again behind what it shows (this one now, the others when opened).
+        .onChange(of: session.awayRefreshes) {
+            unconfirmed = Set(shelves.keys)
             Task { await load(shelf) }
         }
     }
@@ -134,9 +147,20 @@ struct CardBoxScreen: View {
     }
 
     private func load(_ s: ReadingAPI.CardBoxShelf, force: Bool = false) async {
-        guard force || shelves[s] == nil else { return }
+        // A cold start: the published shelf as the last run kept it, at once — then the server's.
+        if s == .published, shelves[s] == nil, !drewKept, let uid = session.uid {
+            drewKept = true
+            if let kept = session.kept.value(.published, uid: uid) {
+                shelves[s] = kept
+                unconfirmed.insert(s)
+            }
+        }
+        guard force || shelves[s] == nil || unconfirmed.contains(s) else { return }
         do {
-            shelves[s] = try await session.reading.cardBox(s)
+            let cards = try await session.reading.cardBox(s)
+            shelves[s] = cards
+            unconfirmed.remove(s)
+            if s == .published, let uid = session.uid { session.kept.save(cards, as: .published, uid: uid) }
             failed = false
         } catch {
             failed = true

@@ -52,8 +52,19 @@ final class SessionStore {
     private(set) var signedOutForDeletion = false
     /// Bumped when the interface language changes, so the whole UI re-renders.
     private(set) var languageEpoch = 0
+    /// Bumped when the app comes back to the foreground with what it shows
+    /// grown old (`ForegroundRefresh`): the screens drawing kept answers ask
+    /// the server again, keeping theirs on screen meanwhile.
+    private(set) var awayRefreshes = 0
+    @ObservationIgnored private var foreground = ForegroundRefresh(last: .now)
+    /// The block list kept from the last run, until the live one arrives.
+    private var keptBlocked: Set<String> = []
 
     let config: AppConfig
+    /// The API's HTTP cache, the signed-in account's only (its own URLCache).
+    let httpCache = APIHTTPCache.standard()
+    /// The answers a cold start draws before the network has said anything.
+    let kept = APICache.standard()
     let api: Client
     let account: AccountAPI
     let writing: WritingAPI
@@ -68,7 +79,7 @@ final class SessionStore {
     init(config: AppConfig) {
         self.config = config
         let configuration = APIConfiguration(origin: config.origin, idToken: { force in try await Self.idToken(forceRefresh: force) })
-        api = ResonanceClient.make(configuration)
+        api = ResonanceClient.make(configuration, cache: httpCache)
         account = AccountAPI(configuration)
         writing = WritingAPI(client: api, configuration: configuration)
         if let saved = UserDefaults.standard.string(forKey: Self.languageKey), let language = Strings.Language(rawValue: saved) {
@@ -79,17 +90,57 @@ final class SessionStore {
         }
         push.onToken = { [weak self] _ in Task { await self?.registerPush() } }
         // Someone blocked or unblocked (here or on another device): what a list showed may no longer be theirs to see.
-        conversations.onBlocksChange = { [weak self] in self?.cardPreviews.clear() }
+        conversations.onBlocksChange = { [weak self] in
+            self?.cardPreviews.clear()
+            self?.noteOwnWrite()
+        }
+        conversations.onBlocks = { [weak self] ids in
+            guard let self, let uid else { return }
+            kept.save(ids.sorted(), as: .blocked, uid: uid)
+        }
     }
 
     var reading: ReadingAPI { ReadingAPI(client: api) }
     var profiles: ProfileAPI { ProfileAPI(client: api) }
-    var safety: SafetyService? { uid.map { SafetyService(uid: $0, api: SafetyAPI(client: api)) } }
-    var bookmarks: BookmarkService? { uid.map(BookmarkService.init(uid:)) }
+    var safety: SafetyService? {
+        let freshness = httpCache.freshness
+        return uid.map { SafetyService(uid: $0, api: SafetyAPI(client: api), onWrite: freshness.invalidate) }
+    }
+    var bookmarks: BookmarkService? {
+        let freshness = httpCache.freshness
+        return uid.map { BookmarkService(uid: $0, onWrite: freshness.invalidate) }
+    }
     var drafts: DraftService? { uid.map(DraftService.init(uid:)) }
     var hints: HintService? { uid.map(HintService.init(uid:)) }
     var messaging: MessagingAPI { MessagingAPI(client: api) }
     var pushAPI: PushAPI { PushAPI(client: api) }
+    /// The people this account has blocked: the live list, or until it has
+    /// arrived the one kept from the last run — what kept answers are
+    /// filtered with before they're drawn.
+    var blockedIds: Set<String> { conversations.blockedIds ?? keptBlocked }
+
+    /// The viewer wrote something the API doesn't see (a draft, a bookmark, a
+    /// block — straight to Firestore): the next GET of every URL asks the
+    /// server again instead of trusting the HTTP cache. Writes through the API
+    /// do this themselves (`FreshnessMiddleware`).
+    func noteOwnWrite() {
+        httpCache.freshness.invalidate()
+    }
+
+    // MARK: - Coming back
+
+    /// The app is in the foreground again: when what the screens show was
+    /// last asked for long enough ago, they ask again (`awayRefreshes`),
+    /// the profile with them. Returns whether they do.
+    @discardableResult
+    func cameBack(now: Date = .now) -> Bool {
+        guard phase == .signedIn, foreground.isStale(at: now) else { return false }
+        foreground = ForegroundRefresh(last: now)
+        awayRefreshes += 1
+        Task { await loadMe() }
+        return true
+    }
+
     /// What the account signed in with (settings → account shows them read-only).
     var email: String? { Auth.auth().currentUser?.email }
     var phoneNumber: String? { Auth.auth().currentUser?.phoneNumber }
@@ -128,9 +179,12 @@ final class SessionStore {
         deletionDate = try? await account.deletion()
     }
 
-    /// Schedules deletion; the server revokes every session, so sign out here too.
+    /// Schedules deletion; the server revokes every session, so sign out here
+    /// too — and nothing of the account stays on the phone meanwhile.
     func scheduleDeletion() async throws {
         try await account.scheduleDeletion()
+        kept.removeAll()
+        httpCache.use(account: nil)
         signedOutForDeletion = true
         signOut()
     }
@@ -159,7 +213,14 @@ final class SessionStore {
         guard newUID != uid || phase == .restoring else { return }
         let wasRestoring = phase == .restoring
         uid = newUID
-        me = nil
+        // Only this account's answers are kept from now on: the last one's
+        // (signed out, or switched from) go, HTTP cache and all.
+        httpCache.use(account: newUID)
+        kept.retainOnly(newUID)
+        keptBlocked = newUID.flatMap { kept.value(.blocked, uid: $0) }.map(Set.init) ?? []
+        foreground = ForegroundRefresh(last: .now)
+        // Drawn until the API answers (the card box's header on a cold start).
+        me = newUID.flatMap { kept.value(.me, uid: $0) }
         cardPreviews.clear()
         profile = .unknown
         phase = newUID == nil ? .signedOut : .signedIn
@@ -223,6 +284,7 @@ final class SessionStore {
                 adopt(found)
             } else {
                 me = nil
+                kept.remove(.me, uid: asked)
                 profile = .missing
                 land(landing.after(.missing))
                 if UserDefaults.standard.string(forKey: Self.profiledKey) == asked {
@@ -241,6 +303,7 @@ final class SessionStore {
     func adopt(_ found: Components.Schemas.Me) {
         guard let uid, found.id == uid else { return }
         me = found
+        kept.save(found, as: .me, uid: uid)
         profile = .loaded
         land(landing.after(.found))
         UserDefaults.standard.set(uid, forKey: Self.profiledKey)
@@ -308,6 +371,19 @@ final class SessionStore {
             #endif
             signInError = L10n.Auth.signInError
         }
+    }
+}
+
+/// When the screens last asked the server for what they show. Coming back
+/// to the foreground after `staleAfter`, or on a new UTC day (today's picks
+/// change with it), they ask again.
+struct ForegroundRefresh: Equatable {
+    static let staleAfter: TimeInterval = 15 * 60
+
+    let last: Date
+
+    func isStale(at now: Date) -> Bool {
+        now.timeIntervalSince(last) > Self.staleAfter || APICache.utcDay(now) != APICache.utcDay(last)
     }
 }
 

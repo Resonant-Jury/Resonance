@@ -29,8 +29,9 @@ struct RootView: View {
                         .transition(.opacity)
                 case .tabs:
                     MainTabView()
-                        // A new interface language re-renders everything.
-                        .id(session.languageEpoch)
+                        // A new interface language re-renders everything; another account
+                        // starts from nothing (no screen keeps what the last one was shown).
+                        .id("\(session.languageEpoch)/\(session.uid ?? "")")
                         .transition(.opacity)
                 }
             }
@@ -38,10 +39,12 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: session.phase)
         .animation(.easeInOut(duration: 0.25), value: session.landing)
         .tint(Tokens.terracotta)
-        // A profile that failed to load is asked for again when the app comes back
+        // Back in the foreground after a while, the screens ask again behind what they
+        // show (`cameBack`). Otherwise a profile that failed to load is asked for again
         // (a new account that was offline at first still reaches onboarding).
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, session.phase == .signedIn, case .failed = session.profile else { return }
+            guard phase == .active, session.phase == .signedIn, !session.cameBack(),
+                  case .failed = session.profile else { return }
             Task { await session.loadMe() }
         }
     }
