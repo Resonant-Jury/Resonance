@@ -5,6 +5,7 @@ import com.resonance.kit.api.ReadingApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,12 +27,18 @@ import kotlin.time.Duration.Companion.seconds
  * moves under the reader until they ask. A failed pick request (the day's
  * first, while the server still builds them, can outlast the client's
  * timeout) is asked once more a little later.
+ *
+ * With a [FeedStore] for the reader, a first read starts from the feed as it
+ * was last read (on a cold start too) instead of the skeleton, and keeps what
+ * each read brings for the next time.
  */
 class FeedLoader(
     private val api: ReadingApi,
     private val scope: CoroutineScope,
     private val retryPicksAfter: Duration = 20.seconds,
     private val picksGrace: Duration = 400.milliseconds,
+    /** Where a reader's feed is kept between launches (null: nowhere). */
+    private val storeFor: (viewer: String) -> FeedStore? = { null },
 ) {
     enum class Phase { Loading, Loaded, Failed }
 
@@ -83,23 +90,27 @@ class FeedLoader(
     private var loadedFor: String? = null
     private var loadedVersion: Int? = null
     private var loadedAt = 0L
+    private var store: FeedStore? = null
 
     /**
      * Reads the feed when what it holds isn't current: for another reader, after a change to
-     * the reader's own cards (`version`: the session's count of them), after a failure, or once
-     * it is older than [maxAge]. Otherwise the screen comes back to it as it was left.
+     * the reader's own cards (`version`: the session's count of them, which a change to the
+     * blocks bumps too), after a failure, or once it is older than [maxAge] (the app back after
+     * a while). Otherwise the screen comes back to it as it was left.
      */
-    fun refresh(viewer: String?, version: Int, now: Long = System.currentTimeMillis(), maxAge: Duration = 30.minutes) {
+    fun refresh(viewer: String?, version: Int, now: Long = System.currentTimeMillis(), maxAge: Duration = STALE_AFTER) {
         val current = viewer == loadedFor && version == loadedVersion && now - loadedAt < maxAge.inWholeMilliseconds
         if (current && _state.value.phase != Phase.Failed) return
-        if (viewer != loadedFor) {
+        val restoring = if (viewer != loadedFor) {
             loading?.cancel()
             _state.value = State()
-        }
+            store = viewer?.let(storeFor)
+            store
+        } else null
         loadedFor = viewer
         loadedVersion = version
         loadedAt = now
-        load()
+        if (restoring != null) restoreAndLoad(restoring) else load()
     }
 
     /**
@@ -109,11 +120,42 @@ class FeedLoader(
     fun load(): Job {
         loading?.cancel()
         val run = ++generation
-        _state.update { s ->
-            if (s.phase == Phase.Loaded) s.copy(latestSettled = false, latestFailed = false, picksSettled = false)
-            else State()
-        }
+        reading()
+        return scope.launch { read(run) }.also { loading = it }
+    }
+
+    /** A new reader's first read: the feed as they last saw it shows while it goes. */
+    private fun restoreAndLoad(saved: FeedStore): Job {
+        loading?.cancel()
+        val run = ++generation
         return scope.launch {
+            val latest = runCatching { saved.latest() }.getOrNull()
+            val picks = runCatching { saved.picks() }.getOrNull()
+            _state.update { s ->
+                val kept = State(
+                    phase = Phase.Loaded,
+                    recommended = picks.orEmpty(),
+                    latest = latest?.cards.orEmpty(),
+                    cursor = latest?.nextCursor,
+                    latestSettled = true,
+                    picksSettled = true,
+                )
+                // Nothing kept (or the server was quicker): as it is.
+                if (s.phase != Phase.Loading || kept.cards.isEmpty()) s else kept
+            }
+            reading()
+            read(run)
+        }.also { loading = it }
+    }
+
+    private fun reading() = _state.update { s ->
+        if (s.phase == Phase.Loaded) s.copy(latestSettled = false, latestFailed = false, picksSettled = false)
+        else State()
+    }
+
+    private suspend fun read(run: Int) {
+        val keep = store
+        coroutineScope {
             launch {
                 val page = try {
                     api.feed()
@@ -130,17 +172,22 @@ class FeedLoader(
                     if (page == null) s.copy(latestSettled = true, latestFailed = true).settled()
                     else s.copy(latest = page.cards, cursor = page.nextCursor, latestSettled = true, latestFailed = false).settled()
                 }
+                if (page != null) keep?.let { runCatching { it.saveLatest(page) } }
             }
             launch {
                 val picks = picks()
                 _state.update { s -> s.withPicks(picks.orEmpty()).copy(picksSettled = true).settled() }
+                if (picks != null) keep?.let { runCatching { it.savePicks(picks) } }
                 if (picks == null) {
                     delay(retryPicksAfter)
                     val again = picks() ?: return@launch
-                    if (run == generation) _state.update { s -> s.withPicks(again).settled() }
+                    if (run == generation) {
+                        _state.update { s -> s.withPicks(again).settled() }
+                        keep?.let { runCatching { it.savePicks(again) } }
+                    }
                 }
             }
-        }.also { loading = it }
+        }
     }
 
     /** Shows the picks the hint offered, above the latest cards (which stay). */
@@ -193,5 +240,10 @@ class FeedLoader(
         // The latest cards are on screen: the picks wait for the reader's tap.
         phase == Phase.Loaded && cards.isNotEmpty() -> copy(waitingPicks = picks)
         else -> copy(recommended = picks)
+    }
+
+    companion object {
+        /** A feed read longer ago than this is read again when the screen (or the app) comes back to it. */
+        val STALE_AFTER: Duration = 15.minutes
     }
 }

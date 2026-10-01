@@ -152,6 +152,21 @@ class FeedLoaderTest {
         assertEquals(listOf("theirs"), until { it.phase == FeedLoader.Phase.Loaded }.cards.map { it.id })
     }
 
+    @Test fun theAppBackAfterAQuarterOfAnHourReadsAgainInTheBackground() = runBlocking {
+        val reads = AtomicInteger()
+        routes.on("/feed") { reads.incrementAndGet(); json(pageJson("a")) }
+        routes.on("/feed/recommended") { json(listJson()) }
+        val minute = 60_000L
+        loader.refresh("me", version = 0, now = 0)
+        until { it.phase == FeedLoader.Phase.Loaded }
+        loader.refresh("me", version = 0, now = 14 * minute)
+        assertEquals(1, reads.get())
+        loader.refresh("me", version = 0, now = 16 * minute)
+        // What is on screen stays while it goes.
+        assertEquals(listOf("a"), loader.state.value.cards.map { it.id })
+        withTimeout(4_000) { while (reads.get() < 2) kotlinx.coroutines.delay(10) }
+    }
+
     @Test fun nothingAnsweringIsAFailureAndATryAgainLoads() = runBlocking {
         routes.on("/feed") { MockResponse().setResponseCode(500) }
         routes.on("/feed/recommended") { MockResponse().setResponseCode(500) }
