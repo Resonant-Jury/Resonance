@@ -30,11 +30,11 @@ import { listConversations, listenThread } from '@/lib/db/firestore/client/messa
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import { ApiError, callApi } from '@/lib/db/firestore/client/api';
 import { hasSessionMark } from '@/lib/auth/firebase/client';
-import type { CardDetailBody, CardListBody } from '@/lib/api/v1/schemas';
+import type { CardDetailBody, CardListBody, FeedPageBody, ProfileBody } from '@/lib/api/v1/schemas';
 import type { Conversation, Message } from '@/lib/db/types';
 import { anonymousAuthor, cardKey } from './cardPrefill';
 import type { CardSeed, PublicCardView } from './cardSeed';
-import { summaryList } from './summaries';
+import { profileUser, summaryList } from './summaries';
 
 /**
  * For what the viewer edits themselves — their card, card box, map, profile:
@@ -804,4 +804,73 @@ export function useProfileLinks(handle: string | undefined) {
     const links = await listLinksToAuthor(uid!);
     return withAuthors(await cardsFromIds(links.map((l) => l.sourceCardId)));
   });
+}
+
+/** Everything a profile page shows; each part undefined until it arrives. */
+export interface ProfilePage {
+  /** The person and how the viewer stands with them. */
+  head?: PublicProfile;
+  /** Their public cards, newest first (their first 40, as the page lists them). */
+  cards?: Card[];
+  /** Cards by others linking to theirs. */
+  links?: CardsWithAuthors;
+  /** The head is still on its way (or can't start yet). */
+  isLoading: boolean;
+  /** Reading their cards failed. */
+  cardsError?: unknown;
+}
+
+/** The profile page lists a person's first 40 public cards; one v1 page holds 30 at most (FeedQuery's limit). */
+const PROFILE_CARDS = 40;
+const PROFILE_PAGE_MAX = 30;
+
+/**
+ * One GET /api/v1/users/{handle}?include=cards,links: the person, the
+ * viewer's standing with them, their cards and the cards linking to theirs.
+ * Only someone with more than a page of cards costs a second request (the
+ * rest of their first 40). Null: nobody goes by that pen name.
+ */
+async function fetchProfilePage(handle: string): Promise<Required<Omit<ProfilePage, 'isLoading' | 'cardsError'>> | null> {
+  const path = `/api/v1/users/${encodeURIComponent(handle)}`;
+  const body = await getOrNull<ProfileBody>(`${path}?include=cards,links&limit=${PROFILE_PAGE_MAX}`);
+  if (!body) return null;
+  const page = body.cards ?? { cards: [], nextCursor: null };
+  let cards = page.cards;
+  if (page.nextCursor && !body.isBlocked) {
+    const rest = await callApi<FeedPageBody>(
+      `${path}/cards?limit=${PROFILE_CARDS - PROFILE_PAGE_MAX}&cursor=${encodeURIComponent(page.nextCursor)}`,
+    );
+    cards = [...cards, ...rest.cards];
+  }
+  return {
+    head: { user: profileUser(body), isSelf: body.isSelf, isConnected: body.isConnected, isBlocked: body.isBlocked },
+    cards: summaryList(cards).cards,
+    links: summaryList(body.links),
+  };
+}
+
+/**
+ * Everything the profile page shows. Signed in: one request to /api/v1 (the
+ * server reads the person, the viewer's blocks and connection, the cards and
+ * the links together). Signed out: {@link useProfileByHandle},
+ * {@link useProfileCards} and {@link useProfileLinks} through the rules, side
+ * by side — the person and their cards without waiting for auth.
+ */
+export function useProfilePage(handle: string | undefined): ProfilePage {
+  const { user: viewer } = useAuth();
+  const path = useReadPath();
+  const publicHandle = path === 'public' ? handle : undefined;
+  const head = useProfileByHandle(publicHandle);
+  const cards = useProfileCards(publicHandle);
+  const links = useProfileLinks(publicHandle);
+  const signedIn = useSWR(path === 'v1' && handle ? `profilePage:${handle}:${viewer!.id}` : null, () => fetchProfilePage(handle!));
+
+  if (path === 'v1') {
+    const d = signedIn.data;
+    if (d === null) return { head: nobody, isLoading: false };
+    // A failed read ends the loading (the page then says it can't find them, as the public path does).
+    return { head: d?.head, cards: d?.cards, links: d?.links, isLoading: d === undefined && !signedIn.error, cardsError: signedIn.error };
+  }
+  if (path === null) return { isLoading: true };
+  return { head: head.data, cards: cards.data, links: links.data, isLoading: head.isLoading, cardsError: cards.error };
 }

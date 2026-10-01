@@ -12,7 +12,7 @@ import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { Link } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
-import { useProfileByHandle, useProfileCards, useProfileLinks } from '@/lib/data/hooks';
+import { useProfilePage } from '@/lib/data/hooks';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { BlockedNotice, ProfileSafetyMenu } from './ProfileSafety';
 import { regionDisplayName } from '@/lib/regionName';
@@ -36,13 +36,11 @@ export default function PublicProfilePage() {
   const t = useTranslations('profile');
   const tMsg = useTranslations('messages');
   const { user: viewer } = useAuth();
-  // Three reads side by side once the handle names someone: the viewer's
-  // standing with them (blocks + connection), their cards, and the cards
-  // linking to theirs. The page waits for the first two (the hero counts the
-  // cards); the links arrive when they do.
-  const { data, isLoading } = useProfileByHandle(handle);
-  const { data: published, error: cardsError } = useProfileCards(handle);
-  const { data: links } = useProfileLinks(handle);
+  // The person, the viewer's standing with them (blocks + connection), their
+  // cards and the cards linking to theirs: signed in, one request; signed
+  // out, three reads side by side. The page waits for the first two (the
+  // hero counts the cards); the links arrive when they do.
+  const { head: data, isLoading, cards: published, cardsError, links } = useProfilePage(handle);
   const cardsPending = !!data?.user && !data.isBlocked && published === undefined && !cardsError;
 
   if (isLoading || cardsPending) {
