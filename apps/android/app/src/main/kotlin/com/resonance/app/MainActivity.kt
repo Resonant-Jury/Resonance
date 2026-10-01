@@ -88,6 +88,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Back after a while: the screens read again in the background (what they show stays meanwhile).
+        session?.enteredForeground()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         incomingRoute.value = routeFrom(intent)

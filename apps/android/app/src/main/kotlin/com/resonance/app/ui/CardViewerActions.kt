@@ -146,7 +146,9 @@ fun BookmarkButton(session: Session, cardId: String) {
                     active = saving
                     justSaved = saving
                     haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    scope.launch { active = runCatching { bookmarks.toggle(cardId) }.getOrElse { !saving } }
+                    scope.launch {
+                        active = runCatching { bookmarks.toggle(cardId) }.onSuccess { session.noteOwnWrite() }.getOrElse { !saving }
+                    }
                 }
                 .padding(12.dp),
             size = 20.dp,

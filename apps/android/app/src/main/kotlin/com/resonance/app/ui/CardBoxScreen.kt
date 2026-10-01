@@ -67,8 +67,9 @@ import kotlinx.coroutines.launch
 
 /**
  * The card box's shelves as read, kept while the tab's root is (always, until sign-out): coming
- * back to a shelf shows it as it was. A change to a card has every shelf read again, the one in
- * view at once, still showing meanwhile; so does a shelf read long ago.
+ * back to a shelf shows it as it was. A change to a card (or the blocks) has every shelf read
+ * again, the one in view at once, still showing meanwhile; so does a shelf read long ago. The
+ * published shelf is also kept on the device, so a cold start draws it at once.
  */
 class CardBoxModel(private val session: Session) : ViewModel() {
     val shelves = mutableStateMapOf<TabGetCardBox, List<FeedCard>>()
@@ -77,6 +78,14 @@ class CardBoxModel(private val session: Session) : ViewModel() {
     private val readAt = HashMap<TabGetCardBox, Long>()
     private val reading = HashMap<TabGetCardBox, Job>()
     private var seenChanges: Int? = null
+    private val uid = session.uid
+
+    init {
+        if (uid != null) viewModelScope.launch {
+            val kept = session.kept(uid)?.published() ?: return@launch
+            if (!shelves.containsKey(TabGetCardBox.published)) shelves[TabGetCardBox.published] = kept
+        }
+    }
 
     /** Reads `shelf` unless it was read since the last change (`changes`) and lately; `retry` always does. */
     fun refresh(shelf: TabGetCardBox, changes: Int, retry: Boolean = false, now: Long = System.currentTimeMillis()) {
@@ -93,6 +102,7 @@ class CardBoxModel(private val session: Session) : ViewModel() {
                 val cards = session.reading.cardBox(shelf)
                 shelves[shelf] = cards
                 failed = false
+                if (shelf == TabGetCardBox.published && uid != null) session.kept(uid)?.savePublished(cards)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -113,12 +123,13 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     val profile by session.profile.collectAsStateWithLifecycle()
     val model = viewModel { CardBoxModel(session) }
     var shelf by rememberSaveable { mutableStateOf(TabGetCardBox.published) }
-    // The writer or a card's ⋯ changed something: every shelf may have moved, so they are read again.
+    // The writer, a card's ⋯ or a block changed something: every shelf may have moved, so they are read again.
     val changes by session.cardChanges.collectAsStateWithLifecycle()
+    val foregrounded by session.foregrounded.collectAsStateWithLifecycle()
     val shelves = model.shelves
     val failed = model.failed
     val scope = rememberCoroutineScope()
-    LaunchedEffect(shelf, changes) { model.refresh(shelf, changes) }
+    LaunchedEffect(shelf, changes, foregrounded) { model.refresh(shelf, changes) }
 
     TabScreen(L10n.App.Nav.me) {
         item {

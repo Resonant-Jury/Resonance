@@ -129,10 +129,11 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
     val profile = model.profile
     val cards = model.cards
     val linked = model.linked
+    // A block or unblock changes the blocks, which re-reads the page (once) with every card screen.
     val changes by session.cardChanges.collectAsStateWithLifecycle()
-    LaunchedEffect(changes) { model.refresh(changes) }
-    // After a block or unblock the page re-reads what the viewer may see.
-    val reload: () -> Unit = { model.refresh(changes, force = true) }
+    val foregrounded by session.foregrounded.collectAsStateWithLifecycle()
+    LaunchedEffect(changes, foregrounded) { model.refresh(changes) }
+    val reload: () -> Unit = { model.refresh(changes) }
     val retry: () -> Unit = { model.refresh(changes, force = true) }
 
     val list = rememberLazyListState()

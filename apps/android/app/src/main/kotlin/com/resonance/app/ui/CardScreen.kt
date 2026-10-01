@@ -173,9 +173,10 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val uri = LocalUriHandler.current
     val context = LocalContext.current
     val list = rememberLazyListState()
-    // Edited, published or re-shelved from the writer or the ⋯: read it again; so is a page read long ago.
+    // Edited, published or re-shelved from the writer or the ⋯, or a block: read it again; so is a page read long ago.
     val changes by session.cardChanges.collectAsStateWithLifecycle()
-    LaunchedEffect(changes) { model.refresh(changes) }
+    val foregrounded by session.foregrounded.collectAsStateWithLifecycle()
+    LaunchedEffect(changes, foregrounded) { model.refresh(changes) }
 
     val openUrl: (String) -> Unit = { url ->
         val sitePath = if (url.startsWith("/")) url else if (url.startsWith(session.config.origin)) url.removePrefix(session.config.origin) else null

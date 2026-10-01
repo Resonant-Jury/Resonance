@@ -85,11 +85,15 @@ class ConversationsStore {
     /** Called when the person's blocks change after they were first read. */
     var onBlocksChanged: (() -> Unit)? = null
 
+    /** Whom the person has blocked, live (null until Firestore has said). */
+    private val _blocked = MutableStateFlow<Set<String>?>(null)
+    val blockedIds: StateFlow<Set<String>?> = _blocked
+
     private var uid: String? = null
     private var listeners: List<ListenerRegistration> = emptyList()
     private var rawConversations: List<QueryDocumentSnapshot> = emptyList()
     private var connectionUids: List<String> = emptyList()
-    private var blocked: Set<String> = emptySet()
+    private val blocked: Set<String> get() = _blocked.value.orEmpty()
     private val people = HashMap<String, Person>()
     private val missing = HashSet<String>()
     private val ready = HashSet<String>()
@@ -120,7 +124,7 @@ class ConversationsStore {
                     snap ?: return@addSnapshotListener
                     val next = snap.documents.map { it.id }.toSet()
                     val changed = "blocks" in ready && next != blocked
-                    blocked = next
+                    _blocked.value = next
                     if (changed) onBlocksChanged?.invoke()
                     arrived("blocks")
                 },
@@ -135,7 +139,7 @@ class ConversationsStore {
         rawConversations = emptyList()
         _ids.value = emptySet()
         connectionUids = emptyList()
-        blocked = emptySet()
+        _blocked.value = null
         ready.clear()
         _state.value = State()
     }

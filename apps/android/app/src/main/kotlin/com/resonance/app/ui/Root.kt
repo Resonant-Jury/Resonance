@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,15 +41,19 @@ fun ResonanceRoot(session: Session, incomingRoute: MutableState<String?>) {
     }
 }
 
-/** A link that arrives meanwhile waits in `incomingRoute` until the tabs open it. */
+/**
+ * A link that arrives meanwhile waits in `incomingRoute` until the tabs open it. The tabs belong to
+ * the account: another one signing in (without a sign-out between) gets its own, nothing kept.
+ */
 @Composable
 private fun SignedIn(session: Session, incomingRoute: MutableState<String?>) {
     val entry by session.entry.collectAsStateWithLifecycle()
+    val account by session.signedInUid.collectAsStateWithLifecycle()
     Crossfade(entry, Modifier.fillMaxSize().cream(), label = "entry") { e ->
         when (e) {
             Session.Entry.Waiting -> Loading()
             Session.Entry.Onboarding -> OnboardingScreen(session)
-            Session.Entry.App -> MainTabs(session, incomingRoute)
+            Session.Entry.App -> key(account) { MainTabs(session, incomingRoute) }
         }
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,11 +38,15 @@ import com.resonance.design.generated.IconName
 import com.resonance.design.storyCardSkeletons
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.FeedLoader
+import com.resonance.kit.reading.withoutAuthors
 import kotlinx.coroutines.launch
 
-/** The feed's page state: kept while the feed's tab root is (always, until sign-out), and through a rotation. */
+/**
+ * The feed's page state: kept while the feed's tab root is (always, until sign-out), and through a
+ * rotation. The reader's last feed is kept on the device too, so a cold start draws it at once.
+ */
 class FeedModel(session: Session) : ViewModel() {
-    val feed = FeedLoader(session.reading, viewModelScope)
+    val feed = FeedLoader(session.reading, viewModelScope, storeFor = { uid -> session.kept(uid) })
 }
 
 /**
@@ -58,11 +63,15 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
     val feed = viewModel { FeedModel(session) }.feed
     val scope = rememberCoroutineScope()
     val state by feed.state.collectAsStateWithLifecycle()
-    // Your own card written, published or re-shelved: the feed reads again (keeping what it shows meanwhile).
+    // Your own card written, published or re-shelved, or a block: the feed reads again (keeping what it shows meanwhile);
+    // so does a feed read long ago, when the app comes back to it.
     val changes by session.cardChanges.collectAsStateWithLifecycle()
-    LaunchedEffect(changes) { feed.refresh(session.uid, changes) }
+    val foregrounded by session.foregrounded.collectAsStateWithLifecycle()
+    LaunchedEffect(changes, foregrounded) { feed.refresh(session.uid, changes) }
     val list = rememberLazyListState()
-    val cards = state.cards
+    // Never a card by someone blocked — not even one kept from before the block.
+    val blocked by session.blocked.collectAsStateWithLifecycle()
+    val cards = remember(state.cards, blocked) { state.cards.withoutAuthors(blocked) }
 
     TabScreen(
         L10n.Home.heading,

@@ -15,6 +15,7 @@ import com.resonance.api.models.Me
 import com.resonance.kit.api.AccountApi
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
+import com.resonance.kit.api.HttpCaching
 import com.resonance.kit.api.MessagingApi
 import com.resonance.kit.api.ProfileApi
 import com.resonance.kit.api.PushApi
@@ -23,23 +24,42 @@ import com.resonance.kit.api.SafetyApi
 import com.resonance.kit.api.WritingApi
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
+import com.resonance.kit.reading.ApiCache
 import com.resonance.kit.reading.CardCache
 import com.resonance.kit.reading.CardPageLoader
+import com.resonance.kit.reading.FeedLoader
 import java.time.OffsetDateTime
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
+import okhttp3.OkHttpClient
 
 /**
  * Who is signed in, and their profile as the API sees it (the twin of iOS's
  * SessionStore). Firebase Auth owns the sign-in state and renews the ID
  * token; every API call asks it for a fresh one.
+ *
+ * Every API call goes through `http`, which carries the API's HTTP cache
+ * ([httpCaching]); [kept] holds what the screens a cold start opens on last
+ * showed. Both belong to the account: they are emptied when it signs out
+ * (deletion included) or another one signs in.
  */
-class Session(val config: AppConfig, private val prefs: SharedPreferences) {
+class Session(
+    val config: AppConfig,
+    private val prefs: SharedPreferences,
+    http: OkHttpClient = OkHttpClient(),
+    private val httpCaching: HttpCaching = HttpCaching(null),
+    private val kept: ApiCache? = null,
+) {
     enum class Phase { Restoring, SignedOut, SignedIn }
     sealed interface Profile {
         data object Unknown : Profile
@@ -72,13 +92,13 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     var justOnboarded = false
 
     val api = ApiConfiguration(config.origin) { force -> idToken(force) }
-    val reading = ReadingApi(api)
-    val account = AccountApi(api)
-    val writing = WritingApi(api)
-    val messaging = MessagingApi(api)
-    val pushApi = PushApi(api)
-    val profiles = ProfileApi(api)
-    private val safetyApi = SafetyApi(api)
+    val reading = ReadingApi(api, http)
+    val account = AccountApi(api, http)
+    val writing = WritingApi(api, http)
+    val messaging = MessagingApi(api, http)
+    val pushApi = PushApi(api, http)
+    val profiles = ProfileApi(api, http)
+    private val safetyApi = SafetyApi(api, http)
     val notifications = NotificationsStore()
     val conversations = ConversationsStore()
     /**
@@ -101,19 +121,39 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
 
     /**
      * Counts the changes that may have moved a card: the writer closing (saved,
-     * published, revised, discarded) and a card's ⋯ (visibility, delete). The
-     * screens showing cards watch it to read them again (iOS's WriteLauncher.changes).
+     * published, revised, discarded), a card's ⋯ (visibility, delete) and a
+     * change to the blocks (which hides cards). The screens showing cards
+     * watch it to read them again (iOS's WriteLauncher.changes) — from the
+     * server, not the HTTP cache.
      */
     private val _cardChanges = MutableStateFlow(0)
     val cardChanges: StateFlow<Int> = _cardChanges
 
     fun noteCardChange() {
         cardCache.clear()
+        httpCaching.invalidate()
         _cardChanges.update { it + 1 }
     }
 
+    /** A write that goes straight to Firestore (a bookmark): what the API reads back is read afresh. */
+    fun noteOwnWrite() = httpCaching.invalidate()
+
+    /** When the app last came to the foreground (the screens read again then if what they hold is old). */
+    private val _foregrounded = MutableStateFlow(0L)
+    val foregrounded: StateFlow<Long> = _foregrounded
+    private var meReadAt = 0L
+
+    /** Whom the person has blocked as last read on this device, until Firestore says (a cold start). */
+    private val _keptBlocks = MutableStateFlow<Set<String>>(emptySet())
+
+    /** What the signed-in account's screens last showed (the feed's store, the published shelf). */
+    fun kept(uid: String): ApiCache.Account? = kept?.of(uid)
+
     var uid: String? = null
         private set
+    /** [uid] as state: the tabs (their stacks, pages and ViewModels) belong to one account and start afresh for another. */
+    private val _signedInUid = MutableStateFlow<String?>(null)
+    val signedInUid: StateFlow<String?> = _signedInUid
 
     val safety: SafetyService? get() = uid?.let { SafetyService(it, safetyApi) }
     val bookmarks: BookmarkService? get() = uid?.let(::BookmarkService)
@@ -128,19 +168,39 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
     private val auth: FirebaseAuth get() = AppFirebase.auth
     private val scope = MainScope()
 
+    /**
+     * Whom the person has blocked: live once Firestore has said, until then as last read. Lists
+     * drawn from what the app kept are filtered by it before they show, and again when it changes.
+     */
+    val blocked: StateFlow<Set<String>> =
+        combine(conversations.blockedIds, _keptBlocks) { live, kept -> live ?: kept }.stateIn(scope, SharingStarted.Eagerly, emptySet())
+
     init {
         // Each new FCM token is registered under whoever is signed in.
         PushCenter.onToken = { scope.launch { registerPush() } }
-        // A block (from any device) hides cards the cache may still hold.
-        conversations.onBlocksChanged = { cardCache.clear() }
+        // A block (from any device) hides cards: the screens showing cards read them again, past the caches.
+        conversations.onBlocksChanged = { noteCardChange() }
+        // The block list as Firestore says it, kept for the next cold start's lists.
+        scope.launch {
+            conversations.blockedIds.collect { ids ->
+                val who = uid
+                if (ids != null && who != null) kept?.of(who)?.saveBlocked(ids)
+            }
+        }
     }
 
     fun start(onSignedIn: suspend () -> Unit) {
         auth.addAuthStateListener { a ->
             val next = a.currentUser?.uid
             if (next == uid && _phase.value != Phase.Restoring) return@addAuthStateListener
+            val previous = uid
             uid = next
+            _signedInUid.value = next
             cardCache.clear()
+            // Signed out (deletion signs out too) or someone else signed in: nothing of the account stays.
+            if (previous != null) forget(previous)
+            _keptBlocks.value = emptySet()
+            meReadAt = 0L
             _profile.value = Profile.Unknown
             // A profile this device has already seen lets the tabs open at once; otherwise wait for /me.
             _entry.value = if (next != null && prefs.getBoolean(profileKey(next), false)) Entry.App else Entry.Waiting
@@ -151,6 +211,7 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
                 _signedOutForDeletion.value = false
                 notifications.start(next)
                 conversations.start(next)
+                scope.launch { restoreKept(next) }
                 scope.launch { runCatching { onSignedIn() } }
                 scope.launch { refreshDeletion() }
                 scope.launch { registerPush() }
@@ -172,9 +233,41 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
         }
     }
 
+    /** The account's profile and blocks as this device last read them: the card box draws at once. */
+    private suspend fun restoreKept(who: String) {
+        val account = kept?.of(who) ?: return
+        account.blocked()?.let { if (uid == who) _keptBlocks.value = it }
+        val me = account.me() ?: return
+        val now = _profile.value
+        if (uid == who && (now == Profile.Unknown || now == Profile.Loading || now == Profile.Failed)) _profile.value = Profile.Loaded(me)
+    }
+
+    /**
+     * Empties what the account left on the device: the HTTP cache and what the screens kept. Its
+     * calls still running stop at once, before the next account's first call goes out.
+     */
+    private fun forget(who: String) {
+        httpCaching.cancelCalls()
+        scope.launch(NonCancellable + Dispatchers.IO) {
+            httpCaching.evict()
+            kept?.clear(who)
+        }
+    }
+
+    /** The app came back to the foreground: a profile read long ago is read again (it stays on screen meanwhile). */
+    fun enteredForeground(now: Long = System.currentTimeMillis()) {
+        _foregrounded.value = now
+        if (_phase.value == Phase.SignedIn && meReadAt != 0L && now - meReadAt > FeedLoader.STALE_AFTER.inWholeMilliseconds) {
+            scope.launch { loadMe() }
+        }
+    }
+
     suspend fun loadMe() {
         val asked = uid ?: return
-        _profile.value = Profile.Loading
+        // What is on screen (the profile as last read) stays while it is read again.
+        val shown = _profile.value as? Profile.Loaded
+        if (shown == null) _profile.value = Profile.Loading
+        meReadAt = System.currentTimeMillis()
         val result = try {
             Profile.Loaded(reading.me())
         } catch (e: CancellationException) {
@@ -192,10 +285,12 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
             Profile.Missing -> {
                 _profile.value = Profile.Missing
                 prefs.edit().remove(profileKey(asked)).apply()
+                scope.launch(Dispatchers.IO) { kept?.clear(asked) }
                 _entry.value = Entry.Onboarding
             }
             else -> {
-                _profile.value = result
+                // A failed read keeps the profile already on screen; with none, the card box offers the retry.
+                if (_profile.value !is Profile.Loaded) _profile.value = result
                 if (_entry.value == Entry.Waiting) _entry.value = Entry.App
             }
         }
@@ -219,10 +314,13 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
         return me
     }
 
-    /** The profile as the API returned it; the device remembers the account has one. */
+    /** The profile as the API returned it; the device remembers the account has one (and the profile, for the next cold start). */
     private fun setMe(me: Me) {
         _profile.value = Profile.Loaded(me)
-        uid?.let { prefs.edit().putBoolean(profileKey(it), true).apply() }
+        uid?.let { who ->
+            prefs.edit().putBoolean(profileKey(who), true).apply()
+            scope.launch { kept?.of(who)?.saveMe(me) }
+        }
         _entry.value = Entry.App
     }
 
