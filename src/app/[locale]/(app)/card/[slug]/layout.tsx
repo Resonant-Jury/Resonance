@@ -15,7 +15,9 @@ export const runtime = 'nodejs';
 // deleting straight through Firestore) would keep the old HTML up for as long
 // as this lasts. Five minutes bounds that for crawlers and readers without
 // JavaScript, and costs one server read per card per five minutes of traffic
-// (an idle card costs nothing: regeneration happens on the next request).
+// (an idle card costs nothing: regeneration happens on the next request —
+// which still gets the old HTML, unless it is older than next.config's
+// expireTime, a day: then that visit renders fresh).
 export const revalidate = 300;
 
 // No slugs at build time — an empty list opts the segment into on-demand
