@@ -6,6 +6,7 @@ import com.resonance.api.infrastructure.ClientException
 import com.resonance.api.infrastructure.ServerException
 import com.resonance.api.models.ApiError
 import com.resonance.api.models.CardDetail
+import com.resonance.api.models.ErrorCode
 import com.resonance.api.models.FeedCard
 import com.resonance.api.models.FeedPage
 import com.resonance.api.models.Me
@@ -70,7 +71,9 @@ internal suspend fun <T> call(block: () -> T): T = withContext(Dispatchers.IO) {
     } catch (e: ClientException) {
         val body = (e.response as? ClientError<*>)?.body as? String
         val error = body?.let { runCatching { json.decodeFromString(ApiError.serializer(), it) }.getOrNull() }
-        throw if (error != null) ApiFailure(error.error.code.value, error.error.message, e.statusCode)
+        // A code newer than this build (the client's unknown case) is no code it can act on; its message still shows.
+        val code = error?.error?.code?.takeIf { it != ErrorCode.unknownDefaultOpenApi }?.value ?: "unexpected"
+        throw if (error != null) ApiFailure(code, error.error.message, e.statusCode)
         else ApiFailure("unexpected", "HTTP ${e.statusCode}", e.statusCode)
     } catch (e: ServerException) {
         throw ApiFailure("internal", "HTTP ${e.statusCode}", e.statusCode)

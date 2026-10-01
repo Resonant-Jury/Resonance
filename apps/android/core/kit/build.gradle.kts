@@ -19,6 +19,7 @@ openApiGenerate {
     library.set("jvm-okhttp4")
     // JSON numbers are Doubles here (the default BigDecimal serves money, not hues).
     typeMappings.set(mapOf("number" to "kotlin.Double"))
+    additionalProperties.set(mapOf("enumUnknownDefaultCase" to "true"))
     configOptions.set(
         mapOf(
             "serializationLibrary" to "kotlinx_serialization",

@@ -24,23 +24,26 @@ public struct APIConfiguration: Sendable {
 public enum ResonanceClient {
     /// A generated v1 client that authenticates every call with the ID token.
     public static func make(_ configuration: APIConfiguration, session: URLSession = .shared) -> Client {
-        Client(
-            serverURL: configuration.apiURL,
-            configuration: .init(dateTranscoder: .iso8601WithFractionalSeconds),
-            transport: URLSessionTransport(configuration: .init(session: session)),
-            middlewares: [BearerAuthMiddleware(idToken: configuration.idToken)]
-        )
+        make(configuration, transport: URLSessionTransport(configuration: .init(session: session)),
+             middlewares: [BearerAuthMiddleware(idToken: configuration.idToken)])
     }
 
     /// The app's client: through the signed-in account's HTTP cache, asking
     /// the server again after the viewer's own writes (`APIFreshness`).
     public static func make(_ configuration: APIConfiguration, cache: APIHTTPCache) -> Client {
+        make(configuration, transport: AccountCacheTransport(cache: cache),
+             // Freshness first: a request the token middleware retries keeps its no-cache.
+             middlewares: [FreshnessMiddleware(freshness: cache.freshness), BearerAuthMiddleware(idToken: configuration.idToken)])
+    }
+
+    /// Every client reads answers through `OpenEnumsMiddleware`, so a value the
+    /// contract adds to an enum later never fails a whole answer.
+    static func make(_ configuration: APIConfiguration, transport: any ClientTransport, middlewares: [any ClientMiddleware]) -> Client {
         Client(
             serverURL: configuration.apiURL,
             configuration: .init(dateTranscoder: .iso8601WithFractionalSeconds),
-            transport: AccountCacheTransport(cache: cache),
-            // Freshness first: a request the token middleware retries keeps its no-cache.
-            middlewares: [FreshnessMiddleware(freshness: cache.freshness), BearerAuthMiddleware(idToken: configuration.idToken)]
+            transport: transport,
+            middlewares: [OpenEnumsMiddleware()] + middlewares
         )
     }
 }

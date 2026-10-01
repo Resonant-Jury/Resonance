@@ -269,6 +269,8 @@ private fun shelfTitle(s: TabGetCardBox) = when (s) {
     TabGetCardBox.resonated -> L10n.Me.Tabs.resonated
     TabGetCardBox.linked -> L10n.Me.Tabs.linked
     TabGetCardBox.bookmarks -> L10n.Me.Tabs.bookmarks
+    // The generated client's stand-in for a value it doesn't know (an answer from a newer server); never a shelf here.
+    TabGetCardBox.unknownDefaultOpenApi -> ""
 }
 
 private fun emptyText(s: TabGetCardBox) = when (s) {
@@ -278,4 +280,5 @@ private fun emptyText(s: TabGetCardBox) = when (s) {
     TabGetCardBox.resonated -> L10n.Me.emptyResonated
     TabGetCardBox.linked -> L10n.Me.emptyLinked
     TabGetCardBox.bookmarks -> L10n.Me.emptyBookmarks
+    TabGetCardBox.unknownDefaultOpenApi -> ""
 }
