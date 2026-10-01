@@ -8,6 +8,7 @@ import { SWRProvider } from '@/components/providers/SWRProvider';
 import TweaksPanel from '@/components/providers/TweaksPanel';
 import { OG_COVER_PATH, OG_COVER_SIZE } from '@/lib/og';
 import { siteUrl } from '@/lib/site';
+import { fontVariables } from '@/styles/fonts';
 import '@/styles/globals.css';
 
 export function generateStaticParams() {
@@ -81,18 +82,7 @@ export default async function LocaleLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* App Router has no pages/_document.js; this <head> font link is the
-            correct global loading mechanism, so the page-custom-font rule doesn't apply. */}
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;800&family=DM+Sans:wght@400;500;600;700&family=Noto+Serif+TC:wght@400;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang={locale} className={fontVariables}>
       <body suppressHydrationWarning>
         <NextIntlProvider messages={messages} locale={locale}>
           <AuthProvider>

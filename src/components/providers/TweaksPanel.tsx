@@ -75,9 +75,12 @@ export const ACCENT_MAP: Record<string, Record<string, string>> = {
   },
 };
 
+// The self-hosted faces are named through the variables next/font sets on
+// <html> (src/styles/fonts.ts) — their real family names are hashed. `default`
+// is tokens.css's --font-heading.
 const FONT_MAP: Record<string, string> = {
-  default: "'Playfair Display', 'Noto Serif TC', Georgia, serif",
-  handwritten: "'ChenYuluoyan Thin', 'Noto Serif TC', cursive",
+  default: "var(--font-playfair, 'Playfair Display'), var(--font-noto-serif-tc, 'Noto Serif TC'), Georgia, serif",
+  handwritten: "'ChenYuluoyan Thin', var(--font-noto-serif-tc, 'Noto Serif TC'), cursive",
 };
 
 const DENSITY_MAP: Record<string, string> = {

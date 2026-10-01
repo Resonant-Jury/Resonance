@@ -7,10 +7,12 @@
 }
 
 :root {
-  /* Typography */
-  --font-heading: 'Playfair Display', 'Noto Serif TC', Georgia, serif;
-  --font-body:    'DM Sans', 'Noto Sans TC', system-ui, sans-serif;
-  --font-handwritten: 'ChenYuluoyan Thin', 'Noto Serif TC', cursive;
+  /* Typography — the faces are self-hosted by next/font (src/styles/fonts.ts),
+     which sets --font-playfair & co. on <html>; the fallbacks keep the family
+     names wherever those variables are absent. */
+  --font-heading: var(--font-playfair, 'Playfair Display'), var(--font-noto-serif-tc, 'Noto Serif TC'), Georgia, serif;
+  --font-body:    var(--font-dm-sans, 'DM Sans'), var(--font-noto-sans-tc, 'Noto Sans TC'), system-ui, sans-serif;
+  --font-handwritten: 'ChenYuluoyan Thin', var(--font-noto-serif-tc, 'Noto Serif TC'), cursive;
 
   /* Color System — Warm Pastel Palette per DESIGN.md § 8 */
   --color-cream:            oklch(96.5% 0.015 75);
