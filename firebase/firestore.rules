@@ -226,7 +226,13 @@ service cloud.firestore {
     // (/api/v1), each re-checking blocks. No client creates one.
     // The doc id is deterministic: min(uidA, uidB) + "_" + max(...).
     match /connections/{connectionId} {
-      allow read: if signedIn() && request.auth.uid in resource.data.userIds;
+      // The doc id is the sorted pair `uid1_uid2`, so either person may ask for
+      // their own pair whether or not it exists (blocking checks it before
+      // cleaning up; an empty answer means "not connected"). Anyone else's
+      // pair stays unreadable — existing or not.
+      allow get: if signedIn()
+        && (request.auth.uid in connectionId.split('_') || request.auth.uid in resource.data.userIds);
+      allow list: if signedIn() && request.auth.uid in resource.data.userIds;
       allow create, update: if false;
       // Either party may end the connection (blocking does this). The
       // conversation stays readable but frozen: only the server sends.

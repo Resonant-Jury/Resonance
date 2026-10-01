@@ -169,6 +169,25 @@ describe('block list (users/{uid}/blocks)', () => {
   });
 });
 
+describe('connection pair reads', () => {
+  it('lets either person ask for their own pair even when it does not exist (blocking checks it)', async () => {
+    await seedProfiles();
+    const mine = await getDoc(doc(as('alice'), 'connections', 'alice_carol'));
+    if (mine.exists()) throw new Error('no connection expected');
+    await assertSucceeds(getDoc(doc(as('carol'), 'connections', 'alice_carol')));
+  });
+
+  it("refuses anyone else's pair, existing or not", async () => {
+    await seedProfiles();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'connections', 'alice_bob'), { userIds: ['alice', 'bob'], establishedAt: new Date() });
+    });
+    await assertFails(getDoc(doc(as('carol'), 'connections', 'alice_bob')));
+    await assertFails(getDoc(doc(as('carol'), 'connections', 'alice_dora')));
+    await assertSucceeds(getDoc(doc(as('bob'), 'connections', 'alice_bob')));
+  });
+});
+
 describe('a block refuses contact in both directions', () => {
   // Each case is checked from both sides: blocked → blocker and blocker → blocked.
   const directions = [
