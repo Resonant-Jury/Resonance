@@ -98,8 +98,14 @@ sealed interface Route : NavKey {
         val showsCard: Boolean = true,
         /** Words to start from (a note grown into a resonance). */
         val story: String? = null,
+        /**
+         * The writer began as a new card and has saved it as the draft `cardId` ([rememberDraft]).
+         * It keeps the page key it began with, so the writer on screen isn't rebuilt under the
+         * person typing.
+         */
+        val savedNew: Boolean = false,
     ) : Route {
-        override val contentKey get() = "write:$referenceCardId:$cardId"
+        override val contentKey get() = "write:$referenceCardId:${if (savedNew) null else cardId}"
     }
     /**
      * A conversation, by the other person's pen name — and their `uid` when the place it opens
@@ -171,6 +177,19 @@ internal fun openThread(stack: MutableList<Route>, route: Route.Thread) {
  */
 internal fun pushedRoute(route: Route?, fromUserId: String?, sender: () -> String?): Route? =
     if (route is Route.Thread && route.uid == null) route.copy(uid = fromUserId ?: sender()) else route
+
+/**
+ * A new card's writer saved its first draft: its stack entry now names the draft, and no longer
+ * carries the words it started from (they are in the draft). A writer covered meanwhile — a push,
+ * a link — and come back to, or restored with the activity, then reopens that draft, instead of a
+ * blank card whose next edit would save a second one. The draft is often saved as the writer is
+ * covered, after its page has gone, so the entry is found by identity; a writer already closed
+ * stays closed.
+ */
+internal fun MutableList<Route>.rememberDraft(writer: Route.Write, id: String) {
+    val i = indexOfFirst { it === writer }
+    if (i >= 0) this[i] = writer.copy(cardId = id, story = null, savedNew = true)
+}
 
 /** Back to the tab's root page. */
 internal fun MutableList<Route>.popToRoot() {
@@ -322,6 +341,7 @@ private fun Page(session: Session, route: Route, stack: NavBackStack<Route>) {
         is Route.Author -> AuthorScreen(session, route.handle, push, pop)
         is Route.Write -> WriteScreen(
             session, route.referenceCardId, route.cardId, route.story,
+            onCreated = { id -> stack.rememberDraft(route, id) },
             // Closed with the draft or revision saved: the screens showing cards read them again.
             close = {
                 session.noteCardChange()

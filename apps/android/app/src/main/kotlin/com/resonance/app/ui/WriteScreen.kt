@@ -41,8 +41,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -112,15 +110,22 @@ import kotlinx.coroutines.launch
  * The twin of iOS's WriteScreen; `onFinished` gets the card's slug or id.
  */
 @Composable
-fun WriteScreen(session: Session, referenceCardId: String?, cardId: String?, story: String?, close: () -> Unit, onFinished: (String) -> Unit) {
-    // A new card is saved as a draft as soon as there is something to keep. When the writer comes
-    // back (a rotation, the app restored), it resumes that draft rather than a blank card; while
-    // it is open, nothing changes under the writer.
-    val created = rememberSaveable { mutableStateOf<String?>(null) }
-    val resumed = remember { Snapshot.withoutReadObservation { created.value } }
-    val id = cardId ?: resumed
+fun WriteScreen(
+    session: Session,
+    referenceCardId: String?,
+    cardId: String?,
+    story: String?,
+    close: () -> Unit,
+    /** A new card was first saved, as the draft with this id (its route then names it: [rememberDraft]). */
+    onCreated: (String) -> Unit = {},
+    onFinished: (String) -> Unit,
+) {
+    // A new card is saved as a draft as soon as there is something to keep, and its route then names
+    // that draft. While the writer is open nothing changes under it; when it comes back (uncovered,
+    // rotated, the app restored) it opens on the draft rather than a blank card.
+    val id = remember { cardId }
     if (id == null) {
-        WriteForm(session, referenceCardId, story, null, close, onFinished) { created.value = it }
+        WriteForm(session, referenceCardId, story, null, close, onFinished, onCreated)
         return
     }
     // The card loads straight from Firestore, painting a loader meanwhile.

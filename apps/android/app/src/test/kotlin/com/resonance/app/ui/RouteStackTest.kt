@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -38,6 +39,7 @@ class RouteStackTest {
             Route.Thread("bob", noteCardId = "c1", noteId = "n1", uid = "b1"),
             Route.Write(referenceCardId = "c1", story = "Words to start from"),
             Route.Write(cardId = "draft-1", showsCard = false),
+            Route.Write(cardId = "draft-2", savedNew = true),
             Route.Settings,
             Route.SettingsSection(SettingsSection.Account),
             Route.ThoughtMap,
@@ -62,6 +64,35 @@ class RouteStackTest {
         // The same person's conversation, whatever case their pen name was typed in.
         assertEquals(Route.Thread("Bob").contentKey, Route.Thread("bob").contentKey)
         assertNotEquals(Route.Thread("bob", uid = "b1").contentKey, Route.Thread("bob", uid = "b2").contentKey)
+    }
+
+    @Test fun aNewCardsWriterNamesTheDraftItSaved() {
+        val writer = Route.Write(referenceCardId = "c1", story = "Words to start from")
+        val stack = mutableListOf<Route>(Route.Root(Tab.Feed), Route.Card("c1"), writer, Route.Card("pushed"))
+        // Saved as the writer was covered (by a push's page): its entry now opens that draft, without the words again.
+        stack.rememberDraft(writer, "d1")
+        val saved = stack[2] as Route.Write
+        assertEquals(Route.Write(referenceCardId = "c1", cardId = "d1", savedNew = true), saved)
+        assertNull(saved.story)
+        // The writer on screen isn't rebuilt: the page key is the one it began with.
+        assertEquals(writer.contentKey, saved.contentKey)
+        // A recreated activity brings it back the same way.
+        assertEquals(stack, restored(*stack.toTypedArray()))
+        // Its neighbours are untouched.
+        assertEquals(listOf(Route.Root(Tab.Feed), Route.Card("c1"), Route.Card("pushed")), stack.filter { it !is Route.Write })
+    }
+
+    @Test fun onlyThatWriterIsRewrittenAndAClosedOneStaysClosed() {
+        val first = Route.Write()
+        val second = Route.Write()
+        val stack = mutableListOf<Route>(Route.Root(Tab.Feed), first, Route.Card("a"), second)
+        stack.rememberDraft(second, "d2")
+        assertEquals(listOf(Route.Root(Tab.Feed), Route.Write(), Route.Card("a"), Route.Write(cardId = "d2", savedNew = true)), stack)
+        assertTrue(stack[1] === first)
+        // Closed before its draft landed (saved on the way out): nothing comes back.
+        stack.removeAt(1)
+        stack.rememberDraft(first, "d1")
+        assertEquals(listOf(Route.Root(Tab.Feed), Route.Card("a"), Route.Write(cardId = "d2", savedNew = true)), stack)
     }
 
     @Test fun reselectingATabGoesBackToItsRoot() {
