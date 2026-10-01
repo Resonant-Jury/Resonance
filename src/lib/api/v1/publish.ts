@@ -3,6 +3,7 @@ import { assignSlug } from '@/lib/ai/assignSlug';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import { ApiFailure } from './http';
 import { canView } from './present';
+import { summaryFields } from './summary';
 
 /** How long publishing waits for the slug (an LLM call) before answering without it. */
 export const SLUG_WAIT_MS = 8_000;
@@ -60,13 +61,19 @@ export async function publishCard(
     if (!snap.exists || snap.get('authorId') !== uid) throw new ApiFailure('not_found', 'No such card.');
     if (!String(snap.get('thoughtCore') ?? '').trim()) throw new ApiFailure('invalid_request', 'A card needs a title before it is published.');
     const firstPublish = snap.get('publishedAt') == null;
-    tx.set(ref, {
-      ...(firstPublish ? { publishedAt: FieldValue.serverTimestamp() } : {}),
-      // Always a boolean once public: lists that may show a card to anyone
-      // filter on `anonymous == false` (an absent field would drop it).
-      anonymous: snap.get('anonymous') === true,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    tx.set(
+      ref,
+      {
+        ...(firstPublish ? { publishedAt: FieldValue.serverTimestamp() } : {}),
+        // Always a boolean once public: lists that may show a card to anyone
+        // filter on `anonymous == false` (an absent field would drop it).
+        anonymous: snap.get('anonymous') === true,
+        updatedAt: FieldValue.serverTimestamp(),
+        // What lists show of it, so they needn't read its story (./summary).
+        ...summaryFields(snap.get('story')),
+      },
+      { merge: true },
+    );
     return { data: snap.data()!, firstPublish };
   });
 

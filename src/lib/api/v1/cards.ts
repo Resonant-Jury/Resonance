@@ -4,6 +4,7 @@ import { getVectorStore, type IVectorStore } from '@/lib/recommend/vectorStore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { ApiFailure } from './http';
 import { toFeedCard } from './present';
+import { summaryFields } from './summary';
 import type { FeedCardBody, UpdateCardInput } from './schemas';
 
 /**
@@ -51,7 +52,8 @@ export async function updateCard(
     if (input.anonymous != null && input.anonymous !== (snap.get('anonymous') === true)) patch.anonymous = input.anonymous;
     const changed = Object.keys(patch).length > 0;
     if (changed) {
-      tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp() });
+      // The story is as read here: its list summary is restated with the new updatedAt (./summary).
+      tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp(), ...summaryFields(snap.get('story')) });
       if (edit.exists) tx.update(editRef, patch);
     }
     return { before: snap.data()!, data: { ...snap.data()!, ...patch }, changed, author: me.data() };

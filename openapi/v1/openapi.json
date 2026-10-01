@@ -311,9 +311,20 @@
             "name": "cursor",
             "in": "query",
             "required": false,
+            "description": "A page's `nextCursor` (to the millisecond: cards sharing it can be skipped). Prefer `pageToken`.",
             "schema": {
               "type": "string",
               "format": "date-time"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "description": "A page's `nextPageToken`: resumes exactly after its last card. Wins over `cursor`.",
+            "schema": {
+              "type": "string",
+              "maxLength": 512
             }
           }
         ],
@@ -1147,9 +1158,20 @@
             "name": "cursor",
             "in": "query",
             "required": false,
+            "description": "A page's `nextCursor` (to the millisecond: cards sharing it can be skipped). Prefer `pageToken`.",
             "schema": {
               "type": "string",
               "format": "date-time"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "description": "A page's `nextPageToken`: resumes exactly after its last card. Wins over `cursor`.",
+            "schema": {
+              "type": "string",
+              "maxLength": 512
             }
           }
         ],
@@ -1852,6 +1874,10 @@
             }
           },
           "nextCursor": {
+            "nullable": true,
+            "type": "string"
+          },
+          "nextPageToken": {
             "nullable": true,
             "type": "string"
           }

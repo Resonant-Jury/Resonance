@@ -1,4 +1,4 @@
-import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import { slugHolder } from '@/lib/db/firestore/cardKey';
 import { ensureUniqueSlug, slugify } from './slugify';
 import { titleToSlugBase } from './tasks';
@@ -39,6 +39,8 @@ export async function assignSlug(
     return dupes.docs.some((d) => d.id !== cardId);
   });
 
-  await ref.set({ slug, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  // Not `updatedAt`: publishing stamped it (with the card's list summary,
+  // lib/api/v1/summary), and naming the card changes nothing it shows.
+  await ref.set({ slug }, { merge: true });
   return slug;
 }

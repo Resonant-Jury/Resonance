@@ -599,7 +599,7 @@ describe('the profile in one request (GET /users/{handle}?include=)', () => {
     expect(bob.cards?.nextCursor).not.toBeNull();
     expect(bob.links?.cards.map((c) => c.id)).toEqual(['by-dana']); // carol's is left out: alice blocked her
     expect((await getProfile(db, 'dana', 'bob', { include: BOTH })).links?.cards.map((c) => c.id)).toEqual(['by-carol', 'by-dana']);
-    expect((await getProfile(db, 'alice', 'carol', { include: BOTH })).cards).toEqual({ cards: [], nextCursor: null });
+    expect((await getProfile(db, 'alice', 'carol', { include: BOTH })).cards).toEqual({ cards: [], nextCursor: null, nextPageToken: null });
   });
 
   it('asks for nothing it was not asked for', async () => {

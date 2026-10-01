@@ -2,6 +2,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { cardContentProblem } from '@/lib/db/firestore/cardContent';
 import { ApiFailure } from './http';
+import { summaryFields } from './summary';
 
 export interface ApplyEditResult {
   id: string;
@@ -46,9 +47,10 @@ export async function applyCardEdit(db: Firestore, uid: string, id: string): Pro
     const e = edit.data()!;
     const thoughtCore = typeof e.thoughtCore === 'string' ? e.thoughtCore : '';
     if (!thoughtCore.trim()) throw new ApiFailure('invalid_request', 'A card needs a title.');
+    const story = typeof e.story === 'string' ? e.story : '';
     const content = {
       thoughtCore,
-      story: typeof e.story === 'string' ? e.story : '',
+      story,
       tags: Array.isArray(e.tags) ? e.tags.filter((t): t is string => typeof t === 'string') : [],
       accentHue: typeof e.accentHue === 'number' ? e.accentHue : null,
       media: isMedia(e.media) ? pickMedia(e.media) : null,
@@ -58,6 +60,8 @@ export async function applyCardEdit(db: Firestore, uid: string, id: string): Pro
     if (problem) throw new ApiFailure('invalid_request', 'The edit does not fit a card.', [{ path: problem, message: 'Out of bounds.' }]);
     const fields: Record<string, unknown> = {
       ...content,
+      // What lists show of the new story, so they needn't read it (./summary).
+      ...summaryFields(story),
       visibility: VISIBILITIES.has(e.visibility) ? e.visibility : snap.get('visibility'),
       anonymous: e.anonymous === true,
       media: content.media ?? FieldValue.delete(),

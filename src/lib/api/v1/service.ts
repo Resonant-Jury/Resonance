@@ -1,9 +1,10 @@
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { getAccountDeletion } from '@/lib/account/deletion';
-import { mapCard } from '@/lib/db/firestore/mapper';
 import { ApiFailure } from './http';
+import { pageEnd, pageQuery, type PageStart } from './paging';
 import { blockedByViewer, loadAuthors, toFeedCard } from './present';
 import type { FeedPageBody, MeBody } from './schemas';
+import { LIST_FIELDS, listCard, withStories } from './summary';
 
 /**
  * v1 business logic on the Admin SDK. The web client does these through
@@ -52,25 +53,22 @@ export function properlyPublished(at: unknown, now = Date.now()): boolean {
  * authors the viewer blocked (`viewerId` null: a signed-out reader, who has
  * none). Anonymous cards come without their byline. Pages are cut on the
  * *raw* query so a page of blocked authors doesn't end the feed early.
+ * Cards are read without their stories (LIST_FIELDS; see ./summary).
  */
-export async function getFeed(db: Firestore, viewerId: string | null, limit: number, cursor?: string): Promise<FeedPageBody> {
-  let q = db
-    .collection('cards')
-    .where('visibility', '==', 'public')
-    .where('publishedAt', '!=', null)
-    .orderBy('publishedAt', 'desc')
-    .limit(limit);
-  if (cursor) q = q.startAfter(Timestamp.fromDate(new Date(cursor)));
+export async function getFeed(db: Firestore, viewerId: string | null, limit: number, start?: PageStart): Promise<FeedPageBody> {
+  const q = pageQuery(
+    db.collection('cards').where('visibility', '==', 'public').where('publishedAt', '!=', null).select(...LIST_FIELDS),
+    start,
+  ).limit(limit);
   const [snap, blocked] = await Promise.all([q.get(), viewerId ? blockedByViewer(db, viewerId) : new Set<string>()]);
 
   const cards = snap.docs
     .filter((d) => properlyPublished(d.get('publishedAt')))
-    .map((d) => mapCard(d.id, d.data()))
+    .map((d) => listCard(d.id, d.data()))
     .filter((c) => !blocked.has(c.authorId));
-  const authors = await loadAuthors(db, cards);
-  const lastAt = snap.docs.at(-1)?.get('publishedAt');
+  const [authors] = await Promise.all([loadAuthors(db, cards), withStories(db, cards)]);
   return {
     cards: cards.map((c) => toFeedCard(c, authors.get(c.authorId))),
-    nextCursor: snap.size === limit && lastAt instanceof Timestamp ? lastAt.toDate().toISOString() : null,
+    ...pageEnd(snap.docs, limit),
   };
 }

@@ -37,11 +37,10 @@ export async function indexCard(cardId: string): Promise<IndexResult> {
   });
 
   // Always persist the signature (powers the card page / future features) and
-  // stamp the index time.
-  await ref.set(
-    { signature, indexedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() },
-    { merge: true }
-  );
+  // stamp the index time. Not `updatedAt`: indexing isn't an edit, and a
+  // later updatedAt would retire the card's stored list summary
+  // (lib/api/v1/summary), making every list read its story again.
+  await ref.set({ signature, indexedAt: FieldValue.serverTimestamp() }, { merge: true });
 
   const store = getVectorStore();
 

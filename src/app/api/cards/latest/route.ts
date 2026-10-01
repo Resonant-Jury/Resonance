@@ -19,5 +19,5 @@ export async function GET(req: Request) {
   const parsed = FeedQuery.safeParse(Object.fromEntries(new URL(req.url).searchParams));
   if (!parsed.success) return NextResponse.json({ error: 'Bad request' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
   const { limit, cursor } = parsed.data;
-  return NextResponse.json(await getFeed(getAdminDb(), null, limit, cursor), { headers: { 'Cache-Control': LATEST_CACHE } });
+  return NextResponse.json(await getFeed(getAdminDb(), null, limit, { cursor }), { headers: { 'Cache-Control': LATEST_CACHE } });
 }

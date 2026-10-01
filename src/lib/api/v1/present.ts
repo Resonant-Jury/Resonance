@@ -1,17 +1,13 @@
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import type { Card } from '@/lib/db/types';
 import type { AuthorBody, FeedCardBody } from './schemas';
+import { summaryOf, type ListCard } from './summary';
 
 /**
  * Turning Firestore documents into the contract's shapes. Old or hand-edited
  * documents may lack fields; nothing here may throw on one, or a single bad
  * card would fail a whole page (and the clients' strict decoders).
  */
-
-/** StoryCard's excerpt length on the web (lib/adapters/story cardToStory). */
-const EXCERPT_CHARS = 96;
-/** Characters read per minute, as the web's StoryCard counts (lib/adapters/story). */
-const CHARS_PER_MINUTE = 320;
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.length ? v : null;
@@ -27,35 +23,6 @@ type Visibility = FeedCardBody['visibility'];
  */
 export function visibilityOf(v: unknown): Visibility {
   return v === 'public' || v === 'connections' || v === 'private' ? v : 'private';
-}
-
-/** A story's prose without Markdown syntax (links keep their text). */
-export function plainText(markdown: string): string {
-  return markdown
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^>\s?/gm, '')
-    .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
-    .replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, '')
-    .replace(/[*_~`]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * The first EXCERPT_CHARS characters, cut between code points: slicing UTF-16
- * units can leave half an emoji, a lone surrogate that Swift's JSONDecoder
- * rejects — failing the whole page.
- */
-export function excerpt(text: string, max = EXCERPT_CHARS): string {
-  const chars = Array.from(text);
-  return chars.length > max ? `${chars.slice(0, max).join('')}…` : text;
-}
-
-export function readMinutes(story: string): number {
-  return Math.max(1, Math.round(story.replace(/\s+/g, '').length / CHARS_PER_MINUTE));
 }
 
 export function toAuthor(id: string, u: DocumentData): AuthorBody {
@@ -77,16 +44,21 @@ export interface FeedCardOptions {
   deanonymize?: boolean;
 }
 
-export function toFeedCard(c: Card, author: DocumentData | undefined, opts: FeedCardOptions = {}): FeedCardBody {
+/**
+ * A card as the contract shows it in a list. A card read for a list without
+ * its story (LIST_FIELDS) must have been through withStories() first: its
+ * excerpt and read time come from the stored summary or the story read then.
+ */
+export function toFeedCard(c: ListCard, author: DocumentData | undefined, opts: FeedCardOptions = {}): FeedCardBody {
   const published = c.publishedAt && !Number.isNaN(c.publishedAt.getTime()) ? c.publishedAt : null;
   const anonymous = c.anonymous === true;
-  const story = String(c.story ?? '');
+  const summary = summaryOf(c);
   const title = String(c.thoughtCore ?? '');
   return {
     id: c.id,
     slug: str(c.slug),
     title,
-    excerpt: excerpt(plainText(story)),
+    excerpt: summary.excerpt,
     tags: Array.isArray(c.tags) ? c.tags.filter((t): t is string => typeof t === 'string') : [],
     publishedAt: published ? published.toISOString() : null,
     author: (!anonymous || opts.deanonymize) && author ? toAuthor(c.authorId, author) : null,
@@ -95,7 +67,7 @@ export function toFeedCard(c: Card, author: DocumentData | undefined, opts: Feed
     imageUrl: str(c.media?.url),
     imageLabel: str(c.media?.label) ?? (title ? Array.from(title).slice(0, 24).join('') : null),
     accentHue: typeof c.accentHue === 'number' && Number.isFinite(c.accentHue) ? c.accentHue : null,
-    readMinutes: readMinutes(story),
+    readMinutes: summary.readMinutes,
     referenceCardId: str(c.referenceCardId),
     reason: opts.reason ?? null,
   };

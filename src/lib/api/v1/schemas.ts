@@ -126,8 +126,18 @@ export const FeedCard = named(
 export const FeedPage = named(
   z.object({
     cards: z.array(FeedCard),
-    /** Pass back as `cursor` for the next page; null at the end. */
+    /**
+     * Pass back as `cursor` for the next page; null at the end. The last
+     * card's time to the millisecond: cards sharing that millisecond can be
+     * skipped — prefer `nextPageToken`.
+     */
     nextCursor: z.string().nullable(),
+    /**
+     * Pass back as `pageToken` for the next page (opaque; it resumes exactly
+     * after this page's last card); null at the end. Absent only from servers
+     * older than the field.
+     */
+    nextPageToken: z.string().nullable().optional(),
   }),
   'FeedPage',
 );
@@ -384,6 +394,8 @@ export const HandleAvailability = named(
 export const FeedQuery = z.object({
   limit: z.coerce.number().int().min(1).max(30).default(12),
   cursor: z.iso.datetime().optional(),
+  /** A page's `nextPageToken` (checked by the service: lib/api/v1/paging). Wins over `cursor`. */
+  pageToken: z.string().min(1).max(512).optional(),
 });
 
 /** A comma-separated list of names (`include=a,b`): the known ones, as a set; unknown names are ignored. */

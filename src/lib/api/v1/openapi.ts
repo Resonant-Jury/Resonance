@@ -10,7 +10,20 @@ const errors = (...codes: number[]) =>
 const pathParam = (name: string, description: string) => ({ name, in: 'path', required: true, description, schema: { type: 'string' } });
 const pageParams = [
   { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 30, default: 12 } },
-  { name: 'cursor', in: 'query', required: false, schema: { type: 'string', format: 'date-time' } },
+  {
+    name: 'cursor',
+    in: 'query',
+    required: false,
+    description: "A page's `nextCursor` (to the millisecond: cards sharing it can be skipped). Prefer `pageToken`.",
+    schema: { type: 'string', format: 'date-time' },
+  },
+  {
+    name: 'pageToken',
+    in: 'query',
+    required: false,
+    description: "A page's `nextPageToken`: resumes exactly after its last card. Wins over `cursor`.",
+    schema: { type: 'string', maxLength: 512 },
+  },
 ];
 const get = (operationId: string, summary: string, schema: string, extra: Json = {}, errorCodes = [400, 401, 404]) => ({
   get: { operationId, summary, ...extra, responses: { '200': { description: 'OK', ...json(ref(schema)) }, ...errors(...errorCodes) } },

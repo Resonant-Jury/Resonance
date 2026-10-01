@@ -122,12 +122,54 @@ describe('getFeed', () => {
     expect(first.cards[0]).toMatchObject({ title: 'title c1', author: { handle: 'bob', initials: 'BO' } });
     expect(first.cards[0].excerpt).toHaveLength(97); // 96 chars + ellipsis, as the web's StoryCard
 
-    const second = await getFeed(db, 'alice', 2, first.nextCursor!);
+    const second = await getFeed(db, 'alice', 2, { cursor: first.nextCursor! });
     expect(second.cards.map((c) => c.id)).toEqual(['c4']);
     expect(second.cards[0].author).toBeNull();
 
-    const third = await getFeed(db, 'alice', 2, second.nextCursor!);
+    const third = await getFeed(db, 'alice', 2, { cursor: second.nextCursor! });
     expect(third.cards.map((c) => c.id)).toEqual(['c6']);
     expect(third.nextCursor).toBeNull();
+    expect(third.nextPageToken).toBeNull();
+
+    // The page token walks the same pages.
+    const byToken = await getFeed(db, 'alice', 2, { pageToken: first.nextPageToken! });
+    expect(byToken).toEqual(second);
+  });
+
+  // Regression: the cursor is the last card's time to the millisecond, and
+  // the query resumed after that time — so cards sharing the boundary's
+  // millisecond (a batch import) were never shown.
+  it('pages through cards published at the same instant without skipping or repeating one', async () => {
+    const at = Timestamp.fromMillis(Date.now() - 60_000);
+    const sameMs = new Timestamp(at.seconds, at.nanoseconds + 250_000); // same millisecond, later microsecond
+    const ids = ['t1', 't2', 't3', 't4', 't5'];
+    await Promise.all([
+      ...ids.map((id) => card(id, 'bob', 0, { publishedAt: at })),
+      card('t0', 'dana', 0, { publishedAt: sameMs }),
+      card('older', 'dana', 5),
+    ]);
+    const seen: string[] = [];
+    let token: string | undefined;
+    for (let pages = 0; pages < 10; pages++) {
+      const page = await getFeed(db, 'alice', 2, token ? { pageToken: token } : undefined);
+      seen.push(...page.cards.map((c) => c.id));
+      if (!page.nextPageToken) break;
+      token = page.nextPageToken;
+    }
+    // Newest first; the same instant in id order (descending).
+    expect(seen).toEqual(['t0', 't5', 't4', 't3', 't2', 't1', 'older']);
+
+    // The millisecond cursor, kept for older builds, still answers — but it is lossy.
+    const first = await getFeed(db, 'alice', 2);
+    const second = await getFeed(db, 'alice', 2, { cursor: first.nextCursor! });
+    expect([...first.cards, ...second.cards].map((c) => c.id)).not.toContain('t3');
+  });
+
+  it('refuses a page token it did not make', async () => {
+    for (const pageToken of ['nope', Buffer.from('[1,2]').toString('base64url'), Buffer.from('[1,2,"a/b"]').toString('base64url')]) {
+      const e = await failure(getFeed(db, 'alice', 2, { pageToken }));
+      expect(e.code, pageToken).toBe('invalid_request');
+      expect(e.issues?.[0].path).toBe('pageToken');
+    }
   });
 });
