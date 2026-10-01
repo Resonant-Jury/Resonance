@@ -4,6 +4,7 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import { ApiFailure } from '@/lib/api/v1/http';
 import {
   getCardBox,
+  getCardBoxShelves,
   getCardDetail,
   getCardsByKeys,
   getLinksToCard,
@@ -14,7 +15,7 @@ import {
   getRelated,
   getResonances,
 } from '@/lib/api/v1/reads';
-import { CardDetail, FeedCard } from '@/lib/api/v1/schemas';
+import { CardBox, CardBoxTab, CardDetail, FeedCard } from '@/lib/api/v1/schemas';
 import { getFeed } from '@/lib/api/v1/service';
 
 // The v1 reads behind the apps' feed, card and author screens, against the
@@ -368,6 +369,65 @@ describe('getCardBox', () => {
     await card('anon', 'alice', 1, { anonymous: true });
     const [c] = (await getFeed(db, 'bob', 5)).cards;
     expect(c).toMatchObject({ id: 'anon', anonymous: true, author: null });
+  });
+});
+
+describe('the card box in one request (GET /me/cardbox?shelves=)', () => {
+  const ALL = new Set(CardBoxTab.options);
+
+  beforeEach(async () => {
+    // Each person's own shelves, anonymous and connections-only cards among them.
+    for (const who of ['alice', 'bob', 'carol', 'dana']) {
+      await card(`${who}-pub`, who, 10, { anonymous: who === 'dana' });
+      await card(`${who}-conn`, who, 11, { visibility: 'connections' });
+      await card(`${who}-priv`, who, 12, { visibility: 'private' });
+      await card(`${who}-draft`, who, 0, { publishedAt: null, updatedAt: minutesAgo(1) });
+    }
+    // Resonances to, links to and bookmarks of everyone else's cards — by a
+    // connection (alice ↔ bob), across a block (alice blocked carol), by a
+    // stranger, and anonymously (dana-pub).
+    for (const [viewer, other] of [['alice', 'bob'], ['alice', 'carol'], ['alice', 'dana'], ['bob', 'alice'], ['carol', 'alice'], ['dana', 'bob']]) {
+      await card(`${viewer}-on-${other}`, viewer, 20, { referenceCardId: `${other}-conn` });
+      await set(`cardLinks/${other}-to-${viewer}`, { sourceCardId: `${other}-pub`, targetCardId: `${viewer}-pub`, targetAuthorId: viewer, createdAt: minutesAgo(3) });
+      await set(`users/${viewer}/bookmarks/${other}-pub`, { createdAt: minutesAgo(2) });
+      await set(`users/${viewer}/bookmarks/${other}-conn`, { createdAt: minutesAgo(4) });
+    }
+  });
+
+  it('brings exactly what /me/cards answers for each shelf asked, for every viewer, alone or together', async () => {
+    for (const viewer of ['alice', 'bob', 'carol', 'dana', 'erin']) {
+      const each = Object.fromEntries(await Promise.all(CardBoxTab.options.map(async (s) => [s, await getCardBox(db, viewer, s)] as const)));
+      const box = await getCardBoxShelves(db, viewer, ALL);
+      expect(box, viewer).toEqual(each);
+      expect(CardBox.safeParse(box).success).toBe(true);
+      for (const pair of [['published', 'private', 'draft'], ['draft', 'bookmarks'], ['linked', 'resonated', 'published']] as const) {
+        const some = await getCardBoxShelves(db, viewer, new Set(pair));
+        expect(Object.keys(some).sort(), `${viewer} ${pair}`).toEqual([...pair].sort());
+        for (const s of pair) expect(some[s], `${viewer} ${s}`).toEqual(each[s]);
+      }
+    }
+  });
+
+  it('fills the shelves as the card box shows them: own bylines kept, others filtered by visibility, blocks and anonymity', async () => {
+    const ids = (box: Awaited<ReturnType<typeof getCardBoxShelves>>, s: keyof typeof box) => box[s]!.cards.map((c) => c.id);
+    const alice = await getCardBoxShelves(db, 'alice', ALL);
+    expect(ids(alice, 'published')).toEqual(['alice-pub', 'alice-conn', 'alice-on-dana', 'alice-on-carol', 'alice-on-bob']);
+    expect(ids(alice, 'private')).toEqual(['alice-priv']);
+    expect(ids(alice, 'draft')).toEqual(['alice-draft']);
+    // bob's connections card (alice is connected); carol's are blocked; dana's connections card isn't alice's to read.
+    expect(ids(alice, 'resonated')).toEqual(['bob-conn']);
+    // Newest first (each was stamped a moment after the one before).
+    expect(ids(alice, 'linked')).toEqual(['dana-pub', 'bob-pub']);
+    expect(ids(alice, 'bookmarks')).toEqual(['dana-pub', 'bob-pub', 'bob-conn']);
+    const anon = alice.bookmarks!.cards.find((c) => c.id === 'dana-pub')!;
+    expect(anon).toMatchObject({ anonymous: true, author: null });
+    // dana's own anonymous card keeps her byline on her own shelf.
+    const dana = await getCardBoxShelves(db, 'dana', new Set(['published'] as const));
+    expect(dana.published!.cards.find((c) => c.id === 'dana-pub')).toMatchObject({ anonymous: true, author: { id: 'dana' } });
+  });
+
+  it('answers only the shelves asked for, and nothing for none', async () => {
+    expect(await getCardBoxShelves(db, 'alice', new Set())).toEqual({});
   });
 });
 

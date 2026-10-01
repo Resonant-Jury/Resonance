@@ -10,6 +10,7 @@ import { blockedByViewer, canView, connected, loadAuthors, toAuthor, toFeedCard,
 import { properlyPublished } from './service';
 import {
   CARD_KEYS_MAX,
+  type CardBoxBody,
   type CardBoxTabName,
   type CardDetailBody,
   type CardInclude,
@@ -410,53 +411,85 @@ const BOX_LIMIT = 40;
 /** How many drafts are read to find the most recently edited ones. */
 const DRAFT_SCAN = 200;
 
+type OwnShelf = 'published' | 'private' | 'draft';
+type OthersShelf = Exclude<CardBoxTabName, OwnShelf>;
+const OWN_SHELVES: readonly OwnShelf[] = ['published', 'private', 'draft'];
+const OTHERS_SHELVES: readonly OthersShelf[] = ['resonated', 'linked', 'bookmarks'];
+
 /**
- * One shelf of the viewer's card box (the web's useMyCardBox): their own
- * published, private and draft cards; the originals they wrote a resonance
- * for; cards linking to theirs; their bookmarks. Their own cards keep their
- * byline even when published anonymously (marked `anonymous`).
+ * One of the viewer's own shelves. One query per shelf: with a shared "newest
+ * 40" query, an author's 41st published card pushed every draft (publishedAt
+ * null sorts last) out of the box, and private cards crowded out public ones.
  */
-export async function getCardBox(db: Firestore, viewerId: string, tab: CardBoxTabName): Promise<{ cards: FeedCardBody[] }> {
-  if (tab === 'published' || tab === 'private' || tab === 'draft') {
-    // One query per shelf: with a shared "newest 40" query, an author's 41st
-    // published card pushed every draft (publishedAt null sorts last) out of
-    // the box, and private cards crowded out public ones.
-    const own = db.collection('cards').where('authorId', '==', viewerId);
-    const [snap, me] = await Promise.all([
-      tab === 'draft'
-        // A draft has no stored summary (it is made at publish): its story comes along.
-        ? own.where('publishedAt', '==', null).select(...LIST_FIELDS, 'story').limit(DRAFT_SCAN).get()
-        : own.where('visibility', 'in', tab === 'private' ? ['private'] : ['public', 'connections'])
-            .orderBy('publishedAt', 'desc').select(...LIST_FIELDS).limit(BOX_LIMIT).get(),
-      db.doc(`users/${viewerId}`).get(),
-    ]);
+async function ownShelf(db: Firestore, viewerId: string, shelf: OwnShelf): Promise<ListCard[]> {
+  const own = db.collection('cards').where('authorId', '==', viewerId);
+  if (shelf === 'draft') {
+    // A draft has no stored summary (it is made at publish): its story comes along.
+    const snap = await own.where('publishedAt', '==', null).select(...LIST_FIELDS, 'story').limit(DRAFT_SCAN).get();
     const edited = (d: QueryDocumentSnapshot) => {
       const at = d.get('updatedAt');
       return at instanceof Timestamp ? at.toMillis() : 0;
     };
-    const docs = tab === 'draft'
-      // Most recently edited first (sorted here: drafts are few, and this needs no composite index).
-      ? [...snap.docs].sort((a, b) => edited(b) - edited(a)).slice(0, BOX_LIMIT)
-      : snap.docs;
-    const mine = docs.map((d) => listCard(d.id, d.data())).filter((c) => tab === 'draft' || c.publishedAt);
-    await withStories(db, mine);
-    return { cards: mine.map((c) => toFeedCard(c, me.data(), { deanonymize: true })) };
+    // Most recently edited first (sorted here: drafts are few, and this needs no composite index).
+    return [...snap.docs].sort((a, b) => edited(b) - edited(a)).slice(0, BOX_LIMIT).map((d) => listCard(d.id, d.data()));
   }
-  const blockedP = blockedByViewer(db, viewerId);
-  // Settled up front, so a failure of the list's own query leaves no unhandled rejection behind.
-  blockedP.catch(() => {});
-  let ids: string[];
-  if (tab === 'resonated') {
+  const snap = await own
+    .where('visibility', 'in', shelf === 'private' ? ['private'] : ['public', 'connections'])
+    .orderBy('publishedAt', 'desc')
+    .select(...LIST_FIELDS)
+    .limit(BOX_LIMIT)
+    .get();
+  return snap.docs.map((d) => listCard(d.id, d.data())).filter((c) => c.publishedAt);
+}
+
+/** The ids on a shelf of others' cards, in shelf order. */
+async function othersShelfIds(db: Firestore, viewerId: string, shelf: OthersShelf): Promise<string[]> {
+  if (shelf === 'resonated') {
     const snap = await db.collection('cards').where('authorId', '==', viewerId).select('referenceCardId').limit(60).get();
-    ids = snap.docs.map((d) => d.get('referenceCardId')).filter((id): id is string => typeof id === 'string' && id.length > 0);
-  } else if (tab === 'linked') {
-    const links = await db.collection('cardLinks').where('targetAuthorId', '==', viewerId).orderBy('createdAt', 'desc').limit(LINK_LIMIT).get();
-    ids = links.docs.map((d) => String(d.get('sourceCardId') ?? '')).filter(Boolean);
-  } else {
-    // A bookmarked card that has since gone private simply drops out.
-    const marks = await db.collection(`users/${viewerId}/bookmarks`).orderBy('createdAt', 'desc').limit(BOX_LIMIT * 2).get();
-    ids = marks.docs.map((d) => d.id);
+    return snap.docs.map((d) => d.get('referenceCardId')).filter((id): id is string => typeof id === 'string' && id.length > 0);
   }
-  const [cards, blocked] = await Promise.all([cardsByIds(db, ids), blockedP]);
-  return { cards: await present(db, viewerId, cards, { blocked }) };
+  if (shelf === 'linked') {
+    const links = await db.collection('cardLinks').where('targetAuthorId', '==', viewerId).orderBy('createdAt', 'desc').limit(LINK_LIMIT).get();
+    return links.docs.map((d) => String(d.get('sourceCardId') ?? '')).filter(Boolean);
+  }
+  // A bookmarked card that has since gone private simply drops out.
+  const marks = await db.collection(`users/${viewerId}/bookmarks`).orderBy('createdAt', 'desc').limit(BOX_LIMIT * 2).get();
+  return marks.docs.map((d) => d.id);
+}
+
+/**
+ * Shelves of the viewer's card box (the web's useMyCardBox), each exactly as
+ * GET /me/cards?tab= answers it: their own published, private and draft
+ * cards (keeping their byline even when published anonymously, marked
+ * `anonymous`); the originals they wrote a resonance for; cards linking to
+ * theirs; their bookmarks. Everything the shelves need is read side by side,
+ * once: the shelves' queries, the viewer's profile and blocks, one batched
+ * read of the others' cards, and the stories a summary can't stand in for.
+ */
+export async function getCardBoxShelves(db: Firestore, viewerId: string, shelves: ReadonlySet<CardBoxTabName>): Promise<CardBoxBody> {
+  const own = OWN_SHELVES.filter((s) => shelves.has(s));
+  const others = OTHERS_SHELVES.filter((s) => shelves.has(s));
+  const [me, ownCards, blocked, otherIds] = await Promise.all([
+    own.length ? db.doc(`users/${viewerId}`).get() : null,
+    Promise.all(own.map((s) => ownShelf(db, viewerId, s))),
+    others.length ? blockedByViewer(db, viewerId) : new Set<string>(),
+    Promise.all(others.map((s) => othersShelfIds(db, viewerId, s))),
+  ]);
+  const byId = new Map((await cardsByIds(db, otherIds.flat())).map((c) => [c.id, c]));
+  const otherCards = otherIds.map((ids) => [...new Set(ids)].map((id) => byId.get(id)).filter((c): c is ListCard => !!c));
+  const [, presented] = await Promise.all([withStories(db, ownCards.flat()), presentAll(db, viewerId, otherCards, blocked)]);
+
+  const box: CardBoxBody = {};
+  own.forEach((s, i) => {
+    box[s] = { cards: ownCards[i].map((c) => toFeedCard(c, me?.data(), { deanonymize: true })) };
+  });
+  others.forEach((s, i) => {
+    box[s] = { cards: presented[i] };
+  });
+  return box;
+}
+
+/** One shelf of the viewer's card box (GET /me/cards?tab=): getCardBoxShelves for that shelf alone. */
+export async function getCardBox(db: Firestore, viewerId: string, tab: CardBoxTabName): Promise<CardListBody> {
+  return (await getCardBoxShelves(db, viewerId, new Set([tab])))[tab] ?? { cards: [] };
 }

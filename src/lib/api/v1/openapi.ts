@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiRegistry, CARD_INCLUDES, CARD_KEYS_MAX, PROFILE_INCLUDES } from './schemas';
+import { apiRegistry, CARD_INCLUDES, CARD_KEYS_MAX, CardBoxTab, PROFILE_INCLUDES } from './schemas';
 
 type Json = Record<string, unknown>;
 
@@ -110,7 +110,19 @@ export function buildOpenApi(): Json {
       }, [400, 401]),
       '/me/cards': get('getCardBox', 'One shelf of your card box', 'CardList', {
         parameters: [
-          { name: 'tab', in: 'query', required: true, schema: { type: 'string', enum: ['published', 'private', 'draft', 'resonated', 'linked', 'bookmarks'] } },
+          { name: 'tab', in: 'query', required: true, schema: { type: 'string', enum: [...CardBoxTab.options] } },
+        ],
+      }, [400, 401]),
+      '/me/cardbox': get('getCardBoxShelves', 'Several shelves of your card box at once', 'CardBox', {
+        description: 'Each shelf asked for comes back exactly as `/me/cards?tab=` answers it; shelves not asked for are absent.',
+        parameters: [
+          {
+            name: 'shelves',
+            in: 'query',
+            required: true,
+            description: `Shelves, comma-separated (e.g. \`published,private,draft\`): ${CardBoxTab.options.join(', ')}. Unknown names are ignored.`,
+            schema: { type: 'string', maxLength: 200 },
+          },
         ],
       }, [400, 401]),
       '/feed': get('getFeed', 'Latest public cards, newest first (authors you blocked are left out)', 'FeedPage', { parameters: pageParams }, [400, 401]),

@@ -144,6 +144,19 @@ export const FeedPage = named(
 
 export const CardList = named(z.object({ cards: z.array(FeedCard) }), 'CardList');
 
+export const CardBox = named(
+  z.object({
+    published: CardList.optional(),
+    private: CardList.optional(),
+    draft: CardList.optional(),
+    resonated: CardList.optional(),
+    linked: CardList.optional(),
+    bookmarks: CardList.optional(),
+  }),
+  'CardBox',
+  'Shelves of your card box, each one asked for (and only those) exactly as GET /me/cards?tab= answers it.',
+);
+
 export const RecommendedFeed = named(
   z.object({
     cards: z.array(FeedCard),
@@ -418,6 +431,21 @@ export const ProfileQuery = z.object({ include: includeList(PROFILE_INCLUDES), l
 /** The card box's shelves (the web's me page). */
 export const CardBoxTab = z.enum(['published', 'private', 'draft', 'resonated', 'linked', 'bookmarks']);
 export const CardBoxQuery = z.object({ tab: CardBoxTab });
+/** GET /me/cardbox?shelves=: the shelves asked for, comma-separated CardBoxTab names (required); unknown names are ignored. */
+export const CardBoxShelvesQuery = z.object({
+  shelves: z
+    .string()
+    .max(200)
+    .transform(
+      (v) =>
+        new Set(
+          v
+            .split(',')
+            .map((n) => n.trim())
+            .filter((n): n is z.infer<typeof CardBoxTab> => (CardBoxTab.options as readonly string[]).includes(n)),
+        ),
+    ),
+});
 
 /** A card's URL segment: its English slug or (older cards) its document id. */
 export const CardKey = z.string().regex(/^[A-Za-z0-9_-]{1,160}$/, 'Not a valid card.');
@@ -446,6 +474,7 @@ export type AuthorBody = z.infer<typeof Author>;
 export type CardDetailBody = z.infer<typeof CardDetail>;
 export type ProfileBody = z.infer<typeof Profile>;
 export type CardBoxTabName = z.infer<typeof CardBoxTab>;
+export type CardBoxBody = z.infer<typeof CardBox>;
 export type CreateProfileInput = z.infer<typeof CreateProfileRequest>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileRequest>;
 export type ReportCardInput = z.infer<typeof ReportCardRequest>;

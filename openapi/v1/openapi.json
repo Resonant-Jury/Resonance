@@ -291,6 +291,57 @@
         }
       }
     },
+    "/me/cardbox": {
+      "get": {
+        "operationId": "getCardBoxShelves",
+        "summary": "Several shelves of your card box at once",
+        "description": "Each shelf asked for comes back exactly as `/me/cards?tab=` answers it; shelves not asked for are absent.",
+        "parameters": [
+          {
+            "name": "shelves",
+            "in": "query",
+            "required": true,
+            "description": "Shelves, comma-separated (e.g. `published,private,draft`): published, private, draft, resonated, linked, bookmarks. Unknown names are ignored.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardBox"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/feed": {
       "get": {
         "operationId": "getFeed",
@@ -1900,6 +1951,30 @@
         "required": [
           "cards"
         ]
+      },
+      "CardBox": {
+        "type": "object",
+        "properties": {
+          "published": {
+            "$ref": "#/components/schemas/CardList"
+          },
+          "private": {
+            "$ref": "#/components/schemas/CardList"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/CardList"
+          },
+          "resonated": {
+            "$ref": "#/components/schemas/CardList"
+          },
+          "linked": {
+            "$ref": "#/components/schemas/CardList"
+          },
+          "bookmarks": {
+            "$ref": "#/components/schemas/CardList"
+          }
+        },
+        "description": "Shelves of your card box, each one asked for (and only those) exactly as GET /me/cards?tab= answers it."
       },
       "RecommendedFeed": {
         "type": "object",
