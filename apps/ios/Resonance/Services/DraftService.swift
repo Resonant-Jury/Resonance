@@ -21,7 +21,9 @@ struct DraftValues: Equatable {
 /// Drafts, written straight to Firestore like the web editor's client
 /// (lib/db/firestore/client/cards.ts: createCardDraft, updateCardDraft) — the
 /// author's own documents under the same rules. Publishing is the server's
-/// (WritingAPI.publish), since it reaches other people.
+/// (WritingAPI.publish), since it reaches other people; so are a card's
+/// visibility and deleting it from its ⋯ (WritingAPI.updateCard / deleteCard),
+/// which leave the site's cached pages stale unless the server refreshes them.
 struct DraftService {
     let uid: String
     private var db: Firestore { Firestore.firestore() }
@@ -129,18 +131,6 @@ struct DraftService {
     /// discardPendingCardEdit: the live card is left exactly as it was.
     func discardEdit(_ id: String) async throws {
         try await editRef(id).delete()
-    }
-
-    // MARK: The card box's ⋯ (CardActionsMenu)
-
-    /// 轉為公開／私人: the card's visibility alone.
-    func setVisibility(_ id: String, _ visibility: String) async throws {
-        try await write(db.collection("cards").document(id), ["visibility": visibility, "updatedAt": FieldValue.serverTimestamp()], merge: true)
-    }
-
-    /// deleteCardDraft — drafts and published cards alike.
-    func delete(_ id: String) async throws {
-        try await db.collection("cards").document(id).delete()
     }
 
     // MARK: Reads of your own cards

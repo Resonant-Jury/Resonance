@@ -4,13 +4,11 @@ import SwiftUI
 
 /// The owner's ⋯ on a card (CardActionsMenu.tsx): 編輯 / 轉為公開·私人 / 刪除,
 /// in the shared OrganicMenu. Deleting asks first, in the web's own small
-/// dialog. Changes are the author's own writes (as on the web), then the
-/// site's cached card page is refreshed.
+/// dialog. Visibility and deleting go through the server (PATCH / DELETE
+/// /api/v1/cards/{id}), which also refreshes the site's cached pages.
 struct CardActionsMenu: View {
     let cardId: String
     let visibility: String
-    /// Where its page lives (slug, or id) — the cache entry to refresh.
-    let routeKey: String
     var seed: Double = 7
     var hue: Double?
     /// Whether the card opens once edited (false on the card's own page, which is already underneath).
@@ -65,23 +63,21 @@ struct CardActionsMenu: View {
     }
 
     private func toggleVisibility() async {
-        guard !busy, let drafts = session.drafts else { return }
+        guard !busy else { return }
         busy = true
         defer { busy = false }
-        guard (try? await drafts.setVisibility(cardId, isPrivate ? "public" : "private")) != nil else { return }
-        // Visibility decides whether the share metadata carries real content.
-        Task { await session.writing.revalidate(["/card/\(routeKey)"]) }
+        guard let card = try? await session.writing.updateCard(cardId, visibility: isPrivate ? ._public : ._private) else { return }
+        session.cardPreviews.remember(card)
         writer.noteChange()
         onChanged()
     }
 
     private func delete() async {
-        guard !busy, let drafts = session.drafts else { return }
+        guard !busy else { return }
         busy = true
         defer { busy = false }
-        guard (try? await drafts.delete(cardId)) != nil else { return }
-        // The cached page would keep serving the deleted card's metadata.
-        Task { await session.writing.revalidate(["/card/\(routeKey)"]) }
+        guard (try? await session.writing.deleteCard(cardId)) != nil else { return }
+        session.cardPreviews.forget(cardId)
         confirming = false
         writer.noteChange()
         onDeleted()

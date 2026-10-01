@@ -84,12 +84,41 @@ actor TokenLog {
         #expect(request.path?.hasSuffix("/cards/c1/edits/apply") == true)
     }
 
-    @Test func asksTheSiteToRefreshItsPages() async throws {
-        StubURLProtocol.reset([(200, #"{"ok":true,"revalidated":[]}"#)])
-        await api().revalidate(["/card/a-walk"])
-        let (request, body) = try #require(StubURLProtocol.sent.first)
-        #expect(request.url?.path == "/api/revalidate")
-        #expect(String(decoding: body, as: UTF8.self) == #"{"paths":["\/card\/a-walk"]}"#)
+    @Test func changesACardsVisibilityThroughTheContract() async throws {
+        let transport = StubTransport(body: ReadingAPITests.card.replacingOccurrences(of: #""visibility":"public""#,
+                                                                                      with: #""visibility":"private""#))
+        let card = try await api(transport).updateCard("c1", visibility: ._private)
+        #expect(card.visibility == ._private)
+        let request = try #require(transport.requests.first)
+        #expect(request.method == .patch)
+        #expect(request.path == "/cards/c1")
+        // Only what changes is sent: the byline stays as it is.
+        let sent = try #require(transport.sentJSON.first ?? nil)
+        #expect(sent["visibility"] as? String == "private")
+        #expect(sent.keys.sorted() == ["visibility"])
+
+        _ = try await api(transport).updateCard("c1", anonymous: true)
+        #expect(transport.sentJSON.last??["anonymous"] as? Bool == true)
+        #expect(transport.sentJSON.last??.keys.sorted() == ["anonymous"])
+    }
+
+    @Test func deletesACardThroughTheContract() async throws {
+        let transport = StubTransport(status: .noContent, body: "")
+        try await api(transport).deleteCard("c1")
+        let request = try #require(transport.requests.first)
+        #expect(request.method == .delete)
+        #expect(request.path == "/cards/c1")
+        #expect(request.headerFields[.authorization] == "Bearer stale-token")
+    }
+
+    @Test func someoneElsesCardIsNotFound() async throws {
+        let transport = StubTransport(status: .notFound, body: #"{"error":{"code":"not_found","message":"No such card."}}"#)
+        await #expect(throws: APIFailure(code: "not_found", message: "No such card.", status: 404)) {
+            try await api(transport).deleteCard("bobs-card")
+        }
+        await #expect(throws: APIFailure(code: "not_found", message: "No such card.", status: 404)) {
+            try await api(transport).updateCard("bobs-card", visibility: ._private)
+        }
     }
 
     @Test func uploadsThePhotoAsTheFormsFilePart() async throws {

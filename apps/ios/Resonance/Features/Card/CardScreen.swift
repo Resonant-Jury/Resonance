@@ -58,7 +58,7 @@ struct CardScreen: View {
                     // The ⋯ lives in the bar, as phone apps keep a page's actions: the owner's, or the reader's safety menu —
                     // anonymous cards included (App Store 1.2), whose author only the server knows: Report alone.
                     if detail.isOwner {
-                        CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, routeKey: card.routeKey, seed: hue + 3,
+                        CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, seed: hue + 3,
                                         showsCardAfterEdit: false, onDeleted: { openRoute.dismissToRoot() }, trigger: .bare)
                     } else {
                         let author = detail.anonymous ? nil : card.author?.value1

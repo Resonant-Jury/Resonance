@@ -4,10 +4,11 @@ import ResonanceAPI
 public typealias PublishResult = Components.Schemas.PublishResponse
 public typealias ApplyEditResult = Components.Schemas.ApplyEditResponse
 
-/// What the writing screen asks of the server: publishing (the v1 contract),
-/// and the web editor's helpers it shares as they are — AI tag suggestions,
-/// the publish panel's insight echo, and photo uploads. Drafts themselves are
-/// the author's own documents and go straight to Firestore, as on the web.
+/// What the writing screen asks of the server: publishing, and a card's
+/// visibility, byline and deletion from its ⋯ (the v1 contract); and the web
+/// editor's helpers it shares as they are — AI tag suggestions, the publish
+/// panel's insight echo, and photo uploads. Drafts themselves are the
+/// author's own documents and go straight to Firestore, as on the web.
 public struct WritingAPI: Sendable {
     let client: Client
     let configuration: APIConfiguration
@@ -43,11 +44,33 @@ public struct WritingAPI: Sendable {
         }
     }
 
-    /// Asks the site to refresh its cached pages (/api/revalidate, e.g. `/card/{slug}`,
-    /// `/me`) after a change the site can't see — a grace note, never awaited for success.
-    public func revalidate(_ paths: [String]) async {
-        struct Body: Encodable { let paths: [String] }
-        _ = try? await send("api/revalidate", json: Body(paths: paths))
+    public typealias Visibility = Components.Schemas.UpdateCardRequest.VisibilityPayload
+
+    /// Changes your card's visibility and/or byline — only what's passed
+    /// (PATCH /api/v1/cards/{id}). Answers the card as your card box shows it;
+    /// the server refreshes the site's cached pages. `not_found` when it isn't yours.
+    @discardableResult
+    public func updateCard(_ cardId: String, visibility: Visibility? = nil, anonymous: Bool? = nil) async throws -> FeedCard {
+        let body = Components.Schemas.UpdateCardRequest(visibility: visibility, anonymous: anonymous)
+        switch try await client.updateCard(path: .init(key: cardId), body: .json(body)) {
+        case let .ok(r): return try r.body.json
+        case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
+        case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
+        case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
+        case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
+        }
+    }
+
+    /// Deletes your card, draft or published, with its pending edit
+    /// (DELETE /api/v1/cards/{id}); the server refreshes the site's cached pages.
+    public func deleteCard(_ cardId: String) async throws {
+        switch try await client.deleteCard(path: .init(key: cardId)) {
+        case .noContent: return
+        case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
+        case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
+        case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
+        case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
+        }
     }
 
     /// Two or three tags for the draft, informed by your tag history (/api/cards/tags).
