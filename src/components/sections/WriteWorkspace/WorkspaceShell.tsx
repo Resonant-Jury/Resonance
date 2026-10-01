@@ -12,6 +12,7 @@ import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { ThoughtMapBoard } from '@/components/molecules/ThoughtMap/ThoughtMapBoard';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
+import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { useRouter } from '@/i18n/navigation';
 import type { Card } from '@/lib/db/types';
 import styles from './WriteWorkspace.module.css';
@@ -50,6 +51,13 @@ export function WorkspaceShell({
   const tMap = useTranslations('me.thoughtMap');
   const isMobile = useIsMobile(640);
   const router = useRouter();
+  // Below the desktop split (the module CSS's 1200px) the open pane covers
+  // the map: there it mounts — reading the map and every card on it — only
+  // once it is shown, and then stays (a card opened from it returns to it).
+  // Unknown until hydrated, so a phone never mounts it in passing.
+  const split = useMediaQuery('(min-width: 1200px)');
+  const mapShown = useRef(false);
+  if (!leftOverride && (!open || split === true)) mapShown.current = true;
 
   const shellRef = useRef<HTMLDivElement>(null);
   const [editorFrac, setEditorFrac] = useState(MAX_EDITOR_FRAC);
@@ -81,14 +89,15 @@ export function WorkspaceShell({
       style={{ '--editor-frac': editorFrac } as CSSProperties}
     >
       <div className={leftOverride ? `${styles.mapPane} ${styles.mapPaneDoc}` : styles.mapPane}>
-        {leftOverride ?? (
-          <ThoughtMapBoard
-            height="100%"
-            flush
-            onOpenCard={onOpenCard}
-            paneOpen={open}
-          />
-        )}
+        {leftOverride ??
+          (mapShown.current && (
+            <ThoughtMapBoard
+              height="100%"
+              flush
+              onOpenCard={onOpenCard}
+              paneOpen={open}
+            />
+          ))}
         <div className={styles.back}>
           {/* Floats over the map: paper to read on, no pen line of its own. */}
           <OrganicButton variant="paper" size="sm" onClick={() => router.back()}>

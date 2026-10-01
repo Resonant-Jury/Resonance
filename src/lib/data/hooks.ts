@@ -408,17 +408,15 @@ export function useMyProfile() {
   return useSWR(user ? `profile:${user.id}` : null, () => getCurrentUserProfile(), OWN_CONTENT);
 }
 
-export interface MyCardBox {
-  published: Card[];
-  private: Card[];
-  draft: Card[];
-  resonated: Card[];
-  /** Cards that other people linked to one of my cards (via "link with a card"). */
-  linked: Card[];
-  /** Cards the viewer bookmarked — purely private, visible only here. */
-  bookmarks: Card[];
-  authors: Record<string, User>;
-}
+/**
+ * A shelf of the card box: the viewer's own published / private / draft
+ * cards, the originals they resonated with, cards other people linked to
+ * theirs ("link with a card"), and their bookmarks (private, visible only here).
+ */
+export type CardBoxShelf = CardBoxTab | 'linked' | 'bookmarks';
+
+/** One shelf's cards with their bylines. */
+export type CardBoxShelfData = CardsWithAuthors;
 
 /**
  * One of the card box's shelves of other people's cards, from the server
@@ -430,32 +428,23 @@ async function othersShelf(tab: Extract<CardBoxTabName, 'resonated' | 'linked' |
   return summaryList(await callApi<CardListBody>(`/api/v1/me/cards?tab=${tab}`));
 }
 
+/** A shelf: the viewer's own cards read through the rules, the others' from the server. */
+async function readShelf(uid: string, shelf: CardBoxShelf): Promise<CardBoxShelfData> {
+  // A bookmarked card that has since gone private simply drops out.
+  if (shelf === 'resonated' || shelf === 'linked' || shelf === 'bookmarks') return othersShelf(shelf);
+  const cards = await getCardsByAuthor(uid, shelf);
+  return { cards, authors: await getUsersByIds(bylineAuthorIds(cards, uid)) };
+}
+
 /**
- * The card-box tabs for the signed-in viewer, plus resolved authors: their
- * own cards read through the rules, the others' shelves from the server.
+ * One shelf of the signed-in viewer's card box — the one on screen, read when
+ * it is shown (the box used to read all six before showing any). `null`: no
+ * shelf chosen yet. The viewer's own anonymous cards keep their byline here.
  */
-export function useMyCardBox() {
+export function useMyCardBox(shelf: CardBoxShelf | null) {
   const { user } = useAuth();
-  return useSWR<MyCardBox>(user ? `cardbox:${user.id}` : null, async () => {
-    const uid = user!.id;
-    const tabs: CardBoxTab[] = ['published', 'private', 'draft'];
-    const [[published, priv, draft], resonated, linked, bookmarks] = await Promise.all([
-      Promise.all(tabs.map((tab) => getCardsByAuthor(uid, tab))),
-      othersShelf('resonated'),
-      othersShelf('linked'),
-      // A bookmarked card that has since gone private simply drops out.
-      othersShelf('bookmarks'),
-    ]);
-    const own = await getUsersByIds(bylineAuthorIds([...published, ...priv, ...draft], uid));
-    return {
-      published,
-      private: priv,
-      draft,
-      resonated: resonated.cards,
-      linked: linked.cards,
-      bookmarks: bookmarks.cards,
-      authors: { ...resonated.authors, ...linked.authors, ...bookmarks.authors, ...own },
-    };
+  return useSWR<CardBoxShelfData>(user && shelf ? `cardbox:${user.id}:${shelf}` : null, async () => {
+    return readShelf(user!.id, shelf!);
   }, OWN_CONTENT);
 }
 
@@ -474,28 +463,35 @@ export function useMyThoughtMap() {
   const { user } = useAuth();
   return useSWR<MyThoughtMap>(user ? `thoughtmap:${user.id}` : null, async () => {
     const uid = user!.id;
-    const [map, published, priv, draft, resonatedShelf] = await Promise.all([
+    const [map, published, priv, draft] = await Promise.all([
       loadMyThoughtMap(),
       getCardsByAuthor(uid, 'published'),
       getCardsByAuthor(uid, 'private'),
       getCardsByAuthor(uid, 'draft'),
-      // Others' cards come from the server (an anonymous one the rules won't read here);
-      // should that fail, the map still opens, without them this time.
-      othersShelf('resonated').catch(() => EMPTY),
     ]);
-    const resonated = resonatedShelf.cards;
+    const own = [...published, ...priv, ...draft];
+    const ownIds = new Set(own.map((c) => c.id));
+    // The originals the viewer resonated with, named by their own resonance
+    // cards just read — not a second scan of the same cards (the card box's
+    // resonated shelf reads its own) — and, beside them, the cards placed on
+    // the map long ago, older than the newest 40 read above. The server
+    // answers for the ones the rules won't read here (someone else's
+    // anonymous card); should that fail, those cards are just not shown this
+    // time — the map keeps their places.
+    const refIds = [...new Set(own.flatMap((c) => (c.referenceCardId ? [c.referenceCardId] : [])))];
+    const missing = [...new Set(map.nodes.map((n) => n.cardId))].filter((id) => !ownIds.has(id) && !refIds.includes(id));
+    const wanted = [...refIds, ...missing];
+    const found = new Map<string, Card>();
+    for (const c of await Promise.all(wanted.map((id) => getCardById(id)))) if (c) found.set(c.id, c);
+    const unread = wanted.filter((id) => !found.has(id));
+    if (unread.length) for (const c of (await fetchCardSummaries(unread).catch(() => EMPTY)).cards) found.set(c.id, c);
+    const resonated = refIds.flatMap((id) => found.get(id) ?? []);
+    const older = missing.flatMap((id) => found.get(id) ?? []);
     const cards: Record<string, Card> = {};
     // Resonated originals first so an own card by the same id (self-reference)
     // keeps its own-card entry.
-    for (const c of [...resonated, ...published, ...priv, ...draft]) cards[c.id] = c;
+    for (const c of [...resonated, ...own, ...older]) cards[c.id] = c;
     const resonatedIds = resonated.map((c) => c.id).filter((id) => cards[id].authorId !== uid);
-    // A card placed long ago can be older than the newest 40 read above: read
-    // those by id — and ask the server for the ones the rules won't read here.
-    const missing = map.nodes.map((n) => n.cardId).filter((id) => !cards[id]);
-    for (const c of await Promise.all(missing.map((id) => getCardById(id)))) if (c) cards[c.id] = c;
-    const unread = missing.filter((id) => !cards[id]);
-    // (Should that fail, those cards are just not shown this time — the map keeps their places.)
-    if (unread.length) for (const c of (await fetchCardSummaries(unread).catch(() => EMPTY)).cards) cards[c.id] = c;
     // Drop nodes whose card has been deleted since being placed on the map.
     return { ...map, nodes: map.nodes.filter((n) => cards[n.cardId]), cards, resonatedIds };
   }, OWN_CONTENT);

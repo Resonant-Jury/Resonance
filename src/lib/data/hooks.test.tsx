@@ -102,6 +102,7 @@ import {
   useRelated,
   useResonators,
   useUnreadMessages,
+  type CardBoxShelf,
 } from './hooks';
 import type { Conversation, Notification } from '@/lib/db/types';
 
@@ -542,49 +543,61 @@ describe('useCard with the server render', () => {
 });
 
 describe('useMyCardBox', () => {
-  it("reads the viewer's own shelves through the rules, and others' cards from the server", async () => {
-    // Return a distinct card per tab so we can prove the mapping is correct.
-    vi.mocked(getCardsByAuthor).mockImplementation(async (_uid, tab) => {
-      const byTab: Record<string, Card> = {
-        published: card('pub', 'me'),
-        private: card('priv', 'me', { visibility: 'private' }),
-        draft: card('draft', 'me', { publishedAt: null }),
-      };
-      return [byTab[tab]];
-    });
+  // The box read all six shelves (three of them the same query of the
+  // viewer's cards, each whole) before showing any; it reads the one on screen.
+  it('reads only the shelf on screen, with its authors', async () => {
+    vi.mocked(getCardsByAuthor).mockImplementation(async (_uid, tab) =>
+      tab === 'draft' ? [card('draft', 'me', { publishedAt: null })] : [card(`${tab}-card`, 'me')],
+    );
     vi.mocked(getUsersByIds).mockResolvedValue({ me: user('me') });
+
+    const { result, rerender } = renderHook(({ shelf }) => useMyCardBox(shelf).data, {
+      wrapper,
+      initialProps: { shelf: 'draft' as CardBoxShelf | null },
+    });
+    await waitFor(() => expect(result.current).toBeDefined());
+
+    expect(result.current!.cards.map((c) => c.id)).toEqual(['draft']);
+    expect(result.current!.authors).toHaveProperty('me');
+    expect(vi.mocked(getCardsByAuthor).mock.calls.map((c) => c[1])).toEqual(['draft']);
+    expect(callApi).not.toHaveBeenCalled();
+
+    // Opening another shelf reads that one.
+    rerender({ shelf: 'private' });
+    await waitFor(() => expect(result.current?.cards.map((c) => c.id)).toEqual(['private-card']));
+    expect(vi.mocked(getCardsByAuthor).mock.calls.map((c) => c[1])).toEqual(['draft', 'private']);
+  });
+
+  it("reads others' cards from the server, an anonymous original without its author", async () => {
     api({
       '/api/v1/me/cards?tab=resonated': { cards: [summary('res', 'other'), summary('anon-orig', null)] },
-      '/api/v1/me/cards?tab=linked': { cards: [summary('linking', 'third')] },
       '/api/v1/me/cards?tab=bookmarks': { cards: [summary('b1', 'other')] },
     });
 
-    const { result } = renderHook(() => useMyCardBox(), { wrapper });
-    await waitFor(() => expect(result.current.data).toBeDefined());
+    const { result, rerender } = renderHook(({ shelf }) => useMyCardBox(shelf).data, {
+      wrapper,
+      initialProps: { shelf: 'resonated' as CardBoxShelf | null },
+    });
+    await waitFor(() => expect(result.current).toBeDefined());
+    expect(result.current!.cards.map((c) => c.id)).toEqual(['res', 'anon-orig']);
+    expect(result.current!.cards[1]).toMatchObject({ authorId: '', anonymous: true });
+    expect(Object.keys(result.current!.authors)).toEqual(['other']);
 
-    const tabsCalled = vi.mocked(getCardsByAuthor).mock.calls.map((c) => c[1]).sort();
-    expect(tabsCalled).toEqual(['draft', 'private', 'published']);
-
-    const box = result.current.data!;
-    expect(box.published[0].id).toBe('pub');
-    expect(box.private[0].id).toBe('priv');
-    expect(box.draft[0].id).toBe('draft');
-    // An anonymous original the viewer answered: there, without its author.
-    expect(box.resonated.map((c) => c.id)).toEqual(['res', 'anon-orig']);
-    expect(box.resonated[1]).toMatchObject({ authorId: '', anonymous: true });
-    expect(box.linked.map((c) => c.id)).toEqual(['linking']);
-    expect(box.bookmarks.map((c) => c.id)).toEqual(['b1']);
-    expect(Object.keys(box.authors).sort()).toEqual(['me', 'other', 'third']);
-    // Only the viewer's own cards' byline is read through the rules; nobody else's card is.
-    expect(getUsersByIds).toHaveBeenCalledWith(['me', 'me', 'me']);
+    // A bookmarked card that went private is simply not in the server's answer.
+    rerender({ shelf: 'bookmarks' });
+    await waitFor(() => expect(result.current?.cards.map((c) => c.id)).toEqual(['b1']));
+    // Nobody else's card is read through the rules.
+    expect(getCardsByAuthor).not.toHaveBeenCalled();
     expect(getCardById).not.toHaveBeenCalled();
   });
 
-  it('stays idle (no fetch) when no viewer is signed in', async () => {
+  it('stays idle (no fetch) until a shelf is chosen, and when no viewer is signed in', async () => {
+    const before = renderHook(() => useMyCardBox(null), { wrapper });
     mockUseAuth.mockReturnValue({ user: null, loading: false });
-    const { result } = renderHook(() => useMyCardBox(), { wrapper });
+    const { result } = renderHook(() => useMyCardBox('published'), { wrapper });
     // null SWR key → never fetches
     await new Promise((r) => setTimeout(r, 0));
+    expect(before.result.current.data).toBeUndefined();
     expect(result.current.data).toBeUndefined();
     expect(getCardsByAuthor).not.toHaveBeenCalled();
   });
@@ -596,13 +609,17 @@ describe('useMyThoughtMap', () => {
       const byTab: Record<string, Card[]> = {
         published: [card('own', 'me')],
         private: [],
-        draft: [],
+        // The viewer's resonances: one with an original by someone else, one
+        // with someone's anonymous card (which the rules won't read here).
+        draft: [
+          card('my-answer', 'me', { publishedAt: null, referenceCardId: 'theirs' }),
+          card('my-other-answer', 'me', { publishedAt: null, referenceCardId: 'anon-orig' }),
+        ],
       };
       return byTab[tab] ?? [];
     });
-    // An original by someone else that the viewer resonated with — from the server.
-    api({ '/api/v1/me/cards?tab=resonated': { cards: [summary('theirs', 'other')] }, '/api/v1/cards?keys=': { cards: [] } });
-    vi.mocked(getCardById).mockResolvedValue(null);
+    vi.mocked(getCardById).mockImplementation(async (id) => (id === 'theirs' ? card('theirs', 'other') : null));
+    api({ '/api/v1/cards?keys=': (path: string) => ({ cards: path.includes('anon-orig') ? [summary('anon-orig', null)] : [] }) });
     const node = (cardId: string) => ({
       id: cardId,
       cardId,
@@ -627,9 +644,12 @@ describe('useMyThoughtMap', () => {
     await waitFor(() => expect(result.current.data).toBeDefined());
 
     const map = result.current.data!;
-    expect(Object.keys(map.cards).sort()).toEqual(['own', 'theirs']);
-    expect(map.resonatedIds).toEqual(['theirs']);
+    expect(Object.keys(map.cards).sort()).toEqual(['anon-orig', 'my-answer', 'my-other-answer', 'own', 'theirs']);
+    expect(map.resonatedIds).toEqual(['theirs', 'anon-orig']);
     expect(map.nodes.map((n) => n.cardId).sort()).toEqual(['own', 'theirs']);
+    // The originals come from the viewer's cards it just read — no second
+    // scan of those cards (the card box's resonated shelf).
+    expect(vi.mocked(getCardsByAuthor).mock.calls.map((c) => c[1]).sort()).toEqual(['draft', 'private', 'published']);
   });
 
   it('keeps a placed card older than the newest 40 own cards the reads bring', async () => {

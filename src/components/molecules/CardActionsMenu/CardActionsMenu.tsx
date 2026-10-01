@@ -65,7 +65,7 @@ export function CardActionsMenu({
     { key: 'delete', icon: 'trash', label: t('delete'), danger: true },
   ];
 
-  // What this browser holds of the viewer's own cards: the card box, and
+  // What this browser holds of the viewer's own cards: the card box's shelves, and
   // their profile's lists (profileCards: signed-out reads; profilePage: one
   // per profile they looked at, keyed by viewer).
   const refreshOwnLists = useCallback(() => {
@@ -74,7 +74,7 @@ export function CardActionsMenu({
     void mutate(
       (key) =>
         typeof key === 'string' &&
-        (key === `cardbox:${uid}` || key === `profileCards:${uid}` || (key.startsWith('profilePage:') && key.endsWith(`:${uid}`))),
+        (key.startsWith(`cardbox:${uid}:`) || key === `profileCards:${uid}` || (key.startsWith('profilePage:') && key.endsWith(`:${uid}`))),
     );
   }, [mutate, user]);
 

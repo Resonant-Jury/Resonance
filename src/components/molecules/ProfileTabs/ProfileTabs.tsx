@@ -52,6 +52,12 @@ export interface ProfileTabsProps {
    * left, not the first one.
    */
   persistKey?: string;
+  /**
+   * Told the tab on screen: once on mount (after the remembered one is
+   * restored, never the first tab before it) and on every change — for a page
+   * that reads only the shelf being shown.
+   */
+  onActiveChange?: (key: TabKey) => void;
 }
 
 export function ProfileTabs({
@@ -62,8 +68,11 @@ export function ProfileTabs({
   manageable = false,
   thoughtMapHref,
   persistKey,
+  onActiveChange,
 }: ProfileTabsProps) {
   const [active, setActiveState] = useState<TabKey>(tabs[0]);
+  // Whether the remembered tab has been looked for (at once without a key).
+  const [restored, setRestored] = useState(!persistKey);
   const t = useTranslations('me');
   const router = useRouter();
   const isMobile = useIsMobile(640);
@@ -79,8 +88,13 @@ export function ProfileTabs({
       // Storage blocked: start on the first tab.
     }
     if (saved && saved !== 'thoughtMap' && tabs.includes(saved)) setActiveState(saved);
+    setRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persistKey]);
+  useEffect(() => {
+    if (restored) onActiveChange?.(active);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, restored]);
   const setActive = (key: TabKey) => {
     setActiveState(key);
     if (!persistKey) return;

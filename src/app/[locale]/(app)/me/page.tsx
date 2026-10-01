@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
@@ -8,7 +9,7 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { ProfileTabs, type TabKey } from '@/components/molecules/ProfileTabs/ProfileTabs';
 import { Link } from '@/i18n/navigation';
-import { useMyCardBox, useMyProfile } from '@/lib/data/hooks';
+import { useMyCardBox, useMyProfile, type CardBoxShelf } from '@/lib/data/hooks';
 
 // Answering an older invite — none are sent any more — loads after the page.
 const InvitesInbox = dynamic(() => import('@/components/molecules/InvitesInbox/InvitesInbox').then((m) => m.InvitesInbox));
@@ -19,7 +20,10 @@ export default function MyCardBoxPage() {
   const locale = useLocale();
   const t = useTranslations('me');
   const { data: user } = useMyProfile();
-  const { data: box } = useMyCardBox();
+  // Only the shelf on screen is read (the tabs report it once the one the
+  // viewer left on is restored); the others when they are opened.
+  const [shelf, setShelf] = useState<CardBoxShelf | null>(null);
+  const { data: box } = useMyCardBox(shelf);
   const isMobile = useIsMobile(640);
   // From the card box, tapping your own avatar/name steps out to the public
   // profile — the page a connected reader would see.
@@ -124,18 +128,10 @@ export default function MyCardBoxPage() {
         manageable
         thoughtMapHref="/me/thought-map"
         persistKey="me:cardbox-tab"
-        data={
-          box
-            ? {
-                published: box.published,
-                private: box.private,
-                draft: box.draft,
-                resonated: box.resonated,
-                linked: box.linked,
-                bookmarks: box.bookmarks,
-              }
-            : undefined
-        }
+        onActiveChange={(key) => {
+          if (key !== 'thoughtMap') setShelf(key);
+        }}
+        data={box && shelf ? { [shelf]: box.cards } : undefined}
         authors={box?.authors}
         loading={!box}
       />

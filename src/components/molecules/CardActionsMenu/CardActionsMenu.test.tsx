@@ -24,11 +24,13 @@ vi.mock('@/lib/db/firestore/client/api', () => ({
   callApi: (...args: unknown[]) => mockCallApi(...args),
 }));
 
-/** What else this browser holds of the viewer's cards: their card box and their profile's lists. */
+/** What else this browser holds of the viewer's cards: the card box shelves they opened and their profile's lists. */
 const boxReads = vi.fn(async () => ['c1']);
+const privateShelfReads = vi.fn(async () => []);
 const profileReads = vi.fn(async () => ['c1']);
 function OwnLists() {
-  useSWR('cardbox:u1', boxReads);
+  useSWR('cardbox:u1:published', boxReads);
+  useSWR('cardbox:u1:private', privateShelfReads);
   useSWR('profilePage:me:u1', profileReads);
   return null;
 }
@@ -77,6 +79,8 @@ describe('CardActionsMenu', () => {
     );
     expect(onChanged).toHaveBeenCalled();
     await waitFor(() => expect(boxReads).toHaveBeenCalledTimes(2));
+    // The card moves shelves: both read again.
+    await waitFor(() => expect(privateShelfReads).toHaveBeenCalledTimes(2));
     expect(profileReads).toHaveBeenCalledTimes(2);
     // The server drops the cached pages itself: the browser asks for nothing more.
     expect(fetchSpy).not.toHaveBeenCalled();
