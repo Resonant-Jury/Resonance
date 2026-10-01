@@ -39,14 +39,37 @@ vi.mock('@/lib/db/firestore/client/blocks', () => ({
   blockUser: vi.fn(),
   unblockUser: vi.fn(),
 }));
-vi.mock('@/lib/db/firestore/client/cardLinks', () => ({ listLinksToCard: vi.fn(async () => []) }));
+vi.mock('@/lib/db/firestore/client/cardLinks', () => ({ listLinksToAuthor: vi.fn(async () => []) }));
+// Signed in, the page's lists come from /api/v1 (callApi sends the ID token).
+vi.mock('@/lib/db/firestore/client/api', () => ({
+  callApi: vi.fn(),
+  ApiError: class ApiError extends Error {
+    constructor(
+      readonly status: number,
+      readonly code: string,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
+}));
 // Leaf components with reads of their own (bookmarks, notes) aren't the subject.
 vi.mock('@/components/molecules/CardDetail/ReadAfterArea', () => ({
   ReadAfterArea: () => <div data-testid="read-after-area" />,
 }));
 
-import { getCardById, getCardBySlugOrId, getUserById, resolveCardId } from '@/lib/db/firestore/client/reads';
+import {
+  getCardById,
+  getCardBySlugOrId,
+  getRelatedCards,
+  getResonanceCards,
+  getUserById,
+  getUsersByIds,
+  resolveCardId,
+} from '@/lib/db/firestore/client/reads';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
+import { callApi } from '@/lib/db/firestore/client/api';
+import type { CardDetailBody, FeedCardBody } from '@/lib/api/v1/schemas';
 import { CardDetailClient, storyGate } from './CardDetailClient';
 import { SESSION_MARK_STORAGE_KEY } from './cardHold';
 import { SESSION_MARK_KEY } from '@/lib/auth/firebase/client';
@@ -344,6 +367,130 @@ describe('taking over from the server render', () => {
     act(() => root.unmount());
     container.remove();
     process.env.TZ = tz;
+  });
+});
+
+/** A v1 card summary, as the server answers lists. */
+function summary(id: string, title: string, extra: Partial<FeedCardBody> = {}): FeedCardBody {
+  return {
+    id,
+    slug: id,
+    title,
+    excerpt: `${title}, briefly`,
+    tags: [],
+    publishedAt: '2026-02-01T00:00:00.000Z',
+    author: { id: `by-${id}`, handle: `writer-${id}`, initials: 'W', accentColor: 'x', avatarUrl: null, avatarSeed: '3', verified: false, region: null },
+    anonymous: false,
+    visibility: 'public',
+    imageUrl: null,
+    imageLabel: null,
+    accentHue: null,
+    readMinutes: 4,
+    referenceCardId: null,
+    reason: null,
+    ...extra,
+  };
+}
+
+/** What GET /api/v1/cards/{id}?include=… answers this viewer. */
+function detail(extra: Partial<CardDetailBody> = {}): CardDetailBody {
+  return {
+    card: summary('pub1', 'A quiet morning'),
+    story: STORY,
+    visibility: 'public',
+    anonymous: false,
+    resonanceCount: 1,
+    coreInsight: null,
+    isOwner: false,
+    referenceCard: summary('origin', 'The card it answers'),
+    resonances: { cards: [summary('reply', 'A reply to it')] },
+    related: { cards: [summary('near', 'A card nearby')] },
+    links: { cards: [] },
+    embeds: { cards: [summary('walk', 'The walk it embeds'), summary('letter', 'An unsigned letter', { anonymous: true, author: null })] },
+    ...extra,
+  };
+}
+
+const EMBEDDING_STORY = `${STORY}\n\n[Walk](/card/walk)\n\n[Letter](/card/letter)\n\n[Gone](/card/gone)`;
+
+describe('the lists around the card and its embedded cards', () => {
+  function signedIn(viewer = 'me') {
+    signIn();
+    mockUseAuth.mockReturnValue({ user: { id: viewer }, loading: false });
+  }
+  const seedWith = (story: string): CardSeed => {
+    const s = seed();
+    return { ...s, view: { ...s.view!, card: { ...s.view!.card, story } } };
+  };
+
+  it('signed in: come in one request, keyed by the id the server found, beside the read of the card itself', async () => {
+    signedIn();
+    vi.mocked(getCardById).mockReturnValue(new Promise(() => {}));
+    vi.mocked(callApi).mockResolvedValue(detail());
+
+    renderPage({ seed: seedWith(EMBEDDING_STORY) });
+
+    // The resonance section: the card it answers, then the replies; then the related cards.
+    expect(await screen.findByText('Cards resonating with this')).toBeInTheDocument();
+    expect(screen.getAllByText('The card it answers').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('A reply to it').length).toBeGreaterThan(0);
+    expect(screen.getByText('Extended cards')).toBeInTheDocument();
+    expect(screen.getAllByText('A card nearby').length).toBeGreaterThan(0);
+    // A related card keeps its whole story's read time, though only its excerpt came.
+    expect(screen.getAllByText('4 min').length).toBeGreaterThan(0);
+
+    // The embedded cards come with it: no read of their own.
+    expect(screen.getByText('The walk it embeds')).toBeInTheDocument();
+    expect(screen.getByText('writer-walk')).toBeInTheDocument();
+    expect(screen.getByText('An unsigned letter')).toBeInTheDocument();
+    expect(screen.getByText('Anonymous')).toBeInTheDocument();
+    // One the viewer can't read (or that is gone) stays a plain link.
+    expect(screen.getByRole('link', { name: 'Gone' })).toHaveAttribute('href', '/card/gone');
+
+    expect(callApi).toHaveBeenCalledTimes(1);
+    expect(callApi).toHaveBeenCalledWith('/api/v1/cards/pub1?include=resonances,related,links,embeds');
+    // While the browser's own read of the card is still out (it never comes back here).
+    expect(getCardById).toHaveBeenCalled();
+    expect(getRelatedCards).not.toHaveBeenCalled();
+    expect(getResonanceCards).not.toHaveBeenCalled();
+    expect(getCardBySlugOrId).not.toHaveBeenCalled();
+    expect(getUsersByIds).not.toHaveBeenCalled();
+  });
+
+  it("shows its author the cards linking to it, from the same answer", async () => {
+    signedIn('a1');
+    vi.mocked(getCardById).mockResolvedValue(card('pub1', { story: STORY }));
+    vi.mocked(callApi).mockResolvedValue(detail({ isOwner: true, links: { cards: [summary('link', 'A card linking here')] } }));
+
+    renderPage({ seed: seed() });
+    expect(await screen.findByText('Cards linked to this')).toBeInTheDocument();
+    expect(screen.getAllByText('A card linking here').length).toBeGreaterThan(0);
+    expect(callApi).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets each embed read its own card when the request fails', async () => {
+    signedIn();
+    vi.mocked(getCardById).mockReturnValue(new Promise(() => {}));
+    vi.mocked(callApi).mockRejectedValue(new Error('offline'));
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(card('walk', { thoughtCore: 'The walk, read by itself' }));
+
+    renderPage({ seed: seedWith(`${STORY}\n\n[Walk](/card/walk)`) });
+    expect(await screen.findByText('The walk, read by itself')).toBeInTheDocument();
+    expect(getCardBySlugOrId).toHaveBeenCalledWith('walk');
+  });
+
+  it('signed out: read the public lists through the rules, each embed its own card — and never ask the API', async () => {
+    vi.mocked(getCardById).mockResolvedValue(card('pub1', { story: `${STORY}\n\n[Walk](/card/walk)` }));
+    vi.mocked(getResonanceCards).mockResolvedValue([card('reply', { authorId: 'a2', thoughtCore: 'A public reply' })]);
+    vi.mocked(getRelatedCards).mockResolvedValue([card('near', { authorId: 'a2', thoughtCore: 'A public neighbour' })]);
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(card('walk', { thoughtCore: 'The walk, read by itself' }));
+
+    renderPage({ seed: seedWith(`${STORY}\n\n[Walk](/card/walk)`) });
+    expect((await screen.findAllByText('A public reply')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('A public neighbour')).length).toBeGreaterThan(0);
+    expect(await screen.findByText('The walk, read by itself')).toBeInTheDocument();
+    expect(getResonanceCards).toHaveBeenCalledWith('pub1');
+    expect(callApi).not.toHaveBeenCalled();
   });
 });
 

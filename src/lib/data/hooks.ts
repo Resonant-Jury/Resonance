@@ -23,15 +23,18 @@ import {
   listMyConnectionUids,
   resolveCardId,
 } from '@/lib/db/firestore/client/reads';
-import { listLinksToAuthor, listLinksToCard } from '@/lib/db/firestore/client/cardLinks';
+import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
 import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
 import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
 import { listConversations, listenThread } from '@/lib/db/firestore/client/messages';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
-import { callApi } from '@/lib/db/firestore/client/api';
+import { ApiError, callApi } from '@/lib/db/firestore/client/api';
+import { hasSessionMark } from '@/lib/auth/firebase/client';
+import type { CardDetailBody } from '@/lib/api/v1/schemas';
 import type { Conversation, Message } from '@/lib/db/types';
 import { anonymousAuthor, cardKey } from './cardPrefill';
 import type { CardSeed, PublicCardView } from './cardSeed';
+import { summaryList } from './summaries';
 
 /**
  * For what the viewer edits themselves — their card, card box, map, profile:
@@ -45,6 +48,33 @@ const LIVE_ON_FOCUS = { revalidateOnFocus: true } as const;
 export interface CardsWithAuthors {
   cards: Card[];
   authors: Record<string, User>;
+}
+
+/**
+ * Where a page's reads go for this viewer. Signed in: `v1` — one /api/v1
+ * request per page, the server applying their blocks, connections and
+ * anonymity (it answers exactly what the apps get). Signed out: `public` —
+ * Firestore through the rules, which needs no viewer (and keeps the reads
+ * that are the same for everyone off the server). `null` while it can't tell:
+ * auth is still restoring in a browser someone signed in in. A browser nobody
+ * signed in in starts the public reads at once.
+ */
+export type ReadPath = 'v1' | 'public' | null;
+
+export function useReadPath(): ReadPath {
+  const { user, loading } = useAuth();
+  if (!loading) return user ? 'v1' : 'public';
+  return hasSessionMark() ? null : 'public';
+}
+
+/** A v1 GET for the signed-in viewer, or null when the server says there is no such thing (404): never retried. */
+async function getOrNull<T>(path: string): Promise<T | null> {
+  try {
+    return await callApi<T>(path);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
 }
 
 /** Drop cards by people the viewer has blocked (see client/blocks.ts). */
@@ -485,14 +515,106 @@ export function useResonators(cardId: string | undefined, referenceCardId?: stri
   });
 }
 
+/**
+ * Cards a page already has for the embeds it draws (see useCardEmbed):
+ * `loading` while they are on their way.
+ */
+export type CardEmbedSource = { status: 'loading' } | { status: 'ready'; cards: CardsWithAuthors };
 
-/** Cards that others linked to a specific card (author's card-detail view). */
-export function useLinkedToCard(cardId: string | undefined) {
-  return useSWR<CardsWithAuthors>(cardId ? `linksTo:${cardId}` : null, async () => {
-    const links = await listLinksToCard(cardId!);
-    const cards = await cardsFromIds(links.map((l) => l.sourceCardId));
-    return withAuthors(cards);
-  });
+/** The lists around a card on its page; each is undefined until it arrives. */
+export interface CardPageLists {
+  /** The card this one resonates with (when the viewer may read it), then the cards resonating with it — each once. */
+  resonances?: CardsWithAuthors;
+  /** A few recent public cards, those sharing its tags first. */
+  related?: CardsWithAuthors;
+  /** Cards by others linking to it — only ever its author's. */
+  links?: CardsWithAuthors;
+  /**
+   * The cards its story embeds, for its embeds to look up — or null: on the
+   * public path (and if the request failed) each embed reads its own card.
+   */
+  embeds: CardEmbedSource | null;
+}
+
+/** Several lists as one, each card once (the first time it appears). */
+function mergeLists(...lists: (CardsWithAuthors | undefined)[]): CardsWithAuthors {
+  const seen = new Set<string>();
+  const cards: Card[] = [];
+  const authors: Record<string, User> = {};
+  for (const list of lists) {
+    if (!list) continue;
+    for (const c of list.cards) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      cards.push(c);
+    }
+    Object.assign(authors, list.authors);
+  }
+  return { cards, authors };
+}
+
+/** What a card page asks the server for, besides the card (CardDetail's `include`). */
+const CARD_PAGE_INCLUDE = 'resonances,related,links,embeds';
+
+const EMPTY: CardsWithAuthors = { cards: [], authors: {} };
+
+interface LoadedCardPageLists {
+  resonances: CardsWithAuthors;
+  related: CardsWithAuthors;
+  links: CardsWithAuthors;
+  embeds: CardsWithAuthors;
+}
+
+/** One GET /api/v1/cards/{id}?include=…, as the lists the page draws; null: the viewer can't read the card. */
+async function fetchCardPageLists(id: string): Promise<LoadedCardPageLists | null> {
+  const body = await getOrNull<CardDetailBody>(`/api/v1/cards/${encodeURIComponent(id)}?include=${CARD_PAGE_INCLUDE}`);
+  if (!body) return null;
+  return {
+    resonances: mergeLists(summaryList(body.referenceCard ? [body.referenceCard] : []), summaryList(body.resonances)),
+    related: summaryList(body.related),
+    links: summaryList(body.links),
+    embeds: summaryList(body.embeds),
+  };
+}
+
+/**
+ * The lists a card page shows around the card — what resonates with it (and
+ * what it resonates with), related cards, and for its author the cards
+ * linking to it — plus the cards its story embeds.
+ *
+ * Signed in, they are one request: GET /api/v1/cards/{id} with `include`,
+ * which applies the viewer's blocks and visibility on the server, and whose
+ * embeds the story's embedded cards look up instead of reading one each.
+ * It starts with the id the server render found, beside the page's own read
+ * of the card. Signed out, each list reads public cards through the rules,
+ * as before, and each embed its own card.
+ *
+ * `id` is the card's document id; `referenceCardId` the card it resonates
+ * with (the public path reads it; the server finds it on its own).
+ */
+export function useCardPageLists(id: string | undefined, referenceCardId: string | undefined): CardPageLists {
+  const { user } = useAuth();
+  const path = useReadPath();
+  const signedIn = useSWR(path === 'v1' && id ? `cardPage:${id}:${user!.id}` : null, () => fetchCardPageLists(id!));
+  const pub = path === 'public';
+  const related = useRelated(pub ? id : undefined);
+  const incoming = useResonanceCards(pub ? id : undefined);
+  const source = useReferencedCard(pub ? referenceCardId : undefined);
+
+  if (path === 'v1') {
+    const d = signedIn.data;
+    if (d === undefined) return { embeds: signedIn.error ? null : { status: 'loading' } };
+    if (d === null) return { resonances: EMPTY, related: EMPTY, links: EMPTY, embeds: { status: 'ready', cards: EMPTY } };
+    return { resonances: d.resonances, related: d.related, links: d.links, embeds: { status: 'ready', cards: d.embeds } };
+  }
+  if (path === null) return { embeds: { status: 'loading' } };
+  return {
+    resonances: incoming.data || source.data ? mergeLists(source.data, incoming.data) : undefined,
+    related: related.data,
+    // Cards linking to a card are its author's to see — never a signed-out reader.
+    links: EMPTY,
+    embeds: null,
+  };
 }
 
 export interface ConversationsData {

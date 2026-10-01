@@ -54,6 +54,13 @@ export interface Card {
    * someone reading raw Firestore documents.
    */
   anonymous?: boolean;
+  /**
+   * Set only on a card the web built from an /api/v1 summary (a FeedCard,
+   * lib/data/summaries) rather than read whole: `story` then holds just its
+   * plain-text excerpt, and this the whole story's read time. Lists draw it;
+   * it never stands in for the card itself (a card page isn't seeded with it).
+   */
+  summary?: { readMinutes: number };
 }
 
 /**

@@ -2,56 +2,27 @@
 
 import { useTranslations } from 'next-intl';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
-import { useReferencedCard, useResonanceCards } from '@/lib/data/hooks';
-import type { Card, User } from '@/lib/db/types';
+import type { CardsWithAuthors } from '@/lib/data/hooks';
 import styles from './ResonanceCards.module.css';
-
-export interface ResonanceCardsProps {
-  card: Card;
-}
 
 /**
  * The resonance relationships around a card, rendered as clean centered sections
  * (matching the home page's section rhythm) rather than a framed, tinted block.
  *
- * Resonance is bidirectional:
- *  - **Source** — if this card is itself a response (`referenceCardId` set), link
- *    back up to the original it resonates from.
- *  - **Incoming** — every public card that resonates with (references) this one.
- *
- * Each side renders as simplified {@link MiniCardGrid} cards. Renders nothing
- * when neither side has anything to show.
+ * Resonance is bidirectional — the original this card resonates from (when it
+ * is itself a response), then every public card resonating with it. The page
+ * hands both over as one list (useCardPageLists), each card once, and they
+ * render as simplified {@link MiniCardGrid} cards. Renders nothing when there
+ * is nothing to show.
  */
-export function ResonanceCards({ card }: ResonanceCardsProps) {
+export function ResonanceCards({ cards, authors }: CardsWithAuthors) {
   const t = useTranslations('card');
-  const incoming = useResonanceCards(card.id);
-  const source = useReferencedCard(card.referenceCardId);
-
-  const incomingCards = incoming.data?.cards ?? [];
-  const sourceCards = source.data?.cards ?? [];
-
-  // Combine and de-duplicate in case there are overlapping references
-  const seen = new Set<string>();
-  const mergedCards: Card[] = [];
-  const mergedAuthors: Record<string, User> = {};
-
-  for (const c of [...sourceCards, ...incomingCards]) {
-    if (!seen.has(c.id)) {
-      seen.add(c.id);
-      mergedCards.push(c);
-    }
-  }
-
-  const sourceAuthors = source.data?.authors ?? {};
-  const incomingAuthors = incoming.data?.authors ?? {};
-  Object.assign(mergedAuthors, sourceAuthors, incomingAuthors);
-
-  if (mergedCards.length === 0) return null;
+  if (cards.length === 0) return null;
 
   return (
     <section className={styles.section}>
       <h2 className={styles.heading}>{t('resonanceSection.title')}</h2>
-      <MiniCardGrid cards={mergedCards} authors={mergedAuthors} />
+      <MiniCardGrid cards={cards} authors={authors} />
     </section>
   );
 }

@@ -34,10 +34,10 @@ vi.mock('@/lib/db/firestore/client/messages', () => ({
 }));
 vi.mock('@/lib/db/firestore/client/api', () => ({
   callApi: vi.fn(),
+  ApiError: class ApiError extends Error {},
 }));
 vi.mock('@/lib/db/firestore/client/cardLinks', () => ({
   listLinksToAuthor: vi.fn(),
-  listLinksToCard: vi.fn(),
 }));
 vi.mock('@/lib/db/firestore/client/bookmarks', () => ({
   listMyBookmarkIds: vi.fn(),

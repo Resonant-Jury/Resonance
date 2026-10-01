@@ -57,7 +57,8 @@ export function cardToStory(
   opts?: CardToStoryOptions,
 ): Story {
   const wordCount = card.story.replace(/\s+/g, '').length;
-  const minutes = Math.max(1, Math.round(wordCount / 320));
+  // A summary's story is only its excerpt: it brings the whole story's read time along.
+  const minutes = card.summary?.readMinutes ?? Math.max(1, Math.round(wordCount / 320));
   const excerpt = card.story.replace(/\n+/g, ' ').slice(0, 96) + (card.story.length > 96 ? '…' : '');
   const anonymized = (card.anonymous && !opts?.deanonymize) || !author;
   const byline = anonymized

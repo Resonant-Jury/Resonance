@@ -46,6 +46,9 @@ export function usePrefillCard(): (card: Card, author: User | undefined) => void
     (card, author) => {
       // Until auth settles the page's key isn't known yet.
       if (loading) return;
+      // A summary holds an excerpt, not the story: the page reads the card
+      // itself (a public one is in its server render anyway).
+      if (card.summary) return;
       // Someone else's anonymous card: the page shows the anonymous byline,
       // exactly what the list had. The viewer's own anonymous card: the list
       // didn't read its author, so there is nothing to seed with.

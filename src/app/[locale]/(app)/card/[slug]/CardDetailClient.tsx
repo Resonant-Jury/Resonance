@@ -16,20 +16,14 @@ import { ReadAfterArea } from '@/components/molecules/CardDetail/ReadAfterArea';
 import { ResonanceCards } from '@/components/molecules/CardDetail/ResonanceCards';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { StoryMarkdown } from '@/components/molecules/CardDetail/StoryMarkdown';
+import { CardEmbedSourceContext } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
 import { useSWRConfig } from 'swr';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { hasSessionMark } from '@/lib/auth/firebase/client';
 import { cardKey } from '@/lib/data/cardPrefill';
 import type { CardSeed } from '@/lib/data/cardSeed';
-import {
-  useCard,
-  useLinkedToCard,
-  useMyBlockedIds,
-  useRelated,
-  useResonanceCards,
-  useReferencedCard,
-} from '@/lib/data/hooks';
+import { useCard, useCardPageLists, useMyBlockedIds } from '@/lib/data/hooks';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { CARD_HOLD_ATTR } from './cardHold';
 import styles from './page.module.css';
@@ -113,16 +107,12 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
     authorId: data?.card?.authorId ?? '',
     failed: !!error,
   });
-  // Related cards key off the resolved doc id (the URL carries a slug now), so
-  // they fetch once the card itself has loaded.
-  const { data: relatedData } = useRelated(data?.card?.id);
-  // Cards that others linked to this one — author-only surface.
   const isOwner = !!user && !!data?.card && user.id === data.card.authorId;
-  const { data: linkedData } = useLinkedToCard(isOwner ? data?.card?.id : undefined);
-
-  // Fetch resonance status to determine page background color sequence
-  const incoming = useResonanceCards(data?.card?.id);
-  const source = useReferencedCard(data?.card?.referenceCardId);
+  // The lists around the card (resonances, related, the author's linking
+  // cards) and its story's embedded cards: signed in, one request beside the
+  // card's own read, keyed by the id the server render found; signed out,
+  // public reads once the card is in hand.
+  const lists = useCardPageLists(data?.card?.id ?? seed?.id ?? undefined, data?.card?.referenceCardId);
 
   const storyRef = useRef<HTMLDivElement>(null);
   const [headings, setHeadings] = useState<TocHeading[]>([]);
@@ -168,11 +158,13 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
   }
 
   const { card, author } = data;
-  const related = relatedData?.cards ?? [];
-  const relatedAuthors = relatedData?.authors ?? {};
+  const related = lists.related?.cards ?? [];
+  const relatedAuthors = lists.related?.authors ?? {};
+  const linked = isOwner ? lists.links : undefined;
   const hue = card.accentHue ?? 55;
 
-  const hasResonance = (incoming.data?.cards.length ?? 0) > 0 || (source.data?.cards.length ?? 0) > 0;
+  const resonances = lists.resonances ?? { cards: [], authors: {} };
+  const hasResonance = resonances.cards.length > 0;
 
   const mainContainerStyle = {
     maxWidth: 'var(--page-max-w-wide)',
@@ -289,7 +281,10 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
             </div>
 
             <div ref={storyRef} style={{ marginBottom: 32 }}>
-              <StoryMarkdown source={card.story} />
+              {/* Signed in, the embedded cards came with the lists. */}
+              <CardEmbedSourceContext.Provider value={lists.embeds}>
+                <StoryMarkdown source={card.story} />
+              </CardEmbedSourceContext.Provider>
             </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 40 }}>
@@ -314,10 +309,10 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
               coreInsight={card.signature?.coreInsight}
             />
 
-            {isOwner && (linkedData?.cards.length ?? 0) > 0 && (
+            {linked && linked.cards.length > 0 && (
               <section style={{ marginBottom: 40 }}>
                 <h3 className={styles.linkedHeading}>{t('linkedCards')}</h3>
-                <MiniCardGrid cards={linkedData!.cards} authors={linkedData!.authors} />
+                <MiniCardGrid cards={linked.cards} authors={linked.authors} />
               </section>
             )}
 
@@ -349,7 +344,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
             />
           </div>
           <div className={styles.sectionContainer}>
-            <ResonanceCards card={card} />
+            <ResonanceCards cards={resonances.cards} authors={resonances.authors} />
           </div>
         </section>
       )}

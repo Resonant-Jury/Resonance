@@ -129,6 +129,18 @@ describe('opening a card from a list', () => {
     expect(page.result.current.isLoading).toBe(true);
   });
 
+  it('never seeds the page with a summary from the API (its story is only an excerpt)', async () => {
+    await clickCard(
+      [card('c6', 'a1', { slug: 'a-short-walk', story: 'The first lines…', summary: { readMinutes: 6 } })],
+      { a1: user('a1') },
+      'Thought c6',
+    );
+
+    const page = renderHook(() => useCard('a-short-walk'), { wrapper: Swr });
+    expect(page.result.current.data).toBeUndefined();
+    expect(page.result.current.isLoading).toBe(true);
+  });
+
   it('never overwrites a card page already in the cache', async () => {
     cache.set('card:c5:me', {
       data: { card: card('c5', 'a1', { story: 'Edited since' }), author: user('a1') },
