@@ -38,8 +38,8 @@ final class ThreadModel {
     private(set) var messages: [Message] = []
     /// The first snapshot of messages has arrived (or there is no conversation yet).
     private(set) var threadReady = false
-    /// Shared cards, as the viewer may see them (nil: not visible to them — drawn as nothing).
-    private(set) var cards: [String: CardDetail?] = [:]
+    /// Shared cards, as the viewer may see them, read together.
+    let sharedCards: CardSummaries
 
     var draft = ""
     var pendingCard: FeedCard?
@@ -55,6 +55,9 @@ final class ThreadModel {
         self.handle = handle
         self.noteRef = noteRef
         self.session = session
+        sharedCards = CardSummaries(api: session.reading)
+        let previews = session.cardPreviews
+        sharedCards.onLoaded = { previews.remember($0) }
         if let uid, uid != session.uid {
             otherId = uid
             // Someone Messages already shows: their face and current pen name at once.
@@ -208,15 +211,13 @@ final class ThreadModel {
         Firestore.firestore().collection("conversations").document(pairId).updateData(["unread.\(me)": 0])
     }
 
+    /// A shared card as the viewer may see it (nil: on its way, or not visible to them — drawn as nothing).
+    func card(_ id: String) -> FeedCard? { sharedCards.card(id) }
+
+    /// The cards the loaded messages share, those not asked for yet in one request.
     private func loadCards() {
-        for id in Set(messages.compactMap(\.cardRef)) where cards[id] == nil {
-            cards[id] = .some(nil)
-            Task {
-                let detail = try? await session.reading.card(id)
-                cards[id] = .some(detail)
-                if let detail { session.cardPreviews.remember(detail.card) }
-            }
-        }
+        let refs = messages.compactMap(\.cardRef)
+        Task { await sharedCards.load(refs) }
     }
 
     func send() async {

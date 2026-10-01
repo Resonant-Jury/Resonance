@@ -267,11 +267,11 @@ struct ThreadScreen: View {
         return HStack(spacing: 0) {
             if mine { Spacer(minLength: 0) }
             VStack(alignment: mine ? .trailing : .leading, spacing: 6) {
-                if let id = message.cardRef, let card = model.cards[id] ?? nil {
-                    Button { openRoute(.card(card.card.routeKey)) } label: {
-                        EmbedStoryCard(title: card.card.title, author: card.anonymous ? nil : card.card.author?.value1.handle,
-                                       imageURL: card.card.imageUrl.flatMap(URL.init(string:)), hue: card.card.accentHue,
-                                       seed: seedFromId(card.card.id, start: 11))
+                if let id = message.cardRef, let card = model.card(id) {
+                    Button { openRoute(.card(card.routeKey)) } label: {
+                        EmbedStoryCard(title: card.title, author: card.anonymous ? nil : card.author?.value1.handle,
+                                       imageURL: card.imageUrl.flatMap(URL.init(string:)), hue: card.accentHue,
+                                       seed: seedFromId(card.id, start: 11))
                             .frame(maxWidth: 320)
                     }
                     .buttonStyle(.plain)
@@ -396,7 +396,7 @@ private struct SharedMediaContent: View {
             ModalTitle(L10n.Messages.mediaTitle).padding(.bottom, 8)
             CSSText(L10n.Messages.mediaSubtitle, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.6, color: UIColor(Tokens.textMuted))
                 .padding(.bottom, 18)
-            let cards = shared.cards.compactMap { model.cards[$0] ?? nil }
+            let cards = shared.cards.compactMap(model.card)
             if cards.isEmpty && shared.links.isEmpty {
                 Text(L10n.Messages.mediaEmpty).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
             }
@@ -405,14 +405,14 @@ private struct SharedMediaContent: View {
                     if !cards.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
                             head(L10n.Messages.mediaCards)
-                            ForEach(Array(cards.enumerated()), id: \.element.card.id) { i, detail in
+                            ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                                 if i > 0 { WavyDivider(seed: Double(53 + i * 7)) }
-                                Button { openRoute(.card(detail.card.routeKey)) } label: {
+                                Button { openRoute(.card(card.routeKey)) } label: {
                                     HStack(spacing: 12) {
-                                        OrganicImage(url: detail.card.imageUrl.flatMap(URL.init(string:)), seed: 7,
-                                                     fill: OKLCHColor.color(0.9, 0.06, detail.card.accentHue ?? 55))
+                                        OrganicImage(url: card.imageUrl.flatMap(URL.init(string:)), seed: 7,
+                                                     fill: OKLCHColor.color(0.9, 0.06, card.accentHue ?? 55))
                                             .frame(width: 40, height: 40)
-                                        Text(detail.card.title).font(AppFonts.body(14, weight: .semibold)).foregroundStyle(Tokens.text)
+                                        Text(card.title).font(AppFonts.body(14, weight: .semibold)).foregroundStyle(Tokens.text)
                                             .lineLimit(2).multilineTextAlignment(.leading)
                                         Spacer(minLength: 0)
                                     }
