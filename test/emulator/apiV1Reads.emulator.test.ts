@@ -14,6 +14,7 @@ import {
   getRelated,
   getResonances,
 } from '@/lib/api/v1/reads';
+import { CardDetail, FeedCard } from '@/lib/api/v1/schemas';
 import { getFeed } from '@/lib/api/v1/service';
 
 // The v1 reads behind the apps' feed, card and author screens, against the
@@ -142,6 +143,28 @@ describe('getCardDetail', () => {
     await card('resp', 'dana', 1, { referenceCardId: 'orig' });
     expect((await getCardDetail(db, 'alice', 'resp')).referenceCard?.id).toBe('orig');
     expect((await getCardDetail(db, 'erin', 'resp')).referenceCard).toBeNull();
+  });
+});
+
+describe('response enums', () => {
+  // A generated client decodes an enum into a closed type: one value it
+  // doesn't know fails the whole answer. CardDetail.visibility used to pass the
+  // stored value through as it was.
+  it('never carry a value outside the contract, whatever the document holds', async () => {
+    await card('odd', 'bob', 1, { visibility: 'friends' });
+    await card('bare', 'bob', 2, { visibility: null });
+    for (const id of ['odd', 'bare']) {
+      const detail = await getCardDetail(db, 'bob', id);
+      // What the rules make of it: only its author can open it.
+      expect(detail.visibility, id).toBe('private');
+      expect(detail.card.visibility, id).toBe('private');
+      expect(CardDetail.safeParse(detail).success, id).toBe(true);
+      expect((await failure(getCardDetail(db, 'alice', id))).code).toBe('not_found');
+    }
+    await card('odd-draft', 'bob', 0, { publishedAt: null, visibility: 'everyone' });
+    const [draft] = (await getCardBox(db, 'bob', 'draft')).cards;
+    expect(draft.visibility).toBe('private');
+    expect(FeedCard.safeParse(draft).success).toBe(true);
   });
 });
 

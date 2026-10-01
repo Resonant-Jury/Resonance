@@ -17,6 +17,18 @@ function str(v: unknown): string | null {
   return typeof v === 'string' && v.length ? v : null;
 }
 
+type Visibility = FeedCardBody['visibility'];
+
+/**
+ * A card's visibility as the contract names it. A response enum never carries
+ * a value the clients don't know (see ./schemas), so a stored value outside
+ * the three — or none — reads as what firestore.rules make of it: a card only
+ * its author can open, i.e. private.
+ */
+export function visibilityOf(v: unknown): Visibility {
+  return v === 'public' || v === 'connections' || v === 'private' ? v : 'private';
+}
+
 /** A story's prose without Markdown syntax (links keep their text). */
 export function plainText(markdown: string): string {
   return markdown
@@ -79,7 +91,7 @@ export function toFeedCard(c: Card, author: DocumentData | undefined, opts: Feed
     publishedAt: published ? published.toISOString() : null,
     author: (!anonymous || opts.deanonymize) && author ? toAuthor(c.authorId, author) : null,
     anonymous,
-    visibility: c.visibility === 'private' || c.visibility === 'connections' ? c.visibility : 'public',
+    visibility: visibilityOf(c.visibility),
     imageUrl: str(c.media?.url),
     imageLabel: str(c.media?.label) ?? (title ? Array.from(title).slice(0, 24).join('') : null),
     accentHue: typeof c.accentHue === 'number' && Number.isFinite(c.accentHue) ? c.accentHue : null,

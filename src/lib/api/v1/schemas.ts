@@ -8,6 +8,15 @@ import { z } from 'zod';
  * generated. Changing a schema is changing the contract — additive only
  * within v1 (new optional fields, new endpoints); clients must tolerate
  * fields they do not know.
+ *
+ * Response enums are the exception to "additive": a generated client decodes
+ * an enum into a closed type, and one value it does not know fails the whole
+ * answer (a feed page, a profile) — so adding a value to an enum a response
+ * carries (visibility, primaryLocale, status, …) is a breaking change within
+ * v1, and the server never sends anything else: what it reads from Firestore
+ * is normalized to the documented values first (`visibilityOf` in
+ * ./present). Request enums may grow (an old client just never sends the
+ * new value).
  */
 export const apiRegistry = z.registry<{ id: string }>();
 
@@ -35,6 +44,16 @@ export const ApiError = named(
   'Every non-2xx response has this shape.',
 );
 
+export const AccountDeletionStatus = named(
+  z.object({
+    requestedAt: z.iso.datetime(),
+    /** When the account is purged; signing in before then can cancel it. */
+    purgeAfter: z.iso.datetime(),
+  }),
+  'AccountDeletionStatus',
+  'A scheduled deletion of the account (what GET /api/account/deletion answers as `deletion`).',
+);
+
 export const Me = named(
   z.object({
     id: z.string(),
@@ -48,6 +67,12 @@ export const Me = named(
     primaryLocale: z.enum(['en', 'zh-TW']).nullable(),
     /** When the pen name last changed (the settings hint: once every 30 days). */
     handleChangedAt: z.iso.datetime().nullable(),
+    /**
+     * The account's scheduled deletion (the undo banner shows until
+     * `purgeAfter`), null when none — so the app needs no second request.
+     * Absent only from servers older than the field.
+     */
+    deletion: AccountDeletionStatus.nullable().optional(),
   }),
   'Me',
   'The signed-in account.',

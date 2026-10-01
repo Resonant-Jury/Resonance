@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { cancelAccountDeletion, scheduleAccountDeletion } from '@/lib/account/deletion';
 import { ApiFailure } from '@/lib/api/v1/http';
+import { Me } from '@/lib/api/v1/schemas';
 import { getFeed, getMe } from '@/lib/api/v1/service';
 
 // The v1 API's business logic against the real Firestore emulator. The web
@@ -64,7 +66,20 @@ describe('getMe', () => {
       region: null,
       primaryLocale: null,
       handleChangedAt: null,
+      deletion: null,
     });
+  });
+
+  // The apps showed the undo banner from a second request on every start.
+  it('carries a scheduled deletion, so the apps need no second request', async () => {
+    const at = new Date('2026-10-01T08:00:00.000Z');
+    await scheduleAccountDeletion(db, 'alice', at);
+    const me = await getMe(db, 'alice');
+    expect(me.deletion).toEqual({ requestedAt: '2026-10-01T08:00:00.000Z', purgeAfter: '2026-10-08T08:00:00.000Z' });
+    expect(Me.safeParse(me).success).toBe(true);
+    expect((await getMe(db, 'bob')).deletion).toBeNull();
+    await cancelAccountDeletion(db, 'alice');
+    expect((await getMe(db, 'alice')).deletion).toBeNull();
   });
 
   it('is not_found for an account without a profile', async () => {

@@ -1,4 +1,5 @@
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { getAccountDeletion } from '@/lib/account/deletion';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import { ApiFailure } from './http';
 import { blockedByViewer, loadAuthors, toFeedCard } from './present';
@@ -15,8 +16,9 @@ function str(v: unknown): string | null {
   return typeof v === 'string' && v.length ? v : null;
 }
 
+/** The signed-in account, with its scheduled deletion if any (read beside the profile). */
 export async function getMe(db: Firestore, uid: string): Promise<MeBody> {
-  const snap = await db.doc(`users/${uid}`).get();
+  const [snap, deletion] = await Promise.all([db.doc(`users/${uid}`).get(), getAccountDeletion(db, uid)]);
   if (!snap.exists) throw new ApiFailure('not_found', 'This account has no profile yet.');
   const u = snap.data()!;
   return {
@@ -29,6 +31,9 @@ export async function getMe(db: Firestore, uid: string): Promise<MeBody> {
     region: str(u.region),
     primaryLocale: u.primaryLocale === 'en' || u.primaryLocale === 'zh-TW' ? u.primaryLocale : null,
     handleChangedAt: u.handleChangedAt instanceof Timestamp ? u.handleChangedAt.toDate().toISOString() : null,
+    deletion: deletion
+      ? { requestedAt: deletion.requestedAt.toISOString(), purgeAfter: deletion.purgeAfter.toISOString() }
+      : null,
   };
 }
 

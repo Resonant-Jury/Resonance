@@ -5,7 +5,7 @@ import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card, RecommendationItem } from '@/lib/db/types';
 import { embeddedCardKeys } from './embeds';
 import { ApiFailure } from './http';
-import { blockedByViewer, canView, connected, loadAuthors, toAuthor, toFeedCard, visibleTo } from './present';
+import { blockedByViewer, canView, connected, loadAuthors, toAuthor, toFeedCard, visibilityOf, visibleTo } from './present';
 import { properlyPublished } from './service';
 import {
   CARD_KEYS_MAX,
@@ -215,7 +215,7 @@ export async function getCardDetail(
   return {
     card: toFeedCard(card, authorSnap?.exists ? authorSnap.data() : undefined),
     story: String(card.story ?? ''),
-    visibility: card.visibility,
+    visibility: visibilityOf(card.visibility),
     anonymous: card.anonymous === true,
     resonanceCount: Number(card.resonanceCount ?? 0),
     coreInsight: card.signature?.coreInsight || null,
