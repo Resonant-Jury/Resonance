@@ -3,13 +3,13 @@
 import {
   addDoc,
   collection,
-  deleteDoc,
   deleteField,
   doc,
   getDoc,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
+import type { FeedCardBody } from '@/lib/api/v1/schemas';
 import type { Card, CardMedia, Locale, NewCard, Visibility } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
@@ -118,7 +118,28 @@ export function clearedMedia(values: { media?: CardMedia }): { media?: ReturnTyp
   return 'media' in values && values.media === undefined ? { media: deleteField() } : {};
 }
 
-export async function deleteCardDraft(id: string): Promise<void> {
+/**
+ * Change one of your cards' visibility and/or byline through the server
+ * (PATCH /api/v1/cards/{id}, the call the apps make): it also carries the
+ * change into a pending edit, takes a card that is no longer public out of
+ * the recommender's pool, and drops the cached pages that showed it as it
+ * was. Answers the card as your card box shows it (your byline kept on an
+ * anonymous card).
+ */
+export async function updateCardSettings(
+  id: string,
+  patch: { visibility?: Visibility; anonymous?: boolean },
+): Promise<FeedCardBody> {
   requireUid();
-  await deleteDoc(doc(getClientDb(), 'cards', id));
+  return callApi<FeedCardBody>(`/api/v1/cards/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch });
+}
+
+/**
+ * Delete one of your cards, draft or published, through the server (DELETE
+ * /api/v1/cards/{id}): with its pending edit and its recommendation vectors,
+ * and the cached pages that showed it dropped.
+ */
+export async function deleteCard(id: string): Promise<void> {
+  requireUid();
+  await callApi<null>(`/api/v1/cards/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

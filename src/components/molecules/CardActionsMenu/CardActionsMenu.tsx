@@ -8,19 +8,17 @@ import { OrganicMenu, type OrganicMenuItem } from '@/components/molecules/Organi
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useRouter } from '@/i18n/navigation';
-import { deleteCardDraft, updateCardDraft } from '@/lib/db/firestore/client/cards';
-import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
+import { deleteCard, updateCardSettings } from '@/lib/db/firestore/client/cards';
 import type { Visibility } from '@/lib/db/types';
 import styles from './CardActionsMenu.module.css';
 
 export interface CardActionsMenuProps {
-  /** `slug` locates the card page's ISR cache entry (falls back to the id). */
-  card: { id: string; visibility: Visibility; slug?: string };
+  card: { id: string; visibility: Visibility };
   /** Seed so the wobble of the trigger + dropped card is deterministic per card. */
   seed?: number;
   /** The accent hue of the card. If omitted, the menu rides the theme terracotta. */
   hue?: number;
-  /** Called after the visibility changed (the card-box cache is already revalidated). */
+  /** Called after the visibility changed (the card box and the viewer's profile lists are already read again). */
   onChanged?: () => void;
   /** Called after the card was deleted (e.g. navigate away from its detail page). */
   onDeleted?: () => void;
@@ -34,9 +32,11 @@ type ActionKey = 'edit' | 'visibility' | 'delete';
  * dropped panel come from {@link OrganicMenu} (the shared organic dropdown
  * language — wobbly chip, wavy pen dividers, per-row wash, danger wash on the
  * delete row); this component owns only the card business logic. Deleting asks
- * for confirmation in a {@link Modal} first. Mutations go through the client
- * card writes and then revalidate the viewer's card-box SWR key, so the card
- * visibly moves tabs / disappears without a reload.
+ * for confirmation in a {@link Modal} first. Changes go through the server
+ * (PATCH / DELETE /api/v1/cards/{id}), which also drops the cached pages that
+ * showed the card as it was and keeps the recommender's copy in step; then the
+ * viewer's card box and profile lists are read again, so the card visibly
+ * moves tabs / disappears without a reload.
  */
 export function CardActionsMenu({
   card,
@@ -65,8 +65,17 @@ export function CardActionsMenu({
     { key: 'delete', icon: 'trash', label: t('delete'), danger: true },
   ];
 
-  const refreshBox = useCallback(() => {
-    if (user) void mutate(`cardbox:${user.id}`);
+  // What this browser holds of the viewer's own cards: the card box, and
+  // their profile's lists (profileCards: signed-out reads; profilePage: one
+  // per profile they looked at, keyed by viewer).
+  const refreshOwnLists = useCallback(() => {
+    if (!user) return;
+    const uid = user.id;
+    void mutate(
+      (key) =>
+        typeof key === 'string' &&
+        (key === `cardbox:${uid}` || key === `profileCards:${uid}` || (key.startsWith('profilePage:') && key.endsWith(`:${uid}`))),
+    );
   }, [mutate, user]);
 
   async function choose(key: ActionKey) {
@@ -78,11 +87,8 @@ export function CardActionsMenu({
     if (key === 'visibility') {
       setBusy(true);
       try {
-        await updateCardDraft(card.id, { visibility: isPrivate ? 'public' : 'private' });
-        // Visibility decides whether the share metadata carries real content —
-        // bust the card page's ISR cache right away.
-        void requestRevalidate([`/card/${card.slug ?? card.id}`]);
-        refreshBox();
+        await updateCardSettings(card.id, { visibility: isPrivate ? 'public' : 'private' });
+        refreshOwnLists();
         onChanged?.();
       } finally {
         setBusy(false);
@@ -97,10 +103,8 @@ export function CardActionsMenu({
     if (busy) return;
     setBusy(true);
     try {
-      await deleteCardDraft(card.id);
-      // The cached page would keep serving the deleted card's metadata.
-      void requestRevalidate([`/card/${card.slug ?? card.id}`]);
-      refreshBox();
+      await deleteCard(card.id);
+      refreshOwnLists();
       setConfirming(false);
       onDeleted?.();
     } finally {

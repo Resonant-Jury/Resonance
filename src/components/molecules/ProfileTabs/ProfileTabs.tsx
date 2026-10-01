@@ -211,7 +211,7 @@ export function ProfileTabs({
                     c.accentHue != null ? nearestCardHue(c.accentHue) : CARD_HUES[i % CARD_HUES.length];
                   return (
                     <CardActionsMenu
-                      card={{ id: c.id, visibility: c.visibility, slug: c.slug }}
+                      card={{ id: c.id, visibility: c.visibility }}
                       seed={cardHue}
                       hue={cardHue}
                     />

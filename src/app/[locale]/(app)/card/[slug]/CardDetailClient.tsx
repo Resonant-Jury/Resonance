@@ -271,7 +271,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
               </h1>
               {isOwner && (
                 <CardActionsMenu
-                  card={{ id: card.id, visibility: card.visibility, slug: card.slug }}
+                  card={{ id: card.id, visibility: card.visibility }}
                   seed={hue + 3}
                   // Re-read this card so the visibility chip/state reflects the change.
                   onChanged={() => void mutate(cardKey(slug, user!.id))}

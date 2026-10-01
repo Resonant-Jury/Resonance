@@ -14,7 +14,6 @@ vi.mock('@/lib/db/firestore/client/cards', () => ({
   createCardDraft: vi.fn(),
   updateCardDraft: vi.fn(),
   publishCard: vi.fn(),
-  deleteCardDraft: vi.fn(),
 }));
 vi.mock('@/lib/db/firestore/client/cardEdits', () => ({
   savePendingCardEdit: vi.fn(),
