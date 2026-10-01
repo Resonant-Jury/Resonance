@@ -1,82 +1,75 @@
 package com.resonance.kit.reading
 
-import com.resonance.api.models.CardDetail
 import com.resonance.api.models.FeedCard
 import com.resonance.api.models.FeedPage
 import com.resonance.api.models.Profile
 import com.resonance.kit.api.ReadingApi
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
+import java.net.URLDecoder
 
 /**
- * A card's page (card/[slug]): the card and the lists under it, asked for
- * together rather than one after another. The lists take the card's document
- * id — a slug finds no resonances — so they leave beside the card when the id
- * is already known (the list the card was opened from, or an earlier visit)
- * and as soon as the card answers otherwise. Cards linking to this one are
- * its author's alone, so they are asked for only when the card is (or, from
- * the list's byline, will be) the reader's own.
+ * A card's page (card/[slug]): the card, the lists under it and the cards its
+ * story embeds, in one request (GET /cards/{key}?include=…) — the server
+ * checks the card once and reads the lists side by side. Cards linking to this
+ * one come back for its author only (empty for everyone else).
  *
- * `onCard` gets the card as soon as it arrives; the page with all its lists
- * is returned (and cached) once they have answered. A card that isn't there
- * (or not for this reader) throws the API's `not_found`.
+ * The page is returned and cached; a card that isn't there (or not for this
+ * reader) throws the API's `not_found`.
  */
 class CardPageLoader(private val api: ReadingApi, private val cache: CardCache) {
-    suspend fun load(key: String, preview: FeedCard? = null, viewer: String? = null, onCard: (CardDetail) -> Unit = {}): CardCache.Page = coroutineScope {
+    suspend fun load(key: String, preview: FeedCard? = null): CardCache.Page {
         preview?.let(cache::rememberPreview)
-        val knownId = preview?.id ?: cache.idFor(key)
-        val early = knownId?.let { id -> lists(id, mine = viewer != null && preview?.author?.id == viewer) }
-        val detail = api.card(key)
-        val id = detail.card.id
-        val requests = if (early != null && early.id == id) early else {
-            early?.cancel()
-            lists(id, mine = detail.isOwner)
-        }
-        if (detail.isOwner && requests.links == null) requests.links = async { orEmpty { api.links(id) } }
-        onCard(detail)
+        val detail = api.card(key, INCLUDE)
         val page = CardCache.Page(
             detail,
-            resonances = requests.resonances.await(),
-            related = requests.related.await(),
-            links = if (detail.isOwner) requests.links?.await().orEmpty() else emptyList(),
+            resonances = detail.resonances?.cards.orEmpty(),
+            related = detail.related?.cards.orEmpty(),
+            links = if (detail.isOwner) detail.links?.cards.orEmpty() else emptyList(),
+            embeds = detail.embeds?.cards.orEmpty(),
         )
         cache.rememberPage(key, page)
-        page
+        return page
     }
 
-    private class Lists(val id: String, val resonances: Deferred<List<FeedCard>>, val related: Deferred<List<FeedCard>>, var links: Deferred<List<FeedCard>>?) {
-        fun cancel() {
-            resonances.cancel()
-            related.cancel()
-            links?.cancel()
-        }
+    companion object {
+        /** Everything the card page shows under and inside the story. */
+        val INCLUDE = listOf("resonances", "related", "links", "embeds")
     }
-
-    private fun CoroutineScope.lists(id: String, mine: Boolean) = Lists(
-        id,
-        async { orEmpty { api.resonances(id) } },
-        async { orEmpty { api.related(id) } },
-        if (mine) async { orEmpty { api.links(id) } } else null,
-    )
 }
 
-/** A person's page (u/[handle]): the profile, their first page of cards and the cards linking to theirs, asked for together. */
+/**
+ * The card a story's card link (`/card/{slug or id}`, standing alone in its
+ * paragraph) embeds, from what the page brought along: matched by slug or id.
+ * Null — a card this reader can't see, or one the server didn't bring — draws
+ * the plain link.
+ */
+fun List<FeedCard>.embedFor(href: String): FeedCard? {
+    val key = cardKeyOf(href) ?: return null
+    return firstOrNull { it.slug == key || it.id == key }
+}
+
+/** The slug or id a `/card/…` link names (its first segment, decoded), or null. */
+fun cardKeyOf(href: String): String? {
+    val segment = href.removePrefix("/card/").takeIf { it != href }?.takeWhile { it != '/' && it != '?' && it != '#' }
+    if (segment.isNullOrEmpty()) return null
+    return runCatching { URLDecoder.decode(segment.replace("+", "%2B"), "UTF-8") }.getOrNull()
+}
+
+/** A person's page (u/[handle]): the profile, their first page of cards and the cards linking to theirs. */
 data class ProfilePage(val profile: Profile, val cards: FeedPage, val links: List<FeedCard>)
 
-suspend fun ReadingApi.profilePage(handle: String): ProfilePage = coroutineScope {
-    val cards = async { profileCards(handle) }
-    val links = async { orEmpty { profileLinks(handle) } }
-    ProfilePage(profile(handle), cards.await(), links.await())
+/** The person's page in one request (GET /users/{handle}?include=cards,links). */
+suspend fun ReadingApi.profilePage(handle: String, limit: Int = 12): ProfilePage {
+    val profile = profile(handle, listOf("cards", "links"), limit)
+    return ProfilePage(profile, profile.cards ?: FeedPage(emptyList(), null), profile.links?.cards.orEmpty())
 }
 
-/** A list under a page is a nicety: when it can't be read the page shows without it. */
-private suspend fun orEmpty(read: suspend () -> List<FeedCard>): List<FeedCard> = try {
-    read()
-} catch (e: CancellationException) {
-    throw e
-} catch (e: Exception) {
-    emptyList()
+/**
+ * Cards named by id where only their title and cover show (the cards shared in a conversation),
+ * in one request: every id asked for is in the answer, as its card — or null when the reader
+ * can't see it (gone, hidden, by someone blocked), which draws nothing.
+ */
+suspend fun ReadingApi.cardsById(ids: Collection<String>): Map<String, FeedCard?> {
+    if (ids.isEmpty()) return emptyMap()
+    val found = cards(ids).associateBy { it.id }
+    return ids.associateWith { found[it] }
 }

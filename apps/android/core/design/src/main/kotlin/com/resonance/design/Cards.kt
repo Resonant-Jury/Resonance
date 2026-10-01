@@ -2,7 +2,6 @@ package com.resonance.design
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import com.resonance.design.generated.IconName
 import androidx.compose.runtime.Composable
@@ -356,28 +354,5 @@ fun EmbedStoryCard(title: String, author: String?, imageUrl: String?, hue: Doubl
             BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14.5f, 600, lineHeight = 1.35f))
             if (author != null) BasicText(author, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.4f, color = Tokens.TextMuted))
         }
-    }
-}
-
-/**
- * CardEmbedLink's loading state: the embed's footprint (72 tall, ≤ 360) in
- * plain chrome — no wobble, on purpose — with the link's own title, so the
- * story does not reflow when the card arrives.
- */
-@Composable
-fun EmbedStoryCardPlaceholder(title: String, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(16.dp)
-    Box(
-        modifier
-            .widthIn(max = 360.dp)
-            .fillMaxWidth()
-            .height(72.dp)
-            .clip(shape)
-            .background(OklchColor.parse("oklch(97.5% 0.012 55)") ?: Tokens.CardBg)
-            .border(Tokens.InkLight, Tokens.Text.copy(alpha = 0.22f), shape)
-            .padding(start = 10.dp, top = 10.dp, bottom = 10.dp, end = 16.dp),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14.5f, 600, lineHeight = 1.35f, color = Tokens.TextMuted))
     }
 }

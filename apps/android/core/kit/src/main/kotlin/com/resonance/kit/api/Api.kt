@@ -11,6 +11,9 @@ import com.resonance.api.models.FeedPage
 import com.resonance.api.models.Me
 import com.resonance.api.models.Profile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -83,13 +86,42 @@ class ReadingApi(private val api: DefaultApi) {
     suspend fun me(): Me = call { api.getMe() }
     suspend fun feed(limit: Int = 12, cursor: String? = null): FeedPage = call { api.getFeed(limit, cursor?.let(OffsetDateTime::parse)) }
     suspend fun recommended(): List<FeedCard> = call { api.getRecommendedFeed().cards }
-    suspend fun card(key: String): CardDetail = call { api.getCard(key) }
+    /**
+     * A card by slug or id, with its story — and, with `include`, the lists its page shows
+     * (`resonances`, `related`, `links`, `embeds`), each as its own endpoint answers it.
+     */
+    suspend fun card(key: String, include: Collection<String> = emptyList()): CardDetail =
+        call { api.getCard(key, include.takeIf { it.isNotEmpty() }?.joinToString(",")) }
+
+    /**
+     * Several cards by slug or id as list summaries (no story), in the order asked: those the
+     * reader may not see (gone, hidden, blocked) are left out. The contract takes 30 a request,
+     * so a longer list goes out in several, side by side; none go out for an empty one.
+     */
+    suspend fun cards(keys: Collection<String>): List<FeedCard> = coroutineScope {
+        keys.distinct().chunked(CARDS_PER_REQUEST)
+            .map { chunk -> async { call { api.getCards(chunk.joinToString(",")).cards } } }
+            .awaitAll()
+            .flatten()
+    }
     suspend fun resonances(id: String): List<FeedCard> = call { api.getCardResonances(id).cards }
     suspend fun related(id: String): List<FeedCard> = call { api.getRelatedCards(id).cards }
     suspend fun links(id: String): List<FeedCard> = call { api.getCardLinks(id).cards }
-    suspend fun profile(handle: String): Profile = call { api.getProfile(handle) }
+    /**
+     * A person's profile as the reader sees it — and, with `include`, what their `cards` (the first
+     * page, of `limit`) and `links` endpoints answer.
+     */
+    suspend fun profile(handle: String, include: Collection<String> = emptyList(), limit: Int = 12): Profile {
+        val lists = include.takeIf { it.isNotEmpty() }?.joinToString(",")
+        return call { api.getProfile(handle, lists, if (lists != null) limit else null) }
+    }
     suspend fun profileCards(handle: String, limit: Int = 12, cursor: String? = null): FeedPage =
         call { api.getProfileCards(handle, limit, cursor?.let(OffsetDateTime::parse)) }
     suspend fun profileLinks(handle: String): List<FeedCard> = call { api.getProfileLinks(handle).cards }
     suspend fun cardBox(tab: DefaultApi.TabGetCardBox): List<FeedCard> = call { api.getCardBox(tab).cards }
+
+    companion object {
+        /** GET /cards?keys= takes at most this many keys. */
+        const val CARDS_PER_REQUEST = 30
+    }
 }

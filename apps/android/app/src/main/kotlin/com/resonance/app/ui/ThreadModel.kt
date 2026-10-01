@@ -11,13 +11,14 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.resonance.api.models.Author
-import com.resonance.api.models.CardDetail
+import com.resonance.api.models.FeedCard
 import com.resonance.api.models.Profile
 import com.resonance.app.AppFirebase
 import com.resonance.app.Person
 import com.resonance.app.Session
 import com.resonance.kit.api.MessagingApi
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.reading.cardsById
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,8 +77,8 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
     /** The first snapshot of messages has arrived (or there is no conversation yet). */
     var threadReady by mutableStateOf(false)
         private set
-    /** Shared cards, as the viewer may see them (a null value: not visible to them — drawn as nothing). */
-    val cards = mutableStateMapOf<String, CardDetail?>()
+    /** Shared cards, as the viewer may see them (a null value: not visible to them, or still being read — drawn as nothing). */
+    val cards = mutableStateMapOf<String, FeedCard?>()
 
     var draft by mutableStateOf("")
     var pendingCard by mutableStateOf<Attachment?>(null)
@@ -246,18 +247,24 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         AppFirebase.db.collection("conversations").document(pair).update("unread.$me", 0)
     }
 
+    /**
+     * The cards shared in the messages, each read once: the ones not yet asked for go out
+     * together (GET /cards?keys=…) — a title, a cover and a byline are all a message shows.
+     * A failed read is forgotten, so the next snapshot asks again.
+     */
     private fun loadCards() {
-        for (id in messages.mapNotNull { it.cardRef }.toSet()) {
-            if (cards.containsKey(id)) continue
-            cards[id] = null
-            scope.launch {
-                cards[id] = try {
-                    session.reading.card(id).also { session.cardCache.rememberPreview(it.card) }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    null
-                }
+        val wanted = messages.mapNotNull { it.cardRef }.distinct().filterNot(cards::containsKey)
+        if (wanted.isEmpty()) return
+        wanted.forEach { cards[it] = null }
+        scope.launch {
+            try {
+                val read = session.reading.cardsById(wanted)
+                read.values.filterNotNull().forEach(session.cardCache::rememberPreview)
+                cards.putAll(read)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                wanted.forEach(cards::remove)
             }
         }
     }

@@ -56,7 +56,6 @@ import com.resonance.design.CardDetailSkeleton
 import com.resonance.design.CssText
 import com.resonance.design.FloatingWriteButton
 import com.resonance.design.EmbedStoryCard
-import com.resonance.design.EmbedStoryCardPlaceholder
 import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OrganicEmptyState
@@ -75,6 +74,8 @@ import com.resonance.design.plainClickable
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.reading.cardKeyOf
+import com.resonance.kit.reading.embedFor
 import com.resonance.kit.story.StoryBlock
 import com.resonance.kit.story.StoryParser
 import kotlinx.coroutines.CancellationException
@@ -83,7 +84,8 @@ import kotlinx.coroutines.CancellationException
  * A card's page (card/[slug]/page.tsx, phone layout); `popToRoot` is where a deleted card leaves to.
  * It draws at once from what the app already has — the page as last read, or the card as the list
  * it was tapped in had it (its byline, cover and title over the story's skeleton) — and always reads
- * the card again, its lists beside it ([com.resonance.kit.reading.CardPageLoader]).
+ * the card again: one request brings its lists and the cards its story embeds
+ * ([com.resonance.kit.reading.CardPageLoader]).
  */
 @Composable
 fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) -> Unit, popToRoot: () -> Unit, back: () -> Unit) {
@@ -95,6 +97,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     var resonances by remember(key) { mutableStateOf(cached?.resonances.orEmpty()) }
     var related by remember(key) { mutableStateOf(cached?.related.orEmpty()) }
     var linked by remember(key) { mutableStateOf(cached?.links.orEmpty()) }
+    var embeds by remember(key) { mutableStateOf(cached?.embeds.orEmpty()) }
     // Bumped by "try again".
     var attempt by remember(key) { mutableIntStateOf(0) }
     val uri = LocalUriHandler.current
@@ -107,15 +110,16 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
         // A first read (or a retry) shows the skeleton; a re-read keeps the page while it goes.
         if (phase != "loaded") phase = "loading"
         try {
-            val page = session.cardPages.load(key, placeholder, session.uid) { d ->
-                if (d.story != detail?.story) blocks = StoryParser.parse(d.story)
-                detail = d
-                phase = "loaded"
-            }
+            val page = session.cardPages.load(key, placeholder)
+            val d = page.detail
+            if (d.story != detail?.story) blocks = StoryParser.parse(d.story)
+            detail = d
             resonances = page.resonances
             related = page.related
             // Cards others linked to this one are shown to its author only (useLinkedToCard).
             linked = page.links
+            embeds = page.embeds
+            phase = "loaded"
         } catch (e: CancellationException) {
             throw e
         } catch (e: ApiFailure) {
@@ -164,7 +168,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                     item {
                         Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
                             ArticleHead(card, d.anonymous) { open(Route.Author(it)) }
-                            StoryMarkdown(blocks, openUrl) { href, title -> CardEmbed(session, href, title, open) }
+                            StoryMarkdown(blocks, openUrl) { href, title -> CardEmbed(embeds.embedFor(href), href, title, open) }
                             FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
                             }
@@ -337,33 +341,16 @@ private fun Byline(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> U
 }
 
 /**
- * A card link standing alone in a story (CardEmbedLink): the embed's
- * footprint while the card loads, then the embedded card — or, when the
- * reader may not see it, the plain link.
+ * A card link standing alone in a story (CardEmbedLink): the embedded card, as the page brought
+ * it along — or, when it didn't (a card the reader may not see), the plain link.
  */
 @Composable
-private fun CardEmbed(session: Session, href: String, title: String, open: (Route) -> Unit) {
-    val key = href.substringAfterLast('/')
-    // A card already seen draws at once (and is still read: it may have gone, or been hidden).
-    var state by remember(href) { mutableStateOf(session.cardCache.preview(key)?.let { Result.success(it) }) }
-    LaunchedEffect(href) {
-        val read = try {
-            Result.success(session.reading.card(key).card.also(session.cardCache::rememberPreview))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-        // A card this reader can't see becomes the plain link; a bad connection keeps what was drawn.
-        if (read.isSuccess || (read.exceptionOrNull() as? ApiFailure)?.isNotFound == true || state == null) state = read
-    }
-    val loaded = state
-    val go = Modifier.plainClickable(onClickLabel = title) { open(Route.Card(key, loaded?.getOrNull())) }
-    when {
-        loaded == null -> EmbedStoryCardPlaceholder(title)
-        loaded.isSuccess -> loaded.getOrThrow().let { c ->
-            EmbedStoryCard(c.title, c.author?.handle ?: L10n.Card.anonymousAuthor, c.imageUrl, c.accentHue, seedFromString(href).toDouble(), go)
-        }
-        else -> BasicText(title, style = AppFonts.body(17f, lineHeight = 1.8f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline), modifier = go)
+private fun CardEmbed(card: FeedCard?, href: String, title: String, open: (Route) -> Unit) {
+    val key = cardKeyOf(href) ?: href.substringAfterLast('/')
+    val go = Modifier.plainClickable(onClickLabel = title) { open(Route.Card(card?.routeKey ?: key, card)) }
+    if (card != null) {
+        EmbedStoryCard(card.title, card.author?.handle ?: L10n.Card.anonymousAuthor, card.imageUrl, card.accentHue, seedFromString(href).toDouble(), go)
+    } else {
+        BasicText(title, style = AppFonts.body(17f, lineHeight = 1.8f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline), modifier = go)
     }
 }

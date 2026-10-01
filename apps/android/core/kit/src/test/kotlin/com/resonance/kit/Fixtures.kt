@@ -1,6 +1,7 @@
 package com.resonance.kit
 
 import com.resonance.api.models.FeedCard
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -26,10 +27,26 @@ internal fun listJson(vararg ids: String) = """{"cards":[${ids.joinToString(",")
 internal fun pageJson(vararg ids: String, cursor: String? = null) =
     """{"cards":[${ids.joinToString(",") { cardJson(it) }}],"nextCursor":${cursor?.let { "\"$it\"" } ?: "null"}}"""
 
-internal fun detailJson(id: String, slug: String?, owner: Boolean = false) = """
-    {"card":${cardJson(id, slug)},"story":"# Hello","visibility":"public","anonymous":false,"resonanceCount":1,
-     "coreInsight":null,"isOwner":$owner,"referenceCard":null}
-""".trimIndent()
+/** A card page; the lists (`include`) are left out when null, as the server does when they weren't asked for. */
+internal fun detailJson(
+    id: String,
+    slug: String?,
+    owner: Boolean = false,
+    story: String = "# Hello",
+    resonances: List<String>? = null,
+    related: List<String>? = null,
+    links: List<String>? = null,
+    /** The embedded cards, as (id, slug). */
+    embeds: List<Pair<String, String?>>? = null,
+): String {
+    val lists = listOf("resonances" to resonances, "related" to related, "links" to links)
+        .mapNotNull { (name, ids) -> ids?.let { "\"$name\":${listJson(*it.toTypedArray())}" } } +
+        listOfNotNull(embeds?.let { e -> "\"embeds\":{\"cards\":[${e.joinToString(",") { (id, slug) -> cardJson(id, slug) }}]}" })
+    return """
+        {"card":${cardJson(id, slug)},"story":${Json.encodeToString(String.serializer(), story)},"visibility":"public","anonymous":false,"resonanceCount":1,
+         "coreInsight":null,"isOwner":$owner,"referenceCard":null${lists.joinToString("") { ",$it" }}}
+    """.trimIndent()
+}
 
 internal fun feedCard(id: String, slug: String? = null, authorId: String = "bob"): FeedCard =
     Json { ignoreUnknownKeys = true }.decodeFromString(FeedCard.serializer(), cardJson(id, slug, authorId))
@@ -47,6 +64,15 @@ internal class Routes : Dispatcher() {
     private val routes = java.util.concurrent.ConcurrentHashMap<String, Route>()
     private val arrivals = HashMap<String, CountDownLatch>()
     val requested = CopyOnWriteArrayList<String>()
+    /** The query each request came with, in the order they arrived (beside [requested]). */
+    val queries = CopyOnWriteArrayList<String>()
+
+    /** A query parameter of the first request for `path`. */
+    fun parameter(path: String, name: String): String? {
+        val i = requested.indexOf(path)
+        if (i < 0) return null
+        return okhttp3.HttpUrl.Builder().scheme("http").host("x").encodedQuery(queries[i].ifEmpty { null }).build().queryParameter(name)
+    }
 
     /** Answers `path`; with `after`, only once those paths have been asked for (from now on). */
     @Synchronized
@@ -60,7 +86,10 @@ internal class Routes : Dispatcher() {
 
     override fun dispatch(request: RecordedRequest): MockResponse {
         val path = request.requestUrl!!.encodedPath.removePrefix("/api/v1")
-        requested.add(path)
+        synchronized(this) {
+            queries.add(request.requestUrl!!.encodedQuery.orEmpty())
+            requested.add(path)
+        }
         latch(path).countDown()
         val route = routes[path] ?: return MockResponse().setResponseCode(404).setBody("""{"error":{"code":"not_found","message":"$path"}}""")
         for (other in route.after) {

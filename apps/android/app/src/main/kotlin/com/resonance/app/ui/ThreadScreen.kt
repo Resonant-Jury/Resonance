@@ -434,15 +434,15 @@ private fun MessageRow(message: ThreadModel.Message, model: ThreadModel, rowMax:
             horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            val detail = message.cardRef?.let { model.cards[it] }
-            if (detail != null) {
+            val card = message.cardRef?.let { model.cards[it] }
+            if (card != null) {
                 EmbedStoryCard(
-                    title = detail.card.title,
-                    author = if (detail.anonymous) null else detail.card.author?.handle,
-                    imageUrl = detail.card.imageUrl,
-                    hue = detail.card.accentHue,
-                    seed = seedFromId(detail.card.id, start = 11),
-                    modifier = Modifier.widthIn(max = 320.dp).plainClickable(role = Role.Button) { open(Route.Card(detail.card.routeKey, detail.card)) },
+                    title = card.title,
+                    author = if (card.anonymous) null else card.author?.handle,
+                    imageUrl = card.imageUrl,
+                    hue = card.accentHue,
+                    seed = seedFromId(card.id, start = 11),
+                    modifier = Modifier.widthIn(max = 320.dp).plainClickable(role = Role.Button) { open(Route.Card(card.routeKey, card)) },
                 )
             }
             if (message.text.isNotEmpty() || message.noteRef != null) Bubble(message, mine)
@@ -604,20 +604,20 @@ private fun SharedMediaContent(model: ThreadModel, open: (Route) -> Unit) {
         ) {
             if (cards.isNotEmpty()) Column {
                 MediaHead(L10n.Messages.mediaCards)
-                cards.forEachIndexed { i, detail ->
+                cards.forEachIndexed { i, card ->
                     if (i > 0) WavyDivider(seed = (53 + i * 7).toDouble())
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .plainClickable(role = Role.Button) { open(Route.Card(detail.card.routeKey, detail.card)) }
+                            .plainClickable(role = Role.Button) { open(Route.Card(card.routeKey, card)) }
                             .padding(vertical = 10.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        val cover = OklchColor.parse("oklch(90% 0.06 ${detail.card.accentHue ?: 55.0})") ?: Tokens.TerracottaLight
-                        OrganicImage(detail.card.imageUrl, 7.0, Modifier.size(40.dp)) { Box(Modifier.fillMaxSize().background(cover)) }
+                        val cover = OklchColor.parse("oklch(90% 0.06 ${card.accentHue ?: 55.0})") ?: Tokens.TerracottaLight
+                        OrganicImage(card.imageUrl, 7.0, Modifier.size(40.dp)) { Box(Modifier.fillMaxSize().background(cover)) }
                         BasicText(
-                            detail.card.title, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            card.title, maxLines = 2, overflow = TextOverflow.Ellipsis,
                             style = AppFonts.body(14f, 600, lineHeight = 1.3f), modifier = Modifier.weight(1f),
                         )
                     }

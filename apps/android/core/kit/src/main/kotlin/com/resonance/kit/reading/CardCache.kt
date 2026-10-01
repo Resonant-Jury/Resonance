@@ -20,6 +20,8 @@ class CardCache(private val capacity: Int = 24) {
         val related: List<FeedCard> = emptyList(),
         /** Cards linking to this one (read for its author only). */
         val links: List<FeedCard> = emptyList(),
+        /** The cards its story embeds that this reader may see ([embedFor] finds a link's). */
+        val embeds: List<FeedCard> = emptyList(),
     )
 
     private val pages = lru<Page>(capacity)
