@@ -31,6 +31,18 @@ public enum ResonanceClient {
             middlewares: [BearerAuthMiddleware(idToken: configuration.idToken)]
         )
     }
+
+    /// The app's client: through the signed-in account's HTTP cache, asking
+    /// the server again after the viewer's own writes (`APIFreshness`).
+    public static func make(_ configuration: APIConfiguration, cache: APIHTTPCache) -> Client {
+        Client(
+            serverURL: configuration.apiURL,
+            configuration: .init(dateTranscoder: .iso8601WithFractionalSeconds),
+            transport: AccountCacheTransport(cache: cache),
+            // Freshness first: a request the token middleware retries keeps its no-cache.
+            middlewares: [FreshnessMiddleware(freshness: cache.freshness), BearerAuthMiddleware(idToken: configuration.idToken)]
+        )
+    }
 }
 
 /// Adds `Authorization: Bearer <Firebase ID token>` — how the API recognises
