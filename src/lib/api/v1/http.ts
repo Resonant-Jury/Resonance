@@ -28,9 +28,10 @@ export class ApiFailure extends Error {
   }
 }
 
+/** A failure is never kept: the next ask may well succeed (see ./cache). */
 export function apiError(code: Code, message: string, issues?: { path: string; message: string }[]) {
   const body: ApiErrorBody = { error: { code, message, ...(issues ? { issues } : {}) } };
-  return NextResponse.json(body, { status: STATUS[code] });
+  return NextResponse.json(body, { status: STATUS[code], headers: { 'Cache-Control': 'no-store' } });
 }
 
 export function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {

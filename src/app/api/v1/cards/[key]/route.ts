@@ -5,6 +5,7 @@ import { getCardDetail } from '@/lib/api/v1/reads';
 import { CardDetailQuery, CardIdParam, CardKey, UpdateCardRequest } from '@/lib/api/v1/schemas';
 import { revalidateLocalized } from '@/lib/api/revalidate';
 import { getAdminDb } from '@/lib/db/firestore/admin';
+import { BRIEF, OWN, cachedJson } from '@/lib/api/v1/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,9 @@ export const dynamic = 'force-dynamic';
 export const GET = withUser(async (user, req, ctx: RouteContext<'key'>) => {
   const key = parse(CardKey, await routeParam(ctx, 'key'));
   const { include } = parse(CardDetailQuery, Object.fromEntries(new URL(req.url).searchParams));
-  return NextResponse.json(await getCardDetail(getAdminDb(), user.id, key, include));
+  const detail = await getCardDetail(getAdminDb(), user.id, key, include);
+  // Their own card may be one they just changed (visibility, byline, an applied edit).
+  return cachedJson(req, detail, detail.isOwner ? OWN : BRIEF);
 });
 
 /** PATCH /api/v1/cards/{id} — your card's visibility and/or anonymity (see updateCard). */
