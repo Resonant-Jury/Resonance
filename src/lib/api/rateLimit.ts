@@ -30,6 +30,8 @@ export const LIMITS = {
   uploadBytes: { max: 200 * 1024 * 1024, windowMs: DAY },
   /** Accepting a legacy invite rings its sender. */
   invite: { max: 60, windowMs: HOUR },
+  /** /api/account/export: reads everything the account ever wrote. */
+  export: { max: 20, windowMs: DAY },
 } as const satisfies Record<string, { max: number; windowMs: number }>;
 
 export type Bucket = keyof typeof LIMITS;

@@ -20,7 +20,7 @@ function call(authorization?: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(purgeDueAccounts).mockResolvedValue(['alice']);
+  vi.mocked(purgeDueAccounts).mockResolvedValue({ purged: ['alice'], failed: [], deferred: ['bob'] });
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -31,8 +31,14 @@ describe('/api/cron/purge-accounts', () => {
     vi.stubEnv('CRON_SECRET', 's3cret');
     const res = await call('Bearer s3cret');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ purged: 1 });
+    expect(await res.json()).toEqual({ purged: 1, failed: 0, deferred: 1 });
     expect(purgeDueAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the run its time budget: the function may live 300 s, the run starts nothing past 270', async () => {
+    vi.stubEnv('CRON_SECRET', 's3cret');
+    await call('Bearer s3cret');
+    expect(vi.mocked(purgeDueAccounts).mock.calls[0][1]).toEqual({ budgetMs: 270_000 });
   });
 
   it("drops the purged accounts' cached pages in every locale", async () => {

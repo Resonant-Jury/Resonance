@@ -1,4 +1,4 @@
-import type { DocumentReference, Firestore, Query } from 'firebase-admin/firestore';
+import type { BulkWriter, DocumentReference, Firestore, Query } from 'firebase-admin/firestore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { HANDLES } from '@/lib/db/firestore/handles';
 import { UPLOADS, uploadedKeys } from '@/lib/storage/uploads';
@@ -23,6 +23,10 @@ export const DELETIONS_COLLECTION = 'accountDeletions';
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Firestore `in` queries accept at most 30 values. */
 const IN_CHUNK = 30;
+/** Document trees (a card, a conversation) deleted at once within one account. */
+const TREE_CONCURRENCY = 16;
+/** Accounts purged at once in one run. */
+const ACCOUNT_CONCURRENCY = 2;
 
 export interface AccountDeletion {
   uid: string;
@@ -80,6 +84,12 @@ export interface PurgeReport {
    * serving the deleted writing.
    */
   pages: string[];
+  /**
+   * False when the run's time ran out part way (see {@link PurgeOptions}):
+   * what was started is gone, the rest — the profile always among it — is
+   * left with the request in place for the next run, which collects it anew.
+   */
+  complete: boolean;
 }
 
 /**
@@ -93,18 +103,23 @@ export interface PurgeReport {
  * and reports filed *against* the user (moderation history) — but not the
  * copy of what they wrote that a report kept (`reportEvidence`): that is
  * their writing, and goes with them, as it does with the reporter's account.
+ *
+ * The trees come in two groups: the many (cards, conversations), deleted
+ * first, and the user's own roots — the profile among them — deleted last, so
+ * a purge cut short still finds the pen name (its page to revalidate) next
+ * time. Only ids and the fields the pages need are read.
  */
 async function collectAccountData(db: Firestore, uid: string) {
-  const trees: DocumentReference[] = [
-    db.collection('users').doc(uid), // profile + bookmarks + blocks
+  const roots: DocumentReference[] = [
     db.collection('thoughtMaps').doc(uid),
     db.collection('userProfiles').doc(uid),
     db.collection('recommendations').doc(uid),
+    db.collection('users').doc(uid), // profile + bookmarks + blocks
   ];
 
   const [cards, conversations, profile] = await Promise.all([
-    db.collection('cards').where('authorId', '==', uid).get(),
-    db.collection('conversations').where('participants', 'array-contains', uid).get(),
+    db.collection('cards').where('authorId', '==', uid).select('slug', 'publishedAt', 'visibility').get(),
+    db.collection('conversations').where('participants', 'array-contains', uid).select().get(),
     db.collection('users').doc(uid).get(),
   ]);
   // Only a published card ever had a page someone could have cached; a
@@ -115,8 +130,10 @@ async function collectAccountData(db: Firestore, uid: string) {
     ...profilePagePaths(profile.get('handle')),
     ...landingPagePaths(...published.map((d) => d.data())),
   ];
-  cards.forEach((d) => trees.push(d.ref)); // card + its pending edits
-  conversations.forEach((d) => trees.push(d.ref)); // conversation + messages
+  const trees = [
+    ...cards.docs.map((d) => d.ref), // card + its pending edits
+    ...conversations.docs.map((d) => d.ref), // conversation + messages
+  ];
 
   const queries: Query[] = [
     db.collection('connections').where('userIds', 'array-contains', uid),
@@ -148,26 +165,85 @@ async function collectAccountData(db: Firestore, uid: string) {
     queries.push(db.collection('resonances').where('cardId', 'in', cardIds.slice(i, i + IN_CHUNK)));
   }
 
-  const snaps = await Promise.all(queries.map((q) => q.get()));
-  const treePaths = trees.map((r) => r.path);
-  const inTree = (path: string) => treePaths.some((t) => path === t || path.startsWith(`${t}/`));
+  const snaps = await Promise.all(queries.map((q) => q.select().get()));
+  const treePaths = new Set([...trees, ...roots].map((r) => r.path));
+  // A record inside a tree (a card's pending edit) goes with the tree.
+  const inTree = (path: string) => {
+    const parts = path.split('/');
+    for (let i = 2; i <= parts.length; i += 2) if (treePaths.has(parts.slice(0, i).join('/'))) return true;
+    return false;
+  };
   const singles = new Map<string, DocumentReference>();
   for (const snap of snaps) {
     for (const d of snap.docs) {
       if (!inTree(d.ref.path)) singles.set(d.ref.path, d.ref);
     }
   }
-  return { trees, singles: [...singles.values()], pages };
+  return { trees, roots, singles: [...singles.values()], pages };
 }
 
-/** Remove every Firestore record of `uid` (see {@link collectAccountData}). */
-export async function purgeAccountData(db: Firestore, uid: string): Promise<PurgeReport> {
-  const { trees, singles, pages } = await collectAccountData(db, uid);
-  for (const ref of trees) await db.recursiveDelete(ref);
-  const writer = db.bulkWriter();
-  for (const ref of singles) void writer.delete(ref);
-  await writer.close();
-  return { trees: trees.length, documents: singles.length, pages };
+/**
+ * Run `work` over `items`, at most `n` at a time, starting none once
+ * `stop()` says so. Answers the items never started and every failure.
+ */
+async function pool<T>(items: T[], n: number, work: (item: T) => Promise<unknown>, stop: () => boolean) {
+  const queue = [...items];
+  const errors: unknown[] = [];
+  const worker = async () => {
+    while (queue.length && !stop()) {
+      const item = queue.shift()!;
+      try {
+        await work(item);
+      } catch (e) {
+        errors.push(e);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(n, items.length)) }, worker));
+  return { notStarted: queue, errors };
+}
+
+export interface PurgeOptions {
+  /** The run's writer, shared by the accounts it purges; one of its own otherwise. */
+  writer?: BulkWriter;
+  /** Start nothing new past this time (`clock()` ms); see {@link PurgeReport.complete}. */
+  deadline?: number;
+  clock?: () => number;
+}
+
+/**
+ * Remove every Firestore record of `uid` (see {@link collectAccountData}):
+ * the trees side by side through one BulkWriter, then the records pointing
+ * at the user, then the user's own roots. Any delete that fails throws once
+ * the rest are done — the request stays, and the next run tries again.
+ */
+export async function purgeAccountData(db: Firestore, uid: string, opts: PurgeOptions = {}): Promise<PurgeReport> {
+  const clock = opts.clock ?? Date.now;
+  const late = () => opts.deadline !== undefined && clock() >= opts.deadline;
+  const { trees, roots, singles, pages } = await collectAccountData(db, uid);
+  const writer = opts.writer ?? db.bulkWriter();
+  let failed = 0;
+  let complete = false;
+  try {
+    const first = await pool(trees, TREE_CONCURRENCY, (ref) => db.recursiveDelete(ref, writer), late);
+    failed += first.errors.length;
+    if (!first.notStarted.length && !late()) {
+      const writes = singles.map((ref) => writer.delete(ref).catch(() => void failed++));
+      await writer.flush();
+      await Promise.all(writes);
+      // The profile goes last, once nothing else of the account is left.
+      if (!failed) {
+        const last = await pool(roots, TREE_CONCURRENCY, (ref) => db.recursiveDelete(ref, writer), late);
+        failed += last.errors.length;
+        complete = !last.notStarted.length;
+      }
+    }
+  } finally {
+    if (opts.writer) await writer.flush();
+    else await writer.close();
+  }
+  if (failed) throw new Error(`Account purge of ${uid}: ${failed} delete(s) failed`);
+  return { trees: trees.length + roots.length, documents: singles.length, pages, complete };
 }
 
 export interface PurgeDeps {
@@ -186,9 +262,11 @@ export interface PurgeDeps {
  * Full purge: Firestore data, uploaded images, the auth account, and finally
  * the deletion request itself. Storage is best-effort — orphaned images are
  * unreachable once the records pointing at them are gone, and must not block
- * the account from being deleted.
+ * the account from being deleted. A purge the deadline cut short
+ * (`complete: false`) still drops the pages it collected, and leaves the
+ * rest — storage, sign-in, the request — to the next run.
  */
-export async function purgeAccount(deps: PurgeDeps, uid: string): Promise<PurgeReport> {
+export async function purgeAccount(deps: PurgeDeps, uid: string, opts: PurgeOptions = {}): Promise<PurgeReport> {
   // The pictures recorded as theirs go before the records that list them.
   if (deps.deleteStorageObject) {
     for (const key of await uploadedKeys(deps.db, uid)) {
@@ -199,7 +277,7 @@ export async function purgeAccount(deps: PurgeDeps, uid: string): Promise<PurgeR
       }
     }
   }
-  const report = await purgeAccountData(deps.db, uid);
+  const report = await purgeAccountData(deps.db, uid, opts);
   if (deps.revalidate && report.pages.length) {
     try {
       deps.revalidate(report.pages);
@@ -207,6 +285,7 @@ export async function purgeAccount(deps: PurgeDeps, uid: string): Promise<PurgeR
       console.error(`Account purge: revalidating ${uid}'s pages failed`, err);
     }
   }
+  if (!report.complete) return report;
   if (deps.deleteStoragePrefix) {
     for (const prefix of [`image/${uid}/`, `video/${uid}/`]) {
       try {
@@ -225,19 +304,66 @@ export async function purgeAccount(deps: PurgeDeps, uid: string): Promise<PurgeR
   return report;
 }
 
-/** Purge every account whose grace period has ended. Returns the purged uids. */
-export async function purgeDueAccounts(deps: PurgeDeps, now: Date = new Date()): Promise<string[]> {
-  const due = await deps.db.collection(DELETIONS_COLLECTION).where('purgeAfter', '<=', now).get();
-  const purged: string[] = [];
-  for (const d of due.docs) {
-    try {
-      await purgeAccount(deps, d.id);
-      purged.push(d.id);
-    } catch (err) {
-      // One failure must not stall everyone else's deletion; the request stays
-      // in place and tomorrow's run retries it.
-      console.error(`Account purge failed for ${d.id}`, err);
-    }
+export interface PurgeRunOptions {
+  now?: Date;
+  /**
+   * How long the run may start work (ms). Past it no account — and no card or
+   * conversation within one — is started; what is under way finishes. The
+   * cron gives it its maxDuration less a margin.
+   */
+  budgetMs?: number;
+  /** Accounts purged at once. */
+  concurrency?: number;
+  clock?: () => number;
+}
+
+export interface PurgeRun {
+  purged: string[];
+  /** Failed this time; their requests stay and the next run retries them. */
+  failed: string[];
+  /** Due, but the run's time ran out first (not started, or cut short); the next run takes them. */
+  deferred: string[];
+}
+
+/**
+ * Purge every account whose grace period has ended, longest overdue first, a
+ * few at a time through one BulkWriter, within `budgetMs`.
+ */
+export async function purgeDueAccounts(deps: PurgeDeps, opts: PurgeRunOptions = {}): Promise<PurgeRun> {
+  const clock = opts.clock ?? Date.now;
+  const deadline = opts.budgetMs === undefined ? undefined : clock() + opts.budgetMs;
+  const late = () => deadline !== undefined && clock() >= deadline;
+  const due = await deps.db
+    .collection(DELETIONS_COLLECTION)
+    .where('purgeAfter', '<=', opts.now ?? new Date())
+    .orderBy('purgeAfter')
+    .select()
+    .get();
+  const run: PurgeRun = { purged: [], failed: [], deferred: [] };
+  const writer = deps.db.bulkWriter();
+  try {
+    const { notStarted } = await pool(
+      due.docs.map((d) => d.id),
+      opts.concurrency ?? ACCOUNT_CONCURRENCY,
+      async (uid) => {
+        try {
+          const report = await purgeAccount(deps, uid, { writer, deadline, clock });
+          (report.complete ? run.purged : run.deferred).push(uid);
+        } catch (err) {
+          // One failure must not stall everyone else's deletion; the request
+          // stays in place and tomorrow's run retries it.
+          console.error(`Account purge failed for ${uid}`, err);
+          run.failed.push(uid);
+        }
+      },
+      late,
+    );
+    run.deferred.push(...notStarted);
+  } finally {
+    await writer.close();
   }
-  return purged;
+  if (run.deferred.length) {
+    console.warn(`Account purge: out of time with ${run.deferred.length} account(s) left for the next run`, run.deferred);
+  }
+  return run;
 }

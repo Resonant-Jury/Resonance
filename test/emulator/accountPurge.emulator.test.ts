@@ -8,7 +8,7 @@ import {
   purgeDueAccounts,
   scheduleAccountDeletion,
 } from '@/lib/account/deletion';
-import { exportAccountData } from '@/lib/account/export';
+import { exportAccountData, exportAccountJson } from '@/lib/account/export';
 
 // Account purge against the real Firestore emulator. Alice is deleted; Bob is
 // connected to her, resonated with her card, and messaged her. Everything that
@@ -253,12 +253,93 @@ describe('purgeDueAccounts', () => {
     const deleteAuthUser = vi.fn(async () => {});
 
     const dayAfterGrace = new Date(requested.getTime() + (DELETION_GRACE_DAYS + 1) * 86_400_000);
-    const purged = await purgeDueAccounts({ db, deleteAuthUser }, dayAfterGrace);
+    const run = await purgeDueAccounts({ db, deleteAuthUser }, { now: dayAfterGrace });
 
-    expect(purged).toEqual(['alice']);
+    expect(run).toEqual({ purged: ['alice'], failed: [], deferred: [] });
     expect(await exists('users/alice')).toBe(false);
     expect(await exists('users/bob')).toBe(true);
     expect(await getAccountDeletion(db, 'bob')).not.toBeNull();
+  });
+
+  /** A prolific account: many cards (each with a pending edit) and conversations full of messages. */
+  async function prolific(uid: string, cards: number, conversations = 0) {
+    const writer = db.bulkWriter();
+    void writer.set(db.doc(`users/${uid}`), { handle: uid, handleLower: uid });
+    for (let i = 0; i < cards; i++) {
+      void writer.set(db.doc(`cards/${uid}-${i}`), { authorId: uid, thoughtCore: 't', story: 's', visibility: 'public', publishedAt: new Date(), slug: `${uid}-slug-${i}` });
+      void writer.set(db.doc(`cards/${uid}-${i}/edits/current`), { story: 'pending' });
+    }
+    for (let c = 0; c < conversations; c++) {
+      const id = `${uid}_z${c}`;
+      void writer.set(db.doc(`conversations/${id}`), { participants: [uid, `z${c}`] });
+      for (let m = 0; m < 5; m++) void writer.set(db.doc(`conversations/${id}/messages/m${m}`), { senderId: m % 2 ? uid : `z${c}`, text: `${m}` });
+    }
+    await writer.close();
+  }
+
+  const count = async (q: FirebaseFirestore.Query) => (await q.count().get()).data().count;
+
+  // Each card and conversation used to be deleted one after another: an
+  // account with many, or several due the same day, could outrun the cron's
+  // 300 s and leave purges later than promised.
+  it('purges a prolific account whole, its cards and conversations side by side', async () => {
+    await prolific('pat', 120, 12);
+    await scheduleAccountDeletion(db, 'pat', new Date('2026-09-01T00:00:00Z'));
+    const revalidate = vi.fn();
+    const run = await purgeDueAccounts({ db, deleteAuthUser: vi.fn(async () => {}), revalidate }, { now: new Date('2026-10-01T00:00:00Z') });
+    expect(run).toEqual({ purged: ['pat'], failed: [], deferred: [] });
+    expect(await count(db.collection('cards'))).toBe(0);
+    expect(await count(db.collectionGroup('edits'))).toBe(0);
+    expect(await count(db.collectionGroup('messages'))).toBe(0);
+    expect(await exists('users/pat')).toBe(false);
+    expect(revalidate.mock.calls[0][0]).toEqual(expect.arrayContaining(['/card/pat-0', '/card/pat-slug-119', '/u/pat', '/']));
+  });
+
+  it('starts nothing once its time is up: the longest overdue first, the rest left with their requests for the next run', async () => {
+    await prolific('pat', 3);
+    await prolific('quinn', 3);
+    await scheduleAccountDeletion(db, 'quinn', new Date('2026-09-02T00:00:00Z'));
+    await scheduleAccountDeletion(db, 'pat', new Date('2026-09-01T00:00:00Z'));
+    let now = 0;
+    // Each purge takes "a minute" (its sign-in account is deleted last).
+    const deleteAuthUser = vi.fn(async () => void (now += 60_000));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const run = await purgeDueAccounts(
+      { db, deleteAuthUser },
+      { now: new Date('2026-10-01T00:00:00Z'), budgetMs: 30_000, concurrency: 1, clock: () => now },
+    );
+    expect(run).toEqual({ purged: ['pat'], failed: [], deferred: ['quinn'] });
+    expect(await exists('users/quinn')).toBe(true);
+    expect(await count(db.collection('cards').where('authorId', '==', 'quinn'))).toBe(3);
+    expect(await getAccountDeletion(db, 'quinn')).not.toBeNull();
+
+    expect(await purgeDueAccounts({ db, deleteAuthUser }, { now: new Date('2026-10-02T00:00:00Z') })).toEqual({ purged: ['quinn'], failed: [], deferred: [] });
+    expect(await exists('users/quinn')).toBe(false);
+  });
+
+  it('stops part way through an account cleanly: its profile and request stay until the next run finishes it', async () => {
+    await prolific('pat', 40);
+    await scheduleAccountDeletion(db, 'pat', new Date('2026-09-01T00:00:00Z'));
+    let calls = 0;
+    // Time is up a few cards in.
+    const clock = () => (++calls > 6 ? 1_000_000 : 0);
+    const deleteAuthUser = vi.fn(async () => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const run = await purgeDueAccounts({ db, deleteAuthUser }, { now: new Date('2026-10-01T00:00:00Z'), budgetMs: 1000, clock });
+    expect(run).toEqual({ purged: [], failed: [], deferred: ['pat'] });
+    const left = await count(db.collection('cards').where('authorId', '==', 'pat'));
+    expect(left).toBeGreaterThan(0);
+    expect(left).toBeLessThan(40);
+    expect(await exists('users/pat')).toBe(true);
+    expect(await getAccountDeletion(db, 'pat')).not.toBeNull();
+    expect(deleteAuthUser).not.toHaveBeenCalled();
+
+    expect((await purgeDueAccounts({ db, deleteAuthUser }, { now: new Date('2026-10-02T00:00:00Z') })).purged).toEqual(['pat']);
+    expect(await count(db.collection('cards').where('authorId', '==', 'pat'))).toBe(0);
+    expect(await exists('users/pat')).toBe(false);
+    expect(deleteAuthUser).toHaveBeenCalledWith('pat');
   });
 });
 
@@ -275,5 +356,44 @@ describe('exportAccountData', () => {
     expect(data.messagesSent.map((m) => m.id)).toEqual(['m1']);
     // Plain JSON — no Firestore Timestamp objects survive.
     expect(typeof data.bookmarks[0].createdAt).toBe('string');
+    expect(data.messagesSent[0]).toEqual({ conversationId: 'alice_bob', id: 'm1', senderId: 'alice', text: 'hi' });
+  });
+
+  // The backup was built whole in memory and sent as one indented JSON body:
+  // a prolific writer's could pass the platform's ~4.5 MB response limit —
+  // on the very step that comes before deleting the account.
+  it('streams a large backup a page at a time, as compact JSON that parses whole', async () => {
+    await seedWorld();
+    const writer = db.bulkWriter();
+    for (let i = 0; i < 230; i++) void writer.set(db.doc(`cards/bulk-${String(i).padStart(3, '0')}`), { authorId: 'alice', thoughtCore: `t${i}`, story: 'x'.repeat(2000) });
+    for (let m = 0; m < 150; m++) void writer.set(db.doc(`conversations/alice_bob/messages/bulk-${m}`), { senderId: 'alice', text: `${m}` });
+    await writer.close();
+
+    const pieces: string[] = [];
+    for await (const piece of exportAccountJson(db, 'alice', new Date('2026-10-01T00:00:00Z'))) pieces.push(piece);
+    // Sent as it is read: the first piece already carries the profile, and the rest come in many pieces.
+    expect(pieces[0]).toContain('"profile":{');
+    expect(pieces.length).toBeGreaterThan(10);
+    const text = pieces.join('');
+    expect(text).not.toContain('\n');
+    const data = JSON.parse(text);
+    expect(data.exportedAt).toBe('2026-10-01T00:00:00.000Z');
+    expect(data.cards).toHaveLength(232);
+    expect(new Set(data.cards.map((c: { id: string }) => c.id)).size).toBe(232);
+    expect(data.messagesSent).toHaveLength(151);
+    expect(Object.keys(data)).toEqual(['exportedAt', 'profile', 'cards', 'bookmarks', 'thoughtMap', 'notesSent', 'messagesSent']);
+    expect(await exportAccountData(db, 'alice', new Date('2026-10-01T00:00:00Z'))).toEqual(data);
+  });
+
+  it('is a complete, empty backup for an account with nothing in it', async () => {
+    expect(await exportAccountData(db, 'nobody', new Date('2026-10-01T00:00:00Z'))).toEqual({
+      exportedAt: '2026-10-01T00:00:00.000Z',
+      profile: null,
+      cards: [],
+      bookmarks: [],
+      thoughtMap: { nodes: [], edges: [], groups: [] },
+      notesSent: [],
+      messagesSent: [],
+    });
   });
 });
