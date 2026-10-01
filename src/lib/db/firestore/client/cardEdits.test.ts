@@ -95,8 +95,15 @@ describe('pending card edits', () => {
     vi.mocked(getDoc).mockResolvedValue({ exists: () => false } as never);
     await expect(getPendingCardEdit('card-1')).resolves.toBeNull();
 
-    vi.mocked(getDoc).mockRejectedValue(new Error('permission-denied'));
+    vi.mocked(getDoc).mockRejectedValue(Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' }));
     await expect(getPendingCardEdit('card-1')).resolves.toBeNull();
+  });
+
+  // Opened on "no pending edit", the editor would autosave the live fields
+  // over the working copy the read failed to fetch.
+  it('lets a read that failed (offline) fail instead of reporting no pending edit', async () => {
+    vi.mocked(getDoc).mockRejectedValue(Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' }));
+    await expect(getPendingCardEdit('card-1')).rejects.toThrow('offline');
   });
 
   it('applies the revision to the card and clears the buffer in one batch', async () => {

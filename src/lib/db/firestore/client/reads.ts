@@ -19,6 +19,7 @@ import type { CardSeed } from '@/lib/data/cardSeed';
 import type { FeedPageBody } from '@/lib/api/v1/schemas';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
+import { isAbsent } from './errors';
 import { mapCard, mapUser } from './map';
 
 function connectionId(a: string, b: string): string {
@@ -32,14 +33,20 @@ function connectionId(a: string, b: string): string {
 // `anonymous == false`. Anyone else gets an anonymous card from the server,
 // which leaves the author out (getPublicCardView, the /api/v1 reads).
 
-/** Single card. Firestore rules enforce visibility; denied/missing → null. */
+/**
+ * Single card. Firestore rules enforce visibility; denied/missing → null. A
+ * read that failed for any other reason (offline, a server error) throws —
+ * it says nothing about the card, and must not be shown, or kept, as "no such
+ * card".
+ */
 export async function getCardById(id: string): Promise<Card | null> {
   try {
     const snap = await getDoc(doc(getClientDb(), 'cards', id));
     return snap.exists() ? mapCard(snap.id, snap.data()) : null;
-  } catch {
+  } catch (e) {
     // permission-denied (not visible to this viewer) reads as "not found"
-    return null;
+    if (isAbsent(e)) return null;
+    throw e;
   }
 }
 
@@ -427,11 +434,11 @@ export async function isConnected(a: string, b: string): Promise<boolean> {
   try {
     const snap = await getDoc(doc(getClientDb(), 'connections', connectionId(a, b)));
     return snap.exists();
-  } catch {
-    // The connection-read rule references `resource.data.userIds`; for a doc that
-    // doesn't exist `resource` is null, so the rule denies rather than returning
-    // an empty snapshot. Treat "denied/missing" as simply not connected.
-    return false;
+  } catch (e) {
+    // Someone else's pair is unreadable: "denied/missing" is simply not
+    // connected. A failed read (offline) is no answer, and throws.
+    if (isAbsent(e)) return false;
+    throw e;
   }
 }
 

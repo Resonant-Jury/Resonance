@@ -157,6 +157,22 @@ describe('EditCardPage (client-fetched)', () => {
     expect(screen.queryByTestId('write-workspace')).not.toBeInTheDocument();
   });
 
+  // A failed read is no answer: as "no pending edit" the editor opened on the
+  // live text and autosaved it over the revision it couldn't fetch.
+  it('opens no editor when a read fails, and reads again on request', async () => {
+    vi.mocked(getCardById).mockResolvedValue({ ...card('me'), visibility: 'public', publishedAt: new Date('2026-01-02') });
+    vi.mocked(getPendingCardEdit).mockRejectedValueOnce(Object.assign(new Error('offline'), { code: 'unavailable' }));
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText(en.native.loadError)).toBeInTheDocument());
+    expect(screen.queryByTestId('write-workspace')).not.toBeInTheDocument();
+    expect(screen.queryByText(en.card.notFound.title)).not.toBeInTheDocument();
+
+    screen.getByRole('button', { name: en.native.retry }).click();
+    await waitFor(() => expect(screen.getByTestId('write-workspace')).toBeInTheDocument());
+    expect(getPendingCardEdit).toHaveBeenCalledTimes(2);
+  });
+
   // Regression: the page read the card through an app-wide SWR cache, so a
   // second visit mounted the editor on the first visit's copy — and the
   // editor, which copies its initial values once, autosaved that older text

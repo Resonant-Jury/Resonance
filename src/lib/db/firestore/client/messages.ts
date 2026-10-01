@@ -5,6 +5,7 @@ import type { Conversation, Message } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
 import { callApi } from './api';
+import { isAbsent } from './errors';
 
 /** Hard cap mirrored in the API's SendMessageRequest — keep the two in sync. */
 export const MESSAGE_MAX_LENGTH = 2000;
@@ -123,13 +124,14 @@ export async function listConversations(): Promise<Conversation[]> {
   return snap.docs.map((d) => mapConversation(d.id, d.data()));
 }
 
-/** A single conversation, or null when missing / not a participant. */
+/** A single conversation, or null when missing / not a participant (a failed read throws). */
 export async function getConversation(pairId: string): Promise<Conversation | null> {
   try {
     const snap = await getDoc(doc(getClientDb(), 'conversations', pairId));
     return snap.exists() ? mapConversation(snap.id, snap.data()) : null;
-  } catch {
-    return null;
+  } catch (e) {
+    if (isAbsent(e)) return null;
+    throw e;
   }
 }
 

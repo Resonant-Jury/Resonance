@@ -6,6 +6,7 @@ import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAva
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { CardDetailSkeleton } from '@/components/molecules/CardDetail/CardDetailSkeleton';
+import { LoadError } from '@/components/molecules/LoadError/LoadError';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { CardAuthorAside } from '@/components/molecules/CardDetail/CardAuthorAside';
@@ -100,7 +101,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { data, isLoading, error, fromServer } = useCard(slug, seed);
+  const { data, isLoading, error, fromServer, mutate: readAgain } = useCard(slug, seed);
   const { data: blocked } = useMyBlockedIds();
   // False for the server render and hydration (which must draw the same
   // markup), true from then on.
@@ -145,6 +146,16 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
     return (
       <div style={wrapStyle}>
         <CardDetailSkeleton />
+      </div>
+    );
+  }
+
+  // The read failed (offline, the server unavailable): that says nothing
+  // about the card, so not "not found" — try again (SWR retries on its own too).
+  if (data === undefined && error) {
+    return (
+      <div style={wrapStyle}>
+        <LoadError onRetry={() => void readAgain()} />
       </div>
     );
   }

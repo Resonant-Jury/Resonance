@@ -30,6 +30,7 @@ vi.mock('firebase/firestore/lite', () => ({
 import { getDoc, getDocs } from 'firebase/firestore/lite';
 import {
   forgetCachedUser,
+  getCardById,
   getCurrentUserProfile,
   getLatestPublishedFeed,
   getPublicCardsByAuthor,
@@ -40,7 +41,26 @@ import {
   isConnected,
 } from './reads';
 
-const denied = () => new Error('Missing or insufficient permissions');
+// What the SDK rejects with: a FirestoreError carries its `code`.
+const denied = () => Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' });
+const offline = () =>
+  Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' });
+
+describe('getCardById', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('reads a card the rules refuse this viewer as no card', async () => {
+    vi.mocked(getDoc).mockRejectedValue(denied());
+    await expect(getCardById('c1')).resolves.toBeNull();
+  });
+
+  // A network hiccup says nothing about the card: as null it showed "this card
+  // doesn't exist", and SWR kept that answer instead of trying again.
+  it('lets a read that failed for any other reason fail', async () => {
+    vi.mocked(getDoc).mockRejectedValue(offline());
+    await expect(getCardById('c1')).rejects.toThrow('offline');
+  });
+});
 
 describe('isConnected', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -63,6 +83,11 @@ describe('isConnected', () => {
   it('swallows a permission-denied error and reports not connected', async () => {
     vi.mocked(getDoc).mockRejectedValue(denied());
     await expect(isConnected('a', 'b')).resolves.toBe(false);
+  });
+
+  it('lets an offline read fail rather than answer "not connected"', async () => {
+    vi.mocked(getDoc).mockRejectedValue(offline());
+    await expect(isConnected('a', 'b')).rejects.toThrow('offline');
   });
 });
 

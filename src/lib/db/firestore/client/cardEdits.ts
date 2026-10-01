@@ -13,6 +13,7 @@ import type { Card, CardMedia, Visibility } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
 import { clearedMedia } from './cards';
+import { isAbsent } from './errors';
 import { mapCard } from './map';
 
 /**
@@ -72,9 +73,12 @@ export async function getPendingCardEdit(cardId: string): Promise<PendingCardEdi
       anonymous: data.anonymous === true,
       updatedAt: stamp instanceof Timestamp ? stamp.toDate() : null,
     };
-  } catch {
-    // Not the owner (rules deny) reads as "no pending edit".
-    return null;
+  } catch (e) {
+    // Not the owner (rules deny) reads as "no pending edit". A failed read
+    // throws: an editor opened on the live fields instead would autosave them
+    // over the working copy.
+    if (isAbsent(e)) return null;
+    throw e;
   }
 }
 

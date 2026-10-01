@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { CardEditor } from '@/components/molecules/CardEditor/CardEditor';
 import { PageTitle } from '@/components/molecules/PageShell/PageShell';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
+import { LoadError } from '@/components/molecules/LoadError/LoadError';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { getPendingCardEdit } from '@/lib/db/firestore/client/cardEdits';
 import { OriginalCardPanel } from './LazyOriginalCardPanel';
@@ -28,12 +29,22 @@ export function OpenedCardPane({ card }: { card: Card }) {
   const locale = useLocale() as Locale;
   const { user } = useAuth();
   const isOwn = user?.id === card.authorId;
-  const { data: pending, isLoading } = useSWR(
+  const { data: pending, isLoading, error, mutate } = useSWR(
     isOwn && card.publishedAt ? `pendingEdit:${card.id}` : null,
     () => getPendingCardEdit(card.id)
   );
 
   if (!isOwn) return <OriginalCardPanel cardId={card.id} />;
+
+  // The buffer couldn't be read: an editor on the live fields would autosave
+  // them over it, so none until a read succeeds.
+  if (pending === undefined && error) {
+    return (
+      <div className={styles.editorCol} style={{ display: 'grid', placeItems: 'center' }}>
+        <LoadError onRetry={() => void mutate()} />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

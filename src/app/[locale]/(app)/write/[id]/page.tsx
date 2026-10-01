@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
+import { LoadError } from '@/components/molecules/LoadError/LoadError';
 import { WriteWorkspace } from '@/components/sections/WriteWorkspace/WriteWorkspace';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { getCardById } from '@/lib/db/firestore/client/reads';
@@ -15,6 +16,8 @@ interface Opened {
   key: string;
   card: Card | null;
   pending: PendingCardEdit | null;
+  /** A read failed (offline…): nothing is known, so no editor — it would save over what it couldn't read. */
+  failed?: boolean;
 }
 
 // The draft loads client-direct from Firestore (rules already scope reads to
@@ -37,18 +40,23 @@ export default function EditCardPage() {
   // anonymous viewer and "not found" the owner's own draft.
   const key = id && user && !loading ? `${id}:${user.id}` : null;
   const [opened, setOpened] = useState<Opened | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!key) return;
     let live = true;
     void (async () => {
-      const found = await getCardById(id!).catch(() => null);
-      const pending = found?.publishedAt ? await getPendingCardEdit(found.id) : null;
-      if (live) setOpened({ key, card: found, pending });
+      try {
+        const found = await getCardById(id!);
+        const pending = found?.publishedAt ? await getPendingCardEdit(found.id) : null;
+        if (live) setOpened({ key, card: found, pending });
+      } catch {
+        if (live) setOpened({ key, card: null, pending: null, failed: true });
+      }
     })();
     return () => {
       live = false;
     };
-  }, [key, id]);
+  }, [key, id, attempt]);
   // Only what was read for this card and this viewer, on this visit.
   const data = opened && opened.key === key ? opened : undefined;
   const card = data?.card;
@@ -67,6 +75,18 @@ export default function EditCardPage() {
       >
         <SketchLoader />
       </div>
+    );
+  }
+
+  if (data?.failed) {
+    return (
+      <LoadError
+        style={{ padding: 'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)' }}
+        onRetry={() => {
+          setOpened(null);
+          setAttempt((n) => n + 1);
+        }}
+      />
     );
   }
 

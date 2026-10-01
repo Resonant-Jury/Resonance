@@ -209,6 +209,21 @@ describe('CardDetailClient (no server content)', () => {
     expect(screen.queryByText('The core thought of this card')).not.toBeInTheDocument();
   });
 
+  // A read that failed offline used to come back as null — "this card can't be
+  // found", kept by SWR. Now it is an error: the page says so and reads again.
+  it('says a failed read failed, not that the card is missing, and reads it again on request', async () => {
+    vi.mocked(getCardBySlugOrId).mockRejectedValueOnce(Object.assign(new Error('offline'), { code: 'unavailable' }));
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(card('c1'));
+    const user = userEvent.setup();
+    renderPage({ slug: 'c1' });
+
+    expect(await screen.findByText("Couldn't load this — please try again.")).toBeInTheDocument();
+    expect(screen.queryByText("This card can't be found")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('The core thought of this card')).toBeInTheDocument();
+  });
+
   it('shows a skeleton (neither article nor not-found) while loading', () => {
     mockUseAuth.mockReturnValue({ user: null, loading: true });
     renderPage({ slug: 'c1' });
