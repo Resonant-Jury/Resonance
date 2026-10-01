@@ -46,7 +46,8 @@ export interface OrganicMenuProps {
  * The organic「⋯」dropdown, extracted from the card menu's language: a wobbly
  * chip trigger dropping a hand-drawn panel with wavy pen dividers and a
  * spreading ink wash on the hovered row. Closes on outside pointer-down or
- * Escape.
+ * Escape. The chip is paper with no rim — it sits on a card's cover or beside
+ * a title, already framed, like the apps' (their bars draw the glyph bare).
  */
 export function OrganicMenu({
   items,
@@ -126,9 +127,7 @@ export function OrganicMenu({
           R={triggerSize * 0.42}
           seed={seed}
           mag={triggerSize * 0.03}
-          fillColor="color-mix(in oklch, var(--menu-cream) 90%, transparent)"
-          strokeColor="var(--menu-border)"
-          strokeWidth={INK}
+          fillColor="color-mix(in oklch, var(--menu-cream) 94%, transparent)"
           segmentsH={1}
           segmentsV={1}
           curve={1.4}
