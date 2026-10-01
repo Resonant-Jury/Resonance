@@ -75,6 +75,11 @@ describe('the stored summary', () => {
     const d = await data('c1');
     expect(storedSummary(d)).toEqual({ excerpt: 'A new ending.', readMinutes: 1 });
     expect((d.excerptAt as Timestamp).isEqual(d.updatedAt as Timestamp)).toBe(true);
+
+    // A draft has none until it is published.
+    await db.doc('cards/d1').set({ authorId: 'alice', thoughtCore: 't', story: 'Draft.', visibility: 'public', publishedAt: null });
+    await updateCard(db, 'alice', 'd1', { visibility: 'private' }, noVectors);
+    expect((await data('d1')).excerpt).toBeUndefined();
   });
 
   it('stops counting once the story is written by something that does not restate it (the web editor applies edits itself)', async () => {
