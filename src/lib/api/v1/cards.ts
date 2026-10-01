@@ -29,9 +29,18 @@ export interface UpdatedCard {
  * Change your card's visibility and/or anonymity (only the fields sent).
  * Someone else's card is as absent as a missing one. A pending edit
  * (edits/current) carries the same two fields: it takes the change too, or
- * applying it later would quietly undo it.
+ * applying it later would quietly undo it. The recommendation vectors keep
+ * their own copy of the visibility (the candidate pool's filter): a new one
+ * reaches them too, so a card made private or connections-only stops being
+ * recommended to others — and one made public again rejoins the pool.
  */
-export async function updateCard(db: Firestore, uid: string, id: string, input: UpdateCardInput): Promise<UpdatedCard> {
+export async function updateCard(
+  db: Firestore,
+  uid: string,
+  id: string,
+  input: UpdateCardInput,
+  vectors?: Pick<IVectorStore, 'setVisibility'>,
+): Promise<UpdatedCard> {
   const ref = db.doc(`cards/${id}`);
   const editRef = db.doc(`cards/${id}/edits/current`);
   const { before, data, changed, author } = await db.runTransaction(async (tx) => {
@@ -48,6 +57,13 @@ export async function updateCard(db: Firestore, uid: string, id: string, input: 
     return { before: snap.data()!, data: { ...snap.data()!, ...patch }, changed, author: me.data() };
   });
   const card = mapCard(id, data);
+  if (data.visibility !== before.visibility) {
+    // The card has changed either way; the route answers it. A failure is
+    // logged — the recommended feed still re-checks every card it shows.
+    await Promise.resolve()
+      .then(() => (vectors ?? getVectorStore()).setVisibility(id, card.visibility))
+      .catch((e) => console.error('[api/v1] vectors', id, e));
+  }
   return {
     card: toFeedCard(card, author, { deanonymize: true }),
     stale: changed ? [...cardPagePaths(card), ...profilePagePaths(author?.handle), ...landingPagePaths(before, data)] : [],

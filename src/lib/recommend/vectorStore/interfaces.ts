@@ -1,3 +1,4 @@
+import type { Visibility } from '@/lib/db/types';
 import type { AuthorVector, NearestHit, VectorChannel, VectorQuery, VectorRecord } from './types';
 
 /**
@@ -14,6 +15,12 @@ export interface IVectorStore {
   upsert(records: VectorRecord[]): Promise<void>;
   /** Remove every channel's vector for a card (on delete / unpublish). */
   deleteByCard(cardId: string): Promise<void>;
+  /**
+   * Follow a card's visibility change: every channel's record takes it, so a
+   * card that is no longer public leaves others' candidate pool at once (and
+   * comes back when it is public again) without being re-embedded.
+   */
+  setVisibility(cardId: string, visibility: Visibility): Promise<void>;
   /** Approximate-nearest-neighbour search within a single channel. */
   nearest(query: VectorQuery): Promise<NearestHit[]>;
   /**

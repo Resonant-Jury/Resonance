@@ -42,6 +42,7 @@ beforeEach(() => {
     nearest,
     upsert: vi.fn(),
     deleteByCard: vi.fn(),
+    setVisibility: vi.fn(),
     listByAuthor: vi.fn(),
   });
   vi.mocked(getEngagedAuthorIds).mockResolvedValue(new Set());

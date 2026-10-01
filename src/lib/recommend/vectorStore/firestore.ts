@@ -1,5 +1,6 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/db/firestore/admin';
+import type { Visibility } from '@/lib/db/types';
 import type { IVectorStore } from './interfaces';
 import type { AuthorVector, NearestHit, VectorChannel, VectorQuery, VectorRecord } from './types';
 
@@ -61,6 +62,14 @@ export class FirestoreVectorStore implements IVectorStore {
     if (snap.empty) return;
     const batch = this.db().batch();
     snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+
+  async setVisibility(cardId: string, visibility: Visibility): Promise<void> {
+    const snap = await this.db().collection(COLLECTION).where('cardId', '==', cardId).get();
+    if (snap.empty) return;
+    const batch = this.db().batch();
+    snap.docs.forEach((d) => batch.update(d.ref, { visibility, updatedAt: FieldValue.serverTimestamp() }));
     await batch.commit();
   }
 

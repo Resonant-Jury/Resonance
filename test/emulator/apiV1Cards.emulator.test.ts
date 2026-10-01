@@ -1,10 +1,15 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { deleteCard, updateCard } from '@/lib/api/v1/cards';
 import { getCardDetail, getProfileCards } from '@/lib/api/v1/reads';
 import { FirestoreVectorStore } from '@/lib/recommend/vectorStore/firestore';
+import type { IVectorStore } from '@/lib/recommend/vectorStore/interfaces';
+
+// The routes' vector store is this suite's: the emulator's, in this project.
+const mocks = vi.hoisted(() => ({ store: null as IVectorStore | null }));
+vi.mock('@/lib/recommend/vectorStore', () => ({ getVectorStore: () => mocks.store }));
 
 // The card box's own changes through the v1 API against the Firestore
 // emulator: visibility, anonymity and deleting — owner only, and each naming
@@ -22,6 +27,7 @@ beforeAll(() => {
   process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
   app = initializeApp({ projectId: PROJECT }, 'api-v1-cards-test');
   db = getFirestore(app);
+  mocks.store = new FirestoreVectorStore(db);
 });
 
 afterAll(async () => {
@@ -108,6 +114,82 @@ describe('updateCard (PATCH /cards/{id})', () => {
     expect((await failure(updateCard(db, 'bob', 'live', { visibility: 'private' }))).code).toBe('not_found');
     expect((await failure(updateCard(db, 'alice', 'missing', { visibility: 'private' }))).code).toBe('not_found');
     expect((await card()).visibility).toBe('public');
+  });
+});
+
+// cardVectors keeps its own copy of each card's visibility: the recommender's
+// candidate pool is the vectors whose copy says public. A change made through
+// the API reaches it, so a card made non-public isn't recommended to anyone.
+describe('the recommendation vectors of a card whose visibility changes (PATCH /cards/{id})', () => {
+  const pool = async () => {
+    const hits = await mocks.store!.nearest({ channel: 'insight', vector: [1, 0, 0], filter: { visibility: 'public' }, limit: 10 });
+    return hits.map((h) => h.record.cardId).sort();
+  };
+  const visibilityOf = async (doc: string) => (await db.doc(`cardVectors/${doc}`).get()).get('visibility');
+
+  beforeEach(async () => {
+    const record = (cardId: string, authorId: string, channel: 'insight' | 'situation', vector: number[]) => ({
+      cardId,
+      authorId,
+      visibility: 'public' as const,
+      channel,
+      vector,
+      insightScore: 0.8,
+      coreInsight: `insight ${cardId}`,
+      situation: '',
+      lifeDomain: 'x',
+    });
+    await mocks.store!.upsert([
+      record('live', 'alice', 'insight', [1, 0, 0]),
+      record('live', 'alice', 'situation', [0, 1, 0]),
+      record('other', 'bob', 'insight', [0.8, 0.6, 0]),
+    ]);
+  });
+
+  it("takes a card made private or connections-only out of others' candidate pool, and back once it is public again", async () => {
+    expect(await pool()).toEqual(['live', 'other']);
+
+    await updateCard(db, 'alice', 'live', { visibility: 'private' });
+    expect(await pool()).toEqual(['other']);
+    expect(await visibilityOf('live__insight')).toBe('private');
+    expect(await visibilityOf('live__situation')).toBe('private');
+    expect(await visibilityOf('other__insight')).toBe('public');
+
+    await updateCard(db, 'alice', 'live', { visibility: 'connections' });
+    expect(await pool()).toEqual(['other']);
+    expect(await visibilityOf('live__situation')).toBe('connections');
+
+    await updateCard(db, 'alice', 'live', { visibility: 'public' });
+    expect(await pool()).toEqual(['live', 'other']);
+  });
+
+  it('leaves them alone when the visibility stays as it was (only the byline changes, or nothing does)', async () => {
+    const store = { setVisibility: vi.fn(async () => {}) };
+    await updateCard(db, 'alice', 'live', { anonymous: true }, store);
+    await updateCard(db, 'alice', 'live', { visibility: 'public' }, store);
+    expect(store.setVisibility).not.toHaveBeenCalled();
+    expect(await pool()).toEqual(['live', 'other']);
+  });
+
+  it("never touches them for someone else's card", async () => {
+    await failure(updateCard(db, 'bob', 'live', { visibility: 'private' }));
+    expect(await visibilityOf('live__insight')).toBe('public');
+  });
+
+  it('still changes the card when its vectors cannot be updated', async () => {
+    const quiet = console.error;
+    console.error = () => {};
+    try {
+      const { card: box } = await updateCard(db, 'alice', 'live', { visibility: 'private' }, {
+        setVisibility: async () => {
+          throw new Error('vector store down');
+        },
+      });
+      expect(box.visibility).toBe('private');
+    } finally {
+      console.error = quiet;
+    }
+    expect((await card()).visibility).toBe('private');
   });
 });
 
