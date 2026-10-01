@@ -13,7 +13,7 @@ vi.mock('@/lib/auth/firebase/client', () => ({
 }));
 
 const batch = { set: vi.fn(), delete: vi.fn(), commit: vi.fn() };
-vi.mock('firebase/firestore', () => ({
+vi.mock('firebase/firestore/lite', () => ({
   // doc(db, ...segments) → a stand-in that records the path it addresses.
   doc: vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') })),
   deleteDoc: vi.fn(),
@@ -25,7 +25,7 @@ vi.mock('firebase/firestore', () => ({
   Timestamp: class {},
 }));
 
-import { deleteDoc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
+import { deleteDoc, getDoc, setDoc, writeBatch } from 'firebase/firestore/lite';
 import {
   applyPendingCardEdit,
   discardPendingCardEdit,

@@ -1,6 +1,6 @@
 'use client';
 
-import { collection, getDocs, limit, orderBy, query, Timestamp, where } from 'firebase/firestore';
+import { collection, getDocs, limit, orderBy, query, Timestamp, where } from './sdk';
 import type { CardLink } from '@/lib/db/types';
 import { getClientDb } from './init';
 

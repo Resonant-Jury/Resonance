@@ -8,7 +8,7 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
-} from 'firebase/firestore';
+} from './sdk';
 import type { FeedCardBody } from '@/lib/api/v1/schemas';
 import type { Card, CardMedia, Locale, NewCard, Visibility } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';

@@ -12,7 +12,7 @@ import {
   Timestamp,
   updateDoc,
   where,
-} from 'firebase/firestore';
+} from './sdk';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { isConnected } from './reads';
 import { getClientDb } from './init';

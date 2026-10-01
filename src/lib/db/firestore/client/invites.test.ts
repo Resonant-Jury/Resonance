@@ -16,7 +16,7 @@ const tx = {
   set: vi.fn(),
   update: vi.fn(),
 };
-vi.mock('firebase/firestore', () => ({
+vi.mock('firebase/firestore/lite', () => ({
   collection: vi.fn((_db: unknown, name: string) => ({ name })),
   doc: vi.fn((parent: { name?: string }, ...path: string[]) => (path.length ? { path: path.join('/') } : { id: `${parent.name}-new` })),
   getDocs: vi.fn(),

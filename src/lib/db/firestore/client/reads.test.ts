@@ -9,7 +9,7 @@ vi.mock('./init', () => ({ getClientDb: vi.fn(() => ({})) }));
 vi.mock('@/lib/auth/firebase/client', () => ({
   getFirebaseClientAuth: vi.fn(() => ({ currentUser: { uid: 'me' } })),
 }));
-vi.mock('firebase/firestore', () => ({
+vi.mock('firebase/firestore/lite', () => ({
   collection: vi.fn((_db: unknown, name: string) => name),
   doc: vi.fn((_db: unknown, ...path: string[]) => ({ path: path.join('/') })),
   documentId: vi.fn(() => '__name__'),
@@ -27,7 +27,7 @@ vi.mock('firebase/firestore', () => ({
   },
 }));
 
-import { getDoc, getDocs } from 'firebase/firestore';
+import { getDoc, getDocs } from 'firebase/firestore/lite';
 import {
   forgetCachedUser,
   getCurrentUserProfile,

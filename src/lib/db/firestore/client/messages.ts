@@ -1,19 +1,6 @@
 'use client';
 
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit as fbLimit,
-  onSnapshot,
-  orderBy,
-  query,
-  Timestamp,
-  updateDoc,
-  where,
-  writeBatch,
-} from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc, where, writeBatch } from './sdk';
 import type { Conversation, Message } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
@@ -39,9 +26,14 @@ export function otherParticipant(pairId: string, uid: string): string {
   return a === uid ? b : a;
 }
 
+/**
+ * A Timestamp from either SDK: Lite's for the conversation reads, the full
+ * SDK's for an open thread's listener (two copies of the class, so no
+ * `instanceof`).
+ */
 function tsToDate(value: unknown): Date | null {
-  if (value instanceof Timestamp) return value.toDate();
   if (value instanceof Date) return value;
+  if (value && typeof (value as { toDate?: unknown }).toDate === 'function') return (value as { toDate(): Date }).toDate();
   return null;
 }
 
@@ -145,7 +137,9 @@ export async function getConversation(pairId: string): Promise<Conversation | nu
  * Subscribe to the newest messages of an open thread (oldest → newest, capped
  * at `max`). This is the project's only realtime surface — deliberately scoped
  * to the one thread the viewer is looking at; lists and badges stay on SWR.
- * Returns the unsubscribe function.
+ * It is also the only use of the full SDK, which loads (./realtime) when the
+ * first thread opens rather than with every page. Returns the unsubscribe
+ * function, safe to call before the listener has started.
  */
 export function listenThread(
   pairId: string,
@@ -153,20 +147,26 @@ export function listenThread(
   onError?: (err: Error) => void,
   max = 50,
 ): () => void {
-  const q = query(
-    collection(getClientDb(), 'conversations', pairId, 'messages'),
-    orderBy('sentAt', 'desc'),
-    fbLimit(max),
-  );
-  return onSnapshot(
-    q,
-    (snap) => {
-      const msgs = snap.docs.map((d) => mapMessage(d.id, d.data()));
-      msgs.reverse();
-      onMessages(msgs);
-    },
-    (err) => onError?.(err),
-  );
+  let stopped = false;
+  let stop: (() => void) | null = null;
+  import('./realtime')
+    .then(({ listenNewest }) => {
+      if (stopped) return;
+      stop = listenNewest(
+        ['conversations', pairId, 'messages'],
+        'sentAt',
+        max,
+        (docs) => onMessages(docs.map((d) => mapMessage(d.id, d.data)).reverse()),
+        (err) => onError?.(err),
+      );
+    })
+    .catch((err: unknown) => {
+      if (!stopped) onError?.(err instanceof Error ? err : new Error(String(err)));
+    });
+  return () => {
+    stopped = true;
+    stop?.();
+  };
 }
 
 /**

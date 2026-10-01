@@ -1,6 +1,6 @@
 'use client';
 
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from './sdk';
 import type { Card, CardMedia, InsightSignature, Locale, User } from '@/lib/db/types';
 
 type Raw = Record<string, unknown>;

@@ -8,7 +8,7 @@ import {
   setDoc,
   writeBatch,
   Timestamp,
-} from 'firebase/firestore';
+} from './sdk';
 import type { Card, CardMedia, Visibility } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';

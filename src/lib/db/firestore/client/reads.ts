@@ -12,7 +12,7 @@ import {
   startAfter,
   where,
   Timestamp,
-} from 'firebase/firestore';
+} from './sdk';
 import type { Card, User } from '@/lib/db/types';
 import type { CardBoxTab } from '@/lib/db/interfaces';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';

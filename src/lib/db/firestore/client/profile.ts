@@ -1,6 +1,6 @@
 'use client';
 
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from './sdk';
 import type { Locale } from '@/lib/db/types';
 import type { MeBody } from '@/lib/api/v1/schemas';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';

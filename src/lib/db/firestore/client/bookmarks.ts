@@ -10,7 +10,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
-} from 'firebase/firestore';
+} from './sdk';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
 

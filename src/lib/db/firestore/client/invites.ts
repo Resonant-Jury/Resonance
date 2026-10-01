@@ -9,7 +9,7 @@ import {
   runTransaction,
   Timestamp,
   where,
-} from 'firebase/firestore';
+} from './sdk';
 import type { Invite } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';

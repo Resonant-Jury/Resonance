@@ -8,7 +8,7 @@ const mockAuth = {
 vi.mock('@/lib/auth/firebase/client', () => ({
   getFirebaseClientAuth: vi.fn(() => mockAuth),
 }));
-vi.mock('firebase/firestore', () => ({
+vi.mock('firebase/firestore/lite', () => ({
   addDoc: vi.fn(),
   collection: vi.fn(),
   deleteDoc: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('firebase/firestore', () => ({
   Timestamp: class {},
 }));
 
-import { getDoc, setDoc } from 'firebase/firestore';
+import { getDoc, setDoc } from 'firebase/firestore/lite';
 import { publishCard, updateCardDraft } from './cards';
 
 function snapshot(publishedAt: unknown) {

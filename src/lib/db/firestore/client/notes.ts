@@ -1,6 +1,6 @@
 'use client';
 
-import { collection, getDocs, orderBy, query, Timestamp, where } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, Timestamp, where } from './sdk';
 import type { Note } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';

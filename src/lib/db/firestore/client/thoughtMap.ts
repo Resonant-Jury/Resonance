@@ -11,7 +11,7 @@ import {
   updateDoc,
   where,
   writeBatch,
-} from 'firebase/firestore';
+} from './sdk';
 import type { ThoughtMapEdge, ThoughtMapGroup, ThoughtMapNode } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
