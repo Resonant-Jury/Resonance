@@ -93,6 +93,20 @@ refetches. `Route.thread(handle:uid:note:)` takes the uid whenever the caller
 knows it; threads listen by pair id, and PERMISSION_DENIED means "no
 conversation yet".
 
+Caches: `APICache` (ResonanceKit, Caches/APICache/<sha256(uid)>) keeps the
+account's latest feed page, today's picks (UTC day only), Me, the published
+shelf and the block list for an instant cold start — filtered by the block list,
+removed on sign-out, account switch or scheduled deletion. v1 GETs go through
+`APIHTTPCache` (a URLCache and URLSession per account; never `URLSession.shared`
+for v1 — build clients with `ResonanceClient.make(_:cache:)`), which honours the
+server's `private` + ETag, opts in with `X-Resonance-Cache: 1`, and sends
+`no-cache` after the viewer's writes (`SessionStore.noteOwnWrite()` for writes
+that go straight to Firestore). Back in the foreground after 15 minutes or on a
+new UTC day, `SessionStore.awayRefreshes` refreshes saved screens. The editor
+island is served from `resonance-editor://editor/editor.html` by
+`EditorPageHandler` with a hash-based CSP: if `scripts/native/build-editor.mjs`
+starts loading anything new, update `EditorPage`.
+
 The app hosts its unit tests; run them with `xcodebuild test … -destination
 'id=<udid>'`. Under XCTest the app points at a local stack that isn't there
 (no backend, not even a simulator's saved account on production) unless the
@@ -173,6 +187,16 @@ delete) goes through `PATCH`/`DELETE /api/v1/cards/{id}`. `--es fromUserId <uid>
 for the notification posted while the app is open) fake a push carrying its sender's uid; the thread
 then opens by uid. `--es route /messages/<handle>` for the thread already on top leaves it
 in place.
+
+Navigation and caches: routes are @Serializable NavKeys and each tab's NavBackStack is saved
+(rotation, restored processes); pages keep their saved state and their own ViewModels
+(lifecycle-viewmodel-navigation3) while on their stack, re-reading only after a card or block change or
+after 15 minutes. cacheDir/api is `ApiCache` (per account; cleared on sign-out, deletion or account switch;
+the feed filtered by the block list); cacheDir/http is the OkHttp cache via `HttpCaching` (private
+max-age/ETag honoured, opted in with `X-Resonance-Cache: 1`; no-cache after the viewer's writes or a block
+change; evicted on sign-out). Coil shares the app's OkHttpClient; below Android 12 AVIF goes through the
+app's libavif decoder (`--ez avifDecoder true` forces it on any version). The editor WebView loads only
+the bundled island; external links open in the in-app browser.
 
 Push: the server pushes every bell row through FCM (`src/lib/push`, on the "activity" channel); the app
 asks for the notification permission once signed in (API 33+), registers its token with
