@@ -6,9 +6,10 @@ import WebKit
 /// The story editor island (native/editor, the web's Tiptap schema) in a
 /// WKWebView, embedded: the page is transparent and never scrolls; it
 /// reports its height, its Markdown and which toolbar buttons are on, and
-/// takes toolbar commands (ResonanceEditor.exec).
+/// takes toolbar commands (ResonanceEditor.exec). The web view reaches only
+/// the page and its fonts, and never leaves the page (`EditorPage`).
 @MainActor @Observable
-final class StoryEditorBridge: NSObject, WKScriptMessageHandler {
+final class StoryEditorBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
     struct Active: Equatable {
         var bold = false, italic = false, h2 = false, h3 = false
         var bulletList = false, orderedList = false, blockquote = false
@@ -24,13 +25,25 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler {
 
     @ObservationIgnored let webView: WKWebView
     @ObservationIgnored private var pendingMarkdown: String?
+    /// Where a web link the writer taps in the story opens.
+    @ObservationIgnored private let openInBrowser: (URL) -> Void
 
-    init(placeholder: String) {
+    init(placeholder: String, openInBrowser: @escaping (URL) -> Void = { InAppBrowser.open($0) }) {
+        self.openInBrowser = openInBrowser
         let config = WKWebViewConfiguration()
         let controller = WKUserContentController()
         config.userContentController = controller
+        // The page and its fonts, from the bundle under the page's own scheme — nothing else.
+        config.setURLSchemeHandler(EditorPageHandler(), forURLScheme: EditorPage.scheme)
+        // It keeps nothing: no cookies, storage or cache on disk.
+        config.websiteDataStore = .nonPersistent()
+        config.preferences.javaScriptCanOpenWindowsAutomatically = false
         webView = WKWebView(frame: .zero, configuration: config)
         super.init()
+        webView.navigationDelegate = self
+        webView.uiDelegate = self
+        // A long press on a link would load it in a preview.
+        webView.allowsLinkPreview = false
         // The content controller keeps its handlers alive, and the web view
         // (which this bridge holds) keeps the controller: registered directly,
         // the bridge and its web view would never be freed. The go-between
@@ -45,15 +58,27 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler {
         #if DEBUG
         webView.isInspectable = true
         #endif
-        if let url = Bundle.main.url(forResource: "editor", withExtension: "html"),
-           var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
-            components.queryItems = [
-                URLQueryItem(name: "embed", value: "1"),
-                URLQueryItem(name: "fonts", value: "fonts/"),
-                URLQueryItem(name: "placeholder", value: placeholder),
-            ]
-            webView.loadFileURL(components.url!, allowingReadAccessTo: Bundle.main.bundleURL)
+        webView.load(URLRequest(url: EditorPage.url(placeholder: placeholder)))
+    }
+
+    // MARK: - Staying on the page
+
+    func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction) async -> WKNavigationActionPolicy {
+        let decision = EditorNavigation.decide(action.request.url, mainFrame: action.targetFrame?.isMainFrame ?? false,
+                                               tapped: action.navigationType == .linkActivated)
+        if case let .openInBrowser(url) = decision { openInBrowser(url) }
+        return decision == .allow ? .allow : .cancel
+    }
+
+    /// The editor opens a tapped link in a new window (Tiptap's openOnClick):
+    /// a web page goes to the in-app browser, and no window is ever made.
+    /// (WebKit asks only for a tap: the page can't open windows by itself.)
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if case let .openInBrowser(url) = EditorNavigation.decide(action.request.url, mainFrame: false, tapped: true) {
+            openInBrowser(url)
         }
+        return nil
     }
 
     /// Loads a saved story (kept out of undo history by the island).
