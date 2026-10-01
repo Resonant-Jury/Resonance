@@ -119,6 +119,15 @@ internal fun openThread(stack: MutableList<Route>, route: Route.Thread) {
 }
 
 /**
+ * Where a tapped push leads: its page (`route`, parsed), a conversation by the sender's uid —
+ * the push's own `fromUserId`, or else what its bell row says once the list has it ([sender]) —
+ * or null: the notifications. With the uid the thread listens at once and still opens after a
+ * rename.
+ */
+internal fun pushedRoute(route: Route?, fromUserId: String?, sender: () -> String?): Route? =
+    if (route is Route.Thread && route.uid == null) route.copy(uid = fromUserId ?: sender()) else route
+
+/**
  * Four tabs and the pen. Each tab keeps its own back stack; re-selecting a
  * tab pops to its root; system back (with the predictive-back animation)
  * pops the current tab's stack. The bar hides on pushed screens.
@@ -172,10 +181,8 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         val opened = tappedPush ?: return@LaunchedEffect
         PushCenter.consume()
         opened.notificationId?.let { session.notifications.markRead(it) }
-        // A push names the sender by pen name; its bell row (once the list has it) knows who they are.
-        val route = Route.fromPath(opened.route)?.let { r ->
-            if (r is Route.Thread && r.uid == null) r.copy(uid = session.notifications.sender(opened.notificationId)) else r
-        }
+        // A push names the sender by pen name, and by uid when it carries `fromUserId`.
+        val route = pushedRoute(Route.fromPath(opened.route), opened.fromUserId) { session.notifications.sender(opened.notificationId) }
         if (route != null) open(route) else tab = Tab.Notifications
     }
 

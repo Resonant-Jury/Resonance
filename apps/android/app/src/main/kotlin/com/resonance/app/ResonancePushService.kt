@@ -18,6 +18,7 @@ class ResonancePushService : FirebaseMessagingService() {
             this, title, message.notification?.body,
             route = message.data[PushCenter.EXTRA_ROUTE].orEmpty(),
             notificationId = message.data[PushCenter.EXTRA_NOTIFICATION_ID],
+            fromUserId = message.data[PushCenter.EXTRA_FROM_USER_ID],
         )
     }
 }

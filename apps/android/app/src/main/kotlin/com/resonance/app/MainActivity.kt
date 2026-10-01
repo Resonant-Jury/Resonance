@@ -18,11 +18,11 @@ import kotlinx.coroutines.launch
  * Debug launch extras (the twins of the iOS launch arguments):
  *   --ez emulator true             use the local Firebase emulators + dev server
  *   --es email … --es password …   sign that seeded account in, switching from a restored one (emulator only)
- *   --es route /card/<slug>        open that page (with --es notificationId …, what a tapped push starts the app with)
+ *   --es route /card/<slug>        open that page (with --es notificationId … [--es fromUserId …], what a tapped push starts the app with)
  *   --es writeTitle … --es writeStory … --es writeCover <url>   a new card starts with them
  *   --es threadDraft …             fills a conversation's composer (--es route /messages/<handle> opens one)
  *   --es pushToken …               registers that stand-in push token under the signed-in account
- *   --es pushTitle … [--es pushBody … --es pushRoute … --es pushId …]   posts the notification a push received while open shows
+ *   --es pushTitle … [--es pushBody … --es pushRoute … --es pushId … --es pushFromUserId …]   posts the notification a push received while open shows
  */
 class MainActivity : ComponentActivity() {
     private val incomingRoute = mutableStateOf<String?>(null)
@@ -94,18 +94,26 @@ class MainActivity : ComponentActivity() {
         intent.data?.let { uri -> uri.path?.let { path -> path + (uri.encodedQuery?.let { "?$it" } ?: "") } }
 
     /**
-     * A tapped push starts the app with its data as extras (`route`, `notificationId`; the
-     * system's own notification does it for a push that arrived while the app was closed, and
-     * the one the app posts itself does the same), in every build. The tabs open what it points at.
+     * A tapped push starts the app with its data as extras (`route`, `notificationId`,
+     * `fromUserId`; the system's own notification does it for a push that arrived while the app
+     * was closed, and the one the app posts itself does the same), in every build. The tabs open
+     * what it points at.
      */
     private fun handleExtras(intent: Intent) {
         if (intent.data == null && (intent.hasExtra(PushCenter.EXTRA_ROUTE) || intent.hasExtra(PushCenter.EXTRA_NOTIFICATION_ID))) {
-            PushCenter.open(intent.getStringExtra(PushCenter.EXTRA_ROUTE).orEmpty(), intent.getStringExtra(PushCenter.EXTRA_NOTIFICATION_ID))
+            PushCenter.open(
+                intent.getStringExtra(PushCenter.EXTRA_ROUTE).orEmpty(),
+                intent.getStringExtra(PushCenter.EXTRA_NOTIFICATION_ID),
+                intent.getStringExtra(PushCenter.EXTRA_FROM_USER_ID),
+            )
         }
         if (BuildConfig.DEBUG) {
             intent.getStringExtra("pushToken")?.let(PushCenter::tokenChanged)
             intent.getStringExtra("pushTitle")?.let {
-                PushCenter.show(this, it, intent.getStringExtra("pushBody"), intent.getStringExtra("pushRoute").orEmpty(), intent.getStringExtra("pushId"))
+                PushCenter.show(
+                    this, it, intent.getStringExtra("pushBody"), intent.getStringExtra("pushRoute").orEmpty(), intent.getStringExtra("pushId"),
+                    intent.getStringExtra("pushFromUserId"),
+                )
             }
         }
     }

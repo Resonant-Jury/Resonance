@@ -33,12 +33,16 @@ object PushCenter {
     /** The keys of a push's `data` — also the extras of the intent that a tap on it starts the app with. */
     const val EXTRA_ROUTE = "route"
     const val EXTRA_NOTIFICATION_ID = "notificationId"
+    /** The sender's uid, in the pushes that open a conversation (note, message, resonance, accepted invite). */
+    const val EXTRA_FROM_USER_ID = "fromUserId"
 
     /** A tapped push waiting for the tabs to open it. */
     data class Opened(
         /** A site path (`/messages/{handle}?note=…&card=…`, `/card/{id}`), or empty: show the notifications. */
         val route: String,
         val notificationId: String?,
+        /** Who it is from, when the push says (its conversation then opens by uid, whatever their pen name is now). */
+        val fromUserId: String? = null,
         /** Makes two taps on the same push two events. */
         val at: Long = System.nanoTime(),
     )
@@ -110,8 +114,8 @@ object PushCenter {
         onToken?.invoke(token)
     }
 
-    fun open(route: String, notificationId: String?) {
-        _opened.value = Opened(route, notificationId)
+    fun open(route: String, notificationId: String?, fromUserId: String? = null) {
+        _opened.value = Opened(route, notificationId, fromUserId?.takeIf { it.isNotEmpty() })
     }
 
     /** The tabs took the tap. */
@@ -122,13 +126,14 @@ object PushCenter {
     /**
      * The notification for a push that arrived while the app is open (FCM only shows the ones
      * that arrive while it is closed): the same channel and glyph, and a tap starts the app with
-     * the push's `route` and `notificationId` as extras, as it does for the system's own.
+     * the push's `route`, `notificationId` and `fromUserId` as extras, as it does for the system's own.
      */
-    fun notification(context: Context, title: String, body: String?, route: String, notificationId: String?): Notification {
+    fun notification(context: Context, title: String, body: String?, route: String, notificationId: String?, fromUserId: String? = null): Notification {
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(EXTRA_ROUTE, route)
             .putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            .putExtra(EXTRA_FROM_USER_ID, fromUserId)
         // A request code per push: intents that differ only in their extras would otherwise be one PendingIntent.
         val tap = PendingIntent.getActivity(
             context, java.util.Objects.hash(notificationId, route), intent,
@@ -145,12 +150,12 @@ object PushCenter {
     }
 
     /** Posts [notification] (tagged by the bell row, so the same push never shows twice). */
-    fun show(context: Context, title: String, body: String?, route: String, notificationId: String?) {
+    fun show(context: Context, title: String, body: String?, route: String, notificationId: String?, fromUserId: String? = null) {
         if (!canNotify) return
         val manager = NotificationManagerCompat.from(context)
         // canNotify covers the permission check the lint rule wants to see.
         @Suppress("MissingPermission")
-        manager.notify(notificationId, 0, notification(context, title, body, route, notificationId))
+        manager.notify(notificationId, 0, notification(context, title, body, route, notificationId, fromUserId))
     }
 
     private const val INSTALLATION_KEY = "installationId"
