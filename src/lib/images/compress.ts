@@ -30,13 +30,14 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promi
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
 
-export async function compressImage(file: File): Promise<File> {
+/** `maxDimension`: the longest edge to keep (a profile photo needs far less than a cover). */
+export async function compressImage(file: File, maxDimension = MAX_DIMENSION): Promise<File> {
   // GIFs may be animated; canvas would flatten them to one frame.
   if (file.type === 'image/gif') return file;
 
   try {
     const bitmap = await createImageBitmap(file);
-    const { w, h } = fitWithin(bitmap.width, bitmap.height, MAX_DIMENSION);
+    const { w, h } = fitWithin(bitmap.width, bitmap.height, maxDimension);
 
     const canvas = document.createElement('canvas');
     canvas.width = w;

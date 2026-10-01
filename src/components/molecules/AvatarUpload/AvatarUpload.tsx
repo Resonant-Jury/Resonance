@@ -8,6 +8,7 @@ import {
 } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { Icon } from '@/components/atoms/Icon';
+import { uploadImageFile } from '@/lib/images/upload';
 import styles from './AvatarUpload.module.css';
 
 export interface AvatarUploadProps {
@@ -28,7 +29,7 @@ const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif';
  * A large, click- or drag-to-upload avatar block for the profile editor. The
  * avatar itself is the dropzone: hovering reveals a "change" overlay, dragging
  * highlights it, and an upload swaps in a SketchLoader until the new picture is
- * stored. Reuses the same /api/upload → R2 proxy as the card image upload.
+ * stored. Reuses the card image upload's path (uploadImageFile → /api/upload → R2).
  */
 export function AvatarUpload({
   src,
@@ -56,14 +57,9 @@ export function AvatarUpload({
     setError(null);
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
-      if (!res.ok) {
-        setError(t('avatarError'));
-        return;
-      }
-      const { publicUrl } = (await res.json()) as { publicUrl: string };
+      // Compressed and size-checked in the browser like any picture; the
+      // server then scales a profile photo to 256 px.
+      const { publicUrl } = await uploadImageFile(file, { purpose: 'avatar' });
       onUploaded(publicUrl);
     } catch {
       setError(t('avatarError'));
