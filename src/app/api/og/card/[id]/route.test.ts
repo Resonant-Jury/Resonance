@@ -84,10 +84,17 @@ describe('GET /api/og/card/{id}', () => {
     expect(res.headers.get('cache-control')).toBe('public, max-age=86400, s-maxage=86400');
     expect(getObject).toHaveBeenCalledWith(storageKey(COVER));
 
-    // An older version's URL (the page predates a new cover) gets today's picture, briefly.
-    const old = await get('pub1', imageVersion(`${BASE}/image/uid-author/2026-09/old.avif`));
-    await expectJpeg(old, 1200, 600);
-    expect(old.headers.get('cache-control')).toBe('public, max-age=300, s-maxage=300');
+  });
+
+  it('sends any other version on to the current one, drawing nothing for it', async () => {
+    // An older cover's URL (the page predates the new cover), none, or a made-up one.
+    for (const v of [imageVersion(`${BASE}/image/uid-author/2026-09/old.avif`), undefined, 'made-up']) {
+      const res = await get('pub1', v);
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe(`/api/og/card/pub1?v=${imageVersion(COVER)}`);
+      expect(res.headers.get('cache-control')).toBe('public, max-age=300, s-maxage=300');
+    }
+    expect(getObject).not.toHaveBeenCalled();
   });
 
   it("serves an anonymous card's cover without reading anything about its author", async () => {
@@ -103,7 +110,7 @@ describe('GET /api/og/card/{id}', () => {
     ['no such card', 'nope'],
     ['a stored picture that is gone', 'gone1'],
   ])('sends %s to the platform cover', async (_, id) => {
-    expectPlatformCover(await get(id));
+    expectPlatformCover(await get(id, id === 'gone1' ? imageVersion(`${BASE}/image/uid-author/2026-10/missing.avif`) : undefined));
   });
 
   it('never reads a picture that is not on our storage, or only looks like it', async () => {

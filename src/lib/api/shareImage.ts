@@ -17,8 +17,8 @@ export const SHARE_IMAGE_EDGE = 1200;
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 
 const CACHE_VERSIONED = 'public, max-age=86400, s-maxage=86400';
-/** A URL naming another version (the page was rendered before the picture changed): briefly. */
-const CACHE_UNVERSIONED = 'public, max-age=300, s-maxage=300';
+/** A URL naming another version (the page was rendered before the picture changed) is sent on to the current one: briefly. */
+const CACHE_REDIRECT = 'public, max-age=300, s-maxage=300';
 /** Nothing to share (not public, no picture, unreadable): the platform cover, for a minute. */
 const CACHE_FALLBACK = 'public, max-age=60, s-maxage=60';
 
@@ -40,11 +40,21 @@ export function shareImageFallback(): Response {
 /**
  * The share image for `sourceUrl` — only ever one of our stored pictures
  * (read through the storage API by its key, never fetched from an arbitrary
- * URL) — or the platform cover.
+ * URL) — or the platform cover. Only the current version's URL is drawn
+ * (and then kept by the CDN); any other `v` is redirected to it, so made-up
+ * URLs can't make the server decode and encode pictures over and over.
  */
 export async function shareImageResponse(req: Request, sourceUrl: string | null | undefined): Promise<Response> {
   const key = storageKeyOf(sourceUrl);
   if (!sourceUrl || !key) return shareImageFallback();
+  const url = new URL(req.url);
+  const version = imageVersion(sourceUrl);
+  if (url.searchParams.get('v') !== version) {
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `${url.pathname}?v=${version}`, 'Cache-Control': CACHE_REDIRECT },
+    });
+  }
   let jpeg: Buffer;
   try {
     const bytes = await getStorageProvider().getObject(key, MAX_SOURCE_BYTES);
@@ -54,12 +64,11 @@ export async function shareImageResponse(req: Request, sourceUrl: string | null 
     console.error('[og] share image', key, e);
     return shareImageFallback();
   }
-  const current = new URL(req.url).searchParams.get('v') === imageVersion(sourceUrl);
   return new Response(new Uint8Array(jpeg), {
     headers: {
       'Content-Type': 'image/jpeg',
       'Content-Length': String(jpeg.byteLength),
-      'Cache-Control': current ? CACHE_VERSIONED : CACHE_UNVERSIONED,
+      'Cache-Control': CACHE_VERSIONED,
     },
   });
 }
