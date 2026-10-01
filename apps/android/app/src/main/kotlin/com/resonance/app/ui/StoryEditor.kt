@@ -7,7 +7,9 @@ import android.net.Uri
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,6 +77,11 @@ import kotlinx.serialization.json.jsonPrimitive
  * WebView, embedded: the page is transparent and never scrolls; it reports
  * its height, its Markdown and which toolbar buttons are on, and takes
  * toolbar commands (ResonanceEditor.exec). The twin of iOS's StoryEditorBridge.
+ *
+ * The WebView only ever holds the bundled island — it is what the bridge is
+ * exposed to: any other page a link or a script would load is refused, and an
+ * http(s) link the writer taps opens in the browser instead. It reads no
+ * files but the app's assets, and no content providers.
  */
 @SuppressLint("SetJavaScriptEnabled")
 class StoryEditorBridge(context: Context, placeholder: String) {
@@ -98,14 +105,22 @@ class StoryEditorBridge(context: Context, placeholder: String) {
 
     val webView: WebView = WebView(context).apply {
         settings.javaScriptEnabled = true
+        // Assets are readable from file:///android_asset regardless of allowFileAccess (the fonts
+        // sit at the asset root, apps/shared/fonts): nothing else on the device is.
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
+        @Suppress("DEPRECATION")
+        settings.allowFileAccessFromFileURLs = false
+        @Suppress("DEPRECATION")
+        settings.allowUniversalAccessFromFileURLs = false
+        settings.setGeolocationEnabled(false)
+        webViewClient = EditorClient()
         setBackgroundColor(AndroidColor.TRANSPARENT)
         // The writing screen scrolls; the island only grows.
         isVerticalScrollBarEnabled = false
         overScrollMode = View.OVER_SCROLL_NEVER
         addJavascriptInterface(Bridge(), "ResonanceBridge")
-        // Assets are readable from file:///android_asset regardless of allowFileAccess;
-        // the fonts sit at the asset root (apps/shared/fonts).
-        loadUrl("file:///android_asset/editor.html?embed=1&fonts=&placeholder=" + Uri.encode(placeholder))
+        loadUrl("file://$EDITOR_PATH?embed=1&fonts=&placeholder=" + Uri.encode(placeholder))
     }
 
     /** Loads a saved story (kept out of undo history by the island). */
@@ -140,6 +155,18 @@ class StoryEditorBridge(context: Context, placeholder: String) {
         webView.destroy()
     }
 
+    /** Keeps the WebView on the island: its own page loads, an http(s) link the writer taps opens in the browser, nothing else. */
+    private class EditorClient : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            val url = request.url
+            if (isEditor(url)) return false
+            if (request.isForMainFrame && request.hasGesture() && url.scheme?.lowercase() in setOf("http", "https")) {
+                InAppBrowser.open(view.context, url.toString())
+            }
+            return true
+        }
+    }
+
     // Called on the WebView's JavaBridge thread; state changes go to the main thread.
     private inner class Bridge {
         @JavascriptInterface
@@ -167,8 +194,13 @@ class StoryEditorBridge(context: Context, placeholder: String) {
         }
     }
 
-    private companion object {
+    internal companion object {
         val json = Json { ignoreUnknownKeys = true }
+        /** The island, as the app bundles it (npm run native:editor → native/editor/dist → the assets). */
+        const val EDITOR_PATH = "/android_asset/editor.html"
+
+        /** The bundled island itself (whatever its query), the one page the editor's WebView may hold. */
+        fun isEditor(url: Uri): Boolean = url.scheme == "file" && url.authority.isNullOrEmpty() && url.path == EDITOR_PATH
     }
 }
 
