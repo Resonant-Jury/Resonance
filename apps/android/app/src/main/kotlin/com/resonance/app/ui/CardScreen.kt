@@ -216,7 +216,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
             // The ⋯ lives in the bar, as phone apps keep a page's actions: the owner's, or the reader's safety menu.
             if (d.isOwner) {
                 // Its own page is underneath the writer, so the card isn't opened again on the way out.
-                CardActionsMenu(session, card.id, card.visibility.value, card.routeKey, open, seed = hue + 3, showsCard = false, onDeleted = popToRoot, trigger = MenuTrigger.Bare)
+                CardActionsMenu(session, card.id, card.visibility.value, open, seed = hue + 3, showsCard = false, onDeleted = popToRoot, trigger = MenuTrigger.Bare)
             } else {
                 // An anonymous card hides its author: the menu only reports it (the server knows who wrote it).
                 val authorId = if (d.anonymous) null else card.author?.id

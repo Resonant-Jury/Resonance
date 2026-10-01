@@ -14,10 +14,10 @@ internal fun authorJson(id: String) = """
 """.trimIndent()
 
 /** A card as the API lists it. */
-internal fun cardJson(id: String, slug: String? = null, authorId: String = "bob") = """
+internal fun cardJson(id: String, slug: String? = null, authorId: String = "bob", visibility: String = "public") = """
     {"id":"$id","slug":${slug?.let { "\"$it\"" } ?: "null"},"title":"Card $id","excerpt":"…","tags":[],
      "publishedAt":"2026-09-01T08:00:00.000Z","author":${authorJson(authorId)},
-     "anonymous":false,"visibility":"public","imageUrl":null,"imageLabel":null,"accentHue":140,
+     "anonymous":false,"visibility":"$visibility","imageUrl":null,"imageLabel":null,"accentHue":140,
      "readMinutes":2,"referenceCardId":null,"reason":null}
 """.trimIndent()
 

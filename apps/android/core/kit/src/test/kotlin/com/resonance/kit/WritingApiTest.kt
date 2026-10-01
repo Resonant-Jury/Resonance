@@ -6,6 +6,7 @@ import com.resonance.kit.api.WritingApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -62,20 +63,48 @@ class WritingApiTest {
         assertEquals(true, assertFailsWith<ApiFailure> { api().applyEdit("nope") }.isNotFound)
     }
 
-    @Test fun asksTheSiteToRefreshItsPages() = runBlocking {
-        server.enqueue(MockResponse().setBody("""{"ok":true,"revalidated":[]}"""))
-        api().revalidate(listOf("/card/a-walk"))
+    @Test fun changesACardsVisibilityThroughTheContract() = runBlocking {
+        server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody(cardJson("c1", "a-walk", visibility = "private")))
+        val card = api().updateCard("c1", visibility = "private")
+        assertEquals("private", card.visibility.value)
         val request = server.takeRequest()
-        assertEquals("POST", request.method)
-        assertEquals("/api/revalidate", request.path)
+        assertEquals("PATCH", request.method)
+        assertEquals("/api/v1/cards/c1", request.path)
+        assertEquals("Bearer stale-token", request.getHeader("Authorization"))
+        // Only the visibility changes: the byline goes as null, which the contract leaves as it is.
         val sent = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
-        assertEquals(listOf("/card/a-walk"), sent["paths"]!!.jsonArray.map { it.jsonPrimitive.content })
+        assertEquals("private", sent["visibility"]!!.jsonPrimitive.content)
+        assertTrue(sent["anonymous"] == null || sent["anonymous"] is JsonNull)
     }
 
-    @Test fun aFailedRefreshIsNotAnError() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(500))
-        api().revalidate(listOf("/card/a-walk"))
+    @Test fun someoneElsesCardIsNotFoundAndAnUnknownVisibilityNeverLeaves() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(404).setHeader("Content-Type", "application/json")
+                .setBody("""{"error":{"code":"not_found","message":"No such card."}}"""),
+        )
+        assertTrue(assertFailsWith<ApiFailure> { api().updateCard("theirs", visibility = "public") }.isNotFound)
+        assertFailsWith<IllegalArgumentException> { api().updateCard("c1", visibility = "friends") }
         assertEquals(1, server.requestCount)
+    }
+
+    @Test fun deletesACardThroughTheContract() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(204))
+        api().deleteCard("c1")
+        val request = server.takeRequest()
+        assertEquals("DELETE", request.method)
+        assertEquals("/api/v1/cards/c1", request.path)
+        assertEquals("Bearer stale-token", request.getHeader("Authorization"))
+    }
+
+    @Test fun aCardAlreadyGoneCountsAsDeletedButAFailureDoesNot() = runBlocking {
+        // A retry after an answer that never arrived: the server has nothing left to delete.
+        server.enqueue(
+            MockResponse().setResponseCode(404).setHeader("Content-Type", "application/json")
+                .setBody("""{"error":{"code":"not_found","message":"No such card."}}"""),
+        )
+        api().deleteCard("c1")
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertEquals("internal", assertFailsWith<ApiFailure> { api().deleteCard("c1") }.code)
     }
 
     @Test fun uploadsThePhotoAsTheFormsFilePart() = runBlocking {

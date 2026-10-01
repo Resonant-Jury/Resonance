@@ -112,11 +112,6 @@ class Session(val config: AppConfig, private val prefs: SharedPreferences) {
         _cardChanges.update { it + 1 }
     }
 
-    /** Asks the site to refresh its cached pages, without waiting on it (a card's page after a visibility change or a delete). */
-    fun revalidate(paths: List<String>) {
-        scope.launch { writing.revalidate(paths) }
-    }
-
     var uid: String? = null
         private set
 

@@ -37,16 +37,15 @@ import kotlinx.coroutines.launch
 /**
  * The owner's ⋯ on a card (CardActionsMenu.tsx): 編輯 / 轉為公開·私人 / 刪除,
  * in the shared OrganicMenu. Deleting asks first, in the web's own small
- * dialog. Changes are the author's own writes (as on the web), then the
- * site's cached card page is refreshed. The twin of iOS's CardActionsMenu.
+ * dialog. The changes go through the server (PATCH / DELETE
+ * /api/v1/cards/{id}), which also refreshes the site's cached pages that
+ * showed the card. The twin of iOS's CardActionsMenu.
  */
 @Composable
 fun CardActionsMenu(
     session: Session,
     cardId: String,
     visibility: String,
-    /** Where its page lives (slug, or id) — the cache entry to refresh. */
-    routeKey: String,
     open: (Route) -> Unit,
     seed: Double = 7.0,
     hue: Double? = null,
@@ -68,14 +67,11 @@ fun CardActionsMenu(
             if (isPrivate) L10n.Me.Actions.makePublic else L10n.Me.Actions.makePrivate,
             if (isPrivate) IconName.Globe else IconName.Lock,
         ) {
-            val drafts = session.drafts
-            if (busy || drafts == null) return@OrganicMenuItem
+            if (busy) return@OrganicMenuItem
             busy = true
             scope.launch {
                 try {
-                    drafts.setVisibility(cardId, if (isPrivate) "public" else "private")
-                    // Visibility decides whether the share metadata carries real content.
-                    session.revalidate(listOf("/card/$routeKey"))
+                    session.writing.updateCard(cardId, visibility = if (isPrivate) "public" else "private")
                     session.noteCardChange()
                     onChanged()
                 } catch (e: CancellationException) {
@@ -114,14 +110,11 @@ fun CardActionsMenu(
                     // The modal is the frame: "keep it" is plain text, and deleting — which can't be undone — is red.
                     OrganicButton(L10n.Me.Actions.deleteCancel, variant = ButtonVariant.Text, small = true, enabled = !busy) { confirming = false }
                     OrganicButton(if (busy) "…" else L10n.Me.Actions.deleteConfirm, variant = ButtonVariant.Danger, small = true, enabled = !busy) {
-                        val drafts = session.drafts
-                        if (busy || drafts == null) return@OrganicButton
+                        if (busy) return@OrganicButton
                         busy = true
                         scope.launch {
                             try {
-                                drafts.delete(cardId)
-                                // The cached page would keep serving the deleted card's metadata.
-                                session.revalidate(listOf("/card/$routeKey"))
+                                session.writing.deleteCard(cardId)
                                 confirming = false
                                 session.noteCardChange()
                                 onDeleted()

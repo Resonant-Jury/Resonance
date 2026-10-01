@@ -28,9 +28,10 @@ data class DraftValues(
  * Drafts, written straight to Firestore like the web editor's client
  * (lib/db/firestore/client/cards.ts: createCardDraft, updateCardDraft) — the
  * author's own documents under the same rules. Publishing is the server's
- * (WritingApi.publish), since it reaches other people. The twin of iOS's DraftService.
- * Also opens a card of yours for editing, keeps a published card's pending
- * edit, and does the card box's own changes (visibility, delete).
+ * (WritingApi.publish), since it reaches other people, and so are the card
+ * box's changes to a card (WritingApi.updateCard / deleteCard), which refresh
+ * the site's cached pages. The twin of iOS's DraftService. Also opens a card
+ * of yours for editing and keeps a published card's pending edit.
  */
 class DraftService(private val uid: String) {
     private val cards get() = AppFirebase.db.collection("cards")
@@ -154,18 +155,6 @@ class DraftService(private val uid: String) {
     /** discardPendingCardEdit: the live card is left exactly as it was. */
     suspend fun discardEdit(id: String) {
         editRef(id).delete().await()
-    }
-
-    // The card box's ⋯ (CardActionsMenu)
-
-    /** 轉為公開／私人: the card's visibility alone. */
-    suspend fun setVisibility(id: String, visibility: String) {
-        cards.document(id).set(mapOf("visibility" to visibility, "updatedAt" to FieldValue.serverTimestamp()), SetOptions.merge()).await()
-    }
-
-    /** deleteCardDraft — drafts and published cards alike. */
-    suspend fun delete(id: String) {
-        cards.document(id).delete().await()
     }
 
     // Reads of your own cards

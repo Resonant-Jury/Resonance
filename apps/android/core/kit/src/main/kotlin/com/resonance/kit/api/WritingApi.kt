@@ -2,8 +2,9 @@ package com.resonance.kit.api
 
 import com.resonance.api.apis.DefaultApi
 import com.resonance.api.models.ApplyEditResponse
+import com.resonance.api.models.FeedCard
 import com.resonance.api.models.PublishResponse
-import kotlinx.coroutines.CancellationException
+import com.resonance.api.models.UpdateCardRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -22,10 +23,10 @@ import java.util.concurrent.TimeUnit
 
 /**
  * What the writing screen asks of the server — the twin of iOS's WritingAPI:
- * publishing (the v1 contract), and the web editor's helpers it shares as
- * they are — AI tag suggestions, the publish panel's insight echo, and photo
- * uploads. Drafts themselves are the author's own documents and go straight
- * to Firestore, as on the web.
+ * publishing and the card box's changes to a card (the v1 contract), and the
+ * web editor's helpers it shares as they are — AI tag suggestions, the publish
+ * panel's insight echo, and photo uploads. Drafts themselves are the author's
+ * own documents and go straight to Firestore, as on the web.
  */
 class WritingApi(private val configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) {
     private val http = http.newBuilder().addInterceptor(BearerAuthInterceptor(configuration.idToken)).build()
@@ -43,20 +44,27 @@ class WritingApi(private val configuration: ApiConfiguration, http: OkHttpClient
      */
     suspend fun applyEdit(cardId: String): ApplyEditResponse = call { api.applyCardEdit(cardId) }
 
-    @Serializable private data class RevalidateBody(val paths: List<String>)
+    /**
+     * The card box's ⋯ on one of your cards: its visibility (`public`, `connections`, `private`)
+     * and/or its byline — null leaves one as it is (PATCH /api/v1/cards/{id}). The server keeps a
+     * pending edit in step and refreshes the site's cached pages. Answers the card as your card
+     * box shows it; someone else's card is `not_found`.
+     */
+    suspend fun updateCard(cardId: String, visibility: String? = null, anonymous: Boolean? = null): FeedCard {
+        val level = visibility?.let { v -> UpdateCardRequest.Visibility.entries.firstOrNull { it.value == v } ?: throw IllegalArgumentException("visibility: $v") }
+        return call { api.updateCard(cardId, UpdateCardRequest(visibility = level, anonymous = anonymous)) }
+    }
 
     /**
-     * Asks the site to refresh its cached pages (/api/revalidate, e.g.
-     * `/card/{slug}`, `/me`) after a change the site can't see — a grace
-     * note, never awaited for success: a failure is dropped.
+     * Deletes one of your cards, draft or published, with its pending edit (DELETE
+     * /api/v1/cards/{id}); the server refreshes the site's cached pages. A card already gone
+     * counts as deleted — a retry after a lost answer is the server's 404.
      */
-    suspend fun revalidate(paths: List<String>) {
+    suspend fun deleteCard(cardId: String) {
         try {
-            post("api/revalidate", json.encodeToString(RevalidateBody.serializer(), RevalidateBody(paths)).toRequestBody(JSON))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // The cache entry simply ages out on its own.
+            call { api.deleteCard(cardId) }
+        } catch (e: ApiFailure) {
+            if (!e.isNotFound) throw e
         }
     }
 
