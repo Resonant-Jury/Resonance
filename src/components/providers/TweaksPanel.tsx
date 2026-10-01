@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-const TWEAK_DEFAULTS = {
+const TWEAK_DEFAULTS: TweakState = {
   accentColor: 'terracotta',
   fontFamily: 'default',
-  cardDensity: 'compact',
   grainIntensity: 2,
 };
 
@@ -83,49 +82,65 @@ const FONT_MAP: Record<string, string> = {
   handwritten: "'ChenYuluoyan Thin', var(--font-noto-serif-tc, 'Noto Serif TC'), cursive",
 };
 
-const DENSITY_MAP: Record<string, string> = {
-  normal: 'repeat(auto-fill, minmax(300px, 1fr))',
-  compact: 'repeat(auto-fill, minmax(240px, 1fr))',
-  airy: 'repeat(auto-fill, minmax(380px, 1fr))',
-};
-
 const GRAIN_MAP = [0, 0.055, 0.1, 0.18];
 
 const STORAGE_KEY = 'resonance-tweaks';
 
+// Card density is gone: it wrote grid-template-columns onto every card grid in
+// the page at load, which outlived the grid it was meant for (CardLinkGrid's
+// masonry reuses the node: an empty fourth column on a wide screen). Each grid
+// owns its columns.
 export interface TweakState {
   accentColor: string;
   fontFamily: string;
-  cardDensity: string;
   grainIntensity: number;
 }
 
 export { TWEAK_DEFAULTS };
 
-/** Read persisted tweaks, falling back to defaults. SSR-safe. */
+/** Read persisted tweaks, falling back to defaults. SSR-safe; storage blocked (site data off, a sandboxed frame) reads as nothing saved. */
 export function loadTweaks(): TweakState {
   if (typeof window === 'undefined') return TWEAK_DEFAULTS;
-  let saved: Partial<TweakState> = {};
+  let saved: Record<string, unknown> = {};
   try {
-    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) saved = parsed as Record<string, unknown>;
   } catch {
     saved = {};
   }
-  return { ...TWEAK_DEFAULTS, ...saved };
+  return {
+    accentColor: typeof saved.accentColor === 'string' ? saved.accentColor : TWEAK_DEFAULTS.accentColor,
+    fontFamily: typeof saved.fontFamily === 'string' ? saved.fontFamily : TWEAK_DEFAULTS.fontFamily,
+    grainIntensity: typeof saved.grainIntensity === 'number' ? saved.grainIntensity : TWEAK_DEFAULTS.grainIntensity,
+  };
 }
 
-/** Apply a tweak set to the live document and persist it. */
+/**
+ * Apply a tweak set to the live document and persist it. Runs in the root
+ * layout on every page, so nothing here may throw: without storage the
+ * choice simply isn't remembered.
+ */
 export function applyTweaks(vals: TweakState) {
   const root = document.documentElement;
   const accent = ACCENT_MAP[vals.accentColor] || ACCENT_MAP.terracotta;
   Object.entries(accent).forEach(([k, v]) => root.style.setProperty(k, v));
   root.style.setProperty('--font-heading', FONT_MAP[vals.fontFamily] || FONT_MAP.default);
-  document.querySelectorAll<HTMLElement>('[data-card-grid]').forEach((el) => {
-    el.style.gridTemplateColumns = DENSITY_MAP[vals.cardDensity] || DENSITY_MAP.normal;
-  });
   root.style.setProperty('--grain-opacity', String(GRAIN_MAP[vals.grainIntensity] ?? 0.055));
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(vals));
-  window.parent.postMessage({ type: '__edit_mode_set_keys', edits: vals }, '*');
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(vals));
+  } catch {
+    // Storage blocked (SecurityError) or full: the tweak lasts this page.
+  }
+  postToEditor({ type: '__edit_mode_set_keys', edits: vals });
+}
+
+/** The design-iteration iframe's handshake; nothing listens outside one. */
+function postToEditor(message: unknown) {
+  try {
+    if (window.parent !== window) window.parent.postMessage(message, '*');
+  } catch {
+    // A parent that can't be reached isn't the editor.
+  }
 }
 
 /**
@@ -153,14 +168,14 @@ export function useTweaks() {
 
 /**
  * Silent global provider: applies persisted tweaks on mount so the user's saved
- * accent / font / density / grain are honored on every page. Renders nothing —
- * the controls now live in Settings → Appearance. Retains the edit-mode
+ * accent / font / grain are honored on every page. Renders nothing — the
+ * controls now live in Settings → Appearance. Retains the edit-mode
  * postMessage handshake used by the external design-iteration iframe.
  */
 export default function TweaksPanel() {
   useEffect(() => {
     applyTweaks(loadTweaks());
-    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    postToEditor({ type: '__edit_mode_available' });
   }, []);
 
   return null;

@@ -72,13 +72,23 @@ export function ProfileTabs({
   // render agree; write-through on every change.
   useEffect(() => {
     if (!persistKey) return;
-    const saved = sessionStorage.getItem(persistKey) as TabKey | null;
+    let saved: TabKey | null = null;
+    try {
+      saved = window.sessionStorage.getItem(persistKey) as TabKey | null;
+    } catch {
+      // Storage blocked: start on the first tab.
+    }
     if (saved && saved !== 'thoughtMap' && tabs.includes(saved)) setActiveState(saved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persistKey]);
   const setActive = (key: TabKey) => {
     setActiveState(key);
-    if (persistKey) sessionStorage.setItem(persistKey, key);
+    if (!persistKey) return;
+    try {
+      window.sessionStorage.setItem(persistKey, key);
+    } catch {
+      // Not remembered across a visit — nothing else changes.
+    }
   };
 
   const list = data[active] ?? [];

@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { TWEAK_DEFAULTS, applyTweaks } from './TweaksPanel';
+import { TWEAK_DEFAULTS, applyTweaks, loadTweaks } from './TweaksPanel';
 
 const read = (p: string) => readFileSync(resolve(__dirname, '../../..', p), 'utf8');
 const tokens = read('src/styles/tokens.css');
@@ -20,6 +20,52 @@ const fontVariables = [...fonts.matchAll(/variable: '(--[\w-]+)'/g)].map((m) => 
 afterEach(() => {
   document.documentElement.removeAttribute('style');
   localStorage.clear();
+});
+
+// The provider runs in the root layout, on every page: a throw there is every
+// page's error screen.
+describe('without site storage', () => {
+  /** A browser blocking site data: reading `localStorage` itself throws. */
+  function blockStorage() {
+    const original = Object.getOwnPropertyDescriptor(window, 'localStorage')!;
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('The operation is insecure.', 'SecurityError');
+      },
+    });
+    return () => Object.defineProperty(window, 'localStorage', original);
+  }
+
+  it('applies the defaults and remembers nothing, without throwing', () => {
+    const restore = blockStorage();
+    try {
+      expect(() => applyTweaks(loadTweaks())).not.toThrow();
+      expect(loadTweaks()).toEqual(TWEAK_DEFAULTS);
+      expect(document.documentElement.style.getPropertyValue('--font-heading')).toBe(token('--font-heading'));
+    } finally {
+      restore();
+    }
+  });
+
+  it('reads what an older version saved, minus what no longer exists', () => {
+    localStorage.setItem('resonance-tweaks', JSON.stringify({ accentColor: 'sage', cardDensity: 'airy', grainIntensity: 3 }));
+    expect(loadTweaks()).toEqual({ accentColor: 'sage', fontFamily: 'default', grainIntensity: 3 });
+    localStorage.setItem('resonance-tweaks', '"not an object"');
+    expect(loadTweaks()).toEqual(TWEAK_DEFAULTS);
+  });
+});
+
+// Density wrote grid-template-columns onto every [data-card-grid] at load; the
+// home grid's node outlived the pre-hydration layout it was written for, and
+// its masonry got an extra, empty column on a wide screen.
+it('leaves the card grids their own columns', () => {
+  const grid = document.createElement('div');
+  grid.setAttribute('data-card-grid', '');
+  document.body.appendChild(grid);
+  applyTweaks({ ...TWEAK_DEFAULTS });
+  expect(grid.style.gridTemplateColumns).toBe('');
+  grid.remove();
 });
 
 describe('the heading-font tweak and the self-hosted faces', () => {

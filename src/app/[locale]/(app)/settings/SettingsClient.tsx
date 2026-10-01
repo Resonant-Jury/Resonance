@@ -367,17 +367,6 @@ export function SettingsClient({ initial }: SettingsClientProps) {
                 <option value="handwritten">{tTweaks('fontHandwritten')}</option>
               </Select>
             </Field>
-            <Field label={tTweaks('cardDensity')}>
-              <Select
-                seed={83}
-                value={tweaks.cardDensity}
-                onChange={(v) => updateTweaks({ cardDensity: v })}
-              >
-                <option value="normal">{tTweaks('densityNormal')}</option>
-                <option value="compact">{tTweaks('densityCompact')}</option>
-                <option value="airy">{tTweaks('densityAiry')}</option>
-              </Select>
-            </Field>
             <Field label={tTweaks('grainIntensity')}>
               <OrganicSlider
                 seed={91}

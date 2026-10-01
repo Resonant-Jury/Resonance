@@ -29,7 +29,7 @@ vi.mock('@/components/providers/AppChrome', () => ({
 }));
 vi.mock('@/components/providers/TweaksPanel', () => ({
   useTweaks: () => ({
-    state: { accentColor: 'terracotta', fontFamily: 'default', cardDensity: 'normal', grainIntensity: 1 },
+    state: { accentColor: 'terracotta', fontFamily: 'default', grainIntensity: 1 },
     update: vi.fn(),
   }),
 }));
