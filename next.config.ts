@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
+import { securityHeaders } from './src/lib/api/securityHeaders';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
@@ -35,6 +36,13 @@ const nextConfig: NextConfig = {
     '/[locale]/privacy': ['./docs/legal/**/*'],
     '/[locale]/terms': ['./docs/legal/**/*'],
     '/[locale]/support': ['./docs/legal/**/*'],
+  },
+
+  // ── Security headers on every response (see src/lib/api/securityHeaders) ──
+  // No framing by other origins, no MIME sniffing, a short referrer, no
+  // device access; the Content-Security-Policy is report-only for now.
+  async headers() {
+    return [{ source: '/:path*', headers: securityHeaders(process.env) }];
   },
 };
 
