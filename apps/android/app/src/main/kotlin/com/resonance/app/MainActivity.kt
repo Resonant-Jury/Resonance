@@ -64,9 +64,12 @@ class MainActivity : ComponentActivity() {
             DebugLaunch.threadDraft = intent.getStringExtra("threadDraft")
             DebugLaunch.avifDecoder = intent.getBooleanExtra("avifDecoder", false)
         }
-        incomingRoute.value = routeFrom(intent)
-        // A recreated activity (rotation, process restore) still holds the intent it was first started with.
-        if (savedInstanceState == null) handleExtras(intent)
+        // A recreated activity (rotation, process restore) still holds the intent it was first started with,
+        // and its back stacks come back as they were: the link was opened then and isn't pushed again.
+        if (savedInstanceState == null) {
+            incomingRoute.value = routeFrom(intent)
+            handleExtras(intent)
+        }
         setContent { ResonanceRoot(session, incomingRoute) }
         // Once signed in: give this install's push token to the session.
         lifecycleScope.launch {

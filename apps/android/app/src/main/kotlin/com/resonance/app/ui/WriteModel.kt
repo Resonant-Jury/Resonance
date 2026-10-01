@@ -57,6 +57,8 @@ class WriteModel(
         private set
     var draftId: String? = opened?.id
         private set
+    /** A new card was first saved, as a draft with this id. */
+    var onCreated: (String) -> Unit = {}
     var savedAt by mutableStateOf<LocalTime?>(null)
         private set
     /** Revising a live card (fixed for the model's lifetime, as on the web). */
@@ -158,7 +160,7 @@ class WriteModel(
             } else if (id != null) {
                 drafts.update(id, v)
             } else {
-                draftId = drafts.create(v, Strings.language.tag, referenceCardId)
+                draftId = drafts.create(v, Strings.language.tag, referenceCardId).also(onCreated)
             }
             lastSaved = v
             savedAt = LocalTime.now()

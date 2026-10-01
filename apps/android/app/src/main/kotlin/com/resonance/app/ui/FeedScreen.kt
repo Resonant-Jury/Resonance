@@ -20,7 +20,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.BrandBarHeight
@@ -36,16 +39,23 @@ import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.FeedLoader
 import kotlinx.coroutines.launch
 
+/** The feed's page state: kept while the feed's tab root is (always, until sign-out), and through a rotation. */
+class FeedModel(session: Session) : ViewModel() {
+    val feed = FeedLoader(session.reading, viewModelScope)
+}
+
 /**
  * The home feed as the web runs it (home/page.tsx): today's picks first;
  * "load more" reveals the latest public cards deduped against the picks.
  * Neither waits for the other: the latest cards show as soon as they arrive,
  * and picks that come after them are offered by a hint at the top rather than
  * moving the cards being read. The recommender's reasons stay hidden, as on
- * the web. [FeedLoader] holds it all, so coming back finds the feed as it was.
+ * the web. [FeedLoader] holds it all (in [FeedModel]), so coming back finds the
+ * feed as it was, scrolled where it was left, without reading it again.
  */
 @Composable
-fun FeedScreen(session: Session, feed: FeedLoader, open: (Route) -> Unit) {
+fun FeedScreen(session: Session, open: (Route) -> Unit) {
+    val feed = viewModel { FeedModel(session) }.feed
     val scope = rememberCoroutineScope()
     val state by feed.state.collectAsStateWithLifecycle()
     // Your own card written, published or re-shelved: the feed reads again (keeping what it shows meanwhile).

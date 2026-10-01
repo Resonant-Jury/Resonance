@@ -3,6 +3,8 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    // The back stacks' routes are saved with the activity (rotation, process death).
+    id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.gms.google-services")
 }
 
@@ -80,6 +82,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("androidx.navigation3:navigation3-runtime:1.2.0")
     implementation("androidx.navigation3:navigation3-ui:1.2.0")
+    // A ViewModelStore per back-stack entry (rememberViewModelStoreNavEntryDecorator): two card pages never share one.
+    implementation("androidx.lifecycle:lifecycle-viewmodel-navigation3:2.11.0")
     // AVIF (the AI illustrations) on Android 10–11, whose own decoders can't read it (libavif, BSD-2).
     implementation("org.aomedia.avif.android:avif:1.3.0.841110fd")
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))

@@ -32,6 +32,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.resonance.api.models.FeedCard
 import com.resonance.api.models.Profile
 import com.resonance.app.SafetyService
@@ -53,23 +57,42 @@ import com.resonance.design.generated.Tokens
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
+import com.resonance.kit.reading.FeedLoader
 import com.resonance.kit.reading.profilePage
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-/** A person's page (u/[handle]/page.tsx). */
-@Composable
-fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    var phase by remember(handle) { mutableStateOf("loading") }
-    var profile by remember(handle) { mutableStateOf<Profile?>(null) }
-    var cards by remember(handle) { mutableStateOf<List<FeedCard>>(emptyList()) }
-    var linked by remember(handle) { mutableStateOf<List<FeedCard>>(emptyList()) }
-    var cursor by remember(handle) { mutableStateOf<String?>(null) }
-    // Bumped after a block or unblock, so the page re-reads what the viewer may see.
-    var reload by remember(handle) { mutableStateOf(0) }
+/**
+ * A person's page state, kept while the page is on its stack: back from one of their cards finds
+ * it as it was (the pages of cards read so far included) — read again after a change to a card
+ * or the blocks, or when it was read long ago.
+ */
+class AuthorModel(private val session: Session, private val handle: String) : ViewModel() {
+    var phase by mutableStateOf("loading")
+        private set
+    var profile by mutableStateOf<Profile?>(null)
+        private set
+    var cards by mutableStateOf<List<FeedCard>>(emptyList())
+        private set
+    var linked by mutableStateOf<List<FeedCard>>(emptyList())
+        private set
+    private var cursor: String? = null
+    private var readFor: Int? = null
+    private var readAt = 0L
+    private var reading: Job? = null
 
-    LaunchedEffect(handle, reload) {
+    /** Reads the page unless it was read since the last change (`changes`) and lately; `force` always does (a retry). */
+    fun refresh(changes: Int, force: Boolean = false, now: Long = System.currentTimeMillis()) {
+        val current = changes == readFor && now - readAt < FeedLoader.STALE_AFTER.inWholeMilliseconds
+        if (current && !force && phase != "failed") return
+        readFor = changes
+        readAt = now
+        reading?.cancel()
+        reading = viewModelScope.launch { load() }
+    }
+
+    private suspend fun load() {
         if (profile == null) phase = "loading"
         try {
             // The profile, their cards and the cards linking to theirs, asked for together.
@@ -88,6 +111,30 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
         }
     }
 
+    /** The next page of their cards, once the list reaches its end. */
+    fun loadMore() {
+        val c = cursor ?: return
+        cursor = null
+        viewModelScope.launch {
+            runCatching { session.reading.profileCards(handle, cursor = c) }.onSuccess { cards = cards + it.cards; cursor = it.nextCursor }
+        }
+    }
+}
+
+/** A person's page (u/[handle]/page.tsx). */
+@Composable
+fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: () -> Unit) {
+    val model = viewModel { AuthorModel(session, handle) }
+    val phase = model.phase
+    val profile = model.profile
+    val cards = model.cards
+    val linked = model.linked
+    val changes by session.cardChanges.collectAsStateWithLifecycle()
+    LaunchedEffect(changes) { model.refresh(changes) }
+    // After a block or unblock the page re-reads what the viewer may see.
+    val reload: () -> Unit = { model.refresh(changes, force = true) }
+    val retry: () -> Unit = { model.refresh(changes, force = true) }
+
     val list = rememberLazyListState()
     // The bar lies over the page, so what scrolls shows right up to its pen line.
     val top = inlineBarTop()
@@ -103,7 +150,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                 OrganicEmptyState(title = L10n.Profile.notFound, actionTitle = L10n.Profile.backHome, onAction = back, action = EmptyAction.Link, verticalPadding = 40.dp)
             }
             "failed" -> Box(Modifier.padding(top = top)) {
-                OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { reload++ }, action = EmptyAction.Outline)
+                OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, retry, action = EmptyAction.Outline)
             }
             else -> profile?.let { p ->
                 val a = p.author
@@ -145,7 +192,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                         }
                     }
                     if (p.isBlocked) {
-                        item { BlockedNotice(session, a.id, a.handle) { reload++ } }
+                        item { BlockedNotice(session, a.id, a.handle, reload) }
                     } else if (cards.isNotEmpty() || p.isSelf) {
                         item { SectionHeading(L10n.Profile.publishedHeading) }
                         if (cards.isEmpty()) {
@@ -163,12 +210,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                                     OrganicButton(L10n.Profile.emptyPublishedCta) { open(Route.Write()) }
                                 }
                             }
-                        } else storyCards(cards, open) {
-                            cursor?.let { c ->
-                                cursor = null
-                                scope.launch { runCatching { session.reading.profileCards(handle, cursor = c) }.onSuccess { cards = cards + it.cards; cursor = it.nextCursor } }
-                            }
-                        }
+                        } else storyCards(cards, open, onLast = model::loadMore)
                     }
                     if (linked.isNotEmpty()) {
                         item { SectionHeading(L10n.Profile.linkedCards, Modifier.padding(top = 48.dp)) }
@@ -180,7 +222,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
     }
     OrganicInlineBar(L10n.App.Nav.back, back, scrolled = list.scrolledPast20()) {
         profile?.takeIf { !it.isSelf }?.let { p ->
-            SafetyMenu(session, SafetyService.Target.User(p.author.id), p.author.handle, p.isBlocked, seed = seedFromString(p.author.id).toDouble()) { reload++ }
+            SafetyMenu(session, SafetyService.Target.User(p.author.id), p.author.handle, p.isBlocked, seed = seedFromString(p.author.id).toDouble(), onChange = reload)
         }
     }
     }

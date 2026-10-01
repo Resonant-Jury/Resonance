@@ -30,7 +30,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,7 +45,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.size
 import com.resonance.api.models.FeedCard
 import com.resonance.app.SafetyService
@@ -74,39 +76,53 @@ import com.resonance.design.plainClickable
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.reading.FeedLoader
 import com.resonance.kit.reading.cardKeyOf
 import com.resonance.kit.reading.embedFor
 import com.resonance.kit.story.StoryBlock
 import com.resonance.kit.story.StoryParser
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
- * A card's page (card/[slug]/page.tsx, phone layout); `popToRoot` is where a deleted card leaves to.
- * It draws at once from what the app already has — the page as last read, or the card as the list
- * it was tapped in had it (its byline, cover and title over the story's skeleton) — and always reads
- * the card again: one request brings its lists and the cards its story embeds
- * ([com.resonance.kit.reading.CardPageLoader]).
+ * A card page's state, kept while the page is on its stack: back from what it opened (an author,
+ * another card) finds it as it was, without reading it again — unless a card or a block changed
+ * meanwhile, or it was read long ago.
  */
-@Composable
-fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) -> Unit, popToRoot: () -> Unit, back: () -> Unit) {
-    val cached = remember(key) { session.cardCache.page(key) }
-    val placeholder = remember(key) { preview ?: session.cardCache.preview(key) }
-    var phase by remember(key) { mutableStateOf(if (cached != null) "loaded" else "loading") }
-    var detail by remember(key) { mutableStateOf(cached?.detail) }
-    var blocks by remember(key) { mutableStateOf(cached?.let { StoryParser.parse(it.detail.story) } ?: emptyList()) }
-    var resonances by remember(key) { mutableStateOf(cached?.resonances.orEmpty()) }
-    var related by remember(key) { mutableStateOf(cached?.related.orEmpty()) }
-    var linked by remember(key) { mutableStateOf(cached?.links.orEmpty()) }
-    var embeds by remember(key) { mutableStateOf(cached?.embeds.orEmpty()) }
-    // Bumped by "try again".
-    var attempt by remember(key) { mutableIntStateOf(0) }
-    val uri = LocalUriHandler.current
-    val context = LocalContext.current
-    val list = rememberLazyListState()
-    // Edited, published or re-shelved from the writer or the ⋯: read it again.
-    val changes by session.cardChanges.collectAsStateWithLifecycle()
+class CardPageModel(private val session: Session, private val key: String, preview: FeedCard?) : ViewModel() {
+    private val cached = session.cardCache.page(key)
+    /** The card as a list drew it (or as last seen), drawn while the page is read. */
+    val placeholder: FeedCard? = preview ?: session.cardCache.preview(key)
+    var phase by mutableStateOf(if (cached != null) "loaded" else "loading")
+        private set
+    var detail by mutableStateOf(cached?.detail)
+        private set
+    var blocks by mutableStateOf(cached?.let { StoryParser.parse(it.detail.story) } ?: emptyList())
+        private set
+    var resonances by mutableStateOf(cached?.resonances.orEmpty())
+        private set
+    var related by mutableStateOf(cached?.related.orEmpty())
+        private set
+    var linked by mutableStateOf(cached?.links.orEmpty())
+        private set
+    var embeds by mutableStateOf(cached?.embeds.orEmpty())
+        private set
+    private var readFor: Int? = null
+    private var readAt = 0L
+    private var reading: Job? = null
 
-    LaunchedEffect(key, attempt, changes) {
+    /** Reads the card unless what the page holds was read since the last change (`changes`) and lately; `retry` always does. */
+    fun refresh(changes: Int, retry: Boolean = false, now: Long = System.currentTimeMillis()) {
+        val current = changes == readFor && now - readAt < FeedLoader.STALE_AFTER.inWholeMilliseconds
+        if (current && !retry && phase != "failed") return
+        readFor = changes
+        readAt = now
+        reading?.cancel()
+        reading = viewModelScope.launch { load() }
+    }
+
+    private suspend fun load() {
         // A first read (or a retry) shows the skeleton; a re-read keeps the page while it goes.
         if (phase != "loaded") phase = "loading"
         try {
@@ -133,6 +149,33 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
             if (phase != "loaded") phase = "failed"
         }
     }
+}
+
+/**
+ * A card's page (card/[slug]/page.tsx, phone layout); `popToRoot` is where a deleted card leaves to.
+ * It draws at once from what the app already has — the page as last read, or the card as the list
+ * it was tapped in had it (its byline, cover and title over the story's skeleton) — and reads the
+ * card when it opens: one request brings its lists and the cards its story embeds
+ * ([com.resonance.kit.reading.CardPageLoader]). [CardPageModel] keeps it while the page is on its
+ * stack.
+ */
+@Composable
+fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) -> Unit, popToRoot: () -> Unit, back: () -> Unit) {
+    val model = viewModel { CardPageModel(session, key, preview) }
+    val placeholder = model.placeholder
+    val phase = model.phase
+    val detail = model.detail
+    val blocks = model.blocks
+    val resonances = model.resonances
+    val related = model.related
+    val linked = model.linked
+    val embeds = model.embeds
+    val uri = LocalUriHandler.current
+    val context = LocalContext.current
+    val list = rememberLazyListState()
+    // Edited, published or re-shelved from the writer or the ⋯: read it again; so is a page read long ago.
+    val changes by session.cardChanges.collectAsStateWithLifecycle()
+    LaunchedEffect(changes) { model.refresh(changes) }
 
     val openUrl: (String) -> Unit = { url ->
         val sitePath = if (url.startsWith("/")) url else if (url.startsWith(session.config.origin)) url.removePrefix(session.config.origin) else null
@@ -160,7 +203,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
             "loading" -> if (placeholder != null) CardPreview(placeholder) { open(Route.Author(it)) }
                 else CardDetailSkeleton(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp))
             "notFound" -> OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = back, action = EmptyAction.Link)
-            "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { attempt++ }, action = EmptyAction.Outline)
+            "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { model.refresh(changes, retry = true) }, action = EmptyAction.Outline)
             else -> detail?.let { d ->
                 val card = d.card
                 val resonance = (listOfNotNull(d.referenceCard) + resonances).distinctBy { it.id }

@@ -41,6 +41,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -111,15 +113,21 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun WriteScreen(session: Session, referenceCardId: String?, cardId: String?, story: String?, close: () -> Unit, onFinished: (String) -> Unit) {
-    if (cardId == null) {
-        WriteForm(session, referenceCardId, story, null, close, onFinished)
+    // A new card is saved as a draft as soon as there is something to keep. When the writer comes
+    // back (a rotation, the app restored), it resumes that draft rather than a blank card; while
+    // it is open, nothing changes under the writer.
+    val created = rememberSaveable { mutableStateOf<String?>(null) }
+    val resumed = remember { Snapshot.withoutReadObservation { created.value } }
+    val id = cardId ?: resumed
+    if (id == null) {
+        WriteForm(session, referenceCardId, story, null, close, onFinished) { created.value = it }
         return
     }
     // The card loads straight from Firestore, painting a loader meanwhile.
-    var loaded by remember(cardId) { mutableStateOf(false) }
-    var opened by remember(cardId) { mutableStateOf<DraftService.OpenedCard?>(null) }
-    LaunchedEffect(cardId) {
-        opened = session.drafts?.open(cardId)
+    var loaded by remember(id) { mutableStateOf(false) }
+    var opened by remember(id) { mutableStateOf<DraftService.OpenedCard?>(null) }
+    LaunchedEffect(id) {
+        opened = session.drafts?.open(id)
         loaded = true
     }
     val card = opened
@@ -142,11 +150,20 @@ fun WriteScreen(session: Session, referenceCardId: String?, cardId: String?, sto
 }
 
 @Composable
-private fun WriteForm(session: Session, referenceCardId: String?, story: String?, opened: DraftService.OpenedCard?, close: () -> Unit, onFinished: (String) -> Unit) {
+private fun WriteForm(
+    session: Session,
+    referenceCardId: String?,
+    story: String?,
+    opened: DraftService.OpenedCard?,
+    close: () -> Unit,
+    onFinished: (String) -> Unit,
+    onCreated: (String) -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val model = remember(opened) {
         WriteModel(session.drafts, session.writing, referenceCardId, StoryEditorBridge(context, L10n.Write.storyPlaceholder), opened).apply {
+            this.onCreated = onCreated
             // Debug `writeTitle` / `writeStory` extras fill a new card (screen checks; the emulator's keyboard is slow to drive).
             if (BuildConfig.DEBUG && opened == null) {
                 DebugLaunch.writeTitle?.let { t -> update { copy(title = t) } }

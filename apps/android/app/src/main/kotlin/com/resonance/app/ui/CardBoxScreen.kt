@@ -33,7 +33,10 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.resonance.api.apis.DefaultApi.TabGetCardBox
 import com.resonance.api.models.FeedCard
 import com.resonance.app.Session
@@ -57,30 +60,65 @@ import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.reading.FeedLoader
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+
+/**
+ * The card box's shelves as read, kept while the tab's root is (always, until sign-out): coming
+ * back to a shelf shows it as it was. A change to a card has every shelf read again, the one in
+ * view at once, still showing meanwhile; so does a shelf read long ago.
+ */
+class CardBoxModel(private val session: Session) : ViewModel() {
+    val shelves = mutableStateMapOf<TabGetCardBox, List<FeedCard>>()
+    var failed by mutableStateOf(false)
+        private set
+    private val readAt = HashMap<TabGetCardBox, Long>()
+    private val reading = HashMap<TabGetCardBox, Job>()
+    private var seenChanges: Int? = null
+
+    /** Reads `shelf` unless it was read since the last change (`changes`) and lately; `retry` always does. */
+    fun refresh(shelf: TabGetCardBox, changes: Int, retry: Boolean = false, now: Long = System.currentTimeMillis()) {
+        if (changes != seenChanges) {
+            seenChanges = changes
+            readAt.clear()
+        }
+        val at = readAt[shelf]
+        if (!retry && at != null && now - at < FeedLoader.STALE_AFTER.inWholeMilliseconds) return
+        readAt[shelf] = now
+        reading[shelf]?.cancel()
+        reading[shelf] = viewModelScope.launch {
+            try {
+                val cards = session.reading.cardBox(shelf)
+                shelves[shelf] = cards
+                failed = false
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failed = true
+                readAt.remove(shelf)
+            }
+        }
+    }
+}
 
 /**
  * My card box (me/page.tsx): who I am, then my cards on six shelves —
  * published, private, drafts, the cards I resonated with, cards linking to
- * mine, bookmarks. The twin of iOS's CardBoxScreen.
+ * mine, bookmarks. The twin of iOS's CardBoxScreen; [CardBoxModel] keeps the shelves.
  */
 @Composable
 fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     val profile by session.profile.collectAsStateWithLifecycle()
+    val model = viewModel { CardBoxModel(session) }
     var shelf by rememberSaveable { mutableStateOf(TabGetCardBox.published) }
     // The writer or a card's ⋯ changed something: every shelf may have moved, so they are read again.
     val changes by session.cardChanges.collectAsStateWithLifecycle()
-    val shelves = remember(changes) { mutableStateMapOf<TabGetCardBox, List<FeedCard>>() }
-    var failed by remember { mutableStateOf(false) }
+    val shelves = model.shelves
+    val failed = model.failed
     val scope = rememberCoroutineScope()
-
-    suspend fun load(s: TabGetCardBox, force: Boolean = false) {
-        if (!force && shelves.containsKey(s)) return
-        runCatching { session.reading.cardBox(s) }
-            .onSuccess { shelves[s] = it; failed = false }
-            .onFailure { failed = true }
-    }
-    LaunchedEffect(shelf, changes) { load(shelf) }
+    LaunchedEffect(shelf, changes) { model.refresh(shelf, changes) }
 
     TabScreen(L10n.App.Nav.me) {
         item {
@@ -111,7 +149,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
         item { ShelfTabs(shelf, openMap = { open(Route.ThoughtMap) }) { shelf = it } }
         val cards = shelves[shelf]
         when {
-            cards == null && failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { load(shelf, force = true) } }, action = EmptyAction.Outline) }
+            cards == null && failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { model.refresh(shelf, changes, retry = true) }, action = EmptyAction.Outline) }
             cards == null -> storyCardSkeletons(6)
             // ProfileTabs' empty shelf: one muted line, centred; the empty published shelf
             // also points at the first story (ux §4).
