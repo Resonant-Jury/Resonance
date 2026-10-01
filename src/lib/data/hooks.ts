@@ -25,12 +25,14 @@ import {
   resolveCardId,
 } from '@/lib/db/firestore/client/reads';
 import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
-import { listConversations, listenThread } from '@/lib/db/firestore/client/messages';
+import { listenConversations, listenThread } from '@/lib/db/firestore/client/messages';
+import { listenNotifications } from '@/lib/db/firestore/client/notifications';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import { ApiError, callApi } from '@/lib/db/firestore/client/api';
 import { hasSessionMark } from '@/lib/auth/firebase/client';
 import type { CardBoxTabName, CardDetailBody, CardListBody, FeedPageBody, ProfileBody } from '@/lib/api/v1/schemas';
-import type { Conversation, Message } from '@/lib/db/types';
+import type { Conversation, Message, Notification } from '@/lib/db/types';
+import { useLive, type LiveState } from './live';
 import { anonymousAuthor, cardKey } from './cardPrefill';
 import type { CardSeed, PublicCardView } from './cardSeed';
 import { profileUser, summaryAuthor, summaryCard, summaryList } from './summaries';
@@ -716,35 +718,90 @@ export interface ConversationsData {
 }
 
 /**
- * The signed-in viewer's conversation list plus connected people they haven't
- * talked to yet. Polls at the caller-provided interval (the open thread itself
- * is realtime via {@link useThread} — this only feeds the list and badges).
+ * The viewer's newest 50 conversations, live: one listener (client/realtime,
+ * loaded once the page is idle) shared by the header's badge and the messages
+ * list, instead of reading every conversation again on a timer. Unfiltered —
+ * see {@link visibleConversations}.
  */
-export function useConversations(refreshInterval = 30_000) {
+function useLiveConversations(): LiveState<Conversation[]> {
   const { user, loading } = useAuth();
-  return useSWR<ConversationsData>(
-    user && !loading ? `conversations:${user.id}` : null,
-    async () => {
-      const uid = user!.id;
-      const [allConversations, connectionUids, blocked] = await Promise.all([
-        listConversations(),
-        listMyConnectionUids(),
-        getMyBlockedIds(),
-      ]);
-      // A blocked person's conversation leaves the list (the thread itself is
-      // frozen by rules — the connection is gone).
-      const conversations = allConversations.filter((c) => !c.participants.some((p) => blocked.has(p)));
-      const otherUids = conversations.map((c) => c.participants.find((p) => p !== uid) ?? '');
-      const people = await getUsersByIds([...otherUids, ...connectionUids]);
-      const talked = new Set(otherUids);
-      const connectedWithoutConversation = connectionUids
-        .filter((id) => !talked.has(id))
-        .map((id) => people[id])
-        .filter((u): u is User => Boolean(u));
-      const unreadTotal = conversations.reduce((sum, c) => sum + (c.unread[uid] ?? 0), 0);
-      return { conversations, people, connectedWithoutConversation, unreadTotal };
-    },
-    { refreshInterval, ...LIVE_ON_FOCUS },
+  const uid = user && !loading ? user.id : null;
+  return useLive<Conversation[]>(uid ? `conversations:live:${uid}` : null, (emit, fail) =>
+    listenConversations(uid!, emit, fail),
+  );
+}
+
+/**
+ * Conversations minus those with someone the viewer blocked (the thread itself
+ * is frozen by rules — the connection is gone). Undefined until both the list
+ * and the block list are in.
+ */
+function visibleConversations(all: Conversation[] | undefined, blocked: Set<string> | undefined): Conversation[] | undefined {
+  if (!all || !blocked) return undefined;
+  return all.filter((c) => !c.participants.some((p) => blocked.has(p)));
+}
+
+function unreadOf(conversations: Conversation[], uid: string): number {
+  return conversations.reduce((sum, c) => sum + (c.unread[uid] ?? 0), 0);
+}
+
+/**
+ * The header's unread-messages badge: the viewer's unread counters summed over
+ * the live conversation list — no profiles, no connections (those are the
+ * messages page's). 0 until known.
+ */
+export function useUnreadMessages(): number {
+  const { user } = useAuth();
+  const live = useLiveConversations();
+  const { data: blocked } = useMyBlockedIds();
+  const conversations = visibleConversations(live.data, blocked);
+  return user && conversations ? unreadOf(conversations, user.id) : 0;
+}
+
+/**
+ * The signed-in viewer's conversation list plus connected people they haven't
+ * talked to yet: the live list (shared with the header's badge), the people in
+ * it from the page-wide profile cache, and the viewer's connections — read
+ * again when they come back to the tab (`conversations:{uid}`; mutate it after
+ * a block or a delete).
+ */
+export function useConversations(): { data: ConversationsData | undefined; error: unknown } {
+  const { user, loading } = useAuth();
+  const uid = user && !loading ? user.id : null;
+  const live = useLiveConversations();
+  const { data: blocked } = useMyBlockedIds();
+  const connections = useSWR<string[]>(uid ? `conversations:${uid}` : null, () => listMyConnectionUids(), LIVE_ON_FOCUS);
+  const conversations = visibleConversations(live.data, blocked);
+  const otherUids = conversations?.map((c) => c.participants.find((p) => p !== uid) ?? '');
+  const ids =
+    otherUids && connections.data ? [...new Set([...otherUids, ...connections.data])].filter(Boolean).sort() : null;
+  // Profiles come from the page-wide cache (client/reads): a new conversation
+  // reads only its new person. The list stays up while it does.
+  const people = useSWR<Record<string, User>>(ids ? `people:${ids.join(',')}` : null, () => getUsersByIds(ids!), {
+    keepPreviousData: true,
+  });
+  const error = live.error ?? connections.error ?? people.error;
+  if (!uid || !conversations || !otherUids || !connections.data || !people.data) return { data: undefined, error };
+  const talked = new Set(otherUids);
+  const connectedWithoutConversation = connections.data
+    .filter((id) => !talked.has(id))
+    .map((id) => people.data![id])
+    .filter((u): u is User => Boolean(u));
+  return {
+    data: { conversations, people: people.data, connectedWithoutConversation, unreadTotal: unreadOf(conversations, uid) },
+    error,
+  };
+}
+
+/**
+ * The viewer's newest notifications, live (the bell's badge and list): a new
+ * row, or one marked read on another device, shows without a reload.
+ */
+export function useNotifications(max = 20): LiveState<Notification[]> {
+  const { user, loading } = useAuth();
+  const uid = user && !loading ? user.id : null;
+  return useLive<Notification[]>(uid ? `notifications:live:${uid}:${max}` : null, (emit, fail) =>
+    listenNotifications(uid!, emit, fail, max),
   );
 }
 
@@ -756,9 +813,10 @@ export interface ThreadState {
 }
 
 /**
- * Realtime subscription to an open conversation's messages (oldest → newest).
- * The project's only onSnapshot surface — deliberately scoped to the single
- * thread the viewer has open; the conversation list and badges poll via SWR.
+ * Realtime subscription to an open conversation's messages (oldest → newest),
+ * scoped to the single thread the viewer has open. (The conversation list
+ * and the header's badges listen too: {@link useConversations},
+ * {@link useUnreadMessages}, {@link useNotifications}.)
  */
 export function useThread(pairId: string | undefined): ThreadState {
   const { user, loading } = useAuth();

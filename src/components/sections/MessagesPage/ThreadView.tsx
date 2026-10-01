@@ -130,10 +130,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     if (!convo || !user || !pairId) return;
     const incoming = !!lastMessage && lastMessage.senderId !== user.id;
     if (incoming || (convo.unread[user.id] ?? 0) > 0) {
-      void markConversationRead(pairId).then(() => {
-        void mutateConvo();
-        void globalMutate(`conversations:${user.id}`);
-      });
+      // The list and the header's badge listen to the conversation: they
+      // hear the zeroed counter on their own, nothing to read again.
+      void markConversationRead(pairId).then(() => void mutateConvo());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convo, user?.id, pairId, lastMessageId]);
@@ -176,7 +175,6 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
         setPendingCard(null);
         setNoteRef(undefined);
         if (!convo) await mutateConvo();
-        if (user) void globalMutate(`conversations:${user.id}`);
       } catch {
         setError(t('sendError'));
       }

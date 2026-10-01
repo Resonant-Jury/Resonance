@@ -138,6 +138,9 @@ describe('the full SDK', () => {
     ];
     const full = sources.filter((f) => /from 'firebase\/firestore'/.test(readFileSync(f, 'utf8')));
     expect(full.map((f) => f.slice(dir.length + 1))).toEqual(['realtime.ts']);
-    expect(readFileSync(join(dir, 'messages.ts'), 'utf8')).toContain("import('./realtime')");
+    // …and nothing reaches it but listen.ts' dynamic import (a type-only import is erased).
+    const reach = sources.filter((f) => /^import (?!type )[^;]*from '\.\/realtime'/m.test(readFileSync(f, 'utf8')));
+    expect(reach.map((f) => f.slice(dir.length + 1))).toEqual([]);
+    expect(readFileSync(join(dir, 'listen.ts'), 'utf8')).toContain("import('./realtime')");
   });
 });

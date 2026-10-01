@@ -42,6 +42,7 @@ vi.mock('./realtime', () => ({ listenNewest: listener.listenNewest }));
 
 import {
   conversationId,
+  listenConversations,
   listenThread,
   otherParticipant,
   sendMessage,
@@ -106,7 +107,7 @@ describe('sendMessage', () => {
   });
 });
 
-describe('listenThread', () => {
+describe('the listeners (thread, conversations)', () => {
   /** A Timestamp as the full SDK hands it over: not Lite's class, the same shape. */
   const fullSdkTimestamp = (iso: string) => ({ seconds: Date.parse(iso) / 1000, nanoseconds: 0, toDate: () => new Date(iso) });
 
@@ -134,6 +135,32 @@ describe('listenThread', () => {
     expect(messages[0]).toMatchObject({ senderId: 'bbb', text: 'hello', cardRef: 'walk' });
     expect(messages[0].sentAt.toISOString()).toBe('2026-09-01T08:00:00.000Z');
     expect(messages[1].sentAt.toISOString()).toBe('2026-09-01T08:05:00.000Z');
+  });
+
+  // The header's unread badge and the messages list: one listener on the
+  // viewer's own conversations (what the rules let them list), newest 50.
+  it("hears the viewer's newest conversations, most recently active first", async () => {
+    const heard = vi.fn();
+    listenConversations('bbb', heard);
+    await vi.waitFor(() => expect(listener.listenNewest).toHaveBeenCalled());
+    const [path, field, max, , , filters] = listener.listenNewest.mock.calls[0];
+    expect([path, field, max]).toEqual([['conversations'], 'updatedAt', 50]);
+    expect(filters).toEqual([{ field: 'participants', op: 'array-contains', value: 'bbb' }]);
+
+    listener.onDocs!([
+      {
+        id: 'aaa_bbb',
+        data: {
+          participants: ['aaa', 'bbb'],
+          updatedAt: fullSdkTimestamp('2026-09-01T08:05:00Z'),
+          lastMessage: { text: 'and you?', senderId: 'aaa', sentAt: fullSdkTimestamp('2026-09-01T08:05:00Z') },
+          unread: { bbb: 2 },
+        },
+      },
+    ]);
+    const [conversations] = heard.mock.calls[0];
+    expect(conversations[0]).toMatchObject({ id: 'aaa_bbb', unread: { bbb: 2 }, lastMessage: { text: 'and you?' } });
+    expect(conversations[0].updatedAt.toISOString()).toBe('2026-09-01T08:05:00.000Z');
   });
 
   it('stops the listener, and never starts one when stopped before it loaded', async () => {

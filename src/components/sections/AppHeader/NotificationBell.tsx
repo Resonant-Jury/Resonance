@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { Modal } from '@/components/molecules/Modal/Modal';
@@ -10,45 +10,26 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
 import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import styles from './NotificationBell.module.css';
 import type { Notification } from '@/lib/db/types';
-import { useAuth } from '@/components/providers/AuthProvider';
-import {
-  listNotifications,
-  markNotificationRead,
-} from '@/lib/db/firestore/client/notifications';
+import { useNotifications } from '@/lib/data/hooks';
+import { markNotificationRead } from '@/lib/db/firestore/client/notifications';
 
 export function NotificationBell() {
-  const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<Notification[]>([]);
-  const [fetched, setFetched] = useState(false);
+  // The viewer's newest notifications, live: a new one rings the badge while
+  // the page is open, and one read elsewhere stops counting.
+  const live = useNotifications(20);
+  // Rows clicked here count as read at once, before the listener hears the write.
+  const [readHere, setReadHere] = useState<ReadonlySet<string>>(() => new Set());
+  const items = useMemo(
+    () => (live.data ?? []).map((n) => (n.readAt === null && readHere.has(n.id) ? { ...n, readAt: new Date() } : n)),
+    [live.data, readHere],
+  );
+  const fetched = live.data !== undefined || live.error !== null;
   // Long lists scroll inside the modal (hidden native bar + hand-drawn rail).
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const tApp = useTranslations('app.notifications');
   const tNav = useTranslations('app.nav');
-
-  const refresh = useCallback(async () => {
-    if (!user) {
-      setItems([]);
-      setFetched(true);
-      return;
-    }
-    try {
-      const next = await listNotifications(20);
-      setItems(next);
-    } catch {
-      // rules / network errors — keep current state
-    } finally {
-      setFetched(true);
-    }
-  }, [user]);
-
-  // Load count on mount (and whenever auth changes) so the badge reflects
-  // unread state without opening the bell.
-  useEffect(() => {
-    if (loading) return;
-    void refresh();
-  }, [loading, refresh]);
 
   const unreadCount = useMemo(
     () => items.filter((n) => n.readAt === null).length,
@@ -57,9 +38,7 @@ export function NotificationBell() {
 
   function handleClickItem(n: Notification) {
     if (n.readAt === null) {
-      setItems((prev) =>
-        prev.map((it) => (it.id === n.id ? { ...it, readAt: new Date() } : it)),
-      );
+      setReadHere((prev) => new Set(prev).add(n.id));
       markNotificationRead(n.id).catch(() => {});
     }
     setOpen(false);
@@ -72,10 +51,7 @@ export function NotificationBell() {
   return (
     <>
       <button
-        onClick={() => {
-          setOpen(true);
-          if (!fetched) void refresh();
-        }}
+        onClick={() => setOpen(true)}
         aria-label="Notifications"
         style={{
           position: 'relative',

@@ -4,17 +4,17 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { Icon } from '@/components/atoms/Icon';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
-import { useConversations } from '@/lib/data/hooks';
+import { useUnreadMessages } from '@/lib/data/hooks';
 
 /**
  * Header entry to 私訊: the chat icon beside the notification bell, wearing
- * the same wobbly unread badge. Unread counts ride the polled conversations
- * hook — the bell stays about events, this badge is about waiting words.
+ * the same wobbly unread badge: the viewer's unread counters, summed over one
+ * live listener on their conversations — the bell stays about events, this
+ * badge is about waiting words.
  */
 export function MessagesEntry() {
   const t = useTranslations('app.nav');
-  const { data } = useConversations();
-  const unread = data?.unreadTotal ?? 0;
+  const unread = useUnreadMessages();
 
   const badgeH = 18;
   const badgeW = unread > 9 ? 26 : 19;

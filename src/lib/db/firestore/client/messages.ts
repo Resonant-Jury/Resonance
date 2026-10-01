@@ -1,11 +1,12 @@
 'use client';
 
-import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc, where, writeBatch } from './sdk';
+import { collection, doc, getDoc, getDocs, updateDoc, writeBatch } from './sdk';
 import type { Conversation, Message } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
 import { callApi } from './api';
 import { isAbsent } from './errors';
+import { listenLazily } from './listen';
 
 /** Hard cap mirrored in the API's SendMessageRequest — keep the two in sync. */
 export const MESSAGE_MAX_LENGTH = 2000;
@@ -110,20 +111,6 @@ export async function markConversationRead(pairId: string): Promise<void> {
   });
 }
 
-/** The viewer's conversations, most recently active first. */
-export async function listConversations(): Promise<Conversation[]> {
-  const uid = getFirebaseClientAuth().currentUser?.uid;
-  if (!uid) return [];
-  const snap = await getDocs(
-    query(
-      collection(getClientDb(), 'conversations'),
-      where('participants', 'array-contains', uid),
-      orderBy('updatedAt', 'desc'),
-    ),
-  );
-  return snap.docs.map((d) => mapConversation(d.id, d.data()));
-}
-
 /** A single conversation, or null when missing / not a participant (a failed read throws). */
 export async function getConversation(pairId: string): Promise<Conversation | null> {
   try {
@@ -137,11 +124,7 @@ export async function getConversation(pairId: string): Promise<Conversation | nu
 
 /**
  * Subscribe to the newest messages of an open thread (oldest → newest, capped
- * at `max`). This is the project's only realtime surface — deliberately scoped
- * to the one thread the viewer is looking at; lists and badges stay on SWR.
- * It is also the only use of the full SDK, which loads (./realtime) when the
- * first thread opens rather than with every page. Returns the unsubscribe
- * function, safe to call before the listener has started.
+ * at `max`) — scoped to the one thread the viewer is looking at.
  */
 export function listenThread(
   pairId: string,
@@ -149,26 +132,43 @@ export function listenThread(
   onError?: (err: Error) => void,
   max = 50,
 ): () => void {
-  let stopped = false;
-  let stop: (() => void) | null = null;
-  import('./realtime')
-    .then(({ listenNewest }) => {
-      if (stopped) return;
-      stop = listenNewest(
+  return listenLazily(
+    ({ listenNewest }) =>
+      listenNewest(
         ['conversations', pairId, 'messages'],
         'sentAt',
         max,
         (docs) => onMessages(docs.map((d) => mapMessage(d.id, d.data)).reverse()),
         (err) => onError?.(err),
-      );
-    })
-    .catch((err: unknown) => {
-      if (!stopped) onError?.(err instanceof Error ? err : new Error(String(err)));
-    });
-  return () => {
-    stopped = true;
-    stop?.();
-  };
+      ),
+    onError,
+  );
+}
+
+/**
+ * Subscribe to the viewer's conversations, most recently active first (the
+ * newest `max`): what the header's unread badge counts and the messages list
+ * shows. One listener instead of reading the whole list again on a timer —
+ * after its first answer, only a conversation that changed is read.
+ */
+export function listenConversations(
+  uid: string,
+  onConversations: (conversations: Conversation[]) => void,
+  onError?: (err: Error) => void,
+  max = 50,
+): () => void {
+  return listenLazily(
+    ({ listenNewest }) =>
+      listenNewest(
+        ['conversations'],
+        'updatedAt',
+        max,
+        (docs) => onConversations(docs.map((d) => mapConversation(d.id, d.data))),
+        (err) => onError?.(err),
+        [{ field: 'participants', op: 'array-contains', value: uid }],
+      ),
+    onError,
+  );
 }
 
 /**
@@ -189,12 +189,4 @@ export async function deleteConversation(pairId: string): Promise<void> {
   const batch = writeBatch(db);
   batch.delete(doc(db, 'conversations', pairId));
   await batch.commit();
-}
-
-/** Total unread across all conversations — drives the header badge. */
-export async function countUnreadMessages(): Promise<number> {
-  const uid = getFirebaseClientAuth().currentUser?.uid;
-  if (!uid) return 0;
-  const conversations = await listConversations();
-  return conversations.reduce((sum, c) => sum + (c.unread[uid] ?? 0), 0);
 }
