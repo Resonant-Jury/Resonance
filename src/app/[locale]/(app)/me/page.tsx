@@ -1,14 +1,17 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { ProfileTabs, type TabKey } from '@/components/molecules/ProfileTabs/ProfileTabs';
-import { InvitesInbox } from '@/components/molecules/InvitesInbox/InvitesInbox';
 import { Link } from '@/i18n/navigation';
 import { useMyCardBox, useMyProfile } from '@/lib/data/hooks';
+
+// Answering an older invite — none are sent any more — loads after the page.
+const InvitesInbox = dynamic(() => import('@/components/molecules/InvitesInbox/InvitesInbox').then((m) => m.InvitesInbox));
 
 const tabs: TabKey[] = ['published', 'private', 'draft', 'resonated', 'linked', 'bookmarks', 'thoughtMap'];
 

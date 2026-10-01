@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useEditor, EditorContent, useEditorState } from '@tiptap/react';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -14,12 +15,15 @@ import { useElementSize } from '@/lib/hooks/useElementSize';
 import { uploadImageFile } from '@/lib/images/upload';
 import type { Card } from '@/lib/db/types';
 import { getMarkdown, storyExtensions } from '@/lib/markdown/editorSchema';
-import { InsertCardModal } from './InsertCardModal';
 import { OrganicImageNode } from './OrganicImageNode';
 import { CardEmbedNode } from './CardEmbedNode';
 import { CurvedBlockquoteNode } from './CurvedBlockquoteNode';
 import styles from './MarkdownEditor.module.css';
 import { INK_LIGHT } from '@/lib/design/strokes';
+import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
+
+// The card picker loads when it is first opened, not with the editor.
+const InsertCardModal = dynamic(() => import('./InsertCardModal').then((m) => m.InsertCardModal));
 
 const ACCEPTED_IMAGES = 'image/png,image/jpeg,image/webp,image/gif';
 
@@ -82,6 +86,7 @@ export function MarkdownEditor({
   const [hover, setHover] = useState(false);
   const [focus, setFocus] = useState(false);
   const [cardModalOpen, setCardModalOpen] = useState(false);
+  const cardModalLoaded = useOpenedOnce(cardModalOpen);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [imageError, setImageError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -332,11 +337,13 @@ export function MarkdownEditor({
           }}
         />
 
-        <InsertCardModal
-          open={cardModalOpen}
-          onClose={() => setCardModalOpen(false)}
-          onPick={insertCardLink}
-        />
+        {cardModalLoaded && (
+          <InsertCardModal
+            open={cardModalOpen}
+            onClose={() => setCardModalOpen(false)}
+            onPick={insertCardLink}
+          />
+        )}
       </div>
     </HandDrawnDashedSurface>
   );

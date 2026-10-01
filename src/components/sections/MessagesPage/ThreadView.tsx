@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react';
+import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
 import useSWR, { useSWRConfig } from 'swr';
 import { Textarea } from '@/components/atoms/Field/Field';
@@ -10,7 +11,6 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import { Divider } from '@/components/atoms/Divider/Divider';
-import { InsertCardModal } from '@/components/molecules/MarkdownEditor/InsertCardModal';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { OrganicMenu } from '@/components/molecules/OrganicMenu/OrganicMenu';
 import { CardEmbedSourceContext, useCardEmbed } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
@@ -33,6 +33,12 @@ import type { Card } from '@/lib/db/types';
 import { MessageBubble } from './MessageBubble';
 import { MessageCardRef } from './MessageCardRef';
 import styles from './MessagesPage.module.css';
+import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
+
+// The card picker loads when it is first opened, not with the thread.
+const InsertCardModal = dynamic(() =>
+  import('@/components/molecules/MarkdownEditor/InsertCardModal').then((m) => m.InsertCardModal),
+);
 
 export interface ThreadViewProps {
   handle: string;
@@ -103,6 +109,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const [cardModalOpen, setCardModalOpen] = useState(false);
+  const cardModalLoaded = useOpenedOnce(cardModalOpen);
   const [pendingCard, setPendingCard] = useState<Card | null>(null);
   // Header「⋯」menu surfaces: in-thread search, the shared cards/links list,
   // and delete-with-confirm.
@@ -430,16 +437,18 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
             <p style={{ fontSize: 12, color: 'var(--color-terracotta)', margin: '6px 0 0' }}>{error}</p>
           )}
 
-          <InsertCardModal
-            open={cardModalOpen}
-            onClose={() => setCardModalOpen(false)}
-            title={t('pickCard')}
-            subtitle={t('pickCardSubtitle')}
-            onPick={(card) => {
-              setPendingCard(card);
-              setCardModalOpen(false);
-            }}
-          />
+          {cardModalLoaded && (
+            <InsertCardModal
+              open={cardModalOpen}
+              onClose={() => setCardModalOpen(false)}
+              title={t('pickCard')}
+              subtitle={t('pickCardSubtitle')}
+              onPick={(card) => {
+                setPendingCard(card);
+                setCardModalOpen(false);
+              }}
+            />
+          )}
 
           {/* Everything shared in this thread: card embeds and plain links. */}
           <Modal

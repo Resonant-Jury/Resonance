@@ -10,11 +10,11 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { Link, usePathname } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { AppMobileNavModal } from '@/components/sections/AppHeader/AppMobileNavModal';
 import { LanguageSelect } from './LanguageSelect';
 import { SiteHeaderAvatarPlaceholder } from './avatarPlaceholder';
 import styles from './SiteHeader.module.css';
 import { INK_LIGHT } from '@/lib/design/strokes';
+import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
 
 // What a signed-in viewer sees reads their profile, and with it the data
 // layer: loaded only once someone is signed in, so a signed-out visitor's
@@ -26,6 +26,10 @@ const SiteHeaderAvatar = dynamic(() => import('./SiteHeaderAccount').then((m) =>
 const SiteHeaderSignedInNav = dynamic(() => import('./SiteHeaderAccount').then((m) => m.SiteHeaderSignedInNav), {
   ssr: false,
 });
+// The phone menu loads the first time it is opened.
+const AppMobileNavModal = dynamic(() =>
+  import('@/components/sections/AppHeader/AppMobileNavModal').then((m) => m.AppMobileNavModal),
+);
 
 const HEADER_BODY_H = 68;
 const HEADER_WAVE_H = 14;
@@ -61,6 +65,7 @@ const NAV_TARGETS: Record<(typeof NAV_KEYS)[number], string> = {};
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuLoaded = useOpenedOnce(menuOpen);
   const isMobile = useIsMobile(720);
   const t = useTranslations('nav');
   const locale = useLocale();
@@ -184,10 +189,12 @@ export function SiteHeader() {
         )}
       </div>
 
+      {/* Signed in, the menu mounts at once so the profile it shows is read
+          before it opens; signed out, it loads on the first tap. */}
       {signedIn ? (
         <SiteHeaderSignedInNav open={menuOpen} onClose={() => setMenuOpen(false)} />
       ) : (
-        <AppMobileNavModal open={menuOpen} onClose={() => setMenuOpen(false)} />
+        menuLoaded && <AppMobileNavModal open={menuOpen} onClose={() => setMenuOpen(false)} />
       )}
     </header>
   );

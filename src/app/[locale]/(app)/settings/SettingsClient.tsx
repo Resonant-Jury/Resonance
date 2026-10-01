@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import dynamic from 'next/dynamic';
 import { useTranslations, useLocale } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Icon, type IconName } from '@/components/atoms/Icon';
@@ -16,13 +17,18 @@ import { AvatarUpload } from '@/components/molecules/AvatarUpload/AvatarUpload';
 import { HANDLE_FORBIDDEN, isHandleTaken, updateProfile } from '@/lib/db/firestore/client/profile';
 import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import { SignOutConfirmModal } from '@/components/molecules/SignOutConfirmModal/SignOutConfirmModal';
-import { BlockedListModal } from '@/components/molecules/BlockedListModal/BlockedListModal';
 import { DeleteAccountSection } from './DeleteAccountSection';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useTweaks } from '@/components/providers/TweaksPanel';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import type { Locale } from '@/lib/db/types';
+import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
+
+// The block list loads when first opened, not with the settings page.
+const BlockedListModal = dynamic(() =>
+  import('@/components/molecules/BlockedListModal/BlockedListModal').then((m) => m.BlockedListModal),
+);
 
 type Section =
   | 'profile'
@@ -100,6 +106,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
   const [signingOut, setSigningOut] = useState(false);
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const [blockListOpen, setBlockListOpen] = useState(false);
+  const blockListLoaded = useOpenedOnce(blockListOpen);
   // Below this width the layout switches to the phone master/detail flow.
   const isMobile = useIsMobile(760);
 
@@ -419,7 +426,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
         onCancel={() => setConfirmingSignOut(false)}
         onConfirm={() => void signOut()}
       />
-      <BlockedListModal open={blockListOpen} onClose={() => setBlockListOpen(false)} />
+      {blockListLoaded && <BlockedListModal open={blockListOpen} onClose={() => setBlockListOpen(false)} />}
     </>
   );
 

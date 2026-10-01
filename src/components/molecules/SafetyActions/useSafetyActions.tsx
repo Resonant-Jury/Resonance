@@ -1,12 +1,17 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useSWRConfig } from 'swr';
 import type { OrganicMenuItem } from '@/components/molecules/OrganicMenu/OrganicMenu';
 import { ConfirmModal } from '@/components/molecules/ConfirmModal/ConfirmModal';
-import { ReportModal, type ReportTarget } from '@/components/molecules/ReportModal/ReportModal';
+import type { ReportTarget } from '@/components/molecules/ReportModal/ReportModal';
 import { blockUser, unblockUser } from '@/lib/db/firestore/client/blocks';
+import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
+
+// Loaded the first time someone reports, not with every page that has a ⋯.
+const ReportModal = dynamic(() => import('@/components/molecules/ReportModal/ReportModal').then((m) => m.ReportModal));
 
 export interface SafetyActionsOptions {
   /** What a report files against (card / user / message). */
@@ -38,6 +43,7 @@ export function useSafetyActions({ report, isBlocked = false, onBlockedChange }:
   const [reporting, setReporting] = useState(false);
   const [confirmingBlock, setConfirmingBlock] = useState(false);
   const [busy, setBusy] = useState(false);
+  const reportLoaded = useOpenedOnce(reporting);
 
   const handle = report.handle ?? t('anonymousAuthor');
   const refreshAll = () => void mutate(() => true);
@@ -87,17 +93,19 @@ export function useSafetyActions({ report, isBlocked = false, onBlockedChange }:
 
   const modals = (
     <>
-      <ReportModal
-        open={reporting}
-        target={report}
-        offerBlock={!isBlocked}
-        onClose={() => setReporting(false)}
-        onReported={({ blocked }) => {
-          if (!blocked) return;
-          onBlockedChange?.(true);
-          refreshAll();
-        }}
-      />
+      {reportLoaded && (
+        <ReportModal
+          open={reporting}
+          target={report}
+          offerBlock={!isBlocked}
+          onClose={() => setReporting(false)}
+          onReported={({ blocked }) => {
+            if (!blocked) return;
+            onBlockedChange?.(true);
+            refreshAll();
+          }}
+        />
+      )}
       <ConfirmModal
         open={confirmingBlock}
         title={t('blockTitle', { handle })}

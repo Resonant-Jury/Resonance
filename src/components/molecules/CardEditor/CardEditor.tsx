@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useState, type MouseEvent } from 'react';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
@@ -23,7 +24,7 @@ import {
   boundaryPoints,
   polyline,
 } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
-import { PublishPanel } from '@/components/molecules/PublishPanel/PublishPanel';
+import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
 import { wobRect } from '@/lib/design/wobRect';
 import {
   createCardDraft,
@@ -41,6 +42,9 @@ import type { GenerateImageEvent } from '@/app/api/generate-image/route';
 import { ndjsonValues } from '@/lib/streams/ndjson';
 import { useRouter } from '@/i18n/navigation';
 import styles from './CardEditor.module.css';
+
+// The publish panel loads when it is first opened, not with the editor.
+const PublishPanel = dynamic(() => import('@/components/molecules/PublishPanel/PublishPanel').then((m) => m.PublishPanel));
 
 export interface CardEditorProps {
   initial?: {
@@ -156,6 +160,7 @@ export function CardEditor({
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? 'public');
   const [anonymous, setAnonymous] = useState(initial?.anonymous ?? false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const publishPanelLoaded = useOpenedOnce(publishOpen);
   const [media, setMedia] = useState<CardMedia | undefined>(initial?.media);
   // Cover-image dominant hue (snapped to the card palette). Recomputed when a
   // cover is uploaded/generated, cleared when removed — see setCover below.
@@ -842,7 +847,7 @@ export function CardEditor({
         </div>
         )}
 
-        {!inline && (
+        {!inline && publishPanelLoaded && (
           <PublishPanel
             open={publishOpen}
             onClose={() => setPublishOpen(false)}
