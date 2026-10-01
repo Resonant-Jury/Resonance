@@ -46,6 +46,25 @@ export function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T
   return result.data;
 }
 
+/** Requests this instance has served: the first one paid for its cold start. */
+let served = 0;
+
+/**
+ * Where an answer's time went, for measuring from the outside (region,
+ * transport, cold starts): `auth` (verifying the caller), `app` (the
+ * handler: mostly Firestore round trips) and `cold` on an instance's first
+ * request. Durations only — nothing the caller couldn't time itself.
+ */
+function timed(res: Response, auth: number, app: number | null, cold: boolean): Response {
+  const parts = [`auth;dur=${auth.toFixed(1)}`, ...(app === null ? [] : [`app;dur=${app.toFixed(1)}`]), ...(cold ? ['cold'] : [])];
+  try {
+    res.headers.append('Server-Timing', parts.join(', '));
+  } catch {
+    // A response with immutable headers just goes without.
+  }
+  return res;
+}
+
 /**
  * Wrap a v1 handler: require a user (session cookie or `Authorization:
  * Bearer <Firebase ID token>`), map ApiFailure to its status, and never leak
@@ -53,25 +72,33 @@ export function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T
  * answer on whether the session was revoked; every write asks Firebase Auth
  * (see "Revocation" in lib/auth/firebase/server). When Firebase Auth can't
  * be asked the answer is 500, not 401: the app must not sign its user out.
+ * Every answer says where its time went (`Server-Timing`, see timed()).
  */
 export function withUser<A extends unknown[]>(handler: (user: AuthUser, req: Request, ...rest: A) => Promise<Response>) {
   return async (req: Request, ...rest: A): Promise<Response> => {
+    const cold = served++ === 0;
+    const start = performance.now();
     const read = req.method === 'GET' || req.method === 'HEAD';
     let user: AuthUser | null;
     try {
       user = await getCurrentUser({ revocation: read ? 'cached' : 'live' });
     } catch (e) {
       console.error('[api/v1] auth', e);
-      return apiError('internal', 'Something went wrong.');
+      return timed(apiError('internal', 'Something went wrong.'), performance.now() - start, null, cold);
     }
-    if (!user) return apiError('unauthenticated', 'Sign in, or send a Firebase ID token as a Bearer token.');
+    const authed = performance.now();
+    if (!user) return timed(apiError('unauthenticated', 'Sign in, or send a Firebase ID token as a Bearer token.'), authed - start, null, cold);
+    let res: Response;
     try {
-      return await handler(user, req, ...rest);
+      res = await handler(user, req, ...rest);
     } catch (e) {
-      if (e instanceof ApiFailure) return apiError(e.code, e.message, e.issues);
-      console.error('[api/v1]', e);
-      return apiError('internal', 'Something went wrong.');
+      if (e instanceof ApiFailure) res = apiError(e.code, e.message, e.issues);
+      else {
+        console.error('[api/v1]', e);
+        res = apiError('internal', 'Something went wrong.');
+      }
     }
+    return timed(res, authed - start, performance.now() - authed, cold);
   };
 }
 

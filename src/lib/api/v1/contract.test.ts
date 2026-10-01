@@ -110,6 +110,35 @@ describe('POST /api/v1/messages (every write route shares these)', () => {
   });
 });
 
+describe('Server-Timing (every route shares this)', () => {
+  beforeEach(() => {
+    getCurrentUser.mockReset().mockResolvedValue({ id: 'alice' });
+    sendMessage.mockReset().mockResolvedValue({ conversationId: 'alice_bob', id: 'm1', notificationId: null });
+    spend.mockReset().mockResolvedValue(undefined);
+  });
+
+  // For measuring the region, the Firestore transport and cold starts from outside.
+  it("says how long verifying the caller and the handler took, and marks an instance's first request", async () => {
+    vi.resetModules();
+    const { withUser } = await import('./http');
+    const route = withUser(async () => new Response('{}'));
+    const first = (await route(new Request('http://localhost/x'))).headers.get('Server-Timing');
+    const second = (await route(new Request('http://localhost/x'))).headers.get('Server-Timing');
+    expect(first).toMatch(/^auth;dur=\d+\.\d, app;dur=\d+\.\d, cold$/);
+    expect(second).toMatch(/^auth;dur=\d+\.\d, app;dur=\d+\.\d$/);
+  });
+
+  it('times failures too — without an app part when nobody was signed in', async () => {
+    const res = await POST(new Request('http://localhost/api/v1/messages', { method: 'POST', body: JSON.stringify({ to: 'bob', text: 'hi' }) }));
+    expect(res.status).toBe(201);
+    expect(res.headers.get('Server-Timing')).toMatch(/^auth;dur=[\d.]+, app;dur=[\d.]+/);
+    getCurrentUser.mockResolvedValue(null);
+    const refused = await POST(new Request('http://localhost/api/v1/messages', { method: 'POST', body: '{}' }));
+    expect(refused.status).toBe(401);
+    expect(refused.headers.get('Server-Timing')).toMatch(/^auth;dur=[\d.]+(, cold)?$/);
+  });
+});
+
 describe('signing requests in (every route shares this)', () => {
   beforeEach(() => {
     getCurrentUser.mockReset().mockResolvedValue(null);

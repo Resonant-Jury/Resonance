@@ -13,7 +13,9 @@ export function ringAfter(db: Firestore, ...ids: (string | null | undefined)[]) 
   if (!todo.length) return;
   after(async () => {
     for (const id of todo) {
-      await pushNotification(db, id, getAdminMessaging()).catch((e) => console.error('[push]', id, e));
+      await getAdminMessaging()
+        .then((messaging) => pushNotification(db, id, messaging))
+        .catch((e) => console.error('[push]', id, e));
     }
   });
 }
