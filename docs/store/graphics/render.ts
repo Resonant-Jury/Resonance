@@ -10,7 +10,8 @@
  *
  * Reads   raw/ios/<key>.png       (simulator captures)   → out/ios/<nn>-<key>.jpg      1320×2868
  *         raw/android/<key>.png   (emulator captures)    → out/android/<nn>-<key>.jpg  1080×1920
- * Writes  out/play/feature-graphic.jpg (1024×500) and out/play/icon-512.png.
+ * Writes  out/play/feature-graphic.jpg (1024×500), out/play/feature-graphic.en.jpg (the en-US
+ *         listing's) and out/play/icon-512.png.
  * iOS and Android are built ONLY from their own raw folder (the stores reject a
  * screenshot from the other platform). A missing raw file falls back to a
  * clearly-marked placeholder and logs a warning.
@@ -99,6 +100,9 @@ const SLIDES: Slide[] = [
 
 const TAGLINE = { text: '讓生命影響生命', em: '影響' };
 const BRAND = { latin: 'Resonance', cjk: '共振' };
+/** The en-US listing's feature graphic: the brand alone, the tagline in English. */
+const TAGLINE_EN = { text: 'Let lives touch lives', em: 'touch' };
+type FeatureLang = 'zh-TW' | 'en';
 
 /* ── colour ───────────────────────────────────────────────────────────── */
 
@@ -214,8 +218,8 @@ document.fonts.ready.then(function () {
   document.documentElement.setAttribute('data-metrics', JSON.stringify({ W: innerWidth, H: innerHeight, fonts: fonts, items: items }));
 });`;
 
-function htmlDoc(title: string, css: string, fonts: string, body: string) {
-  return `<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${fonts}${css}</style></head><body>${body}<script>${PAGE_SCRIPT}</script></body></html>`;
+function htmlDoc(title: string, css: string, fonts: string, body: string, lang = 'zh-Hant-TW') {
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${fonts}${css}</style></head><body>${body}<script>${PAGE_SCRIPT}</script></body></html>`;
 }
 
 /* ── one screenshot slide ─────────────────────────────────────────────── */
@@ -368,14 +372,18 @@ async function slideHtml(
 
 /* ── play feature graphic ─────────────────────────────────────────────── */
 
-function featureHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>): string {
+function featureHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>, lang: FeatureLang): string {
+  const en = lang === 'en';
+  const tagline = en ? TAGLINE_EN : TAGLINE;
   const { w: W, h: H } = FEATURE;
   const s = W / 390 / 1.6; // pen scale: keep strokes about as heavy as the app's, a touch finer
   const pen = INK * s * 1.6;
   const terra = A.terracotta;
   const tile = 104;
   const tileD = wobRect(tile, tile, 28, 7, 2.2, { segmentsH: 3, segmentsV: 3 });
-  const [b1, b2] = TAGLINE.text.split(TAGLINE.em);
+  const [b1, b2] = tagline.text.split(tagline.em);
+  // The wave is sized in CJK characters; a Latin letter is about half as wide.
+  const waves = en ? Math.max(2, Math.round(tagline.em.length * 0.55)) : [...tagline.em].length;
   const grainId = 'blobgrain';
   const body = `<div class="canvas">
   <svg class="layer" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
@@ -400,9 +408,9 @@ function featureHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>): s
           <path d="M3.4,8.2 C5.4,5.9 7.3,5.8 9.2,8.0 C11.1,10.2 13.0,10.3 15.0,8.1 C16.9,6.0 18.8,5.9 20.7,8.1"/>
           <path d="M3.0,12.1 C5.1,9.7 7.1,9.8 9.0,12.0 C10.9,14.2 12.9,14.3 14.9,12.1 C16.8,9.9 18.8,9.8 20.9,12.0"/>
           <path d="M3.5,16.0 C5.4,13.8 7.4,13.7 9.3,15.9 C11.2,18.1 13.1,18.2 15.1,16.0 C17.0,13.9 18.9,13.8 20.8,16.0"/></g></svg>
-      <div class="name"><span class="lat">${esc(BRAND.latin)}</span> <span class="cjk">${esc(BRAND.cjk)}</span></div>
+      <div class="name"><span class="lat">${esc(BRAND.latin)}</span>${en ? '' : ` <span class="cjk">${esc(BRAND.cjk)}</span>`}</div>
     </div>
-    <div class="tagline"><span class="fitbox" data-max="640" data-measure="tagline" data-safe="1">${esc(b1)}<span class="em" style="color:${terra.ink}">${esc(TAGLINE.em)}${underline([...TAGLINE.em].length, 9, terra.mid)}</span>${esc(b2)}</span></div>
+    <div class="tagline"><span class="fitbox" data-max="640" data-measure="tagline" data-safe="1">${esc(b1)}<span class="em" style="color:${terra.ink}">${esc(tagline.em)}${underline(waves, 9, terra.mid)}</span>${esc(b2)}</span></div>
   </div>
 </div>`;
   const css = `${pageCss(T, W, H)}
@@ -411,8 +419,10 @@ function featureHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>): s
   .name{font-size:76px;line-height:1.1;color:var(--ink);white-space:nowrap}
   .name .lat{font-family:'Playfair Display','Noto Serif TC',serif;font-weight:700;letter-spacing:-.005em}
   .name .cjk{font-family:var(--serif);font-weight:900;color:${terra.ink};letter-spacing:.04em}
-  .tagline{margin-top:34px;font:900 60px/1.2 var(--serif);letter-spacing:.06em;color:var(--ink)}`;
-  return htmlDoc('Resonance feature graphic', css, fonts, body);
+  .tagline{margin-top:34px;font:900 60px/1.2 var(--serif);letter-spacing:.06em;color:var(--ink)}${
+    en ? `\n  .tagline{font:700 62px/1.2 'Playfair Display',serif;letter-spacing:0}` : ''
+  }`;
+  return htmlDoc('Resonance feature graphic', css, fonts, body, en ? 'en' : 'zh-Hant-TW');
 }
 
 /* ── driver ───────────────────────────────────────────────────────────── */
@@ -440,7 +450,11 @@ function report(name: string, m: Metrics | null, w: number, h: number, safe?: { 
     return;
   }
   const fonts = new Set(m.fonts.map((f) => f.split(' ')[0] + ' ' + f.split(' ').slice(1, -1).join(' ')));
-  const need = name.includes('feature') ? ['Noto Serif TC', 'Playfair Display'] : ['Noto Serif TC', 'Noto Sans TC'];
+  const need = name.endsWith('feature-graphic.en')
+    ? ['Playfair Display']
+    : name.includes('feature')
+      ? ['Noto Serif TC', 'Playfair Display']
+      : ['Noto Serif TC', 'Noto Sans TC'];
   for (const n of need) if (![...m.fonts].some((f) => f.startsWith(n))) problems.push(`${name}: font "${n}" did not load`);
   const line = m.items
     .map((i) => `${i.name} ${Math.round(i.w)}x${Math.round(i.h)}@${Math.round(i.x)},${Math.round(i.y)}${i.fs ? ` ${Math.round(i.fs)}px` : ''}`)
@@ -505,22 +519,25 @@ async function renderPlay(T: Tokens, fonts: string, check: boolean) {
   console.log('\nplay');
   const A = accentsFrom(T);
   const { w, h } = FEATURE;
-  const htmlPath = path.join(BUILD, 'play', 'feature-graphic.html');
-  const png = path.join(BUILD, 'play', 'feature-graphic.png');
-  const jpg = path.join(OUT, 'play', 'feature-graphic.jpg');
-  mkdirp(path.dirname(htmlPath));
-  fs.writeFileSync(htmlPath, featureHtml(T, fonts, A));
-  await screenshot(htmlPath, png, w, h);
-  toJpeg(png, jpg);
-  assertSize(jpg, w, h);
-  console.log(`  ${path.relative(ROOT, jpg)}  ${Math.round(fs.statSync(jpg).size / 1024)} KB`);
-  if (check) {
-    report('play/feature-graphic', await measure(htmlPath, w, h), w, h, {
-      l: w * 0.15,
-      t: h * 0.15,
-      r: w * 0.85,
-      b: h * 0.85,
-    });
+  for (const lang of ['zh-TW', 'en'] as const) {
+    const name = lang === 'en' ? 'feature-graphic.en' : 'feature-graphic';
+    const htmlPath = path.join(BUILD, 'play', `${name}.html`);
+    const png = path.join(BUILD, 'play', `${name}.png`);
+    const jpg = path.join(OUT, 'play', `${name}.jpg`);
+    mkdirp(path.dirname(htmlPath));
+    fs.writeFileSync(htmlPath, featureHtml(T, fonts, A, lang));
+    await screenshot(htmlPath, png, w, h);
+    toJpeg(png, jpg);
+    assertSize(jpg, w, h);
+    console.log(`  ${path.relative(ROOT, jpg)}  ${Math.round(fs.statSync(jpg).size / 1024)} KB`);
+    if (check) {
+      report(`play/${name}`, await measure(htmlPath, w, h), w, h, {
+        l: w * 0.15,
+        t: h * 0.15,
+        r: w * 0.85,
+        b: h * 0.85,
+      });
+    }
   }
 
   // The app's real icon, straight from the 1024 master (no redesign): resize only.
@@ -552,6 +569,7 @@ async function main() {
   const copy = [
     ...SLIDES.flatMap((s) => [s.headline, s.subline]),
     TAGLINE.text,
+    TAGLINE_EN.text,
     BRAND.latin,
     BRAND.cjk,
     ' 0123456789',

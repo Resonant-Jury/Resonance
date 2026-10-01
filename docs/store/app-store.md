@@ -14,13 +14,15 @@
 | 內容版權 | 此 App 包含第三方內容（使用者發布的故事）：**是**，我們擁有使用權（服務條款中的授權） |
 | 年齡分級 | 見第 4 節 |
 
-英文在地化：名稱 `Resonance`，副標題 `Answer stories with stories`。
+英文在地化：名稱 `Resonance: Story Cards`（英文（美國）的「Resonance」已被其他開發者的 App 使用，App Store 不允許重名），副標題 `Answer stories with stories`，隱私權政策網址 `/en/privacy`。
 
 ## 2. 版本資訊（2.0.0）
 
 - **宣傳文字**（170，可隨時更新）：
 
   > 讀到觸動你的故事，不按讚，而是寫下自己的故事回應它——讓生命影響生命
+
+  英文：`When a story moves you, don't just like it — answer it with a story of your own. Let lives touch lives.`
 
 - **描述**：與 Google Play 的完整說明相同（`docs/store/google-play.md` 第 9 節，含標點慣例），英文在地化用英文版本。
 - **關鍵字**（100，逗號分隔，不必重複名稱）：
@@ -29,9 +31,9 @@
 
   英文：`story,writing,journal,life,memoir,cards,reflection,share,connect,thought map`
 
-- **支援網址**：`https://resonance-world.vercel.app/zh-TW/support`
+- **支援網址**：`https://resonance-world.vercel.app/zh-TW/support`（英文 `/en/support`）
 - **行銷網址**：`https://resonance-world.vercel.app`
-- **隱私權政策網址**：`https://resonance-world.vercel.app/zh-TW/privacy`
+- **隱私權政策網址**：`https://resonance-world.vercel.app/zh-TW/privacy`（英文 `/en/privacy`）
 - **版權**：`© 2026 共振團隊`
 
 ### 螢幕截圖
