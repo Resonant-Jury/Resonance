@@ -104,7 +104,8 @@ object StoryParser {
                 is StrongEmphasis -> runs += inlines(child, true, italic, strike, link)
                 is Emphasis -> runs += inlines(child, bold, true, strike, link)
                 is Strikethrough -> runs += inlines(child, bold, italic, true, link)
-                is Link -> runs += inlines(child, bold, italic, strike, child.destination)
+                // A link the reader can't open (tel:, another app's scheme…) is plain text (StoryLink).
+                is Link -> runs += inlines(child, bold, italic, strike, child.destination.takeIf(StoryLink::isTappable))
                 // An image inside running text keeps its alt text in the line.
                 is Image -> runs += InlineRun(plain(child), bold, italic, strike, link = link)
                 is HtmlInline -> runs += InlineRun(child.literal, bold, italic, strike, link = link)

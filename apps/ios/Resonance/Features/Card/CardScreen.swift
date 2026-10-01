@@ -231,13 +231,22 @@ struct CardScreen: View {
         .padding(.bottom, 16)
     }
 
-    /// Links in the story: pages of this site open in the app, the rest in Safari.
+    /// Links in the story lead where their scheme says (`StoryLink`): a page
+    /// of this site the app shows itself opens here, any other page of the
+    /// site — or of the web — in the in-app browser, mailto: in Mail. Nothing
+    /// else is opened: a stranger's story can't start another app.
     private func open(_ url: URL) {
-        let absolute = url.host() == nil ? session.config.origin.appending(path: url.path()) : url
-        if let route = Route(url: absolute, origin: session.config.origin) {
-            openRoute(route)
-        } else {
-            openURL(absolute)
+        let origin = session.config.origin
+        switch StoryLink.resolve(url.absoluteString, origin: origin) {
+        case let .site(path):
+            guard let page = URL(string: origin.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + path) else { return }
+            if let route = Route(url: page, origin: origin) { openRoute(route) } else { InAppBrowser.open(page) }
+        case let .web(page):
+            InAppBrowser.open(page)
+        case let .mail(address):
+            openURL(address)
+        case nil:
+            break
         }
     }
 }

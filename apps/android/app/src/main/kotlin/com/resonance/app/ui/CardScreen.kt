@@ -1,6 +1,8 @@
 package com.resonance.app.ui
 
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -37,7 +39,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -80,6 +81,7 @@ import com.resonance.kit.reading.FeedLoader
 import com.resonance.kit.reading.cardKeyOf
 import com.resonance.kit.reading.embedFor
 import com.resonance.kit.story.StoryBlock
+import com.resonance.kit.story.StoryLink
 import com.resonance.kit.story.StoryParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -170,7 +172,6 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val related = model.related
     val linked = model.linked
     val embeds = model.embeds
-    val uri = LocalUriHandler.current
     val context = LocalContext.current
     val list = rememberLazyListState()
     // Edited, published or re-shelved from the writer or the ⋯, or a block: read it again; so is a page read long ago.
@@ -178,16 +179,8 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val foregrounded by session.foregrounded.collectAsStateWithLifecycle()
     LaunchedEffect(changes, foregrounded) { model.refresh(changes) }
 
-    val openUrl: (String) -> Unit = { url ->
-        val sitePath = if (url.startsWith("/")) url else if (url.startsWith(session.config.origin)) url.removePrefix(session.config.origin) else null
-        val route = sitePath?.let(Route::fromPath)
-        when {
-            route != null -> open(route)
-            // A page of the site the app doesn't show itself (a policy page): the in-app browser, never back into the app.
-            sitePath != null -> InAppBrowser.open(context, session.config.origin.trimEnd('/') + "/" + sitePath.trimStart('/'))
-            else -> runCatching { uri.openUri(url) }
-        }
-    }
+    // A story's link leads where its scheme says (StoryLink); any other scheme isn't even tappable.
+    val openUrl: (String) -> Unit = { href -> openStoryLink(context, session.config.origin, href, open) }
 
     // The bar lies over the page, so the story scrolls right up to its pen line.
     val top = inlineBarTop()
@@ -396,5 +389,21 @@ private fun CardEmbed(card: FeedCard?, href: String, title: String, open: (Route
         EmbedStoryCard(card.title, card.author?.handle ?: L10n.Card.anonymousAuthor, card.imageUrl, card.accentHue, seedFromString(href).toDouble(), go)
     } else {
         BasicText(title, style = AppFonts.body(17f, lineHeight = 1.8f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline), modifier = go)
+    }
+}
+
+/**
+ * Opens a link in a story by its scheme: a page of the site the app shows itself on its stack,
+ * any other page of the site — or of the web — in the in-app browser (never back into the app),
+ * and mailto: in a mail app. Nothing else is opened: a stranger's story can't start another app.
+ */
+internal fun openStoryLink(context: Context, origin: String, href: String, open: (Route) -> Unit) {
+    when (val link = StoryLink.resolve(href, origin)) {
+        is StoryLink.Site -> Route.fromPath(link.path)?.let(open) ?: InAppBrowser.open(context, origin.trimEnd('/') + link.path)
+        is StoryLink.Web -> InAppBrowser.open(context, link.url)
+        is StoryLink.Mail -> runCatching {
+            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse(link.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        null -> {}
     }
 }

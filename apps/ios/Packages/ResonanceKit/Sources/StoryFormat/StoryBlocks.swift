@@ -110,7 +110,8 @@ public nonisolated enum StoryParser {
             case is Strikethrough:
                 runs += inlines(child, bold: bold, italic: italic, strike: true, link: link)
             case let l as Link:
-                runs += inlines(child, bold: bold, italic: italic, strike: strike, link: l.destination ?? link)
+                // A link the reader can't open (tel:, another app's scheme…) is plain text (StoryLink).
+                runs += inlines(child, bold: bold, italic: italic, strike: strike, link: l.destination.flatMap { StoryLink.isTappable($0) ? $0 : nil })
             case let i as Markdown.Image:
                 // An image inside running text keeps its alt text in the line.
                 runs.append(InlineRun(i.plainText, bold: bold, italic: italic, strikethrough: strike, link: link))
