@@ -91,7 +91,8 @@ struct MainTabView: View {
             if let id = opened.notificationId { session.notifications.markRead(id: id) }
             if let url = URL(string: opened.route, relativeTo: session.config.origin)?.absoluteURL,
                let route = Route(url: url, origin: session.config.origin) {
-                open(Self.withSender(route, of: opened.notificationId.flatMap { id in session.notifications.items.first { $0.id == id } }))
+                let row = opened.notificationId.flatMap { id in session.notifications.items.first { $0.id == id } }
+                open(Self.withSender(route, uid: opened.fromUserId, of: row))
             } else {
                 tab = .notifications
             }
@@ -120,11 +121,14 @@ struct MainTabView: View {
         paths[tab, default: NavigationPath()].append(route)
     }
 
-    /// A push's link names the sender by pen name; its bell row (when it has
-    /// arrived) also knows their uid, which a conversation opens by.
-    static func withSender(_ route: Route, of item: NotificationsStore.Item?) -> Route {
-        guard case let .thread(handle, nil, note) = route, let item, item.fromHandle == handle,
-              let uid = item.fromUserId else { return route }
+    /// A push's link names the sender by pen name; a conversation opens by
+    /// their uid, which the push carries (`data.fromUserId`) — even on a cold
+    /// start, before any bell row has arrived. An older push without it takes
+    /// the uid from its bell row, when that has arrived.
+    static func withSender(_ route: Route, uid: String? = nil, of item: NotificationsStore.Item?) -> Route {
+        guard case let .thread(handle, nil, note) = route else { return route }
+        if let uid { return .thread(handle: handle, uid: uid, note: note) }
+        guard let item, item.fromHandle == handle, let uid = item.fromUserId else { return route }
         return .thread(handle: handle, uid: uid, note: note)
     }
 

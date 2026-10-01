@@ -17,6 +17,8 @@ final class PushCenter {
         /// A site path (`/messages/{handle}?note=…&card=…`, `/card/{id}`), or empty: show the notifications.
         let route: String
         let notificationId: String?
+        /// The sender's uid, on a push that opens their conversation (note, message, resonance, accepted invite).
+        var fromUserId: String?
         let at = Date()
     }
 
@@ -49,8 +51,14 @@ final class PushCenter {
         onToken?(token)
     }
 
-    func open(route: String, notificationId: String?) {
-        opened = Opened(route: route, notificationId: notificationId)
+    func open(route: String, notificationId: String?, fromUserId: String? = nil) {
+        opened = Opened(route: route, notificationId: notificationId, fromUserId: fromUserId)
+    }
+
+    /// A tapped push's data (FCM's `data`, at the top of the payload).
+    func open(userInfo info: [AnyHashable: Any]) {
+        let sender = (info["fromUserId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        open(route: info["route"] as? String ?? "", notificationId: info["notificationId"] as? String, fromUserId: sender)
     }
 }
 
@@ -81,7 +89,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        let info = response.notification.request.content.userInfo
-        PushCenter.shared.open(route: info["route"] as? String ?? "", notificationId: info["notificationId"] as? String)
+        PushCenter.shared.open(userInfo: response.notification.request.content.userInfo)
     }
 }
