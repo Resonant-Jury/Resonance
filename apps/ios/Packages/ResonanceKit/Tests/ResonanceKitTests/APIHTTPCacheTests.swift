@@ -64,6 +64,12 @@ import Testing
         #expect(server.requests(to: "/api/v1/feed?limit=12").count == 1)
     }
 
+    @Test func everyReadOptsInToTheServersReuse() async throws {
+        _ = try await reading.feed()
+        // The server lets only clients that say so keep an answer past max-age 0.
+        #expect(server.requests(to: "/api/v1/feed?limit=12").first?.headers["x-resonance-cache"] == "1")
+    }
+
     @Test func aStaleAnswerIsAskedForWithItsETag() async throws {
         maxAge.withLock { $0 = 1 }
         _ = try await reading.feed()

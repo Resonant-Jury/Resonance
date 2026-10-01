@@ -33,6 +33,8 @@ class HttpCachingTest {
     private val routes = Routes()
     /** What reached the server: "GET /feed no-cache" or "GET /feed". */
     private val reached = CopyOnWriteArrayList<String>()
+    /** The X-Resonance-Cache header of each request (the server's max-age is opt-in). */
+    private val optedIn = CopyOnWriteArrayList<String?>()
     private val dir = Files.createTempDirectory("http-cache").toFile()
     private val cache = Cache(dir, 1L shl 20)
     private val caching = HttpCaching(cache)
@@ -50,6 +52,7 @@ class HttpCachingTest {
             override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
                 val path = request.requestUrl!!.encodedPath.removePrefix("/api/v1")
                 reached.add("${request.method} $path" + if (request.getHeader("Cache-Control") == "no-cache") " no-cache" else "")
+                optedIn.add(request.getHeader("X-Resonance-Cache"))
                 return routes.dispatch(request)
             }
         }
@@ -62,6 +65,11 @@ class HttpCachingTest {
     @AfterTest fun stop() {
         server.shutdown()
         dir.deleteRecursively()
+    }
+
+    @Test fun everyReadOptsInToTheServersReuse() = runBlocking {
+        reading.feed()
+        assertEquals(listOf<String?>("1"), optedIn)
     }
 
     @Test fun aFreshAnswerComesFromTheCache() = runBlocking {

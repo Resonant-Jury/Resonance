@@ -130,6 +130,8 @@ public struct FreshnessMiddleware: ClientMiddleware {
     let freshness: APIFreshness
     /// Writes that leave every read as it was.
     static let unchanging: Set<String> = ["registerDevice", "unregisterDevice"]
+    /// The header that opts in to the server's `max-age` (src/lib/api/v1/cache.ts).
+    static let optIn = HTTPField.Name("X-Resonance-Cache")!
 
     public init(freshness: APIFreshness) {
         self.freshness = freshness
@@ -145,6 +147,10 @@ public struct FreshnessMiddleware: ClientMiddleware {
             return (response, responseBody)
         }
         var request = request
+        // This client keeps answers per account and re-asks after the viewer's own writes, so it
+        // may reuse a private answer while fresh: the server only allows max-age > 0 to clients
+        // that say so (older builds, sharing URLSession.shared, revalidate every time).
+        request.headerFields[Self.optIn] = "1"
         if freshness.mustRevalidate(request.path ?? "") { request.headerFields[.cacheControl] = "no-cache" }
         return try await next(request, body, baseURL)
     }

@@ -33,12 +33,16 @@ class HttpCaching(private val cache: Cache?) {
     private val dispatcher = Dispatcher()
 
     val interceptor: Interceptor = Interceptor { chain ->
-        val request = chain.request()
-        if (request.method != "GET") {
-            val response = chain.proceed(request)
-            if (response.isSuccessful && changesReads(request.url)) invalidate()
+        val sent = chain.request()
+        if (sent.method != "GET") {
+            val response = chain.proceed(sent)
+            if (response.isSuccessful && changesReads(sent.url)) invalidate()
             return@Interceptor response
         }
+        // This client keeps answers per account and re-asks after the viewer's own changes, so it
+        // may reuse a private answer while fresh: the server allows max-age > 0 only to clients
+        // that say so (src/lib/api/v1/cache.ts).
+        val request = sent.newBuilder().header("X-Resonance-Cache", "1").build()
         val key = request.url.toString()
         val asked = generation
         val last = synchronized(readIn) { readIn[key] }
