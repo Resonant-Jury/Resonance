@@ -52,6 +52,7 @@ export async function generateMetadata({
     locale: locale as Locale,
     base: siteUrl(),
     anonymousLabel: t('anonymousAuthor'),
+    storageBase: process.env.R2_PUBLIC_BASE,
   });
 }
 

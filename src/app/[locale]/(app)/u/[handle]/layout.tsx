@@ -55,6 +55,7 @@ export async function generateMetadata({
     base: siteUrl(),
     title,
     description,
+    storageBase: process.env.R2_PUBLIC_BASE,
   });
 }
 

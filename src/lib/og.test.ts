@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCardMetadata, buildProfileMetadata } from './og';
+import { buildCardMetadata, buildProfileMetadata, imageVersion } from './og';
 import type { Card, User } from '@/lib/db/types';
 
 const baseCard: Card = {
@@ -50,11 +50,26 @@ describe('buildCardMetadata', () => {
     expect(meta.alternates?.canonical).toBe('https://resonance.example/en/card/a-quiet-turning-point');
   });
 
-  it('uses the card image as the share thumbnail when present', () => {
-    const card: Card = { ...baseCard, media: { type: 'image', url: 'https://cdn.r2.dev/pic.avif' } };
-    const meta = buildCardMetadata({ card, author, locale: 'en', base, anonymousLabel: 'Anonymous' });
-    expect((meta.openGraph?.images as { url: string }[])[0].url).toBe('https://cdn.r2.dev/pic.avif');
-    expect((meta.twitter as { images?: string[] }).images).toEqual(['https://cdn.r2.dev/pic.avif']);
+  it("shares a stored cover as a JPEG from /api/og, under the cover's version (the AVIF itself isn't shown everywhere)", () => {
+    const url = 'https://cdn.r2.dev/image/user1/2026-10/pic.avif';
+    const card: Card = { ...baseCard, media: { type: 'image', url } };
+    const meta = buildCardMetadata({ card, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBase: 'https://cdn.r2.dev' });
+    const image = `https://resonance.example/api/og/card/card1?v=${imageVersion(url)}`;
+    expect((meta.openGraph?.images as { url: string }[])[0].url).toBe(image);
+    expect((meta.twitter as { images?: string[] }).images).toEqual([image]);
+    // The storage path (which names the author's uid) is nowhere in the share card.
+    expect(JSON.stringify(meta)).not.toContain('image/user1');
+
+    // A new cover is a new share-image URL.
+    const next: Card = { ...card, media: { type: 'image', url: 'https://cdn.r2.dev/image/user1/2026-10/pic2.avif' } };
+    const nextMeta = buildCardMetadata({ card: next, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBase: 'https://cdn.r2.dev' });
+    expect((nextMeta.openGraph?.images as { url: string }[])[0].url).not.toBe(image);
+  });
+
+  it('shares a picture hosted elsewhere as it is', () => {
+    const card: Card = { ...baseCard, media: { type: 'image', url: 'https://images.example/pic.jpg' } };
+    const meta = buildCardMetadata({ card, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBase: 'https://cdn.r2.dev' });
+    expect((meta.openGraph?.images as { url: string }[])[0].url).toBe('https://images.example/pic.jpg');
   });
 
   it('falls back to the platform cover when the card has no image', () => {
@@ -82,20 +97,24 @@ describe('buildCardMetadata', () => {
 });
 
 describe('buildProfileMetadata', () => {
-  it('uses the avatar as a square summary card when the user has one', () => {
-    const user2: User = { ...author, avatarUrl: 'https://cdn.r2.dev/avatar.avif' };
+  it('uses the avatar, as a JPEG from /api/og, as a square summary card when the user has one', () => {
+    const avatarUrl = 'https://cdn.r2.dev/image/user1/2026-10/avatar.webp';
+    const user2: User = { ...author, avatarUrl };
     const meta = buildProfileMetadata({
       user: user2,
       locale: 'en',
       base,
       title: 'mira · Resonance',
       description: 'writes about slow mornings',
+      storageBase: 'https://cdn.r2.dev/',
     });
 
     expect(meta.title).toBe('mira · Resonance');
     expect((meta.openGraph as { type?: string }).type).toBe('profile');
     expect((meta.openGraph as { username?: string }).username).toBe('mira');
-    expect((meta.openGraph?.images as { url: string }[])[0].url).toBe('https://cdn.r2.dev/avatar.avif');
+    expect((meta.openGraph?.images as { url: string }[])[0].url).toBe(
+      `https://resonance.example/api/og/user/user1?v=${imageVersion(avatarUrl)}`,
+    );
     // Avatar is square → summary card so it isn't cropped.
     expect((meta.twitter as { card?: string }).card).toBe('summary');
     expect(meta.alternates?.canonical).toBe('https://resonance.example/en/u/mira');

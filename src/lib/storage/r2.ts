@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
+  GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -89,6 +90,23 @@ export class R2StorageProvider implements IStorageProvider {
 
   getPublicUrl(key: string): string {
     return `${this.publicBase}/${key}`;
+  }
+
+  async getObject(key: string, maxBytes: number): Promise<Uint8Array | null> {
+    let res;
+    try {
+      res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    } catch (e) {
+      if ((e as { name?: string }).name === 'NoSuchKey' || (e as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404) {
+        return null;
+      }
+      throw e;
+    }
+    if (!res.Body) return null;
+    if ((res.ContentLength ?? 0) > maxBytes) throw new Error(`Object ${key} is larger than ${maxBytes} bytes`);
+    const bytes = await res.Body.transformToByteArray();
+    if (bytes.byteLength > maxBytes) throw new Error(`Object ${key} is larger than ${maxBytes} bytes`);
+    return bytes;
   }
 
   async deleteObject(key: string): Promise<void> {

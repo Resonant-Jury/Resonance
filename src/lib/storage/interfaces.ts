@@ -10,6 +10,11 @@ export interface IStorageProvider {
    */
   uploadObject(intent: UploadIntent, body: Uint8Array): Promise<StoredObject>;
   getPublicUrl(key: string): string;
+  /**
+   * An object's bytes, read through the storage API (not its public URL);
+   * null when there is no such object. Throws past `maxBytes`.
+   */
+  getObject(key: string, maxBytes: number): Promise<Uint8Array | null>;
   deleteObject(key: string): Promise<void>;
   /** Delete every object under `prefix` (e.g. `image/{uid}/`); returns how many. */
   deletePrefix(prefix: string): Promise<number>;

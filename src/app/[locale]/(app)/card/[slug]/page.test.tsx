@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ReactElement, ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
 import { NextIntlClientProvider } from 'next-intl';
@@ -97,6 +97,10 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('card page server render', () => {
   it("renders a public card's story into the HTML, with the id and the story handed to the browser", async () => {
     const { html, seed, client, script } = await renderPage('a-quiet-morning');
@@ -183,5 +187,19 @@ describe('card page server render', () => {
     const meta = await generateMetadata({ params: Promise.resolve({ locale: 'en', slug: 'a-quiet-morning' }) });
     expect(meta.title).toBe('A quiet morning');
     expect(meta.openGraph).toMatchObject({ authors: ['quiet-walker'] });
+  });
+
+  it("shares a stored cover as a JPEG from /api/og — never the AVIF, nor its storage path (which names the author)", async () => {
+    vi.stubEnv('R2_PUBLIC_BASE', 'https://img.example');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://resonance.example');
+    const cover = 'https://img.example/image/uid-author/2026-10/cover.avif';
+    fake.docs['cards/anon1'] = { ...fake.docs['cards/anon1'], media: { type: 'image', url: cover } };
+
+    const meta = await generateMetadata({ params: Promise.resolve({ locale: 'en', slug: 'unsigned-letter' }) });
+    const [image] = meta.openGraph?.images as { url: string }[];
+    expect(image.url).toMatch(/\/api\/og\/card\/anon1\?v=[0-9a-z]+$/);
+    expect((meta.twitter as { images?: string[] }).images).toEqual([image.url]);
+    expect(JSON.stringify(meta)).not.toContain('uid-author');
+    expect(JSON.stringify(meta)).not.toContain('.avif');
   });
 });

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { PutObjectCommand } from '@aws-sdk/client-s3';
+import type { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 const send = vi.fn();
 vi.mock('@aws-sdk/client-s3', async (importOriginal) => ({
@@ -39,5 +39,23 @@ describe('R2StorageProvider.uploadObject', () => {
     expect(IMMUTABLE).toBe('public, max-age=31536000, immutable');
     expect(input.Key).toMatch(/^image\/alice\/\d{4}-\d{2}\/[0-9a-f-]{36}\.avif$/);
     expect(stored.publicUrl).toBe(`https://img.example/${input.Key}`);
+  });
+});
+
+// What the share images (/api/og) read: an object by key through the S3 API.
+describe('R2StorageProvider.getObject', () => {
+  const body = (bytes: Uint8Array) => ({ transformToByteArray: async () => bytes });
+
+  it('reads an object by key, null when there is none, and refuses one past the limit', async () => {
+    const r2 = new R2StorageProvider();
+    send.mockResolvedValueOnce({ Body: body(new Uint8Array([7, 8])), ContentLength: 2 });
+    expect(await r2.getObject('image/alice/2026-10/a.avif', 10)).toEqual(new Uint8Array([7, 8]));
+    expect((send.mock.calls.at(-1)![0] as GetObjectCommand).input).toEqual({ Bucket: 'bucket', Key: 'image/alice/2026-10/a.avif' });
+
+    send.mockRejectedValueOnce(Object.assign(new Error('nope'), { name: 'NoSuchKey' }));
+    expect(await r2.getObject('image/alice/2026-10/gone.avif', 10)).toBeNull();
+
+    send.mockResolvedValueOnce({ Body: body(new Uint8Array(11)), ContentLength: 11 });
+    await expect(r2.getObject('image/alice/2026-10/big.avif', 10)).rejects.toThrow('larger than 10 bytes');
   });
 });
