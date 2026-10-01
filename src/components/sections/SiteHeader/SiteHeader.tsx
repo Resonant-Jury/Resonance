@@ -1,20 +1,31 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { HamburgerIcon } from '@/components/atoms/HamburgerIcon/HamburgerIcon';
-import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { Link, usePathname } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { useMyProfile } from '@/lib/data/hooks';
 import { AppMobileNavModal } from '@/components/sections/AppHeader/AppMobileNavModal';
 import { LanguageSelect } from './LanguageSelect';
+import { SiteHeaderAvatarPlaceholder } from './avatarPlaceholder';
 import styles from './SiteHeader.module.css';
 import { INK_LIGHT } from '@/lib/design/strokes';
+
+// What a signed-in viewer sees reads their profile, and with it the data
+// layer: loaded only once someone is signed in, so a signed-out visitor's
+// landing and policy pages never load Firestore.
+const SiteHeaderAvatar = dynamic(() => import('./SiteHeaderAccount').then((m) => m.SiteHeaderAvatar), {
+  ssr: false,
+  loading: SiteHeaderAvatarPlaceholder,
+});
+const SiteHeaderSignedInNav = dynamic(() => import('./SiteHeaderAccount').then((m) => m.SiteHeaderSignedInNav), {
+  ssr: false,
+});
 
 const HEADER_BODY_H = 68;
 const HEADER_WAVE_H = 14;
@@ -56,9 +67,8 @@ export function SiteHeader() {
   const pathname = usePathname();
 
   const { user, loading } = useAuth();
-  const { data: profile } = useMyProfile();
-
   const [mounted, setMounted] = useState(false);
+  const signedIn = mounted && !loading && user != null;
 
   useEffect(() => {
     setMounted(true);
@@ -165,15 +175,7 @@ export function SiteHeader() {
                       </OrganicButton>
                     </Link>
                   ) : (
-                    <Link href="/me" aria-label="My Profile" style={{ textDecoration: 'none' }}>
-                      <HandDrawnAvatar
-                        src={profile?.avatarUrl}
-                        initials={profile?.initials || '··'}
-                        size={36}
-                        color={profile?.accentColor || 'var(--color-terracotta-light)'}
-                        seed={Number(profile?.avatarSeed) || 77}
-                      />
-                    </Link>
+                    <SiteHeaderAvatar />
                   )}
                 </>
               )}
@@ -182,21 +184,11 @@ export function SiteHeader() {
         )}
       </div>
 
-      <AppMobileNavModal
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        user={
-          mounted && !loading && user && profile
-            ? {
-                initials: profile.initials || '··',
-                handle: profile.handle || '',
-                accentColor: profile.accentColor || 'var(--color-terracotta-light)',
-                avatarUrl: profile.avatarUrl,
-                avatarSeed: profile.avatarSeed,
-              }
-            : undefined
-        }
-      />
+      {signedIn ? (
+        <SiteHeaderSignedInNav open={menuOpen} onClose={() => setMenuOpen(false)} />
+      ) : (
+        <AppMobileNavModal open={menuOpen} onClose={() => setMenuOpen(false)} />
+      )}
     </header>
   );
 }
