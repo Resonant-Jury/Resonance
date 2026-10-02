@@ -80,7 +80,11 @@ npm run apps:generate   # tokens, string accessors, icons, openapi.json, editor 
 
 Both apps also bundle the story editor island, `native/editor/dist/editor.html`
 (the writing screen's story field). It is built, not committed: run
-`npm run native:editor` (or `apps:generate`) before the first app build.
+`npm run native:editor` (or `apps:generate`) before the first app build. An
+Android build without it installs and runs, but the writer's story field says
+"Webpage not available", so the builds check: the iOS build and Android release
+builds (APK, bundle, lint) stop with a message naming the command, and an
+Android debug build prints a warning.
 
 CI fails when the committed tokens, string accessors or icons are stale. The
 apps draw only the web's icons (`OrganicIcon`); an icon the web lacks is added
