@@ -39,9 +39,10 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
 - **Live lists** use `LiveListeners`: a failed listener re-attaches on the next foreground or a retry
   button; only permission-denied / not-found means "gone". With nothing loaded yet, a screen shows a retry.
 - **The writer** reports a change only when it wrote something (iOS `WriteLauncher.Change`, Android
-  `Session.CardChange` / `takeWriterChange`), naming the card and the card it answers. The thought map
-  is kept by the session per account: a visit within 15 minutes shows it where it was left, re-reading only
-  the card the writer changed.
+  `Session.CardChange` / `takeWriterChange`), naming the card and the card it answers. A card page reads
+  again only for a change that `concerns` it — its card, or a resonance to it; a change naming no card (a
+  block) concerns every page. The thought map is kept by the session per account: a visit within 15
+  minutes shows it where it was left, re-reading only the card the writer changed.
 - **Story links** (`StoryLink`): relative links and links on the site's host open in the app, other http(s)
   links in the in-app browser, `mailto:` as written; any other scheme is plain text.
 - **App Check** (watched, not enforced): iOS release builds attest with App Attest (the
@@ -52,10 +53,6 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
   `/api/` requests only, never the pictures') and never wait for one.
 - **Unknown enum values** in an API answer read as the nearest known one (Android `enumUnknownDefaultCase`,
   iOS `OpenEnumsMiddleware`, whose table a test checks against every response enum in openapi.json).
-- **Not adopted yet** by Android (iOS has them): `Me.deletion` (instead of asking `/api/account/deletion`
-  at start), `GET /me/cardbox`, `pageToken` paging, `POST /api/v1/reports` (person and message reports
-  still go straight to Firestore), and anonymous originals on the thought map (the rules refuse them to a
-  client read now; `/me/cards?tab=resonated` has them).
 
 ## Generated from the web
 
@@ -225,7 +222,14 @@ by slug or id; an unmatched link stays plain), a person's page one `GET /users/{
 and a thread's shared cards one `GET /cards?keys=` per batch of new ids. Lists pass their FeedCard as
 `Route.Card(key, preview)` and remember it in `Session.cardCache` (per account; cleared on sign-in/out,
 your own card changes and block changes) so the card page draws at once. The card ⋯ (visibility,
-delete) goes through `PATCH`/`DELETE /api/v1/cards/{id}`. `--es fromUserId <uid>` (and `--es pushFromUserId`
+delete) goes through `PATCH`/`DELETE /api/v1/cards/{id}`. The feed and a person's cards page by
+`nextPageToken` (`NextPage`; the millisecond `nextCursor` only from a server without the token). The card
+box reads my own shelves (published, private, drafts) together, one `GET /me/cardbox?shelves=`, and the
+other shelves one at a time, when shown. The thought map reads its cards under the rules and asks `GET /cards?keys=` for those
+the rules refuse (someone else's anonymous card I resonated with, which comes without its author). Reports
+— cards, people, conversations — go through the API (`SafetyApi`), which keeps the evidence. The scheduled
+deletion comes with `/me` (`Me.deletion`, kept on disk with the profile): no second request at start.
+`--es fromUserId <uid>` (and `--es pushFromUserId`
 for the notification posted while the app is open) fake a push carrying its sender's uid; the thread
 then opens by uid. `--es route /messages/<handle>` for the thread already on top leaves it
 in place.
