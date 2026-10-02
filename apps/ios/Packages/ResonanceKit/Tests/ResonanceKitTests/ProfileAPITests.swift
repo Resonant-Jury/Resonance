@@ -23,6 +23,22 @@ struct ProfileAPITests {
         #expect(me?.region == "TW")
     }
 
+    @Test func theAccountBringsItsScheduledDeletion() async throws {
+        // The app's client, which reads the contract's timestamps (milliseconds included).
+        func api(_ body: String) -> ProfileAPI {
+            ProfileAPI(client: ResonanceClient.make(APIConfiguration(origin: URL(string: "https://example.test")!, idToken: { _ in nil }),
+                                                    transport: StubTransport(body: body), middlewares: []))
+        }
+        let scheduled = Self.me.replacingOccurrences(of: #""handleChangedAt":null"#, with: #""handleChangedAt":null,"#
+            + #""deletion":{"requestedAt":"2026-10-01T09:30:00.000Z","purgeAfter":"2026-10-08T09:30:00.000Z"}"#)
+        let me = try await api(scheduled).me()
+        #expect(me?.deletion?.value1.purgeAfter == ISO8601.date("2026-10-08T09:30:00.000Z"))
+        // None scheduled: null — or, from a server older than the field, absent.
+        let none = Self.me.replacingOccurrences(of: #""handleChangedAt":null"#, with: #""handleChangedAt":null,"deletion":null"#)
+        #expect(try await api(none).me()?.deletion == nil)
+        #expect(try await api(Self.me).me()?.deletion == nil)
+    }
+
     @Test func onlyTheContractsNotFoundMeansNoProfileYet() async throws {
         let missing = StubTransport(status: .notFound, body: #"{"error":{"code":"not_found","message":"This account has no profile yet."}}"#)
         #expect(try await api(missing).me() == nil)

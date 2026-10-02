@@ -2,7 +2,8 @@ import Foundation
 
 /// The account routes (they predate /api/v1 and stay as the web uses them):
 /// scheduling or cancelling deletion, and exporting one's own writing.
-/// Authenticated with the same ID token as the v1 client.
+/// Authenticated with the same ID token as the v1 client. Whether a deletion
+/// is scheduled comes with the account itself (`Me.deletion`, GET /api/v1/me).
 public struct AccountAPI: Sendable {
     let configuration: APIConfiguration
     let session: URLSession
@@ -15,11 +16,6 @@ public struct AccountAPI: Sendable {
     struct DeletionBody: Decodable {
         struct Deletion: Decodable { let requestedAt: String; let purgeAfter: String }
         let deletion: Deletion?
-    }
-
-    /// When the account will be purged, if its deletion is scheduled.
-    public func deletion() async throws -> Date? {
-        try await deletionCall("GET")
     }
 
     /// Schedules deletion (7-day grace). The server revokes every session, so

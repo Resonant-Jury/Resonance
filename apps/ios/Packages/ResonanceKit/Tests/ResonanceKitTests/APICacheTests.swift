@@ -65,6 +65,17 @@ import Testing
         #expect(relaunched.value(.me, uid: "bob") == nil)
     }
 
+    @Test func theKeptAccountKeepsItsScheduledDeletion() throws {
+        // A cold start draws the undo banner from the kept account, before /me answers.
+        let cache = makeCache()
+        cache.retainOnly("alice")
+        var me = try me("alice")
+        let purge = Date(timeIntervalSince1970: 1_791_000_000.5)
+        me.deletion = .init(value1: .init(requestedAt: purge.addingTimeInterval(-7 * 86_400), purgeAfter: purge))
+        cache.save(me, as: .me, uid: "alice")
+        #expect(cache.value(.me, uid: "alice")?.deletion?.value1.purgeAfter == purge)
+    }
+
     @Test func todaysPicksNeverOutliveTheirUTCDay() throws {
         let cache = makeCache()
         cache.retainOnly("alice")

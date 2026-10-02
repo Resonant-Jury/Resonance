@@ -1,4 +1,5 @@
 import Foundation
+import ResonanceAPI
 import ResonanceKit
 
 /// An answer the test hands over when it chooses (a request still on its way).
@@ -65,6 +66,14 @@ enum Fixture {
 
     static func page(_ cards: [FeedCard], next: String? = nil) -> FeedPage {
         decode(#"{"cards":\#(json(cards)),"nextCursor":\#(next.map { "\"\($0)\"" } ?? "null")}"#)
+    }
+
+    /// The signed-in account as GET /me answers it, its deletion scheduled when `purgeAfter` is given.
+    static func me(_ uid: String = "alice", purgeAfter: Date? = nil) -> Components.Schemas.Me {
+        var me = Components.Schemas.Me(id: uid, handle: uid, initials: "AL", accentColor: "oklch(88% 0.08 55)", bio: nil,
+                                       avatarUrl: nil, region: "TW", primaryLocale: .zhTW, handleChangedAt: nil)
+        me.deletion = purgeAfter.map { .init(value1: .init(requestedAt: $0.addingTimeInterval(-7 * 86_400), purgeAfter: $0)) }
+        return me
     }
 
     /// A profile as the API sends it; `cards` and `links` come along as `include` brings them.

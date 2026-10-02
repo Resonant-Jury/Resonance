@@ -47,8 +47,12 @@ final class SessionStore {
     private(set) var isSigningIn = false
     var signInError: String?
 
-    /// When a scheduled account deletion will run (the undo banner shows until then).
-    private(set) var deletionDate: Date?
+    /// When a scheduled account deletion will run (the undo banner shows until
+    /// then): it comes with the account (`Me.deletion`), the kept one on a cold start.
+    var deletionDate: Date? { me?.deletion?.value1.purgeAfter }
+    /// Cancels of a scheduled deletion here, so a /me answer asked for before one
+    /// (still on its way when the person tapped undo) can't bring the banner back.
+    @ObservationIgnored private var deletionCancels = DeletionCancels()
     /// Set when the app signed the person out because they scheduled deletion.
     private(set) var signedOutForDeletion = false
     /// Bumped when the interface language changes, so the whole UI re-renders.
@@ -191,10 +195,6 @@ final class SessionStore {
 
     // MARK: - Account deletion
 
-    func refreshDeletion() async {
-        deletionDate = try? await account.deletion()
-    }
-
     /// Schedules deletion; the server revokes every session, so sign out here
     /// too — and nothing of the account stays on the phone meanwhile. This
     /// install stops getting its pushes first, while the token is still good
@@ -215,9 +215,16 @@ final class SessionStore {
         signOut()
     }
 
+    /// Cancels the scheduled deletion: the banner goes, from the kept account too.
     func cancelDeletion() async throws {
         try await account.cancelDeletion()
-        deletionDate = nil
+        deletionCancels.cancelled()
+        // Not through the v1 client: its next GET /me asks the server, not the HTTP cache.
+        noteOwnWrite()
+        guard let uid, var current = me else { return }
+        current.deletion = nil
+        me = current
+        kept.save(current, as: .me, uid: uid)
     }
 
     /// The current user's ID token; the SDK renews it before it expires.
@@ -255,7 +262,6 @@ final class SessionStore {
         phase = newUID == nil ? .signedOut : .signedIn
         // An account this install has seen with a profile opens straight onto the tabs.
         land(newUID != nil && UserDefaults.standard.string(forKey: Self.profiledKey) == newUID ? .tabs : .pending)
-        deletionDate = nil
         // The last account's listeners stop before anything of it is cleared off the device.
         notifications.stop()
         conversations.stop()
@@ -271,11 +277,7 @@ final class SessionStore {
                 notifications.start(uid: newUID)
                 conversations.start(uid: newUID)
             }
-            Task {
-                async let profile: Void = loadMe()
-                async let deletion: Void = refreshDeletion()
-                _ = await (profile, deletion)
-            }
+            Task { await loadMe() }
             Task { await registerPush() }
         }
         #if DEBUG
@@ -336,13 +338,14 @@ final class SessionStore {
     /// the person to onboarding (`Landing.after`).
     func loadMe() async {
         guard let asked = uid else { return }
+        let cancels = deletionCancels.count
         profile = .loading
         do {
             let found = try await profiles.me()
             // Signed out, or someone else signed in, while this was on its way.
             guard uid == asked else { return }
             if let found {
-                adopt(found)
+                adopt(deletionCancels.answer(found, asked: cancels))
             } else {
                 me = nil
                 kept.remove(.me, uid: asked)
@@ -434,6 +437,22 @@ final class SessionStore {
             #endif
             signInError = L10n.Auth.signInError
         }
+    }
+}
+
+/// A scheduled deletion cancelled here stays cancelled: an answer about the
+/// account asked for before the cancel still names it, and is taken without it.
+struct DeletionCancels {
+    private(set) var count = 0
+
+    mutating func cancelled() { count += 1 }
+
+    /// `me` as the session takes it, from a request sent when `count` was `asked`.
+    func answer(_ me: Components.Schemas.Me, asked: Int) -> Components.Schemas.Me {
+        guard asked != count, me.deletion != nil else { return me }
+        var me = me
+        me.deletion = nil
+        return me
     }
 }
 

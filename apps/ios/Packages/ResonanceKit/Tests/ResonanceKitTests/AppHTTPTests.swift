@@ -36,7 +36,7 @@ import Testing
         // The API through the account's HTTP cache, a client of its own (a sign-out's last call), and the account routes.
         _ = try await ReadingAPI(client: ResonanceClient.make(configuration, cache: cache)).feed()
         _ = try await ReadingAPI(client: ResonanceClient.make(configuration)).feed()
-        _ = try await AccountAPI(configuration).deletion()
+        try await AccountAPI(configuration).cancelDeletion()
         let agents = server.requests.map { $0.headers["user-agent"] }
         #expect(agents.count == 3)
         #expect(agents.allSatisfy { $0 == AppHTTP.userAgent })
