@@ -18,10 +18,12 @@ import { DM_Sans, Noto_Sans_TC, Noto_Serif_TC, Playfair_Display } from 'next/fon
  * unicode-range slices and the browser fetches only those a page's characters
  * fall in — about 20 of Noto Sans TC and 12 of Noto Serif TC on a typical
  * page. Each slice is one variable file whatever the weight, so asking for
- * static weights only repeated every slice's @font-face rule once per weight
- * (some 640 rules, ~70 KB of render-blocking CSS); one variable rule per slice
- * is a third of that. Chinese at 500/600 renders at that weight, a little
- * lighter than the 700 a 600 used to land on. They are never preloaded.
+ * static weights downloaded the same files and only repeated every slice's
+ * @font-face rule once per weight. One variable rule per slice cuts some 640
+ * rules to 215, and the CSS the browser parses before first paint from
+ * ~600 KB to ~200 KB (on the wire, brotli makes either about 70 KB). Chinese
+ * at 500/600 renders at that weight, a little lighter than the 700 a 600 used
+ * to land on. They are never preloaded.
  *
  * adjustFontFallback is off: next/font would put a metric-adjusted Times New
  * Roman / Arial right after each face, ahead of the Chinese face in the
