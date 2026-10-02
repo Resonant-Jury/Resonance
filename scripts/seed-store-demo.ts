@@ -113,8 +113,15 @@ async function clearEmulators() {
   ];
   for (const url of targets) {
     const res = await fetch(url, { method: 'DELETE' });
-    if (!res.ok) throw new Error(`Clearing ${url} failed: ${res.status}`);
+    // With an app or browser still listening, the Firestore emulator clears the data
+    // but answers 499 (the listeners were cancelled); emptiness is checked below.
+    if (!res.ok && res.status !== 499) throw new Error(`Clearing ${url} failed: ${res.status}`);
   }
+  const left = await fetch(
+    `http://127.0.0.1:8080/v1/projects/${EMULATOR_PROJECT_ID}/databases/(default)/documents:listCollectionIds`,
+    { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: '{}' },
+  ).then((r) => r.json() as Promise<{ collectionIds?: string[] }>);
+  if (left.collectionIds?.length) throw new Error(`Firestore emulator not empty after clearing: ${left.collectionIds.join(', ')}`);
 }
 
 async function main() {
