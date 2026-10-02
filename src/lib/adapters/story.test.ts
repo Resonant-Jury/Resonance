@@ -40,13 +40,20 @@ describe('cardToStory', () => {
     expect(story.tags).toEqual(['life', 'kindness']);
   });
 
-  it('derives read time from non-whitespace character count (~320 chars/min, floor of 1)', () => {
+  it('counts the read time as the stored summaries do (lib/readTime): CJK by the character, the rest by the word', () => {
     // Short story → clamps up to the 1-minute floor.
     expect(cardToStory(makeCard({ story: 'tiny' }), author).readTime).toBe('1 min');
 
-    // ~640 non-whitespace chars → 2 minutes. Spaces must not count.
-    const long = 'x '.repeat(640); // 640 'x' + 640 spaces
-    expect(cardToStory(makeCard({ story: long }), author).readTime).toBe('2 min');
+    // 640 Chinese characters at ~320 a minute → 2 minutes. Spaces must not count.
+    expect(cardToStory(makeCard({ story: '雨停了 '.repeat(213) + '雨' }), author).readTime).toBe('2 min');
+
+    // 460 English words at ~230 a minute → 2 minutes (counting their 3220 letters made 10).
+    expect(cardToStory(makeCard({ story: 'quietly '.repeat(460) }), author).readTime).toBe('2 min');
+  });
+
+  it("shows a summary's stored read time over counting its story, which is only the excerpt", () => {
+    const card = makeCard({ story: 'The first lines…', summary: { readMinutes: 6 } });
+    expect(cardToStory(card, author).readTime).toBe('6 min');
   });
 
   it('keeps short stories intact and collapses newlines in the excerpt', () => {

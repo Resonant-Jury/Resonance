@@ -1,5 +1,6 @@
 import type { Card, User } from '@/lib/db/types';
 import type { Story } from '@/components/molecules/StoryCard/StoryCard';
+import { readMinutes } from '@/lib/readTime';
 
 /**
  * Adapt a Card (domain) to the Story shape used by the existing StoryCard
@@ -56,9 +57,8 @@ export function cardToStory(
   author: Pick<User, 'handle' | 'initials' | 'avatarUrl' | 'avatarSeed'> | null | undefined,
   opts?: CardToStoryOptions,
 ): Story {
-  const wordCount = card.story.replace(/\s+/g, '').length;
   // A summary's story is only its excerpt: it brings the whole story's read time along.
-  const minutes = card.summary?.readMinutes ?? Math.max(1, Math.round(wordCount / 320));
+  const minutes = card.summary?.readMinutes ?? readMinutes(card.story);
   const excerpt = card.story.replace(/\n+/g, ' ').slice(0, 96) + (card.story.length > 96 ? '…' : '');
   const anonymized = (card.anonymous && !opts?.deanonymize) || !author;
   const byline = anonymized

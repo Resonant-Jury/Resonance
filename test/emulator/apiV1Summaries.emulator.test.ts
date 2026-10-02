@@ -231,4 +231,14 @@ describe('backfillCardSummaries (scripts/backfill-card-summaries.ts)', () => {
   it('restates every published card with `all`', async () => {
     expect(await backfillCardSummaries(db, { write: true, all: true })).toMatchObject({ due: 9, written: 9 });
   });
+
+  it('restates a read time stored under an older rule without `all`: 180 English words were 3 minutes by their letters', async () => {
+    const story = Array(10).fill('The rain stopped just before dusk, and the street outside the bakery shone like a river of glass.').join(' ');
+    await db.doc('cards/english').set({
+      authorId: 'bob', thoughtCore: 't', story, visibility: 'public', publishedAt: at,
+      excerpt: summarize(story).excerpt, readMinutes: 3, excerptAt: at, updatedAt: at,
+    });
+    expect(await backfillCardSummaries(db, { write: true })).toMatchObject({ published: 10, current: 1, due: 9, written: 9 });
+    expect(storedSummary(await data('english'))).toEqual({ excerpt: summarize(story).excerpt, readMinutes: 1 });
+  });
 });

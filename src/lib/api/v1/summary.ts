@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp, type DocumentData, type Firestore } from 'firebase-admin/firestore';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card } from '@/lib/db/types';
+import { readMinutes } from '@/lib/readTime';
 
 /**
  * A card's list summary — the plain-text excerpt and read time every list
@@ -19,8 +20,6 @@ import type { Card } from '@/lib/db/types';
 
 /** StoryCard's excerpt length on the web (lib/adapters/story cardToStory). */
 const EXCERPT_CHARS = 96;
-/** Characters read per minute, as the web's StoryCard counts (lib/adapters/story). */
-const CHARS_PER_MINUTE = 320;
 
 /** A story's prose without Markdown syntax (links keep their text). */
 export function plainText(markdown: string): string {
@@ -45,10 +44,6 @@ export function plainText(markdown: string): string {
 export function excerpt(text: string, max = EXCERPT_CHARS): string {
   const chars = Array.from(text);
   return chars.length > max ? `${chars.slice(0, max).join('')}…` : text;
-}
-
-export function readMinutes(story: string): number {
-  return Math.max(1, Math.round(story.replace(/\s+/g, '').length / CHARS_PER_MINUTE));
 }
 
 export interface StorySummary {
