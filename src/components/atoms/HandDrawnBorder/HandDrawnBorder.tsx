@@ -15,6 +15,12 @@ export interface HandDrawnBorderProps {
   strokeColor?: string;
   strokeWidth?: number;
   chalkSeed?: number | null;
+  /**
+   * The chalk filter is defined once elsewhere on the page (`<ChalkFilters>`),
+   * so this shape only refers to it. For a surface drawn many times over with
+   * the same few seeds (the thought map's cards).
+   */
+  sharedChalk?: boolean;
   segmentsH?: SegValue;
   segmentsV?: SegValue;
   curve?: number;
@@ -32,6 +38,7 @@ export function HandDrawnBorder({
   strokeColor,
   strokeWidth = INK,
   chalkSeed,
+  sharedChalk = false,
   segmentsH,
   segmentsV,
   curve,
@@ -40,14 +47,23 @@ export function HandDrawnBorder({
 }: HandDrawnBorderProps) {
   const m = mag != null ? mag : autoMag(w, h);
   const c = curve != null ? curve : autoCurve(w, h);
-  const segH: SegValue = segmentsH != null ? segmentsH : autoSegments(w);
-  const segV: SegValue = segmentsV != null ? segmentsV : autoSegments(h);
+  // Callers pass segment ranges as inline arrays ([3, 4]): key the path on
+  // their values, not the array, or every render of the host redraws it.
+  const segH = segKey(segmentsH != null ? segmentsH : autoSegments(w));
+  const segV = segKey(segmentsV != null ? segmentsV : autoSegments(h));
   const path = useMemo(
-    () => wobRect(w, h, R, seed, m, { segmentsH: segH, segmentsV: segV, curve: c, cornerJitter, cornerOffset }),
+    () =>
+      wobRect(w, h, R, seed, m, {
+        segmentsH: segValue(segH),
+        segmentsV: segValue(segV),
+        curve: c,
+        cornerJitter,
+        cornerOffset,
+      }),
     [w, h, R, seed, m, segH, segV, c, cornerJitter, cornerOffset]
   );
   if (!w || !h) return null;
-  const chalkId = chalkSeed != null ? `chalk-hdb-${chalkSeed}` : null;
+  const chalkId = chalkSeed != null ? chalkFilterId(chalkSeed) : null;
 
   return (
     <svg
@@ -65,30 +81,9 @@ export function HandDrawnBorder({
         zIndex: 0,
       }}
     >
-      {chalkId && chalkSeed != null && (
+      {chalkSeed != null && !sharedChalk && (
         <defs>
-          <filter
-            id={chalkId}
-            x="0%"
-            y="0%"
-            width="100%"
-            height="100%"
-            colorInterpolationFilters="sRGB"
-          >
-            <feTurbulence
-              type="fractalNoise"
-              baseFrequency={`${0.5 + (chalkSeed % 6) * 0.018} ${0.38 + (chalkSeed % 6) * 0.012}`}
-              numOctaves={4}
-              seed={chalkSeed + 30}
-            />
-            <feColorMatrix
-              type="matrix"
-              values="0 0 0 0 0.99  0 0 0 0 0.94  0 0 0 0 0.88  0 0 0 0.09 0"
-              result="warmNoise"
-            />
-            <feBlend in="SourceGraphic" in2="warmNoise" mode="multiply" result="blended" />
-            <feComposite in="blended" in2="SourceGraphic" operator="in" />
-          </filter>
+          <ChalkFilter seed={chalkSeed} />
         </defs>
       )}
       {fillColor && (
@@ -103,6 +98,70 @@ export function HandDrawnBorder({
           strokeLinejoin="round"
         />
       )}
+    </svg>
+  );
+}
+
+/** `[3, 4]` → `'3-4'`, `3` → `3`: a segment value a memo can compare. */
+function segKey(v: SegValue): number | string {
+  return Array.isArray(v) ? `${v[0]}-${v[1]}` : v;
+}
+
+function segValue(k: number | string): SegValue {
+  if (typeof k === 'number') return k;
+  const [lo, hi] = k.split('-').map(Number);
+  return [lo, hi];
+}
+
+export function chalkFilterId(seed: number): string {
+  return `chalk-hdb-${seed}`;
+}
+
+/**
+ * The chalk on a hand-drawn fill: warm fractal noise multiplied into the
+ * fill, kept inside it. The same seed always makes the same filter, so a page
+ * may define one twice without harm.
+ */
+function ChalkFilter({ seed }: { seed: number }) {
+  return (
+    <filter
+      id={chalkFilterId(seed)}
+      x="0%"
+      y="0%"
+      width="100%"
+      height="100%"
+      colorInterpolationFilters="sRGB"
+    >
+      <feTurbulence
+        type="fractalNoise"
+        baseFrequency={`${0.5 + (seed % 6) * 0.018} ${0.38 + (seed % 6) * 0.012}`}
+        numOctaves={4}
+        seed={seed + 30}
+      />
+      <feColorMatrix
+        type="matrix"
+        values="0 0 0 0 0.99  0 0 0 0 0.94  0 0 0 0 0.88  0 0 0 0.09 0"
+        result="warmNoise"
+      />
+      <feBlend in="SourceGraphic" in2="warmNoise" mode="multiply" result="blended" />
+      <feComposite in="blended" in2="SourceGraphic" operator="in" />
+    </filter>
+  );
+}
+
+/**
+ * The chalk filters for `seeds`, defined once for every shape on the page
+ * drawn with `sharedChalk` (the thought map's hundred cards share six). A
+ * zero-sized svg, not `display: none`, which would switch its filters off.
+ */
+export function ChalkFilters({ seeds }: { seeds: readonly number[] }) {
+  return (
+    <svg aria-hidden="true" width={0} height={0} style={{ position: 'absolute' }}>
+      <defs>
+        {seeds.map((s) => (
+          <ChalkFilter key={s} seed={s} />
+        ))}
+      </defs>
     </svg>
   );
 }
