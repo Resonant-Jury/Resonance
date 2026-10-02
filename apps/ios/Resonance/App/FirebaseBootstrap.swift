@@ -62,8 +62,10 @@ enum FirebaseBootstrap {
     nonisolated static func clearLocalData() async {
         let failure: Error? = await withCheckedContinuation { done in
             store.withLock { store in
-                guard let old = store.current else { return done.resume(returning: nil) }
+                guard let current = store.current else { return done.resume(returning: nil) }
                 store.current = nil
+                // Firestore's instances are safe to use from any thread.
+                nonisolated(unsafe) let old = current
                 old.terminate { error in
                     if let error { return done.resume(returning: error) }
                     old.clearPersistence { done.resume(returning: $0) }
