@@ -59,21 +59,24 @@ enum FirebaseBootstrap {
     /// SDK's registry at once, so the next use makes a new one) and its files
     /// go (`clearPersistence`, right behind it). The listeners were stopped
     /// before; one removed after this is a no-op.
+    ///
+    /// The instance is held here until both are done: freed while its
+    /// persistence is being cleared, it would wait for its own queue on the
+    /// thread freeing it, and that queue for it — the app would freeze.
     nonisolated static func clearLocalData() async {
-        let failure: Error? = await withCheckedContinuation { done in
-            store.withLock { store in
-                guard let current = store.current else { return done.resume(returning: nil) }
-                store.current = nil
-                // Firestore's instances are safe to use from any thread.
-                nonisolated(unsafe) let old = current
-                old.terminate { error in
-                    if let error { return done.resume(returning: error) }
-                    old.clearPersistence { done.resume(returning: $0) }
-                }
-            }
+        let taken: Firestore? = store.withLock { store in
+            defer { store.current = nil }
+            return store.current
         }
-        #if DEBUG
-        if let failure { print("Clearing Firestore's local data failed: \(failure)") }
-        #endif
+        guard let old = taken else { return }
+        do {
+            try await old.terminate()
+            try await old.clearPersistence()
+        } catch {
+            #if DEBUG
+            print("Clearing Firestore's local data failed: \(error)")
+            #endif
+        }
+        withExtendedLifetime(old) {}
     }
 }
