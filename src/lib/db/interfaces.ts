@@ -1,9 +1,7 @@
 import type {
   Card,
   Connection,
-  Invite,
   NewCard,
-  NewInvite,
   Notification,
   User,
 } from './types';
@@ -35,22 +33,6 @@ export interface IConnectionRepository {
   list(userId: string): Promise<Connection[]>;
   listMutuals(userId: string): Promise<User[]>;
   sever(a: string, b: string): Promise<void>;
-}
-
-export interface IInviteRepository {
-  send(input: NewInvite): Promise<Invite>;
-  accept(id: string, userId: string): Promise<Connection>;
-  expire(id: string): Promise<void>;
-  withdraw(id: string, userId: string): Promise<void>;
-  listPending(userId: string): Promise<Invite[]>;
-  remainingDailyQuota(userId: string): Promise<number>;
-}
-
-export interface IResonanceRepository {
-  mark(cardId: string, userId: string, note?: string): Promise<void>;
-  unmark(cardId: string, userId: string): Promise<void>;
-  hasResonated(cardId: string, userId: string): Promise<boolean>;
-  listResonated(userId: string): Promise<Card[]>;
 }
 
 export interface INotificationRepository {

@@ -11,10 +11,3 @@ export class ForbiddenError extends Error {
     this.name = 'ForbiddenError';
   }
 }
-
-export class QuotaExceededError extends Error {
-  constructor(message = 'Quota exceeded') {
-    super(message);
-    this.name = 'QuotaExceededError';
-  }
-}

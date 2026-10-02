@@ -7,7 +7,6 @@ import {
   sanitize,
   mapCard,
   mapUser,
-  mapInvite,
   mapNotification,
 } from './mapper';
 
@@ -112,18 +111,6 @@ describe('document mappers', () => {
     expect(user.id).toBe('u1');
     expect(user.joinedAt).toBeInstanceOf(Date);
     expect(user.handleChangedAt).toBeInstanceOf(Date);
-  });
-
-  it('mapInvite converts createdAt and expiresAt', () => {
-    const invite = mapInvite('i1', {
-      fromUserId: 'a',
-      toUserId: 'b',
-      status: 'pending',
-      createdAt: Timestamp.fromDate(new Date('2026-01-01')),
-      expiresAt: Timestamp.fromDate(new Date('2026-01-08')),
-    });
-    expect(invite.createdAt).toBeInstanceOf(Date);
-    expect(invite.expiresAt).toBeInstanceOf(Date);
   });
 
   it('mapNotification keeps an unread readAt as null', () => {

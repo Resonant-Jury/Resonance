@@ -298,5 +298,3 @@ export type NewCard = Omit<Card, 'id' | 'publishedAt' | 'readCount' | 'resonance
   publishedAt?: Date | null;
   translations?: Card['translations'];
 };
-
-export type NewInvite = Omit<Invite, 'id' | 'status' | 'expiresAt' | 'createdAt'>;

@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase-admin/firestore';
-import type { Card, Connection, Invite, Notification, User } from '../types';
+import type { Card, Connection, Notification, User } from '../types';
 
 type Raw = Record<string, unknown>;
 
@@ -72,16 +72,6 @@ export function mapConnection(id: string, data: Raw): Connection {
     ...(clean as Omit<Connection, 'id' | 'establishedAt'>),
     id,
     establishedAt: toDate(clean.establishedAt),
-  };
-}
-
-export function mapInvite(id: string, data: Raw): Invite {
-  const clean = sanitizeDoc(data);
-  return {
-    ...(clean as Omit<Invite, 'id' | 'createdAt' | 'expiresAt'>),
-    id,
-    createdAt: toDate(clean.createdAt),
-    expiresAt: toDate(clean.expiresAt),
   };
 }
 
