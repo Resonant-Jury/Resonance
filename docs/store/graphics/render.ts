@@ -118,7 +118,7 @@ const SLIDES: Slide[] = [
     },
   },
   {
-    key: 'write', accent: 'yellow', side: 1, seed: 37, cropBottom: { android: 0.0437 },
+    key: 'write', accent: 'yellow', side: 1, seed: 37, cropBottom: { ios: 0.017 },
     copy: {
       'zh-TW': { headline: '寫下你的故事', em: '故事', subline: '在手繪紙張上，決定給誰看' },
       en: { headline: 'Write your story', em: 'your story', subline: 'On hand-drawn paper, shared as you choose' },
@@ -139,7 +139,7 @@ const SLIDES: Slide[] = [
     },
   },
   {
-    key: 'thoughtmap', accent: 'peach', side: -1, seed: 67, cropBottom: { ios: 0.0237, android: 0.0404 },
+    key: 'thoughtmap', accent: 'peach', side: -1, seed: 67, cropBottom: { ios: 0.0237 },
     copy: {
       'zh-TW': { headline: '看見想法怎麼長出來', em: '長出來', subline: '把卡片排在點點紙上，畫出它們的關係' },
       en: { headline: 'Watch your thinking grow', em: 'grow', subline: 'Lay out your cards and draw how they relate' },

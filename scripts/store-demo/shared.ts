@@ -89,7 +89,9 @@ export interface DemoThoughtMap {
  * The viewer's thought map: two labelled zones, six of her cards, three
  * labelled arrows. Only the zone titles and arrow labels are words; the cards
  * and the geometry are the same in every language. (Nodes are 232 x 178; a
- * zone's header sits 70 above its first row, as in seed-emulator.ts.)
+ * zone's header sits 70 above its first row, as in seed-emulator.ts. The two
+ * cards of a row are 90 apart, so the arrow between them, its label and the
+ * arrowhead all show.)
  */
 export function thoughtMap(
   titles: { alone: string; remembered: string },
@@ -97,16 +99,16 @@ export function thoughtMap(
 ): DemoThoughtMap {
   return {
     zones: [
-      { id: 'g-alone', title: titles.alone, hue: 88, x: -40, y: -70, w: 560, h: 514 },
-      { id: 'g-remembered', title: titles.remembered, hue: 55, x: -40, y: 530, w: 560, h: 514 },
+      { id: 'g-alone', title: titles.alone, hue: 88, x: -40, y: -70, w: 610, h: 514 },
+      { id: 'g-remembered', title: titles.remembered, hue: 55, x: -40, y: 530, w: 610, h: 514 },
     ],
     nodes: [
       { cardId: 'first-lamp-in-my-rental', x: 0, y: 0, zone: 'g-alone' },
-      { cardId: 'hotpot-for-one', x: 272, y: 20, zone: 'g-alone' },
-      { cardId: 'the-43rd-minute', x: 136, y: 226, zone: 'g-alone' },
+      { cardId: 'hotpot-for-one', x: 322, y: 20, zone: 'g-alone' },
+      { cardId: 'the-43rd-minute', x: 161, y: 226, zone: 'g-alone' },
       { cardId: 'mothers-phone-call', x: 0, y: 600, zone: 'g-remembered' },
-      { cardId: 'rice-cooker-is-waiting-too', x: 272, y: 620, zone: 'g-remembered' },
-      { cardId: 'sunday-market', x: 136, y: 826, zone: 'g-remembered' },
+      { cardId: 'rice-cooker-is-waiting-too', x: 322, y: 620, zone: 'g-remembered' },
+      { cardId: 'sunday-market', x: 161, y: 826, zone: 'g-remembered' },
     ],
     edges: [
       { source: 'first-lamp-in-my-rental', target: 'hotpot-for-one', label: labels.later },
