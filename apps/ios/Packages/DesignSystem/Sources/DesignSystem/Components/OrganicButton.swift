@@ -15,10 +15,13 @@ public struct OrganicButton: View {
     /// `paper` is the card's own paper (grain and all, as the modal's) with no
     /// rim and ink for a label: a control floating over busy content (the
     /// thought map's toolbar) that needs a ground to read on but no outline
-    /// of its own.
-    public enum Variant: Sendable { case primary, ghost, outline, solid, danger, text, textAccent, paper }
-    /// `sm` is the web's dense size (dialog actions, list rows, the deletion banner).
-    public enum Size: Sendable { case md, sm }
+    /// of its own. `ink` is solid in the text ink, for a brand that asks for
+    /// a black button (Sign in with Apple).
+    public enum Variant: Sendable { case primary, ghost, outline, solid, danger, text, textAccent, paper, ink }
+    /// `sm` is the web's dense size (dialog actions, list rows, the deletion
+    /// banner); `lg` the sign-in sheet's provider buttons: a 16pt label, 12×16
+    /// padding, at least 52 tall.
+    public enum Size: Sendable { case md, sm, lg }
 
     let title: String
     var icon: IconName?
@@ -59,6 +62,26 @@ public struct OrganicButton: View {
     public func fillingHeight() -> OrganicButton {
         var copy = self
         copy.fillsHeight = true
+        return copy
+    }
+
+    /// Stretch to the column's width, the label kept in the middle and the
+    /// pill drawn at the full width (the sign-in sheet's provider buttons).
+    var fillsWidth = false
+
+    public func fillingWidth() -> OrganicButton {
+        var copy = self
+        copy.fillsWidth = true
+        return copy
+    }
+
+    /// Set the brand mark on a white wobbly disc: Google's G keeps the light
+    /// ground its guidelines ask for on a coloured face.
+    var marksOnDisc = false
+
+    public func markOnDisc() -> OrganicButton {
+        var copy = self
+        copy.marksOnDisc = true
         return copy
     }
 
@@ -111,7 +134,7 @@ public struct OrganicButton: View {
         let style = OrganicButtonStyle(variant: variant, size: size)
         let shape = OrganicButtonShape(seed: style.seed)
         face(style)
-            .frame(maxHeight: fillsHeight ? .infinity : nil)
+            .frame(maxWidth: fillsWidth ? .infinity : nil, maxHeight: fillsHeight ? .infinity : nil)
             .background {
                 GeometryReader { geo in
                     ZStack {
@@ -196,7 +219,7 @@ extension OrganicButton {
                 .padding(.horizontal, roomyIcon ? (size == .sm ? 18 : 32) : 11)
                 .padding(.vertical, roomyIcon ? (size == .sm ? 9 : 14) : 9)
         } else {
-            style.label(title, icon: icon, image: image, busyTitle: busyTitle, busy: isBusy)
+            style.label(title, icon: icon, image: image, onDisc: marksOnDisc, busyTitle: busyTitle, busy: isBusy)
         }
     }
 }
@@ -240,7 +263,7 @@ struct OrganicButtonStyle {
     /// The web's BTN_SEEDS, so each variant wobbles like its web twin.
     var seed: Double {
         switch variant {
-        case .primary, .solid, .danger: 3
+        case .primary, .solid, .danger, .ink: 3
         case .ghost, .text, .paper: 401
         case .outline, .textAccent: 601
         }
@@ -249,7 +272,7 @@ struct OrganicButtonStyle {
     /// is light, so it tints terracotta like the frameless variants.
     var filled: Bool {
         switch variant {
-        case .primary, .solid, .danger: true
+        case .primary, .solid, .danger, .ink: true
         case .ghost, .outline, .text, .textAccent, .paper: false
         }
     }
@@ -257,7 +280,7 @@ struct OrganicButtonStyle {
     var stroked: Bool {
         switch variant {
         case .primary, .ghost, .outline: true
-        case .solid, .danger, .text, .textAccent, .paper: false
+        case .solid, .danger, .text, .textAccent, .paper, .ink: false
         }
     }
     var fill: Color {
@@ -265,6 +288,7 @@ struct OrganicButtonStyle {
         case .primary, .solid: Tokens.terracotta
         case .danger: Tokens.danger
         case .paper: Tokens.cardBg
+        case .ink: Tokens.text
         case .ghost, .outline, .text, .textAccent: .clear
         }
     }
@@ -274,12 +298,12 @@ struct OrganicButtonStyle {
         case .ghost: Tokens.ghostStroke
         // Darker than the label: the pen line reads apart from the text.
         case .outline: Tokens.terracottaOutline
-        case .solid, .danger, .text, .textAccent, .paper: .clear
+        case .solid, .danger, .text, .textAccent, .paper, .ink: .clear
         }
     }
     var textColor: Color {
         switch variant {
-        case .primary, .solid, .danger: Tokens.cream
+        case .primary, .solid, .danger, .ink: Tokens.cream
         case .ghost, .paper: Tokens.text
         case .text: Tokens.textMuted
         case .outline, .textAccent: Tokens.terracotta
@@ -289,26 +313,63 @@ struct OrganicButtonStyle {
     /// Label row: 16pt glyphs 7 apart; brand marks are 18pt, 10 from the text.
     /// With a `busyTitle`, both labels share one spot (the one not showing is
     /// clear), so the button is as wide in either state.
-    func label(_ title: String, icon: IconName?, image: String?, busyTitle: String? = nil, busy: Bool = false) -> some View {
-        let fontSize: CGFloat = size == .sm ? 14 : 15
-        func text(_ s: String) -> some View {
-            Text(s).font(AppFonts.body(fontSize, weight: .semibold)).tracking(fontSize * 0.02).lineLimit(1)
+    func label(_ title: String, icon: IconName?, image: String?, onDisc: Bool = false, busyTitle: String? = nil,
+               busy: Bool = false) -> some View {
+        let fontSize: CGFloat = switch size { case .sm: 14; case .md: 15; case .lg: 16 }
+        let padX: CGFloat = switch size { case .sm: 18; case .md: 32; case .lg: 16 }
+        let padY: CGFloat = switch size { case .sm: 9; case .md: 14; case .lg: 12 }
+        func text(_ s: String, scale: CGFloat = 1) -> Text {
+            Text(s).font(AppFonts.body(fontSize * scale, weight: .semibold)).tracking(fontSize * scale * 0.02)
+        }
+        // One line: `lg` steps down to 85% first (Android's TextAutoSize steps)
+        // and only past that wraps, at 85% — a long label at a large text size
+        // on a narrow phone.
+        @ViewBuilder func oneLine(_ s: String) -> some View {
+            if size == .lg {
+                ViewThatFits(in: .horizontal) {
+                    text(s).lineLimit(1)
+                    text(s, scale: 0.95).lineLimit(1)
+                    text(s, scale: 0.9).lineLimit(1)
+                    text(s, scale: 0.85).lineLimit(1)
+                    text(s, scale: 0.85).multilineTextAlignment(.center)
+                }
+            } else {
+                text(s).lineLimit(1)
+            }
         }
         return HStack(spacing: image != nil ? 10 : 7) {
             if let icon { OrganicIcon(icon, size: 16) }
-            if let image { Image(image).resizable().scaledToFit().frame(width: 18, height: 18) }
+            if let image { mark(image, onDisc: onDisc) }
             if let busyTitle {
                 ZStack(alignment: .leading) {
-                    text(title).opacity(busy ? 0 : 1)
-                    text(busyTitle).opacity(busy ? 1 : 0)
+                    oneLine(title).opacity(busy ? 0 : 1)
+                    oneLine(busyTitle).opacity(busy ? 1 : 0)
                 }
+            } else if size == .lg {
+                oneLine(title)
             } else {
-                Text(title).font(AppFonts.body(fontSize, weight: .semibold)).tracking(fontSize * 0.02)
+                text(title)
             }
         }
         .foregroundStyle(textColor)
-        .padding(.horizontal, size == .sm ? 18 : 32)
-        .padding(.vertical, size == .sm ? 9 : 14)
+        .padding(.horizontal, padX)
+        .padding(.vertical, padY)
+        .frame(minHeight: size == .lg ? 52 : nil)
+    }
+
+    /// An 18pt brand mark. On a disc it sits on a white wobbly circle 30
+    /// across; at `lg` a bare mark keeps the disc's room too, so Apple's and
+    /// Google's buttons stand the same height.
+    private func mark(_ image: String, onDisc: Bool) -> some View {
+        let slot: CGFloat = onDisc || size == .lg ? 30 : 18
+        return ZStack {
+            if onDisc {
+                WobCircleShape(seed: seed + 9, options: WobCircleOptions(segments: 8, mag: 0.7, cpJitter: 0.4))
+                    .fill(Color.white)
+            }
+            Image(image).resizable().scaledToFit().frame(width: 18, height: 18)
+        }
+        .frame(width: slot, height: slot)
     }
 
     @ViewBuilder func fillLayers(_ shape: OrganicButtonShape) -> some View {

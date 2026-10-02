@@ -2,14 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { AuthCard } from '@/components/molecules/AuthCard/AuthCard';
 import { TermsConsent } from '@/components/molecules/TermsConsent/TermsConsent';
-import { GoogleMark } from '@/components/atoms/GoogleMark/GoogleMark';
-import { AppleMark } from '@/components/atoms/AppleMark/AppleMark';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { isIosNativeApp } from '@/lib/auth/firebase/native';
 import { sanitizeNextPath } from '@/lib/auth/nextPath';
+import { ProviderButtons, type Provider } from '../ProviderButtons';
+import styles from '../auth.module.css';
 
 const RESUME_KEY = 'resonance:signin-resume';
 
@@ -27,21 +26,6 @@ function claimResume(): boolean {
   } catch {
     return false;
   }
-}
-
-/**
- * A button label that turns into "Signing in…" without resizing the button:
- * both labels sit in one grid cell, the one not showing hidden, so the cell
- * is as wide as the longer.
- */
-function BusyLabel({ busy, idle, working }: { busy: boolean; idle: string; working: string }) {
-  const cell = { gridArea: '1 / 1' } as const;
-  return (
-    <span style={{ display: 'inline-grid' }}>
-      <span style={{ ...cell, visibility: busy ? 'hidden' : 'visible' }}>{idle}</span>
-      <span style={{ ...cell, visibility: busy ? 'visible' : 'hidden' }}>{working}</span>
-    </span>
-  );
 }
 
 /** A query parameter of the page's own address — read in the browser, at the moment it is needed. */
@@ -90,7 +74,8 @@ export default function SignInPage() {
     );
   }, [authLoading, signedInId, refreshSession]);
 
-  async function signInWith(provider: 'google' | 'apple') {
+  async function signInWith(provider: Provider) {
+    if (pending) return;
     setPending(true);
     setError(null);
     try {
@@ -106,52 +91,17 @@ export default function SignInPage() {
   }
 
   return (
-    <AuthCard title={t('signInTitle')}>
-      <p
-        style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: 14,
-          color: 'var(--color-text-muted)',
-          lineHeight: 1.6,
-          marginBottom: 24,
-        }}
-      >
-        {t('googleIntro')}
-      </p>
+    <AuthCard title={t('signInTitle')} intro={t(showApple ? 'appleGoogleIntro' : 'googleIntro')}>
       {deletionScheduled && (
-        <p
-          role="status"
-          style={{
-            fontSize: 14,
-            lineHeight: 1.6,
-            fontWeight: 600,
-            color: 'var(--color-terracotta)',
-            marginBottom: 20,
-          }}
-        >
+        <p role="status" className={styles.notice}>
           {t('deletionScheduled')}
         </p>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 14 }}>
-        <OrganicButton variant="outline" onClick={() => signInWith('google')}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <GoogleMark size={18} />
-            <BusyLabel busy={pending} idle={t('continueWithGoogle')} working={t('signingIn')} />
-          </span>
-        </OrganicButton>
-        {showApple && (
-          <OrganicButton variant="outline" onClick={() => signInWith('apple')}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <AppleMark size={18} />
-              <BusyLabel busy={pending} idle={t('continueWithApple')} working={t('signingIn')} />
-            </span>
-          </OrganicButton>
-        )}
+      <ProviderButtons showApple={showApple} pending={pending} onPick={signInWith} />
+      {error && <p className={styles.error}>{error}</p>}
+      <div className={styles.terms}>
+        <TermsConsent />
       </div>
-      {error && (
-        <p style={{ color: 'var(--color-terracotta)', fontSize: 13, marginTop: 12 }}>{error}</p>
-      )}
-      <TermsConsent />
     </AuthCard>
   );
 }

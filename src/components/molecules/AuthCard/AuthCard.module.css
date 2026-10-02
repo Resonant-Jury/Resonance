@@ -22,17 +22,18 @@
   display: none;
 }
 
+/* The sheet's top edge, one strip per band of widths (AuthCard.tsx), only the
+   band's own shown. It lies above the grain, so the page's paper it lays above
+   the line hides the grain there too. */
 .edge {
+  display: none;
   position: absolute;
+  top: 0;
   left: 0;
-  right: 0;
-  z-index: 5;
-}
-.edge[data-edge='top'] {
-  top: -3px;
-}
-.edge[data-edge='bottom'] {
-  bottom: -3px;
+  width: 100%;
+  height: 14px;
+  overflow: visible;
+  z-index: 11;
 }
 
 .body {
@@ -48,29 +49,76 @@
   color: var(--color-text);
 }
 
-/* On phones the card chrome (border + grain) is dropped in favor of a
-   borderless "section" framed by top/bottom wavy rules — mirroring how the
-   home feed cards degrade to dividers on small screens. */
+.intro {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+/* On phones the card is a sheet at the foot of the screen, under the (auth)
+   layout's cover: the card's paper and grain, full width, one wavy pen line
+   for a top edge and no rule below — it runs on under the home indicator. */
 @media (max-width: 640px) {
   .card {
     align-self: stretch;
     width: auto;
     max-width: none;
-    margin: 0 -24px;
-    background: var(--auth-interior);
-    padding: 42px clamp(32px, 9vw, 64px);
+    padding: 40px clamp(20px, 6.4vw, 28px) calc(env(safe-area-inset-bottom) + 20px);
   }
 
   .desktopChrome {
     display: none;
   }
 
+  /* Its own layer, so the grain stays under the words and buttons. */
   .mobileChrome {
     display: block;
+    z-index: 0;
+    background: var(--auth-interior);
   }
 
   .title {
     font-size: 24px;
+    line-height: 1.3;
     margin-bottom: 22px;
+  }
+
+  .title[data-intro] {
+    margin-bottom: 8px;
+  }
+
+  .intro {
+    margin-bottom: 22px;
+    text-wrap: pretty;
+  }
+}
+
+/* A turn of the edge per ~68px: the band where round(width / 68) is the
+   strip's turns. */
+@media (max-width: 373.98px) {
+  .edge[data-turns='5'] {
+    display: block;
+  }
+}
+@media (min-width: 374px) and (max-width: 441.98px) {
+  .edge[data-turns='6'] {
+    display: block;
+  }
+}
+@media (min-width: 442px) and (max-width: 509.98px) {
+  .edge[data-turns='7'] {
+    display: block;
+  }
+}
+@media (min-width: 510px) and (max-width: 577.98px) {
+  .edge[data-turns='8'] {
+    display: block;
+  }
+}
+@media (min-width: 578px) {
+  .edge[data-turns='9'] {
+    display: block;
   }
 }

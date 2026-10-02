@@ -852,6 +852,8 @@ public enum L10n {
         public static var continueWithApple: String { Strings.shared.string("auth.continueWithApple") }
         /// We use Google to sign you in. We never see your password.
         public static var googleIntro: String { Strings.shared.string("auth.googleIntro") }
+        /// We use Apple or Google to sign you in. We never see your password.
+        public static var appleGoogleIntro: String { Strings.shared.string("auth.appleGoogleIntro") }
         /// Sign in failed. Please try again.
         public static var signInError: String { Strings.shared.string("auth.signInError") }
         /// Could not create the account. Please try again.

@@ -21,6 +21,7 @@
 .btn:is(
     [data-variant='solid'],
     [data-variant='danger'],
+    [data-variant='ink'],
     [data-variant='text'],
     [data-variant='textAccent'],
     [data-variant='paper']
@@ -44,4 +45,11 @@
 .sm {
   padding: 9px 18px;
   font-size: 14px;
+}
+
+/* Full width (a sheet's provider buttons): measured at that width, so the
+   face and its wobble are drawn across all of it; .btn keeps the label centred. */
+.block {
+  display: flex;
+  width: 100%;
 }

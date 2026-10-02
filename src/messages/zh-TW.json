@@ -463,6 +463,7 @@
     "continueWithGoogle": "使用 Google 繼續",
     "continueWithApple": "使用 Apple 繼續",
     "googleIntro": "我們透過 Google 登入，從不會看到你的密碼。",
+    "appleGoogleIntro": "我們透過 Apple 或 Google 登入，從不會看到你的密碼。",
     "signInError": "登入失敗，請再試一次。",
     "signUpError": "建立帳號失敗，請稍後再試。",
     "switchToSignUp": "還沒有帳號？",

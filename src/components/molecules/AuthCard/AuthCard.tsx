@@ -3,27 +3,55 @@
 import { useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
-import { Divider } from '@/components/atoms/Divider/Divider';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wobRect } from '@/lib/design/wobRect';
+import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { INK, INK_LIGHT } from '@/lib/design/strokes';
 import styles from './AuthCard.module.css';
 
-export function AuthCard({ children, title }: { children: ReactNode; title: string }) {
+const SEED = 313;
+const BORDER = 'color-mix(in oklch, var(--color-terracotta), black 18%)';
+
+// The phone's sheet has one wavy pen line for a top edge, a turn every ~68px
+// of its width. The width is the CSS's to know (the server's HTML has no
+// measure), so the edge is drawn for each band of phone widths and the module
+// CSS shows the band's own: 5 turns under 374px, 6 up to 442 … 9 from 578.
+export const SHEET_EDGE_TURNS = [5, 6, 7, 8, 9] as const;
+export const SHEET_EDGE_TURN_PX = 68;
+const EDGE_H = 14; // the strip the line wobbles in (its height in the CSS)
+const EDGE_Y = 7;
+const EDGE_AMP = 4.5;
+
+const SHEET_EDGES = SHEET_EDGE_TURNS.map((turns) => {
+  const W = turns * SHEET_EDGE_TURN_PX;
+  const line = pointsToBezier(wavyPoints(W, EDGE_Y, EDGE_AMP, SEED, turns));
+  // Above the line is the page's paper, laid over the sheet's fill and grain,
+  // so the sheet starts at the line.
+  return { turns, W, line, above: `${line} L ${W},-1 L 0,-1 Z` };
+});
+
+export function AuthCard({
+  children,
+  title,
+  intro,
+}: {
+  children: ReactNode;
+  title: string;
+  /** A line under the title (the sign-in's "We use Google…"). */
+  intro?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useElementSize(ref, 420, 480);
-  const seed = 313;
   const R = 22;
   // The module CSS's --auth-interior: derived from the accent token so the
   // Tweaks themes re-tint the card.
   const interior = 'var(--auth-interior)';
-  const borderColor = 'color-mix(in oklch, var(--color-terracotta), black 18%)';
   const mag = Math.min(w, h) * 0.025;
 
   const borderPath = useMemo(() => {
     if (!w || !h) return '';
-    return wobRect(w, h, R, seed, mag, {
+    return wobRect(w, h, R, SEED, mag, {
       segmentsH: [3, 4],
       segmentsV: [5, 6],
       curve: 0.55,
@@ -32,18 +60,31 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
     });
   }, [w, h, mag]);
 
-  // Both designs render; the module CSS shows the phone's (a borderless
-  // section between wavy rules) or the card, so the first paint is right.
+  // Both designs render; the module CSS shows the phone's (a sheet of the
+  // card's paper under a wavy top edge) or the card, so the first paint is right.
   return (
     <div ref={ref} className={styles.card}>
       <div className={styles.mobileChrome} aria-hidden>
         <GrainOverlay opacity={0.04} />
-        <div className={styles.edge} data-edge="top">
-          <Divider seed={seed} spacing={0} color={borderColor} strokeWidth={INK_LIGHT} />
-        </div>
-        <div className={styles.edge} data-edge="bottom">
-          <Divider seed={seed + 11} spacing={0} color={borderColor} strokeWidth={INK_LIGHT} />
-        </div>
+        {SHEET_EDGES.map(({ turns, W, line, above }) => (
+          <svg
+            key={turns}
+            className={styles.edge}
+            data-turns={turns}
+            viewBox={`0 0 ${W} ${EDGE_H}`}
+            preserveAspectRatio="none"
+          >
+            <path d={above} fill="var(--color-cream)" />
+            <path
+              d={line}
+              fill="none"
+              stroke={BORDER}
+              strokeWidth={INK_LIGHT}
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        ))}
       </div>
       <div
         className={`${styles.desktopChrome} res-shape-stand-in`}
@@ -53,7 +94,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
         style={
           {
             '--shape-fill': interior,
-            '--shape-ink': borderColor,
+            '--shape-ink': BORDER,
             '--shape-ink-width': `${INK}px`,
             '--shape-radius': `${R}px`,
           } as CSSProperties
@@ -63,7 +104,7 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
           w={w}
           h={h}
           R={R}
-          seed={seed}
+          seed={SEED}
           mag={mag}
           fillColor={interior}
           strokeColor="transparent"
@@ -75,14 +116,14 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
           cornerJitter={0.7}
           cornerOffset={4}
         />
-        <ShapeGrain w={w} h={h} d={borderPath} opacity={0.3} frequency={0.85} seed={seed} />
+        <ShapeGrain w={w} h={h} d={borderPath} opacity={0.3} frequency={0.85} seed={SEED} />
         <HandDrawnBorder
           w={w}
           h={h}
           R={R}
-          seed={seed}
+          seed={SEED}
           mag={mag}
-          strokeColor={borderColor}
+          strokeColor={BORDER}
           segmentsH={[3, 4]}
           segmentsV={[5, 6]}
           curve={0.55}
@@ -92,7 +133,10 @@ export function AuthCard({ children, title }: { children: ReactNode; title: stri
       </div>
 
       <div className={styles.body}>
-        <h1 className={styles.title}>{title}</h1>
+        <h1 className={styles.title} data-intro={intro ? '' : undefined}>
+          {title}
+        </h1>
+        {intro && <p className={styles.intro}>{intro}</p>}
         {children}
       </div>
     </div>

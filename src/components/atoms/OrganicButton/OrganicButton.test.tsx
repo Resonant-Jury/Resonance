@@ -6,12 +6,13 @@ import { renderToString } from 'react-dom/server';
 import { render, screen, fireEvent, userEvent } from '@/../test/render';
 import { mockElementSize, penLines } from '@/../test/organic';
 import { OrganicButton, type OrganicButtonVariant } from './OrganicButton';
+import styles from './OrganicButton.module.css';
 
 // The button draws nothing until it is measured; give it a box.
 mockElementSize(120, 40);
 
 const FRAMED: OrganicButtonVariant[] = ['primary', 'ghost', 'outline'];
-const FRAMELESS: OrganicButtonVariant[] = ['solid', 'danger', 'text', 'textAccent', 'paper'];
+const FRAMELESS: OrganicButtonVariant[] = ['solid', 'danger', 'ink', 'text', 'textAccent', 'paper'];
 
 function renderVariant(variant: OrganicButtonVariant) {
   render(<OrganicButton variant={variant}>Press me</OrganicButton>);
@@ -49,6 +50,7 @@ describe('OrganicButton variants', () => {
   it.each([
     ['solid', 'var(--color-terracotta)'],
     ['danger', 'var(--color-danger, oklch(58% 0.16 25))'],
+    ['ink', 'var(--color-text)'],
     ['paper', 'var(--color-card-bg)'],
     ['text', 'transparent'],
     ['textAccent', 'transparent'],
@@ -76,11 +78,45 @@ describe('OrganicButton variants', () => {
     expect(body).toMatch(/outline-offset:/);
   });
 
+  // Sign in with Apple asks for a black button: the ink face with a cream
+  // label, as large as its neighbour and, like it, no pen line on the sheet.
+  it('ink sets a cream label on the ink colour', () => {
+    const btn = renderVariant('ink');
+    expect(btn.style.color).toBe('var(--color-cream)');
+    expect(btn.style.getPropertyValue('--shape-fill')).toBe('var(--color-text)');
+  });
+
   it('still takes clicks', async () => {
     const onClick = vi.fn();
     render(<OrganicButton variant="text" onClick={onClick}>Cancel</OrganicButton>);
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A sheet's provider buttons span its width: the face is drawn across all of
+// it — the size it measures — and the label stays in the middle.
+describe('block', () => {
+  it('fills its container and draws its face at that width', () => {
+    render(<OrganicButton variant="solid" block>Continue with Google</OrganicButton>);
+    const btn = screen.getByRole('button', { name: 'Continue with Google' });
+    expect(btn.classList).toContain(styles.block);
+    // The width the button measures (mockElementSize's box above).
+    expect(btn.querySelector('svg')).toHaveAttribute('width', '120');
+
+    const css = readFileSync(
+      join(process.cwd(), 'src/components/atoms/OrganicButton/OrganicButton.module.css'),
+      'utf8',
+    );
+    const [, block] = css.match(/\.block\s*\{([^}]*)\}/) ?? [];
+    expect(block).toMatch(/width:\s*100%/);
+    const [, btnRule] = css.match(/\.btn\s*\{([^}]*)\}/) ?? [];
+    expect(btnRule).toMatch(/justify-content:\s*center/);
+  });
+
+  it('is off by default', () => {
+    render(<OrganicButton>Explore</OrganicButton>);
+    expect(screen.getByRole('button', { name: 'Explore' }).classList).not.toContain(styles.block);
   });
 });
 

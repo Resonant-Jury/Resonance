@@ -17,6 +17,8 @@ import styles from './OrganicButton.module.css';
  * follows (ButtonVariant / Variant there carry the same names):
  *  - `solid`      primary without its rim: the verb of a dialog or panel
  *  - `danger`     solid in red, for what can't be undone (delete a card, the account)
+ *  - `ink`        solid in the ink colour, cream label: for a brand that asks
+ *                 for a black button (Sign in with Apple)
  *  - `text`       no fill, no stroke, muted ink: Cancel / Keep / Close beside a verb
  *  - `textAccent` the same in terracotta: a secondary action ("load more", Unblock)
  *  - `paper`      the cards' paper, no rim, ink label: a control floating over
@@ -26,7 +28,7 @@ import styles from './OrganicButton.module.css';
  */
 export type OrganicButtonVariant =
   | 'primary' | 'secondary' | 'ghost' | 'outline' | 'ctaLight' | 'ctaGhost' | 'secondaryOutline'
-  | 'solid' | 'danger' | 'text' | 'textAccent' | 'paper';
+  | 'solid' | 'danger' | 'ink' | 'text' | 'textAccent' | 'paper';
 
 // The fallback is the red every error line and danger row already uses
 // (`--color-danger` itself is not defined anywhere).
@@ -46,17 +48,18 @@ const BTN_VARIANTS: Record<OrganicButtonVariant, {
   // a frameless or light one takes a terracotta tint (like ghost / outline).
   solid:            { fill: 'var(--color-terracotta)', text: 'var(--color-cream)',      stroke: null, stroke2: null, hoverOverlay: 'oklch(0% 0 0 / 0.14)' },
   danger:           { fill: DANGER,                   text: 'var(--color-cream)',      stroke: null, stroke2: null, hoverOverlay: 'oklch(0% 0 0 / 0.14)' },
+  ink:              { fill: 'var(--color-text)',       text: 'var(--color-cream)',      stroke: null, stroke2: null, hoverOverlay: 'oklch(0% 0 0 / 0.14)' },
   text:             { fill: 'transparent',             text: 'var(--color-text-muted)', stroke: null, stroke2: null, hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)' },
   textAccent:       { fill: 'transparent',             text: 'var(--color-terracotta)', stroke: null, stroke2: null, hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)' },
   paper:            { fill: 'var(--color-card-bg)',    text: 'var(--color-text)',       stroke: null, stroke2: null, hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)' },
 };
 
 // The frame-free variants borrow the seed of the one they stand in for
-// (solid / danger: primary's, text / paper: ghost's, textAccent: outline's),
+// (solid / danger / ink: primary's, text / paper: ghost's, textAccent: outline's),
 // so a cancel wobbles like the ghost it replaced — and like its native twin.
 const BTN_SEEDS: Record<OrganicButtonVariant, number> = {
   primary: 3, secondary: 201, ghost: 401, outline: 601, ctaLight: 801, ctaGhost: 1001, secondaryOutline: 1201,
-  solid: 3, danger: 3, text: 401, textAccent: 601, paper: 401,
+  solid: 3, danger: 3, ink: 3, text: 401, textAccent: 601, paper: 401,
 };
 
 // Buttons are small — keep the wobble gentle (few turns, low bow) so the
@@ -69,12 +72,14 @@ export interface OrganicButtonProps {
   variant?: OrganicButtonVariant;
   /** `sm` tightens padding + font for dense chrome (e.g. canvas toolbars). */
   size?: 'md' | 'sm';
+  /** Fill the container's width: the face is drawn at that width, the label stays centred. */
+  block?: boolean;
   onClick?: (e: MouseEvent<HTMLButtonElement>) => void;
   style?: CSSProperties & { fillColor?: string };
   className?: string;
 }
 
-export function OrganicButton({ children, variant = 'primary', size = 'md', onClick, style = {}, className }: OrganicButtonProps) {
+export function OrganicButton({ children, variant = 'primary', size = 'md', block = false, onClick, style = {}, className }: OrganicButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const ref = useRef<HTMLButtonElement>(null);
@@ -121,7 +126,7 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', onCl
       onClick={onClick}
       onMouseEnter={(e) => { recordPointer(e); setHovered(true); }}
       onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
-      className={`${size === 'sm' ? `${styles.btn} ${styles.sm}` : styles.btn} res-shape-stand-in ${className || ''}`}
+      className={`${styles.btn}${size === 'sm' ? ` ${styles.sm}` : ''}${block ? ` ${styles.block}` : ''} res-shape-stand-in ${className || ''}`}
       style={{ color: v.text, ...standIn, ...restStyle }}
       data-variant={variant}
       data-shape-pending={w > 0 && h > 0 ? undefined : ''}

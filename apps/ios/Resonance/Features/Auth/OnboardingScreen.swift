@@ -4,9 +4,10 @@ import SwiftUI
 
 /// The signup page's profile step, shown before the tabs to a signed-in
 /// account that has no profile yet: a pen name (checked as it's typed), a
-/// region and a main writing language, then Finish. Laid out like the
-/// sign-in screen; signing out stays within reach, for someone who signed
-/// in with the wrong account.
+/// region and a main writing language, then Finish. The sign-in screen's
+/// shell with the compact cover (the lockup's row alone) and the sheet taking
+/// the rest of the screen, its content from the top; signing out stays within
+/// reach at its end, for someone who signed in with the wrong account.
 struct OnboardingScreen: View {
     @Environment(SessionStore.self) private var session
     @State private var handle = ""
@@ -20,12 +21,14 @@ struct OnboardingScreen: View {
         GeometryReader { geo in
             ScrollView {
                 VStack(spacing: 0) {
-                    brand.padding(.bottom, 36)
-                    card
-                    footer.padding(.top, 28)
+                    // 16 under the status bar, 20 over the sheet's wave (which lies 7 into the sheet).
+                    AuthLockup(fold: .bare)
+                        .padding(.top, 16)
+                        .padding(.bottom, 20 - AuthSheetShape.waveY)
+                    // The sheet's paper runs on to the foot of the screen under a short form.
+                    AuthSheet(width: geo.size.width) { form }
                 }
-                .padding(.vertical, 48)
-                .frame(maxWidth: .infinity, minHeight: geo.size.height)
+                .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollDismissesKeyboard(.interactively)
@@ -33,23 +36,12 @@ struct OnboardingScreen: View {
         .background(Tokens.cream)
     }
 
-    /// ResonanceIcon beside the wordmark, as on the sign-in screen.
-    private var brand: some View {
-        HStack(spacing: 10) {
-            OrganicIcon(.wave, size: 44, color: Tokens.terracotta, strokeWidth: Tokens.ink)
-                .offset(y: 44 * 0.07)
-            Text(verbatim: "Resonance")
-                .font(AppFonts.heading(26))
-                .foregroundStyle(Tokens.text)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var card: some View {
+    private var form: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(L10n.Auth.stepHandle)
+            Text(L10n.Auth.signUpTitle)
                 .font(AppFonts.heading(24))
                 .foregroundStyle(Tokens.text)
+                .lineSpacing(24 * 0.3)
                 .accessibilityAddTraits(.isHeader)
                 .padding(.bottom, 22)
             VStack(alignment: .leading, spacing: 18) {
@@ -75,16 +67,8 @@ struct OnboardingScreen: View {
                     .foregroundStyle(Tokens.terracotta)
                     .padding(.top, 12)
             }
+            footer.padding(.top, 32)
         }
-        .padding(.horizontal, 36)
-        .padding(.vertical, 42)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Tokens.authInterior)
-        .overlay {
-            GrainLayer(shape: Rectangle(), mode: .tile, opacity: 0.08, tile: "grain-overlay").accessibilityHidden(true)
-        }
-        .overlay(alignment: .top) { WavyDivider(color: Tokens.authBorder, seed: 313).offset(y: -3) }
-        .overlay(alignment: .bottom) { WavyDivider(color: Tokens.authBorder, seed: 324).offset(y: 3) }
     }
 
     /// Who is signed in, and the way back out.
@@ -101,7 +85,6 @@ struct OnboardingScreen: View {
             OrganicLink(L10n.App.Nav.signOut, href: "/signout", size: 14) { session.signOut() }
                 .disabled(creating)
         }
-        .padding(.horizontal, 36)
     }
 
     private func finish() async {

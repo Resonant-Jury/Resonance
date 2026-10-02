@@ -23,11 +23,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.text.modifiers.TextAutoSizeLayoutScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,12 +67,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
@@ -81,6 +86,7 @@ import coil3.compose.AsyncImage
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.SegValue
+import com.resonance.geometry.WobCircleOptions
 import com.resonance.geometry.WobLoopOptions
 import com.resonance.geometry.WobRectOptions
 import com.resonance.geometry.penWave
@@ -313,7 +319,8 @@ fun OrganicLink(
  * OrganicButton: a wobbly pill; primary is filled terracotta with grain. A
  * press spreads the web's hover wash from the touch point ([OrganicIndication],
  * the same ink every control uses); a disabled or busy button fades as a whole
- * (the web's 0.6).
+ * (the web's 0.6). Its content sits in the middle of the pill, however wide
+ * the caller makes it.
  */
 @Composable
 fun OrganicButton(
@@ -341,6 +348,17 @@ fun OrganicButton(
     busyTitle: String? = null,
     /** Working on the last tap: dimmed like a disabled button, showing [busyTitle], ignoring taps. */
     busy: Boolean = false,
+    /**
+     * The brand [image] on a small white wobbly disc (30, the mark 18 on it):
+     * Google's G keeps the white ground its guidelines ask for on a filled pill.
+     */
+    markOnDisc: Boolean = false,
+    /**
+     * A provider button that fills its row (the sign-in sheet's; the web's
+     * `block`): full width, at least 52 tall, 16 in from its ends, a 16 label
+     * that keeps to one line by shrinking to 85% before it wraps.
+     */
+    block: Boolean = false,
     onClick: () -> Unit,
 ) {
     val active = enabled && !busy
@@ -352,17 +370,18 @@ fun OrganicButton(
         ButtonVariant.Ghost -> Triple(Color.Transparent, Tokens.GhostStroke, Tokens.Text)
         ButtonVariant.Outline -> Triple(Color.Transparent, Mixes.TerracottaOutline, Tokens.Terracotta)
         ButtonVariant.Solid -> Triple(Tokens.Terracotta, Color.Transparent, Tokens.Cream)
+        ButtonVariant.Ink -> Triple(Tokens.Text, Color.Transparent, Tokens.Cream)
         ButtonVariant.Danger -> Triple(Mixes.Danger, Color.Transparent, Tokens.Cream)
         ButtonVariant.Paper -> Triple(Tokens.CardBg, Color.Transparent, Tokens.Text)
         ButtonVariant.Text -> Triple(Color.Transparent, Color.Transparent, Tokens.TextMuted)
         ButtonVariant.TextAccent -> Triple(Color.Transparent, Color.Transparent, Tokens.Terracotta)
     }
-    val filled = variant == ButtonVariant.Primary || variant == ButtonVariant.Solid || variant == ButtonVariant.Danger
+    val filled = variant == ButtonVariant.Primary || variant == ButtonVariant.Solid || variant == ButtonVariant.Ink || variant == ButtonVariant.Danger
     val overlay = if (filled) OrganicIndication.OnFill else OrganicIndication.Wash
     // The web's BTN_SEEDS, so each variant wobbles like its web twin.
     val shape = remember(variant) {
         OrganicButtonShape(when (variant) {
-            ButtonVariant.Primary, ButtonVariant.Solid, ButtonVariant.Danger -> 3.0
+            ButtonVariant.Primary, ButtonVariant.Solid, ButtonVariant.Ink, ButtonVariant.Danger -> 3.0
             ButtonVariant.Ghost, ButtonVariant.Text, ButtonVariant.Paper -> 401.0
             ButtonVariant.Outline, ButtonVariant.TextAccent -> 601.0
         })
@@ -371,10 +390,12 @@ fun OrganicButton(
         iconOnly && roomy -> if (small) PaddingValues(horizontal = 18.dp, vertical = 9.dp) else PaddingValues(horizontal = 32.dp, vertical = 14.dp)
         iconOnly -> PaddingValues(horizontal = 11.dp, vertical = 9.dp)
         small -> PaddingValues(horizontal = 18.dp, vertical = 9.dp)
+        block -> PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         else -> PaddingValues(horizontal = 32.dp, vertical = 14.dp)
     }
     Row(
         modifier
+            .then(if (block) Modifier.fillMaxWidth().heightIn(min = 52.dp) else Modifier)
             .fade(if (active) 1f else 0.6f)
             .scale(if (pressed) 0.97f else 1f)
             .drawWithCache {
@@ -402,22 +423,56 @@ fun OrganicButton(
             .padding(padding),
         verticalAlignment = Alignment.CenterVertically,
         // The web's label gap is 7; a brand mark sits in its own 10-gap span (signin/page.tsx).
-        horizontalArrangement = Arrangement.spacedBy(if (image != null) 10.dp else 7.dp),
+        // Centred, so a pill wider than its content (a block) keeps it in the middle.
+        horizontalArrangement = Arrangement.spacedBy(if (image != null) 10.dp else 7.dp, Alignment.CenterHorizontally),
     ) {
         if (icon != null) OrganicIcon(icon, size = iconSize ?: if (iconOnly) 17.dp else 16.dp, color = text, mirrored = mirrorIcon)
-        if (image != null) Image(image, contentDescription = null, modifier = Modifier.size(18.dp))
+        if (image != null) {
+            // The same disc as the web's (signin/page.tsx) and iOS's: seed 12, 8 segments, mag 0.7.
+            if (markOnDisc) Box(
+                Modifier.size(30.dp).drawWithCache {
+                    val o = WobCircleShape(12.0, WobCircleOptions(segments = 8, mag = 0.7, cpJitter = 0.4)).createOutline(size, layoutDirection, this)
+                    onDrawBehind { drawOutline(o, Color.White) }
+                },
+                contentAlignment = Alignment.Center,
+            ) { Image(image, contentDescription = null, modifier = Modifier.size(18.dp)) }
+            else Image(image, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
         if (!iconOnly) {
-            val style = AppFonts.body(if (small) 14f else 15f, 600, lineHeight = 1.3f, color = text).copy(letterSpacing = 0.02.em)
-            if (busyTitle == null) BasicText(title, style = style)
-            else Box(contentAlignment = Alignment.CenterStart) {
+            val style = if (block) AppFonts.body(16f, 600, lineHeight = 1.25f, color = text).copy(letterSpacing = 0.02.em, textAlign = TextAlign.Center)
+                else AppFonts.body(if (small) 14f else 15f, 600, lineHeight = 1.3f, color = text).copy(letterSpacing = 0.02.em)
+            // A block's label takes the largest step down to 85% that fits one line, then wraps at 85%.
+            val autoSize = if (block) remember(style.fontSize) { OneLineFirst(style.fontSize) } else null
+            if (busyTitle == null) BasicText(title, style = style, autoSize = autoSize)
+            else Box(contentAlignment = if (block) Alignment.Center else Alignment.CenterStart) {
                 // The label not showing still takes its room (drawn as nothing, not read out).
                 val unseen = Modifier.drawWithContent { }.clearAndSetSemantics { }
-                BasicText(title, style = style, maxLines = 1, modifier = if (busy) unseen else Modifier)
-                BasicText(busyTitle, style = style, maxLines = 1, modifier = if (busy) Modifier else unseen)
+                val lines = if (block) Int.MAX_VALUE else 1
+                BasicText(title, style = style, maxLines = lines, autoSize = autoSize, modifier = if (busy) unseen else Modifier)
+                BasicText(busyTitle, style = style, maxLines = lines, autoSize = autoSize, modifier = if (busy) Modifier else unseen)
             }
         }
     }
 }
+
+/**
+ * A block button's label size: the first of 100, 95, 90 and 85% of [size]
+ * that lays the label out on one line; if none does, it wraps at 85% (a long
+ * provider label at a large text size on a narrow phone).
+ */
+private class OneLineFirst(private val size: TextUnit) : TextAutoSize {
+    override fun TextAutoSizeLayoutScope.getFontSize(constraints: Constraints, text: AnnotatedString): TextUnit {
+        for (step in OneLineSteps) {
+            if (performLayout(constraints, text, size * step).lineCount <= 1) return size * step
+        }
+        return size * OneLineSteps.last()
+    }
+
+    override fun equals(other: Any?) = other is OneLineFirst && other.size == size
+    override fun hashCode() = size.hashCode()
+}
+
+private val OneLineSteps = floatArrayOf(1f, 0.95f, 0.9f, 0.85f)
 
 /**
  * Fade a hand-drawn control as a whole (disabled, busy) without cutting it:
@@ -436,9 +491,11 @@ fun Modifier.fade(alpha: Float): Modifier =
  * while pressed (Cancel beside a confirm, "load more" under a list). Paper is
  * for a control floating over busy content (the thought map's toolbar): the
  * cards' paper with their grain, no rim, in the ink colour, so it stays
- * legible over whatever passes under it without a frame of its own.
+ * legible over whatever passes under it without a frame of its own. Ink is
+ * Solid in the ink colour, for a brand that asks for a black button (Sign in
+ * with Apple).
  */
-enum class ButtonVariant { Primary, Ghost, Outline, Solid, Danger, Paper, Text, TextAccent }
+enum class ButtonVariant { Primary, Ghost, Outline, Solid, Ink, Danger, Paper, Text, TextAccent }
 
 /**
  * OrganicButton.tsx's outline: a calm pill — radius 16, two or three gentle

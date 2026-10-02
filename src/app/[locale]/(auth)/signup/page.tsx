@@ -2,15 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { Link } from '@/i18n/navigation';
 import { sanitizeNextPath, nextQuery } from '@/lib/auth/nextPath';
 import { PROFILE_REGIONS, regionDisplayName, regionFlag } from '@/lib/regionName';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { OrganicLink } from '@/components/atoms/OrganicLink/OrganicLink';
 import { AuthCard, Field } from '@/components/molecules/AuthCard/AuthCard';
 import { OrganicInput, OrganicSelect } from '@/components/atoms/OrganicInput/OrganicInput';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
-import { GoogleMark } from '@/components/atoms/GoogleMark/GoogleMark';
-import { AppleMark } from '@/components/atoms/AppleMark/AppleMark';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { isIosNativeApp } from '@/lib/auth/firebase/native';
 import {
@@ -19,6 +17,8 @@ import {
   createCurrentUserProfile,
   isHandleTaken,
 } from '@/lib/db/firestore/client/profile';
+import { ProviderButtons, type Provider } from '../ProviderButtons';
+import styles from '../auth.module.css';
 
 type Step = 'google' | 'profile';
 
@@ -79,7 +79,8 @@ export default function SignUpPage() {
     setShowApple(isIosNativeApp());
   }, []);
 
-  async function startWith(provider: 'google' | 'apple') {
+  async function startWith(provider: Provider) {
+    if (pending) return;
     setPending(true);
     setError(null);
     try {
@@ -110,38 +111,11 @@ export default function SignUpPage() {
   }
 
   return (
-    <AuthCard title={t('signUpTitle')}>
-      {step === 'google' && (
-        <>
-          <p
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              color: 'var(--color-text-muted)',
-              lineHeight: 1.6,
-              marginBottom: 24,
-            }}
-          >
-            {t('googleIntro')}
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 14 }}>
-            <OrganicButton variant="outline" onClick={() => startWith('google')}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                <GoogleMark size={18} />
-                {pending ? t('signingIn') : t('continueWithGoogle')}
-              </span>
-            </OrganicButton>
-            {showApple && (
-              <OrganicButton variant="outline" onClick={() => startWith('apple')}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                  <AppleMark size={18} />
-                  {pending ? t('signingIn') : t('continueWithApple')}
-                </span>
-              </OrganicButton>
-            )}
-          </div>
-        </>
-      )}
+    <AuthCard
+      title={t('signUpTitle')}
+      intro={step === 'google' ? t(showApple ? 'appleGoogleIntro' : 'googleIntro') : undefined}
+    >
+      {step === 'google' && <ProviderButtons showApple={showApple} pending={pending} onPick={startWith} />}
 
       {step === 'profile' && (
         <>
@@ -201,24 +175,10 @@ export default function SignUpPage() {
         </>
       )}
 
-      {error && <p style={{ color: 'var(--color-terracotta)', fontSize: 13, marginTop: 12 }}>{error}</p>}
+      {error && <p className={styles.error}>{error}</p>}
 
-      <p
-        style={{
-          marginTop: 24,
-          paddingTop: 20,
-          borderTop: '1px solid oklch(85% 0.02 75)',
-          fontSize: 14,
-          color: 'var(--color-text-muted)',
-        }}
-      >
-        {t('switchToSignIn')}{' '}
-        <Link
-          href={signInHref}
-          style={{ color: 'var(--color-terracotta)' }}
-        >
-          {t('signIn')}
-        </Link>
+      <p className={styles.switchLine}>
+        {t('switchToSignIn')} <OrganicLink href={`/${locale}${signInHref}`}>{t('signIn')}</OrganicLink>
       </p>
     </AuthCard>
   );

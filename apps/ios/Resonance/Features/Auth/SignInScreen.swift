@@ -2,9 +2,11 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// The web's sign-in page on a phone (AuthCard's mobile form): a borderless
-/// section between two wavy rules, Google and Apple as outline buttons.
-/// Emulator builds add an email form for the seeded test accounts.
+/// The web's sign-in page on a phone (AuthCard's mobile form): paper edge to
+/// edge, the brand on a cover over the upper part and the sign-in on a sheet
+/// tucked at the foot, its buttons in the thumb's reach — Sign in with Apple
+/// in ink over Google's in terracotta, both full width. Emulator builds add an
+/// email form for the seeded test accounts at the end of the sheet.
 struct SignInScreen: View {
     @Environment(SessionStore.self) private var session
     @State private var email = ""
@@ -13,58 +15,52 @@ struct SignInScreen: View {
     var body: some View {
         GeometryReader { geo in
             ScrollView {
-                // The auth layout: the brand over the section, centred on the screen.
-                VStack(spacing: 0) {
-                    brand.padding(.bottom, 36)
-                    card
-                    if session.config.usesEmulator { emulatorForm.padding(.top, 32) }
+                AnchoredAuthLayout(minHeight: geo.size.height) {
+                    ViewThatFits(in: .vertical) {
+                        AuthLockup(fold: .tall).fixedSize(horizontal: false, vertical: true)
+                        AuthLockup(fold: .compact).fixedSize(horizontal: false, vertical: true)
+                        AuthLockup(fold: .bare).fixedSize(horizontal: false, vertical: true)
+                    }
+                    AuthSheet(width: geo.size.width) { sheet }
                 }
-                .padding(.vertical, 48)
-                .frame(maxWidth: .infinity, minHeight: geo.size.height)
             }
             .scrollBounceBehavior(.basedOnSize)
         }
         .background(Tokens.cream)
     }
 
-    /// ResonanceIcon (the wave glyph, nudged down 7%) beside the wordmark.
-    private var brand: some View {
-        HStack(spacing: 10) {
-            OrganicIcon(.wave, size: 44, color: Tokens.terracotta, strokeWidth: Tokens.ink)
-                .offset(y: 44 * 0.07)
-            Text(verbatim: "Resonance")
-                .font(AppFonts.heading(26))
-                .foregroundStyle(Tokens.text)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var card: some View {
+    private var sheet: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(L10n.Auth.signInTitle)
                 .font(AppFonts.heading(24))
                 .foregroundStyle(Tokens.text)
+                .lineSpacing(24 * 0.3)
                 .accessibilityAddTraits(.isHeader)
-                .padding(.bottom, 22)
-            Text(L10n.Auth.googleIntro)
+                .padding(.bottom, 8)
+            Text(L10n.Auth.appleGoogleIntro)
                 .font(AppFonts.body(14))
                 .foregroundStyle(Tokens.textMuted)
                 .lineSpacing(14 * 0.6)
-                .padding(.bottom, 24)
+                .padding(.bottom, 22)
             if session.signedOutForDeletion {
                 Text(L10n.Auth.deletionScheduled)
                     .font(AppFonts.body(14, weight: .semibold))
                     .foregroundStyle(Tokens.terracotta)
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 16)
             }
-            VStack(alignment: .leading, spacing: 14) {
-                OrganicButton(L10n.Auth.continueWithGoogle, image: "GoogleMark", variant: .outline) {
-                    Task { await session.signInWithGoogle() }
-                }
-                .busy(session.isSigningIn, label: L10n.Auth.signingIn)
-                OrganicButton(L10n.Auth.continueWithApple, image: "AppleMark", variant: .outline) {
+            // The sheet is the frame, so neither button draws a pen line. Apple
+            // asks for a black (or white) button as prominent as the others: ink, first.
+            VStack(spacing: 12) {
+                OrganicButton(L10n.Auth.continueWithApple, image: "AppleMark", variant: .ink, size: .lg) {
                     Task { await session.signInWithApple() }
                 }
+                .fillingWidth()
+                .busy(session.isSigningIn, label: L10n.Auth.signingIn)
+                OrganicButton(L10n.Auth.continueWithGoogle, image: "GoogleMark", variant: .solid, size: .lg) {
+                    Task { await session.signInWithGoogle() }
+                }
+                .markOnDisc()
+                .fillingWidth()
                 .busy(session.isSigningIn, label: L10n.Auth.signingIn)
             }
             if let error = session.signInError {
@@ -73,18 +69,12 @@ struct SignInScreen: View {
                     .foregroundStyle(Tokens.terracotta)
                     .padding(.top, 12)
             }
-            TermsConsentLine().padding(.top, 24)
+            TermsConsentLine().padding(.top, 16)
+            if session.config.usesEmulator {
+                WavyDivider().padding(.top, 28).padding(.bottom, 20)
+                emulatorForm
+            }
         }
-        .padding(.horizontal, 36)
-        .padding(.vertical, 42)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Tokens.authInterior)
-        // GrainOverlay 0.04 over the whole section, words included: ink at 2×.
-        .overlay {
-            GrainLayer(shape: Rectangle(), mode: .tile, opacity: 0.08, tile: "grain-overlay").accessibilityHidden(true)
-        }
-        .overlay(alignment: .top) { WavyDivider(color: Tokens.authBorder, seed: 313).offset(y: -3) }
-        .overlay(alignment: .bottom) { WavyDivider(color: Tokens.authBorder, seed: 324).offset(y: 3) }
     }
 
     /// Emulator builds only: the seeded accounts (scripts/seed-emulator.ts).
@@ -100,8 +90,213 @@ struct SignInScreen: View {
             }
             .disabled(email.isEmpty || password.isEmpty || session.isSigningIn)
         }
-        .padding(.horizontal, 36)
         .accessibilityIdentifier("emulator-sign-in")
+    }
+}
+
+/// The sign-in column: the sheet keeps its own height at the foot and the
+/// cover takes what's left over it, the lockup at 70% of its free height
+/// (spacers 7:3, at least 24 above and 28 below). The first subview is a
+/// ViewThatFits of the lockups, tall to bare, which shows the first that fits
+/// the height it's offered — so offered a lockup's own height, it shows that
+/// one. The tall lockup stays while it leaves 96 free, the compact one while
+/// it leaves 64; under that the tagline goes, and only then does the column
+/// grow past the screen (and scroll), the spacers at their least.
+private struct AnchoredAuthLayout: Layout {
+    /// The screen's height: the column is at least this tall.
+    var minHeight: CGFloat
+
+    private struct Arrangement {
+        var lockupOffer: ProposedViewSize
+        var above: CGFloat
+        var sheet: CGFloat
+        var height: CGFloat
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard subviews.count == 2 else { return .zero }
+        let width = proposal.width ?? subviews[1].sizeThatFits(.unspecified).width
+        return CGSize(width: width, height: arrange(width: width, height: max(minHeight, proposal.height ?? 0), subviews).height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 2 else { return }
+        let a = arrange(width: bounds.width, height: bounds.height, subviews)
+        subviews[0].place(at: CGPoint(x: bounds.midX, y: bounds.minY + a.above), anchor: .top, proposal: a.lockupOffer)
+        subviews[1].place(at: CGPoint(x: bounds.minX, y: bounds.maxY - a.sheet), proposal: ProposedViewSize(width: bounds.width, height: a.sheet))
+    }
+
+    private func arrange(width: CGFloat, height: CGFloat, _ subviews: Subviews) -> Arrangement {
+        let lockup = subviews[0]
+        let sheet = subviews[1].sizeThatFits(ProposedViewSize(width: width, height: nil)).height
+        let room = height - sheet
+        // The cover's 24 at each side.
+        let lockupWidth = max(0, width - 48)
+        func offer(_ h: CGFloat) -> ProposedViewSize { ProposedViewSize(width: lockupWidth, height: h) }
+        func lockupHeight(_ h: CGFloat) -> CGFloat { lockup.sizeThatFits(offer(h)).height }
+        // Offered just under one lockup's height, the next one shows.
+        let tall = lockupHeight(.infinity)
+        var shown = tall
+        if room < tall + 96 {
+            let compact = lockupHeight(tall - 1)
+            shown = room >= compact + 64 ? compact : lockupHeight(compact - 1)
+        }
+        let rest = max(room - shown, 52)
+        let below = max(28, rest * 0.3)
+        return Arrangement(lockupOffer: offer(shown), above: rest - below, sheet: sheet,
+                           height: max(height, rest + shown + sheet))
+    }
+}
+
+/// The brand on the auth screens' cover: ResonanceIcon (the wave glyph,
+/// nudged down 7%) and the wordmark, then the hero's line. Tall, the mark
+/// stacks over the wordmark on a soft blob; compact, they share a row over a
+/// smaller one; bare, that row alone (a short cover, onboarding).
+struct AuthLockup: View {
+    enum Fold { case tall, compact, bare }
+    let fold: Fold
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if fold == .tall {
+                VStack(spacing: 6) {
+                    mark(60)
+                    wordmark(34)
+                }
+            } else {
+                HStack(spacing: 10) {
+                    mark(40)
+                    wordmark(28)
+                }
+            }
+            if fold != .bare {
+                AuthTagline(size: fold == .tall ? 19 : 17)
+                    .padding(.top, fold == .tall ? 14 : 8)
+            }
+        }
+        // The blob, taking no room, where the web's sits: its centre 24 left of
+        // the middle and 34 down (behind the mark); on the row, 40 left and 22 down.
+        .background(alignment: .top) {
+            if fold != .bare {
+                let across: CGFloat = fold == .tall ? 176 : 120
+                BrandBlob()
+                    .frame(width: across, height: across)
+                    .offset(x: fold == .tall ? -24 : -40, y: (fold == .tall ? 34 : 22) - across / 2)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The glyph at the pen's INK.
+    private func mark(_ size: CGFloat) -> some View {
+        OrganicIcon(.wave, size: size, color: Tokens.terracotta, strokeWidth: Tokens.ink)
+            .offset(y: size * 0.07)
+    }
+
+    /// The wordmark is a logo: a fixed size that doesn't follow Dynamic Type,
+    /// in the web's 1.15 line box rather than Playfair's own taller one.
+    private func wordmark(_ size: CGFloat) -> some View {
+        let font = AppFonts.uiFont(.heading, size: size, weight: .bold)
+        return Text(verbatim: "Resonance")
+            .font(Font(font))
+            .tracking(-0.02 * size)
+            .foregroundStyle(Tokens.text)
+            .fixedSize()
+            .padding(.vertical, (size * 1.15 - font.lineHeight) / 2)
+    }
+}
+
+/// hero.headline under the wordmark, centred and muted, the accent word in
+/// terracotta with a pen's wavy stroke under it (the web's Emphasis).
+private struct AuthTagline: View {
+    let size: CGFloat
+    // The heading face grows with Dynamic Type like the title style; the stroke's drop follows.
+    @ScaledMetric(relativeTo: .title) private var scale: CGFloat = 1
+
+    var body: some View {
+        let accent = Text(verbatim: L10n.Hero.headlineAccent)
+            .foregroundStyle(Tokens.terracotta)
+            .customAttribute(PenAccent())
+        Text("\(Text(verbatim: L10n.Hero.headlinePrefix))\(accent)\(Text(verbatim: L10n.Hero.headlineSuffix))")
+            .font(AppFonts.heading(size, weight: .medium))
+            .foregroundStyle(Tokens.textMuted)
+            .lineSpacing(size * 0.45)
+            .multilineTextAlignment(.center)
+            .textRenderer(PenAccentRenderer(color: Tokens.terracotta, lineWidth: Tokens.ink, drop: size * scale * 0.22))
+    }
+}
+
+/// Marks the run ``PenAccentRenderer`` underlines.
+private nonisolated struct PenAccent: TextAttribute {}
+
+/// Draws the text as it is, and under each run marked ``PenAccent`` a pen's
+/// wavy stroke (penWave, 1.7 high, at 90%) centred `drop` under the baseline
+/// — on whichever line the run falls.
+private nonisolated struct PenAccentRenderer: TextRenderer {
+    let color: Color
+    let lineWidth: CGFloat
+    let drop: CGFloat
+
+    var displayPadding: EdgeInsets { EdgeInsets(top: 0, leading: 2, bottom: drop + 4, trailing: 2) }
+
+    func draw(layout: Text.Layout, in ctx: inout GraphicsContext) {
+        for line in layout {
+            ctx.draw(line)
+            for run in line where run[PenAccent.self] != nil {
+                let bounds = run.typographicBounds
+                let band = CGRect(x: bounds.rect.minX, y: bounds.origin.y + drop - 4, width: bounds.width, height: 8)
+                ctx.stroke(PenWaveShape(seed: 7, amp: 1.7).path(in: band), with: .color(color.opacity(0.9)),
+                           style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+            }
+        }
+    }
+}
+
+/// OrganiBlob's first shape (the hero's) behind the brand mark: terracotta
+/// light with the blob's grain, widened 18% and turned −18° (the web's
+/// `rotate(-18deg) scaleX(1.18)`), at 26%.
+private struct BrandBlob: View {
+    var body: some View {
+        ZStack {
+            OrganiBlobShape().fill(Tokens.terracottaLight)
+            GrainLayer(shape: OrganiBlobShape(), mode: .tile, opacity: 0.4, tile: "grain-card")
+        }
+        .scaleEffect(x: 1.18, y: 1)
+        .rotationEffect(.degrees(-18))
+        .compositingGroup()
+        .opacity(0.26)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// OrganiBlob.tsx's BLOB_PATHS[0] in its −90…90 box, scaled to fit the rect.
+private nonisolated struct OrganiBlobShape: Shape {
+    /// The start point, then each curve's two handles and its end.
+    private static let start: (Double, Double) = (54, -65.2)
+    private static let curves: [Double] = [
+        68.7, -54.3, 78.2, -36.8, 80.1, -18.8,
+        82, -0.9, 76.2, 17.6, 66.5, 32.5,
+        56.8, 47.4, 43.2, 58.8, 27.3, 65.8,
+        11.4, 72.8, -6.7, 75.4, -23.1, 70.2,
+        -39.5, 65, -54.2, 52, -63.5, 36,
+        -72.8, 20, -76.7, 1, -73.5, -16.4,
+        -70.3, -33.8, -60, -49.6, -46.4, -60.8,
+        -32.8, -72, -16.4, -78.5, 1.6, -80.5,
+        19.6, -82.5, 39.2, -76.1, 54, -65.2,
+    ]
+
+    func path(in rect: CGRect) -> Path {
+        let s = Double(min(rect.width, rect.height)) / 180
+        func pt(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: Double(rect.midX) + x * s, y: Double(rect.midY) + y * s) }
+        var p = Path()
+        p.move(to: pt(Self.start.0, Self.start.1))
+        let c = Self.curves
+        for i in stride(from: 0, to: c.count, by: 6) {
+            p.addCurve(to: pt(c[i + 4], c[i + 5]), control1: pt(c[i], c[i + 1]), control2: pt(c[i + 2], c[i + 3]))
+        }
+        p.closeSubpath()
+        return p
     }
 }
 

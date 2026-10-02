@@ -137,13 +137,16 @@ R: height / 2   (pill shape)
 | `ctaGhost` | `transparent` | `var(--color-cream)` | `oklch(88% 0.02 75 / 0.65)` | `oklch(80% 0.02 75 / 0.38)` | `oklch(96% 0.015 75 / 0.18)` |
 | `solid` | `var(--color-terracotta)` | `var(--color-cream)` | — | — | `oklch(0% 0 0 / 0.14)` |
 | `danger` | `var(--color-danger, oklch(58% 0.16 25))` | `var(--color-cream)` | — | — | `oklch(0% 0 0 / 0.14)` |
+| `ink` | `var(--color-text)` | `var(--color-cream)` | — | — | `oklch(0% 0 0 / 0.14)` |
 | `text` | `transparent` | `var(--color-text-muted)` | — | — | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
 | `textAccent` | `transparent` | `var(--color-terracotta)` | — | — | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
 | `paper` | `var(--color-card-bg)` | `var(--color-text)` | — | — | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
 
 `—` = no pen line is drawn. `paper` takes the cards' own grain (`opacity: 0.3`, `frequency: 0.88`, as the Modal) instead of the button grain.
 
-**Seeds per variant:** primary=3, secondary=201, ghost=401, outline=601, ctaLight=801, ctaGhost=1001; the frame-free ones borrow the seed of the variant they replace: solid=danger=3, text=paper=401, textAccent=601
+**Seeds per variant:** primary=3, secondary=201, ghost=401, outline=601, ctaLight=801, ctaGhost=1001; the frame-free ones borrow the seed of the variant they replace: solid=danger=ink=3, text=paper=401, textAccent=601
+
+**`block`** stretches a button to its container's width (the face is measured and drawn at that width, the label stays centred): the provider buttons on the phone's sign-in sheet.
 
 **One frame per layer.** A pen outline marks a *container* (Modal, Panel, StoryCard, a bar, a floating toolbar) or an *input* (Field, Select, the writer's `lg` tag). A control inside a frame draws none — a second outline is clutter. The standalone variants (`primary`, `outline`, `ghost`, `cta*`, `secondary*`) sit on bare page paper and keep their own pen line. Inside a frame:
 
@@ -153,6 +156,7 @@ R: height / 2   (pill shape)
 | A secondary action in accent (Unblock, "load more") | `textAccent` |
 | The verb of the dialog, panel or bar (Publish, Sign in, Confirm) | `solid` |
 | The verb that can't be undone (delete a card, the account) | `danger` |
+| A brand's own button that has to be black (Sign in with Apple) | `ink` |
 | A control floating over busy content (the thought map's toolbar and back button) | `paper` |
 
 The hover brush is the same for every variant (`r 340ms linear`, spreading from the pointer). The frame-free variants have no pen line to show focus, so `:focus-visible` rings them (`2px var(--field-border-focus)`, offset 2px). The dropdown rows (`Select`, `OrganicMenu`, the avatar menu) follow the same rule: no boxed hover region, the active row takes the same spreading ink (`RowInk`) along its wavy region.

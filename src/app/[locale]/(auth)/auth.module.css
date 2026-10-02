@@ -1,0 +1,269 @@
+/* The (auth) pages: the brand (layout.tsx) over the sign-in / sign-up card.
+   A wide screen centres both on the paper. A phone (≤640px) splits the screen
+   by job: a cover holding the brand fills what the card's sheet leaves, and
+   the sheet (AuthCard) runs to the bottom edge. Everything here is CSS, so the
+   server's HTML is already the phone's. */
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: var(--color-cream);
+}
+
+.brand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lockup {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  margin-bottom: clamp(36px, 6vw, 56px);
+}
+
+.wordmark {
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* The phone's cover only. */
+.blob,
+.tagline {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .page {
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: env(safe-area-inset-top) 0 0;
+  }
+
+  /* The cover takes the height the sheet leaves; its spacers (7 : 3) hold the
+     brand at 70% of what is free, and keep their minimums when there is none
+     to spare (the page scrolls then, the sheet staying last). */
+  .cover {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 24px;
+  }
+  .cover::before {
+    content: '';
+    flex: 7 1 0;
+    min-height: 24px;
+  }
+  .cover::after {
+    content: '';
+    flex: 3 1 0;
+    min-height: 28px;
+  }
+
+  .brand {
+    text-align: center;
+  }
+
+  /* The tall lockup: the mark over the wordmark. The wordmark is a logo, set
+     at a fixed size. */
+  .lockup {
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 0;
+  }
+  .lockup svg {
+    width: 60px;
+    height: 60px;
+  }
+  .wordmark {
+    font-size: 34px;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  /* The hero's line: 讓生命影響生命. */
+  .tagline {
+    display: block;
+    position: relative;
+    margin-top: 14px;
+    font-family: var(--font-heading);
+    font-size: 19px;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+    text-wrap: balance;
+  }
+  .accent {
+    color: var(--color-terracotta);
+  }
+
+  /* A soft blob behind the mark, a little to its left; it takes no room. */
+  .blob {
+    display: block;
+    position: absolute;
+    left: 50%;
+    top: 34px;
+    width: 176px;
+    height: 176px;
+    margin: -88px 0 0 -112px;
+    opacity: 0.26;
+    transform: rotate(-18deg) scaleX(1.18);
+    pointer-events: none;
+  }
+  .blob svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* A short cover (a short screen; the sign-up form): the lockup folds to one
+   row, then the line goes. */
+@media (max-width: 640px) and (max-height: 620px) {
+  .lockup {
+    flex-direction: row;
+    gap: 10px;
+  }
+  .lockup svg {
+    width: 40px;
+    height: 40px;
+  }
+  .wordmark {
+    font-size: 28px;
+  }
+  .tagline {
+    margin-top: 8px;
+    font-size: 17px;
+  }
+  .blob {
+    top: 22px;
+    width: 120px;
+    height: 120px;
+    margin: -60px 0 0 -100px;
+  }
+}
+
+/* Shorter still: the line goes, and the blob with it (with the cover at its
+   minimum it would reach under the sheet's paper edge). */
+@media (max-width: 640px) and (max-height: 520px) {
+  .tagline,
+  .blob {
+    display: none;
+  }
+}
+
+/* ── The sign-in page's card (signin/page.tsx) ───────────────────── */
+
+.notice {
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 600;
+  color: var(--color-terracotta);
+  margin-bottom: 20px;
+}
+
+/* The card's provider buttons and the sheet's are both in the HTML; the
+   width shows one. The card keeps its outline buttons; on the sheet (itself
+   the frame) they are full-width faces with no pen line of their own. */
+.cardButtons {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.sheetButtons {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Two classes: outranks OrganicButton's own .btn whichever sheet loads first. */
+.sheetButtons .sheetButton {
+  min-height: 52px;
+  padding: 11px 16px;
+  font-size: 16px;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.sheetButtons .busy {
+  opacity: 0.6;
+}
+
+.markLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* A provider's mark in a 30px slot, so both sheet buttons' labels sit alike. */
+.mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+}
+.mark > * {
+  grid-area: 1 / 1;
+}
+.disc {
+  width: 30px;
+  height: 30px;
+  overflow: visible;
+}
+
+.error {
+  color: var(--color-terracotta);
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+/* Sign-up's "Already have an account? Sign in", ruled off inside the card;
+   on the sheet, spacing alone (the sheet's edge is its only line). */
+.switchLine {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid oklch(85% 0.02 75);
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .notice {
+    margin-bottom: 16px;
+  }
+
+  .cardButtons {
+    display: none;
+  }
+
+  .sheetButtons {
+    display: flex;
+  }
+
+  .switchLine {
+    margin-top: 20px;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  /* TermsConsent sets its own 24px top margin; the sheet's rhythm is 16, and
+     the wrapper's −8 collapses into it. */
+  .terms {
+    margin-top: -8px;
+    text-wrap: pretty;
+  }
+}

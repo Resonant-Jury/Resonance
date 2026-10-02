@@ -854,6 +854,8 @@ object L10n {
         val continueWithApple: String get() = Strings.string("auth.continueWithApple")
         /** We use Google to sign you in. We never see your password. */
         val googleIntro: String get() = Strings.string("auth.googleIntro")
+        /** We use Apple or Google to sign you in. We never see your password. */
+        val appleGoogleIntro: String get() = Strings.string("auth.appleGoogleIntro")
         /** Sign in failed. Please try again. */
         val signInError: String get() = Strings.string("auth.signInError")
         /** Could not create the account. Please try again. */
