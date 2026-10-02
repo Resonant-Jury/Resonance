@@ -52,10 +52,10 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
   `/api/` requests only, never the pictures') and never wait for one.
 - **Unknown enum values** in an API answer read as the nearest known one (Android `enumUnknownDefaultCase`,
   iOS `OpenEnumsMiddleware`, whose table a test checks against every response enum in openapi.json).
-- **Not adopted yet** from the API: `Me.deletion` (instead of asking `/api/account/deletion` at start),
-  `GET /me/cardbox`, `pageToken` paging, `POST /api/v1/reports` (person and message reports still go
-  straight to Firestore), and anonymous originals on the thought map (the rules refuse them to a client
-  read now; `/me/cards?tab=resonated` has them).
+- **Not adopted yet** by Android (iOS has them): `Me.deletion` (instead of asking `/api/account/deletion`
+  at start), `GET /me/cardbox`, `pageToken` paging, `POST /api/v1/reports` (person and message reports
+  still go straight to Firestore), and anonymous originals on the thought map (the rules refuse them to a
+  client read now; `/me/cards?tab=resonated` has them).
 
 ## Generated from the web
 
@@ -118,7 +118,14 @@ Reading: a card's page is one `GET /api/v1/cards/{key}?include=resonances,relate
 stays a plain link), a person's page one `GET /api/v1/users/{handle}?include=cards,links&limit=12`, and
 a conversation's shared cards one `GET /api/v1/cards?keys=` (`CardSummaries`). A card's ⋯ visibility
 change and delete go through `PATCH`/`DELETE /api/v1/cards/{id}`. A tapped push opens its thread by
-`data.fromUserId`. The home feed asks for the latest and the recommended cards together.
+`data.fromUserId`. The latest feed and a person's cards page by `nextPageToken` (`FeedPage.next`;
+a page without one falls back to `nextCursor`). The card box asks for my own shelves (published,
+private, drafts) in one `GET /api/v1/me/cardbox?shelves=`, the others' when shown; whichever answer
+brings the published shelf is what's kept. The thought map reads its cards under the rules and asks
+`GET /api/v1/cards?keys=` for the ones they refuse (someone else's anonymous original, without its
+author). Reports go through the server (`POST /api/v1/reports`, `…/cards/{key}/report`). A scheduled
+deletion comes with the account (`Me.deletion`, the kept one on a cold start): no separate request,
+and a cancel clears it from the kept account too. The home feed asks for the latest and the recommended cards together.
 Picks that arrive within `FeedModel.defaultPatience` (800 ms) lead the feed;
 later ones wait behind the "今天的推薦準備好了" pill (TabScreen's `banner`)
 and never rearrange what's on screen. Cards seen in lists stay in
