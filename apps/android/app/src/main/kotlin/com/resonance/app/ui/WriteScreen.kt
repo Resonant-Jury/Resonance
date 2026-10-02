@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asImageBitmap
 import com.resonance.design.HandDrawnImage
 import com.resonance.design.OrganicVerticalRule
-import com.resonance.design.TagPill
-import com.resonance.design.TagSize
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +46,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -102,9 +101,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Writing a card (the web's write page on a phone): the one-line title, the
- * story in the editor island under the web's text toolbar, tags with the AI
- * pill, the cover photo, then Publish (through the publish panel) or leave
- * with the draft saved. Drafts save themselves a moment after typing stops.
+ * story in the editor island under the web's text toolbar, tags in one field
+ * (typed, or suggested by the model), the cover photo, then Publish (through
+ * the publish panel) or leave with the draft saved. Drafts save themselves a moment after typing stops.
  * A page like the others pushed on a tab: the inline bar carries the back arrow
  * and the writer's title; going back with something written asks first.
  * Opened on one of your cards (`cardId`, write/[id]) it resumes a draft, or
@@ -269,41 +268,45 @@ private fun WriteForm(
         Cover(model) { coverPicker.launch(images) }
         // Everything autosaves; these are only about intent. A draft: publish it, or step away.
         // A live card: put the revision in front of readers, or drop it.
-        Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        WriteActions(
+            compact = LocalConfiguration.current.screenWidthDp < WIDE_SCREEN_DP,
+            error = actionError,
+            primary = { modifier ->
                 if (model.isPublished) {
-                    OrganicButton(if (discarding) L10n.Write.saving else L10n.Write.saveChanges, enabled = !discarding) {
+                    OrganicButton(if (discarding) L10n.Write.saving else L10n.Write.saveChanges, modifier, enabled = !discarding) {
                         actionError = null
                         publishing = true
                     }
-                    if (model.hasPendingEdit) {
-                        OrganicButton(L10n.Write.discardChanges, variant = ButtonVariant.Text, enabled = !discarding) {
-                            if (discarding) return@OrganicButton
-                            discarding = true
-                            actionError = null
-                            scope.launch {
-                                try {
-                                    onFinished(model.discardEdit())
-                                } catch (e: CancellationException) {
-                                    throw e
-                                } catch (e: Exception) {
-                                    actionError = L10n.Native.saveError
-                                } finally {
-                                    discarding = false
-                                }
+                } else {
+                    OrganicButton(L10n.Write.publish, modifier) {
+                        actionError = null
+                        publishing = true
+                    }
+                }
+            },
+            secondary = when {
+                model.isPublished && model.hasPendingEdit -> ({
+                    OrganicButton(L10n.Write.discardChanges, variant = ButtonVariant.Text, enabled = !discarding) {
+                        if (discarding) return@OrganicButton
+                        discarding = true
+                        actionError = null
+                        scope.launch {
+                            try {
+                                onFinished(model.discardEdit())
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                actionError = L10n.Native.saveError
+                            } finally {
+                                discarding = false
                             }
                         }
                     }
-                } else {
-                    OrganicButton(L10n.Write.publish) {
-                        actionError = null
-                        publishing = true
-                    }
-                    OrganicButton(L10n.Write.saveDraftAndLeave, variant = ButtonVariant.Text, onClick = leave)
-                }
-            }
-            actionError?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
-        }
+                })
+                !model.isPublished -> ({ OrganicButton(L10n.Write.saveDraftAndLeave, variant = ButtonVariant.Text, onClick = leave) })
+                else -> null
+            },
+        )
     }
         // Leaving keeps what's written: the draft is saved on the way out.
         OrganicInlineBar(L10n.App.Nav.back, goBack, title = model.title, scrolled = scroll.scrolledPast20())
@@ -343,27 +346,70 @@ private fun SectionLabel(text: String) {
 }
 
 /**
- * Tags: the chosen ones (lg pills with their ×), the AI pill while nothing is
- * being typed, and the two-segment tag bar.
+ * Tags (CardEditor's TagField): one field holding the chosen tags, the input and
+ * its one action (AI suggestions, or Add once something is typed), and under it
+ * a muted line on how — the error in its place when there is one.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Tags(model: WriteModel) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionLabel(L10n.Write.tagsLabel)
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-                model.values.tags.forEach { tag -> TagPill(tag, Tokens.TerracottaLight, size = TagSize.Lg) { model.removeTag(tag) } }
-                // The AI pill steps aside once the user starts typing their own tag.
-                if (model.tagDraft.isBlank()) {
-                    AddTagButton(if (model.suggestingTags) L10n.Write.tagsSuggesting else L10n.Write.tagsSuggest) { model.suggestTags() }
-                }
-            }
-            TagInputBar(model.tagDraft, { model.tagDraft = it }, L10n.Write.tagsPlaceholder, L10n.Write.tagsAdd) { model.addTag() }
-            model.tagError?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TagField(
+                tags = model.values.tags,
+                draft = model.tagDraft,
+                onDraftChange = model::typeTag,
+                placeholder = L10n.Write.tagsPlaceholder,
+                suggesting = model.suggestingTags,
+                onRemove = model::removeTag,
+                onRemoveLast = model::removeLastTag,
+                onAdd = model::addTag,
+                onSuggest = model::suggestTags,
+            )
+            val error = model.tagError
+            BasicText(
+                error ?: L10n.Write.tagsHelp,
+                style = AppFonts.body(Tokens.HintSize, lineHeight = 1.5f, color = if (error != null) Tokens.Terracotta else Tokens.TextMuted),
+            )
         }
     }
 }
+
+/**
+ * The writer's closing actions. On a phone (anything under [WIDE_SCREEN_DP]) one centred column: the
+ * verb across the width, the quiet way out (Save draft and leave / Discard changes) on its own row
+ * under it, the error centred under both; a wide screen keeps them in a row. The web's `.actionsStack`.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WriteActions(
+    compact: Boolean,
+    error: String?,
+    primary: @Composable (Modifier) -> Unit,
+    secondary: (@Composable () -> Unit)?,
+) {
+    Column(
+        Modifier.padding(top = 6.dp),
+        horizontalAlignment = if (compact) Alignment.CenterHorizontally else Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
+    ) {
+        if (compact) {
+            primary(Modifier.fillMaxWidth())
+            secondary?.invoke()
+        } else {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                primary(Modifier)
+                secondary?.invoke()
+            }
+        }
+        error?.let {
+            BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta).copy(textAlign = if (compact) TextAlign.Center else TextAlign.Start))
+        }
+    }
+}
+
+/** The web's 640px, near enough in dp: from here the writer's actions keep their row. */
+private const val WIDE_SCREEN_DP = 600
 
 /**
  * The cover: the picked or drawn picture in its frame (✕ removes it); an

@@ -71,6 +71,31 @@ android {
     }
 }
 
+// The story editor (native/editor/dist/editor.html) is build output the repo does not keep: it comes
+// from `npm run native:editor` (also part of `npm run apps:generate`). An APK built from a clean export
+// without it installs and runs, but the writer's story field shows "Webpage not available". So a release
+// build (APK, bundle, lint, anything of the variant) stops at once when it is missing, and a debug build
+// says so loudly.
+val storyEditor = file("../../../native/editor/dist/editor.html")
+val storyEditorMissing = "native/editor/dist/editor.html is missing or empty: the writer's story editor would not load " +
+    "(\"Webpage not available\"). Run `npm run native:editor` (or `npm run apps:generate`) in the repository root first."
+val requireStoryEditor = tasks.register("requireStoryEditor") {
+    val editor = storyEditor
+    val message = storyEditorMissing
+    doLast { if (!editor.isFile || editor.length() == 0L) throw GradleException(message) }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(requireStoryEditor) }
+tasks.matching { it.name == "preDebugBuild" }.configureEach {
+    val editor = storyEditor
+    val message = storyEditorMissing
+    doFirst {
+        if (!editor.isFile || editor.length() == 0L) {
+            val bar = "=".repeat(78)
+            logger.warn("\n$bar\nWARNING: $message\nThis debug build will have NO story editor.\n$bar\n")
+        }
+    }
+}
+
 dependencies {
     implementation(project(":core:design"))
     implementation("androidx.activity:activity-compose:1.13.0")
