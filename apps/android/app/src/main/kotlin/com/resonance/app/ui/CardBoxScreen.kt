@@ -62,21 +62,24 @@ import com.resonance.geometry.seedFromString
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.FeedLoader
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
  * The card box's shelves as read, kept while the tab's root is (always, until sign-out): coming
  * back to a shelf shows it as it was. A change to a card (or the blocks) has every shelf read
- * again, the one in view at once, still showing meanwhile; so does a shelf read long ago. The
- * published shelf is also kept on the device, so a cold start draws it at once.
+ * again, the one in view at once, still showing meanwhile; so does a shelf read long ago. My own
+ * shelves (published, private, drafts) are read together, in one request (GET /me/cardbox), so
+ * moving between them shows each at once. The published shelf is also kept on the device, so a
+ * cold start draws it at once.
  */
 class CardBoxModel(private val session: Session) : ViewModel() {
     val shelves = mutableStateMapOf<TabGetCardBox, List<FeedCard>>()
     var failed by mutableStateOf(false)
         private set
     private val readAt = HashMap<TabGetCardBox, Long>()
-    private val reading = HashMap<TabGetCardBox, Job>()
+    /** The read each shelf waits for: one that answers after a newer one began doesn't overwrite it. */
+    private val readBy = HashMap<TabGetCardBox, Int>()
+    private var reads = 0
     private var seenChanges: Int? = null
     private val uid = session.uid
 
@@ -87,31 +90,55 @@ class CardBoxModel(private val session: Session) : ViewModel() {
         }
     }
 
-    /** Reads `shelf` unless it was read since the last change (`changes`) and lately; `retry` always does. */
+    /**
+     * Reads `shelf` unless it was read since the last change (`changes`) and lately; `retry` always
+     * does. One of my own shelves brings the others of them that are due too.
+     */
     fun refresh(shelf: TabGetCardBox, changes: Int, retry: Boolean = false, now: Long = System.currentTimeMillis()) {
         if (changes != seenChanges) {
             seenChanges = changes
             readAt.clear()
         }
-        val at = readAt[shelf]
-        if (!retry && at != null && now - at < FeedLoader.STALE_AFTER.inWholeMilliseconds) return
-        readAt[shelf] = now
-        reading[shelf]?.cancel()
-        reading[shelf] = viewModelScope.launch {
+        val current = { s: TabGetCardBox -> readAt[s]?.let { now - it < FeedLoader.STALE_AFTER.inWholeMilliseconds } == true }
+        if (!retry && current(shelf)) return
+        val asked = shelvesToRead(shelf, current)
+        val read = ++reads
+        for (s in asked) {
+            readAt[s] = now
+            readBy[s] = read
+        }
+        viewModelScope.launch {
             try {
-                val cards = session.reading.cardBox(shelf)
-                shelves[shelf] = cards
+                val answered = session.reading.cardBox(asked)
                 failed = false
-                if (shelf == TabGetCardBox.published && uid != null) session.kept(uid)?.savePublished(cards)
+                for (s in asked) {
+                    if (readBy[s] != read) continue
+                    val cards = answered[s]
+                    if (cards == null) {
+                        // Not in the answer: asked for again when next shown.
+                        readAt.remove(s)
+                        continue
+                    }
+                    shelves[s] = cards
+                    if (s == TabGetCardBox.published && uid != null) session.kept(uid)?.savePublished(cards)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 failed = true
-                readAt.remove(shelf)
+                for (s in asked) if (readBy[s] == read) readAt.remove(s)
             }
         }
     }
 }
+
+/**
+ * The shelves a read of `shelf` asks for: it, and — one of my own shelves — the others of them not
+ * read lately (`current`), which the server reads side by side with it.
+ */
+internal fun shelvesToRead(shelf: TabGetCardBox, current: (TabGetCardBox) -> Boolean): List<TabGetCardBox> =
+    if (shelf !in OwnedShelves) listOf(shelf)
+    else listOf(shelf) + ShelfOrder.filter { it in OwnedShelves && it != shelf && !current(it) }
 
 /**
  * My card box (me/page.tsx): who I am, then my cards on six shelves —

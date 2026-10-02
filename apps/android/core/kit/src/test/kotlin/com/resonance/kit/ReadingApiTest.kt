@@ -1,5 +1,6 @@
 package com.resonance.kit
 
+import com.resonance.api.apis.DefaultApi.TabGetCardBox
 import com.resonance.api.models.FeedPage
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
@@ -69,6 +70,27 @@ class ReadingApiTest {
         assertEquals(NextPage(token = null, cursor = "2026-09-01T08:00:00.000Z"), old.next)
         assertEquals(NextPage(token = "t", cursor = null), old.copy(nextPageToken = "t").next)
         assertNull(FeedPage(emptyList(), nextCursor = null, nextPageToken = null).next)
+    }
+
+    @Test fun severalShelvesComeInOneRequest() = runBlocking {
+        server.enqueue(json("""{"published":${listJson("p1", "p2")},"private":{"cards":[]},"draft":${listJson("d1")},"bookmarks":${listJson("x")}}"""))
+        val box = api().cardBox(listOf(TabGetCardBox.published, TabGetCardBox.`private`, TabGetCardBox.draft, TabGetCardBox.published))
+        assertEquals(listOf("p1", "p2"), box[TabGetCardBox.published]?.map { it.id })
+        assertEquals(emptyList(), box[TabGetCardBox.`private`])
+        assertEquals(listOf("d1"), box[TabGetCardBox.draft]?.map { it.id })
+        // Only what was asked for, even when the answer brings more.
+        assertEquals(setOf(TabGetCardBox.published, TabGetCardBox.`private`, TabGetCardBox.draft), box.keys)
+        val url = server.takeRequest().requestUrl!!
+        assertEquals("/api/v1/me/cardbox", url.encodedPath)
+        assertEquals("published,private,draft", url.queryParameter("shelves"))
+    }
+
+    @Test fun aShelfTheAnswerLacksIsLeftOutAndNoShelvesAskNothing() = runBlocking {
+        server.enqueue(json("""{"published":${listJson("p1")}}"""))
+        val box = api().cardBox(listOf(TabGetCardBox.published, TabGetCardBox.resonated))
+        assertEquals(setOf(TabGetCardBox.published), box.keys)
+        assertEquals(emptyMap(), api().cardBox(emptyList()))
+        assertEquals(1, server.requestCount)
     }
 
     @Test fun refreshesARejectedTokenOnceAndRetries() = runBlocking {

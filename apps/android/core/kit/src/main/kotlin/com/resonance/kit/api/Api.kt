@@ -5,6 +5,7 @@ import com.resonance.api.infrastructure.ClientError
 import com.resonance.api.infrastructure.ClientException
 import com.resonance.api.infrastructure.ServerException
 import com.resonance.api.models.ApiError
+import com.resonance.api.models.CardBox
 import com.resonance.api.models.CardDetail
 import com.resonance.api.models.ErrorCode
 import com.resonance.api.models.FeedCard
@@ -206,8 +207,29 @@ class ReadingApi(private val api: DefaultApi) {
     suspend fun profileLinks(handle: String): List<FeedCard> = call { api.getProfileLinks(handle).cards }
     suspend fun cardBox(tab: DefaultApi.TabGetCardBox): List<FeedCard> = call { api.getCardBox(tab).cards }
 
+    /**
+     * Several shelves of the card box in one request (GET /me/cardbox?shelves=), each as
+     * [cardBox] answers it alone; a shelf the answer lacks is left out of the map.
+     */
+    suspend fun cardBox(shelves: Collection<DefaultApi.TabGetCardBox>): Map<DefaultApi.TabGetCardBox, List<FeedCard>> {
+        val asked = shelves.filter { it != DefaultApi.TabGetCardBox.unknownDefaultOpenApi }.distinct()
+        if (asked.isEmpty()) return emptyMap()
+        val box = call { api.getCardBoxShelves(asked.joinToString(",") { it.value }) }
+        return asked.mapNotNull { shelf -> box.shelf(shelf)?.let { shelf to it.cards } }.toMap()
+    }
+
     companion object {
         /** GET /cards?keys= takes at most this many keys. */
         const val CARDS_PER_REQUEST = 30
     }
+}
+
+private fun CardBox.shelf(shelf: DefaultApi.TabGetCardBox) = when (shelf) {
+    DefaultApi.TabGetCardBox.published -> published
+    DefaultApi.TabGetCardBox.`private` -> `private`
+    DefaultApi.TabGetCardBox.draft -> draft
+    DefaultApi.TabGetCardBox.resonated -> resonated
+    DefaultApi.TabGetCardBox.linked -> linked
+    DefaultApi.TabGetCardBox.bookmarks -> bookmarks
+    DefaultApi.TabGetCardBox.unknownDefaultOpenApi -> null
 }
