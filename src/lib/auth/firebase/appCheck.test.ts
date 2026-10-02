@@ -86,13 +86,17 @@ describe('startAppCheck', () => {
 
     expect(await startAppCheck(app)).toBe(instance);
     expect(widget.render).toHaveBeenCalledTimes(1);
-    // The SDK's first ask gets that token, with no second challenge.
+    // The SDK's first asks — a read's, then its refresher's forced one right
+    // after — get that token, with no second challenge.
+    expect((await sdk.provider!.getToken()).token).toBe('first-token');
     expect((await sdk.provider!.getToken()).token).toBe('first-token');
     expect(widget.render).toHaveBeenCalledTimes(1);
     // And the next visit knows it has one.
     expect(Number(window.localStorage.getItem(TOKEN_UNTIL_KEY))).toBeGreaterThan(Date.now() + 43_000_000);
 
-    // Later asks (the SDK's refresh) solve a new one.
+    // A refresh later on solves a new one.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 6 * 60 * 60_000);
     exchange.mockResolvedValueOnce(new Response(JSON.stringify({ token: 'next-token', ttlMillis: 43_200_000 })));
     expect((await sdk.provider!.getToken()).token).toBe('next-token');
     expect(widget.render).toHaveBeenCalledTimes(2);

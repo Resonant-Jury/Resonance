@@ -31,6 +31,12 @@ const SOLVE_TIMEOUT_MS = 10_000;
 export const TOKEN_UNTIL_KEY = 'resonance:appcheck-until';
 /** A kept token this close to running out is treated as gone. */
 const KEPT_MARGIN_MS = 5 * 60_000;
+/**
+ * A token minted this recently is handed out again rather than solving a
+ * new challenge: the SDK's refresher, started beside the first read, forces
+ * a refresh as soon as it sees the token that read just got.
+ */
+const FRESH_MS = 60_000;
 /** After a failure, no new challenge for this long, doubling each time up to BACKOFF_MAX_MS. */
 const BACKOFF_MS = 60_000;
 const BACKOFF_MAX_MS = 30 * 60_000;
@@ -62,6 +68,8 @@ let started: Promise<AppCheck | null> | null = null;
 let script: Promise<Turnstile> | null = null;
 let failures = 0;
 let retryAt = 0;
+/** The last token minted for this page, and when. */
+let latest: { token: { token: string; expireTimeMillis: number }; at: number } | null = null;
 
 /**
  * Start App Check for the app — on the site's own production origin only
@@ -80,19 +88,15 @@ export function startAppCheck(app: FirebaseApp): Promise<AppCheck | null> {
   if (!runs) return (started = Promise.resolve(null));
   started = (async () => {
     const { initializeAppCheck, CustomProvider } = await import('firebase/app-check');
-    // The token this visit starts with, handed to the SDK on its first ask.
-    let first: { token: string; expireTimeMillis: number } | null = null;
+    // Solved before App Check starts, so the SDK's first ask finds it in hand.
     if (!tokenKept()) {
       await idle();
-      first = await exchangeTurnstileToken().catch(() => null);
+      await exchangeTurnstileToken().catch(() => null);
     }
     return initializeAppCheck(app, {
       provider: new CustomProvider({
-        getToken: () => {
-          const token = first;
-          first = null;
-          return token ? Promise.resolve(token) : exchangeTurnstileToken();
-        },
+        getToken: () =>
+          latest && Date.now() - latest.at < FRESH_MS ? Promise.resolve(latest.token) : exchangeTurnstileToken(),
       }),
       isTokenAutoRefreshEnabled: true,
     });
@@ -153,6 +157,7 @@ async function exchangeTurnstileToken(): Promise<{ token: string; expireTimeMill
     failures = 0;
     retryAt = 0;
     const expireTimeMillis = Date.now() + ttlMillis;
+    latest = { token: { token, expireTimeMillis }, at: Date.now() };
     try {
       window.localStorage.setItem(TOKEN_UNTIL_KEY, String(expireTimeMillis));
     } catch {
@@ -235,4 +240,5 @@ export function resetAppCheckForTests(): void {
   script = null;
   failures = 0;
   retryAt = 0;
+  latest = null;
 }
