@@ -89,8 +89,8 @@ import kotlinx.coroutines.launch
 
 /**
  * A card page's state, kept while the page is on its stack: back from what it opened (an author,
- * another card) finds it as it was, without reading it again — unless a card or a block changed
- * meanwhile, or it was read long ago.
+ * another card) finds it as it was, without reading it again — unless this card, a resonance to
+ * it or a block changed meanwhile, or it was read long ago.
  */
 class CardPageModel(private val session: Session, private val key: String, preview: FeedCard?) : ViewModel() {
     private val cached = session.cardCache.page(key)
@@ -114,11 +114,15 @@ class CardPageModel(private val session: Session, private val key: String, previ
     private var readAt = 0L
     private var reading: Job? = null
 
-    /** Reads the card unless what the page holds was read since the last change (`changes`) and lately; `retry` always does. */
-    fun refresh(changes: Int, retry: Boolean = false, now: Long = System.currentTimeMillis()) {
-        val current = changes == readFor && now - readAt < FeedLoader.STALE_AFTER.inWholeMilliseconds
-        if (current && !retry && phase != "failed") return
+    /**
+     * Reads the card unless what the page holds is current ([isCurrent]: read lately, and no change
+     * since that concerns it — `lastChange` is the latest of `changes`); `retry` always does.
+     */
+    fun refresh(changes: Int, lastChange: Session.CardChange?, retry: Boolean = false, now: Long = System.currentTimeMillis()) {
+        val current = isCurrent(readFor, readAt, changes, lastChange, detail?.card?.id, now)
+        // Seen either way: another card's change leaves the page as it is.
         readFor = changes
+        if (current && !retry && phase != "failed") return
         readAt = now
         reading?.cancel()
         reading = viewModelScope.launch { load() }
@@ -151,6 +155,20 @@ class CardPageModel(private val session: Session, private val key: String, previ
             if (phase != "loaded") phase = "failed"
         }
     }
+
+    companion object {
+        /**
+         * Whether a page read at `readAt`, as of change `readFor`, still shows `cardId` as it is: read
+         * lately, and since then no change, or just one (`lastChange`) about another card — not
+         * this one, nor a resonance to it (iOS's CardScreen). Several changes since, or the card
+         * not read yet, read it again.
+         */
+        fun isCurrent(readFor: Int?, readAt: Long, changes: Int, lastChange: Session.CardChange?, cardId: String?, now: Long): Boolean {
+            if (readFor == null || now - readAt >= FeedLoader.STALE_AFTER.inWholeMilliseconds) return false
+            if (changes == readFor) return true
+            return changes == readFor + 1 && cardId != null && lastChange != null && !lastChange.concerns(cardId)
+        }
+    }
 }
 
 /**
@@ -174,10 +192,11 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val embeds = model.embeds
     val context = LocalContext.current
     val list = rememberLazyListState()
-    // Edited, published or re-shelved from the writer or the ⋯, or a block: read it again; so is a page read long ago.
+    // This card or a resonance to it edited, published or re-shelved from the writer or the ⋯, or a
+    // block: read it again (another card's change leaves it as it is); so is a page read long ago.
     val changes by session.cardChanges.collectAsStateWithLifecycle()
     val foregrounded by session.foregrounded.collectAsStateWithLifecycle()
-    LaunchedEffect(changes, foregrounded) { model.refresh(changes) }
+    LaunchedEffect(changes, foregrounded) { model.refresh(changes, session.lastCardChange) }
 
     // A story's link leads where its scheme says (StoryLink); any other scheme isn't even tappable.
     val openUrl: (String) -> Unit = { href -> openStoryLink(context, session.config.origin, href, open) }
@@ -197,7 +216,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
             "loading" -> if (placeholder != null) CardPreview(placeholder) { open(Route.Author(it)) }
                 else CardDetailSkeleton(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp))
             "notFound" -> OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = back, action = EmptyAction.Link)
-            "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { model.refresh(changes, retry = true) }, action = EmptyAction.Outline)
+            "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { model.refresh(changes, session.lastCardChange, retry = true) }, action = EmptyAction.Outline)
             else -> detail?.let { d ->
                 val card = d.card
                 val resonance = (listOfNotNull(d.referenceCard) + resonances).distinctBy { it.id }

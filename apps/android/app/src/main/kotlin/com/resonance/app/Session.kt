@@ -136,7 +136,13 @@ class Session(
     val cardChanges: StateFlow<Int> = _cardChanges
 
     /** Which card a change was about, and the card it answers (a resonance); no card: any of them (a block). */
-    data class CardChange(val cardId: String? = null, val referenceCardId: String? = null)
+    data class CardChange(val cardId: String? = null, val referenceCardId: String? = null) {
+        /**
+         * Whether a page showing `cardId` may show something else now: the card itself, or one of
+         * its resonances (a change naming no card counts) — iOS's WriteLauncher.Change.concerns.
+         */
+        fun concerns(cardId: String): Boolean = this.cardId == null || this.cardId == cardId || referenceCardId == cardId
+    }
 
     /** The latest of [cardChanges] (iOS's WriteLauncher.lastChange). */
     var lastCardChange: CardChange? = null
