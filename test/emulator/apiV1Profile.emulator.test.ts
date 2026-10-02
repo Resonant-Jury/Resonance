@@ -112,6 +112,58 @@ describe('updateProfile', () => {
   });
 });
 
+// A pen name is one person's because a document says so: handles/{name,
+// lower-cased}, written in the profile write's own transaction. Names taken
+// before reservations existed (Bob here) have none yet, and still count.
+describe('pen-name reservations', () => {
+  const reservation = (key: string) => db.doc(`handles/${key}`).get().then((s) => (s.exists ? s.data() : null));
+
+  it('are written with the profile that takes the name', async () => {
+    await createProfile(db, newcomer, { handle: '小夜', region: 'TW', primaryLocale: 'zh-TW' });
+    expect(await reservation('小夜')).toMatchObject({ uid: 'nina', handle: '小夜' });
+  });
+
+  it("make a name someone else's even with no profile going by it", async () => {
+    await db.doc('handles/dawn').set({ uid: 'omar', handle: 'Dawn' });
+    expect((await failure(createProfile(db, newcomer, { handle: 'DAWN', region: 'TW', primaryLocale: 'en' }))).code).toBe('conflict');
+    expect(await handleAvailable(db, 'nina', 'dawn')).toBe(false);
+    expect(await handleAvailable(db, 'omar', 'dawn')).toBe(true);
+  });
+
+  it('move with a rename: the new name is reserved, the old one freed for anyone', async () => {
+    await createProfile(db, newcomer, { handle: 'nina', region: 'TW', primaryLocale: 'en' });
+    await updateProfile(db, 'nina', { handle: 'Nightingale' });
+    expect(await reservation('nina')).toBeNull();
+    expect(await reservation('nightingale')).toMatchObject({ uid: 'nina', handle: 'Nightingale' });
+    expect(await handleAvailable(db, 'omar', 'nina')).toBe(true);
+  });
+
+  it('stay one reservation through a change of case, with the name as now written', async () => {
+    await createProfile(db, newcomer, { handle: 'nina', region: 'TW', primaryLocale: 'en' });
+    await updateProfile(db, 'nina', { handle: 'NINA' });
+    expect(await reservation('nina')).toMatchObject({ uid: 'nina', handle: 'NINA' });
+  });
+
+  it("reserve an older account's name on its first rename, and never free another's reservation", async () => {
+    // Bob's name predates reservations; someone else's reservation sits on it (old duplicate data).
+    await db.doc('handles/bob').set({ uid: 'zed', handle: 'bob' });
+    await updateProfile(db, 'bob', { handle: 'Robert' });
+    expect(await reservation('robert')).toMatchObject({ uid: 'bob' });
+    expect(await reservation('bob')).toMatchObject({ uid: 'zed' });
+  });
+
+  it('give a contested rename to exactly one of two people', async () => {
+    await db.doc('users/omar').set({ handle: 'omar', handleLower: 'omar' });
+    const results = await Promise.allSettled([
+      updateProfile(db, 'bob', { handle: 'Morning' }),
+      updateProfile(db, 'omar', { handle: 'morning' }),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect((await db.collection('users').where('handleLower', '==', 'morning').get()).size).toBe(1);
+    expect(await reservation('morning')).not.toBeNull();
+  });
+});
+
 describe('profile requests', () => {
   it("hold the web's limits and never a path in a pen name", () => {
     expect(CreateProfileRequest.safeParse({ handle: ' a ', region: 'TW', primaryLocale: 'en' }).success).toBe(false);
@@ -120,6 +172,15 @@ describe('profile requests', () => {
     expect(CreateProfileRequest.safeParse({ handle: '小夜', region: 'TW', primaryLocale: 'fr' }).success).toBe(false);
     expect(UpdateProfileRequest.parse({ handle: null, bio: '  ', region: null })).toEqual({ handle: null, bio: '', region: null });
     expect(UpdateProfileRequest.safeParse({ bio: 'x'.repeat(81) }).success).toBe(false);
+    // Nothing that can't be its reservation's document id.
+    expect(CreateProfileRequest.safeParse({ handle: '..', region: 'TW', primaryLocale: 'en' }).success).toBe(false);
+    expect(CreateProfileRequest.safeParse({ handle: '__Ab__', region: 'TW', primaryLocale: 'en' }).success).toBe(false);
+    expect(CreateProfileRequest.safeParse({ handle: '...', region: 'TW', primaryLocale: 'en' }).success).toBe(true);
+  });
+
+  it("say a name that can't be reserved is not free", async () => {
+    expect(await handleAvailable(db, 'nina', '..')).toBe(false);
+    expect(await handleAvailable(db, 'nina', '__x__')).toBe(false);
   });
 });
 

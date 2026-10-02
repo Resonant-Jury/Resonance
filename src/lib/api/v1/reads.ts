@@ -1,5 +1,6 @@
 import { Timestamp, type DocumentData, type Firestore, type QueryDocumentSnapshot, type QuerySnapshot } from 'firebase-admin/firestore';
 import { cardByKey, slugHolder } from '@/lib/db/firestore/cardKey';
+import { uidForHandle } from '@/lib/db/firestore/handles';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card, RecommendationItem } from '@/lib/db/types';
 import { embeddedCardKeys } from './embeds';
@@ -272,10 +273,12 @@ export async function getLinksToCard(db: Firestore, viewerId: string, id: string
   return { cards: await present(db, viewerId, cards, { blocked }) };
 }
 
+/** The person who goes by a pen name: through its reservation (lib/db/firestore/handles). */
 async function userByHandle(db: Firestore, handle: string) {
-  const snap = await db.collection('users').where('handleLower', '==', handle.toLowerCase()).limit(1).get();
-  if (snap.empty) throw new ApiFailure('not_found', 'No such person.');
-  return snap.docs[0];
+  const uid = await uidForHandle(db, handle);
+  const snap = uid ? await db.doc(`users/${uid}`).get() : null;
+  if (!snap?.exists) throw new ApiFailure('not_found', 'No such person.');
+  return snap as QueryDocumentSnapshot;
 }
 
 /** GET /users/{handle}/cards' page size when none is asked for (FeedQuery's default). */

@@ -13,6 +13,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  documentId,
   getDoc,
   getDocs,
   increment,
@@ -387,9 +388,35 @@ describe('profiles (users/{uid})', () => {
     await assertFails(updateDoc(doc(as('bob'), 'users', 'alice'), { bio: 'not mine' }));
   });
 
-  it('stay readable by anyone, signed in or not', async () => {
+  it('stay readable by anyone, signed in or not — a page at a time, never the whole directory', async () => {
     await assertSucceeds(getDoc(doc(anonymous(), 'users', 'alice')));
     await assertSucceeds(getDocs(query(collection(anonymous(), 'users'), where('handleLower', '==', 'alice'), limit(1))));
+    // Bylines by id, 30 at most (getUsersByIds).
+    await assertSucceeds(getDocs(query(collection(anonymous(), 'users'), where(documentId(), 'in', ['alice', 'bob']), limit(2))));
+    await assertFails(getDocs(collection(anonymous(), 'users')));
+    await assertFails(getDocs(query(collection(as('carol'), 'users'), where(documentId(), 'in', ['alice', 'bob']))));
+    await assertFails(getDocs(query(collection(as('carol'), 'users'), limit(31))));
+  });
+});
+
+describe('pen-name reservations (handles/{name})', () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'handles', 'alice'), { uid: 'alice', handle: 'Alice' });
+    });
+  });
+
+  it('can be looked up by anyone, one name at a time', async () => {
+    await assertSucceeds(getDoc(doc(anonymous(), 'handles', 'alice')));
+    await assertSucceeds(getDoc(doc(as('carol'), 'handles', 'nobody-yet')));
+    await assertFails(getDocs(collection(as('carol'), 'handles')));
+  });
+
+  it('are written by the server alone — no one takes, moves or frees a name from the client', async () => {
+    await assertFails(setDoc(doc(as('carol'), 'handles', 'carol'), { uid: 'carol', handle: 'carol' }));
+    await assertFails(setDoc(doc(as('carol'), 'handles', 'alice'), { uid: 'carol', handle: 'alice' }));
+    await assertFails(updateDoc(doc(as('alice'), 'handles', 'alice'), { handle: 'ALICE' }));
+    await assertFails(deleteDoc(doc(as('alice'), 'handles', 'alice')));
   });
 });
 

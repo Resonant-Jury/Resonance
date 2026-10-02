@@ -270,7 +270,8 @@ export function forgetCachedUser(id?: string): void {
 
 /** Read one chunk (≤ 30) of profiles in a single query and cache what came back — absent ones as null. */
 function readUserChunk(ids: string[]): Promise<Map<string, User>> {
-  const read = getDocs(query(collection(getClientDb(), 'users'), where(documentId(), 'in', ids))).then((snap) => {
+  // The rules list profiles a page (≤ 30) at a time: the limit says so.
+  const read = getDocs(query(collection(getClientDb(), 'users'), where(documentId(), 'in', ids), fbLimit(ids.length))).then((snap) => {
     const found = new Map<string, User>();
     for (const d of snap.docs) found.set(d.id, mapUser(d.id, d.data()));
     for (const id of ids) remember(id, found.get(id) ?? null);
@@ -339,11 +340,28 @@ export async function getUsersByIds(ids: string[]): Promise<Record<string, User>
   return out;
 }
 
+/**
+ * The person who goes by a pen name: its reservation (handles/{name}, kept
+ * by the server with each profile write) names them. A name reserved before
+ * reservations existed has none yet: then the profile whose `handleLower`
+ * matches.
+ */
 export async function getUserByHandle(handle: string): Promise<User | null> {
+  const key = handle.trim().toLowerCase();
+  if (!key) return null;
+  let uid: unknown = null;
+  try {
+    // (A name that can't be a document id — `..`, a `/` from a hand-typed URL — throws here: no reservation.)
+    const reserved = await getDoc(doc(getClientDb(), 'handles', key));
+    uid = reserved.exists() ? reserved.data().uid : null;
+  } catch {
+    // Unreadable: fall back to the profiles themselves.
+  }
+  if (typeof uid === 'string' && uid) return getUserById(uid);
   const snap = await getDocs(
     query(
       collection(getClientDb(), 'users'),
-      where('handleLower', '==', handle.trim().toLowerCase()),
+      where('handleLower', '==', key),
       fbLimit(1)
     )
   );

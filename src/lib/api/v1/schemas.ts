@@ -197,14 +197,16 @@ export const BIO_MAX = 80;
 
 /**
  * A pen name as it is saved: trimmed, 2–20 characters, any script — but never
- * a path or query (it is the /u/{handle} segment) and no control characters.
+ * a path or query (it is the /u/{handle} segment), no control characters,
+ * and nothing Firestore can't take as its reservation's id (`..`, `__…__`).
  */
 const Handle = z
   .string()
   .trim()
   .min(HANDLE_MIN)
   .max(HANDLE_MAX)
-  .regex(/^[^/?#\\\p{Cc}]+$/u, 'Not a valid pen name.');
+  .regex(/^[^/?#\\\p{Cc}]+$/u, 'Not a valid pen name.')
+  .refine((h) => h !== '..' && !/^__.*__$/.test(h.toLowerCase()), 'Not a valid pen name.');
 const Locale = z.enum(['en', 'zh-TW']);
 const Region = z.string().trim().min(1).max(40);
 

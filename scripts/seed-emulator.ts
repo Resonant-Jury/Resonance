@@ -50,6 +50,8 @@ async function main() {
       joinedAt: at(60 * 24 * 30),
       handleChangedAt: at(60 * 24 * 30),
     });
+    // The pen name's reservation, as the profile writes keep it (lib/db/firestore/handles).
+    await db.doc(`handles/${u.handle.toLowerCase()}`).set({ uid: u.uid, handle: u.handle, reservedAt: at(60 * 24 * 30) });
   }
 
   const card = (id: string, authorId: string, thoughtCore: string, story: string, minutesAgo: number, hue: number) =>

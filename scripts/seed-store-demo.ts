@@ -531,6 +531,8 @@ async function main() {
       // The just-in-time hints stay out of the screenshots (lib/hints.ts: three displays and they are gone).
       ...(isViewer ? { hintsSeen: { 'anonymous-publish': 3, 'note-privacy': 3, 'feed-reason': 3 } } : {}),
     });
+    // The pen name's reservation, as the profile writes keep it (lib/db/firestore/handles).
+    put(`handles/${u.handle.toLowerCase()}`, { uid: u.uid, handle: u.handle });
   }
 
   // ---- cards (a resonance is a card whose referenceCardId names another) ----

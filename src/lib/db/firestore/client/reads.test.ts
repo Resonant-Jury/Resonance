@@ -15,7 +15,7 @@ vi.mock('firebase/firestore/lite', () => ({
   documentId: vi.fn(() => '__name__'),
   getDoc: vi.fn(),
   getDocs: vi.fn(),
-  limit: vi.fn(),
+  limit: vi.fn((n: number) => ({ limit: n })),
   orderBy: vi.fn(),
   // A query is its collection plus its filters, so tests can see what was asked.
   query: vi.fn((collection: string, ...filters: unknown[]) => ({ collection, filters })),
@@ -31,6 +31,7 @@ import { getDoc, getDocs } from 'firebase/firestore/lite';
 import {
   forgetCachedUser,
   getCurrentUserProfile,
+  getUserByHandle,
   getUserById,
   getUsersByIds,
   isConnected,
@@ -94,6 +95,9 @@ describe('profiles', () => {
     expect(authors.u34.handle).toBe('h-u34');
     const asked = inQueries();
     expect(asked.map((chunk) => chunk.length)).toEqual([30, 5]);
+    // Each query says how many it reads: the rules list profiles a page (≤ 30) at a time.
+    const limits = vi.mocked(getDocs).mock.calls.map(([q]) => (q as unknown as { filters: unknown[] }).filters[1]);
+    expect(limits).toEqual([{ limit: 30 }, { limit: 5 }]);
     expect(asked.flat().sort()).toEqual([...ids].sort());
     expect(getDoc).not.toHaveBeenCalled();
   });
@@ -160,5 +164,30 @@ describe('profiles', () => {
     await expect(getUsersByIds(['a'])).rejects.toThrow('offline');
     usersQueryAnswer();
     expect((await getUsersByIds(['a'])).a.handle).toBe('h-a');
+  });
+});
+
+describe('getUserByHandle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    forgetCachedUser();
+  });
+
+  it("goes by the pen name's reservation (handles/{name}), then the profile it names", async () => {
+    vi.mocked(getDoc).mockImplementation((async (ref: { path: string }) =>
+      ref.path === 'handles/小夜'
+        ? { exists: () => true, data: () => ({ uid: 'nina', handle: '小夜' }) }
+        : { id: 'nina', exists: () => true, data: () => ({ handle: '小夜' }) }) as never);
+    await expect(getUserByHandle(' 小夜 ')).resolves.toMatchObject({ id: 'nina', handle: '小夜' });
+    expect(vi.mocked(getDoc).mock.calls.map(([ref]) => (ref as unknown as { path: string }).path)).toEqual(['handles/小夜', 'users/nina']);
+    expect(getDocs).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the profiles themselves for a name not reserved yet (one at most)', async () => {
+    vi.mocked(getDoc).mockResolvedValue({ exists: () => false } as never);
+    vi.mocked(getDocs).mockResolvedValue({ docs: [{ id: 'bob', data: () => ({ handle: 'Bob' }) }] } as never);
+    await expect(getUserByHandle('BOB')).resolves.toMatchObject({ id: 'bob' });
+    const q = vi.mocked(getDocs).mock.calls[0][0] as unknown as { filters: unknown[] };
+    expect(q.filters).toEqual([{ field: 'handleLower', op: '==', value: 'bob' }, { limit: 1 }]);
   });
 });

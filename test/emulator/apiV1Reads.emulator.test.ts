@@ -223,6 +223,19 @@ describe('profiles', () => {
     await set('cardLinks/l1', { sourceCardId: 'theirs', targetCardId: 'mine', targetAuthorId: 'bob', createdAt: minutesAgo(1) });
     expect((await getProfileLinks(db, 'alice', 'bob')).cards.map((c) => c.id)).toEqual(['theirs']);
   });
+
+  it('finds the person through their pen name\'s reservation, and an unreserved older name by its earliest holder', async () => {
+    // Two older accounts share a pen name (written before names were reserved).
+    await set('users/aaa', { handle: 'Dup', handleLower: 'dup', joinedAt: Timestamp.fromDate(new Date('2026-03-01T00:00:00Z')) });
+    await set('users/zzz', { handle: 'dup', handleLower: 'dup', joinedAt: Timestamp.fromDate(new Date('2026-02-01T00:00:00Z')) });
+    expect((await getProfile(db, 'alice', 'dup')).author.id).toBe('zzz');
+    // Once reserved, the reservation decides.
+    await set('handles/dup', { uid: 'aaa', handle: 'Dup' });
+    expect((await getProfile(db, 'alice', 'DUP')).author.id).toBe('aaa');
+    // A reservation is a name's whole answer: renamed since, the old name finds no one.
+    await set('handles/ghost', { uid: 'gone', handle: 'ghost' });
+    expect((await failure(getProfile(db, 'alice', 'ghost'))).code).toBe('not_found');
+  });
 });
 
 describe('getRecommendedFeed', () => {
