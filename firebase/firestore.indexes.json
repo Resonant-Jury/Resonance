@@ -145,53 +145,11 @@
       ]
     },
     {
-      "collectionGroup": "invites",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "fromUserId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "notifications",
       "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "resonances",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "resonances",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "cardId",
           "order": "ASCENDING"
         },
         {
@@ -279,6 +237,116 @@
     }
   ],
   "fieldOverrides": [
+    {
+      "collectionGroup": "cards",
+      "fieldPath": "story",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "cards",
+      "fieldPath": "translations",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "cards",
+      "fieldPath": "signature",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "cards",
+      "fieldPath": "media",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "edits",
+      "fieldPath": "story",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "edits",
+      "fieldPath": "media",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "text",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "notes",
+      "fieldPath": "text",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "users",
+      "fieldPath": "bio",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "users",
+      "fieldPath": "hintsSeen",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "notifications",
+      "fieldPath": "payload.preview",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "conversations",
+      "fieldPath": "lastMessage",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "cardVectors",
+      "fieldPath": "coreInsight",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "cardVectors",
+      "fieldPath": "situation",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "userProfiles",
+      "fieldPath": "centroids",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "userProfiles",
+      "fieldPath": "summaries",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "recommendations",
+      "fieldPath": "items",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "reports",
+      "fieldPath": "detail",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "reportEvidence",
+      "fieldPath": "card",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "reportEvidence",
+      "fieldPath": "profile",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "reportEvidence",
+      "fieldPath": "message",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "reportEvidence",
+      "fieldPath": "context",
+      "indexes": []
+    },
     {
       "collectionGroup": "edits",
       "fieldPath": "authorId",
