@@ -572,7 +572,7 @@ object L10n {
         }
         /** Tags */
         val tagsLabel: String get() = Strings.string("write.tagsLabel")
-        /** AI: suggest 2–3 */
+        /** Suggest with AI */
         val tagsSuggest: String get() = Strings.string("write.tagsSuggest")
         /** Thinking… */
         val tagsSuggesting: String get() = Strings.string("write.tagsSuggesting")
@@ -582,6 +582,8 @@ object L10n {
         val tagsPlaceholder: String get() = Strings.string("write.tagsPlaceholder")
         /** Add */
         val tagsAdd: String get() = Strings.string("write.tagsAdd")
+        /** Press Enter to add one, or let AI suggest from your story */
+        val tagsHelp: String get() = Strings.string("write.tagsHelp")
         /** Image (optional) */
         val mediaLabel: String get() = Strings.string("write.mediaLabel")
         /** Remove image */

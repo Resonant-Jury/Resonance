@@ -1,31 +1,24 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { Icon } from '@/components/atoms/Icon';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Field, Textarea, CharCount } from '@/components/atoms/Field/Field';
-import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { HandDrawnImage } from '@/components/atoms/HandDrawnImage/HandDrawnImage';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { MarkdownEditor } from '@/components/molecules/MarkdownEditor/MarkdownEditor';
-import { useElementSize } from '@/lib/hooks/useElementSize';
 import { uploadImageFile } from '@/lib/images/upload';
 import { extractAccentHue } from '@/lib/images/accentHue';
 import { useRef } from 'react';
 import { INK } from '@/lib/design/strokes';
 // import { Panel } from '@/components/molecules/Panel/Panel'; // AI 寫作夥伴（暫停）
-import {
-  SegmentedActionBar,
-  boundaryPoints,
-  polyline,
-} from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
+import { SegmentedActionBar } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
+import { TagField } from '@/components/molecules/TagField/TagField';
 import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
-import { wobRect } from '@/lib/design/wobRect';
 import {
   createCardDraft,
   publishCard,
@@ -172,7 +165,6 @@ export function CardEditor({
   const [partialPreview, setPartialPreview] = useState<string | null>(null);
   const [suggestingTags, setSuggestingTags] = useState(false);
   const [tagError, setTagError] = useState<string | null>(null);
-  const [tagDraft, setTagDraft] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   // AI 寫作夥伴：暫時停用，未來會重新啟用
@@ -256,8 +248,12 @@ export function CardEditor({
       });
       if (!res.ok) throw new Error(`Tag suggestion failed: ${res.status}`);
       const { tags: suggested } = (await res.json()) as { tags?: string[] };
-      const fresh = (suggested ?? []).filter((x) => !tags.includes(x));
-      if (fresh.length > 0) setTags([...tags, ...fresh]);
+      // The field stays open while the model thinks, so merge into what is
+      // there now, not into the list this request started from.
+      setTags((now) => {
+        const fresh = (suggested ?? []).filter((x) => !now.includes(x));
+        return fresh.length > 0 ? [...now, ...fresh] : now;
+      });
     } catch (err) {
       console.error('Tag suggestion failed:', err);
       setTagError(t('tagsSuggestError'));
@@ -266,11 +262,6 @@ export function CardEditor({
     }
   }
 
-  function addTag(raw: string) {
-    const tag = raw.trim();
-    if (!tag || tags.includes(tag)) return;
-    setTags([...tags, tag]);
-  }
   // AI 寫作夥伴：暫時停用，未來會重新啟用
   // function suggestTitles() {
   //   setTitleSuggestions(SAMPLE_TITLES);
@@ -278,10 +269,6 @@ export function CardEditor({
   // function stubPolish() {
   //   setPolishPreview(story.replace(/\n{3,}/g, '\n\n').trim());
   // }
-
-  function removeTag(tag: string) {
-    setTags(tags.filter((x) => x !== tag));
-  }
 
   /** Publish-time choices arrive from the publish panel, ahead of state. */
   interface PublishChoices {
@@ -613,36 +600,15 @@ export function CardEditor({
         </Field>
 
         {/* Tags */}
-        <Field label={t('tagsLabel')}>
-          <div className={styles.tagBlock}>
-            <div className={styles.tagRow}>
-              {tags.map((tag) => (
-                <TagPill
-                  key={tag}
-                  size="lg"
-                  color="var(--color-terracotta-light)"
-                  onRemove={() => removeTag(tag)}
-                >
-                  {tag}
-                </TagPill>
-              ))}
-              {/* The AI pill steps aside once the user starts typing their own tag. */}
-              {!tagDraft.trim() && (
-                <AddTagButton
-                  label={suggestingTags ? t('tagsSuggesting') : t('tagsSuggest')}
-                  onClick={() => void suggestTags()}
-                />
-              )}
-            </div>
-            <TagInput
-              value={tagDraft}
-              onChange={setTagDraft}
-              placeholder={t('tagsPlaceholder')}
-              addLabel={t('tagsAdd')}
-              onAdd={addTag}
-            />
-            {tagError && <div className={styles.tagError}>{tagError}</div>}
-          </div>
+        <Field label={t('tagsLabel')} htmlFor="card-tags">
+          <TagField
+            id="card-tags"
+            tags={tags}
+            onChange={setTags}
+            onSuggest={() => void suggestTags()}
+            suggesting={suggestingTags}
+            error={tagError}
+          />
         </Field>
 
         {/* Media */}
@@ -808,11 +774,13 @@ export function CardEditor({
             )}
           </div>
         ) : (
-        <div className={styles.actions}>
+        <div className={`${styles.actions} ${styles.actionsStack}`}>
           {/* Everything autosaves; these buttons are only about *intent*.
               A draft: publish it, or step away and come back later. A live
-              card: put the revision in front of readers, or drop it. */}
-          <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
+              card: put the revision in front of readers, or drop it. On a
+              phone they are one centred column: the verb across the width,
+              the quiet way out under it. */}
+          <div className={styles.primaryAction} data-pending={pending || undefined}>
             <OrganicButton
               variant="primary"
               onClick={() => {
@@ -830,7 +798,7 @@ export function CardEditor({
             </OrganicButton>
           </div>
           {(isPublished ? hasPendingEdit : true) && (
-            <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
+            <div className={styles.secondaryAction} data-pending={pending || undefined}>
               <OrganicButton
                 variant="text"
                 onClick={() => void (isPublished ? discardEdits() : saveDraftAndLeave())}
@@ -840,9 +808,7 @@ export function CardEditor({
             </div>
           )}
           {publishError && !publishOpen && (
-            <span style={{ fontSize: 12, color: 'var(--color-terracotta)' }}>
-              {publishError}
-            </span>
+            <span className={styles.actionError}>{publishError}</span>
           )}
           {/* The save state used to live here and nowhere else, which is why
               nobody found it. It now sits under the page title
@@ -903,210 +869,6 @@ export function CardEditor({
 //   hint: string;
 //   onClick: () => void;
 // }
-
-function AddTagButton({ label, onClick }: { label: string; onClick: () => void }) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const { w, h } = useElementSize(ref, 130, 32);
-  const [hover, setHover] = useState(false);
-  return (
-    <button
-      ref={ref}
-      type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onFocus={() => setHover(true)}
-      onBlur={() => setHover(false)}
-      className={styles.addTag}
-    >
-      <HandDrawnBorder
-        w={w}
-        h={h}
-        R={Math.min(h / 2, 18)}
-        seed={67}
-        strokeColor={hover ? 'var(--field-border-hover)' : 'var(--field-border)'}
-        fillColor="transparent"
-      />
-      <span className={styles.addTagBody}>
-        <Icon name="plus" size={12} /> {label}
-      </span>
-    </button>
-  );
-}
-
-// Seed for the tag input bar's wobble — module-scoped so the shape is stable
-// across renders and SSR/CSR.
-const TAG_BAR_SEED = 53;
-
-/**
- * Tag input styled like a two-segment SegmentedActionBar: the left segment is
- * the text input, the right segment is the add action — one shared wobbly
- * border, a wavy vertical divider (same geometry helpers as the bar), the
- * action segment washed with the light theme tint and a pointer-anchored
- * pour-paint hover reveal.
- */
-function TagInput({
-  value,
-  onChange,
-  placeholder,
-  addLabel,
-  onAdd,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  addLabel: string;
-  onAdd: (tag: string) => void;
-}) {
-  const barRef = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const { w, h } = useElementSize(barRef, 480, 50);
-  const { w: btnW } = useElementSize(btnRef, 96, 50);
-  const [hover, setHover] = useState(false);
-  const [focus, setFocus] = useState(false);
-  const [btnHover, setBtnHover] = useState(false);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const maskId = useId().replace(/:/g, '');
-  const canAdd = value.trim().length > 0;
-
-  function commit() {
-    if (!canAdd) return;
-    onAdd(value);
-    onChange('');
-  }
-
-  const pad = h > 0 ? Math.max(12, h * 0.3) : 0;
-  const outerPath = useMemo(() => {
-    if (!w || !h) return '';
-    // Same wobble recipe as SegmentedActionBar so both read as one family.
-    return wobRect(w, h, 16, TAG_BAR_SEED, Math.min(w, h) * 0.05, {
-      segmentsH: [7, 9],
-      segmentsV: [2, 3],
-      curve: 1.2,
-      cornerJitter: 1.2,
-      cornerOffset: h * 0.04,
-    });
-  }, [w, h]);
-  const boundary = useMemo(
-    () => (w && h && btnW ? boundaryPoints(w - btnW, h, TAG_BAR_SEED + 11, 1.6, pad) : null),
-    [w, h, btnW, pad],
-  );
-  // Action segment region: wavy left edge shared with the divider stroke,
-  // straight overshot outer edges trimmed flush by the clip.
-  const actionRegion = boundary
-    ? `M ${boundary[0][0]},${boundary[0][1]} ` +
-      boundary.slice(1).map((p) => `L ${p[0]},${p[1]}`).join(' ') +
-      ` L ${w + pad},${h + pad} L ${w + pad},${-pad} Z`
-    : '';
-
-  const recordPointer = (e: MouseEvent<HTMLButtonElement>) => {
-    const r = barRef.current?.getBoundingClientRect();
-    if (!r) return;
-    setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
-  };
-  const maxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 4;
-
-  // Still a form field: border follows the field state tokens; the divider
-  // matches the border so the bar reads as one drawn shape.
-  const stroke = focus
-    ? 'var(--field-border-focus)'
-    : hover
-    ? 'var(--field-border-hover)'
-    : 'var(--field-border)';
-
-  return (
-    <div
-      ref={barRef}
-      className={styles.tagInputBar}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      {w > 0 && h > 0 && (
-        <svg
-          aria-hidden="true"
-          width={w}
-          height={h}
-          viewBox={`0 0 ${w} ${h}`}
-          className={`${styles.tagInputBackdrop} res-shape-fade-in`}
-        >
-          <defs>
-            <clipPath id={`tag-bar-clip-${maskId}`}>
-              <path d={outerPath} />
-            </clipPath>
-            <mask
-              id={`tag-bar-hover-${maskId}`}
-              maskUnits="userSpaceOnUse"
-              x={-w} y={-h} width={w * 3} height={h * 3}
-            >
-              <circle
-                cx={pos.x} cy={pos.y}
-                r={btnHover && canAdd ? maxR : 0}
-                fill="white"
-                style={{ transition: 'r 340ms linear' }}
-              />
-            </mask>
-          </defs>
-          <g clipPath={`url(#tag-bar-clip-${maskId})`}>
-            <path d={outerPath} fill="var(--color-cream)" />
-            {actionRegion && (
-              <path
-                d={actionRegion}
-                fill="color-mix(in oklch, var(--color-terracotta-light) 60%, transparent)"
-              />
-            )}
-            {actionRegion && (
-              <g mask={`url(#tag-bar-hover-${maskId})`}>
-                <path
-                  d={actionRegion}
-                  fill="color-mix(in oklch, var(--color-terracotta) 13%, transparent)"
-                />
-              </g>
-            )}
-          </g>
-          {boundary && (
-            <path
-              d={polyline(boundary)}
-              fill="none"
-              stroke={stroke}
-              strokeWidth={INK}
-              strokeLinecap="round"
-              clipPath={`url(#tag-bar-clip-${maskId})`}
-            />
-          )}
-          <path d={outerPath} fill="none" stroke={stroke} strokeWidth={INK} strokeLinejoin="round" />
-        </svg>
-      )}
-      <input
-        type="text"
-        className={styles.tagInputField}
-        value={value}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
-          }
-        }}
-        onFocus={() => setFocus(true)}
-        onBlur={() => setFocus(false)}
-      />
-      <button
-        ref={btnRef}
-        type="button"
-        className={styles.tagInputBtn}
-        disabled={!canAdd}
-        onClick={commit}
-        onMouseEnter={(e) => { recordPointer(e); setBtnHover(true); }}
-        onMouseMove={recordPointer}
-        onMouseLeave={() => setBtnHover(false)}
-      >
-        <Icon name="plus" size={12} /> {addLabel}
-      </button>
-    </div>
-  );
-}
 
 // AI 寫作夥伴：暫時停用，未來會重新啟用
 // function AiRow({ icon, title, hint, onClick }: AiRowProps) {

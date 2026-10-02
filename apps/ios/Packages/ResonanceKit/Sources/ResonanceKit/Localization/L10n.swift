@@ -570,7 +570,7 @@ public enum L10n {
         }
         /// Tags
         public static var tagsLabel: String { Strings.shared.string("write.tagsLabel") }
-        /// AI: suggest 2–3
+        /// Suggest with AI
         public static var tagsSuggest: String { Strings.shared.string("write.tagsSuggest") }
         /// Thinking…
         public static var tagsSuggesting: String { Strings.shared.string("write.tagsSuggesting") }
@@ -580,6 +580,8 @@ public enum L10n {
         public static var tagsPlaceholder: String { Strings.shared.string("write.tagsPlaceholder") }
         /// Add
         public static var tagsAdd: String { Strings.shared.string("write.tagsAdd") }
+        /// Press Enter to add one, or let AI suggest from your story
+        public static var tagsHelp: String { Strings.shared.string("write.tagsHelp") }
         /// Image (optional)
         public static var mediaLabel: String { Strings.shared.string("write.mediaLabel") }
         /// Remove image
