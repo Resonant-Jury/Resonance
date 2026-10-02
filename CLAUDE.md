@@ -17,7 +17,7 @@ npm run dev:emulator    # Next dev server wired to the emulators (no real Fireba
 npm run test:emulator   # Rules + Admin SDK suites in test/emulator (starts/stops the emulators itself)
 EMULATOR_AUTH_PORT=9199 EMULATOR_FIRESTORE_PORT=8180 npm run emulators:at [-- "<command>"]   # a private pair of emulators beside the shared ones (dev:emulator, seeds and the apps' emulatorAuthPort/emulatorFirestorePort/emulatorApiPort launch args follow the same variables)
 npm run moderation -- list [--emulator]   # read the report queue (reports are write-only for clients); `show <id>` prints one with its kept evidence
-npx tsx scripts/backfill.ts <anonymous|handles|edits|storage-host|rekey-images> [--apply] [--emulator] [--delete-old]   # older data the rules now expect (dry run unless --apply)
+npx tsx scripts/backfill.ts <anonymous|handles|edits|storage-host|rekey-images|rehost-images> [--apply] [--emulator] [--delete-old]   # older data the rules now expect (dry run unless --apply); rehost-images moves stored picture URLs off a former storage host (see Storage)
 npx tsx scripts/backfill-card-summaries.ts [--write] [--all] [--emulator]   # list summaries on older cards (dry run unless --write)
 npx tsx scripts/integrity.ts [--emulator]   # read-only check for data the rules would refuse today
 npm run api:openapi     # regenerate openapi/v1/openapi.json from the Zod contract (a test fails when stale)
@@ -31,7 +31,7 @@ Seed the emulators with known test accounts: `npx tsx scripts/seed-emulator.ts`.
 
 **Resonance**（共振）is a multilingual social storytelling platform built around "story cards" — users write cards, respond to others by authoring a *resonance* (a response card with a `referenceCardId`, **not** a like), and form one-to-one connections by resonating or leaving a note (older invites can still be answered, none are sent). Built with Next.js 15 (App Router) + React 19 + TypeScript 5.7 (strict). No Tailwind — all styling uses CSS Modules + CSS custom properties defined in `src/styles/tokens.css`. See `README.md` for the full architecture write-up (in Chinese).
 
-Stack: Firebase Auth + session cookies, Cloud Firestore, Cloudflare R2 (object storage), OpenAI (slugs/tags/illustrations), Tiptap 3 editor + react-markdown reader, SWR for client data fetching. Deployed on Vercel: functions in `hkg1` (nearest Firestore's asia-east1), except the routes that call OpenAI — which refuses requests from Hong Kong — pinned to `hnd1` in vercel.json `functions` (see AI).
+Stack: Firebase Auth + session cookies, Cloud Firestore, Cloudflare R2 (object storage), OpenAI (slugs/tags/illustrations), Tiptap 3 editor + react-markdown reader, SWR for client data fetching. Deployed on Vercel at https://resonance.channel (www redirects to it): functions in `hkg1` (nearest Firestore's asia-east1), except the routes that call OpenAI — which refuses requests from Hong Kong — pinned to `hnd1` in vercel.json `functions` (see AI). The old address, resonance-world.vercel.app, serves the same deployment; vercel.json `redirects` sends its pages (path and query) to resonance.channel with a 308, but not `/api/*`, `/_next/*` or `/.well-known/*`, which keep answering there for app builds already installed and Android's App Links — `src/lib/site.test.ts` pins that, so don't widen it.
 
 ### Routing & i18n
 
@@ -117,7 +117,7 @@ Stories are stored as Markdown, so the editor's schema *is* the storage format. 
 
 ### Security headers
 
-`next.config.ts` sends, on every path (`src/lib/api/securityHeaders.ts`): `X-Frame-Options: SAMEORIGIN` + CSP `frame-ancestors 'self'`, `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a restrictive `Permissions-Policy`, and a **report-only** CSP (reports to `/api/csp-report`) listing what the site loads — Firebase Auth's iframe and endpoints, apis.google.com, Turnstile (challenges.cloudflare.com), the R2 image origin, fonts. Watch the `[csp]` logs before enforcing it; a new script, frame, font or API origin must be added there.
+`next.config.ts` sends, on every path (`src/lib/api/securityHeaders.ts`): `X-Frame-Options: SAMEORIGIN` + CSP `frame-ancestors 'self'`, `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a restrictive `Permissions-Policy`, and a **report-only** CSP (reports to `/api/csp-report`) listing what the site loads — Firebase Auth's iframe and endpoints, apis.google.com, Turnstile (challenges.cloudflare.com), the R2 image origin (and a former one during a move), fonts. Watch the `[csp]` logs before enforcing it; a new script, frame, font or API origin must be added there.
 
 ### App Check (watched, not enforced)
 
@@ -134,6 +134,8 @@ Card URLs use English slugs (LLM translates the title, then slugify + handle/num
 ### Storage & Image Pipeline
 
 `src/lib/storage/` is an abstraction over Cloudflare R2 (S3-compatible API via `@aws-sdk/client-s3`). Keys are `{kind}/{yyyy-mm}/{uuid}.{ext}` (no uid); `storeOwned()` records the owner in server-only `uploads/{uuid}`. Once `config/storage` names the host, the rules take covers and avatars from it only. Images are compressed client-side (`src/lib/images/compress.ts`), uploaded through `/api/upload` or `/api/generate-image`, converted to AVIF with sharp (`src/lib/storage/image.ts`), and served from `R2_PUBLIC_BASE` with `Cache-Control: public, max-age=31536000, immutable` (keys are UUIDs, never rewritten). R2 CORS config is in `r2-cors.json`.
+
+**Moving the storage to a new host** (the r2.dev host → `img.resonance.channel`, an R2 custom domain on the same bucket: both serve every key). Uploads go to `R2_PUBLIC_BASE` only; `R2_FORMER_PUBLIC_BASES` (comma-separated) lists the earlier bases, which everything that recognizes "a picture we stored" also accepts — `storageKeyOf()`/`publicBases()` in `src/lib/storage/publicUrl.ts` (applying an edit, `/api/og` share images, the integrity check) and the report-only CSP's `img-src`/`media-src`. In the rules, `storedFile()` takes `config/storage.host` or any host in its optional `formerHosts`, so a draft or pending edit still holding an old-host cover stays saveable. The order matters, since the rules refuse a cover on a host `config/storage` doesn't name: deploy the rules; with `R2_PUBLIC_BASE` set to the new base and the old one in `R2_FORMER_PUBLIC_BASES`, run `backfill.ts storage-host --apply` (the host it replaces joins `formerHosts`); deploy the site with the same two variables; then `backfill.ts rehost-images --apply` rewrites stored URLs on a former base to the same key on the new one — profile photos, covers and story pictures of cards and pending edits, without touching `updatedAt` or the list summary; `reportEvidence/*` keeps what was reported as it was. Retire an old host only once a `rehost-images` dry run finds nothing left on it: drop it from `R2_FORMER_PUBLIC_BASES` and, by hand, from `formerHosts`.
 
 ### Component Hierarchy
 

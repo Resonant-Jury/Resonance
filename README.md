@@ -16,7 +16,7 @@
 | 編輯器 | Tiptap 3 + tiptap-markdown；閱讀端用 react-markdown + remark-gfm |
 | 資料抓取 | SWR（client hooks） |
 | 測試 | Vitest 3 + @testing-library/react + jsdom |
-| 部署 | Vercel（函式在 `hkg1`，呼叫 OpenAI 的 route 在 `hnd1`）；Firebase CLI 管理 rules/indexes |
+| 部署 | Vercel，網址 https://resonance.channel（函式在 `hkg1`，呼叫 OpenAI 的 route 在 `hnd1`）；Firebase CLI 管理 rules/indexes |
 
 ## 常用指令
 
@@ -43,7 +43,7 @@ firebase deploy --only firestore:rules,firestore:indexes
 - `NEXT_PUBLIC_FIREBASE_*` — Firebase client SDK 設定（公開）。
 - `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` — firebase-admin 服務帳號（伺服器端）。
 - `FIREBASE_SESSION_COOKIE_NAME`（預設 `__session`）、`FIREBASE_SESSION_EXPIRES_IN_DAYS`（預設 7）。
-- `R2_*` — Cloudflare R2 帳號、bucket、S3 端點、金鑰；`R2_PUBLIC_BASE` 為公開讀取網域。
+- `R2_*` — Cloudflare R2 帳號、bucket、S3 端點、金鑰；`R2_PUBLIC_BASE` 為公開讀取網域（新圖片都存在這裡）；`R2_FORMER_PUBLIC_BASES`（選填，逗號分隔）列出同一個 bucket 先前的公開網域——搬家期間舊網址上的圖片仍算「我們的圖」。
 - `OPENAI_API_KEY`、`OPENAI_LLM_MODEL`、`OPENAI_IMAGE_MODEL` — AI 功能（slug、標籤、插圖）。
 - `NEXT_PUBLIC_ENABLE_PHONE_OTP` — 手機 OTP 登入開關。
 
@@ -136,6 +136,8 @@ docs/                        # PRD（共振_產品需求書）、開發計畫、
 
 客戶端先壓縮（`src/lib/images/compress.ts`），經 `/api/upload` 或 `/api/generate-image` 上傳；伺服器端以 sharp 轉 AVIF（`src/lib/storage/image.ts`）後寫入 R2，回傳 `R2_PUBLIC_BASE` 公開 URL。R2 CORS 設定在根目錄 `r2-cors.json`。
 
+圖片網域搬家（r2.dev → `img.resonance.channel`，同一個 bucket，兩個網域都能讀到每個 key）：舊網域放進 `R2_FORMER_PUBLIC_BASES`，規則的 `storedFile()` 也接受 `config/storage.formerHosts` 裡的舊網域；`npx tsx scripts/backfill.ts storage-host --apply` 會把被取代的網域記進 `formerHosts`，`rehost-images --apply` 再把頭像、封面、故事內圖片（含待套用的修改）的網址改到新網域（不動 `updatedAt`，檢舉證據保持原樣）。步驟順序見 CLAUDE.md 的 Storage 一節。
+
 ## 測試
 
 整合風格的單元測試：測一整個功能（adapter 規則、hook 組合、元件互動），不測瑣碎函式。無 E2E。
@@ -150,6 +152,7 @@ docs/                        # PRD（共振_產品需求書）、開發計畫、
 ## 部署
 
 - **Vercel**：`vercel.json` 指定 region `hkg1`（香港，離 Firestore 的 asia-east1 最近）。OpenAI 不接受來自香港的請求，所以會呼叫 OpenAI 的 route 在 `functions` 裡固定在 `hnd1`（東京），`src/lib/ai/regions.test.ts` 會檢查這份清單是否完整。`vercel` CLI 已登入可直接操作。
+- **網域**：網站在 https://resonance.channel（www 轉到這裡）。舊網址 resonance-world.vercel.app 仍是同一個部署：`vercel.json` 的 `redirects` 把頁面（路徑與 query 不變）永久轉到新網域，但 `/api/*`、`/_next/*`、`/.well-known/*` 不轉——已安裝的舊版 App 還在呼叫舊網址的 API，Android App Links 也讀它的 `/.well-known`。`src/lib/site.test.ts` 會擋住擴大轉址範圍的修改。聯絡信箱是 support@resonance.channel（Cloudflare Email Routing 轉寄到團隊信箱）。
 - **Firebase**：rules / indexes 在 `firebase/`，改動後需 `firebase deploy --only firestore:rules,firestore:indexes`。
 - **Cloudflare**：R2 由 `wrangler` 管理。
 
