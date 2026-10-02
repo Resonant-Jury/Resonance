@@ -193,6 +193,15 @@ internal fun MutableList<Route>.popToRoot() {
     if (size > 1) subList(1, size).clear()
 }
 
+/**
+ * Back one page, never past the root: a second back that lands before the first one has been drawn
+ * (the system back pressed twice quickly, a double tap on the arrow) would otherwise empty the stack,
+ * which NavDisplay refuses.
+ */
+internal fun MutableList<Route>.popPage() {
+    if (size > 1) removeAt(lastIndex)
+}
+
 /** A tab's back stack, saved with the activity: its routes are [Serializable] (no reflection). */
 @Composable
 private fun rememberRouteStack(root: Route): NavBackStack<Route> =
@@ -210,7 +219,9 @@ private fun rememberStackEntries(tab: Tab, stack: NavBackStack<Route>, content: 
     val decorators = listOf(rememberSaveableStateHolderNavEntryDecorator<Route>(), rememberViewModelStoreNavEntryDecorator<Route>())
     val routes = stack.toList()
     val entries = remember(routes) {
-        routes.mapIndexed { i, route -> NavEntry(route, contentKey = "$tab/$i/${route.contentKey}", content = content) }
+        routes.mapIndexed { i, route ->
+            NavEntry(route, contentKey = "$tab/$i/${route.contentKey}", metadata = mapOf(PageMotion.TAB_METADATA to tab), content = content)
+        }
     }
     return rememberDecoratedNavEntries(entries, decorators)
 }
@@ -219,7 +230,7 @@ private fun rememberStackEntries(tab: Tab, stack: NavBackStack<Route>, content: 
  * Four tabs and the pen. Each tab keeps its own back stack — saved, so rotation or a reclaimed
  * process brings it back — and each page on it keeps its state and ViewModels while it is there;
  * re-selecting a tab pops to its root; system back (with the predictive-back animation) pops the
- * current tab's stack. The bar hides on pushed screens.
+ * current tab's stack. The bar hides on pushed screens. Pages move as [PageFrame] draws them.
  */
 @Composable
 fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
@@ -271,14 +282,21 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     // A language change re-renders every screen (the strings are read while composing); the stacks and their pages stay.
     val languageEpoch by session.languageEpoch.collectAsStateWithLifecycle()
 
+    val motion = remember { PageMotion() }
     val entries: Map<Tab, List<NavEntry<Route>>> = Tab.entries.associateWith { t ->
         val own = stacks.getValue(t)
-        rememberStackEntries(t, own) { route -> Page(session, route, own) }
+        rememberStackEntries(t, own) { route -> PageFrame(motion) { Page(session, route, own) } }
     }
 
     Box(Modifier.fillMaxSize().cream()) {
         key(languageEpoch) {
-            NavDisplay(entries = entries.getValue(tab), onBack = { stack.removeLastOrNull() })
+            NavDisplay(
+                entries = entries.getValue(tab),
+                onBack = { stack.popPage() },
+                transitionSpec = motion.push,
+                popTransitionSpec = motion.pop,
+                predictivePopTransitionSpec = motion.predictivePop,
+            )
         }
         // The undo banner floats above the tab bar (or the bottom edge on pushed screens) on every screen.
         deletionDate?.let { date ->
@@ -320,7 +338,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
 @Composable
 private fun Page(session: Session, route: Route, stack: NavBackStack<Route>) {
     val push: (Route) -> Unit = { stack.add(it) }
-    val pop: () -> Unit = { stack.removeLastOrNull() }
+    val pop: () -> Unit = { stack.popPage() }
     when (route) {
         is Route.Root -> when (route.tab) {
             Tab.Feed -> FeedScreen(session, push)

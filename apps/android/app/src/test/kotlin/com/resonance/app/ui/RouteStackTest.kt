@@ -95,6 +95,14 @@ class RouteStackTest {
         assertEquals(listOf(Route.Root(Tab.Feed), Route.Card("a"), Route.Write(cardId = "d2", savedNew = true)), stack)
     }
 
+    @Test fun backNeverPopsTheRoot() {
+        val stack = mutableListOf<Route>(Route.Root(Tab.Feed), Route.Card("a"))
+        stack.popPage()
+        // A second back before the first was drawn.
+        stack.popPage()
+        assertEquals(listOf<Route>(Route.Root(Tab.Feed)), stack)
+    }
+
     @Test fun reselectingATabGoesBackToItsRoot() {
         val stack = mutableListOf<Route>(Route.Root(Tab.Feed), Route.Card("a"), Route.Author("bob"), Route.Card("b"))
         stack.popToRoot()
