@@ -25,5 +25,26 @@ object AppHttp {
         .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .addInterceptor(Interceptor { chain -> chain.proceed(chain.request().newBuilder().header("User-Agent", userAgent).build()) })
+        .addInterceptor(Interceptor { chain ->
+            val request = chain.request()
+            val token = AppCheckHeader.token
+            // Our API only: the pictures come from another host, which has no business with it.
+            if (token == null || !request.url.encodedPath.startsWith("/api/")) chain.proceed(request)
+            else chain.proceed(request.newBuilder().header(AppCheckHeader.NAME, token).build())
+        })
         .build()
+}
+
+/**
+ * The app's current Firebase App Check token, as the app last heard it (Play Integrity in release
+ * builds; see AppFirebase) — the twin of iOS's AppCheckHeader. The API only watches it for now,
+ * refusing nothing without one, so a request never waits for a token: it carries the one at hand.
+ */
+object AppCheckHeader {
+    const val NAME = "X-Firebase-AppCheck"
+
+    @Volatile var token: String? = null
+        set(value) {
+            field = value?.takeIf { it.isNotEmpty() }
+        }
 }

@@ -49,6 +49,8 @@ targets:
         product: FirebaseFirestore
       - package: Firebase
         product: FirebaseMessaging
+      - package: Firebase
+        product: FirebaseAppCheck
       - package: GoogleSignIn
         product: GoogleSignIn
     settings:

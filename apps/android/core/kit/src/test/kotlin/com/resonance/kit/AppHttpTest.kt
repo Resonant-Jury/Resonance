@@ -2,6 +2,7 @@ package com.resonance.kit
 
 import com.resonance.kit.api.AccountApi
 import com.resonance.kit.api.ApiConfiguration
+import com.resonance.kit.api.AppCheckHeader
 import com.resonance.kit.api.AppHttp
 import com.resonance.kit.api.ReadingApi
 import com.resonance.kit.api.WritingApi
@@ -45,6 +46,22 @@ class AppHttpTest {
         val request = server.takeRequest()
         assertEquals(agent, request.getHeader("User-Agent"))
         assertEquals("Bearer token", request.getHeader("Authorization"))
+    }
+
+    @Test fun apiCallsCarryTheAppCheckTokenAtHandAndPicturesNever() = runBlocking {
+        try {
+            val client = AppHttp.client("Resonance/test")
+            repeat(2) { server.enqueue(MockResponse().setBody("""{"cards":[]}""").setHeader("Content-Type", "application/json")) }
+            server.enqueue(MockResponse().setBody("image"))
+            AppCheckHeader.token = null
+            ReadingApi(configuration, client).recommended()
+            AppCheckHeader.token = "attested"
+            ReadingApi(configuration, client).recommended()
+            client.newCall(okhttp3.Request.Builder().url(server.url("/image/2026-10/abc.avif")).build()).execute().close()
+            assertEquals(listOf(null, "attested", null), List(3) { server.takeRequest().getHeader(AppCheckHeader.NAME) })
+        } finally {
+            AppCheckHeader.token = null
+        }
     }
 
     @Test fun waitsLongerThanOkHttpsTenSecondsButNotForever() {

@@ -44,6 +44,12 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
   the card the writer changed.
 - **Story links** (`StoryLink`): relative links and links on the site's host open in the app, other http(s)
   links in the in-app browser, `mailto:` as written; any other scheme is plain text.
+- **App Check** (watched, not enforced): iOS release builds attest with App Attest (the
+  `appattest-environment` entitlement), Android release builds with Play Integrity (src/release);
+  debug builds use the debug provider (src/debug on Android) — its token is in Xcode's console /
+  Logcat, to register in the Firebase console — and emulator builds none. API calls carry the token
+  at hand (`AppCheckHeader`, kept current from the SDK's token listener; Android adds it to
+  `/api/` requests only, never the pictures') and never wait for one.
 - **Unknown enum values** in an API answer read as the nearest known one (Android `enumUnknownDefaultCase`,
   iOS `OpenEnumsMiddleware`, whose table a test checks against every response enum in openapi.json).
 - **Not adopted yet** from the API: `Me.deletion` (instead of asking `/api/account/deletion` at start),

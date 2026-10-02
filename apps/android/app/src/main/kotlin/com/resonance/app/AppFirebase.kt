@@ -3,10 +3,12 @@ package com.resonance.app
 import android.content.Context
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.memoryCacheSettings
+import com.resonance.kit.api.AppCheckHeader
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -45,6 +47,7 @@ object AppFirebase {
         val default = FirebaseApp.initializeApp(context) ?: FirebaseApp.getInstance()
         if (!config.usesEmulator) {
             app = default
+            startAppCheck(default)
             return
         }
         val options = FirebaseOptions.Builder(default.options)
@@ -55,6 +58,18 @@ object AppFirebase {
         FirebaseAuth.getInstance(app).useEmulator(AppConfig.EMULATOR_HOST, config.emulatorAuthPort)
         emulator = config
         db
+    }
+
+    /**
+     * App Check — watched by the API and Firestore, not enforced yet (appCheckProviderFactory: Play
+     * Integrity in release builds). Our API calls carry the token at hand (AppCheckHeader): the
+     * first one asked for now, then each the SDK renews; none of them waits for one.
+     */
+    private fun startAppCheck(app: FirebaseApp) {
+        val appCheck = FirebaseAppCheck.getInstance(app)
+        appCheck.installAppCheckProviderFactory(appCheckProviderFactory())
+        appCheck.addAppCheckListener { token -> AppCheckHeader.token = token.token }
+        appCheck.getAppCheckToken(false).addOnSuccessListener { token -> AppCheckHeader.token = token.token }
     }
 
     /**

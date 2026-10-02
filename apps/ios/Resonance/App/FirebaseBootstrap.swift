@@ -1,6 +1,8 @@
+import FirebaseAppCheck
 import FirebaseAuth
 import FirebaseCore
 import FirebaseFirestore
+import ResonanceKit
 import Synchronization
 
 enum FirebaseBootstrap {
@@ -36,7 +38,29 @@ enum FirebaseBootstrap {
                 store.settings = settings
             }
         } else {
+            // App Check — watched by the API and Firestore, not enforced yet:
+            // App Attest on a phone. Debug builds (the simulator has no App
+            // Attest) use the debug provider, whose token Xcode's console
+            // prints; register it in the Firebase console to see it pass.
+            #if DEBUG
+            AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+            #else
+            AppCheck.setAppCheckProviderFactory(AppAttestProviderFactory())
+            #endif
             FirebaseApp.configure()
+            watchAppCheckToken()
+        }
+    }
+
+    /// Our API calls carry the App Check token the app has at hand
+    /// (`AppCheckHeader`): the first one asked for now, then each the SDK
+    /// renews. None of them waits for one.
+    private static func watchAppCheckToken() {
+        NotificationCenter.default.addObserver(forName: .AppCheckTokenDidChange, object: nil, queue: nil) { note in
+            AppCheckHeader.set(note.userInfo?[AppCheckTokenNotificationKey] as? String)
+        }
+        AppCheck.appCheck().token(forcingRefresh: false) { token, _ in
+            if let token { AppCheckHeader.set(token.token) }
         }
     }
 
