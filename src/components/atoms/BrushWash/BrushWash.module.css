@@ -1,0 +1,19 @@
+/* The shape's outline, as a clip: the wash never paints outside it. */
+.region {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* The disc that spreads. A transform transition runs on the compositor, so the
+   shape under and over it (fill, chalk, grain, pen line) is drawn once rather
+   than on every frame of the spread. */
+.ink {
+  position: absolute;
+  border-radius: 50%;
+  transform-origin: 50% 50%;
+  transition-property: transform;
+  transition-timing-function: linear;
+}

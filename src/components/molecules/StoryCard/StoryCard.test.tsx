@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@/../test/render';
+import { fireEvent, render, screen } from '@/../test/render';
 import { mockElementSize } from '@/../test/organic';
 import { StoryCard, type Story } from './StoryCard';
 
@@ -40,5 +40,34 @@ describe('StoryCard tags', () => {
       expect(tagL).toBe(accentL - 5);
       expect(tagRest).toBe(accentRest);
     }
+  });
+});
+
+describe('StoryCard hover', () => {
+  // On a wide screen the card washes deeper from where the pointer came in.
+  // The wash must not repaint the card on every frame of its spread — the
+  // card's chalk and grain are filters, the costliest thing on the page to
+  // redraw — so it is a disc grown by transform, clipped to the card's outline.
+  it('washes the card from the pointer, inside its own outline, without repainting it', () => {
+    const { container } = render(<StoryCard story={story} index={2} />);
+    const card = container.querySelector('article') as HTMLElement;
+    const region = card.querySelector('[data-brush-wash]') as HTMLElement;
+    const disc = region.firstElementChild as HTMLElement;
+    const scale = () => Number(disc.style.transform.match(/scale\(([^)]+)\)/)?.[1]);
+
+    // The card's paper is drawn with the same outline the wash is cut to.
+    const paper = card.querySelector('path[filter]');
+    expect(region.style.clipPath).toBe(`path('${paper?.getAttribute('d')}')`);
+    expect(scale()).toBe(0);
+
+    fireEvent.mouseEnter(card, { clientX: 20, clientY: 30 });
+    expect(scale()).toBeGreaterThan(0);
+    // The card's own hover tone (92.5% 0.024 at its hue; jsdom writes 92.5% as 0.925).
+    expect(disc.style.background).toMatch(/^oklch\((92\.5%|0\.925) 0\.024 140\)$/);
+
+    fireEvent.mouseLeave(card, { clientX: 300, clientY: 470 });
+    expect(scale()).toBe(0);
+    // No SVG mask whose radius animates (each frame of it a repaint).
+    expect(card.querySelector('mask')).toBeNull();
   });
 });

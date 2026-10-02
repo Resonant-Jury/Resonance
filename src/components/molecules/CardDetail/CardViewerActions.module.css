@@ -37,8 +37,9 @@
   text-decoration: none;
 }
 
-/* Hide wobbly hand-drawn borders, ShapeGrain, and other SVG decorations inside it */
-.mobileNoteButton > svg {
+/* Hide wobbly hand-drawn borders, ShapeGrain, the hover wash and other decorations inside it */
+.mobileNoteButton > svg,
+.mobileNoteButton > [data-brush-wash] {
   display: none !important;
 }
 

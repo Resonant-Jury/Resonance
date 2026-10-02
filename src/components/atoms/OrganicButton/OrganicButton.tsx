@@ -1,8 +1,9 @@
 'use client';
 
-import { CSSProperties, MouseEvent, ReactNode, useId, useMemo, useRef, useState } from 'react';
+import { CSSProperties, MouseEvent, ReactNode, useMemo, useRef, useState } from 'react';
 import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
 import { ShapeGrain } from '../ShapeGrain/ShapeGrain';
+import { BrushWash } from '../BrushWash/BrushWash';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wobRect } from '@/lib/design/wobRect';
 import { INK } from '@/lib/design/strokes';
@@ -82,7 +83,6 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', onCl
   const seed = BTN_SEEDS[variant] ?? 3;
   const R = 16; // md radius for controls consistency
   const mag = Math.min(w, h) * 0.04;
-  const maskId = useId().replace(/:/g, '');
 
   const btnCurve = 1.3;
   const btnJitter = 1.3;
@@ -91,7 +91,6 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', onCl
     const r = e.currentTarget.getBoundingClientRect();
     setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
   };
-  const maxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 4;
 
   const cornerOff = Math.min(w, h) * 0.03;
   const overlayPath = useMemo(() => {
@@ -143,32 +142,11 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', onCl
           frequency={variant === 'paper' ? 0.88 : 1.1}
         />
       )}
-      {w > 0 && h > 0 && (
-        <svg
-          aria-hidden="true"
-          width={w} height={h}
-          viewBox={`0 0 ${w} ${h}`}
-          style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible', pointerEvents: 'none', zIndex: 0 }}
-        >
-          <defs>
-            <mask
-              id={`btn-${maskId}`}
-              maskUnits="userSpaceOnUse"
-              x={-w} y={-h} width={w * 3} height={h * 3}
-            >
-              <circle
-                cx={pos.x} cy={pos.y}
-                r={hovered ? maxR : 0}
-                fill="white"
-                style={{ transition: 'r 340ms linear' }}
-              />
-            </mask>
-          </defs>
-          <g mask={`url(#btn-${maskId})`}>
-            <path d={overlayPath} fill={v.hoverOverlay || 'oklch(0% 0 0 / 0.12)'} />
-          </g>
-        </svg>
-      )}
+      <BrushWash
+        w={w} h={h} d={overlayPath}
+        color={v.hoverOverlay || 'oklch(0% 0 0 / 0.12)'}
+        x={pos.x} y={pos.y} on={hovered} duration={340} overshoot={4}
+      />
       {v.stroke && (
         <HandDrawnBorder
           w={w} h={h} R={R} seed={seed} mag={mag}

@@ -34,7 +34,11 @@ describe('OrganicButton variants', () => {
 
   it.each(FRAMELESS)('%s keeps the hover ink, spreading from the pointer', (variant) => {
     const btn = renderVariant(variant);
-    const ink = () => Number(btn.querySelector('mask circle')?.getAttribute('r'));
+    // The wash is a disc grown by transform under the button's outline.
+    const ink = () => {
+      const disc = btn.querySelector('[data-brush-wash] > *') as HTMLElement;
+      return Number(disc.style.transform.match(/scale\(([^)]+)\)/)?.[1]);
+    };
     expect(ink()).toBe(0);
     fireEvent.mouseEnter(btn, { clientX: 10, clientY: 10 });
     expect(ink()).toBeGreaterThan(0);

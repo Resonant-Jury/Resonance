@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useRef, useState, useId, type MouseEvent } from 'react';
+import { useMemo, useRef, useState, type MouseEvent } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { BrushWash } from '@/components/atoms/BrushWash/BrushWash';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { STORY_GRAIN } from '@/lib/design/grain';
@@ -64,13 +65,11 @@ export function MiniStoryCard({
   const cardRef = useRef<HTMLElement>(null);
   const { w, h } = useElementSize(cardRef, 320, 320);
   const isMobile = useIsMobile();
-  const maskId = useId().replace(/:/g, '');
 
   const recordPointer = (e: MouseEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
   };
-  const maxR = Math.hypot(Math.max(pos.x, w - pos.x), Math.max(pos.y, h - pos.y)) + 6;
 
   // Cover-image hue family when known, else the position-based rotation.
   const hueIdx = accentHue != null ? cardHueIndex(nearestCardHue(accentHue)) : -1;
@@ -147,32 +146,10 @@ export function MiniStoryCard({
             segmentsH={[3, 4]} segmentsV={[4, 5]}
             curve={0.6} cornerJitter={0.7} cornerOffset={4}
           />
-          {w > 0 && h > 0 && (
-            <svg
-              aria-hidden="true"
-              width={w} height={h}
-              viewBox={`0 0 ${w} ${h}`}
-              style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible', pointerEvents: 'none', zIndex: 0 }}
-            >
-              <defs>
-                <mask
-                  id={`brush-${maskId}`}
-                  maskUnits="userSpaceOnUse"
-                  x={-w} y={-h} width={w * 3} height={h * 3}
-                >
-                  <circle
-                    cx={pos.x} cy={pos.y}
-                    r={hovered ? maxR : 0}
-                    fill="white"
-                    style={{ transition: 'r 460ms linear' }}
-                  />
-                </mask>
-              </defs>
-              <g mask={`url(#brush-${maskId})`}>
-                <path d={borderPath} fill={cardHovered} />
-              </g>
-            </svg>
-          )}
+          <BrushWash
+            w={w} h={h} d={borderPath} color={cardHovered}
+            x={pos.x} y={pos.y} on={hovered} duration={460}
+          />
           <ShapeGrain w={w} h={h} d={borderPath} opacity={STORY_GRAIN.paper} frequency={0.85} seed={seed} />
           <HandDrawnBorder
             w={w} h={h} R={R} seed={seed} mag={mag}
