@@ -204,16 +204,17 @@ class WriteModel(
 
     /**
      * One line of plain reassurance under the page title: what has happened
-     * and, for a live card, what has not happened yet.
+     * and, for a live card, what has not happened yet. A draft says nothing
+     * until it has been saved.
      */
-    val saveStatus: String
+    val saveStatus: String?
         get() {
             val time = savedAt?.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Strings.language.locale))
             if (isPublished) {
                 if (time != null) return L10n.Write.editBuffered(time)
                 return if (hasPendingEdit) L10n.Write.editBufferedIdle else L10n.Write.editLiveHint
             }
-            return if (time != null) L10n.Write.autosaved(time) else L10n.Write.autosaveHint
+            return time?.let { L10n.Write.autosaved(it) }
         }
 
     // Tags

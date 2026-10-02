@@ -225,7 +225,7 @@ export function CardEditor({
    * One line of plain reassurance, shown next to the page title (never only at
    * the bottom of the form — the whole confusion was people not knowing their
    * writing was safe). It says both what has happened and, for a live card,
-   * what has *not* happened yet.
+   * what has *not* happened yet. A draft says nothing until its first save.
    */
   const saveStatusLabel = useMemo(() => {
     if (inline) return null;
@@ -234,7 +234,7 @@ export function CardEditor({
       if (savedAt) return t('editBuffered', { time: time! });
       return hasPendingEdit ? t('editBufferedIdle') : t('editLiveHint');
     }
-    return savedAt ? t('autosaved', { time: time! }) : t('autosaveHint');
+    return savedAt ? t('autosaved', { time: time! }) : null;
   }, [savedAt, hasPendingEdit, isPublished, inline, locale, t]);
 
   useEffect(() => {

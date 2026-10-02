@@ -118,7 +118,7 @@ const SLIDES: Slide[] = [
     },
   },
   {
-    key: 'write', accent: 'yellow', side: 1, seed: 37, cropBottom: { ios: 0.017, android: 0.0756 },
+    key: 'write', accent: 'yellow', side: 1, seed: 37, cropBottom: { ios: 0.0195 },
     copy: {
       'zh-TW': { headline: '寫下你的故事', em: '故事', subline: '在手繪紙張上，決定給誰看' },
       en: { headline: 'Write your story', em: 'your story', subline: 'On hand-drawn paper, shared as you choose' },

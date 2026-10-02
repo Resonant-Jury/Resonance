@@ -149,15 +149,15 @@ final class WriteModel {
     }
 
     /// One line of plain reassurance under the page title: what has happened
-    /// and, for a live card, what has not happened yet.
-    var saveStatus: String {
+    /// and, for a live card, what has not happened yet. A draft says nothing
+    /// until it has been saved.
+    var saveStatus: String? {
         let time = savedAt?.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Strings.shared.locale))
         if isPublished {
             if let time { return L10n.Write.editBuffered(time: time) }
             return hasPendingEdit ? L10n.Write.editBufferedIdle : L10n.Write.editLiveHint
         }
-        guard let time else { return L10n.Write.autosaveHint }
-        return L10n.Write.autosaved(time: time)
+        return time.map { L10n.Write.autosaved(time: $0) }
     }
 
     /// The page title: a new card, a draft being resumed, or a live card being revised.

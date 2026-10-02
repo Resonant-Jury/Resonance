@@ -271,10 +271,8 @@ describe('CardEditor', () => {
     it('tells the writer their draft is safe, up where they can see it', async () => {
       const onSaveStatusChange = vi.fn();
       renderWithIntl(<CardEditor locale="en" onSaveStatusChange={onSaveStatusChange} />);
-      // Before anything is typed the promise is stated, not just implied.
-      await waitFor(() =>
-        expect(onSaveStatusChange).toHaveBeenCalledWith(en.write.autosaveHint),
-      );
+      // Before anything is saved there is nothing to say.
+      await waitFor(() => expect(onSaveStatusChange).toHaveBeenCalledWith(null));
 
       fireEvent.change(screen.getByLabelText('One-line title'), {
         target: { value: 'Something worth keeping' },

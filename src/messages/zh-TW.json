@@ -315,7 +315,6 @@
     "publish": "發布",
     "publishing": "發布中⋯",
     "autosaved": "草稿已自動儲存 · {time}",
-    "autosaveHint": "草稿會自動儲存，隨時可以離開",
     "editLiveHint": "這張卡片已經發布了。修改會先私下暫存，按「儲存修改」才會更新給讀者。",
     "editBuffered": "修改已暫存 · {time}　（讀者還看不到）",
     "editBufferedIdle": "有一份還沒儲存的修改，只有你看得到。",

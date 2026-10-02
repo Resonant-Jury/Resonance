@@ -578,8 +578,6 @@ object L10n {
         val publishing: String get() = Strings.string("write.publishing")
         /** Draft saved · {time} */
         fun autosaved(time: String): String = Strings.format("write.autosaved", mapOf("time" to time))
-        /** Drafts save themselves — you can leave any time. */
-        val autosaveHint: String get() = Strings.string("write.autosaveHint")
         /** This card is already published. Changes are kept privately until you press Save changes. */
         val editLiveHint: String get() = Strings.string("write.editLiveHint")
         /** Changes saved privately · {time} (readers still see the old version) */

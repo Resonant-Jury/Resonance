@@ -250,8 +250,8 @@ private fun WriteForm(
             .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        // The title is the bar's; the save state stays here.
-        BasicText(model.saveStatus, style = AppFonts.body(14f, color = Tokens.TextMuted))
+        // The title is the bar's; the save state stays here (an unsaved draft has none).
+        model.saveStatus?.let { BasicText(it, style = AppFonts.body(14f, color = Tokens.TextMuted)) }
         if (showGuide) FirstCardGuide { question ->
             // Seeded into the story as a quote to write against; the guide steps aside.
             model.seed("> $question\n\n")

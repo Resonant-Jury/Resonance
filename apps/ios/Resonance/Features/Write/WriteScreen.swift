@@ -169,11 +169,15 @@ struct WriteScreen: View {
     }
 
     /// What the page header carried under its title: the save state, in plain words.
+    /// An unsaved draft has nothing to say, so the line isn't there until its first save.
+    @ViewBuilder
     private func saveStatus(_ model: WriteModel) -> some View {
-        Text(model.saveStatus)
-            .font(AppFonts.body(14))
-            .foregroundStyle(Tokens.textMuted)
-            .contentTransition(.opacity)
+        if let status = model.saveStatus {
+            Text(status)
+                .font(AppFonts.body(14))
+                .foregroundStyle(Tokens.textMuted)
+                .contentTransition(.opacity)
+        }
     }
 
     /// Back (the arrow, the edge swipe): with writing to put away, the question first; otherwise at once.

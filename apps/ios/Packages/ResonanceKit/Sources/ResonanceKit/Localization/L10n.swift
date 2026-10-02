@@ -576,8 +576,6 @@ public enum L10n {
         public static var publishing: String { Strings.shared.string("write.publishing") }
         /// Draft saved · {time}
         public static func autosaved(time: String) -> String { Strings.shared.format("write.autosaved", ["time": time]) }
-        /// Drafts save themselves — you can leave any time.
-        public static var autosaveHint: String { Strings.shared.string("write.autosaveHint") }
         /// This card is already published. Changes are kept privately until you press Save changes.
         public static var editLiveHint: String { Strings.shared.string("write.editLiveHint") }
         /// Changes saved privately · {time} (readers still see the old version)
