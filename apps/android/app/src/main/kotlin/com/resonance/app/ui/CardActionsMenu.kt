@@ -72,7 +72,7 @@ fun CardActionsMenu(
             scope.launch {
                 try {
                     session.writing.updateCard(cardId, visibility = if (isPrivate) "public" else "private")
-                    session.noteCardChange()
+                    session.noteCardChange(Session.CardChange(cardId))
                     onChanged()
                 } catch (e: CancellationException) {
                     throw e
@@ -116,7 +116,7 @@ fun CardActionsMenu(
                             try {
                                 session.writing.deleteCard(cardId)
                                 confirming = false
-                                session.noteCardChange()
+                                session.noteCardChange(Session.CardChange(cardId))
                                 onDeleted()
                             } catch (e: CancellationException) {
                                 throw e

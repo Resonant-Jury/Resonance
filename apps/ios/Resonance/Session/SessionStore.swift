@@ -73,6 +73,9 @@ final class SessionStore {
     let conversations = ConversationsStore()
     /// Cards seen in lists, drawn while a card's page loads (this account's only).
     let cardPreviews = CardPreviewCache()
+    /// The account's thought map, kept between visits so opening it again within a
+    /// while shows it at once without reading a hundred cards (ThoughtMapStore.open).
+    private(set) var thoughtMap = ThoughtMapStore()
     let push = PushCenter.shared
     @ObservationIgnored private var listener: AuthStateDidChangeListenerHandle?
     @ObservationIgnored private let apple = AppleSignIn()
@@ -239,6 +242,8 @@ final class SessionStore {
         // Drawn until the API answers (the card box's header on a cold start).
         me = newUID.flatMap { kept.value(.me, uid: $0) }
         cardPreviews.clear()
+        // The thought map belongs to the account too (kept between visits while it is signed in).
+        thoughtMap = ThoughtMapStore()
         profile = .unknown
         phase = newUID == nil ? .signedOut : .signedIn
         // An account this install has seen with a profile opens straight onto the tabs.
@@ -260,8 +265,9 @@ final class SessionStore {
                 conversations.start(uid: newUID)
             }
             Task {
-                await loadMe()
-                await refreshDeletion()
+                async let profile: Void = loadMe()
+                async let deletion: Void = refreshDeletion()
+                _ = await (profile, deletion)
             }
             Task { await registerPush() }
         }

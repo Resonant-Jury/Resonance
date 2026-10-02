@@ -23,9 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
@@ -38,7 +36,6 @@ import com.resonance.api.models.FeedCard
 import com.resonance.app.PushCenter
 import com.resonance.app.Session
 import com.resonance.app.thoughtmap.ThoughtMapScreen
-import com.resonance.app.thoughtmap.ThoughtMapStore
 import com.resonance.design.OrganicTabBar
 import com.resonance.design.OrganicTabItem
 import com.resonance.design.cream
@@ -218,11 +215,6 @@ private fun rememberStackEntries(tab: Tab, stack: NavBackStack<Route>, content: 
     return rememberDecoratedNavEntries(entries, decorators)
 }
 
-/** The thought map's store, kept while the map is on its stack (a card of it open in the writer above it included). */
-class ThoughtMapModel : ViewModel() {
-    val store = ThoughtMapStore()
-}
-
 /**
  * Four tabs and the pen. Each tab keeps its own back stack — saved, so rotation or a reclaimed
  * process brings it back — and each page on it keeps its state and ViewModels while it is there;
@@ -342,25 +334,23 @@ private fun Page(session: Session, route: Route, stack: NavBackStack<Route>) {
         is Route.Write -> WriteScreen(
             session, route.referenceCardId, route.cardId, route.story,
             onCreated = { id -> stack.rememberDraft(route, id) },
-            // Closed with the draft or revision saved: the screens showing cards read them again.
+            // Closed with the draft or revision saved: the screens showing cards read them again — not
+            // when the visit wrote nothing.
             close = {
-                session.noteCardChange()
+                session.takeWriterChange()?.let(session::noteCardChange)
                 pop()
             },
         ) { key ->
-            session.noteCardChange()
+            session.noteCardChange(session.takeWriterChange() ?: Session.CardChange())
             pop()
             // The card takes the writer's place, as the web goes to it — unless its own page is underneath.
             if (route.showsCard) stack.add(Route.Card(key))
         }
         is Route.Thread -> ThreadScreen(session, route.handle, route.uid, route.note, push, pop)
         Route.Settings -> SettingsScreen(push, pop)
-        Route.ThoughtMap -> {
-            // The map keeps its camera, selection and cards while a card of it is open in the writer above it;
-            // leaving the map for good drops it, so the next visit reads afresh.
-            val model = viewModel { ThoughtMapModel() }
-            ThoughtMapScreen(session, model.store, push, pop)
-        }
+        // The session keeps the map between visits (ThoughtMapStore.open): within a while, a visit
+        // shows it as it was left, reading again only the cards the writer changed.
+        Route.ThoughtMap -> ThoughtMapScreen(session, session.thoughtMap, push, pop)
         is Route.SettingsSection -> SettingsSectionScreen(session, route.section, pop)
     }
 }

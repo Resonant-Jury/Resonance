@@ -1,8 +1,13 @@
 package com.resonance.app
 
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
 import com.resonance.kit.api.SafetyApi
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import java.util.Date
 
@@ -87,22 +92,31 @@ class SafetyService(private val uid: String, private val api: SafetyApi) {
     }
 
     /** The block list, newest first, with each person's current name (a deleted account shows as such). */
-    suspend fun blocked(): List<BlockedPerson> {
+    suspend fun blocked(): List<BlockedPerson> = coroutineScope {
         val snap = db.collection("users").document(uid).collection("blocks")
             .orderBy("createdAt", Query.Direction.DESCENDING).get().await()
-        return snap.documents.map { doc ->
-            val user = runCatching { db.collection("users").document(doc.id).get().await() }.getOrNull()
-            BlockedPerson(
-                id = doc.id,
-                handle = user?.getString("handle"),
-                initials = user?.getString("initials") ?: "·",
-                since = doc.getTimestamp("createdAt")?.toDate(),
-                avatarUrl = user?.getString("avatarUrl"),
-                accentColor = user?.getString("accentColor"),
-                // Stored as text by the web's signup, as a number by older seeds.
-                avatarSeed = (user?.get("avatarSeed") as? Number)?.toDouble() ?: user?.getString("avatarSeed")?.toDoubleOrNull(),
-            )
+        // Everyone's profile at once, the list keeping its order.
+        snap.documents.map { doc -> async { person(doc) } }.awaitAll()
+    }
+
+    private suspend fun person(doc: DocumentSnapshot): BlockedPerson {
+        val user = try {
+            db.collection("users").document(doc.id).get().await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
         }
+        return BlockedPerson(
+            id = doc.id,
+            handle = user?.getString("handle"),
+            initials = user?.getString("initials") ?: "·",
+            since = doc.getTimestamp("createdAt")?.toDate(),
+            avatarUrl = user?.getString("avatarUrl"),
+            accentColor = user?.getString("accentColor"),
+            // Stored as text by the web's signup, as a number by older seeds.
+            avatarSeed = (user?.get("avatarSeed") as? Number)?.toDouble() ?: user?.getString("avatarSeed")?.toDoubleOrNull(),
+        )
     }
 
     companion object {

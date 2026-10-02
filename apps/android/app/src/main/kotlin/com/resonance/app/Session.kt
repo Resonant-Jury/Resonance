@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.resonance.api.models.Me
+import com.resonance.app.thoughtmap.ThoughtMapStore
 import com.resonance.kit.api.AccountApi
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
@@ -131,11 +132,37 @@ class Session(
     private val _cardChanges = MutableStateFlow(0)
     val cardChanges: StateFlow<Int> = _cardChanges
 
-    fun noteCardChange() {
+    /** Which card a change was about, and the card it answers (a resonance); no card: any of them (a block). */
+    data class CardChange(val cardId: String? = null, val referenceCardId: String? = null)
+
+    /** The latest of [cardChanges] (iOS's WriteLauncher.lastChange). */
+    var lastCardChange: CardChange? = null
+        private set
+
+    fun noteCardChange(change: CardChange = CardChange()) {
+        lastCardChange = change
         cardCache.clear()
         httpCaching.invalidate()
         _cardChanges.update { it + 1 }
     }
+
+    /** What the writer wrote since it opened (a covered writer comes back as a new one: kept here, not in it). */
+    private var writerChange: CardChange? = null
+
+    /** The writer saved, published, revised or dropped something. */
+    fun writerWrote(change: CardChange) {
+        writerChange = change
+    }
+
+    /** The writer is gone: what it wrote, if anything — a visit that wrote nothing changes nothing. */
+    fun takeWriterChange(): CardChange? = writerChange.also { writerChange = null }
+
+    /**
+     * The account's thought map, kept between visits so opening it again within a while shows it
+     * at once without reading a hundred cards ([ThoughtMapStore.open]).
+     */
+    var thoughtMap = ThoughtMapStore()
+        private set
 
     /** A write that goes straight to Firestore (a bookmark): what the API reads back is read afresh. */
     fun noteOwnWrite() = httpCaching.invalidate()
@@ -199,6 +226,8 @@ class Session(
             uid = next
             _signedInUid.value = next
             cardCache.clear()
+            thoughtMap = ThoughtMapStore()
+            writerChange = null
             // Signed out (deletion signs out too) or someone else signed in: nothing of the account stays.
             // Its listeners stop first; the next account's start once Firestore's copy of it is gone.
             notifications.stop()

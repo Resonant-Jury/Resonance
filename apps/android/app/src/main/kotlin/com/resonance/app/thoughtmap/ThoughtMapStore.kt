@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Path
+import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.GeometryCache
 import com.resonance.design.toPath
@@ -38,6 +39,7 @@ import com.resonance.geometry.seedFromString
 import com.resonance.geometry.wobRect
 import com.resonance.geometry.zoomAt
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.reading.FeedLoader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -136,11 +138,14 @@ class ThoughtMapStore {
     /** Opening a card from its tab (the screen decides where: writer or card page). */
     var onOpen: (MapCard) -> Unit = {}
 
-    /** The count of the writer's card changes this map has read its cards after. */
-    var seenChanges = -1
-
     private var service: ThoughtMapService? = null
     private var fitted = false
+    /**
+     * When everything was last read, and the count of card changes it had seen then (the session
+     * keeps this store between visits: see [open]).
+     */
+    private var readAt: Long? = null
+    private var seenChanges = 0
     // Writes outlive the screen (they are the gesture's ending), like iOS's unstructured Tasks.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -159,6 +164,18 @@ class ThoughtMapStore {
 
         fun hue(card: MapCard): Double = card.accentHue ?: nodeHues[seedFromString(card.id) % nodeHues.size]
 
+        /** As the feed: what was read longer ago than this is read again. */
+        val STALE_AFTER_MS = FeedLoader.STALE_AFTER.inWholeMilliseconds
+
+        fun refresh(loaded: Boolean, readAt: Long?, seenChanges: Int, changes: Int, lastChange: Session.CardChange?, now: Long): Refresh {
+            if (!loaded || readAt == null || now < readAt || now - readAt >= STALE_AFTER_MS) return Refresh.Everything
+            if (changes == seenChanges) return Refresh.Nothing
+            // One change since, naming its card: just that card (and the one it answers).
+            val id = lastChange?.cardId
+            if (changes == seenChanges + 1 && id != null) return Refresh.Cards(listOfNotNull(id, lastChange.referenceCardId))
+            return Refresh.AllCards
+        }
+
         /** The label pill's size in world units (TagPill sm: 10px 600 uppercase at 0.04em, 3×10 padding). */
         fun pillSize(text: String): Pair<Double, Double> =
             Pair(Math.ceil(MapText.width(text.uppercase(), AppFonts.Family.Body, 600, 10f, 0.04f).toDouble()) + 20, 19.0)
@@ -172,10 +189,57 @@ class ThoughtMapStore {
         }
     }
 
+    // Visits
+
+    /** What a visit to the map (or a change from the writer while it is open) reads again. */
+    sealed interface Refresh {
+        /** What was read stands. */
+        data object Nothing : Refresh
+        /** The cards the writer just changed (the card, and the one it answers). */
+        data class Cards(val ids: List<String>) : Refresh
+        /** Every card, the map as it is. */
+        data object AllCards : Refresh
+        /** The map and its cards: never read, or read longer ago than [STALE_AFTER_MS]. */
+        data object Everything : Refresh
+    }
+
+    /**
+     * A visit. The session keeps this store between visits: one within [STALE_AFTER_MS] of the last
+     * read shows what it read at once (where the camera was), reading again only the cards the
+     * writer changed since; a later one reads everything again, behind what it shows. What a visit
+     * was in the middle of (a selection, the tray, an open editor) doesn't carry over.
+     */
+    suspend fun open(uid: String, changes: Int, lastChange: Session.CardChange?, now: Long = System.currentTimeMillis()) {
+        selection = null
+        trayOpen = false
+        editingGroupId = null
+        editingEdgeId = null
+        touchesCancelled()
+        run(refresh(loaded && service?.uid == uid, readAt, seenChanges, changes, lastChange, now), uid, changes)
+    }
+
+    /** A card changed while the map is open (a card of it was being edited in the writer). */
+    suspend fun cardsChanged(uid: String, changes: Int, lastChange: Session.CardChange?) {
+        if (!loaded) return
+        run(refresh(true, readAt, seenChanges, changes, lastChange, System.currentTimeMillis()), uid, changes)
+    }
+
+    private suspend fun run(refresh: Refresh, uid: String, changes: Int) {
+        // Seen from now on, so a visit and the writer's change don't both read for it.
+        if (refresh != Refresh.Nothing) seenChanges = changes
+        when (refresh) {
+            Refresh.Nothing -> Unit
+            is Refresh.Cards -> refreshCards(refresh.ids)
+            Refresh.AllCards -> refreshCards()
+            Refresh.Everything -> load(uid)
+        }
+    }
+
     // Loading
 
     suspend fun load(uid: String) {
         val service = ThoughtMapService(uid).also { this.service = it }
+        val started = System.currentTimeMillis()
         try {
             coroutineScope {
                 val mapJob = async { service.load() }
@@ -208,6 +272,7 @@ class ThoughtMapStore {
                 }
                 loaded = true
                 failed = false
+                readAt = started
                 fitIfReady()
             }
         } catch (e: CancellationException) {
@@ -232,6 +297,36 @@ class ThoughtMapStore {
         } catch (e: Exception) {
             Log.w("ThoughtMap", "refresh failed", e)
         }
+    }
+
+    /**
+     * Just these cards, as they are now: one that's gone (deleted, or an original I can no longer
+     * read) drops out of view, as a fresh load would leave it; one that couldn't be read for now
+     * stays as it was.
+     */
+    suspend fun refreshCards(ids: List<String>) {
+        val service = service ?: return
+        val byId = LinkedHashMap(cards)
+        val resonated = resonated.toMutableSet()
+        for (id in ids) {
+            val read = try {
+                service.card(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                continue
+            }
+            if (read != null) {
+                byId[id] = read
+                // Someone else's: the original of my resonance.
+                if (read.authorId != service.uid) resonated += id
+            } else {
+                byId.remove(id)
+                resonated -= id
+                if (nodes.remove(id) != null) nodeOrder.remove(id)
+            }
+        }
+        applyCards(byId, resonated)
     }
 
     private fun applyCards(byId: Map<String, MapCard>, resonated: Set<String>) {

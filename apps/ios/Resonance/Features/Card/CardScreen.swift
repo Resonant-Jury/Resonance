@@ -88,9 +88,12 @@ struct CardScreen: View {
             // Also resumes a load that was cut short when the page left mid-way.
             if let model, model.detail == nil { await model.load() }
         }
-        // Edited, published or re-shelved from the writer or the ⋯: read it again.
+        // Edited, published or re-shelved from the writer or the ⋯ — this card, or a
+        // resonance to it: read it again (another card's draft leaves it as it is).
         .onChange(of: writer.changes) {
-            Task { await model?.load() }
+            guard let model else { return }
+            if let id = model.detail?.card.id, let change = writer.lastChange, !change.concerns(id) { return }
+            Task { await model.load() }
         }
     }
 

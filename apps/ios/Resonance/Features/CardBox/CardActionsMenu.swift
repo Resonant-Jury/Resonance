@@ -68,7 +68,7 @@ struct CardActionsMenu: View {
         defer { busy = false }
         guard let card = try? await session.writing.updateCard(cardId, visibility: isPrivate ? ._public : ._private) else { return }
         session.cardPreviews.remember(card)
-        writer.noteChange()
+        writer.noteChange(.init(cardId: cardId))
         onChanged()
     }
 
@@ -79,7 +79,7 @@ struct CardActionsMenu: View {
         guard (try? await session.writing.deleteCard(cardId)) != nil else { return }
         session.cardPreviews.forget(cardId)
         confirming = false
-        writer.noteChange()
+        writer.noteChange(.init(cardId: cardId))
         onDeleted()
     }
 }

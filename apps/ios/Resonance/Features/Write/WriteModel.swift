@@ -14,6 +14,9 @@ final class WriteModel {
     }
     private(set) var draftId: String?
     private(set) var savedAt: Date?
+    /// Something was written this visit (a draft or revision saved, published,
+    /// applied or dropped): what the screens behind the writer read again for.
+    private(set) var wrote = false
     /// Revising a live card (fixed for the model's lifetime, as on the web).
     let isPublished: Bool
     /// A revision is waiting in the buffer — only its author can see it.
@@ -51,7 +54,8 @@ final class WriteModel {
     static let autosaveDelay: Duration = .milliseconds(1500)
     static let titleMax = 60
 
-    init(drafts: DraftService?, writing: WritingAPI, referenceCardId: String? = nil, opened: DraftService.OpenedCard? = nil) {
+    init(drafts: DraftService?, writing: WritingAPI, referenceCardId: String? = nil, opened: DraftService.OpenedCard? = nil,
+         editor bridge: StoryEditorBridge? = nil) {
         self.drafts = drafts
         self.writing = writing
         self.referenceCardId = opened?.referenceCardId ?? referenceCardId
@@ -59,7 +63,7 @@ final class WriteModel {
         hasPendingEdit = opened?.hasPendingEdit ?? false
         slug = opened?.slug
         title = opened.map { $0.isPublished ? L10n.Write.editPublishedTitle : L10n.Write.editTitle } ?? L10n.Write.title
-        editor = StoryEditorBridge(placeholder: L10n.Write.storyPlaceholder)
+        editor = bridge ?? StoryEditorBridge(placeholder: L10n.Write.storyPlaceholder)
         if let opened {
             draftId = opened.id
             values = opened.values
@@ -71,6 +75,11 @@ final class WriteModel {
 
     /// The card's page: slug, or id (a draft or a card without one).
     var routeKey: String? { slug ?? draftId }
+
+    /// What this visit changed, for the screens behind the writer; nil when it wrote nothing.
+    var change: WriteLauncher.Change? {
+        wrote ? WriteLauncher.Change(cardId: draftId, referenceCardId: referenceCardId) : nil
+    }
 
     // MARK: Autosave
 
@@ -107,6 +116,7 @@ final class WriteModel {
                 }
                 self.lastSaved = v
                 self.savedAt = Date()
+                self.wrote = true
             } catch {
                 // Kept in memory; the next edit (or leaving) tries again.
             }
@@ -247,6 +257,7 @@ final class WriteModel {
         values.anonymous = anonymous
         guard let id = await saveNow() else { throw APIFailure(code: "invalid_request", message: "Nothing to publish.", status: nil) }
         let result = try await writing.publish(id)
+        wrote = true
         PushCenter.shared.reachedOut()
         return result.slug ?? result.id
     }
@@ -261,6 +272,7 @@ final class WriteModel {
         await saveNow()
         if values != lastSaved { throw APIFailure(code: "internal", message: L10n.Native.saveError, status: nil) }
         let result = try await writing.applyEdit(id)
+        wrote = true
         hasPendingEdit = false
         return result.slug ?? slug ?? id
     }
@@ -272,6 +284,7 @@ final class WriteModel {
         // Behind any autosave in flight, so a straggling write can't re-create the buffer.
         await chain?.value
         try await drafts.discardEdit(id)
+        wrote = true
         hasPendingEdit = false
         lastSaved = values
         return slug ?? id

@@ -5,6 +5,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
 import com.resonance.app.AppFirebase
+import com.resonance.app.FirestoreFailure
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -41,7 +42,7 @@ data class MapCard(
  * documents, `isSelf` in the rules. Every function mirrors its web twin and
  * batches the same way. The twin of iOS's ThoughtMapService.
  */
-class ThoughtMapService(private val uid: String) {
+class ThoughtMapService(val uid: String) {
     private val db get() = AppFirebase.db
     private val map: DocumentReference get() = db.collection("thoughtMaps").document(uid)
     private val nodesCol get() = map.collection("nodes")
@@ -181,6 +182,18 @@ class ThoughtMapService(private val uid: String) {
         // In this order: the store keeps drafts as they come (newest edit first).
         for (d in recentDrafts) card(d)?.let { byId[it.id] = it }
         CardSet(byId, originals.filter { it.authorId != uid }.map { it.id }.toSet())
+    }
+
+    /**
+     * One card as it is now: null when it is gone, or no longer readable by me (deleted, made
+     * private); a read that failed for now throws.
+     */
+    suspend fun card(id: String): MapCard? = try {
+        card(db.collection("cards").document(id).get().await())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        if (FirestoreFailure.isGone(e)) null else throw e
     }
 
     /** Cards already on the map that the newest-40 read didn't bring (an older card placed long ago). */

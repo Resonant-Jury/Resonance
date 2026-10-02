@@ -90,7 +90,7 @@ struct SafetyService {
         try await db.collection("users").document(uid).collection("blocks").document(other).delete()
     }
 
-    struct BlockedPerson: Identifiable, Hashable {
+    nonisolated struct BlockedPerson: Identifiable, Hashable, Sendable {
         let id: String
         let handle: String?
         let initials: String
@@ -101,26 +101,34 @@ struct SafetyService {
     }
 
     /// The block list, newest first, with each person's current name (a
-    /// deleted account shows as such).
+    /// deleted account shows as such) — everyone's profile read at once.
     func blocked() async throws -> [BlockedPerson] {
         let snap = try await db.collection("users").document(uid).collection("blocks")
             .order(by: "createdAt", descending: true).getDocuments()
-        var people: [BlockedPerson] = []
-        for doc in snap.documents {
-            let user = try? await db.collection("users").document(doc.documentID).getDocument()
-            let handle = user?.get("handle") as? String
-            people.append(BlockedPerson(
-                id: doc.documentID,
-                handle: handle,
-                initials: (user?.get("initials") as? String) ?? "··",
-                avatarUrl: user?.get("avatarUrl") as? String,
-                accentColor: user?.get("accentColor") as? String,
-                // Stored as a string, like the web's `Number(avatarSeed)`.
-                avatarSeed: ((user?.get("avatarSeed") as? String).flatMap(Double.init) ?? (user?.get("avatarSeed") as? Double))
-                    .flatMap { $0 == 0 ? nil : $0 },
-                since: (doc.get("createdAt") as? Timestamp)?.dateValue()
-            ))
+        let blocks = snap.documents.map { (id: $0.documentID, since: ($0.get("createdAt") as? Timestamp)?.dateValue()) }
+        return await withTaskGroup(of: (Int, BlockedPerson).self) { group in
+            for (index, block) in blocks.enumerated() {
+                group.addTask { (index, await Self.person(block.id, since: block.since)) }
+            }
+            // The list keeps its order, whichever profile arrives first.
+            var people = [BlockedPerson?](repeating: nil, count: blocks.count)
+            for await (index, person) in group { people[index] = person }
+            return people.compactMap { $0 }
         }
-        return people
+    }
+
+    nonisolated private static func person(_ id: String, since: Date?) async -> BlockedPerson {
+        let user = try? await FirebaseBootstrap.db.collection("users").document(id).getDocument()
+        return BlockedPerson(
+            id: id,
+            handle: user?.get("handle") as? String,
+            initials: (user?.get("initials") as? String) ?? "··",
+            avatarUrl: user?.get("avatarUrl") as? String,
+            accentColor: user?.get("accentColor") as? String,
+            // Stored as a string, like the web's `Number(avatarSeed)`.
+            avatarSeed: ((user?.get("avatarSeed") as? String).flatMap(Double.init) ?? (user?.get("avatarSeed") as? Double))
+                .flatMap { $0 == 0 ? nil : $0 },
+            since: since
+        )
     }
 }

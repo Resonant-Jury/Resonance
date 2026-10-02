@@ -88,12 +88,15 @@ struct DraftService {
     }
 
     /// Your card by id, or nil when it is missing or someone else's (rules deny → nil).
+    /// The pending edit is asked for beside the card, not after it (a draft has
+    /// none: that read finds nothing, and is left unused).
     func open(_ id: String) async throws -> OpenedCard? {
         let ref = db.collection("cards").document(id)
+        let edit = editRef(id)
+        async let pending = try? edit.getDocument()
         guard let card = try? await ref.getDocument(), let data = card.data(), data["authorId"] as? String == uid else { return nil }
         let isPublished = data["publishedAt"] is Timestamp
-        let pending = isPublished ? try? await editRef(id).getDocument() : nil
-        let buffered = pending?.data()
+        let buffered = isPublished ? await pending?.data() : nil
         return OpenedCard(id: id, values: Self.values(buffered ?? data), isPublished: isPublished, slug: data["slug"] as? String,
                           referenceCardId: data["referenceCardId"] as? String, hasPendingEdit: buffered != nil)
     }

@@ -38,7 +38,7 @@ struct WriteScreen: View {
             } else if notFound {
                 missing
             } else {
-                // The card loads straight from Firestore, painting a loader meanwhile.
+                // The card loads straight from Firestore, painting a loader meanwhile (the editor loads behind it).
                 SketchLoader()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, 120)
@@ -52,6 +52,8 @@ struct WriteScreen: View {
         .task {
             if model == nil {
                 let request = writer.request ?? .init()
+                // The editor's page starts loading now, beside the card's read rather than after it.
+                let editor = StoryEditorBridge(placeholder: L10n.Write.storyPlaceholder)
                 var opened: DraftService.OpenedCard?
                 if let cardId = request.cardId {
                     opened = try? await session.drafts?.open(cardId)
@@ -62,7 +64,8 @@ struct WriteScreen: View {
                 } else if request.referenceCardId == nil, let drafts = session.drafts {
                     showGuide = await !drafts.hasAnyCards()
                 }
-                let model = WriteModel(drafts: session.drafts, writing: session.writing, referenceCardId: request.referenceCardId, opened: opened)
+                let model = WriteModel(drafts: session.drafts, writing: session.writing, referenceCardId: request.referenceCardId,
+                                       opened: opened, editor: editor)
                 #if DEBUG
                 // `-writeTitle "…" -writeStory "…" -writeCover <url>` fill a new card (screen checks; the simulator can't type into it).
                 let defaults = UserDefaults.standard
@@ -117,7 +120,7 @@ struct WriteScreen: View {
             OrganicCloseChip(label: L10n.Write.closeEditor) {
                 Task {
                     await model.saveNow()
-                    writer.close()
+                    writer.close(model.change)
                 }
             }
             .padding(.top, 12)
@@ -149,7 +152,7 @@ struct WriteScreen: View {
                       dismissible: !panelBusy) {
             PublishPanel(model: model, pending: $panelBusy, showsAnonymousHint: showsAnonymousHint) { routeKey in
                 publishing = false
-                writer.finish(card: routeKey)
+                writer.finish(card: routeKey, change: model.change ?? .init(cardId: model.draftId, referenceCardId: model.referenceCardId))
             } onCancel: { publishing = false }
         }
     }
@@ -272,7 +275,7 @@ struct WriteScreen: View {
                     OrganicButton(L10n.Write.saveDraftAndLeave, variant: .text) {
                         Task {
                             await model.saveNow()
-                            writer.close()
+                            writer.close(model.change)
                         }
                     }
                 }
@@ -292,7 +295,8 @@ struct WriteScreen: View {
         actionError = nil
         defer { discarding = false }
         do {
-            writer.finish(card: try await model.discardEdit())
+            let key = try await model.discardEdit()
+            writer.finish(card: key, change: model.change ?? .init(cardId: model.draftId))
         } catch {
             actionError = L10n.Native.saveError
         }
@@ -302,7 +306,7 @@ struct WriteScreen: View {
     private var missing: some View {
         VStack(spacing: 12) {
             Text(L10n.Card.NotFound.title).font(AppFonts.heading(24)).foregroundStyle(Tokens.text)
-            Button(L10n.Card.NotFound.back) { writer.close() }
+            Button(L10n.Card.NotFound.back) { writer.close(nil) }
                 .font(AppFonts.body(15))
                 .foregroundStyle(Tokens.terracotta)
                 .buttonStyle(.plain)

@@ -169,6 +169,8 @@ private fun WriteForm(
     val model = remember(opened) {
         WriteModel(session.drafts, session.writing, referenceCardId, StoryEditorBridge(context, L10n.Write.storyPlaceholder), opened).apply {
             this.onCreated = onCreated
+            // What the screens behind the writer read again for once it closes (nothing, if nothing was written).
+            onWrote = { id -> session.writerWrote(Session.CardChange(id, this.referenceCardId)) }
             // Debug `writeTitle` / `writeStory` extras fill a new card (screen checks; the emulator's keyboard is slow to drive).
             if (BuildConfig.DEBUG && opened == null) {
                 DebugLaunch.writeTitle?.let { t -> update { copy(title = t) } }

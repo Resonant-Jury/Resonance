@@ -11,7 +11,8 @@ struct ThoughtMapScreen: View {
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.openRoute) private var openRoute
     @Environment(\.dismiss) private var dismiss
-    @State private var store = ThoughtMapStore()
+    /// Kept by the session between visits (see ThoughtMapStore.open).
+    private var store: ThoughtMapStore { session.thoughtMap }
 
     var body: some View {
         GeometryReader { outer in
@@ -41,10 +42,13 @@ struct ThoughtMapScreen: View {
         .swipeBackFromEdgeOnly()
         .task {
             store.onOpen = { card in open(card) }
-            if let uid = session.uid, !store.loaded { await store.load(uid: uid) }
+            if let uid = session.uid { await store.open(uid: uid, changes: writer.changes, lastChange: writer.lastChange) }
         }
-        // Back from the writer: titles and tags may have changed.
-        .onChange(of: writer.changes) { Task { await store.refreshCards() } }
+        // Back from the writer: the card's title and tags may have changed.
+        .onChange(of: writer.changes) {
+            guard let uid = session.uid else { return }
+            Task { await store.writerChanged(writer.changes, writer.lastChange, uid: uid) }
+        }
     }
 
     /// A card of mine opens in the writer (a published one with its pending edit); a

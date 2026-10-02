@@ -100,21 +100,16 @@ fun ThoughtMapScreen(session: Session, store: ThoughtMapStore, open: (Route) -> 
     val scope = rememberCoroutineScope()
 
     // A card of mine opens in the writer (a published one with its pending edit); a card I resonated with opens on its page.
-    LaunchedEffect(uid) {
+    LaunchedEffect(store, uid) {
         store.onOpen = { card ->
             if (card.authorId == uid) currentOpen(Route.Write(cardId = card.id, showsCard = false)) else currentOpen(Route.Card(card.slug ?: card.id))
         }
-        if (uid != null && !store.loaded) {
-            store.seenChanges = changes
-            store.load(uid)
-        }
+        // The session keeps the map between visits: this one shows it at once, reading again what is due.
+        if (uid != null) store.open(uid, changes, session.lastCardChange)
     }
-    // Back from the writer: titles and tags may have changed.
+    // Back from the writer: the card's title and tags may have changed.
     LaunchedEffect(changes) {
-        if (store.loaded && store.seenChanges != changes) {
-            store.seenChanges = changes
-            store.refreshCards()
-        }
+        if (uid != null) store.cardsChanged(uid, changes, session.lastCardChange)
     }
 
     // Leaving the map (or opening a card from it) while a title or arrow's words are being typed keeps them, as the web's blur does.

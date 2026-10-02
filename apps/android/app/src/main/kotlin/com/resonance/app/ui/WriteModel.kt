@@ -60,6 +60,8 @@ class WriteModel(
         private set
     /** A new card was first saved, as a draft with this id. */
     var onCreated: (String) -> Unit = {}
+    /** Something was written (a draft or revision saved, published, applied or dropped), to the card with this id. */
+    var onWrote: (String) -> Unit = {}
     var savedAt by mutableStateOf<LocalTime?>(null)
         private set
     /** Revising a live card (fixed for the model's lifetime, as on the web). */
@@ -165,6 +167,7 @@ class WriteModel(
             }
             lastSaved = v
             savedAt = LocalTime.now()
+            draftId?.let(onWrote)
         } catch (e: Exception) {
             // Kept in memory; the next edit (or leaving) tries again.
         }
@@ -336,6 +339,7 @@ class WriteModel(
         update { copy(visibility = visibility, anonymous = anonymous) }
         val id = saveNow() ?: throw ApiFailure("invalid_request", "Nothing to publish.", null)
         val result = writing.publish(id)
+        onWrote(id)
         PushCenter.reachedOut()
         return result.slug ?: result.id
     }
@@ -352,6 +356,7 @@ class WriteModel(
         // The server applies what is in the buffer: a save that didn't land must stop here.
         if (values != lastSaved) throw ApiFailure("internal", L10n.Native.saveError, null)
         val result = writing.applyEdit(id)
+        onWrote(id)
         hasPendingEdit = false
         return result.slug ?: slug ?: id
     }
@@ -364,6 +369,7 @@ class WriteModel(
         saveJob?.cancel()
         // Behind any autosave in flight, so a straggling write can't re-create the buffer.
         writes.withLock { drafts.discardEdit(id) }
+        onWrote(id)
         hasPendingEdit = false
         lastSaved = values
         return slug ?: id

@@ -55,12 +55,80 @@ final class ThoughtMapStore {
     @ObservationIgnored var onOpen: (MapCard) -> Void = { _ in }
     @ObservationIgnored private var service: ThoughtMapService?
     @ObservationIgnored private var fitted = false
+    /// When everything was last read, and the writer's change count it had seen
+    /// then (the session keeps this store between visits: see `open`).
+    @ObservationIgnored private var readAt: Date?
+    @ObservationIgnored private var seenChanges = 0
+
+    // MARK: - Visits
+
+    /// What a visit to the map (or a change from the writer while it is open) reads again.
+    enum Refresh: Equatable {
+        /// What was read stands.
+        case nothing
+        /// The cards the writer just changed (the card, and the one it answers).
+        case cards([String])
+        /// Every card, the map as it is.
+        case allCards
+        /// The map and its cards: never read, or read longer ago than `staleAfter`.
+        case everything
+    }
+
+    /// As the feed: what was read longer ago than this is read again.
+    static let staleAfter = ForegroundRefresh.staleAfter
+
+    static func refresh(loaded: Bool, readAt: Date?, seenChanges: Int, changes: Int,
+                        lastChange: WriteLauncher.Change?, now: Date) -> Refresh {
+        guard loaded, let readAt, now >= readAt, now.timeIntervalSince(readAt) < staleAfter else { return .everything }
+        if changes == seenChanges { return .nothing }
+        // One change since, naming its card: just that card (and the one it answers).
+        if changes == seenChanges + 1, let change = lastChange, let id = change.cardId {
+            return .cards([id] + [change.referenceCardId].compactMap { $0 })
+        }
+        return .allCards
+    }
+
+    /// A visit. The session keeps this store between visits: one within
+    /// `staleAfter` of the last read shows what it read at once (where the camera
+    /// was), reading again only the cards the writer changed since; a later one
+    /// reads everything again, behind what it shows. What a visit was in the
+    /// middle of (a selection, the tray, an open editor) doesn't carry over.
+    func open(uid: String, changes: Int, lastChange: WriteLauncher.Change?, now: Date = .now) async {
+        selection = nil
+        trayOpen = false
+        editingGroupId = nil
+        editingEdgeId = nil
+        touchesCancelled()
+        await run(Self.refresh(loaded: loaded && service?.uid == uid, readAt: readAt, seenChanges: seenChanges,
+                               changes: changes, lastChange: lastChange, now: now),
+                  uid: uid, changes: changes)
+    }
+
+    /// The writer changed a card while the map is open (a card of it was being edited).
+    func writerChanged(_ changes: Int, _ lastChange: WriteLauncher.Change?, uid: String) async {
+        guard loaded else { return }
+        await run(Self.refresh(loaded: true, readAt: readAt, seenChanges: seenChanges, changes: changes,
+                               lastChange: lastChange, now: .now),
+                  uid: uid, changes: changes)
+    }
+
+    private func run(_ refresh: Refresh, uid: String, changes: Int) async {
+        // Seen from now on, so a visit and the writer's change don't both read for it.
+        if refresh != .nothing { seenChanges = changes }
+        switch refresh {
+        case .nothing: return
+        case let .cards(ids): await refreshCards(ids)
+        case .allCards: await refreshCards()
+        case .everything: await load(uid: uid)
+        }
+    }
 
     // MARK: - Loading
 
     func load(uid: String) async {
         let service = ThoughtMapService(uid: uid)
         self.service = service
+        let started = Date.now
         do {
             async let map = service.load()
             async let cardSet = service.cards()
@@ -83,6 +151,7 @@ final class ThoughtMapStore {
             groupOrder = m.groups.map(\.id)
             loaded = true
             failed = false
+            readAt = started
             fitIfReady()
         } catch {
             failed = !loaded
@@ -96,6 +165,29 @@ final class ThoughtMapStore {
         let missing = nodeOrder.filter { byId[$0] == nil }
         for card in await service.cards(ids: missing) { byId[card.id] = card }
         applyCards(byId, resonated: c.resonated)
+    }
+
+    /// Just these cards, as they are now: one that's gone (deleted, or an original I can no
+    /// longer read) drops out of view, as a fresh load would leave it; one that couldn't be read
+    /// for now stays as it was.
+    func refreshCards(_ ids: [String]) async {
+        guard let service else { return }
+        var byId = cards
+        var resonated = resonated
+        for id in ids {
+            let read: MapCard?
+            do { read = try await service.card(id) } catch { continue }
+            if let card = read {
+                byId[id] = card
+                // Someone else's: the original of my resonance.
+                if card.authorId != service.uid { resonated.insert(id) }
+            } else {
+                byId[id] = nil
+                resonated.remove(id)
+                if nodes.removeValue(forKey: id) != nil { nodeOrder.removeAll { $0 == id } }
+            }
+        }
+        applyCards(byId, resonated: resonated)
     }
 
     private func applyCards(_ byId: [String: MapCard], resonated: Set<String>) {

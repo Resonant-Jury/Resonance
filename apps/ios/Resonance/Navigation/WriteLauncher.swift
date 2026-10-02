@@ -17,15 +17,31 @@ final class WriteLauncher {
         var story: String?
     }
 
+    /// What a visit of the writer (or a card's ⋯) wrote: the card, and the card it
+    /// answers when it is a resonance.
+    struct Change: Equatable {
+        var cardId: String?
+        var referenceCardId: String?
+
+        /// Whether a page showing `cardId` may show something else now: the card
+        /// itself, or one of its resonances (an unknown card counts).
+        func concerns(_ cardId: String) -> Bool {
+            self.cardId == nil || self.cardId == cardId || referenceCardId == cardId
+        }
+    }
+
     var isPresented = false
     private(set) var request: Request?
     /// The card to open once the writer is gone (its slug or id).
     var publishedCard: String?
-    /// Counts the writer's visits that may have changed a card (saved,
-    /// published, revised, discarded), so screens showing cards can refresh.
+    /// Counts the visits that wrote something (saved, published, revised,
+    /// discarded; a card's visibility or deletion), so screens showing cards can
+    /// refresh. A visit that wrote nothing doesn't count.
     private(set) var changes = 0 {
         didSet { onChange?() }
     }
+    /// The latest of those changes (which card).
+    private(set) var lastChange: Change?
     /// Told of every change before any screen refreshes for it (drafts are
     /// written straight to Firestore, where the HTTP cache can't see them).
     @ObservationIgnored var onChange: (() -> Void)?
@@ -40,21 +56,28 @@ final class WriteLauncher {
         open(Request(cardId: cardId, showsCard: showsCard))
     }
 
-    /// The writer is done with this card; `key` is where it lives now.
-    func finish(card key: String) {
-        changes += 1
+    /// The writer is done with this card (published, revised or its revision
+    /// dropped); `key` is where it lives now.
+    func finish(card key: String, change: Change) {
+        record(change)
         if request?.showsCard ?? true { publishedCard = key }
         isPresented = false
     }
 
-    /// The writer closed without sending anything out (the draft or revision is saved).
-    func close() {
-        changes += 1
+    /// The writer closed without sending anything out: `change` is what it saved
+    /// on the way (nil when nothing was written — no screen needs to read again).
+    func close(_ change: Change?) {
+        if let change { record(change) }
         isPresented = false
     }
 
     /// A card changed outside the writer (its ⋯ menu: visibility, delete).
-    func noteChange() {
+    func noteChange(_ change: Change) {
+        record(change)
+    }
+
+    private func record(_ change: Change) {
+        lastChange = change
         changes += 1
     }
 }

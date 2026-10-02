@@ -193,6 +193,16 @@ struct ThoughtMapService {
         return (byId, resonated)
     }
 
+    /// One card as it is now: nil when it is gone, or no longer readable by me (deleted, made
+    /// private); a read that failed for now throws.
+    func card(_ id: String) async throws -> MapCard? {
+        do {
+            return Self.card(try await db.collection("cards").document(id).getDocument())
+        } catch where FirestoreFailure.isGone(error) {
+            return nil
+        }
+    }
+
     /// Cards already on the map that the newest-40 read didn't bring (an older card placed long ago).
     func cards(ids: [String]) async -> [MapCard] {
         let cardsCol = db.collection("cards")
