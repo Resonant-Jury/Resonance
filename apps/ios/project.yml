@@ -58,7 +58,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.resonance.stories
         PRODUCT_NAME: Resonance
         MARKETING_VERSION: "2.0.0"
-        CURRENT_PROJECT_VERSION: "5"
+        CURRENT_PROJECT_VERSION: "6"
         SWIFT_VERSION: "6.0"
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         SWIFT_APPROACHABLE_CONCURRENCY: "YES"
