@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 import { limited } from '@/lib/api/rateLimit';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { extractInsightSignature } from '@/lib/ai/tasks';
@@ -15,7 +15,9 @@ export const maxDuration = 60;
  * `coreInsight` — the insight score is server-side policy and is never shown.
  */
 export async function POST(req: Request) {
-  const user = await requireUser();
+  // Signed out (or a revoked session) is a 401 — what makes a client renew its token — not a crash.
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
   const body = (await req.json().catch(() => null)) as {
     thoughtCore?: unknown;

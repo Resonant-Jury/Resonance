@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 import { getStorageProvider } from '@/lib/storage';
 import { storeOwned } from '@/lib/storage/uploads';
 import { normalizeUpload, UnsupportedImage, type UploadPurpose } from '@/lib/storage/image';
@@ -26,7 +26,9 @@ const tooLarge = () => NextResponse.json({ error: 'Image is too large' }, { stat
  * (src/lib/images/compress.ts), which keeps the request small.
  */
 export async function POST(req: Request) {
-  const user = await requireUser();
+  // Signed out (or a revoked session) is a 401 — what makes a client renew its token — not a crash.
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
   // Refused before the body is read; a body sent without a length is checked once parsed.
   if (Number(req.headers.get('content-length') ?? 0) > UPLOAD_MAX_BYTES) return tooLarge();

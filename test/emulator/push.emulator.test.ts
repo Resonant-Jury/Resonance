@@ -4,8 +4,8 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import type { BatchResponse, MulticastMessage } from 'firebase-admin/messaging';
 import { sendMessage, sendNote } from '@/lib/api/v1/conversations';
 import { acceptInvite } from '@/lib/api/v1/invites';
-import { registerDevice, unregisterDevice } from '@/lib/push/devices';
-import { pushNotification, type PushSender } from '@/lib/push/send';
+import { MAX_DEVICES, registerDevice, unregisterDevice } from '@/lib/push/devices';
+import { MULTICAST_MAX, pushNotification, type PushSender } from '@/lib/push/send';
 
 // Push against the Firestore emulator with a fake FCM: the device registry,
 // what a push says and where it leads, and that it rings once, never across a
@@ -73,6 +73,21 @@ describe('the device registry', () => {
     expect(await exists('devices/install-0001')).toBe(true);
     await unregisterDevice(db, 'bob', 'install-0001');
     expect(await exists('devices/install-0001')).toBe(false);
+  });
+
+  it(`keeps an account's ${MAX_DEVICES} most recently registered installs, forgetting older ones`, async () => {
+    for (let i = 0; i < MAX_DEVICES + 3; i++) {
+      await registerDevice(db, 'alice', `install-${String(i).padStart(4, '0')}`, { token: `t${i}`, platform: 'android', locale: 'en' });
+    }
+    await registerDevice(db, 'bob', 'install-bob', { token: 'tb', platform: 'ios', locale: 'en' });
+    const alice = await db.collection('devices').where('userId', '==', 'alice').get();
+    expect(alice.size).toBe(MAX_DEVICES);
+    // The first three registered are the ones gone; someone else's devices are untouched.
+    expect(await exists('devices/install-0000')).toBe(false);
+    expect(await exists('devices/install-0002')).toBe(false);
+    expect(await exists('devices/install-0003')).toBe(true);
+    expect(await exists(`devices/install-${String(MAX_DEVICES + 2).padStart(4, '0')}`)).toBe(true);
+    expect(await exists('devices/install-bob')).toBe(true);
   });
 });
 
@@ -162,6 +177,21 @@ describe('pushNotification', () => {
     const fcm = fakeFcm();
     expect(await pushNotification(db, 'n1', fcm.sender)).toEqual({ sent: 0, pruned: 0 });
     expect(fcm.sent).toHaveLength(0);
+  });
+
+  it(`sends at most ${MULTICAST_MAX} tokens a call, and forgets dead ones past that many`, async () => {
+    // More installs than any account keeps now (registered before the cap, straight into the registry).
+    const writer = db.bulkWriter();
+    for (let i = 0; i < MULTICAST_MAX + 2; i++) {
+      void writer.set(db.doc(`devices/many-${i}`), { userId: 'carol', token: `c${i}`, platform: 'android', locale: 'en', updatedAt: Timestamp.now() });
+    }
+    await writer.close();
+    await db.doc('notifications/n2').set({ userId: 'carol', type: 'card_link', payload: { fromUserId: 'bob', cardId: 'walk' }, readAt: null, createdAt: Timestamp.now() });
+    const fcm = fakeFcm(Array.from({ length: MULTICAST_MAX + 2 }, (_, i) => `c${i}`));
+    // carol's own phone, and the 502 above (all dead).
+    expect(await pushNotification(db, 'n2', fcm.sender)).toEqual({ sent: 1, pruned: MULTICAST_MAX + 2 });
+    expect(fcm.sent.map((m) => m.tokens.length)).toEqual([MULTICAST_MAX, 3]);
+    expect((await db.collection('devices').where('userId', '==', 'carol').get()).size).toBe(1);
   });
 });
 

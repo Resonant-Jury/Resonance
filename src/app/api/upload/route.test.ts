@@ -10,7 +10,8 @@ import { fakeAdminDb } from '../../../../test/fakeAdminDb';
 // Vercel's body limit is refused before it is read. The key names no one
 // (it is in an anonymous card's public cover URL); whose it is goes on record.
 
-vi.mock('@/lib/auth', () => ({ requireUser: async () => ({ id: 'alice' }) }));
+let viewer: { id: string } | null = { id: 'alice' };
+vi.mock('@/lib/auth', () => ({ getCurrentUser: async () => viewer }));
 const admin = fakeAdminDb({});
 vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => admin.db }));
 const limited = vi.fn(async (..._a: unknown[]) => null as Response | null);
@@ -29,6 +30,7 @@ vi.mock('@/lib/storage', () => ({
 const { POST } = await import('./route');
 
 beforeEach(() => {
+  viewer = { id: 'alice' };
   stored.length = 0;
   for (const path of Object.keys(admin.docs)) delete admin.docs[path];
   vi.clearAllMocks();
@@ -142,5 +144,13 @@ describe('POST /api/upload', () => {
     limited.mockResolvedValueOnce(new Response(null, { status: 429 }));
     expect((await upload(await solid(10, 10).jpeg().toBuffer())).status).toBe(429);
     expect(stored).toEqual([]);
+  });
+
+  it('answers 401 when nobody is signed in (a client renews its token on a 401, not on a 500)', async () => {
+    viewer = null;
+    const res = await upload(await solid(10, 10).jpeg().toBuffer());
+    expect(res.status).toBe(401);
+    expect(stored).toEqual([]);
+    expect(limited).not.toHaveBeenCalled();
   });
 });

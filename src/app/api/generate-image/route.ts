@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 import { limited } from '@/lib/api/rateLimit';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { getStorageProvider } from '@/lib/storage';
@@ -30,7 +30,9 @@ export type GenerateImageEvent =
  * status is already 200 by then, so the client must key off the event type.
  */
 export async function POST(req: Request) {
-  const user = await requireUser();
+  // Signed out (or a revoked session) is a 401 — what makes a client renew its token — not a crash.
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
   const body = (await req.json().catch(() => null)) as { story?: unknown } | null;
   const story = typeof body?.story === 'string' ? body.story : '';

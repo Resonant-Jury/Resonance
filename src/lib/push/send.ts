@@ -31,6 +31,9 @@ const TEXT_KEY: Record<string, keyof typeof en.app.notifications> = {
 /** The kinds whose push opens a conversation with their sender (pushRoute's thread). */
 const OPENS_THREAD = new Set(['note', 'message', 'resonance', 'invite_accepted']);
 
+/** sendEachForMulticast's limit on tokens per call. */
+export const MULTICAST_MAX = 500;
+
 /** Tokens FCM will never deliver to again — the app was uninstalled or the token rotated. */
 const DEAD_TOKEN = new Set(['messaging/registration-token-not-registered', 'messaging/invalid-registration-token']);
 
@@ -144,24 +147,29 @@ export async function pushNotification(db: Firestore, id: string, sender: PushSe
   const data: Record<string, string> = { notificationId: id, type, route, ...(from && OPENS_THREAD.has(type) ? { fromUserId: from } : {}) };
   let sent = 0;
   const dead: DocumentReference[] = [];
-  for (const [locale, targets] of byLocale) {
+  for (const [locale, all] of byLocale) {
     const text = pushText(locale, type, payload);
     if (!text) continue;
-    const res = await sender.sendEachForMulticast({
-      tokens: targets.map((t) => t.token),
-      notification: text,
-      data,
-      android: { notification: { channelId: ANDROID_CHANNEL, tag: id } },
-      apns: { payload: { aps: { sound: 'default', threadId: type } } },
-    });
-    sent += res.successCount;
-    res.responses.forEach((r, i) => {
-      if (!r.success && r.error && DEAD_TOKEN.has(r.error.code)) dead.push(targets[i].ref);
-    });
+    // FCM takes at most MULTICAST_MAX tokens a call.
+    for (let start = 0; start < all.length; start += MULTICAST_MAX) {
+      const targets = all.slice(start, start + MULTICAST_MAX);
+      const res = await sender.sendEachForMulticast({
+        tokens: targets.map((t) => t.token),
+        notification: text,
+        data,
+        android: { notification: { channelId: ANDROID_CHANNEL, tag: id } },
+        apns: { payload: { aps: { sound: 'default', threadId: type } } },
+      });
+      sent += res.successCount;
+      res.responses.forEach((r, i) => {
+        if (!r.success && r.error && DEAD_TOKEN.has(r.error.code)) dead.push(targets[i].ref);
+      });
+    }
   }
-  if (dead.length) {
+  // A batch holds 500 writes, as a multicast holds 500 tokens.
+  for (let start = 0; start < dead.length; start += MULTICAST_MAX) {
     const batch = db.batch();
-    dead.forEach((r) => batch.delete(r));
+    dead.slice(start, start + MULTICAST_MAX).forEach((r) => batch.delete(r));
     await batch.commit();
   }
   return { sent, pruned: dead.length };

@@ -31,6 +31,28 @@ export async function registerDevice(db: Firestore, uid: string, installationId:
     appVersion: input.appVersion ?? null,
     updatedAt: FieldValue.serverTimestamp(),
   });
+  await forgetOldestDevices(db, uid);
+}
+
+/**
+ * How many installs one account keeps pushing to. A reinstall is a new
+ * install (its old one lingers until FCM says its token is dead), so a
+ * person collects a few; past this the least recently registered go, which
+ * bounds what one account can make every push fan out to.
+ */
+export const MAX_DEVICES = 20;
+
+async function forgetOldestDevices(db: Firestore, uid: string) {
+  const mine = await db.collection('devices').where('userId', '==', uid).select('updatedAt').get();
+  if (mine.size <= MAX_DEVICES) return;
+  const at = (d: (typeof mine.docs)[number]) => {
+    const v = d.get('updatedAt') as { toMillis?: () => number } | undefined;
+    return typeof v?.toMillis === 'function' ? v.toMillis() : 0;
+  };
+  const stale = [...mine.docs].sort((a, b) => at(b) - at(a)).slice(MAX_DEVICES);
+  const batch = db.batch();
+  for (const d of stale) batch.delete(d.ref);
+  await batch.commit();
 }
 
 /** Sign-out: stop pushing to this install — only if it is still yours (someone else may have signed in since). */
