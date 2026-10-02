@@ -37,6 +37,18 @@ targets:
       # The story editor island (npm run native:editor → native/editor/dist).
       - path: ../../native/editor/dist/editor.html
         buildPhase: resources
+    # The editor above is build output the repo does not keep. Xcode's own answer to a missing
+    # resource is "Build input file cannot be found", which says nothing about npm; this says it first.
+    preBuildScripts:
+      - name: Require the story editor
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/../../native/editor/dist/editor.html
+        script: |
+          editor="${SRCROOT}/../../native/editor/dist/editor.html"
+          if [ -s "$editor" ]; then exit 0; fi
+          echo "error: native/editor/dist/editor.html is missing or empty: the writer's story editor would not load. Run 'npm run native:editor' (or 'npm run apps:generate') in the repository root first."
+          exit 1
     dependencies:
       - package: DesignSystem
       - package: ResonanceKit
