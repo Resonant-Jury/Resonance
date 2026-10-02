@@ -24,31 +24,48 @@ final class NotificationsStore {
 
     private(set) var items: [Item] = []
     private(set) var loaded = false
+    /// The listener failed: the list stays as last read (or the screen offers
+    /// a retry, with nothing read yet) until it listens again (`resume`).
+    private(set) var failed = false
     var unreadCount: Int { items.filter(\.isUnread).count }
 
-    @ObservationIgnored private var listener: ListenerRegistration?
+    @ObservationIgnored private let listeners = LiveListeners()
 
     func start(uid: String) {
         stop()
-        listener = FirebaseBootstrap.db.collection("notifications")
-            .whereField("userId", isEqualTo: uid)
-            .order(by: "createdAt", descending: true)
-            .limit(to: 50)
-            .addSnapshotListener { [weak self] snapshot, _ in
-                guard let snapshot else { return }
-                let items = snapshot.documents.map(Self.item)
-                MainActor.assumeIsolated {
-                    self?.items = items
-                    self?.loaded = true
+        listeners.add("notifications") { [weak self] in
+            let registration = FirebaseBootstrap.db.collection("notifications")
+                .whereField("userId", isEqualTo: uid)
+                .order(by: "createdAt", descending: true)
+                .limit(to: 50)
+                .addSnapshotListener { snapshot, _ in
+                    let items = snapshot?.documents.map(Self.item)
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        guard let items else {
+                            self.listeners.fail("notifications")
+                            self.failed = true
+                            return
+                        }
+                        self.items = items
+                        self.loaded = true
+                        self.failed = false
+                    }
                 }
-            }
+            return { registration.remove() }
+        }
+    }
+
+    /// Back in the foreground (or the retry tapped): a failed listener listens again.
+    func resume() {
+        if listeners.resume() { failed = false }
     }
 
     func stop() {
-        listener?.remove()
-        listener = nil
+        listeners.removeAll()
         items = []
         loaded = false
+        failed = false
     }
 
     func markRead(_ item: Item) {

@@ -268,6 +268,11 @@ class Session(
     /** The app came back to the foreground: a profile read long ago is read again (it stays on screen meanwhile). */
     fun enteredForeground(now: Long = System.currentTimeMillis()) {
         _foregrounded.value = now
+        // Live lists whose listener failed (or whose people couldn't be read) listen again.
+        if (_phase.value == Phase.SignedIn) {
+            notifications.resume()
+            conversations.resume()
+        }
         if (_phase.value == Phase.SignedIn && meReadAt != 0L && now - meReadAt > FeedLoader.STALE_AFTER.inWholeMilliseconds) {
             scope.launch { loadMe() }
         }

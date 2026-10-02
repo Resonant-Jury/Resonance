@@ -16,6 +16,11 @@ struct ConversationsScreen: View {
                     CSSText(L10n.Messages.empty, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.7,
                             color: UIColor(Tokens.textMuted))
                         .padding(.top, 10)
+                } else if !store.loaded, store.failed {
+                    // Nothing read, and a listener failed: a retry rather than an empty page.
+                    OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
+                        store.resume()
+                    }
                 }
                 ForEach(store.conversations) { convo in
                     ConversationRow(person: convo.other, preview: preview(convo), time: convo.sentAt.map(Self.time),

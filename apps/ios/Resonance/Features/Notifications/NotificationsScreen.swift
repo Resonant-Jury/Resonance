@@ -13,6 +13,11 @@ struct NotificationsScreen: View {
         TabScreen(L10n.App.Nav.notifications) {
             if store.loaded && store.items.isEmpty {
                 EmptyNote(L10n.App.Notifications.empty).padding(.horizontal, 20)
+            } else if !store.loaded, store.failed {
+                // Nothing read, and the listener failed: not a loader forever, a retry.
+                OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
+                    store.resume()
+                }
             } else if !store.loaded {
                 SketchLoader(size: 48).frame(maxWidth: .infinity).padding(.top, 60)
             } else {

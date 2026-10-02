@@ -29,8 +29,10 @@ import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.CountBadge
 import com.resonance.design.CssText
+import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OklchColor
+import com.resonance.design.OrganicEmptyState
 import com.resonance.design.WobRectShape
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.SegValue
@@ -60,6 +62,9 @@ fun ConversationsScreen(session: Session, open: (Route) -> Unit) {
                     modifier = Modifier.padding(start = 16.dp, end = 18.dp, top = 10.dp),
                 )
             }
+        } else if (!state.loaded && state.failed) {
+            // Nothing read, and a listener failed: a retry rather than an empty page.
+            item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { session.conversations.resume() }, action = EmptyAction.Outline) }
         }
         items(state.conversations, key = { "c:${it.id}" }) { convo ->
             ConversationRow(convo.other, preview(convo), convo.sentAt?.let(::rowTime), convo.unread, open)

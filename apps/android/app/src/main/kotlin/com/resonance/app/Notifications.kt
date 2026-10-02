@@ -35,27 +35,46 @@ class NotificationsStore {
     val items: StateFlow<List<Item>> = _items
     private val _loaded = MutableStateFlow(false)
     val loaded: StateFlow<Boolean> = _loaded
+    private val _failed = MutableStateFlow(false)
+    /**
+     * The listener failed: the list stays as last read (or, with nothing read yet, the screen
+     * offers a retry rather than a loader forever) until it listens again ([resume]).
+     */
+    val failed: StateFlow<Boolean> = _failed
 
-    private var listener: ListenerRegistration? = null
+    private val listeners = LiveListeners()
 
     fun start(uid: String) {
         stop()
-        listener = AppFirebase.db.collection("notifications")
-            .whereEqualTo("userId", uid)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .limit(50)
-            .addSnapshotListener { snapshot, _ ->
-                snapshot ?: return@addSnapshotListener
-                _items.value = snapshot.documents.filterIsInstance<QueryDocumentSnapshot>().map(::item)
-                _loaded.value = true
-            }
+        listeners.add(NAME) {
+            val registration: ListenerRegistration = AppFirebase.db.collection("notifications")
+                .whereEqualTo("userId", uid)
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .limit(50)
+                .addSnapshotListener { snapshot, _ ->
+                    if (snapshot == null) {
+                        listeners.fail(NAME)
+                        _failed.value = true
+                        return@addSnapshotListener
+                    }
+                    _items.value = snapshot.documents.filterIsInstance<QueryDocumentSnapshot>().map(::item)
+                    _loaded.value = true
+                    _failed.value = false
+                }
+            registration::remove
+        }
+    }
+
+    /** Back in the foreground (or the retry tapped): a failed listener listens again. */
+    fun resume() {
+        if (listeners.resume()) _failed.value = false
     }
 
     fun stop() {
-        listener?.remove()
-        listener = null
+        listeners.removeAll()
         _items.value = emptyList()
         _loaded.value = false
+        _failed.value = false
     }
 
     fun markRead(item: Item) {
@@ -71,6 +90,10 @@ class NotificationsStore {
 
     /** Who a notification (a tapped push's row) is from, once the list has it. */
     fun sender(id: String?): String? = id?.let { i -> _items.value.firstOrNull { it.id == i }?.fromUserId }
+
+    private companion object {
+        const val NAME = "notifications"
+    }
 
     private fun item(doc: QueryDocumentSnapshot): Item {
         @Suppress("UNCHECKED_CAST")

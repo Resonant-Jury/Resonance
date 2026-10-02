@@ -43,8 +43,11 @@ struct RootView: View {
         // show (`cameBack`). Otherwise a profile that failed to load is asked for again
         // (a new account that was offline at first still reaches onboarding).
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, session.phase == .signedIn, !session.cameBack(),
-                  case .failed = session.profile else { return }
+            guard phase == .active, session.phase == .signedIn else { return }
+            // Live lists whose listener failed (or whose people couldn't be read) listen again.
+            session.notifications.resume()
+            session.conversations.resume()
+            guard !session.cameBack(), case .failed = session.profile else { return }
             Task { await session.loadMe() }
         }
     }

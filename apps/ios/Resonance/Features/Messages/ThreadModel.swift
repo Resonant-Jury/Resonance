@@ -23,7 +23,9 @@ final class ThreadModel {
         let noteRef: MessagingAPI.NoteRef?
     }
 
-    enum Phase: Equatable { case loading, missing, ready }
+    /// `failed`: who they are couldn't be asked (offline, a server error) — not
+    /// "nobody by that name", which is `missing`.
+    enum Phase: Equatable { case loading, missing, failed, ready }
 
     /// The pen name the route named them by (it may have changed since).
     let handle: String
@@ -38,6 +40,8 @@ final class ThreadModel {
     private(set) var messages: [Message] = []
     /// The first snapshot of messages has arrived (or there is no conversation yet).
     private(set) var threadReady = false
+    /// The listeners failed (not "no conversation"): what was read stays; they listen again on `resume()`.
+    private(set) var listenFailed = false
     /// Shared cards, as the viewer may see them, read together.
     let sharedCards: CardSummaries
 
@@ -81,6 +85,7 @@ final class ThreadModel {
     }
 
     func load() async {
+        if phase == .failed { phase = .loading }
         if otherId != nil {
             phase = .ready
             attach()
@@ -107,8 +112,9 @@ final class ThreadModel {
             stop()
             phase = .missing
         } catch {
-            // Offline or a server error: keep what's known. By pen name alone there is nothing to open yet.
-            if otherId == nil, !Task.isCancelled { phase = .missing }
+            // Offline or a server error: keep what's known. By pen name alone there is nothing to open yet —
+            // which is a retry, not "nobody by that name".
+            if otherId == nil, !Task.isCancelled { phase = .failed }
         }
         return false
     }
@@ -144,6 +150,7 @@ final class ThreadModel {
     /// just appeared in Messages: listening again if the listeners stopped.
     func resume() {
         guard phase == .ready, listeners.isEmpty else { return }
+        listenFailed = false
         attach()
     }
 
@@ -178,6 +185,9 @@ final class ThreadModel {
 
     /// A listener that fails is over; `resume()` starts them again. Refused
     /// means there is no conversation (yet, or any more): no messages, not an error.
+    /// Anything else (offline for good, the backend busy) keeps what was read,
+    /// says so while there is nothing (`listenFailed`), and listens again when
+    /// the screen or the app comes back.
     private func listenerFailed(_ error: Error) {
         stop()
         threadReady = true
@@ -185,6 +195,8 @@ final class ThreadModel {
             conversationExists = false
             messages = []
             unreadForMe = 0
+        } else {
+            listenFailed = true
         }
     }
 

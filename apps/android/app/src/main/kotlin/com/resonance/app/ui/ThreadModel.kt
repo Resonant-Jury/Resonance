@@ -14,8 +14,10 @@ import com.resonance.api.models.Author
 import com.resonance.api.models.FeedCard
 import com.resonance.api.models.Profile
 import com.resonance.app.AppFirebase
+import com.resonance.app.FirestoreFailure
 import com.resonance.app.Person
 import com.resonance.app.Session
+import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.MessagingApi
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.cardsById
@@ -56,7 +58,8 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
     /** A card waiting to go with the next message: what the chip shows and what is sent. */
     data class Attachment(val id: String, val title: String)
 
-    enum class Phase { Loading, Missing, Ready }
+    /** `Failed`: who they are couldn't be asked (offline, a server error) — not "nobody by that name", which is `Missing`. */
+    enum class Phase { Loading, Missing, Failed, Ready }
 
     var phase by mutableStateOf(Phase.Loading)
         private set
@@ -76,6 +79,9 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         private set
     /** The first snapshot of messages has arrived (or there is no conversation yet). */
     var threadReady by mutableStateOf(false)
+        private set
+    /** The listeners failed (not "no conversation"): what was read stays; they listen again on [resumeIfFailed]. */
+    var listenFailed by mutableStateOf(false)
         private set
     /** Shared cards, as the viewer may see them (a null value: not visible to them, or still being read — drawn as nothing). */
     val cards = mutableStateMapOf<String, FeedCard?>()
@@ -112,6 +118,7 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         }
 
     suspend fun load() {
+        if (phase == Phase.Failed) phase = Phase.Loading
         otherId?.let { id ->
             // The conversation list already drew them: the header shows at once, beside the messages.
             session.conversations.person(id)?.let { person ->
@@ -120,7 +127,16 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
             }
             watch()
         }
-        val profile = profile()
+        val profile = try {
+            profile()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Offline or a server error: keep what's known. By pen name alone there is nothing to open yet —
+            // a retry, never "user not found".
+            if (other == null) phase = Phase.Failed
+            return
+        }
         if (profile == null || profile.isSelf) {
             // Nobody by that name (or it's you). With their uid and a header to show, a failed read keeps the thread.
             if (profile != null || other == null) {
@@ -139,7 +155,14 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
 
     /** Re-reads whether you may still write (after a block, or coming back). */
     suspend fun refreshConnection() {
-        val profile = read(other?.handle ?: handle)?.takeIf { p -> otherId.let { it == null || it == p.author.id } } ?: return
+        val read = try {
+            read(other?.handle ?: handle)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return
+        }
+        val profile = read?.takeIf { p -> otherId.let { it == null || it == p.author.id } } ?: return
         isBlocked = profile.isBlocked
         connected = profile.isConnected && !profile.isBlocked
     }
@@ -158,18 +181,18 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            null
+            // Refused is gone; anything else failed for now.
+            if (FirestoreFailure.isGone(e)) null else throw e
         }
         if (current == null || current == name) return null
         return read(current)?.takeIf { it.author.id == id }
     }
 
+    /** Their profile by pen name; null when there is nobody by it. A failed request throws. */
     private suspend fun read(handle: String): Profile? = try {
         session.reading.profile(handle)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        null
+    } catch (e: ApiFailure) {
+        if (e.isNotFound) null else throw e
     }
 
     /** Listens to the conversation, and watches for it to appear should it not exist yet. */
@@ -218,12 +241,30 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
      */
     private fun refused(pair: String, error: FirebaseFirestoreException) {
         stop()
+        if (error.code != FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+            // Not "no conversation" — offline for good, the backend busy: what was read stays, and the
+            // listeners attach again back in the foreground ([resumeIfFailed]).
+            listenFailed = true
+            threadReady = true
+            return
+        }
         conversationExists = false
         messages = emptyList()
         threadReady = true
         if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED && pair in session.conversations.ids.value && refusals++ < 3) {
             listen(pair)
         }
+    }
+
+    /**
+     * Back in the foreground: a thread that couldn't find its person asks again, and listeners
+     * that failed listen again.
+     */
+    suspend fun resumeIfFailed() {
+        if (phase == Phase.Failed) return load()
+        if (!listenFailed) return
+        listenFailed = false
+        pairId?.let(::listen)
     }
 
     /** Stops listening (the screen is going away, or the conversation is being deleted). */

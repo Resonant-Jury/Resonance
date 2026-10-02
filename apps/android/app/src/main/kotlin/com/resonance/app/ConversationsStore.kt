@@ -67,6 +67,11 @@ class ConversationsStore {
         /** Connected, no conversation yet (the list's second section). */
         val starters: List<Person> = emptyList(),
         val loaded: Boolean = false,
+        /**
+         * A listener failed (offline for good, the backend refusing): the list is as last read
+         * until the app is back in the foreground ([resume]); with nothing read, a retry.
+         */
+        val failed: Boolean = false,
     ) {
         val unreadTotal: Int get() = conversations.sumOf { it.unread }
     }
@@ -90,12 +95,15 @@ class ConversationsStore {
     val blockedIds: StateFlow<Set<String>?> = _blocked
 
     private var uid: String? = null
-    private var listeners: List<ListenerRegistration> = emptyList()
+    private val listeners = LiveListeners()
     private var rawConversations: List<QueryDocumentSnapshot> = emptyList()
     private var connectionUids: List<String> = emptyList()
     private val blocked: Set<String> get() = _blocked.value.orEmpty()
     private val people = HashMap<String, Person>()
+    /** People with no profile (or none readable): not asked about again this session. */
     private val missing = HashSet<String>()
+    /** People whose profile read failed for now (offline, a timeout): asked about again on the next change or back in the foreground. */
+    private val retry = HashSet<String>()
     private val ready = HashSet<String>()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var rebuilding: Job? = null
@@ -103,38 +111,66 @@ class ConversationsStore {
     fun start(uid: String) {
         stop()
         this.uid = uid
-        val db = AppFirebase.db
-        listeners = listOf(
-            db.collection("conversations").whereArrayContains("participants", uid)
+        listen("conversations") {
+            AppFirebase.db.collection("conversations").whereArrayContains("participants", uid)
                 .orderBy("updatedAt", Query.Direction.DESCENDING)
                 .addSnapshotListener { snap, _ ->
-                    snap ?: return@addSnapshotListener
+                    snap ?: return@addSnapshotListener failed("conversations")
                     rawConversations = snap.documents.filterIsInstance<QueryDocumentSnapshot>()
                     _ids.value = rawConversations.map { it.id }.toSet()
                     arrived("conversations")
-                },
-            db.collection("connections").whereArrayContains("userIds", uid)
+                }
+        }
+        listen("connections") {
+            AppFirebase.db.collection("connections").whereArrayContains("userIds", uid)
                 .addSnapshotListener { snap, _ ->
-                    snap ?: return@addSnapshotListener
+                    snap ?: return@addSnapshotListener failed("connections")
                     connectionUids = snap.documents.mapNotNull { doc -> (doc.get("userIds") as? List<*>)?.firstOrNull { it != uid } as? String }
                     arrived("connections")
-                },
-            db.collection("users").document(uid).collection("blocks")
+                }
+        }
+        listen("blocks") {
+            AppFirebase.db.collection("users").document(uid).collection("blocks")
                 .addSnapshotListener { snap, _ ->
-                    snap ?: return@addSnapshotListener
+                    snap ?: return@addSnapshotListener failed("blocks")
                     val next = snap.documents.map { it.id }.toSet()
                     val changed = "blocks" in ready && next != blocked
                     _blocked.value = next
                     if (changed) onBlocksChanged?.invoke()
                     arrived("blocks")
-                },
-        )
+                }
+        }
+    }
+
+    private fun listen(name: String, attach: () -> ListenerRegistration) {
+        listeners.add(name) {
+            val registration = attach()
+            registration::remove
+        }
+    }
+
+    /** A listener reported an error and is over: the list stays as last read until [resume] attaches it again. */
+    private fun failed(name: String) {
+        listeners.fail(name)
+        _state.value = _state.value.copy(failed = true)
+    }
+
+    /** Back in the foreground: listeners that failed listen again, and people whose profile couldn't be read are asked for again. */
+    fun resume() {
+        if (uid == null) return
+        if (listeners.resume()) _state.value = _state.value.copy(failed = false)
+        if (retry.isNotEmpty()) {
+            rebuilding?.cancel()
+            rebuilding = scope.launch { rebuild() }
+        }
     }
 
     fun stop() {
-        listeners.forEach { it.remove() }
-        listeners = emptyList()
+        listeners.removeAll()
         rebuilding?.cancel()
+        people.clear()
+        missing.clear()
+        retry.clear()
         uid = null
         rawConversations = emptyList()
         _ids.value = emptySet()
@@ -162,8 +198,11 @@ class ConversationsStore {
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        return@async // Asked again on the next change.
+                        // Refused is gone; anything else is asked again on the next change, or back in the foreground.
+                        if (FirestoreFailure.isGone(e)) missing.add(id) else retry.add(id)
+                        return@async
                     }
+                    retry.remove(id)
                     Person.from(id, doc.data)?.let { people[id] = it } ?: missing.add(id)
                 }
             }.awaitAll()
@@ -187,7 +226,7 @@ class ConversationsStore {
         }
         val talking = conversations.map { it.other.id }.toSet()
         val starters = connectionUids.filter { it !in talking && it !in blocked }.mapNotNull { people[it] }
-        _state.value = State(conversations, starters, loaded = ready.containsAll(SOURCES))
+        _state.value = State(conversations, starters, loaded = ready.containsAll(SOURCES), failed = listeners.failed.value.isNotEmpty())
     }
 
     /** Someone this list has read (with their pen name as it is now), if it has. */

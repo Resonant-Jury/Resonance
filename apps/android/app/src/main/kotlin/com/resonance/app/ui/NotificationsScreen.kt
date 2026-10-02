@@ -21,6 +21,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.NotificationsStore
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
+import com.resonance.design.EmptyAction
+import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicListEmpty
 import com.resonance.design.plainClickable
 import com.resonance.design.SketchLoader
@@ -36,8 +38,13 @@ import com.resonance.kit.l10n.L10n
 fun NotificationsScreen(session: Session, open: (Route) -> Unit) {
     val items by session.notifications.items.collectAsStateWithLifecycle()
     val loaded by session.notifications.loaded.collectAsStateWithLifecycle()
+    val failed by session.notifications.failed.collectAsStateWithLifecycle()
     TabScreen(L10n.App.Nav.notifications) {
         when {
+            // Nothing read, and the listener failed: a retry, not a loader forever.
+            !loaded && failed -> item {
+                OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { session.notifications.resume() }, action = EmptyAction.Outline)
+            }
             !loaded -> item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { SketchLoader(48.dp) } }
             items.isEmpty() -> item { OrganicListEmpty(L10n.App.Notifications.empty, modifier = Modifier.padding(horizontal = 20.dp)) }
             else -> itemsIndexed(items, key = { _, it -> it.id }) { i, item ->

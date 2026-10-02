@@ -40,6 +40,9 @@ final class ConversationsStore {
     /// Connected, no conversation yet (the list's second section).
     private(set) var starters: [Person] = []
     private(set) var loaded = false
+    /// A listener failed (offline for good, the backend refusing): what is
+    /// shown is as last read until the app is back in the foreground (`resume`).
+    private(set) var failed = false
     var unreadTotal: Int { conversations.reduce(0) { $0 + $1.unread } }
     /// The people this account has blocked, live (nil until the first read of the list).
     private(set) var blockedIds: Set<String>?
@@ -49,63 +52,96 @@ final class ConversationsStore {
     @ObservationIgnored var onBlocks: ((Set<String>) -> Void)?
 
     @ObservationIgnored private var uid: String?
-    @ObservationIgnored private var listeners: [ListenerRegistration] = []
+    @ObservationIgnored private let listeners = LiveListeners()
     @ObservationIgnored private var rawConversations: [QueryDocumentSnapshot] = []
     @ObservationIgnored private var connectionUids: [String] = []
     @ObservationIgnored private var blocked: Set<String> = []
-    @ObservationIgnored private var people: [String: Person] = [:]
-    @ObservationIgnored private var missing: Set<String> = []
+    @ObservationIgnored private var people = PeopleBook()
     @ObservationIgnored private var ready: Set<String> = []
 
     func start(uid: String) {
         stop()
         self.uid = uid
         let db = FirebaseBootstrap.db
-        listeners = [
+        listen("conversations") { [weak self] in
             db.collection("conversations").whereField("participants", arrayContains: uid)
                 .order(by: "updatedAt", descending: true)
-                .addSnapshotListener { [weak self] snap, _ in
-                    guard let snap else { return }
-                    MainActor.assumeIsolated { self?.rawConversations = snap.documents; self?.arrived("conversations") }
-                },
-            db.collection("connections").whereField("userIds", arrayContains: uid)
-                .addSnapshotListener { [weak self] snap, _ in
-                    guard let snap else { return }
-                    let others = snap.documents.compactMap { ($0.get("userIds") as? [String])?.first { $0 != uid } }
-                    MainActor.assumeIsolated { self?.connectionUids = others; self?.arrived("connections") }
-                },
-            db.collection("users").document(uid).collection("blocks")
-                .addSnapshotListener { [weak self] snap, _ in
-                    guard let snap else { return }
-                    let ids = Set(snap.documents.map(\.documentID))
+                .addSnapshotListener { snap, error in
                     MainActor.assumeIsolated {
                         guard let self else { return }
+                        guard let snap else { return self.failed("conversations", error) }
+                        self.rawConversations = snap.documents
+                        self.arrived("conversations")
+                    }
+                }
+        }
+        listen("connections") { [weak self] in
+            db.collection("connections").whereField("userIds", arrayContains: uid)
+                .addSnapshotListener { snap, error in
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        guard let snap else { return self.failed("connections", error) }
+                        self.connectionUids = snap.documents.compactMap { ($0.get("userIds") as? [String])?.first { $0 != uid } }
+                        self.arrived("connections")
+                    }
+                }
+        }
+        listen("blocks") { [weak self] in
+            db.collection("users").document(uid).collection("blocks")
+                .addSnapshotListener { snap, error in
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        guard let snap else { return self.failed("blocks", error) }
+                        let ids = Set(snap.documents.map(\.documentID))
                         if self.ready.contains("blocks"), ids != self.blocked { self.onBlocksChange?() }
                         self.blocked = ids
                         if self.blockedIds != ids { self.blockedIds = ids }
                         self.onBlocks?(ids)
                         self.arrived("blocks")
                     }
-                },
-        ]
+                }
+        }
+    }
+
+    private func listen(_ name: String, _ attach: @escaping () -> ListenerRegistration) {
+        listeners.add(name) {
+            let registration = attach()
+            return { registration.remove() }
+        }
+    }
+
+    /// A listener reported an error and is over: the list stays as last read
+    /// until `resume()` attaches it again.
+    private func failed(_ name: String, _ error: Error?) {
+        listeners.fail(name)
+        failed = true
+    }
+
+    /// Back in the foreground: listeners that failed listen again, and people
+    /// whose profile couldn't be read are asked for again.
+    func resume() {
+        guard uid != nil else { return }
+        if listeners.resume() { failed = false }
+        if people.hasRetries { Task { await rebuild() } }
     }
 
     func stop() {
-        listeners.forEach { $0.remove() }
-        listeners = []
+        listeners.removeAll()
         uid = nil
         rawConversations = []
         connectionUids = []
         blocked = []
         blockedIds = nil
+        people = PeopleBook()
         ready = []
         conversations = []
         starters = []
         loaded = false
+        failed = false
     }
 
     /// A person already seen here (a thread opened from the list starts with them).
-    func person(_ id: String) -> Person? { people[id] }
+    func person(_ id: String) -> Person? { people.found[id] }
 
     private func arrived(_ source: String) {
         ready.insert(source)
@@ -115,18 +151,20 @@ final class ConversationsStore {
     private func rebuild() async {
         guard let uid else { return }
         let others = rawConversations.compactMap { Self.other(in: $0, me: uid) }
-        let wanted = Set(others + connectionUids).subtracting(people.keys).subtracting(missing)
-        await withTaskGroup(of: (String, Person?).self) { group in
+        let wanted = people.toRead(Set(others + connectionUids))
+        await withTaskGroup(of: (String, PeopleBook.Read).self) { group in
             for id in wanted {
-                group.addTask { (id, Person(id: id, data: try? await FirebaseBootstrap.db.collection("users").document(id).getDocument().data())) }
+                group.addTask { (id, await Self.read(id)) }
             }
-            for await (id, person) in group {
-                if let person { people[id] = person } else { missing.insert(id) }
-            }
+            for await (id, read) in group { people.record(id, read) }
         }
-        // A row whose profile is gone is skipped; blocked people drop out entirely.
+        // Signed out, or someone else signed in, meanwhile.
+        guard self.uid == uid else { return }
+        // A row whose profile is gone is skipped (one that couldn't be read yet waits for the next try);
+        // blocked people drop out entirely.
+        let found = people.found
         conversations = rawConversations.compactMap { doc in
-            guard let otherId = Self.other(in: doc, me: uid), !blocked.contains(otherId), let other = people[otherId] else { return nil }
+            guard let otherId = Self.other(in: doc, me: uid), !blocked.contains(otherId), let other = found[otherId] else { return nil }
             let last = doc.get("lastMessage") as? [String: Any]
             let unread = ((doc.get("unread") as? [String: Any])?[uid] as? NSNumber)?.intValue ?? 0
             return Conversation(id: doc.documentID, other: other, lastText: last?["text"] as? String,
@@ -134,11 +172,53 @@ final class ConversationsStore {
                                 sentAt: (last?["sentAt"] as? Timestamp)?.dateValue(), unread: unread)
         }
         let talking = Set(conversations.map(\.other.id))
-        starters = connectionUids.filter { !talking.contains($0) && !blocked.contains($0) }.compactMap { people[$0] }
+        starters = connectionUids.filter { !talking.contains($0) && !blocked.contains($0) }.compactMap { found[$0] }
         loaded = ready.isSuperset(of: ["conversations", "connections", "blocks"])
+    }
+
+    /// Someone's profile (users/{uid} is public). A missing one, or one without
+    /// a pen name, is someone who's gone; so is a refusal. Anything else failed
+    /// for now.
+    nonisolated private static func read(_ id: String) async -> PeopleBook.Read {
+        do {
+            let data = try await FirebaseBootstrap.db.collection("users").document(id).getDocument().data()
+            return Person(id: id, data: data).map(PeopleBook.Read.found) ?? .gone
+        } catch {
+            return FirestoreFailure.isGone(error) ? .gone : .failed
+        }
     }
 
     private static func other(in doc: QueryDocumentSnapshot, me: String) -> String? {
         (doc.get("participants") as? [String])?.first { $0 != me }
+    }
+}
+
+/// The people Messages has asked about: those found, those gone (no profile,
+/// or refused) — not asked about again this session — and those whose read
+/// failed (offline, a timeout), asked about again on the next change or when
+/// the app comes back to the foreground. A failed read never hides a
+/// conversation for good.
+nonisolated struct PeopleBook {
+    enum Read: Sendable { case found(Person), gone, failed }
+
+    private(set) var found: [String: Person] = [:]
+    private var gone: Set<String> = []
+    private var retry: Set<String> = []
+
+    /// Of `ids`, those still to ask about.
+    func toRead(_ ids: Set<String>) -> Set<String> {
+        ids.subtracting(found.keys).subtracting(gone)
+    }
+
+    /// Some reads failed and wait for another try.
+    var hasRetries: Bool { !retry.isEmpty }
+
+    mutating func record(_ id: String, _ read: Read) {
+        retry.remove(id)
+        switch read {
+        case let .found(person): found[id] = person
+        case .gone: gone.insert(id)
+        case .failed: retry.insert(id)
+        }
     }
 }

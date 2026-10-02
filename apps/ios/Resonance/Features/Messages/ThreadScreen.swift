@@ -14,6 +14,7 @@ struct ThreadScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.openRoute) private var openRoute
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model: ThreadModel?
     @State private var searching = false
     @State private var query = ""
@@ -38,6 +39,12 @@ struct ThreadScreen: View {
                         .font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 14).padding(.top, 20)
+                    Spacer()
+                case .failed:
+                    // Who they are couldn't be asked (offline): a retry, never "user not found".
+                    OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
+                        Task { await model.load() }
+                    }
                     Spacer()
                 case .ready:
                     thread(model)
@@ -64,6 +71,11 @@ struct ThreadScreen: View {
             await model.load()
         }
         .onDisappear { model?.stop() }
+        // Back in the foreground: listeners that failed listen again; a thread that couldn't find its person asks again.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, let model else { return }
+            if model.phase == .failed { Task { await model.load() } } else { model.resume() }
+        }
         // No conversation yet, then their first message arrives: it shows up in Messages, and here.
         .onChange(of: conversationListed) { _, listed in
             if listed { model?.resume() }
@@ -228,7 +240,8 @@ struct ThreadScreen: View {
             ScrollView {
                 LazyVStack(spacing: 10) {
                     if model.threadReady && model.messages.isEmpty {
-                        quietNote(L10n.Messages.noMessagesYet)
+                        // Not "no messages yet" when they couldn't be read.
+                        quietNote(model.listenFailed ? L10n.Native.loadError : L10n.Messages.noMessagesYet)
                     } else if searching, !query.trimmingCharacters(in: .whitespaces).isEmpty, shown.isEmpty {
                         quietNote(L10n.Messages.searchCount(count: 0))
                     }

@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.BuildConfig
 import com.resonance.app.DebugLaunch
 import com.resonance.app.SafetyService
@@ -80,6 +81,8 @@ import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.CssText
+import com.resonance.design.EmptyAction
+import com.resonance.design.OrganicEmptyState
 import com.resonance.design.EmbedStoryCard
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.MessageBubble
@@ -131,6 +134,9 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     }
     LaunchedEffect(model) { model.load() }
     DisposableEffect(model) { onDispose { model.close() } }
+    // Back in the foreground: listeners that failed listen again; a thread that couldn't find its person asks again.
+    val foregrounded by session.foregrounded.collectAsStateWithLifecycle()
+    LaunchedEffect(model, foregrounded) { model.resumeIfFailed() }
 
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -152,6 +158,8 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 20.dp),
                 )
             }
+            // Who they are couldn't be asked (offline): a retry, never "user not found".
+            ThreadModel.Phase.Failed -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { model.load() } }, action = EmptyAction.Outline)
             ThreadModel.Phase.Ready -> {
                 val other = model.other
                 val menu = buildList {
@@ -385,7 +393,8 @@ private fun ColumnScope.Messages(model: ThreadModel, searching: Boolean, query: 
     val searchingFor = searching && query.trim().isNotEmpty()
     val shown = model.filtered(if (searching) query else "").filter { !(searchingFor && it.text.isEmpty()) }
     val quiet = when {
-        model.threadReady && model.messages.isEmpty() -> L10n.Messages.noMessagesYet
+        // Not "no messages yet" when they couldn't be read.
+        model.threadReady && model.messages.isEmpty() -> if (model.listenFailed) L10n.Native.loadError else L10n.Messages.noMessagesYet
         searchingFor && shown.isEmpty() -> L10n.Messages.searchCount(0)
         else -> null
     }
