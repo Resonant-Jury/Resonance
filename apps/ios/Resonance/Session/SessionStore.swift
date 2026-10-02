@@ -79,7 +79,7 @@ final class SessionStore {
     let cardPreviews = CardPreviewCache()
     /// The account's thought map, kept between visits so opening it again within a
     /// while shows it at once without reading a hundred cards (ThoughtMapStore.open).
-    private(set) var thoughtMap = ThoughtMapStore()
+    private(set) var thoughtMap: ThoughtMapStore
     let push = PushCenter.shared
     @ObservationIgnored private var listener: AuthStateDidChangeListenerHandle?
     @ObservationIgnored private let apple = AppleSignIn()
@@ -90,6 +90,7 @@ final class SessionStore {
         api = ResonanceClient.make(configuration, cache: httpCache)
         account = AccountAPI(configuration)
         writing = WritingAPI(client: api, configuration: configuration)
+        thoughtMap = ThoughtMapStore(api: ReadingAPI(client: api))
         if let saved = UserDefaults.standard.string(forKey: Self.languageKey), let language = Strings.Language(rawValue: saved) {
             Strings.shared.language = language
         }
@@ -257,7 +258,7 @@ final class SessionStore {
         me = newUID.flatMap { kept.value(.me, uid: $0) }
         cardPreviews.clear()
         // The thought map belongs to the account too (kept between visits while it is signed in).
-        thoughtMap = ThoughtMapStore()
+        thoughtMap = ThoughtMapStore(api: reading)
         profile = .unknown
         phase = newUID == nil ? .signedOut : .signedIn
         // An account this install has seen with a profile opens straight onto the tabs.

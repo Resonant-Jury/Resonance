@@ -54,11 +54,17 @@ final class ThoughtMapStore {
     /// Opening a card from its tab (the screen decides where: writer or card page).
     @ObservationIgnored var onOpen: (MapCard) -> Void = { _ in }
     @ObservationIgnored private var service: ThoughtMapService?
+    /// Cards' summaries from the server, for the cards the rules won't read here (ThoughtMapService.summaries).
+    private let summaries: @Sendable ([String]) async throws -> [FeedCard]
     @ObservationIgnored private var fitted = false
     /// When everything was last read, and the writer's change count it had seen
     /// then (the session keeps this store between visits: see `open`).
     @ObservationIgnored private var readAt: Date?
     @ObservationIgnored private var seenChanges = 0
+
+    init(api: ReadingAPI) {
+        summaries = { try await api.cards(keys: $0) }
+    }
 
     // MARK: - Visits
 
@@ -126,7 +132,7 @@ final class ThoughtMapStore {
     // MARK: - Loading
 
     func load(uid: String) async {
-        let service = ThoughtMapService(uid: uid)
+        let service = ThoughtMapService(uid: uid, summaries: summaries)
         self.service = service
         let started = Date.now
         do {

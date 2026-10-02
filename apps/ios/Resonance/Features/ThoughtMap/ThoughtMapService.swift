@@ -1,5 +1,6 @@
 import FirebaseFirestore
 import Foundation
+import ResonanceKit
 
 /// A card on my map: where it sits (world units, top-left) and the region it's filed in.
 struct MapNode: Equatable, Sendable {
@@ -42,12 +43,26 @@ struct MapCard: Equatable, Sendable {
     let accentHue: Double?
 }
 
+extension MapCard {
+    /// A card as the server summarises it (GET /cards?keys=): its excerpt
+    /// stands in for the story, and an anonymous one has no author (`authorId`
+    /// empty) — the server never names it.
+    nonisolated init(summary c: FeedCard) {
+        self.init(id: c.id, authorId: c.author?.value1.id ?? "", slug: c.slug, title: c.title, story: c.excerpt,
+                  tags: c.tags, visibility: c.visibility.rawValue, publishedAt: c.publishedAt.flatMap(ISO8601.date),
+                  mediaURL: c.imageUrl.flatMap(URL.init(string:)), accentHue: c.accentHue)
+    }
+}
+
 /// The thought map (thoughtMaps/{uid}/nodes|edges|groups), read and written
 /// straight to Firestore like the web's client/thoughtMap.ts — the owner's
 /// own documents, `isSelf` in the rules. Every function mirrors its web twin
 /// and batches the same way.
 struct ThoughtMapService {
     let uid: String
+    /// Cards' summaries from the server, by id (GET /cards?keys=): for the cards
+    /// the rules won't let this client read (someone else's anonymous card).
+    let summaries: @Sendable ([String]) async throws -> [FeedCard]
     private var db: Firestore { FirebaseBootstrap.db }
     private var map: DocumentReference { db.collection("thoughtMaps").document(uid) }
     private var nodesCol: CollectionReference { map.collection("nodes") }
@@ -169,8 +184,8 @@ struct ThoughtMapService {
     // MARK: - The cards the map can hold (useMyThoughtMap)
 
     /// My own cards (getCardsByAuthor: the newest 40, drafts among them) and
-    /// the originals I resonated with (my latest 60 cards' references, each
-    /// read under the rules — one I can no longer read just isn't there).
+    /// the originals I resonated with (my latest 60 cards' references, read as
+    /// `read` reads them — one nobody lets me read any more just isn't there).
     func cards() async throws -> (cards: [String: MapCard], resonated: Set<String>) {
         let cardsCol = db.collection("cards")
         async let ownSnap = cardsCol.whereField("authorId", isEqualTo: uid)
@@ -178,14 +193,7 @@ struct ThoughtMapService {
         async let replySnap = cardsCol.whereField("authorId", isEqualTo: uid).limit(to: 60).getDocuments()
         let (own, replies) = try await (ownSnap, replySnap)
         let refs = Array(Set(replies.documents.compactMap { $0.get("referenceCardId") as? String }))
-        let originals = await withTaskGroup(of: MapCard?.self) { group in
-            for id in refs {
-                group.addTask { try? await Self.card(cardsCol.document(id).getDocument()) }
-            }
-            var out: [MapCard] = []
-            for await c in group { if let c { out.append(c) } }
-            return out
-        }
+        let originals = await read(refs)
         var byId: [String: MapCard] = [:]
         for c in originals { byId[c.id] = c }
         for d in own.documents { if let c = Self.card(d) { byId[c.id] = c } }
@@ -194,24 +202,45 @@ struct ThoughtMapService {
     }
 
     /// One card as it is now: nil when it is gone, or no longer readable by me (deleted, made
-    /// private); a read that failed for now throws.
+    /// private); a read that failed for now throws. One the rules won't read here is asked of
+    /// the server, as `read` does.
     func card(_ id: String) async throws -> MapCard? {
         do {
-            return Self.card(try await db.collection("cards").document(id).getDocument())
-        } catch where FirestoreFailure.isGone(error) {
-            return nil
-        }
+            if let card = Self.card(try await db.collection("cards").document(id).getDocument()) { return card }
+        } catch where FirestoreFailure.isGone(error) {}
+        return try await summaries([id]).first { $0.id == id }.map(MapCard.init(summary:))
     }
 
     /// Cards already on the map that the newest-40 read didn't bring (an older card placed long ago).
     func cards(ids: [String]) async -> [MapCard] {
+        await read(ids)
+    }
+
+    private func read(_ ids: [String]) async -> [MapCard] {
         let cardsCol = db.collection("cards")
-        return await withTaskGroup(of: MapCard?.self) { group in
-            for id in ids { group.addTask { try? await Self.card(cardsCol.document(id).getDocument()) } }
-            var out: [MapCard] = []
-            for await c in group { if let c { out.append(c) } }
-            return out
+        return await Self.read(ids, underRules: { id in try? await Self.card(cardsCol.document(id).getDocument()) },
+                               server: summaries)
+    }
+
+    /// Cards by id, in the order asked: each read under the rules, and those the
+    /// rules won't read here (someone else's anonymous card) asked of the server
+    /// in one request, which leaves an anonymous card's author out — as the web's
+    /// useMyThoughtMap does. A card neither will read isn't there; should the
+    /// server fail, those cards are just not shown this time.
+    nonisolated static func read(_ ids: [String], underRules: @escaping @Sendable (String) async -> MapCard?,
+                                 server: @Sendable ([String]) async throws -> [FeedCard]) async -> [MapCard] {
+        let read = await withTaskGroup(of: (String, MapCard?).self) { group in
+            for id in ids { group.addTask { (id, await underRules(id)) } }
+            var read: [String: MapCard] = [:]
+            for await (id, card) in group { if let card { read[id] = card } }
+            return read
         }
+        let unread = ids.filter { !read.keys.contains($0) }
+        var summarised: [String: MapCard] = [:]
+        if !unread.isEmpty, let cards = try? await server(unread) {
+            for c in cards { summarised[c.id] = MapCard(summary: c) }
+        }
+        return ids.compactMap { read[$0] ?? summarised[$0] }
     }
 
     nonisolated private static func card(_ d: DocumentSnapshot) -> MapCard? {
