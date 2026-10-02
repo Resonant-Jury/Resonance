@@ -15,7 +15,7 @@ export const POST = withUser(async (user, _req, ctx: RouteContext<'key'>) => {
   const { stale, ...result } = await applyCardEdit(getAdminDb(), user.id, id);
   if (result.applied) {
     after(async () => {
-      // The web editor's grace notes after "save changes": the cached pages, then the recommendation index.
+      // After "save changes": the cached pages, then the recommendation index.
       revalidateLocalized(stale);
       await indexCard(id).catch((e) => console.error('[api/v1] index', e));
     });

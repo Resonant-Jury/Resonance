@@ -17,12 +17,12 @@ export interface ApplyEditResult {
 const VISIBILITIES = new Set(['public', 'connections', 'private']);
 
 /**
- * Apply your pending edit to a published card: what the web editor's
- * applyPendingCardEdit() does from the client (cardEdits.ts), in one server
- * call — the working copy in `cards/{id}/edits/current` becomes the live
- * fields and the buffer is deleted, in one transaction, so a reader never sees
- * half of a revision. `publishedAt` is left alone (an edit never re-dates a
- * card) and so is the slug (a card keeps its URL).
+ * Apply your pending edit to a published card, when an editor (web or app)
+ * saves changes: the working copy in `cards/{id}/edits/current` (which the
+ * editor autosaves, see client/cardEdits.ts) becomes the live fields and the
+ * buffer is deleted, in one transaction, so a reader never sees half of a
+ * revision. `publishedAt` is left alone (an edit never re-dates a card) and
+ * so is the slug (a card keeps its URL).
  *
  * The buffer is written by the owner from the client, and one written before
  * the rules held it to a card's limits could hold anything: only the

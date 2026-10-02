@@ -5,8 +5,8 @@ import { ApiFailure } from '@/lib/api/v1/http';
 import { applyCardEdit } from '@/lib/api/v1/edits';
 
 // Applying a published card's pending edit through the v1 API against the
-// Firestore emulator — what the web editor's applyPendingCardEdit() does from
-// the client (cardEdits.ts): the buffer becomes the live fields and is gone.
+// Firestore emulator — what saving changes in an editor (web or app) does:
+// the buffer becomes the live fields and is gone.
 
 const PROJECT = 'demo-resonance-api-edits';
 let app: App;

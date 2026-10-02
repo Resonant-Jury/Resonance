@@ -6,15 +6,13 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
-  writeBatch,
   Timestamp,
 } from './sdk';
-import type { Card, CardMedia, Visibility } from '@/lib/db/types';
+import type { CardMedia, Visibility } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
-import { clearedMedia } from './cards';
+import { callApi } from './api';
 import { isAbsent } from './errors';
-import { mapCard } from './map';
 
 /**
  * Pending edits to an **already-published** card.
@@ -23,8 +21,8 @@ import { mapCard } from './map';
  * A published card cannot: readers are looking at that document right now, so
  * autosaving into it would push every half-written sentence live. Instead the
  * editor autosaves the whole working copy into `cards/{id}/edits/current`
- * (owner-only by rules) and only merges it into the live fields when the
- * author explicitly saves. Discarding is a plain delete.
+ * (owner-only by rules), and the server merges it into the live fields when
+ * the author explicitly saves. Discarding is a plain delete.
  *
  * The buffer never carries `publishedAt`: applying an edit updates a card, it
  * does not re-publish it.
@@ -100,23 +98,25 @@ export async function discardPendingCardEdit(cardId: string): Promise<void> {
   await deleteDoc(editRef(cardId));
 }
 
+/** What applying answers (POST /api/v1/cards/{id}/edits/apply). */
+export interface AppliedCardEdit {
+  id: string;
+  /** Where the card lives: its English slug, or null (it is served at its id). */
+  slug: string | null;
+  /** False when there was no working copy to apply — nothing changed. */
+  applied: boolean;
+}
+
 /**
- * Publish the working copy into the live card: one batch writes the fields and
- * clears the buffer, so a reader never sees a card that still advertises
- * unsaved changes. `publishedAt` is deliberately untouched — an edit must not
- * re-date the card (every feed orders by it).
+ * Make the working copy the live card, through the server (the call the apps
+ * make): in one transaction it copies what `edits/current` holds onto the
+ * card, held to a card's limits, and deletes the buffer, so a reader never
+ * sees half of a revision. `publishedAt` and the slug are left alone — an
+ * edit must not re-date a card (every feed orders by it) or move it. List
+ * excerpts, the cached pages and the recommendation index follow on the
+ * server. It applies the buffer, not the screen: save the working copy first.
  */
-export async function applyPendingCardEdit(
-  cardId: string,
-  values: CardEditValues
-): Promise<Card> {
+export async function applyPendingCardEdit(cardId: string): Promise<AppliedCardEdit> {
   requireUid();
-  const db = getClientDb();
-  const ref = doc(db, 'cards', cardId);
-  const batch = writeBatch(db);
-  batch.set(ref, { ...values, ...clearedMedia(values), updatedAt: serverTimestamp() }, { merge: true });
-  batch.delete(editRef(cardId));
-  await batch.commit();
-  const snap = await getDoc(ref);
-  return mapCard(snap.id, snap.data() ?? {});
+  return callApi<AppliedCardEdit>(`/api/v1/cards/${encodeURIComponent(cardId)}/edits/apply`, { method: 'POST' });
 }

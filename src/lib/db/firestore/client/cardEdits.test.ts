@@ -1,31 +1,30 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // --- Firebase boundary mocks ------------------------------------------------
 // These functions are the whole reason a published card's autosave is safe:
 // edits must land in `cards/{id}/edits/current` and never on the card itself,
-// and applying them must not touch `publishedAt`. Mock the SDK and assert the
-// document paths and payloads our code chooses.
+// and only the server applies them. Mock the SDK and the network and assert
+// the document paths, payloads and calls our code chooses.
 vi.mock('./init', () => ({ getClientDb: vi.fn(() => ({ __db: true })) }));
 
-const mockAuth = { currentUser: { uid: 'me' } as { uid: string } | null };
+type MockUser = { uid: string; getIdToken: () => Promise<string> };
+const signedIn = (): MockUser => ({ uid: 'me', getIdToken: async () => 'id-token' });
+const mockAuth = { currentUser: signedIn() as MockUser | null };
 vi.mock('@/lib/auth/firebase/client', () => ({
   getFirebaseClientAuth: vi.fn(() => mockAuth),
 }));
 
-const batch = { set: vi.fn(), delete: vi.fn(), commit: vi.fn() };
 vi.mock('firebase/firestore/lite', () => ({
   // doc(db, ...segments) → a stand-in that records the path it addresses.
   doc: vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') })),
   deleteDoc: vi.fn(),
-  deleteField: vi.fn(() => '<delete>'),
   getDoc: vi.fn(),
   setDoc: vi.fn(),
   serverTimestamp: vi.fn(() => '<server-time>'),
-  writeBatch: vi.fn(() => batch),
   Timestamp: class {},
 }));
 
-import { deleteDoc, getDoc, setDoc, writeBatch } from 'firebase/firestore/lite';
+import { deleteDoc, getDoc, setDoc } from 'firebase/firestore/lite';
 import {
   applyPendingCardEdit,
   discardPendingCardEdit,
@@ -48,8 +47,11 @@ const values: CardEditValues = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockAuth.currentUser = { uid: 'me' };
-  batch.commit.mockResolvedValue(undefined);
+  mockAuth.currentUser = signedIn();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('pending card edits', () => {
@@ -106,31 +108,39 @@ describe('pending card edits', () => {
     await expect(getPendingCardEdit('card-1')).rejects.toThrow('offline');
   });
 
-  it('applies the revision to the card and clears the buffer in one batch', async () => {
-    vi.mocked(getDoc).mockResolvedValue({
-      id: 'card-1',
-      data: () => ({ authorId: 'me', slug: 'a-revised-title', ...values }),
-    } as never);
+  // The live card is what readers see: the server applies the revision (one
+  // transaction, its date and slug kept, held to a card's limits — pinned in
+  // test/emulator/apiV1Edits), never this browser.
+  it('applies the revision through the API with the ID token, writing nothing itself', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ id: 'card-1', slug: 'a-revised-title', applied: true }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
 
-    const card = await applyPendingCardEdit('card-1', values);
+    await expect(applyPendingCardEdit('card-1')).resolves.toEqual({ id: 'card-1', slug: 'a-revised-title', applied: true });
 
-    expect(writeBatch).toHaveBeenCalledTimes(1);
-    const [cardRef, payload, options] = batch.set.mock.calls[0];
-    expect((cardRef as { path: string }).path).toBe('cards/card-1');
-    expect(payload).toMatchObject(values);
-    expect(options).toEqual({ merge: true });
-    // Editing is not re-publishing: re-stamping publishedAt would re-date the
-    // card and shove it back to the top of every feed.
-    expect(payload).not.toHaveProperty('publishedAt');
-    expect((batch.delete.mock.calls[0][0] as { path: string }).path).toBe(EDIT_PATH);
-    expect(batch.commit).toHaveBeenCalled();
-    expect(card.id).toBe('card-1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/v1/cards/card-1/edits/apply');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer id-token');
+    expect(setDoc).not.toHaveBeenCalled();
+    expect(deleteDoc).not.toHaveBeenCalled();
   });
 
-  it('removes the live cover when the revision removed it', async () => {
-    vi.mocked(getDoc).mockResolvedValue({ id: 'card-1', data: () => ({ authorId: 'me' }) } as never);
-    await applyPendingCardEdit('card-1', { ...values, media: undefined, accentHue: null });
-    expect(batch.set.mock.calls[0][1]).toMatchObject({ media: '<delete>', accentHue: null });
+  it("surfaces the server's refusal", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ error: { code: 'invalid_request', message: 'The edit does not fit a card.' } }), { status: 400 }),
+    ));
+    await expect(applyPendingCardEdit('card-1')).rejects.toMatchObject({ status: 400, code: 'invalid_request', message: 'The edit does not fit a card.' });
+  });
+
+  it('refuses to apply when nobody is signed in', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    mockAuth.currentUser = null;
+    await expect(applyPendingCardEdit('card-1')).rejects.toThrow('Not signed in');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('discards a working copy without touching the card', async () => {

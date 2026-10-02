@@ -36,7 +36,6 @@ import {
   discardPendingCardEdit,
   savePendingCardEdit,
 } from '@/lib/db/firestore/client/cardEdits';
-import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import type { Card, CardMedia, Visibility, Locale } from '@/lib/db/types';
 import type { GenerateImageEvent } from '@/app/api/generate-image/route';
 import { ndjsonValues } from '@/lib/streams/ndjson';
@@ -425,35 +424,40 @@ export function CardEditor({
 
   /**
    * Merge the buffered revision into the live card. This — not autosave — is
-   * the moment an edit becomes visible to readers. `publishedAt` is left
-   * alone: updating a card is not re-publishing it.
+   * the moment an edit becomes visible to readers. One server call does it
+   * (POST /api/v1/cards/{id}/edits/apply, as the apps do), from the buffer:
+   * so the working copy on screen, with the panel's choices, is written there
+   * first. `publishedAt` and the slug are left alone (updating a card is not
+   * re-publishing it); the cached pages and the recommendation index are
+   * refreshed after the response.
    */
   async function applyUpdate(choices?: PublishChoices) {
     const id = draftIdRef.current;
     if (pending || !id) return;
+    // The server refuses a card without a title; say so in the writer's words.
+    if (!valuesRef.current.thoughtCore.trim()) {
+      setPublishError(t('titleRequired'));
+      return;
+    }
     setPending(true);
     setPublishError(null);
     try {
-      const v = currentValues(choices);
-      // Queue behind any in-flight autosave so the buffer delete can't land
-      // before a straggling write re-creates it.
-      const run = writeChainRef.current.then(() => applyPendingCardEdit(id, payloadFrom(v)));
+      // The save queues behind any in-flight autosave and the apply behind the
+      // save, so no straggling write can re-create the buffer after it's gone.
+      // A failed save never reaches the apply.
+      const run = saveDraft(choices).then(() => applyPendingCardEdit(id));
       writeChainRef.current = run.catch(() => undefined);
-      const card = await run;
-      lastSavedRef.current = draftSnapshot(v);
+      const result = await run;
+      if (!result.applied) {
+        // The buffer was gone by then (applied or discarded elsewhere), so the
+        // text on screen may not be live and is kept nowhere: mark it unsaved,
+        // so a retry, autosave or leaving writes it again.
+        lastSavedRef.current = '';
+        throw new Error('Changes were not applied');
+      }
       setHasPendingEdit(false);
       closedRef.current = true;
-      const destination = card.slug ?? initial?.slug ?? id;
-      // Re-index for recommendations (the story changed) and bust the card
-      // page's ISR cache — same grace-note treatment as publishing: never
-      // awaited, never allowed to block the save.
-      void fetch('/api/cards/index', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardId: id }),
-      }).catch(() => {});
-      void requestRevalidate([`/card/${destination}`]);
-      router.push(`/card/${destination}`);
+      router.push(`/card/${result.slug ?? initial?.slug ?? id}`);
     } catch (err) {
       console.error('Save changes failed:', err);
       closedRef.current = false;

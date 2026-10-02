@@ -34,6 +34,7 @@ const client = {
   auth: () => import('@/lib/auth/firebase/client'),
   reads: () => import('@/lib/db/firestore/client/reads'),
   cards: () => import('@/lib/db/firestore/client/cards'),
+  cardEdits: () => import('@/lib/db/firestore/client/cardEdits'),
   map: () => import('@/lib/db/firestore/client/thoughtMap'),
   messages: () => import('@/lib/db/firestore/client/messages'),
 };
@@ -129,6 +130,59 @@ describe('writes on Lite', () => {
     expect(map.nodes.map((n) => [n.cardId, n.x, n.y])).toEqual([['walk', 360, 80]]);
     await Promise.all(moves);
     expect((await db.doc(`thoughtMaps/${me}/nodes/walk`).get()).data()).toMatchObject({ x: 360, y: 80 });
+  });
+
+  // The editor saves a published card's revision into its buffer, and the
+  // server applies the buffer (POST …/edits/apply): what the browser wrote
+  // there, through the rules, is exactly what goes live.
+  it("put a published card's revision where the server applies it", async () => {
+    await db.doc('cards/live').set({
+      authorId: me,
+      slug: 'a-quiet-night',
+      thoughtCore: 'a quiet night',
+      story: 'the story readers see',
+      tags: ['夜'],
+      media: { type: 'image', url: 'https://cdn/old.avif', label: 'old' },
+      accentHue: 55,
+      originalLocale: 'zh-TW',
+      translations: {},
+      visibility: 'public',
+      anonymous: false,
+      publishedAt: at('2026-09-01T08:00:00Z'),
+      readCount: 3,
+      resonanceCount: 0,
+      inviteCount: 0,
+    });
+    const { savePendingCardEdit } = await client.cardEdits();
+    // The cover removed (undefined, which the browser leaves out), the
+    // visibility and byline the update panel chose.
+    await savePendingCardEdit('live', {
+      thoughtCore: 'a quieter night',
+      story: 'the revision',
+      tags: ['夜', '雨'],
+      visibility: 'private',
+      anonymous: true,
+      media: undefined,
+      accentHue: null,
+    });
+    expect((await db.doc('cards/live').get()).get('story')).toBe('the story readers see');
+
+    const { applyCardEdit } = await import('@/lib/api/v1/edits');
+    await expect(applyCardEdit(db, me, 'live')).resolves.toMatchObject({ slug: 'a-quiet-night', applied: true });
+    const card = (await db.doc('cards/live').get()).data()!;
+    expect(card).toMatchObject({
+      thoughtCore: 'a quieter night',
+      story: 'the revision',
+      tags: ['夜', '雨'],
+      visibility: 'private',
+      anonymous: true,
+      accentHue: null,
+      slug: 'a-quiet-night',
+      readCount: 3,
+    });
+    expect(card.media).toBeUndefined();
+    expect((card.publishedAt as Timestamp).toDate().toISOString()).toBe('2026-09-01T08:00:00.000Z');
+    expect((await db.doc('cards/live/edits/current').get()).exists).toBe(false);
   });
 
   it("are refused by the rules where the browser mustn't write", async () => {

@@ -112,9 +112,9 @@ export async function publishCard(id: string): Promise<PublishedCard> {
 /**
  * A removed cover arrives as `media: undefined`, which a merge write silently
  * drops (the client runs with ignoreUndefinedProperties) — the old cover
- * would survive. Say "delete it" instead. Shared with applyPendingCardEdit.
+ * would survive. Say "delete it" instead.
  */
-export function clearedMedia(values: { media?: CardMedia }): { media?: ReturnType<typeof deleteField> } {
+function clearedMedia(values: { media?: CardMedia }): { media?: ReturnType<typeof deleteField> } {
   return 'media' in values && values.media === undefined ? { media: deleteField() } : {};
 }
 
