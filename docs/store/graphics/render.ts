@@ -1,20 +1,26 @@
 /**
  * Store graphics for Resonance (共振): App Store / Play screenshots, the Play
- * feature graphic and the Play icon.
+ * feature graphic and the Play icon, in Traditional Chinese (zh-TW) and English (en-US).
  *
- *   npx tsx docs/store/graphics/render.ts                 # everything
+ *   npx tsx docs/store/graphics/render.ts                 # everything, both languages
  *   npx tsx docs/store/graphics/render.ts ios             # one target: ios | android | play
  *   npx tsx docs/store/graphics/render.ts ios --only=feed,card
+ *   npx tsx docs/store/graphics/render.ts --lang=en       # one language: --lang=zh-TW | --lang=en (default: both)
+ *   npx tsx docs/store/graphics/render.ts ios android --lang=en --check
  *   npx tsx docs/store/graphics/render.ts --check         # also measure text / fonts in Chrome
  *   npx tsx docs/store/graphics/render.ts --regen-placeholders
  *
- * Reads   raw/ios/<key>.png       (simulator captures)   → out/ios/<nn>-<key>.jpg      1320×2868
- *         raw/android/<key>.png   (emulator captures)    → out/android/<nn>-<key>.jpg  1080×1920
- * Writes  out/play/feature-graphic.jpg (1024×500), out/play/feature-graphic.en.jpg (the en-US
- *         listing's) and out/play/icon-512.png.
+ * Reads   raw/ios/<key>.png          (simulator captures, zh-TW app)  → out/ios/<nn>-<key>.jpg          1320×2868
+ *         raw/android/<key>.png      (emulator captures, zh-TW app)   → out/android/<nn>-<key>.jpg      1080×1920
+ *         raw/ios-en/<key>.png       (the same, app set to English)   → out/ios-en/<nn>-<key>.jpg       1320×2868
+ *         raw/android-en/<key>.png                                    → out/android-en/<nn>-<key>.jpg   1080×1920
+ * Writes  out/play/feature-graphic.jpg (1024×500, zh-TW), out/play/feature-graphic.en.jpg (the en-US
+ *         listing's) and out/play/icon-512.png. --lang picks which feature graphic is made (the icon always is).
  * iOS and Android are built ONLY from their own raw folder (the stores reject a
  * screenshot from the other platform). A missing raw file falls back to a
  * clearly-marked placeholder and logs a warning.
+ * English slides set the headline in Playfair Display 700 and the subline in DM Sans 500 (Chinese: Noto
+ * Serif TC / Noto Sans TC); --check requires exactly those fonts for each language.
  *
  * The shapes come from the app's real design utils (same seeds → same shapes),
  * the colours from src/styles/tokens.css, the pen weights from strokes.ts.
@@ -40,10 +46,13 @@ import {
   imageSize,
   mkdirp,
   oklch,
+  parseLangs,
   parseOklch,
   readTokens,
   screenshot,
   toJpeg,
+  variantDir,
+  type Lang,
   type Tokens,
 } from './lib';
 import { KEYS, ensurePlaceholder, type Key, type Platform } from './placeholders';
@@ -73,11 +82,15 @@ const SCREEN_RADIUS: Record<Platform, number> = { ios: 0.13, android: 0.1 };
 
 type AccentName = 'terracotta' | 'sage' | 'yellow' | 'lavender' | 'sky' | 'peach';
 
+interface Copy {
+  headline: string;
+  em: string; // the part of the headline set in the accent colour and underlined; must occur exactly once
+  subline: string;
+}
+
 interface Slide {
   key: Key;
-  headline: string;
-  em: string; // the part of the headline set in the accent colour and underlined
-  subline: string;
+  copy: Record<Lang, Copy>; // one line each at the slide's size (--check fails on a wrap or a shrunk font)
   accent: AccentName;
   side: 1 | -1; // which side the big blob leans to
   seed: number;
@@ -90,19 +103,95 @@ interface Slide {
 }
 
 const SLIDES: Slide[] = [
-  { key: 'feed', headline: '用故事回應故事', em: '回應', subline: '讀到觸動你的卡片，寫下你自己的經歷', accent: 'terracotta', side: 1, seed: 11 },
-  { key: 'card', headline: '每張卡片都是一段人生', em: '人生', subline: '標題、故事、照片，慢慢讀', accent: 'sage', side: -1, seed: 23 },
-  { key: 'write', headline: '寫下你的故事', em: '故事', subline: '在手繪紙張上，決定給誰看', accent: 'yellow', side: 1, seed: 37, cropBottom: { android: 0.0437 } },
-  { key: 'resonance', headline: '不按讚，而是共振', em: '共振', subline: '兩張卡片連在一起，你們也是', accent: 'lavender', side: -1, seed: 41, cropBottom: { ios: 0.0377 } },
-  { key: 'messages', headline: '因故事相遇，繼續聊', em: '相遇', subline: '連結之間的私訊', accent: 'sky', side: 1, seed: 53 },
-  { key: 'thoughtmap', headline: '看見想法怎麼長出來', em: '長出來', subline: '把卡片排在點點紙上，畫出它們的關係', accent: 'peach', side: -1, seed: 67, cropBottom: { ios: 0.0237, android: 0.0404 } },
+  {
+    key: 'feed', accent: 'terracotta', side: 1, seed: 11,
+    copy: {
+      'zh-TW': { headline: '用故事回應故事', em: '回應', subline: '讀到觸動你的卡片，寫下你自己的經歷' },
+      en: { headline: 'Answer stories with stories', em: 'Answer', subline: 'When a card moves you, write your own' },
+    },
+  },
+  {
+    key: 'card', accent: 'sage', side: -1, seed: 23,
+    copy: {
+      'zh-TW': { headline: '每張卡片都是一段人生', em: '人生', subline: '標題、故事、照片，慢慢讀' },
+      en: { headline: 'Every card is a life', em: 'a life', subline: 'A title, a story, a photo — read slowly' },
+    },
+  },
+  {
+    key: 'write', accent: 'yellow', side: 1, seed: 37, cropBottom: { android: 0.0437 },
+    copy: {
+      'zh-TW': { headline: '寫下你的故事', em: '故事', subline: '在手繪紙張上，決定給誰看' },
+      en: { headline: 'Write your story', em: 'your story', subline: 'On hand-drawn paper, shared as you choose' },
+    },
+  },
+  {
+    key: 'resonance', accent: 'lavender', side: -1, seed: 41, cropBottom: { ios: 0.0377 },
+    copy: {
+      'zh-TW': { headline: '不按讚，而是共振', em: '共振', subline: '兩張卡片連在一起，你們也是' },
+      en: { headline: 'Don’t just like — resonate', em: 'resonate', subline: 'Two cards linked, and so are the two of you' },
+    },
+  },
+  {
+    key: 'messages', accent: 'sky', side: 1, seed: 53,
+    copy: {
+      'zh-TW': { headline: '因故事相遇，繼續聊', em: '相遇', subline: '連結之間的私訊' },
+      en: { headline: 'Meet through a story', em: 'a story', subline: 'Private messages between connections' },
+    },
+  },
+  {
+    key: 'thoughtmap', accent: 'peach', side: -1, seed: 67, cropBottom: { ios: 0.0237, android: 0.0404 },
+    copy: {
+      'zh-TW': { headline: '看見想法怎麼長出來', em: '長出來', subline: '把卡片排在點點紙上，畫出它們的關係' },
+      en: { headline: 'Watch your thinking grow', em: 'grow', subline: 'Lay out your cards and draw how they relate' },
+    },
+  },
 ];
+
+/**
+ * Type per language, as fractions of the canvas width. A Latin letter is about half as wide as a CJK character,
+ * so the English headline is set smaller than the Chinese one (0.068 vs 0.076: the longest English headline then
+ * fills ~85% of the width, like the longest Chinese ones do) but in the same one-pen weight family; the subline
+ * keeps the Chinese size. Latin needs none of the CJK letter-spacing.
+ */
+const TYPE: Record<Lang, { h: number; s: number; hWeight: number; hTrack: string; sWeight: number; sTrack: string; uline: string }> = {
+  'zh-TW': { h: 0.076, s: 0.0375, hWeight: 900, hTrack: '.02em', sWeight: 500, sTrack: '.05em', uline: '-.15em' },
+  // The wave sits lower under Latin: the descenders of y / g reach below the baseline, where CJK has none.
+  en: { h: 0.068, s: 0.0375, hWeight: 700, hTrack: '0', sWeight: 500, sTrack: '.01em', uline: '-.26em' },
+};
+/** The CSS font stacks (the web fonts are embedded; see main()). */
+const FAMILIES: Record<Lang, { serif: string; sans: string }> = {
+  'zh-TW': {
+    serif: "'Noto Serif TC','Playfair Display','Songti TC',serif",
+    sans: "'Noto Sans TC','DM Sans','PingFang TC',system-ui,sans-serif",
+  },
+  en: {
+    serif: "'Playfair Display',Georgia,serif",
+    sans: "'DM Sans','Helvetica Neue',Arial,system-ui,sans-serif",
+  },
+};
+/** Fonts --check requires each language's screenshot slides to have loaded (a family counts once any weight did). */
+const SLIDE_FONTS: Record<Lang, string[]> = {
+  'zh-TW': ['Noto Serif TC', 'Noto Sans TC'],
+  en: ['Playfair Display', 'DM Sans'],
+};
+
+/**
+ * How many wave units the underline under the emphasised phrase gets (one per em of width). A CJK character is
+ * one em wide; a Latin letter about 0.55 em.
+ */
+const waveUnits = (em: string, lang: Lang) => (lang === 'en' ? Math.max(2, Math.round(em.length * 0.55)) : [...em].length);
+
+for (const s of SLIDES) {
+  for (const lang of Object.keys(s.copy) as Lang[]) {
+    const { headline, em } = s.copy[lang];
+    if (headline.split(em).length !== 2) throw new Error(`${s.key} (${lang}): "${em}" must occur exactly once in "${headline}"`);
+  }
+}
 
 const TAGLINE = { text: '讓生命影響生命', em: '影響' };
 const BRAND = { latin: 'Resonance', cjk: '共振' };
 /** The en-US listing's feature graphic: the brand alone, the tagline in English. */
 const TAGLINE_EN = { text: 'Let lives touch lives', em: 'touch' };
-type FeatureLang = 'zh-TW' | 'en';
 
 /* ── colour ───────────────────────────────────────────────────────────── */
 
@@ -187,10 +276,10 @@ function underline(chars: number, seed: number, stroke: string) {
 
 /* ── page scaffolding ─────────────────────────────────────────────────── */
 
-function pageCss(T: Tokens, w: number, h: number) {
+function pageCss(T: Tokens, w: number, h: number, lang: Lang = 'zh-TW') {
   return `
   :root{--cream:${T['cream']};--cream-dark:${T['cream-dark']};--card:${T['card-bg']};--ink:${T['text']};--muted:${T['text-muted']};
-    --serif:'Noto Serif TC','Playfair Display','Songti TC',serif;--sans:'Noto Sans TC','DM Sans','PingFang TC',system-ui,sans-serif}
+    --serif:${FAMILIES[lang].serif};--sans:${FAMILIES[lang].sans}}
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{width:${w}px;height:${h}px;overflow:hidden;background:var(--cream)}
   body{font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased}
@@ -212,7 +301,7 @@ document.fonts.ready.then(function () {
   var items = [];
   document.querySelectorAll('[data-measure]').forEach(function (el) {
     var r = el.getBoundingClientRect(), cs = getComputedStyle(el.closest('h1,p,div') || el);
-    items.push({ name: el.dataset.measure, safe: el.dataset.safe === '1', x: r.left, y: r.top, w: r.width, h: r.height, fs: parseFloat(cs.fontSize) });
+    items.push({ name: el.dataset.measure, safe: el.dataset.safe === '1', x: r.left, y: r.top, w: r.width, h: r.height, fs: parseFloat(cs.fontSize), fs0: parseFloat(el.dataset.fs || '0') });
   });
   var fonts = []; document.fonts.forEach(function (f) { if (f.status === 'loaded') fonts.push(f.family + ' ' + f.weight); });
   document.documentElement.setAttribute('data-metrics', JSON.stringify({ W: innerWidth, H: innerHeight, fonts: fonts, items: items }));
@@ -242,11 +331,11 @@ interface Geometry {
 }
 
 /** Lay the phone out under the text; the screenshot keeps its aspect ratio, nothing is squashed. */
-function geometry(p: Platform, rawW: number, rawH: number): Geometry {
+function geometry(p: Platform, lang: Lang, rawW: number, rawH: number): Geometry {
   const { w: W, h: H } = CANVAS[p];
   const padTop = Math.round(W * 0.085);
-  const hFs = Math.round(W * 0.076);
-  const sFs = Math.round(W * 0.0375);
+  const hFs = Math.round(W * TYPE[lang].h);
+  const sFs = Math.round(W * TYPE[lang].s);
   const textH = Math.round(hFs * 1.2 + hFs * 0.34 + sFs * 1.45);
   const gap = Math.round(W * 0.055);
   const top = padTop + textH + gap;
@@ -305,12 +394,15 @@ async function slideHtml(
   T: Tokens,
   fonts: string,
   p: Platform,
+  lang: Lang,
   slide: Slide,
   A: Accent,
   rawFile: string,
 ): Promise<{ html: string; g: Geometry }> {
   const raw = imageSize(rawFile);
-  const g = geometry(p, raw.w, raw.h);
+  const g = geometry(p, lang, raw.w, raw.h);
+  const { headline: headlineText, em, subline } = slide.copy[lang];
+  const ty = TYPE[lang];
   const { W, H, s } = g;
   const pen = INK * s;
   const penLight = INK_LIGHT * s;
@@ -336,28 +428,29 @@ async function slideHtml(
   const outerD = wobRect(g.outerW, g.outerH, R + g.bezel, slide.seed, W * 0.0045, { segmentsH: 3, segmentsV: 5 });
   const innerD = wobRect(g.innerW, g.innerH, R, slide.seed + 1, W * 0.0012, { cornerJitter: 0.25, segmentsH: 2, segmentsV: 2 });
 
-  const chars = [...slide.em].length;
-  const [before, after] = slide.headline.split(slide.em);
-  const headline = `${esc(before)}<span class="em" style="color:${A.ink}">${esc(slide.em)}${underline(chars, slide.seed + 4, A.mid)}</span>${esc(after)}`;
+  const [before, after] = headlineText.split(em);
+  const headline = `${esc(before)}<span class="em" style="color:${A.ink}">${esc(em)}${underline(waveUnits(em, lang), slide.seed + 4, A.mid)}</span>${esc(after)}`;
   const padX = Math.round(W * 0.05);
 
-  const css = `${pageCss(T, W, H)}
+  const css = `${pageCss(T, W, H, lang)}
   .canvas{background:linear-gradient(180deg,var(--cream) 0%,var(--cream) 38%,color-mix(in oklch,var(--cream) 84%,${A.tone} 16%) 100%)}
   .text{position:absolute;left:0;right:0;top:${g.padTop}px;text-align:center}
-  h1{font:900 ${g.hFs}px/1.2 var(--serif);letter-spacing:.02em;color:var(--ink)}
-  p{margin-top:${Math.round(g.hFs * 0.34)}px;font:500 ${g.sFs}px/1.45 var(--sans);letter-spacing:.05em;color:var(--muted)}
+  h1{font:${ty.hWeight} ${g.hFs}px/1.2 var(--serif);letter-spacing:${ty.hTrack};color:var(--ink)}
+  p{margin-top:${Math.round(g.hFs * 0.34)}px;font:${ty.sWeight} ${g.sFs}px/1.45 var(--sans);letter-spacing:${ty.sTrack};color:var(--muted)}${
+    lang === 'en' ? `\n  .uline{bottom:${ty.uline}}` : ''
+  }
   .phone{position:absolute;left:${g.x}px;top:${g.y}px;width:${g.outerW}px;height:${g.outerH}px;overflow:visible;
     filter:drop-shadow(0 ${Math.round(W * 0.034)}px ${Math.round(W * 0.05)}px oklch(20% 0.04 60 / 0.24)) drop-shadow(0 ${Math.round(W * 0.006)}px ${Math.round(W * 0.012)}px oklch(20% 0.04 60 / 0.18))}`;
 
-  const body = `<div class="canvas" data-slide="${p}-${slide.key}">
+  const body = `<div class="canvas" data-slide="${variantDir(p, lang)}-${slide.key}">
   <svg class="layer" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
     <defs>${grainDefs('grain', 0.72 / s, slide.seed)}</defs>
     ${doodles(g, slide, A)}
     <rect width="${W}" height="${H}" filter="url(#grain)" opacity="0.055"/>
   </svg>
   <div class="text">
-    <h1><span class="fitbox" data-max="${W - 2 * padX}" data-measure="headline">${headline}</span></h1>
-    <p><span class="fitbox" data-max="${W - 2 * padX}" data-measure="subline">${esc(slide.subline)}</span></p>
+    <h1><span class="fitbox" data-max="${W - 2 * padX}" data-fs="${g.hFs}" data-measure="headline">${headline}</span></h1>
+    <p><span class="fitbox" data-max="${W - 2 * padX}" data-fs="${g.sFs}" data-measure="subline">${esc(subline)}</span></p>
   </div>
   <svg class="phone" data-measure="phone" viewBox="0 0 ${g.outerW} ${g.outerH}" aria-hidden="true">
     <defs><clipPath id="screen"><path d="${innerD}" transform="translate(${g.bezel} ${g.bezel})"/></clipPath></defs>
@@ -367,12 +460,12 @@ async function slideHtml(
   </svg>
 </div>`;
 
-  return { html: htmlDoc(`${p} ${slide.key}`, css, fonts, body), g };
+  return { html: htmlDoc(`${variantDir(p, lang)} ${slide.key}`, css, fonts, body, lang === 'en' ? 'en' : undefined), g };
 }
 
 /* ── play feature graphic ─────────────────────────────────────────────── */
 
-function featureHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>, lang: FeatureLang): string {
+function featureHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>, lang: Lang): string {
   const en = lang === 'en';
   const tagline = en ? TAGLINE_EN : TAGLINE;
   const { w: W, h: H } = FEATURE;
@@ -382,8 +475,8 @@ function featureHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>, la
   const tile = 104;
   const tileD = wobRect(tile, tile, 28, 7, 2.2, { segmentsH: 3, segmentsV: 3 });
   const [b1, b2] = tagline.text.split(tagline.em);
-  // The wave is sized in CJK characters; a Latin letter is about half as wide.
-  const waves = en ? Math.max(2, Math.round(tagline.em.length * 0.55)) : [...tagline.em].length;
+  // See waveUnits: the wave is sized in CJK characters; a Latin letter is about half as wide.
+  const waves = waveUnits(tagline.em, lang);
   const grainId = 'blobgrain';
   const body = `<div class="canvas">
   <svg class="layer" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
@@ -431,7 +524,7 @@ interface Metrics {
   W: number;
   H: number;
   fonts: string[];
-  items: { name: string; safe: boolean; x: number; y: number; w: number; h: number; fs: number }[];
+  items: { name: string; safe: boolean; x: number; y: number; w: number; h: number; fs: number; fs0: number }[];
 }
 
 async function measure(html: string, w: number, h: number): Promise<Metrics | null> {
@@ -444,17 +537,13 @@ async function measure(html: string, w: number, h: number): Promise<Metrics | nu
 const warnings: string[] = [];
 const problems: string[] = [];
 
-function report(name: string, m: Metrics | null, w: number, h: number, safe?: { l: number; t: number; r: number; b: number }) {
+/** `need`: the font families this page must have loaded (so a missing web font cannot pass as a system fallback). */
+function report(name: string, need: string[], m: Metrics | null, w: number, h: number, safe?: { l: number; t: number; r: number; b: number }) {
   if (!m) {
     problems.push(`${name}: no metrics (page script did not run)`);
     return;
   }
   const fonts = new Set(m.fonts.map((f) => f.split(' ')[0] + ' ' + f.split(' ').slice(1, -1).join(' ')));
-  const need = name.endsWith('feature-graphic.en')
-    ? ['Playfair Display']
-    : name.includes('feature')
-      ? ['Noto Serif TC', 'Playfair Display']
-      : ['Noto Serif TC', 'Noto Sans TC'];
   for (const n of need) if (![...m.fonts].some((f) => f.startsWith(n))) problems.push(`${name}: font "${n}" did not load`);
   const line = m.items
     .map((i) => `${i.name} ${Math.round(i.w)}x${Math.round(i.h)}@${Math.round(i.x)},${Math.round(i.y)}${i.fs ? ` ${Math.round(i.fs)}px` : ''}`)
@@ -466,6 +555,7 @@ function report(name: string, m: Metrics | null, w: number, h: number, safe?: { 
     if (i.name === 'headline' || i.name === 'subline') {
       const lines = Math.round(i.h / (i.fs * (i.name === 'headline' ? 1.2 : 1.45)));
       if (lines !== 1) problems.push(`${name}: ${i.name} wraps to ${lines} lines`);
+      if (i.fs0 && i.fs < i.fs0 - 0.5) problems.push(`${name}: ${i.name} was shrunk from ${i.fs0}px to ${Math.round(i.fs * 10) / 10}px to fit (too long for its size: shorten the copy)`);
       if (i.x < w * 0.04 || i.x + i.w > w * 0.96) problems.push(`${name}: ${i.name} is closer than 4% to the edge`);
     }
     if (safe && i.safe && (i.x < safe.l || i.y < safe.t || i.x + i.w > safe.r || i.y + i.h > safe.b)) {
@@ -474,36 +564,38 @@ function report(name: string, m: Metrics | null, w: number, h: number, safe?: { 
   }
 }
 
-async function rawFor(p: Platform, key: Key, regen: boolean) {
+async function rawFor(p: Platform, lang: Lang, key: Key, regen: boolean) {
+  const dir = variantDir(p, lang);
   for (const ext of ['png', 'jpg', 'jpeg']) {
-    const f = path.join(RAW, p, `${key}.${ext}`);
+    const f = path.join(RAW, dir, `${key}.${ext}`);
     if (fs.existsSync(f)) return { file: f, placeholder: false };
   }
-  const msg = `raw/${p}/${key}.png is missing, using a PLACEHOLDER`;
+  const msg = `raw/${dir}/${key}.png is missing, using a PLACEHOLDER`;
   console.warn(`  ! ${msg}`);
-  warnings.push(`${p}/${key}`);
-  return { file: await ensurePlaceholder(p, key, regen), placeholder: true };
+  warnings.push(`${dir}/${key}`);
+  return { file: await ensurePlaceholder(p, key, regen, lang), placeholder: true };
 }
 
-async function renderScreens(p: Platform, T: Tokens, fonts: string, only: string[] | null, check: boolean, regen: boolean) {
+async function renderScreens(p: Platform, lang: Lang, T: Tokens, fonts: string, only: string[] | null, check: boolean, regen: boolean) {
   const A = accentsFrom(T);
   const { w, h } = CANVAS[p];
-  console.log(`\n${p}  ${w}x${h}`);
+  const dir = variantDir(p, lang);
+  console.log(`\n${dir}  ${w}x${h}`);
   for (let i = 0; i < SLIDES.length; i++) {
     const slide = SLIDES[i];
     if (only && !only.includes(slide.key)) continue;
     const name = `${String(i + 1).padStart(2, '0')}-${slide.key}`;
-    const raw = await rawFor(p, slide.key, regen);
+    const raw = await rawFor(p, lang, slide.key, regen);
     const rawSize = imageSize(raw.file);
     const aspect = rawSize.w / rawSize.h;
     if (!raw.placeholder && (aspect < 0.4 || aspect > 0.62)) {
       console.warn(`  ! ${path.relative(ROOT, raw.file)} is ${rawSize.w}x${rawSize.h}: that is not a portrait phone capture`);
-      warnings.push(`${p}/${slide.key} (odd aspect ${aspect.toFixed(2)})`);
+      warnings.push(`${dir}/${slide.key} (odd aspect ${aspect.toFixed(2)})`);
     }
-    const { html, g } = await slideHtml(T, fonts, p, slide, A[slide.accent], raw.file);
-    const htmlPath = path.join(BUILD, p, `${name}.html`);
-    const png = path.join(BUILD, p, `${name}.png`);
-    const jpg = path.join(OUT, p, `${name}.jpg`);
+    const { html, g } = await slideHtml(T, fonts, p, lang, slide, A[slide.accent], raw.file);
+    const htmlPath = path.join(BUILD, dir, `${name}.html`);
+    const png = path.join(BUILD, dir, `${name}.png`);
+    const jpg = path.join(OUT, dir, `${name}.jpg`);
     mkdirp(path.dirname(htmlPath));
     fs.writeFileSync(htmlPath, html);
     await screenshot(htmlPath, png, w, h);
@@ -511,15 +603,15 @@ async function renderScreens(p: Platform, T: Tokens, fonts: string, only: string
     assertSize(jpg, w, h);
     const kb = Math.round(fs.statSync(jpg).size / 1024);
     console.log(`  ${path.relative(ROOT, jpg)}  ${kb} KB  from ${rawSize.w}x${rawSize.h}, phone ${g.outerW}x${g.outerH}${raw.placeholder ? '  [PLACEHOLDER]' : ''}`);
-    if (check) report(`${p}/${name}`, await measure(htmlPath, w, h), w, h);
+    if (check) report(`${dir}/${name}`, SLIDE_FONTS[lang], await measure(htmlPath, w, h), w, h);
   }
 }
 
-async function renderPlay(T: Tokens, fonts: string, check: boolean) {
+async function renderPlay(T: Tokens, fonts: string, langs: Lang[], check: boolean) {
   console.log('\nplay');
   const A = accentsFrom(T);
   const { w, h } = FEATURE;
-  for (const lang of ['zh-TW', 'en'] as const) {
+  for (const lang of langs) {
     const name = lang === 'en' ? 'feature-graphic.en' : 'feature-graphic';
     const htmlPath = path.join(BUILD, 'play', `${name}.html`);
     const png = path.join(BUILD, 'play', `${name}.png`);
@@ -531,7 +623,7 @@ async function renderPlay(T: Tokens, fonts: string, check: boolean) {
     assertSize(jpg, w, h);
     console.log(`  ${path.relative(ROOT, jpg)}  ${Math.round(fs.statSync(jpg).size / 1024)} KB`);
     if (check) {
-      report(`play/${name}`, await measure(htmlPath, w, h), w, h, {
+      report(`play/${name}`, lang === 'en' ? ['Playfair Display'] : ['Noto Serif TC', 'Playfair Display'], await measure(htmlPath, w, h), w, h, {
         l: w * 0.15,
         t: h * 0.15,
         r: w * 0.85,
@@ -562,33 +654,50 @@ async function main() {
   const only = argv.find((a) => a.startsWith('--only='))?.slice(7).split(',') ?? null;
   const check = argv.includes('--check');
   const regen = argv.includes('--regen-placeholders');
+  const langs = parseLangs(argv);
+  const screens = run.filter((t): t is Platform => t !== 'play');
   if (only) for (const k of only) if (!(KEYS as readonly string[]).includes(k)) throw new Error(`unknown key "${k}"`);
 
   mkdirp(BUILD);
   const T = readTokens();
+  // The zh-TW screenshots and both feature graphics (the en one needs Playfair from this set).
   const copy = [
-    ...SLIDES.flatMap((s) => [s.headline, s.subline]),
+    ...SLIDES.flatMap((s) => [s.copy['zh-TW'].headline, s.copy['zh-TW'].subline]),
     TAGLINE.text,
     TAGLINE_EN.text,
     BRAND.latin,
     BRAND.cjk,
     ' 0123456789',
   ].join('');
-  const fonts = await embeddedFonts([
-    { family: 'Noto Serif TC', weights: [700, 900], text: copy },
-    { family: 'Noto Sans TC', weights: [400, 500], text: copy },
-    { family: 'Playfair Display', weights: [700], text: copy },
-  ]);
+  const fonts =
+    langs.includes('zh-TW') || run.includes('play')
+      ? await embeddedFonts([
+          { family: 'Noto Serif TC', weights: [700, 900], text: copy },
+          { family: 'Noto Sans TC', weights: [400, 500], text: copy },
+          { family: 'Playfair Display', weights: [700], text: copy },
+        ])
+      : '';
+  // The English screenshots: Playfair Display for the headline, DM Sans for the subline, Latin glyphs only.
+  const copyEn = [...SLIDES.flatMap((s) => [s.copy.en.headline, s.copy.en.subline]), ' 0123456789'].join('');
+  const fontsEn =
+    langs.includes('en') && screens.length
+      ? await embeddedFonts([
+          { family: 'Playfair Display', weights: [700], text: copyEn },
+          { family: 'DM Sans', weights: [400, 500], text: copyEn },
+        ])
+      : '';
 
   for (const t of run) {
-    if (t === 'play') await renderPlay(T, fonts, check);
-    else await renderScreens(t, T, fonts, only, check, regen);
+    if (t === 'play') await renderPlay(T, fonts, langs, check);
+    else {
+      for (const lang of langs) await renderScreens(t, lang, T, lang === 'en' ? fontsEn : fonts, only, check, regen);
+    }
   }
 
   console.log('');
   if (warnings.length) {
     console.warn(`WARNING: ${warnings.length} slide(s) need attention (placeholder or unusual capture): ${warnings.join(', ')}`);
-    console.warn('         Capture raw/<platform>/<key>.png and re-run before uploading anything.');
+    console.warn('         Capture raw/<platform>/<key>.png (raw/<platform>-en/ for English) and re-run before uploading anything.');
   }
   if (problems.length) {
     console.error(`CHECK FAILED:\n  - ${problems.join('\n  - ')}`);

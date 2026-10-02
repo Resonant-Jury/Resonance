@@ -24,6 +24,32 @@ export const CHROME =
 // the Chrome you are using.
 const PROFILE = path.join(os.tmpdir(), 'resonance-store-graphics-chrome');
 
+/* ── languages ────────────────────────────────────────────────────────── */
+
+/** The store listings we make graphics for: zh-TW (the original sets) and en (en-US). */
+export type Lang = 'zh-TW' | 'en';
+export const LANGS: readonly Lang[] = ['zh-TW', 'en'];
+
+/**
+ * The language(s) picked by `--lang=zh-TW`, `--lang=en` or `--lang=both` (the default when the flag is absent).
+ * Used by render.ts and contact-sheet.ts so both read the flag the same way.
+ */
+export function parseLangs(argv: string[]): Lang[] {
+  const arg = argv.find((a) => a.startsWith('--lang='));
+  if (!arg) return [...LANGS];
+  const v = arg.slice('--lang='.length).toLowerCase();
+  if (v === 'both' || v === 'all') return [...LANGS];
+  if (v === 'en') return ['en'];
+  if (v === 'zh-tw' || v === 'zh') return ['zh-TW'];
+  throw new Error(`unknown ${arg}: use --lang=zh-TW, --lang=en or --lang=both`);
+}
+
+/**
+ * Folder name of a platform's raw captures / rendered slides in a language: the Chinese sets keep the bare
+ * platform name (raw/ios → out/ios), the English ones add "-en" (raw/ios-en → out/ios-en).
+ */
+export const variantDir = (platform: string, lang: Lang) => (lang === 'en' ? `${platform}-en` : platform);
+
 export const mkdirp = (p: string) => fs.mkdirSync(p, { recursive: true });
 export const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

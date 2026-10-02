@@ -3,8 +3,9 @@
  * real captures exist. They are deliberately plain mock screens (and carry a
  * visible PLACEHOLDER tag) so nobody uploads one to a store by mistake.
  *
- * Real captures go in raw/ios/<key>.png and raw/android/<key>.png — render.ts
- * prefers those and only falls back to these when a file is missing.
+ * Real captures go in raw/ios/<key>.png and raw/android/<key>.png (raw/ios-en, raw/android-en for
+ * the English sets) — render.ts prefers those and only falls back to these when a file is missing.
+ * The mock screens' own text is Chinese in both languages; the tag says PLACEHOLDER in the set's language.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,7 +13,7 @@ import { INK, INK_LIGHT } from '../../../src/lib/design/strokes';
 import { wavyLine, wavyVertical } from '../../../src/lib/design/wavyPath';
 import { wobCircle } from '../../../src/lib/design/wobCircle';
 import { wobRect } from '../../../src/lib/design/wobRect';
-import { BUILD, RAW, mkdirp, readTokens, screenshot } from './lib';
+import { BUILD, RAW, mkdirp, readTokens, screenshot, variantDir, type Lang } from './lib';
 
 export type Platform = 'ios' | 'android';
 export const KEYS = ['feed', 'card', 'write', 'resonance', 'messages', 'thoughtmap'] as const;
@@ -230,7 +231,7 @@ const SCREENS: Record<Key, () => string> = {
   thoughtmap: thoughtmapScreen,
 };
 
-function mockHtml(platform: Platform, key: Key): string {
+function mockHtml(platform: Platform, key: Key, lang: Lang): string {
   const { w, h } = PLACEHOLDER_DIMS[platform];
   const zoom = w / LOGICAL_W;
   const LH = Math.round(h / zoom);
@@ -261,7 +262,7 @@ function mockHtml(platform: Platform, key: Key): string {
       .join('') +
     (ios ? `<div style="position:absolute;left:135px;top:${LH - 12}px;width:120px;height:5px;border-radius:3px;background:var(--ink)"></div>` : '');
   const tag =
-    `<div style="position:absolute;left:0;top:${bottom - 38}px;width:390px;text-align:center"><span style="display:inline-block;padding:4px 12px;border-radius:12px;background:oklch(60% .2 25);color:#fff;font-size:11px;font-weight:800;letter-spacing:.08em">PLACEHOLDER 待換成實機截圖</span></div>`;
+    `<div style="position:absolute;left:0;top:${bottom - 38}px;width:390px;text-align:center"><span style="display:inline-block;padding:4px 12px;border-radius:12px;background:oklch(60% .2 25);color:#fff;font-size:11px;font-weight:800;letter-spacing:.08em">${lang === 'en' ? 'PLACEHOLDER replace with a real capture' : 'PLACEHOLDER 待換成實機截圖'}</span></div>`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>
   :root{--cream:${T['cream']};--card:${T['card-bg']};--ink:${T['text']};--muted:${T['text-muted']};--terra:${T['terracotta']};--faint:oklch(88% .02 75)}
   html,body{margin:0;background:${T['cream']}}
@@ -271,14 +272,15 @@ function mockHtml(platform: Platform, key: Key): string {
   ${SCREENS[key]()}${appBar}${status}${navBar}${tag}</div></body></html>`;
 }
 
-/** Path of the placeholder PNG for a slide, generating it on first use. */
-export async function ensurePlaceholder(platform: Platform, key: Key, force = false): Promise<string> {
-  const png = path.join(RAW, '_placeholder', platform, `${key}.png`);
+/** Path of the placeholder PNG for a slide (the English sets get their own, tagged in English), generating it on first use. */
+export async function ensurePlaceholder(platform: Platform, key: Key, force = false, lang: Lang = 'zh-TW'): Promise<string> {
+  const dir = variantDir(platform, lang);
+  const png = path.join(RAW, '_placeholder', dir, `${key}.png`);
   if (!force && fs.existsSync(png)) return png;
   const { w, h } = PLACEHOLDER_DIMS[platform];
-  const html = path.join(BUILD, '_placeholder', `${platform}-${key}.html`);
+  const html = path.join(BUILD, '_placeholder', `${dir}-${key}.html`);
   mkdirp(path.dirname(html));
-  fs.writeFileSync(html, mockHtml(platform, key));
+  fs.writeFileSync(html, mockHtml(platform, key, lang));
   await screenshot(html, png, w, h);
   return png;
 }

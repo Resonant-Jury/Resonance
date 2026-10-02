@@ -175,6 +175,7 @@ with `-emulator YES`, which points Firebase at the emulators (project
 npm run emulators                       # Auth + Firestore emulators
 npx tsx scripts/seed-emulator.ts        # seeded accounts
 npx tsx scripts/seed-store-demo.ts      # the store screenshot world (sign in as demo@resonance.test, same password); seed-emulator.ts restores the test world
+npx tsx scripts/seed-store-demo.ts --lang=en   # the same world in English (Mia, thread /messages/June; default is zh-TW)
 npm run dev:emulator -- --port 3100     # the web + API on the emulators
 xcrun simctl launch booted com.resonance.stories -emulator YES \
   -email alice@resonance.test -password <SEED_PASSWORD from scripts/seed-emulator.ts>
