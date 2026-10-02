@@ -1,7 +1,7 @@
 ---
 title: 隱私權政策
 description: Resonance 蒐集哪些資料、為什麼需要、交給誰處理，以及你如何下載或刪除它們。
-updated: 2026-09-30
+updated: 2026-10-02
 ---
 
 Resonance（共振）是一個用故事卡片彼此交流的平台，包含網站 resonance-world.vercel.app 與 iOS、Android App，由共振團隊開發與營運（以下稱「我們」）。這份政策說明我們蒐集哪些資料、為什麼需要、交給誰處理，以及你可以怎麼管理或刪除它們。
@@ -35,11 +35,12 @@ Resonance（共振）是一個用故事卡片彼此交流的平台，包含網�
 
 我們只把提供服務所需的資料交給下列服務商：
 
-- **Google Firebase**（Authentication、Cloud Firestore、Cloud Messaging）：帳號、所有文字內容、推播傳送。
+- **Google Firebase**（Authentication、Cloud Firestore、Cloud Messaging、App Check）：帳號、所有文字內容、推播傳送，以及確認請求來自我們真正的網站與 App。
 - **Cloudflare R2**：你上傳或產生的圖片。圖片以公開網址提供，拿到網址的人都看得到。
 - **OpenAI**：為了上述 AI 功能，卡片的標題與內容會傳給 OpenAI 的 API。依 OpenAI 的 API 政策，這些資料不會被用來訓練它的模型。
 - **Vercel**：網站與 API 的主機。
-- **Apple、Google**：你選擇以它們登入時，以及把推播送到 iPhone（Apple 推播通知服務）或 Android 手機時。
+- **Cloudflare Turnstile**：在網站上於背景確認請求來自真人使用的瀏覽器、而不是自動化程式（不會出現驗證畫面）。為此它會處理你的 IP 位址與瀏覽器、裝置的技術資訊，並依 [Cloudflare Turnstile 隱私附錄](https://www.cloudflare.com/turnstile-privacy-policy/)處理這些資料。
+- **Apple、Google**：你選擇以它們登入時，把推播送到 iPhone（Apple 推播通知服務）或 Android 手機時，以及確認 App 是從 App Store 或 Google Play 安裝的正版 App 時（Apple App Attest、Google Play Integrity）。
 
 這些服務商可能在臺灣以外的地區（例如美國、日本）處理資料。
 

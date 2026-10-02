@@ -1,7 +1,7 @@
 ---
 title: Privacy Policy
 description: What Resonance collects, why, who processes it, and how to download or delete it.
-updated: 2026-09-30
+updated: 2026-10-02
 ---
 
 Resonance is a place to share stories as cards, made up of the website resonance-world.vercel.app and the iOS and Android apps. It is built and run by the Resonance team ("we"). This policy explains what we collect, why, who processes it for us, and how you can manage or delete it.
@@ -35,11 +35,12 @@ Each card can be **public**, **connections only** or **only me**. Public cards c
 
 We share only what each service needs to run Resonance:
 
-- **Google Firebase** (Authentication, Cloud Firestore, Cloud Messaging): your account, all written content, push delivery.
+- **Google Firebase** (Authentication, Cloud Firestore, Cloud Messaging, App Check): your account, all written content, push delivery, and checking that requests come from our real website and apps.
 - **Cloudflare R2**: images you upload or generate. Images are served from public addresses; anyone with the address can see them.
 - **OpenAI**: for the AI features above, a card's title and text are sent to OpenAI's API. Under OpenAI's API policy this data is not used to train its models.
 - **Vercel**: hosting for the website and API.
-- **Apple and Google**: if you sign in with them, and to deliver notifications to iPhones (Apple Push Notification service) and Android phones.
+- **Cloudflare Turnstile**: on the website, checks in the background that requests come from a browser a person is using rather than an automated script (no challenge is shown). To do so it processes your IP address and technical information about your browser and device, under the [Cloudflare Turnstile Privacy Addendum](https://www.cloudflare.com/turnstile-privacy-policy/).
+- **Apple and Google**: if you sign in with them, to deliver notifications to iPhones (Apple Push Notification service) and Android phones, and to confirm the app is a genuine copy installed from the App Store or Google Play (Apple App Attest, Google Play Integrity).
 
 These providers may process data outside Taiwan (for example in the United States or Japan).
 
