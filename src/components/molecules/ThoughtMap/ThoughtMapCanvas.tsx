@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/navigation';
-import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { ChalkFilters, HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -56,11 +56,18 @@ import {
   NODE_W,
   type Camera,
 } from './mapMath';
-import { ThoughtMapNode, nodeHue } from './ThoughtMapNode';
+import { NODE_CHALK_SEEDS, ThoughtMapNode, nodeHue, type ThoughtMapNodeProps } from './ThoughtMapNode';
 import styles from './ThoughtMap.module.css';
 
 const GROUP_HUES = [88, 215, 290, 140, 55, 18];
 const GRID = 26;
+/** How long the wheel stays still before a scroll-pan counts as over. */
+const WHEEL_IDLE_MS = 160;
+
+/** Where, in [-tile, 0), a grid that has a line at `offset` has its first one. */
+function withinTile(offset: number, tile: number): number {
+  return (((offset % tile) + tile) % tile) - tile;
+}
 
 export interface NodeState {
   cardId: string;
@@ -92,6 +99,8 @@ export interface BoardSnapshot {
 }
 
 type Selection = { kind: 'node' | 'edge' | 'group'; id: string } | null;
+
+type NodeHandlers = Pick<ThoughtMapNodeProps, 'onPointerDown' | 'onStartLink' | 'onOpen' | 'onRemove'>;
 
 type Drag =
   | { kind: 'pan'; px: number; py: number; camX: number; camY: number; moved: boolean }
@@ -216,6 +225,14 @@ export function ThoughtMapCanvas({
   );
   const [trayOpen, setTrayOpen] = useState(false);
   const [panning, setPanning] = useState(false);
+  /**
+   * The camera is panning (a drag that has moved, or a wheel/trackpad scroll):
+   * the world rides on its own compositor layer meanwhile (will-change), so a
+   * pan moves it rather than repainting every card on each frame. Only for a
+   * pan — a zoom on that layer would stretch what was drawn at the old scale.
+   */
+  const [moving, setMoving] = useState(false);
+  const wheelIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Card being dragged right now — its group lights up like a drop folder. */
   const [dragNodeId, setDragNodeId] = useState<string | null>(null);
   const [labelDraft, setLabelDraft] = useState('');
@@ -283,14 +300,30 @@ export function ThoughtMapCanvas({
       const r = el.getBoundingClientRect();
       const px = e.clientX - r.left;
       const py = e.clientY - r.top;
+      const zooming = e.ctrlKey || e.metaKey;
       setCamera((cam) =>
-        e.ctrlKey || e.metaKey
+        zooming
           ? zoomAt(cam, px, py, Math.exp(-e.deltaY * 0.002))
           : { ...cam, x: cam.x - e.deltaX, y: cam.y - e.deltaY },
       );
+      // A scroll is a pan until the wheel has been still a moment.
+      if (wheelIdleRef.current) clearTimeout(wheelIdleRef.current);
+      wheelIdleRef.current = null;
+      if (zooming) {
+        setMoving(false);
+        return;
+      }
+      setMoving(true);
+      wheelIdleRef.current = setTimeout(() => {
+        wheelIdleRef.current = null;
+        setMoving(false);
+      }, WHEEL_IDLE_MS);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      if (wheelIdleRef.current) clearTimeout(wheelIdleRef.current);
+    };
   }, []);
 
   const groupRects = useMemo(() => Object.values(groups), [groups]);
@@ -341,6 +374,7 @@ export function ThoughtMapCanvas({
       pinchRef.current = pinchFrame();
       dragRef.current = null;
       setPanning(false);
+      setMoving(false);
       setDragNodeId(null);
       setLinkDraft(null);
       capture(e);
@@ -428,6 +462,7 @@ export function ThoughtMapCanvas({
     switch (drag.kind) {
       case 'pan':
         markMoved(drag, px, py);
+        if (drag.moved) setMoving(true);
         setCamera((cam) => ({ ...cam, x: drag.camX + (px - drag.px), y: drag.camY + (py - drag.py) }));
         break;
       case 'node':
@@ -490,6 +525,7 @@ export function ThoughtMapCanvas({
     const drag = dragRef.current;
     dragRef.current = null;
     setPanning(false);
+    setMoving(false);
     setDragNodeId(null);
     if (!drag) return;
     const { px, py } = localPoint(e);
@@ -791,30 +827,372 @@ export function ThoughtMapCanvas({
     ? `oklch(52% 0.11 ${nodeHue(linkSourceCard)})`
     : 'var(--color-terracotta)';
 
-  const renderNode = (n: NodeState, x: number, y: number) => {
-    const card = data.cards[n.cardId];
-    if (!card) return null;
-    return (
-      <ThoughtMapNode
-        key={n.cardId}
-        card={card}
-        x={x}
-        y={y}
-        selected={selection?.kind === 'node' && selection.id === n.cardId}
-        linkTarget={linkTargetId === n.cardId}
-        dragging={dragNodeId === n.cardId}
-        onPointerDown={startNodeDrag(n.cardId)}
-        onStartLink={startLink(n.cardId)}
-        onOpen={() => openCard(card)}
-        onRemove={() => removeNodeById(n.cardId)}
-        linkHandleLabel={t('linkHandle')}
-        openLabel={t('open')}
-        removeLabel={t('removeFromMap')}
-      />
-    );
+  // --- the world -------------------------------------------------------------
+  //
+  // Everything on the board is drawn in world coordinates, so none of it
+  // depends on the camera: a pan or a zoom (a new camera on every pointer move
+  // or wheel tick) re-renders the world's transform, not a hundred cards with
+  // their arrows and regions. The handlers in it go through `live`, so the memo
+  // needn't change when a handler does, and each card keeps the same handlers
+  // for as long as it is on the board (ThoughtMapNode is memoized), so dragging
+  // one card re-renders that card (and the arrows), not the other cards.
+  const live = useRef({
+    startNodeDrag, startLink, startGroupDrag, startResize, openCard, removeNodeById,
+    removeEdgeById, removeGroupById, startEdgeEdit, commitEdgeLabel, commitGroupTitle,
+    cards: data.cards,
+  });
+  live.current = {
+    startNodeDrag, startLink, startGroupDrag, startResize, openCard, removeNodeById,
+    removeEdgeById, removeGroupById, startEdgeEdit, commitEdgeLabel, commitGroupTitle,
+    cards: data.cards,
   };
+  const act = useMemo(() => {
+    const nodeHandlers = new Map<string, NodeHandlers>();
+    return {
+      node: (id: string): NodeHandlers => {
+        let on = nodeHandlers.get(id);
+        if (!on) {
+          on = {
+            onPointerDown: (e) => live.current.startNodeDrag(id)(e),
+            onStartLink: (e) => live.current.startLink(id)(e),
+            onOpen: () => {
+              const card = live.current.cards[id];
+              if (card) live.current.openCard(card);
+            },
+            onRemove: () => live.current.removeNodeById(id),
+          };
+          nodeHandlers.set(id, on);
+        }
+        return on;
+      },
+      groupDown: (id: string, fromTitle = false) => (e: ReactPointerEvent<HTMLDivElement>) =>
+        live.current.startGroupDrag(id, fromTitle)(e),
+      resizeDown: (id: string) => (e: ReactPointerEvent<HTMLButtonElement>) =>
+        live.current.startResize(id)(e),
+      removeGroup: (id: string) => live.current.removeGroupById(id),
+      removeEdge: (id: string) => live.current.removeEdgeById(id),
+      editEdge: (id: string) => live.current.startEdgeEdit(id),
+      commitEdgeLabel: () => live.current.commitEdgeLabel(),
+      commitGroupTitle: () => live.current.commitGroupTitle(),
+    };
+  }, []);
+
+  const world = useMemo(() => {
+    const renderNode = (n: NodeState, x: number, y: number) => {
+      const card = data.cards[n.cardId];
+      if (!card) return null;
+      const on = act.node(n.cardId);
+      return (
+        <ThoughtMapNode
+          key={n.cardId}
+          card={card}
+          x={x}
+          y={y}
+          selected={selection?.kind === 'node' && selection.id === n.cardId}
+          linkTarget={linkTargetId === n.cardId}
+          dragging={dragNodeId === n.cardId}
+          onPointerDown={on.onPointerDown}
+          onStartLink={on.onStartLink}
+          onOpen={on.onOpen}
+          onRemove={on.onRemove}
+          linkHandleLabel={t('linkHandle')}
+          openLabel={t('open')}
+          removeLabel={t('removeFromMap')}
+        />
+      );
+    };
+
+    return (
+      <>
+        {Object.values(groups).map((g) => {
+          const sel = selection?.kind === 'group' && selection.id === g.id;
+          // The folder lights up while a dragged card is filed in it.
+          const hot = dragNodeId != null && nodes[dragNodeId]?.groupId === g.id;
+          return (
+            <div
+              key={g.id}
+              className={styles.groupBox}
+              data-selected={sel || undefined}
+              style={{
+                left: g.x,
+                top: g.y,
+                width: g.w,
+                height: g.h,
+                pointerEvents: 'none',
+                '--group-hue': g.hue,
+              } as CSSProperties}
+            >
+              <HandDrawnBorder
+                w={g.w}
+                h={g.h}
+                R={34}
+                seed={seedFromString(g.id)}
+                fillColor={`oklch(96.5% 0.032 ${g.hue} / ${hot ? 0.92 : 0.78})`}
+                strokeColor={sel || hot ? `oklch(45% 0.1 ${g.hue})` : `oklch(60% 0.085 ${g.hue})`}
+                strokeWidth={sel || hot ? INK_STRONG : INK_LIGHT}
+                curve={0.6}
+                cornerOffset={5}
+              />
+              {/* Whole-region grab surface: a click selects (focuses) the
+                  region, press-and-move drags it with its cards. Cards and
+                  arrows stay interactive — they render in later layers. */}
+              <div
+                className={styles.groupHit}
+                style={{ pointerEvents: 'auto' }}
+                onPointerDown={act.groupDown(g.id)}
+              />
+              {editingGroupId === g.id ? (
+                <GroupTitleEditor
+                  value={groupTitleDraft}
+                  placeholder={t('groupTitlePlaceholder')}
+                  hue={g.hue}
+                  seed={seedFromString(g.id)}
+                  onChange={setGroupTitleDraft}
+                  onCommit={act.commitGroupTitle}
+                  onCancel={() => setEditingGroupId(null)}
+                />
+              ) : (
+                <div
+                  className={styles.groupTitle}
+                  style={{ pointerEvents: 'auto' }}
+                  onPointerDown={act.groupDown(g.id, true)}
+                >
+                  {g.title}
+                </div>
+              )}
+              <button
+                type="button"
+                className={styles.groupDelete}
+                style={{ pointerEvents: 'auto' }}
+                aria-label={t('deleteGroup')}
+                title={t('deleteGroup')}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => act.removeGroup(g.id)}
+              >
+                <Icon name="trash" size={15} />
+              </button>
+              <button
+                type="button"
+                className={styles.groupResize}
+                style={{ pointerEvents: 'auto' }}
+                aria-label={t('resizeGroup')}
+                onPointerDown={act.resizeDown(g.id)}
+              />
+            </div>
+          );
+        })}
+
+        {/* 1×1, not 0×0 — Chrome skips painting a zero-sized svg entirely,
+            overflow: visible notwithstanding. */}
+        <svg className={styles.edgeLayer} width={1} height={1} aria-hidden="true">
+          {Object.values(edges).map((edge) => {
+            const s = nodes[edge.sourceCardId];
+            const target = nodes[edge.targetCardId];
+            if (!s || !target) return null;
+            const seed = seedFromString(edge.id);
+            const geo = organicEdgePath(nodeRect(s), nodeRect(target), seed);
+            const sel = selection?.kind === 'edge' && selection.id === edge.id;
+            // Selection darkens the ink rather than jumping to the accent.
+            const color = sel ? 'oklch(28% 0.05 60)' : 'oklch(46% 0.045 60)';
+            return (
+              <g key={edge.id}>
+                <path
+                  d={geo.d}
+                  className={styles.edgeHit}
+                  stroke="transparent"
+                  strokeWidth={16}
+                  fill="none"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setSelection({ kind: 'edge', id: edge.id });
+                  }}
+                />
+                <path
+                  d={geo.d}
+                  stroke={color}
+                  strokeWidth={sel ? INK_STRONG : INK}
+                  fill="none"
+                  strokeLinecap="round"
+                />
+                <path
+                  d={arrowHeadPath(geo.end, geo.endAngle, 13, seed + 7)}
+                  stroke={color}
+                  strokeWidth={sel ? INK_STRONG : INK}
+                  fill="none"
+                  strokeLinecap="round"
+                />
+              </g>
+            );
+          })}
+        </svg>
+
+        {Object.values(edges).map((edge) => {
+          const s = nodes[edge.sourceCardId];
+          const target = nodes[edge.targetCardId];
+          if (!s || !target) return null;
+          const sel = selection?.kind === 'edge' && selection.id === edge.id;
+          const editing = editingEdgeId === edge.id;
+          if (!edge.label && !sel && !editing) return null;
+          const geo = organicEdgePath(nodeRect(s), nodeRect(target), seedFromString(edge.id));
+          return (
+            <div
+              key={`label-${edge.id}`}
+              className={styles.edgeLabelWrap}
+              style={{ left: geo.mid.x, top: geo.mid.y }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {editing ? (
+                <EdgeLabelEditor
+                  value={labelDraft}
+                  placeholder={t('edgeLabelPlaceholder')}
+                  deleteLabel={t('deleteEdge')}
+                  seed={seedFromString(edge.id)}
+                  onChange={setLabelDraft}
+                  onCommit={act.commitEdgeLabel}
+                  onCancel={() => setEditingEdgeId(null)}
+                  onDelete={() => act.removeEdge(edge.id)}
+                />
+              ) : (
+                /* One tap on the pill grows it into the editing badge —
+                   input focused, delete riding inside on the right. */
+                <TagPill
+                  size="sm"
+                  color={sel ? 'oklch(88% 0.03 60)' : 'oklch(94% 0.02 75)'}
+                  onClick={() => act.editEdge(edge.id)}
+                >
+                  {edge.label || t('edgeLabelPlaceholder')}
+                </TagPill>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Filed cards render inside their region's clip layer, so dragging
+            one across the boundary crops it folder-style until it's fully
+            out. Free cards render directly in the world. */}
+        {Object.values(groups).map((g) => {
+          const members = Object.values(nodes).filter((n) => n.groupId === g.id);
+          if (members.length === 0) return null;
+          return (
+            <div
+              key={`clip-${g.id}`}
+              className={styles.groupClip}
+              style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
+            >
+              {members.map((n) => renderNode(n, n.x - g.x, n.y - g.y))}
+            </div>
+          );
+        })}
+        {Object.values(nodes)
+          .filter((n) => !n.groupId || !groups[n.groupId])
+          .map((n) => renderNode(n, n.x, n.y))}
+
+        {/* Region rims re-inked above the cards: the same wobbly path drawn
+            stroke-only, so a card resting against (or sliding across) the
+            boundary tucks under the folder's edge instead of covering it. */}
+        {Object.values(groups).map((g) => {
+          const sel = selection?.kind === 'group' && selection.id === g.id;
+          const hot = dragNodeId != null && nodes[dragNodeId]?.groupId === g.id;
+          return (
+            <div
+              key={`outline-${g.id}`}
+              className={styles.groupOutline}
+              style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
+            >
+              <HandDrawnBorder
+                w={g.w}
+                h={g.h}
+                R={34}
+                seed={seedFromString(g.id)}
+                strokeColor={sel || hot ? `oklch(45% 0.1 ${g.hue})` : `oklch(60% 0.085 ${g.hue})`}
+                strokeWidth={sel || hot ? INK_STRONG : INK_LIGHT}
+                curve={0.6}
+                cornerOffset={5}
+              />
+            </div>
+          );
+        })}
+
+        {/* Topmost hint layer: the live draft arrow and docking points. */}
+        {/* 1×1, not 0×0 — Chrome skips painting a zero-sized svg entirely,
+            overflow: visible notwithstanding. */}
+        <svg className={styles.edgeLayer} width={1} height={1} aria-hidden="true">
+          {linkDraft &&
+            nodes[linkDraft.sourceId] &&
+            (() => {
+              const srcRect = nodeRect(nodes[linkDraft.sourceId]);
+              const seed = seedFromString(linkDraft.sourceId);
+              // Once the cursor reaches a card, the arrow docks onto its
+              // facing edge — previewing exactly the connection to come.
+              const geo =
+                linkTargetId && nodes[linkTargetId]
+                  ? organicEdgePath(srcRect, nodeRect(nodes[linkTargetId]), seed)
+                  : organicEdgePath(
+                      srcRect,
+                      { x: linkDraft.wx - 1, y: linkDraft.wy - 1, w: 2, h: 2 },
+                      seed,
+                    );
+              return (
+                <g>
+                  <path
+                    d={geo.d}
+                    stroke={linkColor}
+                    strokeWidth={INK_STRONG}
+                    strokeDasharray={linkTargetId ? undefined : '7 6'}
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d={arrowHeadPath(geo.end, geo.endAngle, 15, seed + 7)}
+                    stroke={linkColor}
+                    strokeWidth={INK_STRONG}
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                </g>
+              );
+            })()}
+          {linkDraft &&
+            Object.values(nodes)
+              .filter(
+                (n) =>
+                  n.cardId !== linkDraft.sourceId &&
+                  rectContains(inflateRect(nodeRect(n), 90), {
+                    x: linkDraft.wx,
+                    y: linkDraft.wy,
+                  }),
+              )
+              .map((n) => {
+                const r = nodeRect(n);
+                const docked = linkTargetId === n.cardId;
+                const pts: [number, number][] = [
+                  [r.x + r.w / 2, r.y],
+                  [r.x + r.w, r.y + r.h / 2],
+                  [r.x + r.w / 2, r.y + r.h],
+                  [r.x, r.y + r.h / 2],
+                ];
+                return pts.map(([cx, cy], i) => (
+                  <circle
+                    key={`${n.cardId}-dock-${i}`}
+                    cx={cx}
+                    cy={cy}
+                    r={docked ? 7 : 5.5}
+                    fill={docked ? linkColor : 'var(--color-card-bg)'}
+                    stroke={linkColor}
+                    strokeWidth={INK}
+                  />
+                ));
+              })}
+        </svg>
+      </>
+    );
+  }, [
+    act, data.cards, dragNodeId, edges, editingEdgeId, editingGroupId, groupTitleDraft, groups,
+    labelDraft, linkColor, linkDraft, linkTargetId, nodes, selection, t,
+  ]);
 
   const { w: boardW, h: boardH } = useElementSize(boardRef);
+  const tile = GRID * camera.s;
 
   return (
     <div
@@ -823,6 +1201,7 @@ export function ThoughtMapCanvas({
       data-linking={linkDraft ? true : undefined}
       style={style}
     >
+      <ChalkFilters seeds={NODE_CHALK_SEEDS} />
       {!flush && (
         <HandDrawnBorder
           w={boardW}
@@ -839,300 +1218,31 @@ export function ThoughtMapCanvas({
         ref={viewportRef}
         className={styles.viewport}
         data-panning={panning || undefined}
-        style={{
-          backgroundPosition: `${camera.x}px ${camera.y}px`,
-          backgroundSize: `${GRID * camera.s}px ${GRID * camera.s}px`,
-        }}
         onPointerDownCapture={onPointerDownCapture}
         onPointerDown={startPan}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
+        {/* The dotted paper, one tile larger than the viewport and shifted by
+            the camera within a tile: a pan moves it (like the world) rather
+            than repainting the viewport's background on every frame. */}
+        <div
+          className={styles.dots}
+          data-moving={moving || undefined}
+          style={{
+            right: -tile,
+            bottom: -tile,
+            backgroundSize: `${tile}px ${tile}px`,
+            transform: `translate(${withinTile(camera.x, tile)}px, ${withinTile(camera.y, tile)}px)`,
+          }}
+        />
         <div
           className={styles.world}
+          data-moving={moving || undefined}
           style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.s})` }}
         >
-          {Object.values(groups).map((g) => {
-            const sel = selection?.kind === 'group' && selection.id === g.id;
-            // The folder lights up while a dragged card is filed in it.
-            const hot = dragNodeId != null && nodes[dragNodeId]?.groupId === g.id;
-            return (
-              <div
-                key={g.id}
-                className={styles.groupBox}
-                data-selected={sel || undefined}
-                style={{
-                  left: g.x,
-                  top: g.y,
-                  width: g.w,
-                  height: g.h,
-                  pointerEvents: 'none',
-                  '--group-hue': g.hue,
-                } as CSSProperties}
-              >
-                <HandDrawnBorder
-                  w={g.w}
-                  h={g.h}
-                  R={34}
-                  seed={seedFromString(g.id)}
-                  fillColor={`oklch(96.5% 0.032 ${g.hue} / ${hot ? 0.92 : 0.78})`}
-                  strokeColor={sel || hot ? `oklch(45% 0.1 ${g.hue})` : `oklch(60% 0.085 ${g.hue})`}
-                  strokeWidth={sel || hot ? INK_STRONG : INK_LIGHT}
-                  curve={0.6}
-                  cornerOffset={5}
-                />
-                {/* Whole-region grab surface: a click selects (focuses) the
-                    region, press-and-move drags it with its cards. Cards and
-                    arrows stay interactive — they render in later layers. */}
-                <div
-                  className={styles.groupHit}
-                  style={{ pointerEvents: 'auto' }}
-                  onPointerDown={startGroupDrag(g.id)}
-                />
-                {editingGroupId === g.id ? (
-                  <GroupTitleEditor
-                    value={groupTitleDraft}
-                    placeholder={t('groupTitlePlaceholder')}
-                    hue={g.hue}
-                    seed={seedFromString(g.id)}
-                    onChange={setGroupTitleDraft}
-                    onCommit={commitGroupTitle}
-                    onCancel={() => setEditingGroupId(null)}
-                  />
-                ) : (
-                  <div
-                    className={styles.groupTitle}
-                    style={{ pointerEvents: 'auto' }}
-                    onPointerDown={startGroupDrag(g.id, true)}
-                  >
-                    {g.title}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className={styles.groupDelete}
-                  style={{ pointerEvents: 'auto' }}
-                  aria-label={t('deleteGroup')}
-                  title={t('deleteGroup')}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => removeGroupById(g.id)}
-                >
-                  <Icon name="trash" size={15} />
-                </button>
-                <button
-                  type="button"
-                  className={styles.groupResize}
-                  style={{ pointerEvents: 'auto' }}
-                  aria-label={t('resizeGroup')}
-                  onPointerDown={startResize(g.id)}
-                />
-              </div>
-            );
-          })}
-
-          {/* 1×1, not 0×0 — Chrome skips painting a zero-sized svg entirely,
-              overflow: visible notwithstanding. */}
-          <svg className={styles.edgeLayer} width={1} height={1} aria-hidden="true">
-            {Object.values(edges).map((edge) => {
-              const s = nodes[edge.sourceCardId];
-              const target = nodes[edge.targetCardId];
-              if (!s || !target) return null;
-              const seed = seedFromString(edge.id);
-              const geo = organicEdgePath(nodeRect(s), nodeRect(target), seed);
-              const sel = selection?.kind === 'edge' && selection.id === edge.id;
-              // Selection darkens the ink rather than jumping to the accent.
-              const color = sel ? 'oklch(28% 0.05 60)' : 'oklch(46% 0.045 60)';
-              return (
-                <g key={edge.id}>
-                  <path
-                    d={geo.d}
-                    className={styles.edgeHit}
-                    stroke="transparent"
-                    strokeWidth={16}
-                    fill="none"
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      setSelection({ kind: 'edge', id: edge.id });
-                    }}
-                  />
-                  <path
-                    d={geo.d}
-                    stroke={color}
-                    strokeWidth={sel ? INK_STRONG : INK}
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d={arrowHeadPath(geo.end, geo.endAngle, 13, seed + 7)}
-                    stroke={color}
-                    strokeWidth={sel ? INK_STRONG : INK}
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                </g>
-              );
-            })}
-          </svg>
-
-          {Object.values(edges).map((edge) => {
-            const s = nodes[edge.sourceCardId];
-            const target = nodes[edge.targetCardId];
-            if (!s || !target) return null;
-            const sel = selection?.kind === 'edge' && selection.id === edge.id;
-            const editing = editingEdgeId === edge.id;
-            if (!edge.label && !sel && !editing) return null;
-            const geo = organicEdgePath(nodeRect(s), nodeRect(target), seedFromString(edge.id));
-            return (
-              <div
-                key={`label-${edge.id}`}
-                className={styles.edgeLabelWrap}
-                style={{ left: geo.mid.x, top: geo.mid.y }}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                {editing ? (
-                  <EdgeLabelEditor
-                    value={labelDraft}
-                    placeholder={t('edgeLabelPlaceholder')}
-                    deleteLabel={t('deleteEdge')}
-                    seed={seedFromString(edge.id)}
-                    onChange={setLabelDraft}
-                    onCommit={commitEdgeLabel}
-                    onCancel={() => setEditingEdgeId(null)}
-                    onDelete={() => removeEdgeById(edge.id)}
-                  />
-                ) : (
-                  /* One tap on the pill grows it into the editing badge —
-                     input focused, delete riding inside on the right. */
-                  <TagPill
-                    size="sm"
-                    color={sel ? 'oklch(88% 0.03 60)' : 'oklch(94% 0.02 75)'}
-                    onClick={() => startEdgeEdit(edge.id)}
-                  >
-                    {edge.label || t('edgeLabelPlaceholder')}
-                  </TagPill>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Filed cards render inside their region's clip layer, so dragging
-              one across the boundary crops it folder-style until it's fully
-              out. Free cards render directly in the world. */}
-          {Object.values(groups).map((g) => {
-            const members = Object.values(nodes).filter((n) => n.groupId === g.id);
-            if (members.length === 0) return null;
-            return (
-              <div
-                key={`clip-${g.id}`}
-                className={styles.groupClip}
-                style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
-              >
-                {members.map((n) => renderNode(n, n.x - g.x, n.y - g.y))}
-              </div>
-            );
-          })}
-          {Object.values(nodes)
-            .filter((n) => !n.groupId || !groups[n.groupId])
-            .map((n) => renderNode(n, n.x, n.y))}
-
-          {/* Region rims re-inked above the cards: the same wobbly path drawn
-              stroke-only, so a card resting against (or sliding across) the
-              boundary tucks under the folder's edge instead of covering it. */}
-          {Object.values(groups).map((g) => {
-            const sel = selection?.kind === 'group' && selection.id === g.id;
-            const hot = dragNodeId != null && nodes[dragNodeId]?.groupId === g.id;
-            return (
-              <div
-                key={`outline-${g.id}`}
-                className={styles.groupOutline}
-                style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
-              >
-                <HandDrawnBorder
-                  w={g.w}
-                  h={g.h}
-                  R={34}
-                  seed={seedFromString(g.id)}
-                  strokeColor={sel || hot ? `oklch(45% 0.1 ${g.hue})` : `oklch(60% 0.085 ${g.hue})`}
-                  strokeWidth={sel || hot ? INK_STRONG : INK_LIGHT}
-                  curve={0.6}
-                  cornerOffset={5}
-                />
-              </div>
-            );
-          })}
-
-          {/* Topmost hint layer: the live draft arrow and docking points. */}
-          {/* 1×1, not 0×0 — Chrome skips painting a zero-sized svg entirely,
-              overflow: visible notwithstanding. */}
-          <svg className={styles.edgeLayer} width={1} height={1} aria-hidden="true">
-            {linkDraft &&
-              nodes[linkDraft.sourceId] &&
-              (() => {
-                const srcRect = nodeRect(nodes[linkDraft.sourceId]);
-                const seed = seedFromString(linkDraft.sourceId);
-                // Once the cursor reaches a card, the arrow docks onto its
-                // facing edge — previewing exactly the connection to come.
-                const geo =
-                  linkTargetId && nodes[linkTargetId]
-                    ? organicEdgePath(srcRect, nodeRect(nodes[linkTargetId]), seed)
-                    : organicEdgePath(
-                        srcRect,
-                        { x: linkDraft.wx - 1, y: linkDraft.wy - 1, w: 2, h: 2 },
-                        seed,
-                      );
-                return (
-                  <g>
-                    <path
-                      d={geo.d}
-                      stroke={linkColor}
-                      strokeWidth={INK_STRONG}
-                      strokeDasharray={linkTargetId ? undefined : '7 6'}
-                      fill="none"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d={arrowHeadPath(geo.end, geo.endAngle, 15, seed + 7)}
-                      stroke={linkColor}
-                      strokeWidth={INK_STRONG}
-                      fill="none"
-                      strokeLinecap="round"
-                    />
-                  </g>
-                );
-              })()}
-            {linkDraft &&
-              Object.values(nodes)
-                .filter(
-                  (n) =>
-                    n.cardId !== linkDraft.sourceId &&
-                    rectContains(inflateRect(nodeRect(n), 90), {
-                      x: linkDraft.wx,
-                      y: linkDraft.wy,
-                    }),
-                )
-                .map((n) => {
-                  const r = nodeRect(n);
-                  const docked = linkTargetId === n.cardId;
-                  const pts: [number, number][] = [
-                    [r.x + r.w / 2, r.y],
-                    [r.x + r.w, r.y + r.h / 2],
-                    [r.x + r.w / 2, r.y + r.h],
-                    [r.x, r.y + r.h / 2],
-                  ];
-                  return pts.map(([cx, cy], i) => (
-                    <circle
-                      key={`${n.cardId}-dock-${i}`}
-                      cx={cx}
-                      cy={cy}
-                      r={docked ? 7 : 5.5}
-                      fill={docked ? linkColor : 'var(--color-card-bg)'}
-                      stroke={linkColor}
-                      strokeWidth={INK}
-                    />
-                  ));
-                })}
-          </svg>
+          {world}
         </div>
       </div>
 

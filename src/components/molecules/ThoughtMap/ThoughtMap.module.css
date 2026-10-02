@@ -10,9 +10,21 @@
   touch-action: none;
   cursor: grab;
   border-radius: 26px;
-  /* Dotted paper; the dot grid pans/zooms with the camera via inline
-     background-position/size so the ground feels physically attached. */
+}
+
+/* Dotted paper; the dot grid pans/zooms with the camera (an inline transform
+   within one tile, and background-size) so the ground feels physically
+   attached. The viewport clips it; its right/bottom reach a tile past. */
+.dots {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
   background-image: radial-gradient(oklch(82% 0.025 75) 1.2px, transparent 1.5px);
+}
+
+.dots[data-moving] {
+  will-change: transform;
 }
 
 .viewport[data-panning='true'] {
@@ -41,6 +53,13 @@
   top: 0;
   left: 0;
   transform-origin: 0 0;
+}
+
+/* While the camera pans, the world is its own compositor layer: each frame
+   moves it instead of repainting (and re-rasterising) every card under it. It
+   is dropped when the pan ends, so the board is redrawn sharp at rest. */
+.world[data-moving] {
+  will-change: transform;
 }
 
 .edgeLayer {

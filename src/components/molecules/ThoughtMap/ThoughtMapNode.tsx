@@ -14,6 +14,13 @@ import styles from './ThoughtMap.module.css';
 
 const NODE_HUES = [55, 290, 140, 88, 215, 18];
 
+/**
+ * The chalk seeds a card on the map is drawn with. The canvas defines their
+ * filters once (`<ChalkFilters>`) instead of each of a hundred cards carrying
+ * its own copy.
+ */
+export const NODE_CHALK_SEEDS = [0, 1, 2, 3, 4, 5] as const;
+
 const VISIBILITY_ICON: Record<Visibility, 'globe' | 'users' | 'lock'> = {
   public: 'globe',
   connections: 'users',
@@ -142,7 +149,8 @@ export const ThoughtMapNode = memo(function ThoughtMapNode({
           fillColor={emphasized ? `oklch(92.5% 0.045 ${hue})` : `oklch(97.5% 0.012 ${hue})`}
           strokeColor={emphasized ? `oklch(38% 0.13 ${hue})` : `oklch(52% 0.11 ${hue})`}
           strokeWidth={emphasized ? INK_STRONG : INK}
-          chalkSeed={seed % 6}
+          chalkSeed={seed % NODE_CHALK_SEEDS.length}
+          sharedChalk
           segmentsH={[3, 4]}
           segmentsV={2}
           curve={1}
