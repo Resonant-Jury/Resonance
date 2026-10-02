@@ -11,6 +11,14 @@
     "src/app/api/v1/cards/*/publish/route.ts": { "regions": ["hnd1"], "maxDuration": 60 },
     "src/app/api/v1/feed/recommended/route.ts": { "regions": ["hnd1"], "maxDuration": 60 }
   },
+  "redirects": [
+    {
+      "source": "/:path((?!(?:api|_next|\\.well-known)(?:/|$)).*)",
+      "has": [{ "type": "host", "value": "resonance-world.vercel.app" }],
+      "destination": "https://resonance.channel/:path*",
+      "permanent": true
+    }
+  ],
   "github": {
     "silent": true
   },

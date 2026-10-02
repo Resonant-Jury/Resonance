@@ -4,6 +4,7 @@
       "allowed": {
         "origins": [
           "http://localhost:3000",
+          "https://resonance.channel",
           "https://resonance-world.vercel.app"
         ],
         "methods": ["GET", "PUT", "HEAD"],
