@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1090298219401-68lq17qhq3ruvdkqmh695bu5u2jsb2av.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.resonance.stories",
+            "certificate_hash": "c96c194d82ca400ee4fa2fe166ce1de0a6c6f2c4"
+          }
+        },
+        {
           "client_id": "1090298219401-9agjqcl72qhiep16hg5v7h2oeqpckhln.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
