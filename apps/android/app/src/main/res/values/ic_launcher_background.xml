@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- The paper of tokens.css (color-bg), the iOS icon's paper. -->
+    <color name="ic_launcher_background">#FAF2E9</color>
 </resources>

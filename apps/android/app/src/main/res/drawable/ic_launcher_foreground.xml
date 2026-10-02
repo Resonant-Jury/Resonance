@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The launcher icon's waves (public/icon.svg's three strokes, in its 24-unit
+  space) on the adaptive icon's 108dp canvas. The launcher shows the middle
+  72dp; the mark spans 0.66 of that, as it spans 0.66 of the iOS tile
+  (AppIcon-1024.png), a touch more for the round mask: 24 units × 2.1,
+  centred, its corners well inside the 66dp safe circle.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="28.8" android:translateY="28.8" android:scaleX="2.1" android:scaleY="2.1">
+        <path
+            android:strokeColor="#C96736" android:strokeWidth="2.2" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M3.4,8.2 C5.4,5.9 7.3,5.8 9.2,8.0 C11.1,10.2 13.0,10.3 15.0,8.1 C16.9,6.0 18.8,5.9 20.7,8.1" />
+        <path
+            android:strokeColor="#C96736" android:strokeWidth="2.2" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M3.0,12.1 C5.1,9.7 7.1,9.8 9.0,12.0 C10.9,14.2 12.9,14.3 14.9,12.1 C16.8,9.9 18.8,9.8 20.9,12.0" />
+        <path
+            android:strokeColor="#C96736" android:strokeWidth="2.2" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M3.5,16.0 C5.4,13.8 7.4,13.7 9.3,15.9 C11.2,18.1 13.1,18.2 15.1,16.0 C17.0,13.9 18.9,13.8 20.8,16.0" />
+    </group>
+</vector>
