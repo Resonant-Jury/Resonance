@@ -2,15 +2,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getCurrentUser } from '@/lib/auth';
-import { revalidateLocalized } from '@/lib/api/revalidate';
+import { REVALIDATE_MAX_PATHS, revalidateLocalized } from '@/lib/api/revalidate';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { cardByKey } from '@/lib/db/firestore/cardKey';
 import { handleKey } from '@/lib/db/firestore/handles';
 
-/** How many pages one request may drop (a card's id and slug, a profile's two spellings: never more than a few). */
-export const MAX_PATHS = 10;
-
-const Body = z.object({ paths: z.array(z.string().min(1).max(512)).max(MAX_PATHS) });
+const Body = z.object({ paths: z.array(z.string().min(1).max(512)).max(REVALIDATE_MAX_PATHS) });
 
 function segment(path: string, prefix: string): string | null {
   if (!path.startsWith(prefix)) return null;
@@ -50,8 +47,8 @@ async function mayRevalidate(db: Firestore, uid: string, path: string, profile: 
 /**
  * POST /api/revalidate { paths } — drop the ISR copies of pages the signed-in
  * person's own browser writes just changed (logical paths, every locale).
- * At most {@link MAX_PATHS}, each one theirs to drop; anything else is left
- * alone (and listed nowhere in the answer).
+ * At most {@link REVALIDATE_MAX_PATHS}, each one theirs to drop; anything
+ * else is left alone (and listed nowhere in the answer).
  */
 export async function POST(req: Request) {
   const user = await getCurrentUser();

@@ -9,6 +9,13 @@ import { routing } from '@/i18n/routing';
  * (localePrefix: 'always'), so each is revalidated once per locale.
  */
 
+/**
+ * How many pages one POST /api/revalidate may drop (a card's id and slug, a
+ * profile's two spellings: never more than a few). Here, not in the route:
+ * a Next route file exports only what a route may.
+ */
+export const REVALIDATE_MAX_PATHS = 10;
+
 /** A logical path in every locale (`/card/x` → `/en/card/x`, `/zh-TW/card/x`; `/` → `/en`, `/zh-TW`). */
 export function localizedPaths(paths: Iterable<string>): string[] {
   const out = new Set<string>();

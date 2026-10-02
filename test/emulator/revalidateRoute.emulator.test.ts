@@ -16,7 +16,8 @@ vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => db }));
 vi.mock('@/lib/auth', () => ({ getCurrentUser: async () => viewer }));
 vi.mock('next/cache', () => ({ revalidatePath: (p: string) => void dropped.push(p) }));
 
-const { POST, MAX_PATHS } = await import('@/app/api/revalidate/route');
+const { POST } = await import('@/app/api/revalidate/route');
+const { REVALIDATE_MAX_PATHS: MAX_PATHS } = await import('@/lib/api/revalidate');
 
 beforeAll(() => {
   process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
