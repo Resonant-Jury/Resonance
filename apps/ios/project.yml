@@ -83,6 +83,8 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # Drawn on paper in light and dark mode alike: a dark status bar, light system sheets.
+        UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         # Push: the app hands FCM the APNs token itself (PushCenter.swift), no swizzling.
         FirebaseAppDelegateProxyEnabled: false
