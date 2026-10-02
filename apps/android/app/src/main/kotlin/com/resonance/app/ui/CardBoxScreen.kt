@@ -158,7 +158,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(shelf, changes, foregrounded) { model.refresh(shelf, changes) }
 
-    TabScreen(L10n.App.Nav.me) {
+    TabScreen(L10n.App.Nav.me, titleInBar = true) {
         item {
             when (val p = profile) {
                 is Session.Profile.Loaded -> Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {

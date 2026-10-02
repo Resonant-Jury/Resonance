@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.resonance.api.models.Author
 import com.resonance.api.models.FeedCard
@@ -133,17 +133,22 @@ fun LazyListState.scrolledPast20(): Boolean {
 }
 
 /**
- * A tab's root, as a phone shows the web's app pages: the pinned brand bar
- * (content scrolls under it and ends on its wavy line), the page title and
- * its lede, then the list, with room for the docked tab bar.
+ * A tab's root, as a phone shows the web's app pages: the pinned bar (content
+ * scrolls under it and ends on its wavy line), then the list, with room for
+ * the docked tab bar.
+ *
+ * The feed keeps the brand in the bar and puts its title and lede in the page.
+ * The other tabs (`titleInBar`) have no title block: the title takes the
+ * brand's place in the bar, with the wave mark before it and `trailing` at the
+ * bar's end, and the list starts a little under the bar's line.
  */
 @Composable
 fun TabScreen(
     title: String,
     subtitle: String? = null,
-    /** iOS's `headerSpacing` (its default is 20): the air between the title and the content when there is no lede. */
-    headerSpacing: Dp = 20.dp,
-    trailing: @Composable () -> Unit = {},
+    /** The title in the bar instead of the brand (Messages, Notifications, My Card Box); no lede then. */
+    titleInBar: Boolean = false,
+    trailing: @Composable RowScope.() -> Unit = {},
     list: LazyListState = rememberLazyListState(),
     /** Floats over the list, under nothing but the brand bar (the feed's picks hint). */
     overlay: @Composable BoxScope.() -> Unit = {},
@@ -152,14 +157,15 @@ fun TabScreen(
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight
     val quickReturn = rememberQuickReturn(list)
     Box(Modifier.fillMaxSize().cream().nestedScroll(quickReturn.connection)) {
-        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 120.dp)) {
-            item {
+        // Without the title block, the first row still starts clear of the bar's line.
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = if (titleInBar) top + TitledBarGap else top, bottom = 120.dp)) {
+            if (!titleInBar) item {
                 // The web's page padding: 40 under the header, the title block 40 above the content (home's header).
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 40.dp, bottom = if (subtitle != null) 40.dp else headerSpacing + 8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 40.dp, bottom = if (subtitle != null) 40.dp else 28.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    OrganicPageTitle(title) { trailing() }
+                    OrganicPageTitle(title, trailing = trailing)
                     if (subtitle != null) CssText(subtitle, AppFonts.Family.Body, 15f, lineHeight = 1.6f, color = Tokens.TextMuted)
                 }
             }
@@ -167,11 +173,16 @@ fun TabScreen(
         }
         // The bar slides up under the status bar while reading down and comes back on the way up
         // (the brand has nothing to press, so it gives the stories the room); the status bar keeps its paper.
-        OrganicBrandBar(list.scrolledPast20(), Modifier.offset { IntOffset(0, quickReturn.offset.roundToInt()) })
+        val bar = Modifier.offset { IntOffset(0, quickReturn.offset.roundToInt()) }
+        if (titleInBar) OrganicBrandBar(list.scrolledPast20(), bar, brand = title, isHeading = true, trailing = trailing)
+        else OrganicBrandBar(list.scrolledPast20(), bar)
         overlay()
         Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Tokens.Cream))
     }
 }
+
+/** Under the bar's line to the first row, on a tab whose title is in the bar. */
+private val TitledBarGap = 16.dp
 
 /**
  * The brand bar's quick return: how far it has slid up (−bar height…0), fed by

@@ -10,7 +10,7 @@ struct ConversationsScreen: View {
 
     var body: some View {
         let store = session.conversations
-        TabScreen(L10n.App.Nav.messages, headerSpacing: 8) {
+        TabScreen(L10n.App.Nav.messages, titleInBar: true) {
             VStack(alignment: .leading, spacing: 0) {
                 if store.loaded, store.conversations.isEmpty, store.starters.isEmpty {
                     CSSText(L10n.Messages.empty, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.7,

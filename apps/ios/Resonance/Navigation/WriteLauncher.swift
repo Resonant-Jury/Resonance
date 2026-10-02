@@ -1,12 +1,13 @@
 import Observation
 
 /// Opens the writing screen from anywhere (the pen in the tab bar, a card's
-/// Resonate or Edit, a draft in the card box, "write a card" prompts), and
-/// hands the card back to the tabs so they can show it.
+/// Resonate or Edit, a draft in the card box, "write a card" prompts) — the tab
+/// view pushes it on the current tab's stack — and tells the tabs what a visit
+/// wrote so they can show it.
 @Observable
 final class WriteLauncher {
     /// What the writer starts from.
-    struct Request: Equatable {
+    struct Request: Hashable {
         /// Writing a resonance: the card this one answers.
         var referenceCardId: String?
         /// Editing one of your cards: a draft, or a published card's revision (write/[id]).
@@ -30,10 +31,8 @@ final class WriteLauncher {
         }
     }
 
-    var isPresented = false
-    private(set) var request: Request?
-    /// The card to open once the writer is gone (its slug or id).
-    var publishedCard: String?
+    /// A writer asked for and not yet pushed: the tab view takes it from here.
+    var requested: Request?
     /// Counts the visits that wrote something (saved, published, revised,
     /// discarded; a card's visibility or deletion), so screens showing cards can
     /// refresh. A visit that wrote nothing doesn't count.
@@ -47,8 +46,7 @@ final class WriteLauncher {
     @ObservationIgnored var onChange: (() -> Void)?
 
     func open(_ request: Request = Request()) {
-        self.request = request
-        isPresented = true
+        requested = request
     }
 
     /// Edit one of your cards.
@@ -56,19 +54,11 @@ final class WriteLauncher {
         open(Request(cardId: cardId, showsCard: showsCard))
     }
 
-    /// The writer is done with this card (published, revised or its revision
-    /// dropped); `key` is where it lives now.
-    func finish(card key: String, change: Change) {
-        record(change)
-        if request?.showsCard ?? true { publishedCard = key }
-        isPresented = false
-    }
-
-    /// The writer closed without sending anything out: `change` is what it saved
-    /// on the way (nil when nothing was written — no screen needs to read again).
-    func close(_ change: Change?) {
+    /// The writer is going: `change` is what the visit wrote (a draft saved on
+    /// the way out, a card published, revised or its revision dropped) — nil
+    /// when nothing was written, and no screen needs to read again.
+    func leave(_ change: Change?) {
         if let change { record(change) }
-        isPresented = false
     }
 
     /// A card changed outside the writer (its ⋯ menu: visibility, delete).

@@ -117,6 +117,9 @@ class WriteModel(
     /** The card's page: its slug, or its id (a draft, or a card without one). */
     val routeKey: String? get() = slug ?: draftId
 
+    /** Whether going back leaves something written behind (it is kept; the person is asked first): see [holdsWork]. */
+    val hasWork: Boolean get() = holdsWork(isPublished, values, lastSaved, draftId != null, hasPendingEdit)
+
     fun update(change: DraftValues.() -> DraftValues) {
         val next = values.change()
         if (next == values) return
@@ -381,6 +384,17 @@ class WriteModel(
         const val TITLE_MAX = 60
     }
 }
+
+/**
+ * Whether the writer holds anything worth asking about before it goes: a new card or draft with
+ * words, a title, tags or a cover in it that is kept (`saved`: it has a draft) or is about to be;
+ * a live card's revision, waiting in its buffer (`pendingEdit`) or typed and not saved yet. Words
+ * the first-card guide seeded are the starting point, not writing: nothing keeps them, so they
+ * count only once there is a draft.
+ */
+internal fun holdsWork(isPublished: Boolean, values: DraftValues, lastSaved: DraftValues?, saved: Boolean, pendingEdit: Boolean): Boolean =
+    if (isPublished) pendingEdit || values != lastSaved
+    else !values.isEmpty && (saved || values != lastSaved)
 
 /**
  * A photo on its way up: decoded small enough, re-encoded on the device as

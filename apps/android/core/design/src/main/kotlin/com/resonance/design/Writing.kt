@@ -4,7 +4,6 @@ import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -179,26 +177,6 @@ fun HandDrawnImage(
             contentAlignment = Alignment.Center,
         ) { OrganicIcon(IconName.Close, size = 16.dp, color = Tokens.Cream) }
     }
-}
-
-/**
- * The writer's ✕ (WriteWorkspace's paneClose): a 36dp chip with a thin
- * field-border line on slightly uneven corners — a proper bordered button,
- * pinned above the scrolling page.
- */
-@Composable
-fun OrganicCloseChip(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    // border-radius: 11px 13px 12px 14px
-    val shape = RoundedCornerShape(topStart = 11.dp, topEnd = 13.dp, bottomEnd = 12.dp, bottomStart = 14.dp)
-    Box(
-        modifier
-            .size(36.dp)
-            .background(Tokens.Cream, shape)
-            .border(1.dp, Tokens.FieldBorder, shape)
-            .plainClickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) { OrganicIcon(IconName.Close, size = 17.dp, color = Tokens.TextMuted) }
 }
 
 /**

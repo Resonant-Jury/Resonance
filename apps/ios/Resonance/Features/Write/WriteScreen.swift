@@ -9,11 +9,19 @@ import SwiftUI
 /// with the draft saved. Drafts save themselves a moment after typing stops.
 /// Opened on one of your cards (write/[id]) it resumes a draft, or revises a
 /// published card: then Save changes / Discard changes.
+/// A page on the tab's stack like the others: the bar's arrow (or the edge
+/// swipe) goes back, asking first when there is writing to put away.
 struct WriteScreen: View {
+    let request: WriteLauncher.Request
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openRoute) private var openRoute
     @State private var model: WriteModel?
+    @State private var scrolled = false
+    /// The "leave for now?" question is open.
+    @State private var leaving = false
     /// Opening a card that is missing or not yours.
     @State private var notFound = false
     /// The first-card guide (ux §5): a brand-new writer's fresh card only.
@@ -45,13 +53,19 @@ struct WriteScreen: View {
             }
         }
         .background(Tokens.cream)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            // The title is the one a visit has once the card is known; a new card's is known at once.
+            OrganicInlineBar(model?.title ?? (request.cardId == nil ? L10n.Write.title : ""), backLabel: L10n.App.Nav.back,
+                             scrolled: scrolled)
+                .onBack { if let model { goBack(model) } else { dismiss() } }
+        }
+        .toolbar(.hidden, for: .navigationBar)
         // Leaving the app saves what is written now, not 1.5s later (the web's visibilitychange flush).
         .onChange(of: scenePhase) { _, phase in
             if phase != .active, let model { Task { await model.saveNow() } }
         }
         .task {
             if model == nil {
-                let request = writer.request ?? .init()
                 // The editor's page starts loading now, beside the card's read rather than after it.
                 let editor = StoryEditorBridge(placeholder: L10n.Write.storyPlaceholder)
                 var opened: DraftService.OpenedCard?
@@ -90,7 +104,7 @@ struct WriteScreen: View {
         @Bindable var model = model
         return ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                header(model)
+                saveStatus(model)
                 if showGuide {
                     FirstCardGuide { question in
                         // Seeded into the story as a quote to write against; the guide steps aside.
@@ -110,27 +124,14 @@ struct WriteScreen: View {
                 actions(model)
             }
             .padding(.horizontal, 20)
-            .padding(.top, 12)
+            .padding(.top, 16)
             .padding(.bottom, 48)
         }
+        .onHeaderScroll($scrolled)
         .scrollDismissesKeyboard(.interactively)
-        // The ✕ stays put above the scrolling page, on the title's line (paneClose).
-        // Leaving keeps what's written: the draft is saved on the way out.
-        .overlay(alignment: .topTrailing) {
-            OrganicCloseChip(label: L10n.Write.closeEditor) {
-                Task {
-                    await model.saveNow()
-                    writer.close(model.change)
-                }
-            }
-            .padding(.top, 12)
-            .padding(.trailing, 20)
-        }
-        // The page scrolls under a cream status bar, not through the clock
-        // (a background reaches into the safe area its view touches).
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: 0).background(Tokens.cream)
-        }
+        // The edge swipe asks what the arrow asks while there is writing to put away, and a draft
+        // cleared since its last save still goes through leaving, which saves it.
+        .takesSwipeBack(while: { model.holdsWriting || model.needsSave }) { goBack(model) }
         .photosPicker(isPresented: $pickingInline, selection: $inlineItem, matching: .images)
         .onChange(of: inlineItem) { _, item in
             guard let item else { return }
@@ -152,25 +153,58 @@ struct WriteScreen: View {
                       dismissible: !panelBusy) {
             PublishPanel(model: model, pending: $panelBusy, showsAnonymousHint: showsAnonymousHint) { routeKey in
                 publishing = false
-                writer.finish(card: routeKey, change: model.change ?? .init(cardId: model.draftId, referenceCardId: model.referenceCardId))
+                Task {
+                    await finish(card: routeKey, change: model.change ?? .init(cardId: model.draftId, referenceCardId: model.referenceCardId),
+                                 afterDialog: true)
+                }
             } onCancel: { publishing = false }
+        }
+        .organicConfirm(isPresented: $leaving, title: L10n.Write.leaveTitle,
+                        message: model.isPublished ? L10n.Write.leaveBodyRevision : L10n.Write.leaveBody,
+                        cancelLabel: L10n.Write.leaveStay, confirmLabel: L10n.Write.leaveConfirm, closeLabel: L10n.Write.leaveStay,
+                        seed: 61) {
+            leaving = false
+            Task { await leave(model, afterDialog: true) }
         }
     }
 
-    /// PageTitle with the save state under it (clear of the pinned ✕).
-    private func header(_ model: WriteModel) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(model.title)
-                .font(AppFonts.heading(28))
-                .foregroundStyle(Tokens.text)
-                .accessibilityAddTraits(.isHeader)
-                .padding(.trailing, 48)
-            Text(model.saveStatus)
-                .font(AppFonts.body(14))
-                .foregroundStyle(Tokens.textMuted)
-                .contentTransition(.opacity)
+    /// What the page header carried under its title: the save state, in plain words.
+    private func saveStatus(_ model: WriteModel) -> some View {
+        Text(model.saveStatus)
+            .font(AppFonts.body(14))
+            .foregroundStyle(Tokens.textMuted)
+            .contentTransition(.opacity)
+    }
+
+    /// Back (the arrow, the edge swipe): with writing to put away, the question first; otherwise at once.
+    private func goBack(_ model: WriteModel) {
+        if model.holdsWriting {
+            leaving = true
+        } else {
+            Task { await leave(model) }
         }
     }
+
+    /// Leaving keeps what's written: the draft is saved on the way out. `afterDialog`
+    /// lets the question's cover finish going down before the page does.
+    private func leave(_ model: WriteModel, afterDialog: Bool = false) async {
+        let settle = Task { if afterDialog { try? await Task.sleep(for: Self.dialogSettle) } }
+        await model.saveNow()
+        writer.leave(model.change)
+        await settle.value
+        dismiss()
+    }
+
+    /// The card went out (published, revised, or its revision dropped): its page takes the writer's
+    /// place as the web goes to it, unless the card's own page is underneath.
+    private func finish(card key: String, change: WriteLauncher.Change, afterDialog: Bool = false) async {
+        writer.leave(change)
+        if afterDialog { try? await Task.sleep(for: Self.dialogSettle) }
+        if request.showsCard { openRoute.replacingTop(with: .card(key)) } else { dismiss() }
+    }
+
+    /// A dialog's fade (0.16s) and the cover it rides on.
+    private static let dialogSettle: Duration = .milliseconds(240)
 
     private func label(_ text: String) -> some View {
         Text(text.uppercased())
@@ -272,12 +306,7 @@ struct WriteScreen: View {
                         actionError = nil
                         publishing = true
                     }
-                    OrganicButton(L10n.Write.saveDraftAndLeave, variant: .text) {
-                        Task {
-                            await model.saveNow()
-                            writer.close(model.change)
-                        }
-                    }
+                    OrganicButton(L10n.Write.saveDraftAndLeave, variant: .text) { Task { await leave(model) } }
                 }
             }
             .opacity(discarding ? 0.6 : 1)
@@ -296,7 +325,7 @@ struct WriteScreen: View {
         defer { discarding = false }
         do {
             let key = try await model.discardEdit()
-            writer.finish(card: key, change: model.change ?? .init(cardId: model.draftId))
+            await finish(card: key, change: model.change ?? .init(cardId: model.draftId))
         } catch {
             actionError = L10n.Native.saveError
         }
@@ -306,7 +335,7 @@ struct WriteScreen: View {
     private var missing: some View {
         VStack(spacing: 12) {
             Text(L10n.Card.NotFound.title).font(AppFonts.heading(24)).foregroundStyle(Tokens.text)
-            Button(L10n.Card.NotFound.back) { writer.close(nil) }
+            Button(L10n.Card.NotFound.back) { dismiss() }
                 .font(AppFonts.body(15))
                 .foregroundStyle(Tokens.terracotta)
                 .buttonStyle(.plain)

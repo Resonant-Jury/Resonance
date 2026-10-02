@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asImageBitmap
 import com.resonance.design.HandDrawnImage
-import com.resonance.design.OrganicCloseChip
 import com.resonance.design.OrganicVerticalRule
 import com.resonance.design.TagPill
 import com.resonance.design.TagSize
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicText
@@ -53,7 +51,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -80,6 +77,9 @@ import com.resonance.design.ModalBody
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicButton
+import com.resonance.design.OrganicConfirmDialog
+import com.resonance.design.OrganicInlineBar
+import com.resonance.design.inlineBarTop
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicImage
 import com.resonance.design.OrganicListEmpty
@@ -105,6 +105,8 @@ import kotlinx.coroutines.launch
  * story in the editor island under the web's text toolbar, tags with the AI
  * pill, the cover photo, then Publish (through the publish panel) or leave
  * with the draft saved. Drafts save themselves a moment after typing stops.
+ * A page like the others pushed on a tab: the inline bar carries the back arrow
+ * and the writer's title; going back with something written asks first.
  * Opened on one of your cards (`cardId`, write/[id]) it resumes a draft, or
  * revises a published card: then Save changes / Discard changes.
  * The twin of iOS's WriteScreen; `onFinished` gets the card's slug or id.
@@ -139,15 +141,19 @@ fun WriteScreen(
     when {
         !loaded -> {
             BackHandler(onBack = close)
-            Box(Modifier.fillMaxSize().cream().statusBarsPadding(), contentAlignment = Alignment.TopCenter) {
-                Box(Modifier.padding(top = 120.dp)) { SketchLoader(64.dp) }
+            Box(Modifier.fillMaxSize().cream(), contentAlignment = Alignment.TopCenter) {
+                Box(Modifier.padding(top = inlineBarTop() + 58.dp)) { SketchLoader(64.dp) }
+                OrganicInlineBar(L10n.App.Nav.back, close)
             }
         }
         // The card isn't there (deleted) or isn't yours: the web's not-found note.
         card == null -> {
             BackHandler(onBack = close)
-            Box(Modifier.fillMaxSize().cream().statusBarsPadding()) {
-                OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = close, action = EmptyAction.Link, verticalPadding = 120.dp)
+            Box(Modifier.fillMaxSize().cream()) {
+                Box(Modifier.padding(top = inlineBarTop())) {
+                    OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = close, action = EmptyAction.Link, verticalPadding = 58.dp)
+                }
+                OrganicInlineBar(L10n.App.Nav.back, close)
             }
         }
         else -> WriteForm(session, referenceCardId, null, card, close, onFinished)
@@ -207,24 +213,45 @@ private fun WriteForm(
     val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { model.setCover(context, it) } }
     val inlinePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { model.insertImage(context, it) } }
     val images = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+    var confirmingLeave by remember(model) { mutableStateOf(false) }
+    // The arrow, the system back and the buttons can land twice before the page has gone: it closes once.
+    var leaving by remember(model) { mutableStateOf(false) }
     val leave: () -> Unit = {
-        model.editor.releaseKeyboard()
-        scope.launch {
-            model.saveNow()
-            close()
+        if (!leaving) {
+            leaving = true
+            model.editor.releaseKeyboard()
+            scope.launch {
+                model.saveNow()
+                close()
+            }
         }
     }
-    BackHandler(onBack = leave)
+    // Back (the bar's arrow, the system's key or swipe) with something written asks first; with nothing, it leaves at once.
+    // "Save draft and leave" below is already a choice, so it doesn't ask.
+    val goBack: () -> Unit = {
+        when {
+            leaving -> {}
+            model.hasWork -> {
+                model.editor.releaseKeyboard()
+                confirmingLeave = true
+            }
+            else -> leave()
+        }
+    }
+    BackHandler(onBack = goBack)
 
-    Box(Modifier.fillMaxSize().cream().statusBarsPadding().imePadding()) { Column(
+    val scroll = rememberScrollState()
+    Box(Modifier.fillMaxSize().cream().imePadding()) { Column(
         Modifier
             .fillMaxSize()
-            // The page scrolls under a cream status bar, not through the clock.
-            .verticalScroll(rememberScrollState())
-            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 48.dp),
+            .verticalScroll(scroll)
+            // The bar lies over the page, so what scrolls shows right up to its pen line.
+            .padding(top = inlineBarTop())
+            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        Header(model)
+        // The title is the bar's; the save state stays here.
+        BasicText(model.saveStatus, style = AppFonts.body(14f, color = Tokens.TextMuted))
         if (showGuide) FirstCardGuide { question ->
             // Seeded into the story as a quote to write against; the guide steps aside.
             model.seed("> $question\n\n")
@@ -278,10 +305,21 @@ private fun WriteForm(
             actionError?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
         }
     }
-        // The ✕ stays put above the scrolling page, on the title's line (paneClose);
-        // leaving keeps what's written: the draft is saved on the way out.
-        OrganicCloseChip(L10n.Write.closeEditor, Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 20.dp), onClick = leave)
+        // Leaving keeps what's written: the draft is saved on the way out.
+        OrganicInlineBar(L10n.App.Nav.back, goBack, title = model.title, scrolled = scroll.scrolledPast20())
     }
+
+    if (confirmingLeave) OrganicConfirmDialog(
+        title = L10n.Write.leaveTitle,
+        body = if (model.isPublished) L10n.Write.leaveBodyRevision else L10n.Write.leaveBody,
+        cancelLabel = L10n.Write.leaveStay,
+        confirmLabel = L10n.Write.leaveConfirm,
+        onCancel = { confirmingLeave = false },
+        onConfirm = {
+            confirmingLeave = false
+            leave()
+        },
+    )
 
     if (pickingCard) OrganicModal(
         { pickingCard = false }, L10n.Write.Editor.CardModal.title,
@@ -297,15 +335,6 @@ private fun WriteForm(
         model.editor.releaseKeyboard()
         onFinished(key)
     }) { publishing = false }
-}
-
-/** PageTitle with the save state under it (clear of the pinned ✕). */
-@Composable
-private fun Header(model: WriteModel) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        BasicText(model.title, style = AppFonts.heading(28f, lineHeight = 1.2f), modifier = Modifier.padding(end = 48.dp).semantics { heading() })
-        BasicText(model.saveStatus, style = AppFonts.body(14f, color = Tokens.TextMuted))
-    }
 }
 
 @Composable

@@ -440,6 +440,16 @@ object L10n {
         val editPublishedTitle: String get() = Strings.string("write.editPublishedTitle")
         /** Close editor */
         val closeEditor: String get() = Strings.string("write.closeEditor")
+        /** Leave for now? */
+        val leaveTitle: String get() = Strings.string("write.leaveTitle")
+        /** What you've written is saved as a draft. You can pick it up again from My Card Box. */
+        val leaveBody: String get() = Strings.string("write.leaveBody")
+        /** Your changes are saved, but not yet applied to the published card. */
+        val leaveBodyRevision: String get() = Strings.string("write.leaveBodyRevision")
+        /** Keep writing */
+        val leaveStay: String get() = Strings.string("write.leaveStay")
+        /** Leave */
+        val leaveConfirm: String get() = Strings.string("write.leaveConfirm")
         /** Drag to resize panes */
         val resizeDivider: String get() = Strings.string("write.resizeDivider")
         /** Original Article */

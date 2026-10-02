@@ -16,6 +16,8 @@ enum Route: Hashable {
     case thread(handle: String, uid: String? = nil, note: MessagingAPI.NoteRef?)
     /// My thought map (me/thought-map).
     case thoughtMap
+    /// The writing page: a new card, a draft, a published card's revision, a resonance.
+    case write(WriteLauncher.Request)
 }
 
 /// Pushes a route onto the current tab's stack (for taps that aren't
@@ -23,8 +25,11 @@ enum Route: Hashable {
 struct OpenRouteAction {
     let push: (Route) -> Void
     var popToRoot: () -> Void = {}
+    var replaceTop: (Route) -> Void = { _ in }
     func callAsFunction(_ route: Route) { push(route) }
     func dismissToRoot() { popToRoot() }
+    /// The page on top gives way to `route` (a published card takes the writer's place).
+    func replacingTop(with route: Route) { replaceTop(route) }
 }
 
 extension EnvironmentValues {
@@ -66,6 +71,7 @@ extension View {
             case let .settingsSection(section): SettingsSectionScreen(section: section)
             case let .thread(handle, uid, note): ThreadScreen(handle: handle, uid: uid, note: note)
             case .thoughtMap: ThoughtMapScreen()
+            case let .write(request): WriteScreen(request: request)
             }
         }
     }

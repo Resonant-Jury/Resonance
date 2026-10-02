@@ -10,7 +10,7 @@ struct NotificationsScreen: View {
 
     var body: some View {
         let store = session.notifications
-        TabScreen(L10n.App.Nav.notifications) {
+        TabScreen(L10n.App.Nav.notifications, titleInBar: true) {
             if store.loaded && store.items.isEmpty {
                 EmptyNote(L10n.App.Notifications.empty).padding(.horizontal, 20)
             } else if !store.loaded, store.failed {

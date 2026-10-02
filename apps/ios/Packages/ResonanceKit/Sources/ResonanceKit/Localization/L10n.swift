@@ -438,6 +438,16 @@ public enum L10n {
         public static var editPublishedTitle: String { Strings.shared.string("write.editPublishedTitle") }
         /// Close editor
         public static var closeEditor: String { Strings.shared.string("write.closeEditor") }
+        /// Leave for now?
+        public static var leaveTitle: String { Strings.shared.string("write.leaveTitle") }
+        /// What you've written is saved as a draft. You can pick it up again from My Card Box.
+        public static var leaveBody: String { Strings.shared.string("write.leaveBody") }
+        /// Your changes are saved, but not yet applied to the published card.
+        public static var leaveBodyRevision: String { Strings.shared.string("write.leaveBodyRevision") }
+        /// Keep writing
+        public static var leaveStay: String { Strings.shared.string("write.leaveStay") }
+        /// Leave
+        public static var leaveConfirm: String { Strings.shared.string("write.leaveConfirm") }
         /// Drag to resize panes
         public static var resizeDivider: String { Strings.shared.string("write.resizeDivider") }
         /// Original Article

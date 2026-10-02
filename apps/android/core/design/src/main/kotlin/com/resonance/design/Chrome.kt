@@ -207,9 +207,19 @@ val BrandBarHeight = 58.dp
  * ResonanceIcon (the wave glyph, 38, terracotta, INK) and "Resonance" in
  * Playfair 22/700 — on an opaque cream bar that ends on the wavy pen line;
  * content scrolls under it. Lay it over the list.
+ *
+ * A tab other than the feed hangs its own title where the brand would be
+ * (`brand` = the title, `isHeading`), in the same size, and its actions at the end.
  */
 @Composable
-fun OrganicBrandBar(scrolled: Boolean, modifier: Modifier = Modifier, brand: String = "Resonance") {
+fun OrganicBrandBar(
+    scrolled: Boolean,
+    modifier: Modifier = Modifier,
+    brand: String = "Resonance",
+    /** `brand` is the screen's title: announced as its heading (the wordmark is no heading). */
+    isHeading: Boolean = false,
+    trailing: @Composable RowScope.() -> Unit = {},
+) {
     Row(
         modifier
             .fillMaxWidth()
@@ -224,7 +234,12 @@ fun OrganicBrandBar(scrolled: Boolean, modifier: Modifier = Modifier, brand: Str
     ) {
         // The mark is nudged down 7% so it sits level with the wordmark's mass.
         OrganicIcon(IconName.Wave, Modifier.offset(y = (38 * 0.07).dp), size = 38.dp, color = Tokens.Terracotta, strokeWidth = Tokens.Ink.value)
-        BasicText(brand, style = AppFonts.heading(22f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em))
+        BasicText(
+            brand, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = AppFonts.heading(22f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em),
+            modifier = Modifier.weight(1f).then(if (isHeading) Modifier.semantics { heading() } else Modifier),
+        )
+        trailing()
     }
 }
 

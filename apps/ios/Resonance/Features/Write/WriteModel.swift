@@ -49,6 +49,8 @@ final class WriteModel {
     @ObservationIgnored private var chain: Task<Void, Never>?
     /// What the last successful write stored; an unchanged working copy isn't written again.
     @ObservationIgnored private var lastSaved: DraftValues?
+    /// The first-card guide's question as it was seeded: a starting point, not writing.
+    @ObservationIgnored private var seeded: DraftValues?
 
     /// CardEditor's AUTOSAVE_DELAY_MS (leaving or going to the background saves at once).
     static let autosaveDelay: Duration = .milliseconds(1500)
@@ -76,6 +78,18 @@ final class WriteModel {
     /// The card's page: slug, or id (a draft or a card without one).
     var routeKey: String? { slug ?? draftId }
 
+    /// Whether going back would put something away: words, tags or a cover in a
+    /// draft (the guide's seeded question isn't), or a published card's revision —
+    /// kept in its buffer or still being typed. The writer asks first.
+    var holdsWriting: Bool {
+        isPublished ? hasPendingEdit || needsSave : !values.isEmpty && values != seeded
+    }
+
+    /// Typed since the last write stored anything (autosave is still a moment away).
+    var needsSave: Bool {
+        !(values.isEmpty && draftId == nil) && values != lastSaved
+    }
+
     /// What this visit changed, for the screens behind the writer; nil when it wrote nothing.
     var change: WriteLauncher.Change? {
         wrote ? WriteLauncher.Change(cardId: draftId, referenceCardId: referenceCardId) : nil
@@ -102,8 +116,7 @@ final class WriteModel {
             await previous?.value
             guard let self, let drafts = self.drafts else { return }
             let v = self.values
-            if v.isEmpty && self.draftId == nil { return }
-            if v == self.lastSaved { return }
+            guard self.needsSave else { return }
             do {
                 if self.isPublished, let id = self.draftId {
                     // A live card: the revision waits privately in its buffer.
@@ -132,6 +145,7 @@ final class WriteModel {
         editor.setMarkdown(story)
         values.story = story
         lastSaved = values
+        seeded = values
     }
 
     /// One line of plain reassurance under the page title: what has happened

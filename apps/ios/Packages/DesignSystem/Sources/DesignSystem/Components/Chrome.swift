@@ -257,11 +257,15 @@ public struct FloatingWriteButton: View {
 
 /// The root tabs' pinned bar (the web AppHeader on a phone): the brand
 /// lockup on cream that ends on the wavy pen line, content scrolling under it.
+/// A tab that names itself in the bar gives its `title`, which takes the
+/// wordmark's place (the wave stays) and heads the screen for VoiceOver.
 public struct OrganicBrandBar<Trailing: View>: View {
+    let title: String?
     var scrolled: Bool
     let trailing: Trailing
 
-    public init(scrolled: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+    public init(title: String? = nil, scrolled: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+        self.title = title
         self.scrolled = scrolled
         self.trailing = trailing()
     }
@@ -272,10 +276,19 @@ public struct OrganicBrandBar<Trailing: View>: View {
             // sit on the wordmark's visual centre.
             OrganicIcon(.wave, size: 38, color: Tokens.terracotta, strokeWidth: Tokens.ink)
                 .offset(y: 38 * 0.07)
-            Text(verbatim: "Resonance")
-                .font(AppFonts.heading(22))
-                .tracking(-0.02 * 22)
-                .foregroundStyle(Tokens.text)
+            if let title {
+                Text(title)
+                    .font(AppFonts.heading(22))
+                    .tracking(-0.02 * 22)
+                    .lineLimit(1)
+                    .foregroundStyle(Tokens.text)
+                    .accessibilityAddTraits(.isHeader)
+            } else {
+                Text(verbatim: "Resonance")
+                    .font(AppFonts.heading(22))
+                    .tracking(-0.02 * 22)
+                    .foregroundStyle(Tokens.text)
+            }
             Spacer(minLength: 12)
             trailing
         }
@@ -313,13 +326,15 @@ public struct OrganicLargeHeader<Trailing: View>: View {
 /// Pushed-screen bar (the web header taken over by a sub-screen): the bare
 /// back arrow, then the screen's title set like the brand (or, with no title,
 /// `leading` — the card page's author once the byline has scrolled away), then
-/// any actions, as bare glyphs.
+/// any actions, as bare glyphs. The arrow goes back; a page that has something
+/// to ask first takes it over with ``onBack(_:)``.
 public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     let title: String
     let backLabel: String
     var scrolled: Bool
     let leading: Leading
     let trailing: Trailing
+    private var back: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     public init(_ title: String, backLabel: String, scrolled: Bool = false,
@@ -331,10 +346,17 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
         self.trailing = trailing()
     }
 
+    /// What the arrow does instead of going back at once.
+    public func onBack(_ action: @escaping () -> Void) -> Self {
+        var bar = self
+        bar.back = action
+        return bar
+    }
+
     public var body: some View {
         HStack(spacing: 10) {
             // The arrow's own 8pt pad sits in the gutter (margin-left −8 on the web).
-            OrganicIconButton(.arrowRight, label: backLabel, size: 18, mirrored: true) { dismiss() }
+            OrganicIconButton(.arrowRight, label: backLabel, size: 18, mirrored: true) { if let back { back() } else { dismiss() } }
                 .padding(.leading, -13)
             if !title.isEmpty {
                 Text(title)
@@ -496,6 +518,12 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
            let top = topViewController, EdgeSwipeBack.pages.contains(top) {
             return false
         }
+        // A page holding unsaved work doesn't leave by the swipe; it is asked instead, as the arrow does.
+        if gestureRecognizer === interactivePopGestureRecognizer, let top = topViewController,
+           let page = EdgeSwipeBack.guardOf(top), page.holds() {
+            DispatchQueue.main.async { page.ask() }
+            return false
+        }
         return true
     }
 }
@@ -503,6 +531,34 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
 /// Pages that go back from the screen's edge only (see `swipeBackFromEdgeOnly()`).
 @MainActor enum EdgeSwipeBack {
     static let pages = NSHashTable<UIViewController>.weakObjects()
+    /// Pages that take the swipe over while they hold something (see `takesSwipeBack(while:_:)`) keep their guard
+    /// on the page itself, so it goes with the page: a table keyed weakly holds its values after the key is gone,
+    /// and the guard's closures hold the writer's model — and its web view — with them.
+    private static var guardKey: UInt8 = 0
+
+    static func keep(_ page: SwipeBackGuard, on controller: UIViewController) {
+        objc_setAssociatedObject(controller, &guardKey, page, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
+
+    static func guardOf(_ controller: UIViewController) -> SwipeBackGuard? {
+        objc_getAssociatedObject(controller, &guardKey) as? SwipeBackGuard
+    }
+
+    /// The controller the navigation stack holds for the page `controller` sits in.
+    static func page(of controller: UIViewController) -> UIViewController? {
+        var page: UIViewController? = controller
+        while let current = page, let parent = current.parent, !(parent is UINavigationController) {
+            page = parent
+        }
+        guard let page, page.parent is UINavigationController else { return nil }
+        return page
+    }
+}
+
+/// What a page that takes the swipe over says: whether it does now, and what to do instead of going back.
+@MainActor final class SwipeBackGuard {
+    var holds: () -> Bool = { false }
+    var ask: () -> Void = {}
 }
 
 extension View {
@@ -511,23 +567,47 @@ extension View {
     /// thought map — that drag would leave the page, so this one keeps only
     /// the edge swipe.
     public func swipeBackFromEdgeOnly() -> some View {
-        background(EdgeSwipeMarker().frame(width: 0, height: 0).accessibilityHidden(true))
+        background(EdgeSwipeMarker(asks: nil).frame(width: 0, height: 0).accessibilityHidden(true))
+    }
+
+    /// A page that asks before it goes back (the writer, with words on it).
+    /// While `holds()` is true the edge swipe leaves the page where it is and
+    /// calls `ask` instead — the arrow's own question. The page goes back from
+    /// the edge only, so a drag in its content never reads as leaving.
+    public func takesSwipeBack(while holds: @escaping () -> Bool, _ ask: @escaping () -> Void) -> some View {
+        background(EdgeSwipeMarker(asks: (holds, ask)).frame(width: 0, height: 0).accessibilityHidden(true))
     }
 }
 
 /// Finds the page it sits in (the controller the navigation stack holds) and files it under ``EdgeSwipeBack``.
 private struct EdgeSwipeMarker: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> Marker { Marker() }
-    func updateUIViewController(_ controller: Marker, context: Context) {}
+    /// Set by a page that takes the swipe over.
+    let asks: (holds: () -> Bool, ask: () -> Void)?
+
+    func makeUIViewController(context: Context) -> Marker { Marker(takesOver: asks != nil) }
+
+    func updateUIViewController(_ controller: Marker, context: Context) {
+        guard let asks else { return }
+        controller.page.holds = asks.holds
+        controller.page.ask = asks.ask
+    }
 
     final class Marker: UIViewController {
+        let page = SwipeBackGuard()
+        private let takesOver: Bool
+
+        init(takesOver: Bool) {
+            self.takesOver = takesOver
+            super.init(nibName: nil, bundle: nil)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
         override func viewWillAppear(_ animated: Bool) {
             super.viewWillAppear(animated)
-            var page: UIViewController? = self
-            while let current = page, let parent = current.parent, !(parent is UINavigationController) {
-                page = parent
-            }
-            if let page, page.parent is UINavigationController { EdgeSwipeBack.pages.add(page) }
+            guard let held = EdgeSwipeBack.page(of: self) else { return }
+            EdgeSwipeBack.pages.add(held)
+            if takesOver { EdgeSwipeBack.keep(page, on: held) }
         }
     }
 }

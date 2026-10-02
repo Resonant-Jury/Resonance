@@ -54,7 +54,7 @@ import java.util.Date
 @Composable
 fun ConversationsScreen(session: Session, open: (Route) -> Unit) {
     val state by session.conversations.state.collectAsStateWithLifecycle()
-    TabScreen(L10n.App.Nav.messages, headerSpacing = 8.dp) {
+    TabScreen(L10n.App.Nav.messages, titleInBar = true) {
         if (state.loaded && state.conversations.isEmpty() && state.starters.isEmpty()) {
             item {
                 CssText(

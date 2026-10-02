@@ -1,4 +1,5 @@
 import Foundation
+import ResonanceKit
 import Testing
 @testable import Resonance
 
@@ -13,8 +14,8 @@ import Testing
         var told = 0
         writer.onChange = { told += 1 }
         writer.open()
-        writer.close(nil)
-        #expect(!writer.isPresented)
+        #expect(writer.requested == WriteLauncher.Request())
+        writer.leave(nil)
         #expect(writer.changes == 0)
         #expect(told == 0)
         #expect(writer.lastChange == nil)
@@ -25,20 +26,28 @@ import Testing
         var told = 0
         writer.onChange = { told += 1 }
         writer.open(.init(referenceCardId: "original"))
-        writer.close(.init(cardId: "draft-1", referenceCardId: "original"))
+        #expect(writer.requested?.referenceCardId == "original")
+        writer.leave(.init(cardId: "draft-1", referenceCardId: "original"))
         #expect(writer.changes == 1)
         #expect(told == 1)
         #expect(writer.lastChange == .init(cardId: "draft-1", referenceCardId: "original"))
 
-        // Published: the card opens once the writer is gone, and it counts as a change.
-        writer.open()
-        writer.finish(card: "a-walk", change: .init(cardId: "card-2"))
+        // Published, revised or dropped: it counts as a change too.
+        writer.leave(.init(cardId: "card-2"))
         #expect(writer.changes == 2)
-        #expect(writer.publishedCard == "a-walk")
         // A card's ⋯ (visibility, delete).
         writer.noteChange(.init(cardId: "card-3"))
         #expect(writer.changes == 3)
         #expect(writer.lastChange?.cardId == "card-3")
+    }
+
+    @Test func editingACardAsksForItsOwnWriterAndKeepsItsPageUnderneath() {
+        let writer = WriteLauncher()
+        writer.edit("card-1", showsCard: false)
+        #expect(writer.requested == .init(cardId: "card-1", showsCard: false))
+        // The route carries the request: one page per ask, equal asks alike.
+        #expect(Route.write(.init(cardId: "card-1")) == Route.write(.init(cardId: "card-1")))
+        #expect(Route.write(.init(cardId: "card-1")) != Route.write(.init(cardId: "card-2")))
     }
 
     @Test func aChangeConcernsItsCardAndTheCardItAnswers() {
@@ -70,5 +79,67 @@ import Testing
         #expect(refresh(readAt: nil) == .everything)
         #expect(refresh(after: ThoughtMapStore.staleAfter) == .everything)
         #expect(refresh(after: -1) == .everything)
+    }
+}
+
+/// Going back from the writer asks only when there is writing to put away: a
+/// draft with words, tags or a cover, or a published card's revision. A page
+/// opened and left alone, or the first-card guide's question, is not writing.
+@MainActor @Suite struct WriterLeavingTests {
+    private func model(opened: DraftService.OpenedCard? = nil) -> WriteModel {
+        let configuration = APIConfiguration(origin: URL(string: "https://example.test")!, idToken: { _ in nil })
+        return WriteModel(drafts: nil, writing: WritingAPI(client: ResonanceClient.make(configuration), configuration: configuration),
+                          opened: opened)
+    }
+
+    private func card(published: Bool, pending: Bool = false, title: String = "A walk") -> DraftService.OpenedCard {
+        .init(id: "card-1", values: DraftValues(title: title, story: "Out in the rain."), isPublished: published, slug: published ? "a-walk" : nil,
+              referenceCardId: nil, hasPendingEdit: pending)
+    }
+
+    @Test func aNewCardAsksOnceAnythingIsOnIt() {
+        let model = model()
+        #expect(!model.holdsWriting)
+        #expect(!model.needsSave)
+        model.values.title = "  "
+        #expect(!model.holdsWriting)
+        model.values.title = "A walk"
+        #expect(model.holdsWriting)
+        model.values.title = ""
+        model.values.tags = ["日常"]
+        #expect(model.holdsWriting)
+        model.values.tags = []
+        model.values.imageURL = URL(string: "https://example.test/cover.webp")
+        #expect(model.holdsWriting)
+    }
+
+    @Test func theGuidesSeededQuestionIsNotWritingUntilTheWriterAddsToIt() {
+        let model = model()
+        model.seed(story: "> What stayed with you?\n\n")
+        #expect(!model.holdsWriting)
+        model.values.story += "The rain."
+        #expect(model.holdsWriting)
+    }
+
+    @Test func aSavedDraftKeepsItsWordsAndASavedBlankIsStillSaved() {
+        // A saved draft with words is still words to put away.
+        #expect(model(opened: card(published: false)).holdsWriting)
+        let cleared = model(opened: card(published: false))
+        cleared.values = DraftValues()
+        // Nothing left to keep, yet the emptied draft still has to be saved on the way out.
+        #expect(!cleared.holdsWriting)
+        #expect(cleared.needsSave)
+    }
+
+    @Test func aPublishedCardAsksOnlyForARevision() {
+        let untouched = model(opened: card(published: true))
+        #expect(!untouched.holdsWriting)
+        #expect(!untouched.needsSave)
+        // A revision waiting in its buffer from before.
+        #expect(model(opened: card(published: true, pending: true)).holdsWriting)
+        // One being typed, not yet buffered.
+        let typing = model(opened: card(published: true))
+        typing.values.story += " And then it stopped."
+        #expect(typing.holdsWriting)
     }
 }

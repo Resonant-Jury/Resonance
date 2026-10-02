@@ -33,7 +33,7 @@ enum AppTab: Hashable, CaseIterable {
 struct MainTabView: View {
     @Environment(SessionStore.self) private var session
     @State private var tab: AppTab = .feed
-    @State private var paths: [AppTab: NavigationPath] = [:]
+    @State private var paths: [AppTab: [Route]] = [:]
     @State private var writer = WriteLauncher()
     private let push = PushCenter.shared
 
@@ -51,8 +51,13 @@ struct MainTabView: View {
                         .appRoutes()
                 }
                 .environment(\.openRoute, OpenRouteAction(
-                    push: { paths[t, default: NavigationPath()].append($0) },
-                    popToRoot: { paths[t] = NavigationPath() }
+                    push: { paths[t, default: []].append($0) },
+                    popToRoot: { paths[t] = [] },
+                    replaceTop: { route in
+                        var path = paths[t] ?? []
+                        if !path.isEmpty { path.removeLast() }
+                        paths[t] = path + [route]
+                    }
                 ))
                 .opacity(t == tab ? 1 : 0)
                 .allowsHitTesting(t == tab)
@@ -77,13 +82,14 @@ struct MainTabView: View {
         .background(Tokens.cream)
         .environment(writer)
         .onAppear { writer.onChange = { [session] in session.noteOwnWrite() } }
-        .fullScreenCover(isPresented: $writer.isPresented, onDismiss: {
-            // A published card opens on the current tab once the writer is gone, as the web goes to it.
-            if let key = writer.publishedCard {
-                writer.publishedCard = nil
-                paths[tab, default: NavigationPath()].append(Route.card(key))
-            }
-        }) { WriteScreen().environment(writer) }
+        // The writer is a page on the current tab's stack, like the others.
+        .onChange(of: writer.requested) { _, request in
+            guard let request else { return }
+            writer.requested = nil
+            // A second tap on a pen while the first page is arriving must not stack another.
+            if case .write? = paths[tab]?.last { return }
+            paths[tab, default: []].append(.write(request))
+        }
         .onOpenURL(perform: open)
         // A tapped push: its page, or the notifications when it has none (also after a cold start).
         .onChange(of: push.opened, initial: true) { _, opened in
@@ -101,8 +107,7 @@ struct MainTabView: View {
         #if DEBUG
         // `-route /card/<slug>` or `-route /u/<handle>` opens that page at launch (screen checks).
         .task {
-            // Once per launch: the tab view reappears (after the writer's full-screen
-            // cover, a language change), and must not push the page again.
+            // Once per launch: the tab view reappears (a language change), and must not push the page again.
             guard !Self.openedLaunchRoute, let path = UserDefaults.standard.string(forKey: "route") else { return }
             Self.openedLaunchRoute = true
             open(session.config.origin.appending(path: path))
@@ -119,7 +124,7 @@ struct MainTabView: View {
     private func open(_ route: Route) {
         // A conversation belongs to the Messages tab's stack.
         if case .thread = route { tab = .messages }
-        paths[tab, default: NavigationPath()].append(route)
+        paths[tab, default: []].append(route)
     }
 
     /// A push's link names the sender by pen name; a conversation opens by
@@ -148,12 +153,12 @@ struct MainTabView: View {
             writer.open()
             return
         }
-        if picked == tab { paths[tab] = NavigationPath() }
+        if picked == tab { paths[tab] = [] }
         tab = picked
     }
 
-    private func path(_ t: AppTab) -> Binding<NavigationPath> {
-        Binding(get: { paths[t] ?? NavigationPath() }, set: { paths[t] = $0 })
+    private func path(_ t: AppTab) -> Binding<[Route]> {
+        Binding(get: { paths[t] ?? [] }, set: { paths[t] = $0 })
     }
 }
 
@@ -163,9 +168,13 @@ struct MainTabView: View {
 /// stories the room: it slides up under the status bar while reading down and
 /// comes back on the way up (settling shown or hidden when the scroll stops).
 /// A `banner` floats just under the bar, over the content, and moves with it.
+/// Home keeps its title in the page; every other tab (`titleInBar`) names
+/// itself in the bar where "Resonance" stood, with any `trailing` control at the
+/// bar's end, and the content starts just under the bar's line.
 struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     let title: String
     var headerSpacing: CGFloat
+    var titleInBar: Bool
     let trailing: Trailing
     let banner: Banner
     let content: Content
@@ -175,10 +184,11 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     /// The bar's row above its wavy edge: 4 of air and the 44 lockup.
     private let travel: CGFloat = 48
 
-    init(_ title: String, headerSpacing: CGFloat = 20, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
+    init(_ title: String, headerSpacing: CGFloat = 20, titleInBar: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
          @ViewBuilder banner: () -> Banner, @ViewBuilder content: () -> Content) {
         self.title = title
         self.headerSpacing = headerSpacing
+        self.titleInBar = titleInBar
         self.trailing = trailing()
         self.banner = banner()
         self.content = content()
@@ -187,12 +197,14 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                OrganicLargeHeader(title) { trailing }
-                    .padding(.bottom, headerSpacing)
+                if !titleInBar {
+                    OrganicLargeHeader(title) { trailing }
+                        .padding(.bottom, headerSpacing)
+                }
                 content
             }
-            // --page-pad-top on a phone.
-            .padding(.top, 40)
+            // --page-pad-top on a phone; with the title in the bar, 16 of air under its line.
+            .padding(.top, titleInBar ? 16 : 40)
             .padding(.bottom, 110)
         }
         .onHeaderScroll($scrolled)
@@ -211,7 +223,10 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
         .overlay(alignment: .top) { banner.offset(y: -hidden) }
-        .safeAreaInset(edge: .top, spacing: 0) { OrganicBrandBar(scrolled: scrolled).offset(y: -hidden) }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            OrganicBrandBar(title: titleInBar ? title : nil, scrolled: scrolled) { if titleInBar { trailing } }
+                .offset(y: -hidden)
+        }
         // The status bar keeps its paper while the bar slides under it.
         .overlay(alignment: .top) {
             Color.clear.frame(height: 0).background(Tokens.cream.ignoresSafeArea(edges: .top))
@@ -220,8 +235,9 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
 }
 
 extension TabScreen where Banner == EmptyView {
-    init(_ title: String, headerSpacing: CGFloat = 20, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
+    init(_ title: String, headerSpacing: CGFloat = 20, titleInBar: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
          @ViewBuilder content: () -> Content) {
-        self.init(title, headerSpacing: headerSpacing, trailing: trailing, banner: { EmptyView() }, content: content)
+        self.init(title, headerSpacing: headerSpacing, titleInBar: titleInBar, trailing: trailing, banner: { EmptyView() },
+                  content: content)
     }
 }

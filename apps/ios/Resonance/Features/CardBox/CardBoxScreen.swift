@@ -23,7 +23,7 @@ struct CardBoxScreen: View {
     static let owned: Set<ReadingAPI.CardBoxShelf> = [.published, ._private, .draft]
 
     var body: some View {
-        TabScreen(L10n.App.Nav.me) {
+        TabScreen(L10n.App.Nav.me, titleInBar: true) {
             header.padding(.horizontal, 20).padding(.bottom, 24)
             tabs.padding(.bottom, 28)
             shelfContent

@@ -39,7 +39,7 @@ fun NotificationsScreen(session: Session, open: (Route) -> Unit) {
     val items by session.notifications.items.collectAsStateWithLifecycle()
     val loaded by session.notifications.loaded.collectAsStateWithLifecycle()
     val failed by session.notifications.failed.collectAsStateWithLifecycle()
-    TabScreen(L10n.App.Nav.notifications) {
+    TabScreen(L10n.App.Nav.notifications, titleInBar = true) {
         when {
             // Nothing read, and the listener failed: a retry, not a loader forever.
             !loaded && failed -> item {
