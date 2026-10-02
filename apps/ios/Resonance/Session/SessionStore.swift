@@ -163,14 +163,21 @@ final class SessionStore {
 
     // MARK: - Push
 
-    /// This install gets the signed-in person's pushes (again, whenever the token or the language changes).
+    /// The push registration on its way, if any.
+    @ObservationIgnored private var pushSending: PushRegistration?
+
+    /// This install gets the signed-in person's pushes (again whenever the token, the language or
+    /// the app's version changes — and once a day; not on every launch, see PushRegistration).
     func registerPush() async {
         guard phase == .signedIn, let uid, let token = push.token else { return }
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let wanted = PushRegistration(installationId: PushCenter.installationId, uid: uid, token: token,
                                       language: Strings.shared.language.rawValue, version: version)
-        // Sent already today, as it is now: not again on every launch.
-        guard !PushRegistration.isFresh(PushCenter.lastRegistration, wanted, now: .now) else { return }
+        // Sent already today, as it is now: not again on every launch (nor twice at once —
+        // a new token and a sign-in arrive together).
+        guard !PushRegistration.isFresh(PushCenter.lastRegistration, wanted, now: .now), pushSending != wanted else { return }
+        pushSending = wanted
+        defer { pushSending = nil }
         do {
             try await pushAPI.register(installationId: wanted.installationId, token: token,
                                        language: Strings.shared.language, appVersion: version)
