@@ -88,7 +88,7 @@ const CARDS: CardSpec[] = [
     reads: 701,
     tags: ['family', 'memory', 'growth'],
     paragraphs: [
-      'A blue bicycle has always leaned in the corner of the garage. The chain is rusty, the saddle split, but Dad keeps taping it up and saying it still rides.',
+      'A blue bicycle has always leaned in the corner of the garage. The chain is rusty, the saddle split, but Dad keeps taping it up and says it still rides.',
       'Saturday mornings, he’d lift me onto the back and ride to the market for bacon rolls. I held the hem of his shirt, which smelled of soap and sunshine.',
       'I always thought he rode fast. Only later did I learn he rode slowly, afraid I’d fall.',
       'Last month I pumped up the tires and fitted a new saddle. Dad watched, hands in his pockets. “Don’t bother, it’s so old.” But his eyes never left that saddle.',
