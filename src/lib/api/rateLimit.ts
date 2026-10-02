@@ -16,8 +16,6 @@ export const LIMITS = {
   /** /api/cards/insight and /api/cards/tags: one LLM call each. */
   insight: { max: 60, windowMs: HOUR },
   tags: { max: 60, windowMs: HOUR },
-  /** /api/cards/index: an LLM call and an embedding. */
-  index: { max: 60, windowMs: HOUR },
   /** Publishing: a slug LLM call, the index, maybe a bell. */
   publish: { max: 30, windowMs: DAY },
   /** A note rings its recipient's phone. */

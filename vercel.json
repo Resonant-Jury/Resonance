@@ -3,7 +3,6 @@
   "framework": "nextjs",
   "regions": ["hkg1"],
   "functions": {
-    "src/app/api/cards/index/route.ts": { "regions": ["hnd1"], "maxDuration": 60 },
     "src/app/api/cards/insight/route.ts": { "regions": ["hnd1"], "maxDuration": 60 },
     "src/app/api/cards/tags/route.ts": { "regions": ["hnd1"] },
     "src/app/api/generate-image/route.ts": { "regions": ["hnd1"], "maxDuration": 120 },
