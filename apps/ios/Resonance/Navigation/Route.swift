@@ -1,3 +1,4 @@
+import DesignSystem
 import ResonanceKit
 import SwiftUI
 
@@ -32,9 +33,10 @@ extension EnvironmentValues {
 
 extension Route {
     /// Site URLs the app can show itself: /card/{slug} and /u/{handle},
-    /// with or without a locale prefix, relative or on the site's origin.
+    /// with or without a locale prefix, relative or on the site's host (the
+    /// origin's, or the one it had before: `StoryLink.isSiteHost`).
     init?(url: URL, origin: URL) {
-        if let host = url.host(), host != origin.host() { return nil }
+        if let host = url.host(), !StoryLink.isSiteHost(host, origin: origin) { return nil }
         var parts = url.pathComponents.filter { $0 != "/" }
         if let first = parts.first, ["en", "zh-TW"].contains(first) { parts.removeFirst() }
         guard parts.count == 2 else { return nil }

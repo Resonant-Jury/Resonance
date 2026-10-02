@@ -2,11 +2,11 @@ import Foundation
 
 /// Where a link in a story leads, decided by its scheme — the web reader
 /// keeps only safe protocols (react-markdown's default), and so do the apps.
-/// A page of the site (a relative link, or http(s) on the site's own host)
-/// opens in the app; any other web page opens in the in-app browser; a
-/// mailto: link opens Mail. Anything else (tel:, sms:, shortcuts:, another
-/// app's own scheme, javascript:) is plain text: the reader never hands it to
-/// the system. The twin of Android's StoryLink.
+/// A page of the site (a relative link, or http(s) on the site's own host or
+/// the one it had before) opens in the app; any other web page opens in the
+/// in-app browser; a mailto: link opens Mail. Anything else (tel:, sms:,
+/// shortcuts:, another app's own scheme, javascript:) is plain text: the
+/// reader never hands it to the system. The twin of Android's StoryLink.
 public nonisolated enum StoryLink: Equatable, Sendable {
     /// A page of this site: its path from the root (and its query), resolved
     /// as the web resolves it from a card's page.
@@ -18,6 +18,18 @@ public nonisolated enum StoryLink: Equatable, Sendable {
 
     /// The page a story is read on, which relative links resolve against (`/card/{key}`).
     private static let base = "/card/"
+
+    /// Hosts the site was served from before its own domain, which still serve
+    /// it: links written then lead to its pages.
+    public static let formerHosts: Set<String> = ["resonance-world.vercel.app"]
+
+    /// Whether `host` (any case, a trailing dot allowed) is the site's: the
+    /// origin's, or one it was served from before. Whole names only — a
+    /// look-alike such as resonance.channel.example.com is someone else's.
+    public static func isSiteHost(_ host: String, origin: URL) -> Bool {
+        guard let host = normalized(host) else { return false }
+        return host == Self.host(of: origin.absoluteString) || formerHosts.contains(host)
+    }
 
     /// Whether a link can lead anywhere at all: the reader draws the others as plain text.
     public static func isTappable(_ href: String) -> Bool { kind(href) != nil }
@@ -31,7 +43,7 @@ public nonisolated enum StoryLink: Equatable, Sendable {
         case .web:
             let absolute = link.hasPrefix("//") ? "https:" + link : link
             guard let host = host(of: absolute) else { return nil }
-            if host == Self.host(of: origin.absoluteString) { return .site(path: sitePath(afterAuthority(absolute))) }
+            if isSiteHost(host, origin: origin) { return .site(path: sitePath(afterAuthority(absolute))) }
             return URL(string: absolute).map(StoryLink.web)
         case .mail:
             return URL(string: link).map(StoryLink.mail)
@@ -90,6 +102,11 @@ public nonisolated enum StoryLink: Equatable, Sendable {
         let host = hostPort.hasPrefix("[")
             ? String(hostPort.prefix { $0 != "]" }) + "]"
             : String(hostPort.prefix { $0 != ":" })
+        return normalized(host)
+    }
+
+    /// A host lowercased, without trailing dots; nil when nothing is left.
+    private static func normalized(_ host: String) -> String? {
         var trimmed = host.lowercased()
         while trimmed.hasSuffix(".") { trimmed.removeLast() }
         return trimmed.isEmpty ? nil : trimmed

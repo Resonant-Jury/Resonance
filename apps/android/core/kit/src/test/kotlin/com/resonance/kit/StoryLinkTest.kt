@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
  * text a stranger's story can't hand to the system (the same cases as iOS's StoryLinkTests).
  */
 class StoryLinkTest {
-    private val origin = "https://resonance-world.vercel.app"
+    private val origin = "https://resonance.channel"
     private fun resolve(href: String) = StoryLink.resolve(href, origin)
 
     @Test fun relativeLinksArePagesOfTheSite() {
@@ -29,19 +29,36 @@ class StoryLinkTest {
     }
 
     @Test fun theSitesOwnHostIsTheSiteWhateverItsScheme() {
+        assertEquals(StoryLink.Site("/card/a-walk"), resolve("https://resonance.channel/card/a-walk"))
+        assertEquals(StoryLink.Site("/u/bob"), resolve("http://Resonance.Channel/u/bob"))
+        assertEquals(StoryLink.Site("/"), resolve("https://resonance.channel."))
+        assertEquals(StoryLink.Site("/en/privacy"), resolve("//resonance.channel/en/privacy"))
+    }
+
+    @Test fun linksToTheSitesFormerHostStillOpenInTheApp() {
+        // Stories written before the site had its own domain link to the old host, which still serves it.
         assertEquals(StoryLink.Site("/card/a-walk"), resolve("https://resonance-world.vercel.app/card/a-walk"))
         assertEquals(StoryLink.Site("/u/bob"), resolve("http://Resonance-World.vercel.app/u/bob"))
         assertEquals(StoryLink.Site("/"), resolve("https://resonance-world.vercel.app"))
         assertEquals(StoryLink.Site("/en/privacy"), resolve("//resonance-world.vercel.app/en/privacy"))
+        assertEquals(StoryLink.Site("/zh-TW/messages/bob?note=n1&card=c1"), resolve("https://resonance-world.vercel.app/zh-TW/messages/bob?note=n1&card=c1#end"))
+        assertTrue(StoryLink.isSiteHost("resonance-world.vercel.app", origin))
+        assertTrue(StoryLink.isSiteHost("Resonance.Channel.", origin))
+        assertFalse(StoryLink.isSiteHost("", origin))
     }
 
     @Test fun otherWebPagesOpenInTheBrowser() {
         assertEquals(StoryLink.Web("https://example.com/a?b=1&c=2"), resolve("https://example.com/a?b=1&c=2"))
         assertEquals(StoryLink.Web("HTTP://example.com/"), resolve("HTTP://example.com/"))
         assertEquals(StoryLink.Web("https://example.com/x"), resolve("//example.com/x"))
-        // Look-alikes of the site's host are someone else's.
+        // Look-alikes of the site's hosts, now and before, are someone else's.
+        assertEquals(StoryLink.Web("https://resonance.channel.example.com/card/x"), resolve("https://resonance.channel.example.com/card/x"))
+        assertEquals(StoryLink.Web("https://resonance.channel@example.com/card/x"), resolve("https://resonance.channel@example.com/card/x"))
+        assertEquals(StoryLink.Web("https://notresonance.channel/card/x"), resolve("https://notresonance.channel/card/x"))
         assertEquals(StoryLink.Web("https://resonance-world.vercel.app.example.com/card/x"), resolve("https://resonance-world.vercel.app.example.com/card/x"))
         assertEquals(StoryLink.Web("https://resonance-world.vercel.app@example.com/card/x"), resolve("https://resonance-world.vercel.app@example.com/card/x"))
+        // The picture host is the site's storage, not a page of it.
+        assertEquals(StoryLink.Web("https://img.resonance.channel/covers/x.avif"), resolve("https://img.resonance.channel/covers/x.avif"))
     }
 
     @Test fun mailtoWritesAMail() {

@@ -7,7 +7,7 @@ import Testing
 /// to Mail — any other scheme is plain text a stranger's story can't hand to
 /// the system (the same cases as Android's StoryLinkTest).
 @Suite struct StoryLinkTests {
-    let origin = URL(string: "https://resonance-world.vercel.app")!
+    let origin = URL(string: "https://resonance.channel")!
     func resolve(_ href: String) -> StoryLink? { StoryLink.resolve(href, origin: origin) }
 
     @Test func relativeLinksArePagesOfTheSite() {
@@ -21,21 +21,41 @@ import Testing
     }
 
     @Test func theSitesOwnHostIsTheSiteWhateverItsScheme() {
+        #expect(resolve("https://resonance.channel/card/a-walk") == .site(path: "/card/a-walk"))
+        #expect(resolve("http://Resonance.Channel/u/bob") == .site(path: "/u/bob"))
+        #expect(resolve("https://resonance.channel.") == .site(path: "/"))
+        #expect(resolve("//resonance.channel/en/privacy") == .site(path: "/en/privacy"))
+    }
+
+    @Test func linksToTheSitesFormerHostStillOpenInTheApp() {
+        // Stories written before the site had its own domain link to the old host, which still serves it.
         #expect(resolve("https://resonance-world.vercel.app/card/a-walk") == .site(path: "/card/a-walk"))
         #expect(resolve("http://Resonance-World.vercel.app/u/bob") == .site(path: "/u/bob"))
         #expect(resolve("https://resonance-world.vercel.app") == .site(path: "/"))
         #expect(resolve("//resonance-world.vercel.app/en/privacy") == .site(path: "/en/privacy"))
+        #expect(resolve("https://resonance-world.vercel.app/zh-TW/messages/bob?note=n1&card=c1#end")
+            == .site(path: "/zh-TW/messages/bob?note=n1&card=c1"))
+        #expect(StoryLink.isSiteHost("resonance-world.vercel.app", origin: origin))
+        #expect(StoryLink.isSiteHost("Resonance.Channel.", origin: origin))
+        #expect(!StoryLink.isSiteHost("", origin: origin))
     }
 
     @Test func otherWebPagesOpenInTheBrowser() {
         #expect(resolve("https://example.com/a?b=1&c=2") == .web(URL(string: "https://example.com/a?b=1&c=2")!))
         #expect(resolve("HTTP://example.com/") == .web(URL(string: "HTTP://example.com/")!))
         #expect(resolve("//example.com/x") == .web(URL(string: "https://example.com/x")!))
-        // Look-alikes of the site's host are someone else's.
+        // Look-alikes of the site's hosts, now and before, are someone else's.
+        #expect(resolve("https://resonance.channel.example.com/card/x")
+            == .web(URL(string: "https://resonance.channel.example.com/card/x")!))
+        #expect(resolve("https://resonance.channel@example.com/card/x")
+            == .web(URL(string: "https://resonance.channel@example.com/card/x")!))
+        #expect(resolve("https://notresonance.channel/card/x") == .web(URL(string: "https://notresonance.channel/card/x")!))
         #expect(resolve("https://resonance-world.vercel.app.example.com/card/x")
             == .web(URL(string: "https://resonance-world.vercel.app.example.com/card/x")!))
         #expect(resolve("https://resonance-world.vercel.app@example.com/card/x")
             == .web(URL(string: "https://resonance-world.vercel.app@example.com/card/x")!))
+        // The picture host is the site's storage, not a page of it.
+        #expect(resolve("https://img.resonance.channel/covers/x.avif") == .web(URL(string: "https://img.resonance.channel/covers/x.avif")!))
     }
 
     @Test func mailtoWritesAMail() {

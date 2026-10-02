@@ -3,9 +3,10 @@ package com.resonance.kit.story
 /**
  * Where a link in a story leads, decided by its scheme — the web reader keeps only safe protocols
  * (react-markdown's default), and so do the apps. A page of the site (a relative link, or http(s)
- * on the site's own host) opens in the app; any other web page opens in the in-app browser; a
- * mailto: link opens a mail app. Anything else (tel:, sms:, another app's own scheme, javascript:)
- * is plain text: the reader never hands it to the system. The twin of iOS's StoryLink.
+ * on the site's own host or the one it had before) opens in the app; any other web page opens in
+ * the in-app browser; a mailto: link opens a mail app. Anything else (tel:, sms:, another app's
+ * own scheme, javascript:) is plain text: the reader never hands it to the system. The twin of
+ * iOS's StoryLink.
  */
 sealed interface StoryLink {
     /** A page of this site: its path from the root (and its query), resolved as the web resolves it from a card's page. */
@@ -20,10 +21,23 @@ sealed interface StoryLink {
         private const val BASE = "/card/"
         private val scheme = Regex("^([A-Za-z][A-Za-z0-9+.-]*):")
 
+        /** Hosts the site was served from before its own domain, which still serve it: links written then lead to its pages. */
+        val FORMER_HOSTS: Set<String> = setOf("resonance-world.vercel.app")
+
+        /**
+         * Whether [host] (any case, a trailing dot allowed) is the site's: the origin's, or one it was
+         * served from before. Whole names only — a look-alike such as resonance.channel.example.com is
+         * someone else's.
+         */
+        fun isSiteHost(host: String, origin: String): Boolean {
+            val name = normalized(host) ?: return false
+            return name == hostOf(origin) || name in FORMER_HOSTS
+        }
+
         /** Whether a link can lead anywhere at all: the reader draws the others as plain text. */
         fun isTappable(href: String): Boolean = kind(href) != null
 
-        /** Where `href` leads for a reader of the site at `origin` (e.g. `https://resonance-world.vercel.app`); null: nowhere. */
+        /** Where `href` leads for a reader of the site at `origin` (e.g. `https://resonance.channel`); null: nowhere. */
         fun resolve(href: String, origin: String): StoryLink? {
             val link = href.trim()
             return when (kind(link)) {
@@ -31,7 +45,7 @@ sealed interface StoryLink {
                 Kind.Web -> {
                     val absolute = if (link.startsWith("//")) "https:$link" else link
                     val host = hostOf(absolute) ?: return null
-                    if (host == hostOf(origin)) Site(sitePath(afterAuthority(absolute))) else Web(absolute)
+                    if (isSiteHost(host, origin)) Site(sitePath(afterAuthority(absolute))) else Web(absolute)
                 }
                 Kind.Mail -> Mail(link)
                 null -> null
@@ -72,8 +86,11 @@ sealed interface StoryLink {
         private fun hostOf(url: String): String? {
             val hostPort = authority(url)?.substringAfterLast('@') ?: return null
             val host = if (hostPort.startsWith("[")) hostPort.substringBefore(']') + "]" else hostPort.substringBefore(':')
-            return host.lowercase().trimEnd('.').takeIf { it.isNotEmpty() }
+            return normalized(host)
         }
+
+        /** A host lowercased, without trailing dots; null when nothing is left. */
+        private fun normalized(host: String): String? = host.lowercase().trimEnd('.').takeIf { it.isNotEmpty() }
 
         /** A path (with its query, without its fragment) resolved against the card page and freed of dot segments. */
         private fun sitePath(ref: String): String {
