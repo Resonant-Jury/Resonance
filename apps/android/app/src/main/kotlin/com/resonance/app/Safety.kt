@@ -12,10 +12,10 @@ import kotlinx.coroutines.tasks.await
 import java.util.Date
 
 /**
- * Report and block. A card's report goes through the API, which fills in its
- * author (so anonymous cards can be reported too); the rest is written
- * straight to Firestore under the same rules the web's client uses
- * (lib/db/firestore/client/reports.ts, blocks.ts): reports are create-only;
+ * Report and block. Reports go through the API, which keeps a copy of what
+ * was reported beside each one and fills in a card's author (so anonymous
+ * cards can be reported too). Blocks are written straight to Firestore under
+ * the same rules the web's client uses (lib/db/firestore/client/blocks.ts):
  * the block list is owner-only, and blocking also ends the connection and
  * withdraws the blocker's pending invites. The twin of iOS's SafetyService.
  */
@@ -52,22 +52,12 @@ class SafetyService(private val uid: String, private val api: SafetyApi) {
 
     suspend fun report(target: Target, reason: Reason, detail: String) {
         val text = detail.trim().take(DETAIL_MAX)
-        val fields = when (target) {
-            is Target.Card -> {
-                api.reportCard(target.id, reason.key, text)
-                return
-            }
-            is Target.User -> mapOf("targetType" to "user", "targetId" to target.id, "targetUserId" to target.id)
-            is Target.Message -> mapOf("targetType" to "message", "targetId" to target.id, "targetUserId" to target.senderId, "contextId" to target.conversationId)
+        when (target) {
+            is Target.Card -> api.reportCard(target.id, reason.key, text)
+            is Target.User -> api.reportUser(target.id, reason.key, text)
+            // The server finds who sent it (the conversation's other person, for the whole of it).
+            is Target.Message -> api.reportMessage(target.id, target.conversationId, reason.key, text)
         }
-        val data = fields + mapOf(
-            "reporterId" to uid,
-            "reason" to reason.key,
-            "detail" to text,
-            "createdAt" to FieldValue.serverTimestamp(),
-            "status" to "open",
-        )
-        db.collection("reports").add(data).await()
     }
 
     suspend fun block(other: String) {
@@ -120,7 +110,7 @@ class SafetyService(private val uid: String, private val api: SafetyApi) {
     }
 
     companion object {
-        /** Mirrors the cap in firestore.rules. */
+        /** The contract's cap on a report's details (REPORT_DETAIL_MAX). */
         const val DETAIL_MAX = 1000
     }
 }
