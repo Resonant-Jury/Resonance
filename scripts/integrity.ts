@@ -2,8 +2,10 @@
  * Read-only data check for what the old firestore.rules let a client write
  * and the current ones refuse: forged publish dates, copied slugs, duplicate
  * or mismatched pen names, self-granted badges, card links pointing at the
- * wrong author, bells pinned to the future. It changes nothing — it lists
- * what to look at, and each finding says what fixing it means.
+ * wrong author, bells pinned to the future — and content past the limits the
+ * rules now hold writes to (an older card past them can't be edited through
+ * those fields until trimmed). It changes nothing — it lists what to look
+ * at, and each finding says what fixing it means.
  *
  *   npx tsx scripts/integrity.ts               production (credentials from .env)
  *   npx tsx scripts/integrity.ts --emulator    the local emulators
@@ -50,15 +52,36 @@ async function main() {
   // --- cards ---
   const cards = await db
     .collection('cards')
-    .select('authorId', 'slug', 'publishedAt', 'anonymous', 'visibility', 'referenceCardId', 'readCount', 'resonanceCount')
+    .select('authorId', 'slug', 'publishedAt', 'anonymous', 'visibility', 'referenceCardId', 'readCount', 'resonanceCount', 'thoughtCore', 'story', 'tags', 'media')
     .get();
   const card = new Map(cards.docs.map((d) => [d.id, d]));
   const badDate: string[] = [];
   const futureDate: string[] = [];
   const noAnonymous: string[] = [];
   const oddId: string[] = [];
+  const pastLimits: string[] = [];
+  const foreignCover: string[] = [];
+  const ownedKeyAnonymous: string[] = [];
+  const storageBase = process.env.R2_PUBLIC_BASE?.replace(/\/+$/, '');
+  let longestStory = 0;
   const bySlug = new Map<string, string[]>();
   for (const d of cards.docs) {
+    // The rules' validCardContent (and lib/db/firestore/cardContent): lengths in UTF-16 units.
+    const story = String(d.get('story') ?? '');
+    const tags = d.get('tags');
+    const media = d.get('media') as { url?: unknown; label?: unknown } | undefined;
+    longestStory = Math.max(longestStory, story.length);
+    const over = [
+      String(d.get('thoughtCore') ?? '').length > 200 && 'title',
+      story.length > 200_000 && 'story',
+      Array.isArray(tags) && (tags.length > 30 || tags.join(' ').length > 1000) && 'tags',
+      typeof media?.label === 'string' && media.label.length > 200 && 'cover label',
+    ].filter(Boolean);
+    if (over.length) pastLimits.push(`${d.id} (${over.join(', ')})`);
+    if (storageBase && typeof media?.url === 'string' && !media.url.startsWith(`${storageBase}/`)) foreignCover.push(d.id);
+    // An owner-named key in an anonymous card's cover (scripts/backfill.ts rekey-images covers its story's pictures too).
+    if (d.get('anonymous') === true && storageBase && typeof media?.url === 'string'
+      && /^(image|video)\/[^/]+\/\d{4}-\d{2}\/[^/]+$/.test(media.url.slice(storageBase.length + 1))) ownedKeyAnonymous.push(d.id);
     const at = d.get('publishedAt');
     if (at != null && !(at instanceof Timestamp)) badDate.push(d.id);
     else if (at instanceof Timestamp && at.toMillis() > now + FUTURE_SLACK_MS) futureDate.push(d.id);
@@ -73,9 +96,18 @@ async function main() {
     [...bySlug.entries()].filter(([, ids]) => ids.length > 1).map(([slug, ids]) => `${slug}: ${ids.join(', ')}`));
   add('cards: no boolean `anonymous` field', "backfill anonymous: false before any query filters on it", noAnonymous);
   add('cards: hand-picked document id (not a 20-character auto id)', 'check it is not squatting another card\'s slug', oddId);
+  add('cards: past the limits the rules hold writes to', 'trim the field (its author cannot save it as it is)', pastLimits);
+  add('cards: a cover not on our storage (R2_PUBLIC_BASE)', 'look at it: a picture elsewhere is fetched by every reader', foreignCover);
+  add("cards: anonymous, with a cover whose key names its author", 'npx tsx scripts/backfill.ts rekey-images --apply', ownedKeyAnonymous);
+  console.log(`(the longest story: ${longestStory} UTF-16 units; the rules take 200000)`);
 
   // --- users ---
-  const users = await db.collection('users').select('handle', 'handleLower', 'verified', 'joinedAt').get();
+  const [users, handles] = await Promise.all([
+    db.collection('users').select('handle', 'handleLower', 'verified', 'joinedAt').get(),
+    db.collection('handles').get(),
+  ]);
+  const reservedFor = new Map(handles.docs.map((d) => [d.id, d.get('uid')]));
+  const unreserved: string[] = [];
   const byHandle = new Map<string, { id: string; joined: number }[]>();
   const mismatched: string[] = [];
   const verified: string[] = [];
@@ -86,6 +118,7 @@ async function main() {
     const joined = d.get('joinedAt');
     byHandle.set(lower, [...(byHandle.get(lower) ?? []), { id: d.id, joined: joined instanceof Timestamp ? joined.toMillis() : 0 }]);
     if (d.get('verified') === true) verified.push(d.id);
+    if (lower && reservedFor.get(lower) !== d.id) unreserved.push(`${d.id} (${JSON.stringify(lower)})`);
   }
   add('users: pen name taken by more than one account', 'the earliest joinedAt keeps it; ask the others to choose again',
     [...byHandle.entries()]
@@ -93,6 +126,7 @@ async function main() {
       .map(([h, list]) => `${h}: ${list.sort((a, b) => a.joined - b.joined).map((u) => u.id).join(', ')}`));
   add('users: handleLower does not match the pen name', 'rewrite handleLower (and trim the handle) through the server', mismatched);
   add('users: verified badge set', 'confirm each one was granted on purpose; the client could set it before', verified);
+  add('users: pen name without its reservation (handles/{name})', 'npx tsx scripts/backfill.ts handles (duplicates first)', unreserved);
 
   // --- card links ---
   const links = await db.collection('cardLinks').get();
