@@ -8,16 +8,20 @@ import { DM_Sans, Noto_Sans_TC, Noto_Serif_TC, Playfair_Display } from 'next/fon
  * variable on <html>; tokens.css builds --font-heading / --font-body from
  * them (and TweaksPanel's heading override names the same variables).
  *
- * The weights are the ones the old stylesheet asked for, and each is the face
- * some rendered text resolves to — a 600 heading lands on Playfair / Noto
- * Serif TC 700, a 600 body line on Noto Sans TC 700, the zh-TW hero title on
- * Noto Serif TC 800. Adding a weight changes those matches as much as
- * dropping one, so the set stays exactly as it was.
+ * The Latin faces keep the static weights the old stylesheet asked for, and
+ * each is the face some rendered text resolves to (a 600 heading lands on
+ * Playfair 700, a 600 body line on DM Sans 600). Adding a weight changes those
+ * matches as much as dropping one. They are small and on every page: their
+ * latin files are preloaded.
  *
- * The Latin faces are small and on every page: their latin files are
- * preloaded. The Chinese faces are split by Google into ~100 unicode-range
- * slices per family; the browser fetches only the slices a page's characters
- * fall in, so they are never preloaded.
+ * The Chinese faces are variable. Google splits each family into ~100
+ * unicode-range slices and the browser fetches only those a page's characters
+ * fall in — about 20 of Noto Sans TC and 12 of Noto Serif TC on a typical
+ * page. Each slice is one variable file whatever the weight, so asking for
+ * static weights only repeated every slice's @font-face rule once per weight
+ * (some 640 rules, ~70 KB of render-blocking CSS); one variable rule per slice
+ * is a third of that. Chinese at 500/600 renders at that weight, a little
+ * lighter than the 700 a 600 used to land on. They are never preloaded.
  *
  * adjustFontFallback is off: next/font would put a metric-adjusted Times New
  * Roman / Arial right after each face, ahead of the Chinese face in the
@@ -41,7 +45,7 @@ const dmSans = DM_Sans({
 });
 
 const notoSerifTC = Noto_Serif_TC({
-  weight: ['400', '700', '800'],
+  weight: 'variable',
   display: 'swap',
   preload: false,
   adjustFontFallback: false,
@@ -49,7 +53,7 @@ const notoSerifTC = Noto_Serif_TC({
 });
 
 const notoSansTC = Noto_Sans_TC({
-  weight: ['400', '500', '700'],
+  weight: 'variable',
   display: 'swap',
   preload: false,
   adjustFontFallback: false,
