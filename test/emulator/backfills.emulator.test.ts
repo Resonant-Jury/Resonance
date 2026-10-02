@@ -6,6 +6,7 @@ import { backfillHandles } from '../../scripts/backfills/handles';
 import { cleanUpEdits } from '../../scripts/backfills/orphanEdits';
 import { setStorageHost } from '../../scripts/backfills/storageHost';
 import { rekeyAnonymousImages, type Storage } from '../../scripts/backfills/rekeyImages';
+import { rehostImages } from '../../scripts/backfills/rehostImages';
 
 // The one-off backfills (scripts/backfill.ts) against the Firestore emulator:
 // what they change with --apply, and that a dry run changes nothing.
@@ -112,6 +113,89 @@ describe('storage-host', () => {
     expect(await data('config/storage')).toBeNull();
     await setStorageHost(db, 'https://img.resonance.test/', { apply: true, log: quiet });
     expect(await data('config/storage')).toEqual({ host: 'img.resonance.test' });
+  });
+
+  it('keeps the host it replaces, and the configured former ones, as former hosts — once each, never the current one', async () => {
+    await db.doc('config/storage').set({ host: 'pub-1.r2.dev', formerHosts: ['pub-0.r2.dev', 'img.resonance.test'] });
+    const formerBases = ['https://pub-0.r2.dev/', 'https://pub-2.r2.dev'];
+
+    await setStorageHost(db, 'https://img.resonance.test', { apply: false, formerBases, log: quiet });
+    expect(await data('config/storage')).toEqual({ host: 'pub-1.r2.dev', formerHosts: ['pub-0.r2.dev', 'img.resonance.test'] });
+
+    expect(await setStorageHost(db, 'https://img.resonance.test', { apply: true, formerBases, log: quiet }))
+      .toMatchObject({ host: 'img.resonance.test', previous: 'pub-1.r2.dev' });
+    expect(await data('config/storage')).toEqual({ host: 'img.resonance.test', formerHosts: ['pub-0.r2.dev', 'pub-1.r2.dev', 'pub-2.r2.dev'] });
+
+    // Run again: nothing new.
+    await setStorageHost(db, 'https://img.resonance.test', { apply: true, formerBases, log: quiet });
+    expect((await data('config/storage'))!.formerHosts).toEqual(['pub-0.r2.dev', 'pub-1.r2.dev', 'pub-2.r2.dev']);
+  });
+});
+
+describe('rehost-images', () => {
+  const NOW = 'https://img.resonance.test';
+  const BEFORE = 'https://pub-0123.r2.dev';
+  const cover = `${BEFORE}/image/2026-05/cover.webp`;
+  const inline = `${BEFORE}/image/2026-05/inline.webp`;
+  const avatar = `${BEFORE}/image/2026-05/avatar.webp`;
+  const at = Timestamp.fromDate(new Date('2026-05-01T00:00:00Z'));
+  const story = `Before.\n\n![a street](${inline} "title")\n\n![kept](${NOW}/image/2026-10/new.webp) and [elsewhere](https://example.com), `
+    + `a lookalike ${BEFORE}.evil.example/image/x.webp.`;
+
+  beforeEach(async () => {
+    await db.doc('users/alice').set({ handle: 'alice', avatarUrl: avatar, joinedAt: at });
+    await db.doc('users/bob').set({ handle: 'bob', avatarUrl: `${NOW}/image/2026-10/bob.webp` });
+    await db.doc('users/carol').set({ handle: 'carol', avatarUrl: 'https://elsewhere.example/c.png' });
+    await db.doc('users/dave').set({ handle: 'dave' });
+    await db.doc('cards/c1').set({
+      authorId: 'alice', anonymous: false, visibility: 'public', thoughtCore: 'T', tags: ['a'],
+      media: { type: 'image', url: cover, label: 'c' }, story,
+      publishedAt: at, updatedAt: at, excerpt: 'Before.', excerptAt: at, readMinutes: 1, slug: 's',
+    });
+    await db.doc('cards/c1/edits/current').set({ media: { type: 'image', url: cover, label: 'c' }, story: `Revising ![x](${inline})`, updatedAt: at, authorId: 'alice' });
+    await db.doc('cards/c2').set({ authorId: 'bob', media: { type: 'image', url: 'https://legacy.example/old.jpg' }, story: 'No pictures.', updatedAt: at });
+    // What was reported, as it was: evidence is never rewritten.
+    await db.doc('reportEvidence/r1').set({ card: { media: { type: 'image', url: cover }, story }, profile: { avatarUrl: avatar } });
+  });
+
+  async function snapshot() {
+    const paths = ['users/alice', 'users/bob', 'users/carol', 'users/dave', 'cards/c1', 'cards/c1/edits/current', 'cards/c2', 'reportEvidence/r1'];
+    return Object.fromEntries(await Promise.all(paths.map(async (p) => [p, await data(p)] as const)));
+  }
+
+  it('moves every stored picture URL on a former host to the same key on the current one, and changes nothing else', async () => {
+    const before = await snapshot();
+    const dry = await rehostImages(db, { apply: false, publicBase: NOW, formerBases: [`${BEFORE}/`], log: quiet });
+    expect(dry).toMatchObject({ users: { read: 4, rewritten: 1 }, cards: { read: 2, rewritten: 1 }, edits: { read: 1, rewritten: 1 }, pictures: 3 });
+    expect(await snapshot()).toEqual(before);
+
+    expect(await rehostImages(db, { apply: true, publicBase: NOW, formerBases: [BEFORE], log: quiet })).toMatchObject({ notWritten: 0 });
+    const after = await snapshot();
+    const moved = (value: unknown) => JSON.parse(JSON.stringify(value).split(`${BEFORE}/image/`).join(`${NOW}/image/`));
+    expect(after['users/alice']).toEqual({ ...before['users/alice'], avatarUrl: `${NOW}/image/2026-05/avatar.webp` });
+    expect(after['cards/c1']).toEqual({
+      ...before['cards/c1'],
+      media: { type: 'image', url: `${NOW}/image/2026-05/cover.webp`, label: 'c' },
+      story: moved(story),
+    });
+    // Its dates and summary stay as they were: nothing reads as edited, nothing moves in a list.
+    expect(after['cards/c1']!.updatedAt).toEqual(at);
+    expect(after['cards/c1']!.excerptAt).toEqual(at);
+    expect(after['cards/c1']!.story).toContain(`${BEFORE}.evil.example/image/x.webp`);
+    expect(after['cards/c1/edits/current']).toEqual({
+      ...before['cards/c1/edits/current'],
+      media: { type: 'image', url: `${NOW}/image/2026-05/cover.webp`, label: 'c' },
+      story: `Revising ![x](${NOW}/image/2026-05/inline.webp)`,
+    });
+    for (const p of ['users/bob', 'users/carol', 'users/dave', 'cards/c2', 'reportEvidence/r1']) expect(after[p], p).toEqual(before[p]);
+
+    // A second run has nothing left to move.
+    expect(await rehostImages(db, { apply: true, publicBase: NOW, formerBases: [BEFORE], log: quiet }))
+      .toMatchObject({ users: { rewritten: 0 }, cards: { rewritten: 0 }, edits: { rewritten: 0 }, pictures: 0 });
+  });
+
+  it('needs a former host to move from', async () => {
+    await expect(rehostImages(db, { apply: false, publicBase: NOW, formerBases: [`${NOW}/`], log: quiet })).rejects.toThrow(/R2_FORMER_PUBLIC_BASES/);
   });
 });
 
