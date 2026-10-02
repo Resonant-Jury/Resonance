@@ -343,10 +343,10 @@ describe('MessagesPage thread safety menu', () => {
     await u.click(submit);
 
     await waitFor(() =>
+      // The server finds who is responsible: the other participant.
       expect(mockSubmitReport).toHaveBeenCalledWith({
         targetType: 'message',
         targetId: 'alice_me',
-        targetUserId: 'alice',
         reason: 'spam',
         detail: 'Keeps sending links',
         contextId: 'alice_me',

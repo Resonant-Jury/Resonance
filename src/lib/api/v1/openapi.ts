@@ -168,6 +168,14 @@ export function buildOpenApi(): Json {
           responses: { '201': { description: 'Created', ...json(ref('CreateReportResponse')) }, ...errors(400, 401, 404) },
         },
       },
+      '/reports': {
+        post: {
+          operationId: 'createReport',
+          summary: 'Report a person or a message sent to you (the server keeps a copy of what was reported)',
+          requestBody: { required: true, ...json(ref('CreateReportRequest')) },
+          responses: { '201': { description: 'Created', ...json(ref('CreateReportResponse')) }, ...errors(400, 401, 404) },
+        },
+      },
       '/cards/{key}/links': get('getCardLinks', 'Cards linking to it (empty unless you wrote it)', 'CardList', { parameters: [cardId] }),
       '/users/{handle}': get('getProfile', "A person's profile as you see it", 'Profile', {
         description: 'With `include`, what `/cards` (its first page, of `limit` cards) and `/links` answer come along.',

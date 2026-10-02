@@ -921,6 +921,64 @@
         }
       }
     },
+    "/reports": {
+      "post": {
+        "operationId": "createReport",
+        "summary": "Report a person or a message sent to you (the server keeps a copy of what was reported)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateReportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cards/{key}/links": {
       "get": {
         "operationId": "getCardLinks",
@@ -2202,6 +2260,50 @@
           "reason"
         ],
         "description": "Report a card — anonymous ones too: the server knows its author, the app doesn't."
+      },
+      "CreateReportRequest": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "user",
+              "message"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,128}$"
+          },
+          "conversationId": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,128}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "spam",
+              "harassment",
+              "hate",
+              "sexual",
+              "self_harm",
+              "violence",
+              "other"
+            ]
+          },
+          "detail": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "reason"
+        ],
+        "description": "Report a person or a message. The server keeps a copy of what was reported, so deleting it later erases no evidence."
       },
       "CreateReportResponse": {
         "type": "object",

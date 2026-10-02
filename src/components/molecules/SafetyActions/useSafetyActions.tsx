@@ -47,6 +47,10 @@ export function useSafetyActions({ report, isBlocked = false, onBlockedChange }:
 
   const handle = report.handle ?? t('anonymousAuthor');
   const refreshAll = () => void mutate(() => true);
+  // Someone else's anonymous card names no one here: it can be reported (the
+  // server knows its author), but there is no one to block — a block list
+  // would name its author.
+  const canBlock = !!report.userId;
 
   const items: OrganicMenuItem[] = [
     {
@@ -54,9 +58,11 @@ export function useSafetyActions({ report, isBlocked = false, onBlockedChange }:
       icon: 'flag',
       label: report.type === 'card' ? t('reportCard') : report.type === 'user' ? t('reportUser') : t('reportMessage'),
     },
-    isBlocked
-      ? { key: 'safety:unblock', icon: 'ban', label: t('unblock') }
-      : { key: 'safety:block', icon: 'ban', label: t('block'), danger: true },
+    ...(!canBlock
+      ? []
+      : isBlocked
+        ? [{ key: 'safety:unblock', icon: 'ban' as const, label: t('unblock') }]
+        : [{ key: 'safety:block', icon: 'ban' as const, label: t('block'), danger: true }]),
   ];
 
   async function unblock() {
@@ -85,8 +91,8 @@ export function useSafetyActions({ report, isBlocked = false, onBlockedChange }:
 
   function choose(key: string): boolean {
     if (key === 'safety:report') setReporting(true);
-    else if (key === 'safety:block') setConfirmingBlock(true);
-    else if (key === 'safety:unblock') void unblock();
+    else if (key === 'safety:block' && canBlock) setConfirmingBlock(true);
+    else if (key === 'safety:unblock' && canBlock) void unblock();
     else return false;
     return true;
   }
@@ -97,7 +103,7 @@ export function useSafetyActions({ report, isBlocked = false, onBlockedChange }:
         <ReportModal
           open={reporting}
           target={report}
-          offerBlock={!isBlocked}
+          offerBlock={canBlock && !isBlocked}
           onClose={() => setReporting(false)}
           onReported={({ blocked }) => {
             if (!blocked) return;

@@ -20,7 +20,11 @@ export interface ReportTarget {
   type: ReportTargetType;
   /** Card id, user id, or message/conversation id. */
   id: string;
-  /** The person responsible for the content. */
+  /**
+   * The person responsible for the content — empty when this viewer can't
+   * know it (someone else's anonymous card): the server finds them, and
+   * nothing offers to block them.
+   */
   userId: string;
   /** Shown in the title and the "also block" row; omit for anonymous authors. */
   handle?: string;
@@ -75,15 +79,15 @@ export function ReportModal({ open, target, offerBlock = true, onClose, onReport
     setBusy(true);
     setError(false);
     try {
+      // The server finds who is responsible (an anonymous card's author too).
       await submitReport({
         targetType: target.type,
         targetId: target.id,
-        targetUserId: target.userId,
         reason,
         detail,
         contextId: target.contextId,
       });
-      const blocked = offerBlock && alsoBlock;
+      const blocked = offerBlock && alsoBlock && !!target.userId;
       if (blocked) await blockUser(target.userId);
       setDone({ blocked });
       onReported?.({ blocked });

@@ -1,14 +1,15 @@
 'use client';
 
-import { addDoc, collection, serverTimestamp } from './sdk';
-import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
-import { getClientDb } from './init';
+import { callApi } from './api';
 
 /**
  * Reports (檢舉) — App Store guideline 1.2 requires a way to flag
- * objectionable content and abusive users. Reports are write-only for clients
- * (firestore.rules); moderation reads them with the Admin SDK
- * (`npm run moderation -- list`).
+ * objectionable content and abusive users. They go through the server, the
+ * same calls the apps make: a card through POST /api/v1/cards/{id}/report
+ * (only the server knows an anonymous card's author), a person or a message
+ * through POST /api/v1/reports. The server keeps a copy of what was
+ * reported, so deleting it afterwards erases no evidence; moderation reads
+ * them with the Admin SDK (`npm run moderation -- list`).
  */
 export type ReportTargetType = 'card' | 'user' | 'message';
 
@@ -23,34 +24,36 @@ export const REPORT_REASONS = [
 ] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
 
-/** Mirrors the cap in firestore.rules — keep the two in sync. */
+/** Mirrors REPORT_DETAIL_MAX in lib/api/v1/schemas — keep the two in sync. */
 export const REPORT_DETAIL_MAX = 1000;
 
 export interface ReportInput {
   targetType: ReportTargetType;
   /** Card id, user id, or message id. */
   targetId: string;
-  /** The person responsible for the content (the card's author, the sender…). */
-  targetUserId: string;
+  /** Where it happened: the conversation id, for a message. */
+  contextId?: string;
   reason: ReportReason;
   detail?: string;
-  /** Where it happened, e.g. the conversation id for a message. */
-  contextId?: string;
 }
 
 export async function submitReport(input: ReportInput): Promise<void> {
-  const uid = getFirebaseClientAuth().currentUser?.uid;
-  if (!uid) throw new Error('Not signed in');
   const detail = (input.detail ?? '').trim().slice(0, REPORT_DETAIL_MAX);
-  await addDoc(collection(getClientDb(), 'reports'), {
-    reporterId: uid,
-    targetType: input.targetType,
-    targetId: input.targetId,
-    targetUserId: input.targetUserId,
-    reason: input.reason,
-    detail,
-    ...(input.contextId ? { contextId: input.contextId } : {}),
-    createdAt: serverTimestamp(),
-    status: 'open',
+  if (input.targetType === 'card') {
+    await callApi(`/api/v1/cards/${encodeURIComponent(input.targetId)}/report`, {
+      method: 'POST',
+      body: { reason: input.reason, detail },
+    });
+    return;
+  }
+  await callApi('/api/v1/reports', {
+    method: 'POST',
+    body: {
+      targetType: input.targetType,
+      targetId: input.targetId,
+      ...(input.contextId ? { conversationId: input.contextId } : {}),
+      reason: input.reason,
+      detail,
+    },
   });
 }

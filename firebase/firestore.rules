@@ -60,6 +60,11 @@ service cloud.firestore {
       return !(key in data) || (data[key] is string && data[key].size() <= max);
     }
 
+    // A short id-like string (a card id, a group id).
+    function shortId(v) {
+      return v is string && v.size() > 0 && v.size() <= 128;
+    }
+
     // --- users ---
     // Profiles are public on this storytelling platform (author bylines, public
     // profile pages, and feeds are viewable by logged-out visitors). Firestore
@@ -375,10 +380,14 @@ service cloud.firestore {
     }
 
     // --- reports (檢舉) ---
-    // Write-only for clients: a signed-in user files a report about a card, a
-    // user, or a message. Nobody can read reports from the client (not even
-    // the reporter) — moderation reads them with the Admin SDK
-    // (scripts/moderation/reports.ts).
+    // Filed through the server (POST /api/v1/cards/{key}/report and
+    // /api/v1/reports), which keeps a copy of what was reported
+    // (reportEvidence) so deleting it afterwards erases no evidence. The
+    // apps' older builds still write user and message reports straight from
+    // the client: those stay accepted, write-only. A card report is the
+    // server's alone — only it knows an anonymous card's author. Nobody reads
+    // reports from the client (not even the reporter) — moderation reads them
+    // with the Admin SDK (scripts/moderation/reports.ts).
     match /reports/{reportId} {
       allow read, update, delete: if false;
       allow create: if signedIn()
@@ -391,11 +400,11 @@ service cloud.firestore {
           "reason", "detail", "createdAt", "status"
         ])
         && request.resource.data.reporterId == request.auth.uid
-        && request.resource.data.targetType in ["card", "user", "message"]
+        && request.resource.data.targetType in ["user", "message"]
         && request.resource.data.targetId is string
         && request.resource.data.targetId.size() > 0
         && request.resource.data.targetId.size() <= 200
-        && request.resource.data.targetUserId is string
+        && shortId(request.resource.data.targetUserId)
         && request.resource.data.targetUserId != request.auth.uid
         && request.resource.data.reason in [
           "spam", "harassment", "hate", "sexual", "self_harm", "violence", "other"
@@ -407,6 +416,14 @@ service cloud.firestore {
                 && request.resource.data.contextId.size() <= 200))
         && request.resource.data.createdAt == request.time
         && request.resource.data.status == "open";
+    }
+
+    // --- report evidence (server-only) ---
+    // What a report was about, as it stood when it was filed (the card, the
+    // profile, the messages around the reported one): written beside the
+    // report by the server, read by moderation, purged with either account.
+    match /reportEvidence/{reportId} {
+      allow read, write: if false;
     }
 
     // --- account deletion requests (server-only) ---

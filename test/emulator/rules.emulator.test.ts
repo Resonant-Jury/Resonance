@@ -577,10 +577,12 @@ describe('closed legacy write paths', () => {
 });
 
 describe('reports', () => {
+  // What the apps' older builds still write for a person or a message (a
+  // card goes through the server, which knows an anonymous card's author).
   const valid = {
     reporterId: 'alice',
-    targetType: 'card',
-    targetId: 'card-1',
+    targetType: 'user',
+    targetId: 'bob',
     targetUserId: 'bob',
     reason: 'harassment',
     detail: 'Personal attack in the second paragraph.',
@@ -620,8 +622,22 @@ describe('reports', () => {
       { ...valid, status: 'resolved' },
       { ...valid, createdAt: new Date('2020-01-01') },
       { ...valid, extra: true },
+      { ...valid, targetUserId: 'x'.repeat(129) },
+      { ...valid, targetUserId: '' },
+      // A card report from the client: the server's alone now (with what it kept of the card).
+      { ...valid, targetType: 'card', targetId: 'card-1' },
     ];
     for (const data of bad) await assertFails(addDoc(collection(db, 'reports'), data));
+  });
+
+  it("keeps what a report was about to the server: no one reads or writes its evidence", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'reportEvidence', 'r1'), { reporterId: 'alice', targetUserId: 'bob', card: { story: 's' } });
+    });
+    await assertFails(getDoc(doc(as('alice'), 'reportEvidence', 'r1')));
+    await assertFails(getDoc(doc(as('bob'), 'reportEvidence', 'r1')));
+    await assertFails(setDoc(doc(as('bob'), 'reportEvidence', 'r1'), { card: null }));
+    await assertFails(deleteDoc(doc(as('bob'), 'reportEvidence', 'r1')));
   });
 });
 

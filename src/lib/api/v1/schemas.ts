@@ -322,13 +322,30 @@ export const RegisterDeviceRequest = named(
 /** firestore.rules' cap on a report's details (REPORT_DETAIL_MAX on the web). */
 export const REPORT_DETAIL_MAX = 1000;
 
+const ReportReason = z.enum(['spam', 'harassment', 'hate', 'sexual', 'self_harm', 'violence', 'other']);
+
 export const ReportCardRequest = named(
   z.object({
-    reason: z.enum(['spam', 'harassment', 'hate', 'sexual', 'self_harm', 'violence', 'other']),
+    reason: ReportReason,
     detail: z.string().trim().max(REPORT_DETAIL_MAX).nullish(),
   }),
   'ReportCardRequest',
   "Report a card — anonymous ones too: the server knows its author, the app doesn't.",
+);
+
+export const CreateReportRequest = named(
+  z.object({
+    /** `user`: a person (their profile). `message`: a message someone sent you. Cards: POST /cards/{key}/report. */
+    targetType: z.enum(['user', 'message']),
+    /** `user`: their user id. `message`: the message's id — or the conversation's own id, to report it as a whole. */
+    targetId: DocId,
+    /** `message`: the conversation it is in (conversations/{id}). */
+    conversationId: DocId.nullish(),
+    reason: ReportReason,
+    detail: z.string().trim().max(REPORT_DETAIL_MAX).nullish(),
+  }),
+  'CreateReportRequest',
+  'Report a person or a message. The server keeps a copy of what was reported, so deleting it later erases no evidence.',
 );
 
 export const CreateReportResponse = named(z.object({ id: z.string() }), 'CreateReportResponse');
@@ -395,6 +412,7 @@ export type CardBoxTabName = z.infer<typeof CardBoxTab>;
 export type CreateProfileInput = z.infer<typeof CreateProfileRequest>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileRequest>;
 export type ReportCardInput = z.infer<typeof ReportCardRequest>;
+export type CreateReportInput = z.infer<typeof CreateReportRequest>;
 export type UpdateCardInput = z.infer<typeof UpdateCardRequest>;
 export type CardListBody = z.infer<typeof CardList>;
 export type CardInclude = (typeof CARD_INCLUDES)[number];

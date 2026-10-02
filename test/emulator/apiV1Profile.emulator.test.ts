@@ -201,6 +201,24 @@ describe('reportCard', () => {
     });
   });
 
+  it('keeps the card as it read when reported: deleting or editing it later erases no evidence', async () => {
+    await db.doc('cards/anon').set({
+      authorId: 'bob', visibility: 'public', anonymous: true, slug: 'a-quiet-night', publishedAt: new Date(),
+      thoughtCore: '一句狠話', story: '整段的人身攻擊', tags: ['x'], media: { type: 'image', url: 'https://img.example/c.webp', label: 'c' },
+    });
+    const id = await reportCard(db, 'nina', 'anon', { reason: 'harassment' });
+    await db.doc('cards/anon').delete();
+    const evidence = (await db.doc(`reportEvidence/${id}`).get()).data()!;
+    expect(evidence).toMatchObject({
+      reportId: id,
+      reporterId: 'nina',
+      targetUserId: 'bob',
+      targetType: 'card',
+      card: { id: 'anon', thoughtCore: '一句狠話', story: '整段的人身攻擊', anonymous: true, authorHandle: 'Bob', media: { url: 'https://img.example/c.webp' } },
+    });
+    expect(evidence.capturedAt).toBeDefined();
+  });
+
   it("is not_found for a card the reporter can't see, and refuses one's own", async () => {
     await db.doc('cards/secret').set({ authorId: 'bob', visibility: 'private', publishedAt: null });
     expect((await failure(reportCard(db, 'nina', 'secret', { reason: 'spam' }))).code).toBe('not_found');
