@@ -1,7 +1,7 @@
 ---
 title: 兒童安全標準
 description: Resonance 如何禁止並處理兒童性虐待與性剝削（CSAE），以及兒童安全的聯絡窗口。
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 Resonance（共振）由共振團隊開發與營運。我們對兒童性虐待與性剝削（CSAE）及兒童性虐待內容（CSAM）採取零容忍。這份標準適用於 Resonance 上的一切：卡片、共振、個人頁、圖片、紙條與私訊，包括網站與 iOS、Android App。
@@ -21,7 +21,7 @@ Resonance（共振）由共振團隊開發與營運。我們對兒童性虐待�
 ## 如何檢舉
 
 - 在 App 與網站上，每張卡片、每個人的個人頁與每段對話都有「⋯」選單，可以檢舉與封鎖。
-- 也可以寫信到 assist.resonance@gmail.com，請附上卡片或個人頁的連結。
+- 也可以寫信到 support@resonance.channel，請附上卡片或個人頁的連結。
 - 如果有兒童正處於立即的危險，請先聯絡當地警方。
 
 ## 我們的處理方式
@@ -33,4 +33,4 @@ Resonance（共振）由共振團隊開發與營運。我們對兒童性虐待�
 
 ## 兒童安全聯絡窗口
 
-共振團隊是兒童安全事務的指定聯絡窗口，使用者與主管機關都可以聯絡：assist.resonance@gmail.com
+共振團隊是兒童安全事務的指定聯絡窗口，使用者與主管機關都可以聯絡：support@resonance.channel

@@ -1,10 +1,10 @@
 ---
 title: Support
 description: Contacting Resonance, deleting your account, downloading your data, reporting and blocking.
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
-Questions, ideas or need a hand? Email **assist.resonance@gmail.com** and we'll get back to you as soon as we can.
+Questions, ideas or need a hand? Email **support@resonance.channel** and we'll get back to you as soon as we can.
 
 ## How do I delete my account?
 
@@ -13,7 +13,7 @@ Questions, ideas or need a hand? Email **assist.resonance@gmail.com** and we'll 
 
 You're signed out right away. Signing back in within 7 days cancels it; after 7 days your account, cards, messages and uploaded images are deleted for good and can't be recovered. The [Privacy Policy](./privacy.en.md) lists exactly what is deleted and what is kept.
 
-**Can't sign in?** Email assist.resonance@gmail.com from the address you registered with, with "Delete account" as the subject. Once we've confirmed the account is yours, we'll delete it within 7 days.
+**Can't sign in?** Email support@resonance.channel from the address you registered with, with "Delete account" as the subject. Once we've confirmed the account is yours, we'll delete it within 7 days.
 
 ## How do I download my data?
 

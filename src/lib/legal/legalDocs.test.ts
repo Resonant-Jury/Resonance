@@ -12,7 +12,7 @@ describe('policy pages (docs/legal)', () => {
     expect(files).toEqual(LEGAL_KEYS.flatMap((k) => LANGS.map((l) => `${k}.${l}.md`)).sort());
   });
 
-  it('says the same things in both languages, as the team, with the team address', () => {
+  it('says the same things in both languages, as the team, with the team address on the site’s own domain', () => {
     for (const key of LEGAL_KEYS) {
       const zh = loadLegalDoc(key, 'zh-TW');
       const en = loadLegalDoc(key, 'en');
@@ -20,11 +20,13 @@ describe('policy pages (docs/legal)', () => {
       expect(zh.body.match(/^- /gm)?.length, key).toBe(en.body.match(/^- /gm)?.length);
       expect(zh.updated, key).toBe(en.updated);
       for (const doc of [zh, en]) {
-        expect(doc.body, key).toContain('assist.resonance@gmail.com');
-        expect(doc.body, key).not.toMatch(/ncchen|Nian-Cheng/);
+        expect(doc.body, key).toContain('support@resonance.channel');
+        // The inbox it forwards to, and the site's former address, are named nowhere.
+        expect(doc.body, key).not.toMatch(/ncchen|Nian-Cheng|gmail\.com|vercel\.app/);
       }
     }
     expect(loadLegalDoc('privacy', 'zh-TW').body).toContain('由共振團隊開發與營運');
+    expect(loadLegalDoc('privacy', 'en').body).toContain('the website resonance.channel');
     expect(loadLegalDoc('terms', 'en').body).toContain('built and run by the Resonance team');
   });
 

@@ -1,7 +1,7 @@
 ---
 title: 服務條款
 description: 使用 Resonance 網站與 App 的規則：你的內容、禁止的行為、檢舉與封鎖。
-updated: 2026-09-30
+updated: 2026-10-02
 ---
 
 歡迎使用 Resonance（共振）。Resonance 由共振團隊開發與營運（以下稱「我們」）。使用網站或 App，即表示你同意這份條款與[隱私權政策](./privacy.zh-TW.md)。
@@ -55,4 +55,4 @@ updated: 2026-09-30
 
 ## 聯絡我們
 
-assist.resonance@gmail.com
+support@resonance.channel

@@ -1,7 +1,7 @@
 ---
 title: Terms of Use
 description: The rules for using the Resonance website and apps: your content, what is not allowed, reporting and blocking.
-updated: 2026-09-30
+updated: 2026-10-02
 ---
 
 Welcome to Resonance. Resonance is built and run by the Resonance team ("we"). By using the website or the apps you agree to these terms and to our [Privacy Policy](./privacy.en.md).
@@ -55,4 +55,4 @@ If we make significant changes, we'll announce them on the website and in the ap
 
 ## Contact
 
-assist.resonance@gmail.com
+support@resonance.channel

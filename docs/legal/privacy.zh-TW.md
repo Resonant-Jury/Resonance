@@ -4,7 +4,7 @@ description: Resonance 蒐集哪些資料、為什麼需要、交給誰處理，
 updated: 2026-10-02
 ---
 
-Resonance（共振）是一個用故事卡片彼此交流的平台，包含網站 resonance-world.vercel.app 與 iOS、Android App，由共振團隊開發與營運（以下稱「我們」）。這份政策說明我們蒐集哪些資料、為什麼需要、交給誰處理，以及你可以怎麼管理或刪除它們。
+Resonance（共振）是一個用故事卡片彼此交流的平台，包含網站 resonance.channel 與 iOS、Android App，由共振團隊開發與營運（以下稱「我們」）。這份政策說明我們蒐集哪些資料、為什麼需要、交給誰處理，以及你可以怎麼管理或刪除它們。
 
 ## 我們不做的事
 
@@ -72,4 +72,4 @@ Resonance 不是為 13 歲以下的兒童設計的，我們也不會在知情的
 
 ## 聯絡我們
 
-assist.resonance@gmail.com
+support@resonance.channel

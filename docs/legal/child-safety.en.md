@@ -1,7 +1,7 @@
 ---
 title: Child Safety Standards
 description: How Resonance prohibits and handles child sexual abuse and exploitation (CSAE), and who to contact about child safety.
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 Resonance is built and run by the Resonance team. We have zero tolerance for child sexual abuse and exploitation (CSAE) and for child sexual abuse material (CSAM). These standards cover everything on Resonance — cards, resonances, profiles, images, notes and messages — on the website and in the iOS and Android apps.
@@ -21,7 +21,7 @@ Resonance is built and run by the Resonance team. We have zero tolerance for chi
 ## How to report
 
 - In the apps and on the website, every card, profile and conversation has a "⋯" menu with Report and Block.
-- You can also email assist.resonance@gmail.com; please include a link to the card or profile.
+- You can also email support@resonance.channel; please include a link to the card or profile.
 - If a child is in immediate danger, contact your local police first.
 
 ## What we do
@@ -33,4 +33,4 @@ Resonance is built and run by the Resonance team. We have zero tolerance for chi
 
 ## Child safety contact
 
-The Resonance team is the designated contact for child safety, for users and for authorities: assist.resonance@gmail.com
+The Resonance team is the designated contact for child safety, for users and for authorities: support@resonance.channel

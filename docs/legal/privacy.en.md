@@ -4,7 +4,7 @@ description: What Resonance collects, why, who processes it, and how to download
 updated: 2026-10-02
 ---
 
-Resonance is a place to share stories as cards, made up of the website resonance-world.vercel.app and the iOS and Android apps. It is built and run by the Resonance team ("we"). This policy explains what we collect, why, who processes it for us, and how you can manage or delete it.
+Resonance is a place to share stories as cards, made up of the website resonance.channel and the iOS and Android apps. It is built and run by the Resonance team ("we"). This policy explains what we collect, why, who processes it for us, and how you can manage or delete it.
 
 ## What we don't do
 
@@ -72,4 +72,4 @@ If we make significant changes, we'll announce them on the website and in the ap
 
 ## Contact
 
-assist.resonance@gmail.com
+support@resonance.channel

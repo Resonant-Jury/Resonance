@@ -7,7 +7,7 @@ const doc = {
   title: '支援',
   description: 'd',
   updated: '2026-09-30',
-  body: '寫信到 **assist.resonance@gmail.com**，或看[隱私權政策](/zh-TW/privacy)與 [外部](https://example.com)。',
+  body: '寫信到 **support@resonance.channel**，或看[隱私權政策](/zh-TW/privacy)與 [外部](https://example.com)。',
 };
 
 describe('LegalDocument', () => {
@@ -20,8 +20,8 @@ describe('LegalDocument', () => {
     expect(page).toHaveAttribute('href', '/zh-TW/privacy');
     expect(page.querySelector('svg path')?.getAttribute('d')).toMatch(/^M/);
 
-    const mail = screen.getByRole('link', { name: 'assist.resonance@gmail.com' });
-    expect(mail).toHaveAttribute('href', 'mailto:assist.resonance@gmail.com');
+    const mail = screen.getByRole('link', { name: 'support@resonance.channel' });
+    expect(mail).toHaveAttribute('href', 'mailto:support@resonance.channel');
     expect(mail.querySelector('svg')).not.toBeNull();
 
     const external = screen.getByRole('link', { name: '外部' });
