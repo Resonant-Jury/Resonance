@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -106,11 +107,12 @@ class LinkSpan(val url: String, private val color: Int) : CharacterStyle() {
     }
 }
 
-private fun buildRichLayout(runs: List<InlineRun>, style: ProseStyle, widthPx: Int, density: Float): Pair<StaticLayout, Spanned> {
+private fun buildRichLayout(runs: List<InlineRun>, style: ProseStyle, widthPx: Int, density: Density): Pair<StaticLayout, Spanned> {
     val base = AppFonts.typeface(style.family, style.weight)
+    val sizePx = density.cssFontPx(style.size)
     val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = base
-        textSize = style.size * density
+        textSize = sizePx
         color = style.color.toArgb()
         letterSpacing = style.tracking
     }
@@ -131,7 +133,7 @@ private fun buildRichLayout(runs: List<InlineRun>, style: ProseStyle, widthPx: I
         run.link?.let { text.setSpan(LinkSpan(it, Tokens.Terracotta.toArgb()), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
         if (run.code) text.setSpan(ForegroundColorSpan(style.color.toArgb()), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
-    text.setSpan(CssLineHeightSpan(style.size * style.lineHeight * density, paint.fontMetrics), 0, text.length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+    text.setSpan(CssLineHeightSpan(sizePx * style.lineHeight, paint.fontMetrics), 0, text.length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
     val b = StaticLayout.Builder.obtain(text, 0, text.length, paint, max(1, widthPx))
         .setAlignment(Layout.Alignment.ALIGN_NORMAL)
         .setIncludePad(false)
@@ -145,10 +147,11 @@ private fun buildRichLayout(runs: List<InlineRun>, style: ProseStyle, widthPx: I
 /** Rich story text in exact CSS line boxes, with tappable links. */
 @Composable
 fun RichCssText(runs: List<InlineRun>, style: ProseStyle, onOpenUrl: (String) -> Unit, modifier: Modifier = Modifier) {
-    val density = LocalDensity.current.density
+    val scaled = LocalDensity.current
+    val density = scaled.density
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val widthPx = constraints.maxWidth
-        val (layout, spanned) = remember(runs, style, widthPx, density) { buildRichLayout(runs, style, widthPx, density) }
+        val (layout, spanned) = remember(runs, style, widthPx, density, scaled.fontScale) { buildRichLayout(runs, style, widthPx, scaled) }
         val plain = remember(runs) { runs.joinToString("") { it.text } }
         Box(
             Modifier
@@ -179,12 +182,21 @@ fun StoryMarkdown(blocks: List<StoryBlock>, onOpenUrl: (String) -> Unit, embed: 
     BlockColumn(blocks, ProseStyle.Body, onOpenUrl, embed)
 }
 
+/**
+ * The reader's 1em in dp: 17 at the system's normal text size, more when the
+ * text scale grows the body, so the margins, indents and list markers the web
+ * measures in ems stay in proportion to the words they sit beside.
+ */
+@Composable
+private fun readerEm(): Dp = with(LocalDensity.current) { cssFontPx(ProseMetrics.EM).toDp() }
+
 @Composable
 private fun BlockColumn(blocks: List<StoryBlock>, style: ProseStyle, onOpenUrl: (String) -> Unit, embed: @Composable (String, String) -> Unit) {
     val gaps = remember(blocks) { ProseMetrics.gaps(blocks) }
+    val grown = readerEm().value / ProseMetrics.EM
     Column(Modifier.fillMaxWidth()) {
         blocks.forEachIndexed { i, block ->
-            if (gaps[i] > 0) Spacer(Modifier.height(gaps[i].dp))
+            if (gaps[i] > 0) Spacer(Modifier.height((gaps[i] * grown).dp))
             Block(block, style, onOpenUrl, embed)
         }
     }
@@ -192,10 +204,11 @@ private fun BlockColumn(blocks: List<StoryBlock>, style: ProseStyle, onOpenUrl: 
 
 @Composable
 private fun Block(block: StoryBlock, style: ProseStyle, onOpenUrl: (String) -> Unit, embed: @Composable (String, String) -> Unit) {
+    val em = readerEm()
     when (block) {
         is StoryBlock.Paragraph -> RichCssText(block.runs, style, onOpenUrl)
         is StoryBlock.Heading -> RichCssText(block.runs, if (block.level <= 2) ProseStyle.H2 else ProseStyle.H3, onOpenUrl, Modifier.semantics { heading() })
-        StoryBlock.Blank -> Spacer(Modifier.height((1.6f * ProseMetrics.EM).dp).clearAndSetSemantics { })
+        StoryBlock.Blank -> Spacer(Modifier.height(em * 1.6f).clearAndSetSemantics { })
         is StoryBlock.Image -> StoryImage(block.url, block.alt)
         is StoryBlock.CardEmbed -> embed(block.href, block.title)
         // The rail is drawn behind the quote's own box (its height is the
@@ -215,12 +228,12 @@ private fun Block(block: StoryBlock, style: ProseStyle, onOpenUrl: (String) -> U
                         .toPath(density, QuoteRailWidth.toPx() / 2, trim * density)
                     drawPath(path, Tokens.TerracottaLight, style = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round))
                 }
-                .padding(start = QuoteRailWidth + ProseMetrics.EM.dp),
+                .padding(start = QuoteRailWidth + em),
         ) { BlockColumn(block.children, style.quoted, onOpenUrl, embed) }
-        is StoryBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy((0.3f * ProseMetrics.EM).dp)) {
+        is StoryBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(em * 0.3f)) {
             block.items.forEachIndexed { i, item ->
                 Row {
-                    Box(Modifier.width((1.5f * ProseMetrics.EM).dp)) {
+                    Box(Modifier.width(em * 1.5f)) {
                         RichCssText(listOf(InlineRun(if (block.ordered) "${block.start + i}." else "•")), style, onOpenUrl, Modifier.clearAndSetSemantics { })
                     }
                     Box(Modifier.weight(1f)) { BlockColumn(item, style, onOpenUrl, embed) }

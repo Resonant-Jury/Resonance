@@ -14,7 +14,7 @@ struct FeedScreen: View {
     var body: some View {
         ScrollViewReader { proxy in
             TabScreen(L10n.Home.heading, headerSpacing: 12, banner: { picksHint(proxy) }) {
-                CSSText(L10n.Home.subheading, font: AppFonts.uiFont(.body, size: 15), lineHeight: 1.6, color: UIColor(Tokens.textMuted))
+                CSSText(L10n.Home.subheading, font: AppFonts.scaledUIFont(.body, size: 15), lineHeight: 1.6, color: UIColor(Tokens.textMuted))
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
                 content.id(Self.listTop)

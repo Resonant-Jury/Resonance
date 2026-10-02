@@ -70,10 +70,10 @@ public struct StoryCardView: View {
                 .padding(.top, 8)
             }
 
-            CSSText(content.title, font: AppFonts.uiFont(.heading, size: 18, weight: .bold), lineHeight: 1.3)
+            CSSText(content.title, font: AppFonts.scaledUIFont(.heading, size: 18, weight: .bold), lineHeight: 1.3)
                 .accessibilityAddTraits(.isHeader)
 
-            CSSText(content.excerpt, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.65, color: UIColor(Tokens.textMuted))
+            CSSText(content.excerpt, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.65, color: UIColor(Tokens.textMuted))
 
             StoryCardSeparator(palette: palette, seed: seed)
 
@@ -206,7 +206,7 @@ public struct MiniStoryCardView: View {
             OrganicImage(url: content.imageURL, seed: seed + 5, grain: StoryGrain.cover, fill: accent)
                 .aspectRatio(1 / 0.56, contentMode: .fit)
                 .accessibilityHidden(true)
-            CSSText(content.title, font: AppFonts.uiFont(.heading, size: 17, weight: .bold), lineHeight: 1.3)
+            CSSText(content.title, font: AppFonts.scaledUIFont(.heading, size: 17, weight: .bold), lineHeight: 1.3)
                 .accessibilityAddTraits(.isHeader)
             HStack(spacing: 9) {
                 HandDrawnAvatar(initials: content.authorInitials, imageURL: content.authorImageURL,

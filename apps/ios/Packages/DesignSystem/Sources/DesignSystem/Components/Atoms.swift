@@ -218,10 +218,9 @@ public struct OrganicLink: View {
         self.action = action
     }
 
-    // Dynamic Type grows the line box the way it grows the text.
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
-
     public var body: some View {
+        // The text size grows the line box the way it grows the text.
+        let scale = TextScale.factor(relativeTo: .body)
         Button(action: action) {
             Text(title)
                 .font(AppFonts.body(size))

@@ -345,7 +345,7 @@ private struct PublishPanel: View {
         VStack(alignment: .leading, spacing: 18) {
             ModalTitle(updating ? L10n.Write.PublishPanel.updateTitle : L10n.Write.PublishPanel.title)
             if updating {
-                CSSText(L10n.Write.PublishPanel.updateHint, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.7,
+                CSSText(L10n.Write.PublishPanel.updateHint, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.7,
                         color: UIColor(Tokens.textMuted))
             }
             if insightLoading {

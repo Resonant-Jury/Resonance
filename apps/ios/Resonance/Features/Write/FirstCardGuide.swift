@@ -16,12 +16,12 @@ struct FirstCardGuide: View {
             // Panel's title: the pen, then the heading at 17 bold.
             HStack(spacing: 8) {
                 OrganicIcon(.pen, size: 16, color: Tokens.terracotta)
-                CSSText(L10n.Write.FirstCard.title, font: AppFonts.uiFont(.heading, size: 17, weight: .bold), lineHeight: 1.3)
+                CSSText(L10n.Write.FirstCard.title, font: AppFonts.scaledUIFont(.heading, size: 17, weight: .bold), lineHeight: 1.3)
             }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             .padding(.bottom, 8)
-            CSSText(L10n.Write.FirstCard.intro, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.7,
+            CSSText(L10n.Write.FirstCard.intro, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.7,
                     color: UIColor(Tokens.textMuted))
             ForEach(Array(questions.enumerated()), id: \.offset) { i, question in
                 WavyDivider(seed: Double(19 + i * 7)).padding(.vertical, 2)
@@ -48,11 +48,11 @@ private struct GuideQuestion: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let ink = UIColor(configuration.isPressed ? Tokens.terracotta : Tokens.text)
         HStack(alignment: .top, spacing: 10) {
-            // In its own 1.6 line box, centred as CSS centres the glyph's content area.
+            // In its own 1.6 line box (the line's, at the person's text size), centred as CSS centres the glyph's content area.
             Text("✎").font(AppFonts.heading(15)).foregroundStyle(Tokens.terracotta)
-                .frame(height: 15 * 1.6)
+                .frame(height: 15 * 1.6 * TextScale.factor(relativeTo: .body))
                 .accessibilityHidden(true)
-            CSSText(text, font: AppFonts.uiFont(.body, size: 15), lineHeight: 1.6, color: ink)
+            CSSText(text, font: AppFonts.scaledUIFont(.body, size: 15), lineHeight: 1.6, color: ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 10)

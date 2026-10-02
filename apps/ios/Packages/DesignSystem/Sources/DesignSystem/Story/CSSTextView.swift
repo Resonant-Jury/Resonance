@@ -96,13 +96,18 @@ public struct ProseStyle: Sendable {
         return s
     }
 
-    public var font: UIFont { AppFonts.uiFont(family, size: size, weight: weight) }
+    /// `size` at the person's text size, as every text takes it: the line box
+    /// (`lineHeight` × this) and the spacing around it grow in step.
+    var scaledSize: CGFloat { size * TextScale.factor(relativeTo: family.textStyle) }
+
+    public var font: UIFont { AppFonts.uiFont(family, size: scaledSize, weight: weight) }
 
     /// Browsers synthesize italics for faces loaded without one (the site
     /// loads none) by slanting the upright glyphs; so does this.
     static let syntheticItalic: CGFloat = 0.2
 
     public func attributed(_ runs: [InlineRun], paragraph: NSParagraphStyle? = nil) -> NSAttributedString {
+        let size = scaledSize
         let out = NSMutableAttributedString()
         for run in runs {
             var attrs: [NSAttributedString.Key: Any] = [

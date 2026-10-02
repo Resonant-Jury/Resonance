@@ -92,7 +92,7 @@ public struct ModalBody: View {
         self.color = color
     }
     public var body: some View {
-        CSSText(text, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.6, color: UIColor(color))
+        CSSText(text, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.6, color: UIColor(color))
     }
 }
 

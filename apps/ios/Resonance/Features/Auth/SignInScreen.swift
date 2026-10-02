@@ -210,10 +210,10 @@ struct AuthLockup: View {
 /// terracotta with a pen's wavy stroke under it (the web's Emphasis).
 private struct AuthTagline: View {
     let size: CGFloat
-    // The heading face grows with Dynamic Type like the title style; the stroke's drop follows.
-    @ScaledMetric(relativeTo: .title) private var scale: CGFloat = 1
 
     var body: some View {
+        // The heading face grows with the text size like the title style; the stroke's drop follows.
+        let scale = TextScale.factor(relativeTo: .title1)
         let accent = Text(verbatim: L10n.Hero.headlineAccent)
             .foregroundStyle(Tokens.terracotta)
             .customAttribute(PenAccent())

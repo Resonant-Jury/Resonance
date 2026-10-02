@@ -13,7 +13,7 @@ struct ConversationsScreen: View {
         TabScreen(L10n.App.Nav.messages, headerSpacing: 8) {
             VStack(alignment: .leading, spacing: 0) {
                 if store.loaded, store.conversations.isEmpty, store.starters.isEmpty {
-                    CSSText(L10n.Messages.empty, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.7,
+                    CSSText(L10n.Messages.empty, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.7,
                             color: UIColor(Tokens.textMuted))
                         .padding(.top, 10)
                 } else if !store.loaded, store.failed {

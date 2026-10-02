@@ -25,6 +25,7 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler, WKNavigationDel
 
     @ObservationIgnored let webView: WKWebView
     @ObservationIgnored private var pendingMarkdown: String?
+    @ObservationIgnored private var textScale: CGFloat = 1
     /// Where a web link the writer taps in the story opens.
     @ObservationIgnored private let openInBrowser: (URL) -> Void
 
@@ -99,11 +100,21 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler, WKNavigationDel
         Task { _ = try? await webView.callAsyncJavaScript("ResonanceEditor.focus()", arguments: [:], contentWorld: .page) }
     }
 
+    /// The page's own text doesn't follow Dynamic Type, so the page is zoomed
+    /// by the factor the rest of the story text takes (it reflows to the width
+    /// and reports its zoomed height).
+    func setTextScale(_ factor: CGFloat) {
+        textScale = factor
+        guard ready else { return }
+        Task { _ = try? await webView.callAsyncJavaScript("document.body.style.zoom = z", arguments: ["z": factor], contentWorld: .page) }
+    }
+
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
         switch type {
         case "ready":
             ready = true
+            setTextScale(textScale)
             if let pendingMarkdown { setMarkdown(pendingMarkdown) }
             pendingMarkdown = nil
         case "change":
@@ -181,6 +192,7 @@ struct StoryEditorField: View {
             .accessibilityLabel(L10n.Write.Editor.toolbarLabel)
             IslandView(webView: bridge.webView)
                 .frame(height: bridge.height)
+                .onChange(of: TextScale.factor(relativeTo: .body), initial: true) { _, factor in bridge.setTextScale(factor) }
                 .accessibilityLabel(L10n.Write.storyLabel)
         }
         .background {

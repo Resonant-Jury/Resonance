@@ -350,7 +350,7 @@ private struct DeleteAccountSettings: View {
     }
 
     private func muted(_ text: String) -> some View {
-        CSSText(text, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.65, color: UIColor(Tokens.textMuted))
+        CSSText(text, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.65, color: UIColor(Tokens.textMuted))
     }
 
     private func export() async {

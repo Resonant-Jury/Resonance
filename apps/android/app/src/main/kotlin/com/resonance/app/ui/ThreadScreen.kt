@@ -80,6 +80,7 @@ import com.resonance.app.SafetyService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
+import com.resonance.design.CappedTextScale
 import com.resonance.design.CssText
 import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicEmptyState
@@ -477,25 +478,28 @@ private fun Bubble(message: ThreadModel.Message, mine: Boolean) {
                 onDismissRequest = { menu = false },
                 properties = PopupProperties(focusable = true),
             ) {
-                Column(
-                    Modifier
-                        .widthIn(min = 160.dp)
-                        .width(IntrinsicSize.Max)
-                        .organicSurface(Tokens.Cream, Tokens.Terracotta, radius = 16.0, seed = 61.0, grainOpacity = 0.25f)
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                ) {
-                    BasicText(fullTime(message.sentAt), style = AppFonts.body(13f, lineHeight = 1.3f, color = Tokens.TextMuted), modifier = Modifier.padding(vertical = 10.dp))
-                    if (message.text.isNotEmpty()) BasicText(
-                        L10n.Native.copy,
-                        style = AppFonts.body(14f, 600, lineHeight = 1.3f, color = Tokens.Terracotta),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .plainClickable(role = Role.Button) {
-                                context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("message", message.text))
-                                menu = false
-                            }
-                            .padding(vertical = 10.dp),
-                    )
+                // A popup is a window of its own with the system's whole text scale (see CappedTextScale).
+                CappedTextScale {
+                    Column(
+                        Modifier
+                            .widthIn(min = 160.dp)
+                            .width(IntrinsicSize.Max)
+                            .organicSurface(Tokens.Cream, Tokens.Terracotta, radius = 16.0, seed = 61.0, grainOpacity = 0.25f)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                    ) {
+                        BasicText(fullTime(message.sentAt), style = AppFonts.body(13f, lineHeight = 1.3f, color = Tokens.TextMuted), modifier = Modifier.padding(vertical = 10.dp))
+                        if (message.text.isNotEmpty()) BasicText(
+                            L10n.Native.copy,
+                            style = AppFonts.body(14f, 600, lineHeight = 1.3f, color = Tokens.Terracotta),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .plainClickable(role = Role.Button) {
+                                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("message", message.text))
+                                    menu = false
+                                }
+                                .padding(vertical = 10.dp),
+                        )
+                    }
                 }
             }
         }

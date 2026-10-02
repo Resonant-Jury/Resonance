@@ -157,7 +157,7 @@ struct CardScreen: View {
                     .padding(.bottom, 20)
                     .accessibilityLabel(card.imageLabel ?? card.title)
             }
-            CSSText(card.title, font: AppFonts.uiFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
+            CSSText(card.title, font: AppFonts.scaledUIFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
                     tracking: -0.015 * 28)
                 .accessibilityAddTraits(.isHeader)
                 .padding(.bottom, 28)

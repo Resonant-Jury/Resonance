@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.Session
+import com.resonance.design.CappedTextScale
 import com.resonance.design.OrganicIndication
 import com.resonance.design.SketchLoader
 import com.resonance.design.cream
@@ -26,6 +27,8 @@ import com.resonance.design.generated.Tokens
  */
 @Composable
 fun ResonanceRoot(session: Session, incomingRoute: MutableState<String?>) {
+    // A large system text size is followed only part of the way, for every screen, dialog and sheet below.
+    CappedTextScale {
     MaterialTheme(colorScheme = lightColorScheme(primary = Tokens.Terracotta, surface = Tokens.Cream, background = Tokens.Cream)) {
     // Every press is the hand-drawn ink spread, never Material's rectangular ripple (it spilt past round chips and bare glyphs).
     CompositionLocalProvider(LocalIndication provides OrganicIndication()) {
@@ -37,6 +40,7 @@ fun ResonanceRoot(session: Session, incomingRoute: MutableState<String?>) {
                 Session.Phase.SignedIn -> SignedIn(session, incomingRoute)
             }
         }
+    }
     }
     }
 }

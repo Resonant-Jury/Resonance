@@ -407,7 +407,7 @@ private struct SharedMediaContent: View {
         let shared = model.shared
         VStack(alignment: .leading, spacing: 0) {
             ModalTitle(L10n.Messages.mediaTitle).padding(.bottom, 8)
-            CSSText(L10n.Messages.mediaSubtitle, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.6, color: UIColor(Tokens.textMuted))
+            CSSText(L10n.Messages.mediaSubtitle, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.6, color: UIColor(Tokens.textMuted))
                 .padding(.bottom, 18)
             let cards = shared.cards.compactMap(model.card)
             if cards.isEmpty && shared.links.isEmpty {

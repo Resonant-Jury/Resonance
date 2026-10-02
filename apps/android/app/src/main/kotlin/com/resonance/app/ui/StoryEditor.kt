@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -71,6 +73,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.math.roundToInt
 
 /**
  * The story editor island (native/editor, the web's Tiptap schema) in a
@@ -121,6 +124,14 @@ class StoryEditorBridge(context: Context, placeholder: String) {
         overScrollMode = View.OVER_SCROLL_NEVER
         addJavascriptInterface(Bridge(), "ResonanceBridge")
         loadUrl("file://$EDITOR_PATH?embed=1&fonts=&placeholder=" + Uri.encode(placeholder))
+    }
+
+    /**
+     * The island's text at the app's text scale (CappedTextScale), in place of the WebView's own
+     * follow of the system's whole setting, so the story grows as much as the screen around it.
+     */
+    fun setTextScale(scale: Float) {
+        webView.settings.textZoom = (scale * 100).roundToInt()
     }
 
     /** Loads a saved story (kept out of undo history by the island). */
@@ -213,6 +224,8 @@ class StoryEditorBridge(context: Context, placeholder: String) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StoryEditorField(bridge: StoryEditorBridge, onInsertCard: () -> Unit, onInsertImage: () -> Unit, uploadingImage: Boolean = false) {
+    val fontScale = LocalDensity.current.fontScale
+    SideEffect { bridge.setTextScale(fontScale) }
     Column(
         Modifier
             .fillMaxWidth()

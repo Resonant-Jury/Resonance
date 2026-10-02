@@ -45,10 +45,10 @@ struct CardActionsMenu: View {
     /// The delete confirmation: 20pt heading, the muted note, then Keep it / Delete card on the right.
     private var confirm: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CSSText(L10n.Me.Actions.deleteConfirmTitle, font: AppFonts.uiFont(.heading, size: 20, weight: .bold), lineHeight: 1.3)
+            CSSText(L10n.Me.Actions.deleteConfirmTitle, font: AppFonts.scaledUIFont(.heading, size: 20, weight: .bold), lineHeight: 1.3)
                 .accessibilityAddTraits(.isHeader)
                 .padding(.bottom, 10)
-            CSSText(L10n.Me.Actions.deleteConfirmBody, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.6,
+            CSSText(L10n.Me.Actions.deleteConfirmBody, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.6,
                     color: UIColor(Tokens.textMuted))
                 .padding(.bottom, 24)
             HStack(spacing: 10) {

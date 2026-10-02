@@ -30,7 +30,8 @@ struct BlockStack<Embed: View>: View {
     let embed: (String, String) -> Embed
 
     var body: some View {
-        let gaps = ProseMetrics.gaps(blocks)
+        // CSS px at the reader's 17pt, grown with the text.
+        let gaps = ProseMetrics.gaps(blocks).map { $0 * TextScale.factor(relativeTo: .body) }
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { i, block in
                 BlockView(block: block, style: style, onOpenURL: onOpenURL, embed: embed)
@@ -47,6 +48,7 @@ struct BlockView<Embed: View>: View {
     let embed: (String, String) -> Embed
 
     var body: some View {
+        let em = ProseMetrics.em * TextScale.factor(relativeTo: .body)
         switch block {
         case let .paragraph(runs):
             text(runs, style)
@@ -55,14 +57,14 @@ struct BlockView<Embed: View>: View {
             text(runs, heading)
                 .accessibilityAddTraits(.isHeader)
         case .blank:
-            Color.clear.frame(height: 1.6 * ProseMetrics.em).accessibilityHidden(true)
+            Color.clear.frame(height: 1.6 * em).accessibilityHidden(true)
         case let .image(url, alt):
             StoryImageView(url: URL(string: url), alt: alt, seed: Double(seedFromString(url)))
                 .frame(maxWidth: .infinity)
         case let .cardEmbed(href, title):
             embed(href, title)
         case let .quote(children):
-            HStack(alignment: .top, spacing: ProseMetrics.em) {
+            HStack(alignment: .top, spacing: em) {
                 WavyRailShape(seed: 5)
                     .stroke(Tokens.terracottaLight, style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
                     .frame(width: 6)
@@ -72,7 +74,7 @@ struct BlockView<Embed: View>: View {
             }
             .fixedSize(horizontal: false, vertical: true)
         case let .list(ordered, start, items):
-            VStack(alignment: .leading, spacing: 0.3 * ProseMetrics.em) {
+            VStack(alignment: .leading, spacing: 0.3 * em) {
                 ForEach(Array(items.enumerated()), id: \.offset) { i, item in
                     ListItemView(marker: ordered ? "\(start + i)." : "•", blocks: item, style: style, onOpenURL: onOpenURL, embed: embed)
                 }
@@ -81,7 +83,7 @@ struct BlockView<Embed: View>: View {
             WavyDivider(seed: 23)
         case let .code(code):
             Text(code)
-                .font(.system(size: 15, design: .monospaced))
+                .font(.system(size: 15 * TextScale.factor(relativeTo: .body), design: .monospaced))
                 .foregroundStyle(Tokens.text)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -102,7 +104,7 @@ struct ListItemView<Embed: View>: View {
     let embed: (String, String) -> Embed
 
     var body: some View {
-        let gutter = 1.5 * ProseMetrics.em
+        let gutter = 1.5 * ProseMetrics.em * TextScale.factor(relativeTo: .body)
         // Blocks inside an item keep their spacing but not a trailing margin.
         ZStack(alignment: .topLeading) {
             // The marker sits on the first line's box, like a CSS list marker.

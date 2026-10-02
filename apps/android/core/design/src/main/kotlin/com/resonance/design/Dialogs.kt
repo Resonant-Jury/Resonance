@@ -109,6 +109,8 @@ fun OrganicModal(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Dialog(onDismissRequest = { onDismiss?.invoke() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // A dialog is a window of its own: its density starts again from the system's whole text scale.
+        CappedTextScale {
         Box(
             Modifier
                 .fillMaxSize()
@@ -159,6 +161,7 @@ fun OrganicModal(
                     OrganicIcon(IconName.Close, size = 18.dp, color = Tokens.Text.copy(alpha = 0.55f), strokeWidth = Tokens.Ink.value * 24f / 18f)
                 }
             }
+        }
         }
     }
 }
@@ -379,15 +382,18 @@ fun OrganicMenu(
                 onDismissRequest = { open = false },
                 properties = PopupProperties(focusable = true),
             ) {
-                MenuPanel(items, seed, colors) { item ->
-                    if (choosing) return@MenuPanel
-                    choosing = true
-                    menuScope.launch {
-                        // A tap is shorter than the ink's spread: the panel stays long enough to show it.
-                        delay(ChooseLingerMillis)
-                        open = false
-                        choosing = false
-                        item.onClick()
+                // Like a dialog, a popup is a window of its own with the system's whole text scale.
+                CappedTextScale {
+                    MenuPanel(items, seed, colors) { item ->
+                        if (choosing) return@MenuPanel
+                        choosing = true
+                        menuScope.launch {
+                            // A tap is shorter than the ink's spread: the panel stays long enough to show it.
+                            delay(ChooseLingerMillis)
+                            open = false
+                            choosing = false
+                            item.onClick()
+                        }
                     }
                 }
             }

@@ -70,9 +70,10 @@ val TabBarHeight = 60.dp
  * The tab bar, docked like the header and edged the same way: cream paper
  * that begins on a wavy pen line, so the top and bottom chrome are one pair
  * and nothing floats or draws a frame. Tabs are the glyph over its label; the
- * selected one inks terracotta on a small wobbly wash behind the glyph. The pen
- * sits among them as a solid terracotta squircle the tabs' height — the one
- * filled thing in the bar, without a rim.
+ * selected one inks terracotta on a wash behind the glyph cut like torn paper
+ * (wavy edges, lopsided corners, no rim). The pen sits among them as a solid
+ * terracotta squircle the tabs' height — the one filled thing in the bar,
+ * without a rim.
  */
 @Composable
 fun <T> OrganicTabBar(items: List<OrganicTabItem<T>>, selection: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
@@ -117,9 +118,12 @@ fun <T> OrganicTabBar(items: List<OrganicTabItem<T>>, selection: T, onSelect: (T
                     verticalArrangement = Arrangement.Center,
                 ) {
                     Box(
-                        Modifier.size(54.dp, 30.dp).drawWithCache {
-                            val o = WobRectShape(15.0, index * 29.0 + 7, mag = 1.2, options = WobRectOptions(
-                                curve = 1.4, cornerJitter = 2.0, segmentsH = SegValue.Count(1.0), segmentsV = SegValue.Count(1.0),
+                        Modifier.size(56.dp, 32.dp).drawWithCache {
+                            // A scrap of torn paper, not a pill: a radius well under half
+                            // the height, wavy long edges and lopsided corners, each tab
+                            // its own seed.
+                            val o = WobRectShape(12.0, index * 29.0 + 7, mag = 3.2, options = WobRectOptions(
+                                curve = 1.2, cornerJitter = 3.6, cornerOffset = 3.0, segmentsH = SegValue.Count(2.0), segmentsV = SegValue.Count(1.0),
                             )).createOutline(size, layoutDirection, this)
                             onDrawBehind { if (wash > 0f) drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.55f * wash)) }
                         },

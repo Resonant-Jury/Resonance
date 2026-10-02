@@ -53,7 +53,7 @@ public struct MessageBubble: View {
                 }
             }
             if !text.isEmpty {
-                CSSText(text, font: AppFonts.uiFont(.body, size: 14), lineHeight: 1.65, fitsContent: true)
+                CSSText(text, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.65, fitsContent: true)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

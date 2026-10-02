@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.Density
 import com.resonance.design.generated.Tokens
 import kotlin.math.ceil
 import kotlin.math.roundToInt
@@ -54,15 +55,20 @@ class CssLineHeightSpan(private val lineBoxPx: Float, primary: Paint.FontMetrics
 }
 
 object CssLayout {
-    /** `letterSpacing` is CSS letter-spacing in em (TextPaint takes it in em too). */
-    fun build(text: String, family: AppFonts.Family, sizeSp: Float, weight: Int, lineHeight: Float, widthPx: Int, density: Float, color: Color = Tokens.Text, letterSpacing: Float = 0f): StaticLayout {
+    /**
+     * `letterSpacing` is CSS letter-spacing in em (TextPaint takes it in em too). The size is
+     * drawn at the app's text scale ([cssFontPx]) and the line box follows it, so the CSS
+     * line-height multiple stays the same at any system text size.
+     */
+    fun build(text: String, family: AppFonts.Family, sizeSp: Float, weight: Int, lineHeight: Float, widthPx: Int, density: Density, color: Color = Tokens.Text, letterSpacing: Float = 0f): StaticLayout {
+        val sizePx = density.cssFontPx(sizeSp)
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = AppFonts.typeface(family, weight)
-            textSize = sizeSp * density
+            textSize = sizePx
             this.color = color.toArgb()
             this.letterSpacing = letterSpacing
         }
-        val lineBoxPx = sizeSp * lineHeight * density
+        val lineBoxPx = sizePx * lineHeight
         val spanned = SpannableString(text).apply {
             setSpan(CssLineHeightSpan(lineBoxPx, paint.fontMetrics), 0, text.length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
         }
@@ -92,11 +98,12 @@ fun CssText(
     /** Take the text's own width (a bubble shrink-wrapping its words) rather than all that's offered. */
     fitsContent: Boolean = false,
 ) {
-    val density = LocalDensity.current.density
+    val scaled = LocalDensity.current
+    val density = scaled.density
     BoxWithConstraints(modifier) {
         val widthPx = constraints.maxWidth
-        val layout = remember(text, family, sizeSp, weight, lineHeight, widthPx, density, color, letterSpacing, AppFonts.useBundledCJK) {
-            CssLayout.build(text, family, sizeSp, weight, lineHeight, widthPx, density, color, letterSpacing)
+        val layout = remember(text, family, sizeSp, weight, lineHeight, widthPx, density, scaled.fontScale, color, letterSpacing, AppFonts.useBundledCJK) {
+            CssLayout.build(text, family, sizeSp, weight, lineHeight, widthPx, scaled, color, letterSpacing)
         }
         // The widest line without its trailing space, rounded up to a whole pixel (the iOS twin's `ceil`).
         val boxPx = if (fitsContent) minOf(layout.width, ceil((0 until layout.lineCount).maxOfOrNull { layout.getLineMax(it) } ?: 0f).toInt()) else layout.width

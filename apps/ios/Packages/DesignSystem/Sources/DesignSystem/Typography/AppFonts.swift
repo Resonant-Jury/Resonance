@@ -21,6 +21,9 @@ public enum AppFonts {
             case .body: "Noto Sans TC"
             }
         }
+
+        /// The text style whose growth the family follows: headings grow like titles.
+        var textStyle: UIFont.TextStyle { self == .heading ? .title1 : .body }
     }
 
     /// Registers the bundled fonts (the app target ships apps/shared/fonts
@@ -69,15 +72,29 @@ public enum AppFonts {
         return max(primary.ascender, fallback.ascender) + max(-primary.descender, -fallback.descender)
     }
 
-    /// Scales with Dynamic Type relative to `textStyle`, like the system fonts do.
+    /// `uiFont` at the person's text size: it follows Dynamic Type relative to
+    /// `textStyle` (the family's own by default) along `TextScale`'s curve, not
+    /// without limit like `UIFontMetrics.scaledFont`. For text drawn in CSS line
+    /// boxes (`CSSText`, `ProseStyle`), whose line height is a multiple of the
+    /// font's size, so it grows with it. `uiFont` stays the fixed face, for
+    /// what is measured at the drawn size (the thought map).
+    public static func scaledUIFont(_ family: Family, size: CGFloat, weight: UIFont.Weight = .regular, oblique: Bool = false,
+                                    relativeTo textStyle: UIFont.TextStyle? = nil) -> UIFont {
+        uiFont(family, size: size * TextScale.factor(relativeTo: textStyle ?? family.textStyle), weight: weight, oblique: oblique)
+    }
+
+    /// Scales with Dynamic Type like `scaledUIFont`, for SwiftUI text, in whole
+    /// points: `UIFontMetrics.scaledFont`, which this used before, rounded too,
+    /// so a designed 10.5 (the tab labels) has always been drawn at 11. Text in
+    /// CSS line boxes never was rounded.
     public static func font(_ family: Family, size: CGFloat, weight: UIFont.Weight = .regular, oblique: Bool = false,
-                            relativeTo textStyle: UIFont.TextStyle = .body) -> Font {
-        let base = uiFont(family, size: size, weight: weight, oblique: oblique)
-        return Font(UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base))
+                            relativeTo textStyle: UIFont.TextStyle? = nil) -> Font {
+        let scaled = (size * TextScale.factor(relativeTo: textStyle ?? family.textStyle)).rounded()
+        return Font(uiFont(family, size: scaled, weight: weight, oblique: oblique))
     }
 
     public static func heading(_ size: CGFloat, weight: UIFont.Weight = .bold) -> Font {
-        font(.heading, size: size, weight: weight, relativeTo: .title1)
+        font(.heading, size: size, weight: weight)
     }
 
     public static func body(_ size: CGFloat, weight: UIFont.Weight = .regular, oblique: Bool = false) -> Font {

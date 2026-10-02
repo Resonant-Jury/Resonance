@@ -26,9 +26,10 @@ public struct OrganicTabItem<ID: Hashable>: Identifiable {
 /// The tab bar, docked like the header and edged the same way: cream paper
 /// that begins on a wavy pen line (``FooterEdge``), so the top and bottom
 /// chrome are one pair and nothing floats or draws a frame. Tabs are the glyph
-/// over its label; the selected one inks terracotta on a small wobbly wash
-/// behind the glyph. The pen sits among them as a solid terracotta squircle
-/// the tabs' height — the one filled thing in the bar, without a rim.
+/// over its label; the selected one inks terracotta on a wash behind the
+/// glyph cut like torn paper (wavy edges, lopsided corners, no rim). The pen
+/// sits among them as a solid terracotta squircle the tabs' height — the one
+/// filled thing in the bar, without a rim.
 /// Re-implements what the system bar gives for free: selection haptics, tab
 /// traits for VoiceOver, and the Large Content Viewer on long press.
 public struct OrganicTabBar<ID: Hashable>: View {
@@ -71,10 +72,13 @@ public struct OrganicTabBar<ID: Hashable>: View {
                         // Where the web's chip hangs off its 34pt icon button.
                         if item.badge > 0 { UnreadBadge(count: item.badge).offset(x: 9, y: -8) }
                     }
-                    .frame(width: 54, height: 30)
+                    .frame(width: 56, height: 32)
                     .background {
-                        WobRectShape(radius: 15, seed: Double(index * 29 + 7), mag: 1.2, options: WobRectOptions(
-                            curve: 1.4, cornerJitter: 2, segmentsH: .count(1), segmentsV: .count(1)))
+                        // A scrap of torn paper, not a pill: a radius well under half
+                        // the height, wavy long edges and lopsided corners, each tab
+                        // its own seed.
+                        WobRectShape(radius: 12, seed: Double(index * 29 + 7), mag: 3.2, options: WobRectOptions(
+                            curve: 1.2, cornerJitter: 3.6, cornerOffset: 3, segmentsH: .count(2), segmentsV: .count(1)))
                             .fill(Tokens.terracottaLight.opacity(0.55))
                             .opacity(selected ? 1 : 0)
                             .animation(.easeOut(duration: 0.16), value: selected)
@@ -296,8 +300,9 @@ public struct OrganicLargeHeader<Trailing: View>: View {
     }
 
     public var body: some View {
+        let font = AppFonts.scaledUIFont(.heading, size: 32, weight: .bold)
         HStack(alignment: .center) {
-            CSSText(title, font: AppFonts.uiFont(.heading, size: 32, weight: .bold), lineHeight: 1.1, tracking: -0.02 * 32)
+            CSSText(title, font: font, lineHeight: 1.1, tracking: -0.02 * font.pointSize)
                 .accessibilityAddTraits(.isHeader)
             trailing
         }

@@ -26,7 +26,7 @@ public struct EmbedStoryCard: View {
             OrganicImage(url: imageURL, seed: seed + 5, grain: StoryGrain.cover, fill: accent)
                 .frame(width: 52, height: 52)
             VStack(alignment: .leading, spacing: 2) {
-                CSSText(title, font: AppFonts.uiFont(.body, size: 14.5, weight: .semibold), lineHeight: 1.35, lineLimit: 2)
+                CSSText(title, font: AppFonts.scaledUIFont(.body, size: 14.5, weight: .semibold), lineHeight: 1.35, lineLimit: 2)
                 if let author {
                     Text(author)
                         .font(AppFonts.body(12))
@@ -60,7 +60,7 @@ public struct EmbedStoryCardPlaceholder: View {
 
     public var body: some View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
-        CSSText(title, font: AppFonts.uiFont(.body, size: 14.5, weight: .semibold), lineHeight: 1.35,
+        CSSText(title, font: AppFonts.scaledUIFont(.body, size: 14.5, weight: .semibold), lineHeight: 1.35,
                 color: UIColor(Tokens.textMuted), lineLimit: 2)
             .padding(EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 16))
             .frame(maxWidth: 360, minHeight: 72, maxHeight: 72, alignment: .leading)
