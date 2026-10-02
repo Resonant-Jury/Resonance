@@ -313,31 +313,40 @@ public struct StoryImagePlaceholder: View {
     }
 }
 
-/// Wrapping row (tags), since SwiftUI has no flex-wrap.
+/// Wrapping row (tags, a profile's meta line), since SwiftUI has no
+/// flex-wrap: CSS `flex-wrap: wrap; align-items: center` with `gap:
+/// lineSpacing spacing` and `justify-content` from `alignment`. Each row's
+/// items share its centre line, so a 16pt flag and a 20pt glyph sit level.
 public nonisolated struct FlowRow: Layout {
     var spacing: CGFloat
+    var lineSpacing: CGFloat
+    var alignment: HorizontalAlignment
 
-    public init(spacing: CGFloat = 6) {
+    public init(spacing: CGFloat = 6, lineSpacing: CGFloat? = nil, alignment: HorizontalAlignment = .leading) {
         self.spacing = spacing
+        self.lineSpacing = lineSpacing ?? spacing
+        self.alignment = alignment
     }
 
     public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let rows = arrange(proposal.width ?? .infinity, subviews)
         let width = rows.map { $0.width }.max() ?? 0
-        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
+        let height = rows.map(\.height).reduce(0, +) + lineSpacing * CGFloat(max(0, rows.count - 1))
         return CGSize(width: proposal.width ?? width, height: height)
     }
 
     public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        // Where a row's leftover width goes: none before it (leading), half (center), all (trailing).
+        let lead: CGFloat = alignment == .center ? 0.5 : alignment == .trailing ? 1 : 0
         var y = bounds.minY
         for row in arrange(bounds.width, subviews) {
-            var x = bounds.minX
+            var x = bounds.minX + max(0, bounds.width - row.width) * lead
             for index in row.indices {
                 let size = subviews[index].sizeThatFits(.unspecified)
-                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
                 x += size.width + spacing
             }
-            y += row.height + spacing
+            y += row.height + lineSpacing
         }
     }
 

@@ -149,7 +149,8 @@ struct AuthorScreen: View {
             // The web's joined date: year and the month in full ("August 2026", "2026年8月").
             $0.formatted(.dateTime.year().month(.wide).locale(Strings.shared.locale))
         } ?? ""
-        return FlowRow(spacing: 14) {
+        // page.module.css .meta: centred, gap 6px 14px.
+        return FlowRow(spacing: 14, lineSpacing: 6, alignment: .center) {
             if let region = author.region {
                 // page.module.css .metaItem: the SquareFlag, 5 before the name.
                 HStack(spacing: 5) {
