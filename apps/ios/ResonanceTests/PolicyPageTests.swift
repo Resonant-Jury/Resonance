@@ -12,7 +12,7 @@ import Testing
 
     @Test func pagesLiveOnTheConfiguredOrigin() {
         #expect(PolicyPage.privacy.url(origin: AppConfig.production.origin, language: .zhTW).absoluteString
-            == "https://resonance-world.vercel.app/zh-TW/privacy")
+            == "https://resonance.channel/zh-TW/privacy")
         #expect(PolicyPage.support.url(origin: AppConfig.emulator.origin, language: .en).absoluteString
             == "http://127.0.0.1:3100/en/support")
     }

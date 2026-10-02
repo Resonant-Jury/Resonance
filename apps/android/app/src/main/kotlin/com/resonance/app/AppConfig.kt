@@ -14,7 +14,7 @@ data class AppConfig(
     val emulatorFirestorePort: Int = 8080,
     val emulatorApiPort: Int = 3100,
 ) {
-    val origin: String = if (usesEmulator) "http://$EMULATOR_HOST:$emulatorApiPort" else "https://resonance-world.vercel.app"
+    val origin: String = if (usesEmulator) "http://$EMULATOR_HOST:$emulatorApiPort" else "https://resonance.channel"
 
     companion object {
         const val EMULATOR_HOST = "10.0.2.2"

@@ -1,6 +1,9 @@
 package com.resonance.app.ui
 
+import com.resonance.app.AppConfig
+import com.resonance.kit.story.StoryLink
 import java.io.File
+import java.net.URI
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -12,6 +15,8 @@ import org.w3c.dom.Element
  * The App Links filter claims only the site pages the app shows itself: were it
  * to claim the whole host, a verified install would swallow every link to the
  * site — the policy pages included, which the in-app browser must be able to open.
+ * It claims them on each of the site's hosts: the one the app talks to, and the
+ * one it had before, whose links are in older stories and messages.
  */
 class AppLinksTest {
     private val android = "http://schemas.android.com/apk/res/android"
@@ -35,6 +40,15 @@ class AppLinksTest {
         data.forEach { d ->
             listOf("path", "pathPattern", "pathAdvancedPattern", "pathSuffix").forEach { assertTrue(d.getAttributeNS(android, it).isEmpty()) }
         }
+    }
+
+    @Test fun claimsTheSitesHostsOverHttpsOnly() {
+        val data = verifiedFilterData()
+        val hosts = data.mapNotNull { d -> d.getAttributeNS(android, "host").takeIf { it.isNotEmpty() } }.toSet()
+        val origin = URI(AppConfig(usesEmulator = false).origin).host
+        assertEquals("resonance.channel", origin)
+        assertEquals(setOf(origin) + StoryLink.FORMER_HOSTS, hosts)
+        assertEquals(setOf("https"), data.mapNotNull { d -> d.getAttributeNS(android, "scheme").takeIf { it.isNotEmpty() } }.toSet())
     }
 
     @Test fun theClaimedPagesAreOnesTheAppRoutes() {

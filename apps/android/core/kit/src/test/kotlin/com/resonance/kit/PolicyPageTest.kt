@@ -19,7 +19,7 @@ class PolicyPageTest {
     }
 
     @Test fun pagesLiveOnTheConfiguredOrigin() {
-        assertEquals("https://resonance-world.vercel.app/zh-TW/privacy", PolicyPage.Privacy.url("https://resonance-world.vercel.app", Strings.Language.ZhTW))
+        assertEquals("https://resonance.channel/zh-TW/privacy", PolicyPage.Privacy.url("https://resonance.channel", Strings.Language.ZhTW))
         assertEquals("http://10.0.2.2:3100/en/support", PolicyPage.Support.url("http://10.0.2.2:3100/", Strings.Language.En))
     }
 

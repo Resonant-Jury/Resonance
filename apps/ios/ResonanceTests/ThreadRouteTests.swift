@@ -6,11 +6,14 @@ import Testing
 /// A conversation opens by the other person's uid when the place it's opened
 /// from knows it, and older links by pen name keep working.
 @MainActor @Suite struct ThreadRouteTests {
-    let origin = URL(string: "https://resonance-world.vercel.app")!
+    let origin = AppConfig.production.origin
 
     @Test func linksByPenNameStillOpenAThread() {
-        let route = Route(url: URL(string: "https://resonance-world.vercel.app/zh-TW/messages/bob?note=n1&card=c1")!, origin: origin)
+        let route = Route(url: URL(string: "https://resonance.channel/zh-TW/messages/bob?note=n1&card=c1")!, origin: origin)
         #expect(route == .thread(handle: "bob", uid: nil, note: MessagingAPI.NoteRef(cardId: "c1", noteId: "n1")))
+        // A note's reply link from before the site's own domain.
+        let former = Route(url: URL(string: "https://resonance-world.vercel.app/zh-TW/messages/bob?note=n1&card=c1")!, origin: origin)
+        #expect(former == route)
     }
 
     @Test func aPushTakesTheSendersUidFromItsBellRow() {

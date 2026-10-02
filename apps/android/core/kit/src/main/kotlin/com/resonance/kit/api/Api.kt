@@ -32,7 +32,7 @@ import java.time.OffsetDateTime
  * rejects a token.
  */
 class ApiConfiguration(
-    /** The site's origin, e.g. https://resonance-world.vercel.app (the client adds /api/v1). */
+    /** The site's origin, e.g. https://resonance.channel (the client adds /api/v1). */
     val origin: String,
     val idToken: suspend (forceRefresh: Boolean) -> String?,
 ) {

@@ -6,7 +6,7 @@ import ResonanceAPI
 
 /// Where the API lives and how a request gets its credentials.
 public struct APIConfiguration: Sendable {
-    /// The site's origin, e.g. https://resonance-world.vercel.app (the client adds /api/v1).
+    /// The site's origin, e.g. https://resonance.channel (the client adds /api/v1).
     public var origin: URL
     /// A Firebase ID token, or nil when signed out. Called per request with
     /// `forceRefresh: false` (the SDK caches the token and renews it before it

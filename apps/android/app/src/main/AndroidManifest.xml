@@ -43,12 +43,15 @@
                  for the Play key, the upload key and the debug key alike) — only the pages the
                  app shows itself (Route.fromPath: /card/…, /u/…, /messages/…, /me/thought-map,
                  bare or under a locale). Everything else on the site, the policy pages first,
-                 stays with the browser, so the in-app browser can show it. -->
+                 stays with the browser, so the in-app browser can show it. Both of the site's
+                 hosts serve the same file: its own domain, and the one it had before
+                 (StoryLink.FORMER_HOSTS), whose links are in older stories and messages. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
+                <data android:host="resonance.channel" />
                 <data android:host="resonance-world.vercel.app" />
                 <data android:pathPrefix="/card/" />
                 <data android:pathPrefix="/u/" />

@@ -20,7 +20,7 @@ nonisolated struct AppConfig: Sendable {
     var emulatorAuthPort = 9099
     var emulatorFirestorePort = 8080
 
-    static let production = AppConfig(backend: .production, origin: URL(string: "https://resonance-world.vercel.app")!)
+    static let production = AppConfig(backend: .production, origin: URL(string: "https://resonance.channel")!)
     static let emulator = AppConfig(backend: .emulator, origin: URL(string: "http://127.0.0.1:3100")!)
 
     static var current: AppConfig {
