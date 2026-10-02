@@ -92,6 +92,7 @@ const CARDS: CardSpec[] = [
       'Saturday mornings, he’d lift me onto the back and ride to the market for bacon rolls. I held the hem of his shirt, which smelled of soap and sunshine.',
       'I always thought he rode fast. Only later did I learn he rode slowly, afraid I’d fall.',
       'Last month I pumped up the tires and fitted a new saddle. Dad watched, hands in his pockets. “Don’t bother, it’s so old.” But his eyes never left that saddle.',
+      'I didn’t call him on it.',
       'I rode a little way down our old road, slowly this time. The seat behind me was empty, yet it felt like someone was holding on to my shirt.',
     ],
   },

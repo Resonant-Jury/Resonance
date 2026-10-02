@@ -111,7 +111,7 @@ const SLIDES: Slide[] = [
     },
   },
   {
-    key: 'card', accent: 'sage', side: -1, seed: 23,
+    key: 'card', accent: 'sage', side: -1, seed: 23, cropBottom: { ios: 0.028 },
     copy: {
       'zh-TW': { headline: '每張卡片都是一段人生', em: '人生', subline: '標題、故事、照片，慢慢讀' },
       en: { headline: 'Every card is a life', em: 'a life', subline: 'A title, a story, a photo — read slowly' },
