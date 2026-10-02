@@ -10,6 +10,8 @@ rules_version = '2';
 // messages, notes, connections, every bell — goes through the server
 // (/api/v1, Admin SDK), which re-checks what it needs; the client-side paths
 // below are the author's own documents plus a few narrowly checked legacy ones.
+// Every client write is held to a key whitelist, types and sizes: these
+// documents are downloaded by everyone who reads them.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -75,6 +77,20 @@ service cloud.firestore {
       return v is string && v.size() > 0 && v.size() <= 128;
     }
 
+    // A picture we stored: https, and — once config/storage names the
+    // storage's public host (`scripts/backfill.ts storage-host`) — on that
+    // host, so a cover or an avatar can't be a tracking pixel somewhere else.
+    // Any https URL until it is set.
+    function storedFile(url) {
+      return url is string
+        && url.size() <= 2048
+        && url.matches("https://[^ ]+")
+        && (
+          !exists(/databases/$(database)/documents/config/storage)
+          || url.split("/")[2] == get(/databases/$(database)/documents/config/storage).data.host
+        );
+    }
+
     // --- users ---
     // Profiles are public on this storytelling platform (author bylines, public
     // profile pages, and feeds are viewable by logged-out visitors). Firestore
@@ -113,19 +129,28 @@ service cloud.firestore {
         return (!("bio" in changedKeys()) || (d.bio is string && d.bio.size() <= 80))
           && (!("region" in changedKeys()) || (d.region is string && d.region.size() <= 40))
           && (!("primaryLocale" in changedKeys()) || d.primaryLocale in ["en", "zh-TW"])
-          && (!("autoTranslateTo" in changedKeys()) || (d.autoTranslateTo is list && d.autoTranslateTo.size() <= 5))
+          && (!("autoTranslateTo" in changedKeys())
+              || (d.autoTranslateTo is list && d.autoTranslateTo.size() <= 5 && d.autoTranslateTo.hasOnly(["en", "zh-TW"])))
           && (!("avatarSeed" in changedKeys()) || (d.avatarSeed is string && d.avatarSeed.size() <= 40))
-          && (!("avatarUrl" in changedKeys()) || (d.avatarUrl is string && d.avatarUrl.size() <= 2048 && d.avatarUrl.matches("https://.*")))
+          && (!("avatarUrl" in changedKeys()) || storedFile(d.avatarUrl))
           && (!("initials" in changedKeys()) || (d.initials is string && d.initials.size() <= 8))
           && (!("accentColor" in changedKeys()) || (d.accentColor is string && d.accentColor.size() <= 60))
-          && (!("hintsSeen" in changedKeys()) || (d.hintsSeen is map && d.hintsSeen.size() <= 50));
+          // How often each hint was shown (lib/hints: 3 at most).
+          && (!("hintsSeen" in changedKeys())
+              || (d.hintsSeen is map && d.hintsSeen.size() <= 50
+                  && d.hintsSeen.values().hasOnly([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])));
       }
 
       // --- bookmarks (users/{uid}/bookmarks/{cardId}) ---
       // Purely private "speak to yourself" layer: owner-only, never counted,
       // never notified, never a recommendation signal.
       match /bookmarks/{cardId} {
-        allow read, write: if isSelf(userId);
+        allow read, delete: if isSelf(userId);
+        allow create, update: if isSelf(userId)
+          && cardId.size() <= 128
+          && request.resource.data.keys().hasOnly(["cardId", "createdAt"])
+          && request.resource.data.cardId == cardId
+          && request.resource.data.createdAt == request.time;
       }
 
       // --- blocks (users/{uid}/blocks/{blockedUid}) ---
@@ -208,23 +233,27 @@ service cloud.firestore {
         && resource.data.authorId == request.auth.uid;
 
       // The content fields named in `keys` (all of them on create, the
-      // changed ones on update — so an older card stays editable).
+      // changed ones on update — so an older card stays editable). The same
+      // limits hold where the server copies content (lib/db/cardContent.ts).
       function validCardContent(d, keys) {
         return (!("thoughtCore" in keys) || (d.thoughtCore is string && d.thoughtCore.size() <= 200))
           && (!("story" in keys) || (d.story is string && d.story.size() <= 200000))
-          && (!("tags" in keys) || (d.tags is list && d.tags.size() <= 30))
+          // join() also refuses anything in the list that isn't a string.
+          && (!("tags" in keys) || (d.tags is list && d.tags.size() <= 30 && d.tags.join(" ").size() <= 1000))
           && (!("visibility" in keys) || d.visibility in ["public", "connections", "private"])
           && (!("anonymous" in keys) || d.anonymous is bool)
-          && (!("accentHue" in keys) || !("accentHue" in d) || d.accentHue == null || d.accentHue is number)
-          && (!("media" in keys) || !("media" in d) || validMedia(d.media));
+          && (!("accentHue" in keys) || !("accentHue" in d) || d.accentHue == null
+              || (d.accentHue is number && d.accentHue >= 0 && d.accentHue <= 360))
+          && (!("media" in keys) || !("media" in d) || validMedia(d.media))
+          && (!("updatedAt" in keys) || d.updatedAt == request.time);
       }
 
       function validMedia(m) {
         return m is map
           && m.keys().hasOnly(["type", "url", "label"])
           && m.type in ["image", "video"]
-          && m.url is string && m.url.size() <= 2048 && m.url.matches("https://.*")
-          && (!("label" in m) || (m.label is string && m.label.size() <= 500));
+          && storedFile(m.url)
+          && (!("label" in m) || (m.label is string && m.label.size() <= 200));
       }
 
       function answersReadableCard(d) {
@@ -244,10 +273,25 @@ service cloud.firestore {
       // live document: a half-written revision must not reach readers. The
       // author merges it into the card explicitly ("儲存修改"), which deletes
       // this doc. Owner-only — this is unpublished writing, so it cannot live
-      // as a field on the card (rules cannot redact individual fields).
+      // as a field on the card (rules cannot redact individual fields). It
+      // may carry its author's uid, which lets the account purge find one
+      // whose card is gone, and lets its author still delete it then.
       match /edits/{editId} {
-        allow read, write: if signedIn()
-          && get(/databases/$(database)/documents/cards/$(cardId)).data.authorId == request.auth.uid;
+        function ownsCard() {
+          return get(/databases/$(database)/documents/cards/$(cardId)).data.authorId == request.auth.uid;
+        }
+        allow read: if signedIn() && ownsCard();
+        // A whole working copy, replaced each time (never merged).
+        allow create, update: if signedIn()
+          && editId == "current"
+          && ownsCard()
+          && request.resource.data.keys().hasOnly([
+            "thoughtCore", "story", "tags", "visibility", "anonymous", "media", "accentHue", "updatedAt", "authorId"
+          ])
+          && request.resource.data.get("authorId", request.auth.uid) == request.auth.uid
+          && validCardContent(request.resource.data, request.resource.data.keys());
+        allow delete: if signedIn()
+          && (resource.data.get("authorId", "") == request.auth.uid || ownsCard());
       }
     }
 
@@ -349,10 +393,11 @@ service cloud.firestore {
     match /notes/{noteId} {
       allow read: if signedIn() && resource.data.toUserId == request.auth.uid;
       allow create: if false;
-      // The recipient may mark it read; nothing else ever changes.
+      // The recipient may mark it read (now); nothing else ever changes.
       allow update: if signedIn()
         && resource.data.toUserId == request.auth.uid
-        && changedKeys().hasOnly(["readAt"]);
+        && changedKeys().hasOnly(["readAt"])
+        && request.resource.data.readAt == request.time;
       allow delete: if false;
     }
 
@@ -368,9 +413,73 @@ service cloud.firestore {
     // --- thoughtMaps ---
     // Each user's private Zettelkasten board: node positions, labeled edges
     // and category groups live in subcollections under their own uid. The map
-    // is a personal organizing surface, never visible to anyone else.
-    match /thoughtMaps/{userId}/{document=**} {
-      allow read, write: if isSelf(userId);
+    // is a personal organizing surface, never visible to anyone else. Updates
+    // check only what they change, so an older map stays editable.
+    match /thoughtMaps/{userId} {
+      allow read: if isSelf(userId);
+      allow write: if false;
+
+      // A card placed on the map (doc id == card id).
+      match /nodes/{nodeId} {
+        allow read, delete: if isSelf(userId);
+        allow create: if isSelf(userId)
+          && request.resource.data.keys().hasOnly(["cardId", "x", "y", "groupId", "createdAt", "updatedAt"])
+          && request.resource.data.keys().hasAll(["cardId", "x", "y"])
+          && request.resource.data.cardId == nodeId
+          && validNode(request.resource.data, request.resource.data.keys());
+        // Moving and filing it — or placing it again (the clients' add is a
+        // whole set, which over an existing node is an update).
+        allow update: if isSelf(userId)
+          && changedKeys().hasOnly(["x", "y", "groupId", "createdAt", "updatedAt"])
+          && validNode(request.resource.data, changedKeys());
+      }
+
+      // An arrow between two placed cards ({source}_{target}), with words.
+      match /edges/{edgeId} {
+        allow read, delete: if isSelf(userId);
+        allow create: if isSelf(userId)
+          && request.resource.data.keys().hasOnly(["sourceCardId", "targetCardId", "label", "createdAt"])
+          && shortId(request.resource.data.sourceCardId)
+          && shortId(request.resource.data.targetCardId)
+          && edgeId == request.resource.data.sourceCardId + "_" + request.resource.data.targetCardId
+          && optionalString(request.resource.data, "label", 500)
+          && request.resource.data.get("createdAt", request.time) == request.time;
+        // New words — or the arrow drawn again (a whole set, as above).
+        allow update: if isSelf(userId)
+          && changedKeys().hasOnly(["label", "createdAt"])
+          && optionalString(request.resource.data, "label", 500)
+          && (!("createdAt" in changedKeys()) || request.resource.data.createdAt == request.time);
+      }
+
+      // A titled region that files the cards inside it.
+      match /groups/{groupId} {
+        allow read, delete: if isSelf(userId);
+        allow create: if isSelf(userId)
+          && request.resource.data.keys().hasOnly(["title", "hue", "x", "y", "w", "h", "createdAt"])
+          && validGroup(request.resource.data, request.resource.data.keys())
+          && request.resource.data.get("createdAt", request.time) == request.time;
+        allow update: if isSelf(userId)
+          && changedKeys().hasOnly(["title", "hue", "x", "y", "w", "h"])
+          && validGroup(request.resource.data, changedKeys());
+      }
+
+      function validNode(d, keys) {
+        return (!("cardId" in keys) || shortId(d.cardId))
+          && (!("x" in keys) || d.x is number)
+          && (!("y" in keys) || d.y is number)
+          && (!("groupId" in keys) || d.groupId == null || shortId(d.groupId))
+          && (!("createdAt" in keys) || d.createdAt == request.time)
+          && (!("updatedAt" in keys) || d.updatedAt == request.time);
+      }
+
+      function validGroup(d, keys) {
+        return (!("title" in keys) || (d.title is string && d.title.size() <= 500))
+          && (!("hue" in keys) || d.hue is number)
+          && (!("x" in keys) || d.x is number)
+          && (!("y" in keys) || d.y is number)
+          && (!("w" in keys) || d.w is number)
+          && (!("h" in keys) || d.h is number);
+      }
     }
 
     // --- notifications ---
@@ -381,7 +490,8 @@ service cloud.firestore {
       allow create: if false;
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
-        && changedKeys().hasOnly(["readAt"]);
+        && changedKeys().hasOnly(["readAt"])
+        && request.resource.data.readAt == request.time;
       allow delete: if false;
     }
 
@@ -458,6 +568,13 @@ service cloud.firestore {
     // point at its author, and the account purge deletes a person's pictures
     // from these records.
     match /uploads/{uploadId} {
+      allow read, write: if false;
+    }
+
+    // --- configuration (server-only) ---
+    // config/storage: the storage's public host, which storedFile() holds
+    // covers and avatars to (set by `scripts/backfill.ts storage-host`).
+    match /config/{docId} {
       allow read, write: if false;
     }
 

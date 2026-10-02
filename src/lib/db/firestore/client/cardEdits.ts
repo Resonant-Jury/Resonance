@@ -78,13 +78,16 @@ export async function getPendingCardEdit(cardId: string): Promise<PendingCardEdi
   }
 }
 
-/** Autosave target for a published card — replaces the whole working copy. */
+/**
+ * Autosave target for a published card — replaces the whole working copy. It
+ * carries its author, so the account purge finds it even if its card is gone.
+ */
 export async function savePendingCardEdit(
   cardId: string,
   values: CardEditValues
 ): Promise<void> {
-  requireUid();
-  await setDoc(editRef(cardId), { ...values, updatedAt: serverTimestamp() });
+  const uid = requireUid();
+  await setDoc(editRef(cardId), { ...values, authorId: uid, updatedAt: serverTimestamp() });
 }
 
 /** Throw the working copy away; the live card is left exactly as it was. */

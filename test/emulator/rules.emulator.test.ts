@@ -353,6 +353,9 @@ describe('notifications', () => {
     await assertFails(getDoc(doc(as('bob'), 'notifications', 'n1')));
     await assertFails(updateDoc(doc(as('bob'), 'notifications', 'n1'), { readAt: serverTimestamp() }));
     await assertFails(updateDoc(doc(as('alice'), 'notifications', 'n1'), { 'payload.fromHandle': 'x' }));
+    // Read now — not a date of one's choosing, nor anything else in its place.
+    await assertFails(updateDoc(doc(as('alice'), 'notifications', 'n1'), { readAt: new Date('2099-01-01') }));
+    await assertFails(updateDoc(doc(as('alice'), 'notifications', 'n1'), { readAt: 'x'.repeat(5000) }));
     await assertSucceeds(updateDoc(doc(as('alice'), 'notifications', 'n1'), { readAt: serverTimestamp() }));
   });
 });
@@ -381,11 +384,32 @@ describe('profiles (users/{uid})', () => {
     const me = doc(as('alice'), 'users', 'alice');
     await assertSucceeds(updateDoc(me, { bio: 'hello', region: 'TW', primaryLocale: 'en', autoTranslateTo: ['zh-TW'] }));
     await assertSucceeds(updateDoc(me, { avatarUrl: 'https://img.example/a.avif' }));
+    // The web's syncHintCount and the apps' HintService: a dotted count.
     await assertSucceeds(updateDoc(me, { 'hintsSeen.editor': 2 }));
     await assertFails(updateDoc(me, { bio: 'x'.repeat(81) }));
     await assertFails(updateDoc(me, { primaryLocale: 'fr' }));
     await assertFails(updateDoc(me, { avatarUrl: 'javascript:alert(1)' }));
     await assertFails(updateDoc(doc(as('bob'), 'users', 'alice'), { bio: 'not mine' }));
+  });
+
+  it("hold the fields everyone downloads to their size: a hint's count, the translation languages", async () => {
+    const me = doc(as('alice'), 'users', 'alice');
+    await assertFails(updateDoc(me, { 'hintsSeen.editor': 'x'.repeat(100_000) }));
+    await assertFails(updateDoc(me, { 'hintsSeen.editor': { nested: true } }));
+    await assertFails(updateDoc(me, { 'hintsSeen.editor': 9999 }));
+    await assertFails(updateDoc(me, { autoTranslateTo: ['x'.repeat(10_000)] }));
+    await assertFails(updateDoc(me, { autoTranslateTo: ['en', 'fr'] }));
+  });
+
+  it('take an avatar only from our own storage once its host is configured', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'config', 'storage'), { host: 'img.resonance.test' });
+    });
+    const me = doc(as('alice'), 'users', 'alice');
+    await assertSucceeds(updateDoc(me, { avatarUrl: 'https://img.resonance.test/image/2026-10/a.webp' }));
+    // A tracking pixel elsewhere, or a host that only starts like ours.
+    await assertFails(updateDoc(me, { avatarUrl: 'https://tracker.example/p.gif' }));
+    await assertFails(updateDoc(me, { avatarUrl: 'https://img.resonance.test.evil.example/p.gif' }));
   });
 
   it('stay readable by anyone, signed in or not — a page at a time, never the whole directory', async () => {
@@ -463,8 +487,42 @@ describe('cards: what the author may write', () => {
       draft('alice', { visibility: 'everyone' }),
       draft('alice', { translations: { en: { thoughtCore: 'x', story: 'y' } } }),
       draft('alice', { media: { type: 'image', url: 'javascript:alert(1)' } }),
+      // Sizes: everyone who reads the card downloads all of it.
+      draft('alice', { thoughtCore: 'x'.repeat(201) }),
+      draft('alice', { story: 'x'.repeat(200_001) }),
+      draft('alice', { tags: Array.from({ length: 31 }, (_, i) => `t${i}`) }),
+      draft('alice', { tags: ['x'.repeat(1001)] }),
+      draft('alice', { tags: [{ not: 'a tag' }] }),
+      draft('alice', { media: { type: 'image', url: 'https://img.example/c.avif', label: 'x'.repeat(201) } }),
+      draft('alice', { accentHue: 9999 }),
+      draft('alice', { updatedAt: new Date('2099-01-01') }),
     ];
     for (const data of bad) await assertFails(setDoc(doc(collection(db, 'cards')), data));
+  });
+
+  it('counts a title as JavaScript does (UTF-16 units, not bytes): 200 Chinese characters fit, 101 emoji do not', async () => {
+    const db = as('alice');
+    await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice', { thoughtCore: '共'.repeat(200) })));
+    await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice', { thoughtCore: '😀'.repeat(100) })));
+    await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', { thoughtCore: '😀'.repeat(101) })));
+    await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', { thoughtCore: '共'.repeat(201) })));
+  });
+
+  it("takes a cover only from our own storage once its host is configured — and leaves an older card's alone", async () => {
+    const ID = 'bbbbbbbbbbbbbbbbbbbb';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'config', 'storage'), { host: 'img.resonance.test' });
+      await setDoc(doc(db, 'cards', ID), {
+        ...draft('alice'), createdAt: new Date(), updatedAt: new Date(),
+        media: { type: 'image', url: 'https://legacy.example/old.jpg', label: 'old' },
+      });
+    });
+    const db = as('alice');
+    await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice', { media: { type: 'image', url: 'https://img.resonance.test/image/2026-10/c.webp', label: 'c' } })));
+    await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', { media: { type: 'image', url: 'https://tracker.example/p.gif', label: 'p' } })));
+    // Its legacy cover unchanged, the card stays editable; a new cover must be ours.
+    await assertSucceeds(setDoc(doc(db, 'cards', ID), { thoughtCore: 'Edited', updatedAt: serverTimestamp() }, { merge: true }));
+    await assertFails(setDoc(doc(db, 'cards', ID), { media: { type: 'image', url: 'https://tracker.example/p.gif' }, updatedAt: serverTimestamp() }, { merge: true }));
   });
 
   it('refuses a hand-picked document id (slugs and ids share the card URL)', async () => {
@@ -527,6 +585,45 @@ describe('cards: what the author may write', () => {
       await assertSucceeds(setDoc(doc(as('alice'), 'cards', ID, 'edits', 'current'), { thoughtCore: 'wip', updatedAt: serverTimestamp() }));
       await assertFails(getDoc(doc(as('bob'), 'cards', ID, 'edits', 'current')));
       await assertFails(setDoc(doc(as('bob'), 'cards', ID, 'edits', 'current'), { thoughtCore: 'x' }));
+    });
+
+    // The whole working copy, as each client writes it (a full replace).
+    const working = {
+      thoughtCore: 'Revised', story: 'Still writing', tags: ['a'], visibility: 'public', anonymous: false,
+      media: { type: 'image', url: 'https://img.example/x.avif', label: '' }, updatedAt: serverTimestamp(),
+    };
+
+    it("takes a working copy as the web (naming its author) and the apps (an older build: no author, a null hue) write it", async () => {
+      const ref = doc(as('alice'), 'cards', ID, 'edits', 'current');
+      await assertSucceeds(setDoc(ref, { ...working, accentHue: 55, authorId: 'alice' }));
+      await assertSucceeds(setDoc(ref, { ...working, accentHue: null }));
+    });
+
+    it("holds a working copy to a card's own fields and limits", async () => {
+      const ref = doc(as('alice'), 'cards', ID, 'edits', 'current');
+      const bad = [
+        { ...working, publishedAt: serverTimestamp() },
+        { ...working, slug: 'elsewhere' },
+        { ...working, authorId: 'bob' },
+        { ...working, story: 'x'.repeat(200_001) },
+        { ...working, tags: ['x'.repeat(1001)] },
+        { ...working, visibility: 'everyone' },
+        { ...working, media: { type: 'image', url: 'http://tracker.example/p.gif' } },
+        { ...working, updatedAt: new Date('2099-01-01') },
+      ];
+      for (const data of bad) await assertFails(setDoc(ref, data));
+      await assertFails(setDoc(doc(as('alice'), 'cards', ID, 'edits', 'other'), working));
+    });
+
+    it("lets its author clear a working copy whose card is gone, when it names them", async () => {
+      await seed(async (db) => {
+        await setDoc(doc(db, 'cards', 'gone', 'edits', 'current'), { thoughtCore: 'orphan', authorId: 'alice' });
+        await setDoc(doc(db, 'cards', 'gone2', 'edits', 'current'), { thoughtCore: 'orphan' });
+      });
+      await assertFails(deleteDoc(doc(as('bob'), 'cards', 'gone', 'edits', 'current')));
+      await assertSucceeds(deleteDoc(doc(as('alice'), 'cards', 'gone', 'edits', 'current')));
+      // Unnamed, it is the purge's and the cleanup script's.
+      await assertFails(deleteDoc(doc(as('alice'), 'cards', 'gone2', 'edits', 'current')));
     });
   });
 });
@@ -644,6 +741,92 @@ describe('reports', () => {
     await assertFails(getDoc(doc(as('bob'), 'reportEvidence', 'r1')));
     await assertFails(setDoc(doc(as('bob'), 'reportEvidence', 'r1'), { card: null }));
     await assertFails(deleteDoc(doc(as('bob'), 'reportEvidence', 'r1')));
+  });
+});
+
+describe('server-only records', () => {
+  it("who stored which picture, and the storage's configuration, are the server's alone", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'uploads', 'u1'), { ownerId: 'alice', key: 'image/2026-10/u1.webp' });
+      await setDoc(doc(db, 'config', 'storage'), { host: 'img.resonance.test' });
+    });
+    await assertFails(getDoc(doc(as('carol'), 'uploads', 'u1')));
+    await assertFails(getDocs(query(collection(as('carol'), 'uploads'), where('ownerId', '==', 'alice'))));
+    await assertFails(setDoc(doc(as('alice'), 'uploads', 'u2'), { ownerId: 'alice', key: 'x' }));
+    await assertFails(getDoc(doc(as('alice'), 'config', 'storage')));
+    await assertFails(setDoc(doc(as('alice'), 'config', 'storage'), { host: 'tracker.example' }));
+  });
+});
+
+describe('bookmarks (users/{uid}/bookmarks/{cardId})', () => {
+  it('are their owner\'s, written exactly as the web and the apps write them', async () => {
+    const mine = doc(as('alice'), 'users', 'alice', 'bookmarks', 'c1');
+    await assertSucceeds(setDoc(mine, { cardId: 'c1', createdAt: serverTimestamp() }));
+    await assertSucceeds(getDocs(collection(as('alice'), 'users', 'alice', 'bookmarks')));
+    await assertFails(getDocs(collection(as('bob'), 'users', 'alice', 'bookmarks')));
+    await assertFails(setDoc(doc(as('bob'), 'users', 'alice', 'bookmarks', 'c2'), { cardId: 'c2', createdAt: serverTimestamp() }));
+    await assertSucceeds(deleteDoc(mine));
+  });
+
+  it('hold nothing but the card they mark', async () => {
+    const db = as('alice');
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'bookmarks', 'c1'), { cardId: 'c1', createdAt: serverTimestamp(), note: 'x'.repeat(100_000) }));
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'bookmarks', 'c1'), { cardId: 'other', createdAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'bookmarks', 'c1'), { cardId: 'c1', createdAt: new Date('2099-01-01') }));
+  });
+});
+
+describe('thought maps (thoughtMaps/{uid}/…)', () => {
+  const node = (cardId: string) => ({ cardId, x: 12.5, y: -40, groupId: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+
+  it("take the web's and the apps' writes: placing, moving and filing cards, arrows with words, regions", async () => {
+    const db = as('alice');
+    const n = doc(db, 'thoughtMaps', 'alice', 'nodes', 'c1');
+    await assertSucceeds(setDoc(n, node('c1')));
+    await assertSucceeds(updateDoc(n, { x: 1, y: 2, groupId: 'g1', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(n, { groupId: null, updatedAt: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(db, 'thoughtMaps', 'alice', 'edges', 'c1_c2'), { sourceCardId: 'c1', targetCardId: 'c2', label: '', createdAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(db, 'thoughtMaps', 'alice', 'edges', 'c1_c2'), { label: 'because' }));
+    const g = doc(db, 'thoughtMaps', 'alice', 'groups', 'g1');
+    await assertSucceeds(setDoc(g, { title: 'Grief', hue: 55, x: 0, y: 0, w: 320, h: 240, createdAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(g, { x: 10, y: 20 }));
+    await assertSucceeds(updateDoc(g, { w: 400, h: 300 }));
+    await assertSucceeds(updateDoc(g, { title: 'Grief, later' }));
+    await assertSucceeds(getDocs(collection(db, 'thoughtMaps', 'alice', 'nodes')));
+    await assertSucceeds(deleteDoc(g));
+    // Placing a card again, drawing an arrow again: a whole set over what is there.
+    await assertSucceeds(setDoc(n, { ...node('c1'), x: 300 }));
+    await assertSucceeds(setDoc(doc(db, 'thoughtMaps', 'alice', 'edges', 'c1_c2'), { sourceCardId: 'c1', targetCardId: 'c2', label: '', createdAt: serverTimestamp() }));
+  });
+
+  it("are no one else's to read or write", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'thoughtMaps', 'alice', 'nodes', 'c1'), { cardId: 'c1', x: 0, y: 0, groupId: null });
+    });
+    await assertFails(getDocs(collection(as('bob'), 'thoughtMaps', 'alice', 'nodes')));
+    await assertFails(setDoc(doc(as('bob'), 'thoughtMaps', 'alice', 'nodes', 'c2'), node('c2')));
+    await assertFails(deleteDoc(doc(as('bob'), 'thoughtMaps', 'alice', 'nodes', 'c1')));
+  });
+
+  it('hold each piece to its own fields and sizes', async () => {
+    const db = as('alice');
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'nodes', 'c1'), { ...node('c1'), blob: 'x'.repeat(100_000) }));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'nodes', 'c1'), { ...node('c1'), x: 'left' }));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'nodes', 'c1'), node('c2')));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'edges', 'c1_c2'), { sourceCardId: 'c1', targetCardId: 'c2', label: 'x'.repeat(501), createdAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'edges', 'whatever'), { sourceCardId: 'c1', targetCardId: 'c2', label: '', createdAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'groups', 'g1'), { title: 'x'.repeat(501), hue: 55, x: 0, y: 0, w: 1, h: 1, createdAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'groups', 'g1'), { title: 't', hue: 55, x: 0, y: 0, w: 1, h: 1, color: 'red', createdAt: serverTimestamp() }));
+    // Placed again, a node is still the card it was; an arrow still joins the same two.
+    await assertSucceeds(setDoc(doc(db, 'thoughtMaps', 'alice', 'nodes', 'c1'), node('c1')));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'nodes', 'c1'), node('c9')));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'nodes', 'c1'), { ...node('c1'), createdAt: new Date(0) }));
+    await assertSucceeds(setDoc(doc(db, 'thoughtMaps', 'alice', 'edges', 'c1_c2'), { sourceCardId: 'c1', targetCardId: 'c2', label: '', createdAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'edges', 'c1_c2'), { sourceCardId: 'c1', targetCardId: 'c3', label: '', createdAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(db, 'thoughtMaps', 'alice', 'edges', 'c1_c2'), { label: 'x'.repeat(501) }));
+    // Nothing else lives under a map, and the map document itself is never written.
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice', 'stash', 's1'), { anything: true }));
+    await assertFails(setDoc(doc(db, 'thoughtMaps', 'alice'), { anything: true }));
   });
 });
 

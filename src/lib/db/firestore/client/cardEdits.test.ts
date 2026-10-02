@@ -59,7 +59,8 @@ describe('pending card edits', () => {
     expect(setDoc).toHaveBeenCalledTimes(1);
     const [ref, payload] = vi.mocked(setDoc).mock.calls[0];
     expect((ref as unknown as { path: string }).path).toBe(EDIT_PATH);
-    expect(payload).toMatchObject({ ...values, updatedAt: '<server-time>' });
+    // It names its author: the account purge finds it even once its card is gone.
+    expect(payload).toMatchObject({ ...values, authorId: 'me', updatedAt: '<server-time>' });
     // The live document is what readers are looking at — it must stay untouched
     // until the author explicitly saves.
     expect(

@@ -1,5 +1,6 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
+import { cardContentProblem } from '@/lib/db/firestore/cardContent';
 import { ApiFailure } from './http';
 
 export interface ApplyEditResult {
@@ -22,9 +23,11 @@ const VISIBILITIES = new Set(['public', 'connections', 'private']);
  * half of a revision. `publishedAt` is left alone (an edit never re-dates a
  * card) and so is the slug (a card keeps its URL).
  *
- * The buffer is written by the owner under rules that check ownership only,
- * so only the editable fields are copied, each checked for its type. A cover
- * missing from the buffer was removed: it is deleted from the card too.
+ * The buffer is written by the owner from the client, and one written before
+ * the rules held it to a card's limits could hold anything: only the
+ * editable fields are copied, each checked for its type, and an edit past
+ * those limits (lib/db/firestore/cardContent) is refused. A cover missing
+ * from the buffer was removed: it is deleted from the card too.
  * Applying twice is harmless — with no buffer left, nothing changes.
  */
 export async function applyCardEdit(db: Firestore, uid: string, id: string): Promise<ApplyEditResult> {
@@ -43,14 +46,21 @@ export async function applyCardEdit(db: Firestore, uid: string, id: string): Pro
     const e = edit.data()!;
     const thoughtCore = typeof e.thoughtCore === 'string' ? e.thoughtCore : '';
     if (!thoughtCore.trim()) throw new ApiFailure('invalid_request', 'A card needs a title.');
-    const fields: Record<string, unknown> = {
+    const content = {
       thoughtCore,
       story: typeof e.story === 'string' ? e.story : '',
       tags: Array.isArray(e.tags) ? e.tags.filter((t): t is string => typeof t === 'string') : [],
+      accentHue: typeof e.accentHue === 'number' ? e.accentHue : null,
+      media: isMedia(e.media) ? pickMedia(e.media) : null,
+    };
+    // The buffer may predate the rules' limits: the server copies nothing a client couldn't write.
+    const problem = cardContentProblem(content, { keptMediaUrl: typeof snap.get('media.url') === 'string' ? snap.get('media.url') : null });
+    if (problem) throw new ApiFailure('invalid_request', 'The edit does not fit a card.', [{ path: problem, message: 'Out of bounds.' }]);
+    const fields: Record<string, unknown> = {
+      ...content,
       visibility: VISIBILITIES.has(e.visibility) ? e.visibility : snap.get('visibility'),
       anonymous: e.anonymous === true,
-      accentHue: typeof e.accentHue === 'number' ? e.accentHue : null,
-      media: isMedia(e.media) ? e.media : FieldValue.delete(),
+      media: content.media ?? FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     };
     tx.set(ref, fields, { merge: true });
@@ -67,6 +77,11 @@ export async function applyCardEdit(db: Firestore, uid: string, id: string): Pro
   });
 }
 
-function isMedia(m: unknown): m is { type: string; url: string } {
+function isMedia(m: unknown): m is { type: string; url: string; label?: unknown } {
   return !!m && typeof m === 'object' && typeof (m as { url?: unknown }).url === 'string' && typeof (m as { type?: unknown }).type === 'string';
+}
+
+/** A cover's own fields only (the buffer could hold anything beside them). */
+function pickMedia(m: { type: string; url: string; label?: unknown }): { type: string; url: string; label?: string } {
+  return { type: m.type, url: m.url, ...(typeof m.label === 'string' ? { label: m.label } : {}) };
 }

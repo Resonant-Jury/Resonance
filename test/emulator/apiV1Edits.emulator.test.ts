@@ -127,6 +127,38 @@ describe('applyCardEdit', () => {
     expect((await db.doc('cards/live/edits/current').get()).exists).toBe(true);
   });
 
+  it("refuses a revision past a card's limits (a buffer written before the rules held it to them), leaving the card", async () => {
+    for (const extra of [
+      { story: 'x'.repeat(200_001) },
+      { thoughtCore: 'x'.repeat(201) },
+      { tags: ['x'.repeat(1001)] },
+      { media: { type: 'image', url: 'javascript:alert(1)' } },
+      { media: { type: 'image', url: 'https://img.example/c.webp', label: 'x'.repeat(201) } },
+      { accentHue: 9999 },
+    ]) {
+      await buffer(extra);
+      expect((await failure(applyCardEdit(db, 'alice', 'live'))).code).toBe('invalid_request');
+    }
+    expect((await db.doc('cards/live').get()).get('story')).toBe('原本的故事');
+  });
+
+  it("takes a new cover only from our own storage, where the server knows it — and keeps the card's older one", async () => {
+    const base = process.env.R2_PUBLIC_BASE;
+    process.env.R2_PUBLIC_BASE = 'https://img.resonance.test';
+    try {
+      await buffer({ media: { type: 'image', url: 'https://tracker.example/p.gif', label: 'p' } });
+      expect((await failure(applyCardEdit(db, 'alice', 'live'))).code).toBe('invalid_request');
+      // The cover it already had (from before), kept as it is.
+      await buffer({ media: { type: 'image', url: 'https://cdn/old.avif', label: 'old' } });
+      await expect(applyCardEdit(db, 'alice', 'live')).resolves.toMatchObject({ applied: true });
+      await buffer({ media: { type: 'image', url: 'https://img.resonance.test/image/2026-10/n.webp', label: 'n' } });
+      await expect(applyCardEdit(db, 'alice', 'live')).resolves.toMatchObject({ applied: true });
+    } finally {
+      if (base === undefined) delete process.env.R2_PUBLIC_BASE;
+      else process.env.R2_PUBLIC_BASE = base;
+    }
+  });
+
   it('refuses an untitled revision and a draft', async () => {
     await buffer({ thoughtCore: '  ' });
     expect((await failure(applyCardEdit(db, 'alice', 'live'))).code).toBe('invalid_request');
