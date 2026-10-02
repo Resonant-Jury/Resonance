@@ -219,6 +219,31 @@ extension HTTPRequest {
         #expect(asked.query("pageToken") == nil)
     }
 
+    @Test func severalShelvesAreOneRequest() async throws {
+        let transport = StubTransport(body: """
+        {"published":{"cards":[\(Self.card("p1")),\(Self.card("p2"))]},"private":{"cards":[]},"draft":{"cards":[\(Self.card("d1"))]}}
+        """)
+        let shelves = try await api(transport).cardBox(shelves: [.draft, .published, ._private])
+        #expect(transport.requests.count == 1)
+        let request = try #require(transport.requests.first)
+        #expect(request.bare == "/me/cardbox")
+        // In the card box's own order, whatever order they were asked in.
+        #expect(request.query("shelves") == "published,private,draft")
+        #expect(shelves[.published]?.map(\.id) == ["p1", "p2"])
+        #expect(shelves[._private]?.isEmpty == true)
+        #expect(shelves[.draft]?.map(\.id) == ["d1"])
+        #expect(shelves.count == 3)
+    }
+
+    @Test func aShelfLeftOutOfTheAnswerIsNotAnEmptyShelf() async throws {
+        let transport = StubTransport(body: #"{"published":{"cards":[\#(Self.card("p1"))]},"linked":{"cards":[]}}"#)
+        let shelves = try await api(transport).cardBox(shelves: [.published, .resonated])
+        #expect(shelves[.published]?.map(\.id) == ["p1"])
+        // Not answered: unknown, not empty. Not asked for: not taken.
+        #expect(shelves[.resonated] == nil)
+        #expect(shelves[.linked] == nil)
+    }
+
     @Test func aStoryLinkNamesItsCard() {
         #expect(CardKey.of(href: "/card/a-walk") == "a-walk")
         #expect(CardKey.of(href: "/card/a-walk?from=story#top") == "a-walk")

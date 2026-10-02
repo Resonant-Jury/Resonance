@@ -112,6 +112,29 @@ public struct ReadingAPI: Sendable {
         }
     }
 
+    /// Several shelves of the card box in one request (GET /me/cardbox?shelves=),
+    /// each exactly as `cardBox(_:)` answers it. A shelf the answer leaves out
+    /// is absent from the result, never read as empty.
+    public func cardBox(shelves: Set<CardBoxShelf>) async throws -> [CardBoxShelf: [FeedCard]] {
+        let names = CardBoxShelf.allCases.filter(shelves.contains).map(\.rawValue)
+        switch try await client.getCardBoxShelves(query: .init(shelves: names.joined(separator: ","))) {
+        case let .ok(r):
+            let box = try r.body.json
+            let lists: [(CardBoxShelf, Components.Schemas.CardList?)] = [
+                (.published, box.published), (._private, box._private), (.draft, box.draft),
+                (.resonated, box.resonated), (.linked, box.linked), (.bookmarks, box.bookmarks),
+            ]
+            var answered: [CardBoxShelf: [FeedCard]] = [:]
+            for (shelf, list) in lists where shelves.contains(shelf) {
+                if let list { answered[shelf] = list.cards }
+            }
+            return answered
+        case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
+        case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
+        case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
+        }
+    }
+
     /// What a person's page brings along with their profile (GET /users/{handle}?include=).
     public enum ProfileInclude: String, Sendable, CaseIterable {
         /// The first page of their public cards (= /cards at `limit`).

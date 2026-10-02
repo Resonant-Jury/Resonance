@@ -20,7 +20,7 @@ struct CardBoxScreen: View {
 
     private static let order: [ReadingAPI.CardBoxShelf] = [.published, ._private, .draft, .resonated, .linked, .bookmarks]
     /// The shelves of my own cards (OWNED_TABS): each card gets its ⋯.
-    private static let owned: Set<ReadingAPI.CardBoxShelf> = [.published, ._private, .draft]
+    static let owned: Set<ReadingAPI.CardBoxShelf> = [.published, ._private, .draft]
 
     var body: some View {
         TabScreen(L10n.App.Nav.me) {
@@ -156,15 +156,31 @@ struct CardBoxScreen: View {
             }
         }
         guard force || shelves[s] == nil || unconfirmed.contains(s) else { return }
+        let asked = Self.asked(with: s, force: force, known: Set(shelves.keys), unconfirmed: unconfirmed)
         do {
-            let cards = try await session.reading.cardBox(s)
-            shelves[s] = cards
-            unconfirmed.remove(s)
-            if s == .published, let uid = session.uid { session.kept.save(cards, as: .published, uid: uid) }
-            failed = false
+            let answered = try await session.reading.cardBox(shelves: asked)
+            for (shelf, cards) in answered {
+                shelves[shelf] = cards
+                unconfirmed.remove(shelf)
+            }
+            // The kept published shelf is the server's latest, whichever shelf asked for it.
+            if let published = answered[.published], let uid = session.uid { session.kept.save(published, as: .published, uid: uid) }
+            failed = answered[s] == nil
         } catch {
-            failed = true
+            // Left for another shelf (its task cancelled): not a failure to show.
+            if !Task.isCancelled { failed = true }
         }
+    }
+
+    /// The shelves one request asks for to show `s`: my own cards' shelves come
+    /// together (one GET /me/cardbox), so opening the box brings the private
+    /// and draft shelves along with the published one — each that isn't known
+    /// yet or is waiting to be asked again (all of them, asked for by hand).
+    /// The others (cards by other people) are asked for alone, when shown.
+    static func asked(with s: ReadingAPI.CardBoxShelf, force: Bool, known: Set<ReadingAPI.CardBoxShelf>,
+                      unconfirmed: Set<ReadingAPI.CardBoxShelf>) -> Set<ReadingAPI.CardBoxShelf> {
+        guard owned.contains(s) else { return [s] }
+        return owned.filter { force || !known.contains($0) || unconfirmed.contains($0) }.union([s])
     }
 
     static func title(_ s: ReadingAPI.CardBoxShelf) -> String {
