@@ -1,4 +1,4 @@
-import { storageKeyOf } from '@/lib/storage/publicUrl';
+import { publicBases, storageKeyOf } from '@/lib/storage/publicUrl';
 
 /**
  * firestore.rules' `validCardContent`, for content the server copies on the
@@ -27,15 +27,16 @@ export interface CardContent {
 
 /**
  * What is out of bounds in `c` (the field's name), or null when it all fits.
- * A cover must be on our own storage (`publicBase`, when the server knows it)
- * unless it is the one the card already has (`keptMediaUrl`) — as the rules
- * check a cover only when it changes, so an older card stays editable.
+ * A cover must be on our own storage (`publicBases`, when the server knows
+ * them: R2_PUBLIC_BASE, or a former base still serving the same keys during a
+ * move) unless it is the one the card already has (`keptMediaUrl`) — as the
+ * rules check a cover only when it changes, so an older card stays editable.
  */
 export function cardContentProblem(
   c: CardContent,
-  opts: { keptMediaUrl?: string | null; publicBase?: string } = {},
+  opts: { keptMediaUrl?: string | null; publicBases?: readonly string[] } = {},
 ): string | null {
-  const publicBase = 'publicBase' in opts ? opts.publicBase : process.env.R2_PUBLIC_BASE;
+  const bases = 'publicBases' in opts ? (opts.publicBases ?? []) : publicBases();
   if (c.thoughtCore.length > CARD_LIMITS.title) return 'thoughtCore';
   if (c.story.length > CARD_LIMITS.story) return 'story';
   if (c.tags.length > CARD_LIMITS.tags || c.tags.join(' ').length > CARD_LIMITS.tagsJoined) return 'tags';
@@ -44,8 +45,8 @@ export function cardContentProblem(
   if (m) {
     if (m.type !== 'image' && m.type !== 'video') return 'media';
     if (!/^https:\/\/\S+$/.test(m.url) || m.url.length > CARD_LIMITS.url) return 'media';
-    // Our own storage only, where the server knows it (the rules hold the same once config/storage is set).
-    if (publicBase && m.url !== opts.keptMediaUrl && !storageKeyOf(m.url, publicBase)) return 'media';
+    // Our own storage only, where the server knows it (the rules hold the same once config/storage is set: its host or a former one).
+    if (bases.length && m.url !== opts.keptMediaUrl && !storageKeyOf(m.url, bases)) return 'media';
     if (m.label != null && (typeof m.label !== 'string' || m.label.length > CARD_LIMITS.mediaLabel)) return 'media';
   }
   return null;

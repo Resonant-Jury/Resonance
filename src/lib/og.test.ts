@@ -34,6 +34,8 @@ const author: User = {
 };
 
 const base = 'https://resonance.example';
+/** Where pictures are stored now, then the host they were served from before a move (both serve every key). */
+const STORAGE = ['https://img.resonance.example', 'https://cdn.r2.dev'];
 
 describe('buildCardMetadata', () => {
   it('uses the card title, a markdown-stripped excerpt, and the author byline', () => {
@@ -53,7 +55,7 @@ describe('buildCardMetadata', () => {
   it("shares a stored cover as a JPEG from /api/og, under the cover's version (the AVIF itself isn't shown everywhere)", () => {
     const url = 'https://cdn.r2.dev/image/user1/2026-10/pic.avif';
     const card: Card = { ...baseCard, media: { type: 'image', url } };
-    const meta = buildCardMetadata({ card, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBase: 'https://cdn.r2.dev' });
+    const meta = buildCardMetadata({ card, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBases: STORAGE });
     const image = `https://resonance.example/api/og/card/card1?v=${imageVersion(url)}`;
     expect((meta.openGraph?.images as { url: string }[])[0].url).toBe(image);
     expect((meta.twitter as { images?: string[] }).images).toEqual([image]);
@@ -62,13 +64,19 @@ describe('buildCardMetadata', () => {
 
     // A new cover is a new share-image URL.
     const next: Card = { ...card, media: { type: 'image', url: 'https://cdn.r2.dev/image/user1/2026-10/pic2.avif' } };
-    const nextMeta = buildCardMetadata({ card: next, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBase: 'https://cdn.r2.dev' });
+    const nextMeta = buildCardMetadata({ card: next, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBases: STORAGE });
     expect((nextMeta.openGraph?.images as { url: string }[])[0].url).not.toBe(image);
+  });
+
+  it('shares a cover the same way from the current storage host as from the former one', () => {
+    const card: Card = { ...baseCard, media: { type: 'image', url: 'https://img.resonance.example/image/2026-10/pic.avif' } };
+    const meta = buildCardMetadata({ card, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBases: STORAGE });
+    expect((meta.openGraph?.images as { url: string }[])[0].url).toMatch(/^https:\/\/resonance\.example\/api\/og\/card\/card1\?v=/);
   });
 
   it('shares a picture hosted elsewhere as it is', () => {
     const card: Card = { ...baseCard, media: { type: 'image', url: 'https://images.example/pic.jpg' } };
-    const meta = buildCardMetadata({ card, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBase: 'https://cdn.r2.dev' });
+    const meta = buildCardMetadata({ card, author, locale: 'en', base, anonymousLabel: 'Anonymous', storageBases: STORAGE });
     expect((meta.openGraph?.images as { url: string }[])[0].url).toBe('https://images.example/pic.jpg');
   });
 
@@ -106,7 +114,7 @@ describe('buildProfileMetadata', () => {
       base,
       title: 'mira · Resonance',
       description: 'writes about slow mornings',
-      storageBase: 'https://cdn.r2.dev/',
+      storageBases: ['https://cdn.r2.dev/'],
     });
 
     expect(meta.title).toBe('mira · Resonance');

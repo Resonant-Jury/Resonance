@@ -56,6 +56,16 @@ describe('reportOnlyPolicy', () => {
     expect(reportOnlyPolicy(PRODUCTION)).not.toMatch(/unsafe-eval|127\.0\.0\.1|vercel\.live|recaptcha/);
   });
 
+  it('lists a former storage host beside the current one while pictures still name it', () => {
+    const moving = directives(reportOnlyPolicy({
+      ...PRODUCTION,
+      R2_PUBLIC_BASE: 'https://img.resonance.channel',
+      R2_FORMER_PUBLIC_BASES: 'https://pub-123.r2.dev/,https://img.resonance.channel/',
+    }));
+    expect(moving['img-src']).toEqual(["'self'", 'data:', 'blob:', 'https://img.resonance.channel', 'https://pub-123.r2.dev']);
+    expect(moving['media-src']).toEqual(["'self'", 'blob:', 'https://img.resonance.channel', 'https://pub-123.r2.dev']);
+  });
+
   it('adds the emulators and React Refresh in development, the toolbar on previews, reCAPTCHA with phone sign-in', () => {
     const dev = directives(
       reportOnlyPolicy({

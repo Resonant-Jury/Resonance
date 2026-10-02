@@ -1,3 +1,5 @@
+import { publicBases } from '../storage/publicUrl';
+
 /**
  * The response headers every page and route is served with (next.config.ts
  * `headers()`, evaluated at build time). Imported by next.config.ts, so
@@ -23,6 +25,7 @@ export interface SecurityEnv {
   NODE_ENV?: string;
   VERCEL_ENV?: string;
   R2_PUBLIC_BASE?: string;
+  R2_FORMER_PUBLIC_BASES?: string;
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN?: string;
   NEXT_PUBLIC_FIREBASE_EMULATOR?: string;
   NEXT_PUBLIC_EMULATOR_AUTH_PORT?: string;
@@ -56,7 +59,8 @@ function origin(url: string | undefined): string | null {
 
 /** The Content-Security-Policy the site is meant to keep to, as reported (not yet enforced). */
 export function reportOnlyPolicy(env: SecurityEnv): string {
-  const images = origin(env.R2_PUBLIC_BASE);
+  // The stored pictures' host, and a former one while pictures still name it (R2_FORMER_PUBLIC_BASES).
+  const images = [...new Set(publicBases(env).map(origin))];
   const authDomain = env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ? `https://${env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}` : 'https://*.firebaseapp.com';
   // A local build against the emulators (npm run dev:emulator): Auth's (which also serves the sign-in iframe) and Firestore's.
   const emulated = env.NEXT_PUBLIC_FIREBASE_EMULATOR === 'true';
@@ -86,8 +90,8 @@ export function reportOnlyPolicy(env: SecurityEnv): string {
     'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', preview && 'https://vercel.live'],
     'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com', 'https://cdn.jsdelivr.net', preview && 'https://vercel.live', preview && 'https://assets.vercel.com'],
     // Stored pictures; the editor's generation previews are data: URLs.
-    'img-src': ["'self'", 'data:', 'blob:', images, preview && 'https://vercel.live', preview && 'https://vercel.com'],
-    'media-src': ["'self'", 'blob:', images],
+    'img-src': ["'self'", 'data:', 'blob:', ...images, preview && 'https://vercel.live', preview && 'https://vercel.com'],
+    'media-src': ["'self'", 'blob:', ...images],
     // Firestore, Firebase Auth (sign-in, token refresh, the popup's project config).
     'connect-src': [
       "'self'",

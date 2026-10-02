@@ -28,8 +28,8 @@ export function imageVersion(url: string): string {
  * /api/og/{kind}/{id} — stored pictures are AVIF or WebP, which some
  * platforms can't show. A picture hosted elsewhere is shared as it is.
  */
-function shareImage(base: string, kind: 'card' | 'user', id: string, url: string, storageBase: string | undefined): string {
-  if (!storageKeyOf(url, storageBase)) return url;
+function shareImage(base: string, kind: 'card' | 'user', id: string, url: string, storageBases: readonly string[] | undefined): string {
+  if (!storageKeyOf(url, storageBases)) return url;
   return `${base}/api/og/${kind}/${encodeURIComponent(id)}?v=${imageVersion(url)}`;
 }
 
@@ -58,10 +58,10 @@ export function buildCardMetadata(opts: {
   locale: Locale;
   base: string;
   anonymousLabel: string;
-  /** R2_PUBLIC_BASE: where our stored pictures are served from. */
-  storageBase?: string;
+  /** publicBases(): where our stored pictures are served from (R2_PUBLIC_BASE, and a former base during a move). */
+  storageBases?: readonly string[];
 }): Metadata {
-  const { card, author, locale, base, anonymousLabel, storageBase } = opts;
+  const { card, author, locale, base, anonymousLabel, storageBases } = opts;
   const { title, story } = localizedCard(card, locale);
   const description = plainExcerpt(story, 200);
 
@@ -69,7 +69,7 @@ export function buildCardMetadata(opts: {
   // Share thumbnail: the card's own image when it has one (as a JPEG), else the platform cover.
   const image =
     card.media?.type === 'image' && card.media.url
-      ? shareImage(base, 'card', card.id, card.media.url, storageBase)
+      ? shareImage(base, 'card', card.id, card.media.url, storageBases)
       : `${base}${OG_COVER_PATH}`;
   const url = card.slug ? `${base}/${locale}/card/${card.slug}` : undefined;
 
@@ -115,12 +115,12 @@ export function buildProfileMetadata(opts: {
   base: string;
   title: string;
   description: string;
-  /** R2_PUBLIC_BASE: where our stored pictures are served from. */
-  storageBase?: string;
+  /** publicBases(): where our stored pictures are served from (R2_PUBLIC_BASE, and a former base during a move). */
+  storageBases?: readonly string[];
 }): Metadata {
-  const { user, locale, base, title, description, storageBase } = opts;
+  const { user, locale, base, title, description, storageBases } = opts;
   const hasAvatar = Boolean(user.avatarUrl);
-  const image = hasAvatar ? shareImage(base, 'user', user.id, user.avatarUrl!, storageBase) : `${base}${OG_COVER_PATH}`;
+  const image = hasAvatar ? shareImage(base, 'user', user.id, user.avatarUrl!, storageBases) : `${base}${OG_COVER_PATH}`;
   const url = `${base}/${locale}/u/${encodeURIComponent(user.handle)}`;
 
   return {

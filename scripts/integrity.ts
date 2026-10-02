@@ -14,6 +14,7 @@
  */
 import 'dotenv/config';
 import { emulatorEnv, EMULATOR_PROJECT_ID } from './emulator-env.mjs';
+import { formerPublicBases, publicBases, storageKeyOf } from '../src/lib/storage/publicUrl';
 
 const useEmulator = process.argv.includes('--emulator');
 /** A publish date or bell this far ahead of now can only have been written by hand. */
@@ -62,7 +63,10 @@ async function main() {
   const pastLimits: string[] = [];
   const foreignCover: string[] = [];
   const ownedKeyAnonymous: string[] = [];
-  const storageBase = process.env.R2_PUBLIC_BASE?.replace(/\/+$/, '');
+  const coverOnFormerHost: string[] = [];
+  // Our storage: R2_PUBLIC_BASE, and the hosts it was served from before (R2_FORMER_PUBLIC_BASES).
+  const storageBases = publicBases();
+  const formerBases = formerPublicBases();
   let longestStory = 0;
   const bySlug = new Map<string, string[]>();
   for (const d of cards.docs) {
@@ -78,10 +82,12 @@ async function main() {
       typeof media?.label === 'string' && media.label.length > 200 && 'cover label',
     ].filter(Boolean);
     if (over.length) pastLimits.push(`${d.id} (${over.join(', ')})`);
-    if (storageBase && typeof media?.url === 'string' && !media.url.startsWith(`${storageBase}/`)) foreignCover.push(d.id);
+    const cover = typeof media?.url === 'string' ? media.url : null;
+    const coverKey = cover && storageKeyOf(cover, storageBases);
+    if (storageBases.length && cover && !coverKey) foreignCover.push(d.id);
+    if (cover && coverKey && storageKeyOf(cover, formerBases)) coverOnFormerHost.push(d.id);
     // An owner-named key in an anonymous card's cover (scripts/backfill.ts rekey-images covers its story's pictures too).
-    if (d.get('anonymous') === true && storageBase && typeof media?.url === 'string'
-      && /^(image|video)\/[^/]+\/\d{4}-\d{2}\/[^/]+$/.test(media.url.slice(storageBase.length + 1))) ownedKeyAnonymous.push(d.id);
+    if (d.get('anonymous') === true && coverKey && /^(image|video)\/[^/]+\/\d{4}-\d{2}\/[^/]+$/.test(coverKey)) ownedKeyAnonymous.push(d.id);
     const at = d.get('publishedAt');
     if (at != null && !(at instanceof Timestamp)) badDate.push(d.id);
     else if (at instanceof Timestamp && at.toMillis() > now + FUTURE_SLACK_MS) futureDate.push(d.id);
@@ -97,13 +103,14 @@ async function main() {
   add('cards: no boolean `anonymous` field', "backfill anonymous: false before any query filters on it", noAnonymous);
   add('cards: hand-picked document id (not a 20-character auto id)', 'check it is not squatting another card\'s slug', oddId);
   add('cards: past the limits the rules hold writes to', 'trim the field (its author cannot save it as it is)', pastLimits);
-  add('cards: a cover not on our storage (R2_PUBLIC_BASE)', 'look at it: a picture elsewhere is fetched by every reader', foreignCover);
+  add('cards: a cover not on our storage (R2_PUBLIC_BASE, or a former base)', 'look at it: a picture elsewhere is fetched by every reader', foreignCover);
+  add('cards: a cover still on a former storage host (R2_FORMER_PUBLIC_BASES)', 'npx tsx scripts/backfill.ts rehost-images --apply', coverOnFormerHost);
   add("cards: anonymous, with a cover whose key names its author", 'npx tsx scripts/backfill.ts rekey-images --apply', ownedKeyAnonymous);
   console.log(`(the longest story: ${longestStory} UTF-16 units; the rules take 200000)`);
 
   // --- users ---
   const [users, handles] = await Promise.all([
-    db.collection('users').select('handle', 'handleLower', 'verified', 'joinedAt').get(),
+    db.collection('users').select('handle', 'handleLower', 'verified', 'joinedAt', 'avatarUrl').get(),
     db.collection('handles').get(),
   ]);
   const reservedFor = new Map(handles.docs.map((d) => [d.id, d.get('uid')]));
@@ -111,6 +118,7 @@ async function main() {
   const byHandle = new Map<string, { id: string; joined: number }[]>();
   const mismatched: string[] = [];
   const verified: string[] = [];
+  const avatarOnFormerHost: string[] = [];
   for (const d of users.docs) {
     const handle = String(d.get('handle') ?? '');
     const lower = String(d.get('handleLower') ?? '');
@@ -119,6 +127,7 @@ async function main() {
     byHandle.set(lower, [...(byHandle.get(lower) ?? []), { id: d.id, joined: joined instanceof Timestamp ? joined.toMillis() : 0 }]);
     if (d.get('verified') === true) verified.push(d.id);
     if (lower && reservedFor.get(lower) !== d.id) unreserved.push(`${d.id} (${JSON.stringify(lower)})`);
+    if (typeof d.get('avatarUrl') === 'string' && storageKeyOf(d.get('avatarUrl'), formerBases)) avatarOnFormerHost.push(d.id);
   }
   add('users: pen name taken by more than one account', 'the earliest joinedAt keeps it; ask the others to choose again',
     [...byHandle.entries()]
@@ -127,6 +136,7 @@ async function main() {
   add('users: handleLower does not match the pen name', 'rewrite handleLower (and trim the handle) through the server', mismatched);
   add('users: verified badge set', 'confirm each one was granted on purpose; the client could set it before', verified);
   add('users: pen name without its reservation (handles/{name})', 'npx tsx scripts/backfill.ts handles (duplicates first)', unreserved);
+  add('users: a profile photo still on a former storage host (R2_FORMER_PUBLIC_BASES)', 'npx tsx scripts/backfill.ts rehost-images --apply', avatarOnFormerHost);
 
   // --- card links ---
   const links = await db.collection('cardLinks').get();

@@ -4,6 +4,7 @@ import { FirestoreUserRepository } from '@/lib/db/firestore/user';
 import type { Locale } from '@/lib/db/types';
 import { buildProfileMetadata } from '@/lib/og';
 import { siteUrl } from '@/lib/site';
+import { publicBases } from '@/lib/storage/publicUrl';
 
 export const runtime = 'nodejs';
 
@@ -55,7 +56,7 @@ export async function generateMetadata({
     base: siteUrl(),
     title,
     description,
-    storageBase: process.env.R2_PUBLIC_BASE,
+    storageBases: publicBases(),
   });
 }
 

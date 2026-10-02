@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import type { Locale } from '@/lib/db/types';
 import { buildCardMetadata } from '@/lib/og';
 import { siteUrl } from '@/lib/site';
+import { publicBases } from '@/lib/storage/publicUrl';
 import { loadCard } from './cardPageData';
 
 export const runtime = 'nodejs';
@@ -52,7 +53,7 @@ export async function generateMetadata({
     locale: locale as Locale,
     base: siteUrl(),
     anonymousLabel: t('anonymousAuthor'),
-    storageBase: process.env.R2_PUBLIC_BASE,
+    storageBases: publicBases(),
   });
 }
 

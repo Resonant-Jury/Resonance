@@ -20,6 +20,8 @@ const { GET: cardImage } = await import('./route');
 const { GET: userImage } = await import('../../user/[id]/route');
 
 const BASE = 'https://img.example';
+/** The host the storage was served from before (R2_FORMER_PUBLIC_BASES): it serves the same keys. */
+const FORMER = 'https://pub-0123.r2.dev';
 const COVER = `${BASE}/image/uid-author/2026-10/0b9c6a2e-1f43-4c55-9d8e-2a1c3b4d5e6f.avif`;
 const AVATAR = `${BASE}/image/uid-author/2026-10/5d6e7f80-1a2b-4c3d-8e9f-0a1b2c3d4e5f.webp`;
 const storageKey = (url: string) => url.slice(BASE.length + 1);
@@ -27,6 +29,7 @@ const storageKey = (url: string) => url.slice(BASE.length + 1);
 const stored = new Map<string, Uint8Array>();
 beforeAll(async () => {
   vi.stubEnv('R2_PUBLIC_BASE', BASE);
+  vi.stubEnv('R2_FORMER_PUBLIC_BASES', `${FORMER}/`);
   stored.set(storageKey(COVER),
     await sharp({ create: { width: 2000, height: 1000, channels: 4, background: { r: 200, g: 80, b: 60, alpha: 0.5 } } }).avif().toBuffer());
   stored.set(storageKey(AVATAR), await sharp({ create: { width: 256, height: 256, channels: 3, background: '#357' } }).webp().toBuffer());
@@ -54,6 +57,7 @@ beforeEach(() => {
     'cards/conn1': card({ visibility: 'connections' }),
     'cards/draft1': card({ publishedAt: null }),
     'cards/bare1': card({ media: null }),
+    'cards/former1': card({ media: { type: 'image', url: COVER.replace(BASE, FORMER) } }),
     'cards/elsewhere1': card({ media: { type: 'image', url: 'https://evil.example/x.jpg' } }),
     'cards/lookalike1': card({ media: { type: 'image', url: `${BASE}/image/../../secrets/key.png` } }),
     'cards/gone1': card({ media: { type: 'image', url: `${BASE}/image/uid-author/2026-10/missing.avif` } }),
@@ -84,6 +88,11 @@ describe('GET /api/og/card/{id}', () => {
     expect(res.headers.get('cache-control')).toBe('public, max-age=86400, s-maxage=86400');
     expect(getObject).toHaveBeenCalledWith(storageKey(COVER));
 
+  });
+
+  it('reads a cover still on the former storage host by the same key', async () => {
+    await expectJpeg(await get('former1', imageVersion(COVER.replace(BASE, FORMER))), 1200, 600);
+    expect(getObject).toHaveBeenCalledWith(storageKey(COVER));
   });
 
   it('sends any other version on to the current one, drawing nothing for it', async () => {
