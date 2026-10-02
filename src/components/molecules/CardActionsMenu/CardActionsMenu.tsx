@@ -22,6 +22,8 @@ export interface CardActionsMenuProps {
   onChanged?: () => void;
   /** Called after the card was deleted (e.g. navigate away from its detail page). */
   onDeleted?: () => void;
+  /** On the page's own paper (the card page's title row): see OrganicMenu's `bare`. */
+  bare?: boolean;
   className?: string;
 }
 
@@ -44,6 +46,7 @@ export function CardActionsMenu({
   hue,
   onChanged,
   onDeleted,
+  bare = false,
   className,
 }: CardActionsMenuProps) {
   const t = useTranslations('me.actions');
@@ -121,6 +124,7 @@ export function CardActionsMenu({
         seed={seed}
         hue={hue}
         busy={busy}
+        bare={bare}
         className={className}
       />
 

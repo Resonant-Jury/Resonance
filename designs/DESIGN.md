@@ -159,7 +159,9 @@ R: height / 2   (pill shape)
 | A brand's own button that has to be black (Sign in with Apple) | `ink` |
 | A control floating over busy content (the thought map's toolbar and back button) | `paper` |
 
-The hover brush is the same for every variant (`r 340ms linear`, spreading from the pointer). The frame-free variants have no pen line to show focus, so `:focus-visible` rings them (`2px var(--field-border-focus)`, offset 2px). The dropdown rows (`Select`, `OrganicMenu`, the avatar menu) follow the same rule: no boxed hover region, the active row takes the same spreading ink (`RowInk`) along its wavy region.
+The hover brush is the same for every variant (`r 340ms linear`, spreading from the pointer). The frame-free variants have no pen line to show focus, so `:focus-visible` rings them (`2px var(--field-border-focus)`, offset 2px). The dropdown rows (`Select`, `OrganicMenu`, the avatar menu) follow the same rule: no boxed hover region, the active row takes the same spreading ink (`RowInk`) along its wavy region. A row's icon and label share one centre line (the label at `line-height: 1`, the icon in a box of its own).
+
+A「⋯」has two forms. Laid over a picture (a card's cover in the card box) it keeps its paper chip. On the page's own paper (`OrganicMenu bare`: the profile, the card page's title row) it has no chip: solid dots in muted ink, a soft disc of ink under them on hover, focus and while open, and a tooltip that says what the menu holds ("Report or block", "Manage card"). With no frame, its place tells you what it is for: on a profile it hangs off the end of the pen name (the name stays centred, a long name wraps before reaching it), not in the hero's corner, where it read as a stray mark.
 
 The thought map's zoom cluster is a sheet of the same paper drawn behind its controls (`card-bg` + grain 0.3, `R 18`, `seed 41`, no stroke), not a CSS box.
 

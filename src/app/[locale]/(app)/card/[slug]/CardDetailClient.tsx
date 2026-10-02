@@ -284,6 +284,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
                 <CardActionsMenu
                   card={{ id: card.id, visibility: card.visibility }}
                   seed={hue + 3}
+                  bare
                   // Re-read this card so the visibility chip/state reflects the change.
                   onChanged={() => void mutate(cardKey(slug, user!.id))}
                   onDeleted={() => router.replace('/me')}
@@ -295,6 +296,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
                   card={{ id: card.id, authorId: card.authorId, anonymous: card.anonymous }}
                   authorHandle={author.handle}
                   seed={hue + 3}
+                  bare
                 />
               )}
             </div>

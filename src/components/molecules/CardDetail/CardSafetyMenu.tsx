@@ -11,13 +11,15 @@ export interface CardSafetyMenuProps {
   authorHandle?: string;
   seed?: number;
   hue?: number;
+  /** On the page's own paper (the card page's title row): see OrganicMenu's `bare`. */
+  bare?: boolean;
 }
 
 /**
  * The reader-side「⋯」on a card page (the owner gets CardActionsMenu in the
  * same slot): report this card, block its author.
  */
-export function CardSafetyMenu({ card, authorHandle, seed = 7, hue }: CardSafetyMenuProps) {
+export function CardSafetyMenu({ card, authorHandle, seed = 7, hue, bare = false }: CardSafetyMenuProps) {
   const t = useTranslations('safety');
   const { data: blocked } = useMyBlockedIds();
   const safety = useSafetyActions({
@@ -32,9 +34,10 @@ export function CardSafetyMenu({ card, authorHandle, seed = 7, hue }: CardSafety
   return (
     <>
       <OrganicMenu
-        label={t('menuLabel')}
+        label={bare ? safety.label : t('menuLabel')}
         seed={seed}
         hue={hue}
+        bare={bare}
         items={safety.items}
         onChoose={(key) => safety.choose(key)}
       />

@@ -111,5 +111,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: normal;
+  /* 1 centres the glyphs on the row (normal reserves the CJK fallback's
+     taller ascent above them); the padding keeps descenders out of the
+     ellipsis clip. */
+  line-height: 1;
+  padding-block: 0.3em;
 }

@@ -561,6 +561,8 @@
   },
   "safety": {
     "menuLabel": "More options",
+    "reportOrBlock": "Report or block",
+    "reportOrUnblock": "Report or unblock",
     "reportCard": "Report this card",
     "reportUser": "Report this person",
     "reportMessage": "Report this conversation",

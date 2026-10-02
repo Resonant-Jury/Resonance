@@ -130,3 +130,35 @@ describe('row ink motion', () => {
     );
   });
 });
+
+describe('bare trigger', () => {
+  it('names itself by what it holds and shows that as its tooltip', async () => {
+    const { container } = render(<OrganicMenu items={ITEMS} onChoose={vi.fn()} label="Report or block" bare />);
+    const trigger = screen.getByRole('button', { name: 'Report or block' });
+    // The tooltip repeats the accessible name, so assistive tech hears it once.
+    const tip = trigger.nextElementSibling as HTMLElement;
+    expect(tip).toHaveTextContent('Report or block');
+    expect(tip).toHaveAttribute('aria-hidden', 'true');
+    // No paper chip under the glyph — only the hover disc.
+    expect(container.querySelectorAll('button > svg')).toHaveLength(1);
+    await userEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByRole('menuitem')).toHaveLength(3);
+  });
+
+  it('puts its tooltip away on Escape until focus or the pointer leaves', async () => {
+    render(<OrganicMenu items={ITEMS} onChoose={vi.fn()} label="Report or block" bare />);
+    const trigger = screen.getByRole('button', { name: 'Report or block' });
+    const tip = trigger.nextElementSibling as HTMLElement;
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(tip).toHaveAttribute('data-dismissed');
+    fireEvent.blur(trigger);
+    expect(tip).not.toHaveAttribute('data-dismissed');
+  });
+
+  it('keeps the chip and no tooltip by default', () => {
+    render(<OrganicMenu items={ITEMS} onChoose={vi.fn()} label="Manage" />);
+    expect(screen.getByRole('button', { name: 'Manage' }).nextElementSibling).toBeNull();
+  });
+});

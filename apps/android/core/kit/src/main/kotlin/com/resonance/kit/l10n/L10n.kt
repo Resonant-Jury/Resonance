@@ -1030,6 +1030,10 @@ object L10n {
     object Safety {
         /** More options */
         val menuLabel: String get() = Strings.string("safety.menuLabel")
+        /** Report or block */
+        val reportOrBlock: String get() = Strings.string("safety.reportOrBlock")
+        /** Report or unblock */
+        val reportOrUnblock: String get() = Strings.string("safety.reportOrUnblock")
         /** Report this card */
         val reportCard: String get() = Strings.string("safety.reportCard")
         /** Report this person */

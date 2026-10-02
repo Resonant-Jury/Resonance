@@ -25,6 +25,12 @@ export interface SafetyActionsOptions {
 export interface SafetyActions {
   /** Menu rows to merge into a host「⋯」menu (keys are `safety:*`). */
   items: OrganicMenuItem[];
+  /**
+   * What the rows do, for a「⋯」that holds only them to name itself by
+   * (its tooltip and accessible name): "Report or block", or the report row
+   * alone when there is no one to block.
+   */
+  label: string;
   /** Handle a chosen menu key; returns false for keys that aren't ours. */
   choose: (key: string) => boolean;
   /** The report dialog + block confirm; render once alongside the menu. */
@@ -52,11 +58,14 @@ export function useSafetyActions({ report, isBlocked = false, onBlockedChange }:
   // would name its author.
   const canBlock = !!report.userId;
 
+  const reportLabel =
+    report.type === 'card' ? t('reportCard') : report.type === 'user' ? t('reportUser') : t('reportMessage');
+  const label = !canBlock ? reportLabel : t(isBlocked ? 'reportOrUnblock' : 'reportOrBlock');
   const items: OrganicMenuItem[] = [
     {
       key: 'safety:report',
       icon: 'flag',
-      label: report.type === 'card' ? t('reportCard') : report.type === 'user' ? t('reportUser') : t('reportMessage'),
+      label: reportLabel,
     },
     ...(!canBlock
       ? []
@@ -126,5 +135,5 @@ export function useSafetyActions({ report, isBlocked = false, onBlockedChange }:
     </>
   );
 
-  return { items, choose, modals };
+  return { items, label, choose, modals };
 }

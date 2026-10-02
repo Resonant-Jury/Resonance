@@ -1028,6 +1028,10 @@ public enum L10n {
     public enum Safety {
         /// More options
         public static var menuLabel: String { Strings.shared.string("safety.menuLabel") }
+        /// Report or block
+        public static var reportOrBlock: String { Strings.shared.string("safety.reportOrBlock") }
+        /// Report or unblock
+        public static var reportOrUnblock: String { Strings.shared.string("safety.reportOrUnblock") }
         /// Report this card
         public static var reportCard: String { Strings.shared.string("safety.reportCard") }
         /// Report this person

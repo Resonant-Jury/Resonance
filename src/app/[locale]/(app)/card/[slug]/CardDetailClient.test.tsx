@@ -365,7 +365,8 @@ describe('taking over from the server render', () => {
       await waitFor(() => expect(storyVisible()).toBe(true));
       expect(getUserById).not.toHaveBeenCalled();
 
-      await userEvent.setup({ pointerEventsCheck: 0 }).click(screen.getByRole('button', { name: 'More options' }));
+      // The ⋯ is named by what it holds: with no author to block, the report alone.
+      await userEvent.setup({ pointerEventsCheck: 0 }).click(screen.getByRole('button', { name: 'Report this card' }));
       expect(screen.getByRole('menuitem', { name: /Report this card/ })).toBeInTheDocument();
       expect(screen.queryByRole('menuitem', { name: /Block/ })).not.toBeInTheDocument();
     });

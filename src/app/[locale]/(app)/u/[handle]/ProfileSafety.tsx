@@ -11,9 +11,11 @@ import { seedFromString } from '@/lib/design/prng';
 import type { User } from '@/lib/db/types';
 import styles from './page.module.css';
 
-/** The「⋯」in the profile hero's corner: report / block this person. */
+/**
+ * The「⋯」after the profile's pen name: report / block this person. A bare
+ * glyph (no chip) whose tooltip and accessible name say what it holds.
+ */
 export function ProfileSafetyMenu({ user, isBlocked }: { user: User; isBlocked: boolean }) {
-  const t = useTranslations('safety');
   const safety = useSafetyActions({
     report: { type: 'user', id: user.id, userId: user.id, handle: user.handle },
     isBlocked,
@@ -21,9 +23,9 @@ export function ProfileSafetyMenu({ user, isBlocked }: { user: User; isBlocked: 
   return (
     <div className={styles.heroMenu}>
       <OrganicMenu
-        label={t('menuLabel')}
+        label={safety.label}
         seed={seedFromString(user.id)}
-        triggerSize={36}
+        bare
         items={safety.items}
         onChoose={(key) => safety.choose(key)}
       />

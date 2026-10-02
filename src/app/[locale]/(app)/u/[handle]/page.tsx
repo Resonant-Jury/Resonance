@@ -86,9 +86,6 @@ export default function PublicProfilePage() {
   return (
     <PageShell width="wide">
       <header className={styles.hero}>
-        {/* Report / block lives in the corner for signed-in visitors only —
-            it's a safety valve, not part of the page's story. */}
-        {viewer && !isSelf && <ProfileSafetyMenu user={user} isBlocked={isBlocked} />}
         <HandDrawnAvatar
           src={user.avatarUrl}
           initials={user.initials}
@@ -97,8 +94,12 @@ export default function PublicProfilePage() {
           seed={Number(user.avatarSeed)}
         />
 
-        <div className={styles.nameRow}>
+        {/* Report / block, for signed-in visitors only, hangs off the end of
+            the pen name: it is about this person, and the name stays centred.
+            A safety valve, not part of the page's story — so a bare glyph. */}
+        <div className={styles.nameRow} data-menu={viewer && !isSelf ? '' : undefined}>
           <h1 className={styles.name}>{user.handle}</h1>
+          {viewer && !isSelf && <ProfileSafetyMenu user={user} isBlocked={isBlocked} />}
         </div>
 
         <p className={`${styles.bio} ${user.bio ? '' : styles.bioEmpty}`}>

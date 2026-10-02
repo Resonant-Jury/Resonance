@@ -561,6 +561,8 @@
   },
   "safety": {
     "menuLabel": "更多選項",
+    "reportOrBlock": "檢舉或封鎖",
+    "reportOrUnblock": "檢舉或解除封鎖",
     "reportCard": "檢舉這張卡片",
     "reportUser": "檢舉這個人",
     "reportMessage": "檢舉這段對話",

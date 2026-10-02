@@ -189,6 +189,29 @@ describe('public profile page, signed in', () => {
     }
   });
 
+  it('offers report and block beside the pen name, saying so, to a visitor', async () => {
+    vi.mocked(callApi).mockResolvedValue(profile({ isConnected: false }));
+    renderPage();
+    const name = await screen.findByRole('heading', { name: 'bob' });
+    const menu = screen.getByRole('button', { name: 'Report or block' });
+    // In the name's own row (the name keeps its centre; the ⋯ hangs off its end).
+    expect(name.parentElement).toContainElement(menu);
+    expect(screen.queryByRole('link', { name: /Message/ })).toBeNull();
+  });
+
+  it('says unblock once the visitor has blocked them', async () => {
+    vi.mocked(callApi).mockResolvedValue(profile({ isConnected: false, isBlocked: true }));
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Report or unblock' })).toBeInTheDocument();
+  });
+
+  it('shows the owner no report or block', async () => {
+    vi.mocked(callApi).mockResolvedValue(profile({ isSelf: true, isConnected: false }));
+    renderPage();
+    await screen.findByRole('heading', { name: 'bob' });
+    expect(screen.queryByRole('button', { name: /Report or/ })).toBeNull();
+  });
+
   it('lists the first 40 cards of someone with more than a page: the rest in a second request', async () => {
     const many = Array.from({ length: 30 }, (_, i) => summary(`p${i}`, 'bob', `Card ${i}`));
     vi.mocked(callApi).mockImplementation(async (path: string) =>

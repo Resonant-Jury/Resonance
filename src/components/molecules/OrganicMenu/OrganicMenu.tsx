@@ -13,6 +13,7 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
 import { Icon, type IconName } from '@/components/atoms/Icon';
 import { RowInkWash, useRowInk } from '@/components/atoms/RowInk/RowInk';
 import { wobRect } from '@/lib/design/wobRect';
+import { wobCircle } from '@/lib/design/wobCircle';
 import { dividerPath, rowBoundary, rowRegion } from '@/lib/design/rowMenu';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
 import { INK, INK_LIGHT } from '@/lib/design/strokes';
@@ -39,6 +40,14 @@ export interface OrganicMenuProps {
   busy?: boolean;
   triggerIcon?: IconName;
   triggerSize?: number;
+  /**
+   * A bare glyph on the page's own paper (no chip): muted ink at rest, a soft
+   * disc of ink under it on hover, focus and while open, and `label` shown
+   * as a tooltip on hover and keyboard focus — the frameless trigger has to
+   * say what it is for. Its hit area is 36px, 44px under a coarse pointer
+   * (`triggerSize` is ignored).
+   */
+  bare?: boolean;
   className?: string;
 }
 
@@ -58,9 +67,13 @@ export function OrganicMenu({
   busy = false,
   triggerIcon = 'dots',
   triggerSize = 38,
+  bare = false,
   className,
 }: OrganicMenuProps) {
   const [open, setOpen] = useState(false);
+  // Escape puts away a bare trigger's tooltip until the pointer or focus
+  // leaves (content shown on hover or focus has to be dismissible).
+  const [tipDismissed, setTipDismissed] = useState(false);
   const [panelSeed, setPanelSeed] = useState(seed);
   const rootRef = useRef<HTMLDivElement>(null);
   const uid = useId().replace(/:/g, '');
@@ -104,13 +117,16 @@ export function OrganicMenu({
     >
       <button
         type="button"
-        className={styles.trigger}
-        style={{ width: triggerSize, height: triggerSize }}
+        className={bare ? `${styles.trigger} ${styles.bare}` : styles.trigger}
+        style={bare ? undefined : { width: triggerSize, height: triggerSize }}
         data-open={open || undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={`${uid}-menu`}
         aria-label={label}
+        onKeyDown={bare ? (e) => e.key === 'Escape' && setTipDismissed(true) : undefined}
+        onMouseLeave={bare ? () => setTipDismissed(false) : undefined}
+        onBlur={bare ? () => setTipDismissed(false) : undefined}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -121,22 +137,31 @@ export function OrganicMenu({
           });
         }}
       >
-        <HandDrawnBorder
-          w={triggerSize}
-          h={triggerSize}
-          R={triggerSize * 0.42}
-          seed={seed}
-          mag={triggerSize * 0.03}
-          fillColor="color-mix(in oklch, var(--menu-cream) 94%, transparent)"
-          segmentsH={1}
-          segmentsV={1}
-          curve={1.4}
-          cornerJitter={2.4}
-        />
+        {bare ? (
+          <BareWash seed={seed} />
+        ) : (
+          <HandDrawnBorder
+            w={triggerSize}
+            h={triggerSize}
+            R={triggerSize * 0.42}
+            seed={seed}
+            mag={triggerSize * 0.03}
+            fillColor="color-mix(in oklch, var(--menu-cream) 94%, transparent)"
+            segmentsH={1}
+            segmentsV={1}
+            curve={1.4}
+            cornerJitter={2.4}
+          />
+        )}
         <span className={styles.triggerIcon}>
-          <Icon name={triggerIcon} size={Math.round(triggerSize * 0.53)} strokeWidth={INK} />
+          <Icon name={triggerIcon} size={bare ? 22 : Math.round(triggerSize * 0.53)} strokeWidth={INK} />
         </span>
       </button>
+      {bare && (
+        <span className={styles.tip} aria-hidden="true" data-dismissed={tipDismissed || undefined}>
+          {label}
+        </span>
+      )}
 
       {open && (
         <MenuPanel
@@ -151,6 +176,20 @@ export function OrganicMenu({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * The bare trigger's hover disc: a wobbly circle of ink at a low tint, drawn
+ * in a 100-unit box so CSS sizes it with the hit area and grows it by
+ * `transform` (no repaint of the page under it).
+ */
+function BareWash({ seed }: { seed: number }) {
+  const d = useMemo(() => wobCircle(50, 50, 46, seed, { segments: 8, mag: 2.2, cpJitter: 0.4 }), [seed]);
+  return (
+    <svg className={styles.wash} viewBox="0 0 100 100" aria-hidden="true">
+      <path d={d} />
+    </svg>
   );
 }
 

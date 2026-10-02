@@ -12,11 +12,13 @@
 }
 
 .nameRow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  position: relative;
+  max-width: 100%;
+}
+/* Room for the ⋯ on both sides, so a long name wraps before reaching it
+   and stays centred. */
+.nameRow[data-menu] {
+  max-width: calc(100% - 2 * 44px);
 }
 
 .name {
@@ -26,6 +28,7 @@
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: var(--color-text);
+  overflow-wrap: anywhere;
   margin: 0;
 }
 
@@ -161,10 +164,24 @@
 }
 
 /* --- safety (report / block) --- */
+/* Beside the name's first line, a little clear of its last letter. The
+   name's own size, so 0.575em is the middle of its first line (line-height
+   1.15); centred on it by a margin of half the trigger, not a transform,
+   which would trap the open menu's z-index under the hero's later rows. */
 .heroMenu {
   position: absolute;
-  top: 0;
-  right: 0;
+  left: 100%;
+  top: 0.575em;
+  margin: -18px 0 0 2px;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 0;
+}
+/* The touch target is 44px around the same 22px glyph: draw it in so the
+   dots keep the same distance from the name. */
+@media (pointer: coarse) {
+  .heroMenu {
+    margin: -22px 0 0 -2px;
+  }
 }
 
 .blockedNotice {
