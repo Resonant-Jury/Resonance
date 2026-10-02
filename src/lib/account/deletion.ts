@@ -1,5 +1,7 @@
 import type { DocumentReference, Firestore, Query } from 'firebase-admin/firestore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
+import { HANDLES } from '@/lib/db/firestore/handles';
+import { UPLOADS, uploadedKeys } from '@/lib/storage/uploads';
 import { DELETION_GRACE_DAYS } from './constants';
 
 export { DELETION_GRACE_DAYS };
@@ -88,7 +90,9 @@ export interface PurgeReport {
  * Deliberately kept: other people's cards that responded to this user's cards
  * (their `referenceCardId` dangles and readers resolve it to null, the same
  * as for a deleted card), other users' block lists (a uid is never reused),
- * and reports filed *against* the user (moderation history).
+ * and reports filed *against* the user (moderation history) — but not the
+ * copy of what they wrote that a report kept (`reportEvidence`): that is
+ * their writing, and goes with them, as it does with the reporter's account.
  */
 async function collectAccountData(db: Firestore, uid: string) {
   const trees: DocumentReference[] = [
@@ -130,6 +134,13 @@ async function collectAccountData(db: Firestore, uid: string) {
     db.collection('reports').where('reporterId', '==', uid),
     db.collection('devices').where('userId', '==', uid), // push tokens
     db.collection('rateLimits').where('userId', '==', uid), // API budgets (lib/api/rateLimit)
+    db.collection(HANDLES).where('uid', '==', uid), // the pen name's reservation (lib/db/firestore/handles)
+    db.collection(UPLOADS).where('ownerId', '==', uid), // whose each stored picture is (lib/storage/uploads)
+    db.collection('reportEvidence').where('reporterId', '==', uid),
+    db.collection('reportEvidence').where('targetUserId', '==', uid),
+    // A pending edit outlives its card when an older app deleted the card
+    // straight from the client; the ones that carry their author are found here.
+    db.collectionGroup('edits').where('authorId', '==', uid),
   ];
   // Other readers' resonance records on the deleted cards.
   const cardIds = cards.docs.map((d) => d.id);
@@ -138,11 +149,12 @@ async function collectAccountData(db: Firestore, uid: string) {
   }
 
   const snaps = await Promise.all(queries.map((q) => q.get()));
-  const treePaths = new Set(trees.map((r) => r.path));
+  const treePaths = trees.map((r) => r.path);
+  const inTree = (path: string) => treePaths.some((t) => path === t || path.startsWith(`${t}/`));
   const singles = new Map<string, DocumentReference>();
   for (const snap of snaps) {
     for (const d of snap.docs) {
-      if (!treePaths.has(d.ref.path)) singles.set(d.ref.path, d.ref);
+      if (!inTree(d.ref.path)) singles.set(d.ref.path, d.ref);
     }
   }
   return { trees, singles: [...singles.values()], pages };
@@ -162,8 +174,10 @@ export interface PurgeDeps {
   db: Firestore;
   /** Removes the sign-in account (firebase-admin `auth.deleteUser`). */
   deleteAuthUser: (uid: string) => Promise<void>;
-  /** Removes uploaded files under a key prefix; failures are logged, not fatal. */
+  /** Removes uploaded files under a key prefix (older keys carry the uid); failures are logged, not fatal. */
   deleteStoragePrefix?: (prefix: string) => Promise<number>;
+  /** Removes one uploaded file (the ones `uploads/*` records as the user's); failures are logged, not fatal. */
+  deleteStorageObject?: (key: string) => Promise<void>;
   /** Drops cached pages (logical paths, `revalidateLocalized` in the cron); failures are logged, not fatal. */
   revalidate?: (paths: string[]) => unknown;
 }
@@ -175,6 +189,16 @@ export interface PurgeDeps {
  * the account from being deleted.
  */
 export async function purgeAccount(deps: PurgeDeps, uid: string): Promise<PurgeReport> {
+  // The pictures recorded as theirs go before the records that list them.
+  if (deps.deleteStorageObject) {
+    for (const key of await uploadedKeys(deps.db, uid)) {
+      try {
+        await deps.deleteStorageObject(key);
+      } catch (err) {
+        console.error(`Account purge: storage cleanup failed for ${key}`, err);
+      }
+    }
+  }
   const report = await purgeAccountData(deps.db, uid);
   if (deps.revalidate && report.pages.length) {
     try {

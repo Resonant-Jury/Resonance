@@ -22,6 +22,7 @@ export async function GET(req: Request) {
     db: getAdminDb(),
     deleteAuthUser: (uid) => getAdminAuth().deleteUser(uid),
     deleteStoragePrefix: (prefix) => getStorageProvider().deletePrefix(prefix),
+    deleteStorageObject: (key) => getStorageProvider().deleteObject(key),
     // The deleted writing must not live on in cached card and profile pages.
     revalidate: revalidateLocalized,
   });

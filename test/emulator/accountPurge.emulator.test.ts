@@ -98,6 +98,20 @@ async function seedWorld() {
     set('devices/bob-phone-1', { userId: 'bob', token: 't2', platform: 'android', locale: 'en' }),
     set('rateLimits/alice_note', { userId: 'alice', bucket: 'note', windowStart: 1, used: 3 }),
     set('rateLimits/bob_note', { userId: 'bob', bucket: 'note', windowStart: 1, used: 1 }),
+
+    // Pen-name reservations (lib/db/firestore/handles).
+    set('handles/alice', { uid: 'alice', handle: 'alice' }),
+    set('handles/bob', { uid: 'bob', handle: 'bob' }),
+    // Whose each stored picture is: keys name no one (lib/storage/uploads).
+    set('uploads/a1', { ownerId: 'alice', key: 'image/2026-10/a1.webp', kind: 'image' }),
+    set('uploads/b1', { ownerId: 'bob', key: 'image/2026-10/b1.webp', kind: 'image' }),
+    // What reports kept of the reported content: it goes with either account.
+    set('reportEvidence/r1', { reportId: 'r1', reporterId: 'alice', targetUserId: 'carol', profile: { handle: 'carol' } }),
+    set('reportEvidence/r2', { reportId: 'r2', reporterId: 'carol', targetUserId: 'alice', card: { story: 'what alice wrote' } }),
+    set('reportEvidence/r3', { reportId: 'r3', reporterId: 'bob', targetUserId: 'carol', profile: { handle: 'carol' } }),
+    // A pending edit whose card an older app deleted from the client, and Bob's own.
+    set('cards/gone-card/edits/current', { authorId: 'alice', story: 'unpublished words' }),
+    set('cards/bob-card/edits/current', { authorId: 'bob', story: 'bob revising' }),
   ]);
 }
 
@@ -119,9 +133,10 @@ describe('purgeAccount', () => {
     await seedWorld();
     const deleteAuthUser = vi.fn(async () => {});
     const deleteStoragePrefix = vi.fn(async () => 0);
+    const deleteStorageObject = vi.fn(async () => {});
     await scheduleAccountDeletion(db, 'alice');
 
-    await purgeAccount({ db, deleteAuthUser, deleteStoragePrefix }, 'alice');
+    await purgeAccount({ db, deleteAuthUser, deleteStoragePrefix, deleteStorageObject }, 'alice');
 
     const gone = [
       'users/alice',
@@ -153,6 +168,11 @@ describe('purgeAccount', () => {
       'devices/alice-phone-1',
       'rateLimits/alice_note',
       'accountDeletions/alice',
+      'handles/alice',
+      'uploads/a1',
+      'reportEvidence/r1',
+      'reportEvidence/r2',
+      'cards/gone-card/edits/current',
     ];
     const kept = [
       'users/bob',
@@ -169,6 +189,10 @@ describe('purgeAccount', () => {
       'reports/r2', // reports about the deleted user stay for moderation history
       'devices/bob-phone-1',
       'rateLimits/bob_note',
+      'handles/bob',
+      'uploads/b1',
+      'reportEvidence/r3',
+      'cards/bob-card/edits/current',
     ];
 
     const stillThere = (await Promise.all(gone.map(async (p) => ((await exists(p)) ? p : null)))).filter(Boolean);
@@ -177,7 +201,9 @@ describe('purgeAccount', () => {
     expect(missing).toEqual([]);
 
     expect(deleteAuthUser).toHaveBeenCalledWith('alice');
+    // Older keys carry the uid; newer ones are found by their records.
     expect(deleteStoragePrefix).toHaveBeenCalledWith('image/alice/');
+    expect(deleteStorageObject.mock.calls).toEqual([['image/2026-10/a1.webp']]);
   });
 
   it('still deletes the account when storage cleanup fails', async () => {
