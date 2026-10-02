@@ -74,6 +74,25 @@ import Testing
         await loading.value
     }
 
+    @Test func theKeptPageGoesOnByItsPageToken() async {
+        let (a, b) = (a, b)
+        cache.save(Fixture.page([a], next: "2026-09-01T08:00:00.000Z", token: "t1"), as: .latest, uid: "alice")
+        let asked = Calls<PageAfter?>()
+        let next = Gate<FeedPage>()
+        let model = FeedModel(feed: { after in
+            await asked.record(after)
+            return after == nil ? await next.wait() : Fixture.page([b])
+        }, recommended: { [] }, keeping: FeedKeeping(cache, uid: "alice"))
+        // The server hasn't answered behind the kept page yet: "load more" follows the kept token.
+        let loading = Task { await model.load() }
+        #expect(await eventually { model.phase == .loaded })
+        await model.loadMore()
+        #expect(ids(model.cards) == ["a", "b"])
+        #expect(await asked.all.contains(.token("t1")))
+        await next.open(Fixture.page([a], token: "t1"))
+        await loading.value
+    }
+
     @Test func aFailedAnswerLeavesWhatIsShown() async {
         cache.save(Fixture.page([a, b]), as: .latest, uid: "alice")
         let model = FeedModel(feed: { _ in throw APIFailure.unexpected(status: 502) },

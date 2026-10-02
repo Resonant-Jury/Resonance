@@ -15,16 +15,17 @@ final class ProfileModel {
     private(set) var profile: Profile?
     private(set) var cards: [FeedCard] = []
     private(set) var linked: [FeedCard] = []
-    private var nextCursor: String?
+    /// Where their next page of cards starts (its page token, or an older server's cursor).
+    private var nextPage: PageAfter?
     private var loadingMore = false
 
     let handle: String
     private let fetchProfile: @Sendable (String) async throws -> Profile
-    private let fetchPage: @Sendable (String, String) async throws -> FeedPage
+    private let fetchPage: @Sendable (String, PageAfter) async throws -> FeedPage
 
-    /// `profile` asks for the page in one request; `page` for the cards after a cursor.
+    /// `profile` asks for the page in one request; `page` for the cards after one.
     init(handle: String, profile: @escaping @Sendable (String) async throws -> Profile,
-         page: @escaping @Sendable (_ handle: String, _ cursor: String) async throws -> FeedPage) {
+         page: @escaping @Sendable (_ handle: String, _ after: PageAfter) async throws -> FeedPage) {
         self.handle = handle
         fetchProfile = profile
         fetchPage = page
@@ -34,7 +35,7 @@ final class ProfileModel {
         let size = Self.pageSize
         self.init(handle: handle,
                   profile: { try await api.profile($0, include: ReadingAPI.ProfileInclude.page, limit: size) },
-                  page: { try await api.profileCards($0, limit: size, cursor: $1) })
+                  page: { try await api.profileCards($0, limit: size, after: $1) })
     }
 
     func load() async {
@@ -42,7 +43,7 @@ final class ProfileModel {
             let profile = try await fetchProfile(handle)
             self.profile = profile
             cards = profile.cards?.cards ?? []
-            nextCursor = profile.cards?.nextCursor
+            nextPage = profile.cards?.next
             linked = profile.links?.cards ?? []
             phase = .loaded
         } catch let failure as APIFailure where failure.isNotFound {
@@ -53,12 +54,12 @@ final class ProfileModel {
     }
 
     func loadMore() async {
-        guard !loadingMore, let cursor = nextCursor else { return }
+        guard !loadingMore, let after = nextPage else { return }
         loadingMore = true
         defer { loadingMore = false }
-        if let page = try? await fetchPage(handle, cursor) {
+        if let page = try? await fetchPage(handle, after) {
             cards += page.cards
-            nextCursor = page.nextCursor
+            nextPage = page.next
         }
     }
 }

@@ -60,7 +60,7 @@ struct FeedScreen: View {
         // `-feedPicksDelay <seconds>` holds today's picks back (screen checks of the late-picks hint).
         let delay = UserDefaults.standard.double(forKey: "feedPicksDelay")
         if delay > 0 {
-            return FeedModel(feed: { try await api.feed(cursor: $0) }, recommended: {
+            return FeedModel(feed: { try await api.feed(after: $0) }, recommended: {
                 try? await Task.sleep(for: .seconds(delay))
                 return try await api.recommended()
             }, keeping: keeping, blocked: blocked)

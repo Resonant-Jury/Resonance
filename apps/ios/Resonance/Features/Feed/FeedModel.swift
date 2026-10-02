@@ -27,7 +27,8 @@ final class FeedModel {
     private(set) var isLoadingMore = false
     /// Picks that arrived after the latest cards were already showing.
     private(set) var heldPicks: [FeedCard] = []
-    private var nextCursor: String?
+    /// Where the next page of the latest cards starts (its page token, or an older server's cursor).
+    private var nextPage: PageAfter?
     private var hasMorePages = true
     /// The first page of the latest cards has arrived (it may fail while the picks show).
     private var latestLoaded = false
@@ -40,7 +41,7 @@ final class FeedModel {
     /// The latest cards waiting out `patience` for the picks.
     @ObservationIgnored private var patienceWait: Task<Void, Never>?
 
-    private let fetchFeed: @Sendable (String?) async throws -> FeedPage
+    private let fetchFeed: @Sendable (PageAfter?) async throws -> FeedPage
     private let fetchRecommended: @Sendable () async throws -> [FeedCard]
     private let patience: Duration
     private let keeping: FeedKeeping?
@@ -49,7 +50,7 @@ final class FeedModel {
     /// How long the latest cards wait for picks that haven't arrived yet.
     static let defaultPatience: Duration = .milliseconds(800)
 
-    init(feed: @escaping @Sendable (String?) async throws -> FeedPage, recommended: @escaping @Sendable () async throws -> [FeedCard],
+    init(feed: @escaping @Sendable (PageAfter?) async throws -> FeedPage, recommended: @escaping @Sendable () async throws -> [FeedCard],
          patience: Duration = FeedModel.defaultPatience, keeping: FeedKeeping? = nil, blocked: @escaping () -> Set<String> = { [] }) {
         fetchFeed = feed
         fetchRecommended = recommended
@@ -59,7 +60,7 @@ final class FeedModel {
     }
 
     convenience init(api: ReadingAPI, keeping: FeedKeeping? = nil, blocked: @escaping () -> Set<String> = { [] }) {
-        self.init(feed: { try await api.feed(cursor: $0) }, recommended: { try await api.recommended() },
+        self.init(feed: { try await api.feed(after: $0) }, recommended: { try await api.recommended() },
                   keeping: keeping, blocked: blocked)
     }
 
@@ -94,7 +95,7 @@ final class FeedModel {
         arrivedPicks = nil
         latestLoaded = false
         extraPages = 0
-        nextCursor = nil
+        nextPage = nil
         hasMorePages = true
         let deadline = ContinuousClock.now.advanced(by: patience)
         // Unstructured on purpose: leaving the screen doesn't abandon them.
@@ -109,8 +110,8 @@ final class FeedModel {
             guard asked == generation else { return }
             keeping?.keepLatest(page)
             latest = page.cards
-            nextCursor = page.nextCursor
-            hasMorePages = page.nextCursor != nil
+            nextPage = page.next
+            hasMorePages = page.next != nil
             latestLoaded = true
             // Picks that are nearly there still lead the feed: wait for them until the
             // deadline (they end the wait when they come — `picksArrived`).
@@ -193,18 +194,18 @@ final class FeedModel {
             guard let page = try? await fetchFeed(nil) else { return }
             keeping?.keepLatest(page)
             latest = page.cards
-            nextCursor = page.nextCursor
-            hasMorePages = page.nextCursor != nil
+            nextPage = page.next
+            hasMorePages = page.next != nil
             latestLoaded = true
             extraPages = 0
             return
         }
-        guard hasMorePages, let cursor = nextCursor else { return }
-        if let page = try? await fetchFeed(cursor) {
+        guard hasMorePages, let after = nextPage else { return }
+        if let page = try? await fetchFeed(after) {
             let known = Set(latest.map(\.id))
             latest += page.cards.filter { !known.contains($0.id) }
-            nextCursor = page.nextCursor
-            hasMorePages = page.nextCursor != nil
+            nextPage = page.next
+            hasMorePages = page.next != nil
             extraPages += 1
         }
     }
@@ -219,8 +220,8 @@ final class FeedModel {
         recommended = picks
         heldPicks = []
         latest = page?.cards ?? []
-        nextCursor = page?.nextCursor
-        hasMorePages = page.map { $0.nextCursor != nil } ?? true
+        nextPage = page?.next
+        hasMorePages = page.map { $0.next != nil } ?? true
         latestLoaded = page != nil
         extraPages = 0
         phase = .loaded
@@ -243,8 +244,8 @@ final class FeedModel {
         keeping?.keepLatest(page)
         if extraPages == 0 {
             latest = page.cards
-            nextCursor = page.nextCursor
-            hasMorePages = page.nextCursor != nil
+            nextPage = page.next
+            hasMorePages = page.next != nil
         } else {
             // The reader has read on past the first page: the new cards go on top, the rest stay.
             let fresh = Set(page.cards.map(\.id))

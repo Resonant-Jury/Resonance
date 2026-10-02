@@ -64,8 +64,11 @@ enum Fixture {
         """)
     }
 
-    static func page(_ cards: [FeedCard], next: String? = nil) -> FeedPage {
-        decode(#"{"cards":\#(json(cards)),"nextCursor":\#(next.map { "\"\($0)\"" } ?? "null")}"#)
+    /// A page of a newest-first list: `next` its millisecond cursor, `token` its page token
+    /// (none: as a server older than the token answers).
+    static func page(_ cards: [FeedCard], next: String? = nil, token: String? = nil) -> FeedPage {
+        let tokenJSON = token.map { #","nextPageToken":"\#($0)""# } ?? ""
+        return decode(#"{"cards":\#(json(cards)),"nextCursor":\#(next.map { "\"\($0)\"" } ?? "null")\#(tokenJSON)}"#)
     }
 
     /// The signed-in account as GET /me answers it, its deletion scheduled when `purgeAfter` is given.

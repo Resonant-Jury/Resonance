@@ -103,6 +103,43 @@ import Testing
         #expect(model.phase == .failed("HTTP 502"))
     }
 
+    @Test func eachPageStartsWhereTheLastOneEnded() async {
+        let (a, b, c) = (a, b, c)
+        let asked = Calls<PageAfter?>()
+        let model = FeedModel(feed: { after in
+            await asked.record(after)
+            switch after {
+            case nil: return Fixture.page([a], next: "2026-09-01T08:00:00.000Z", token: "t1")
+            case .token("t1"): return Fixture.page([b], next: "2026-08-01T08:00:00.000Z", token: "t2")
+            default: return Fixture.page([c])
+            }
+        }, recommended: { [] }, patience: .milliseconds(10))
+
+        await model.load()
+        await model.loadMore()
+        await model.loadMore()
+        #expect(ids(model.cards) == ["a", "b", "c"])
+        // By the page token, never the millisecond cursor (cards sharing it would be skipped).
+        #expect(await asked.all == [nil, .token("t1"), .token("t2")])
+        // The last page: nothing more to ask for.
+        #expect(!model.canLoadMore)
+        await model.loadMore()
+        #expect(await asked.all.count == 3)
+    }
+
+    @Test func aServerWithoutPageTokensPagesByItsCursor() async {
+        let (a, b) = (a, b)
+        let asked = Calls<PageAfter?>()
+        let model = FeedModel(feed: { after in
+            await asked.record(after)
+            return after == nil ? Fixture.page([a], next: "2026-09-01T08:00:00.000Z") : Fixture.page([b])
+        }, recommended: { [] }, patience: .milliseconds(10))
+        await model.load()
+        await model.loadMore()
+        #expect(ids(model.cards) == ["a", "b"])
+        #expect(await asked.all == [nil, .cursor("2026-09-01T08:00:00.000Z")])
+    }
+
     @Test func aRefreshIgnoresTheLastLoadsLatePicks() async {
         let (a, x, b) = (a, x, b)
         let first = Gate<[FeedCard]>()

@@ -3,16 +3,17 @@ import Testing
 @testable import Resonance
 
 /// A person's page is one request: their profile brings the first page of
-/// their cards and the cards linking to theirs; later pages follow its cursor.
+/// their cards and the cards linking to theirs; later pages follow its page token.
 @MainActor @Suite struct ProfileModelTests {
     @Test func theProfileBringsItsCardsAndLinks() async {
         let asked = Calls<String>()
         let model = ProfileModel(handle: "bob", profile: { handle in
             await asked.record("profile:\(handle)")
-            return Fixture.profile("bob", cards: Fixture.page([Fixture.card("c1"), Fixture.card("c2")], next: "2026-08-01T00:00:00.000Z"),
+            return Fixture.profile("bob", cards: Fixture.page([Fixture.card("c1"), Fixture.card("c2")], next: "2026-08-01T00:00:00.000Z",
+                                                              token: "t1"),
                                    links: [Fixture.card("l1")])
-        }, page: { handle, cursor in
-            await asked.record("page:\(handle):\(cursor)")
+        }, page: { handle, after in
+            await asked.record("page:\(handle):\(after)")
             return Fixture.page([Fixture.card("c3")])
         })
 
@@ -23,11 +24,11 @@ import Testing
         #expect(model.linked.map(\.id) == ["l1"])
         #expect(await asked.all == ["profile:bob"])
 
-        // Scrolling on: the next page by the first page's cursor, then nothing more to ask.
+        // Scrolling on: the next page by the first page's token, then nothing more to ask.
         await model.loadMore()
         #expect(model.cards.map(\.id) == ["c1", "c2", "c3"])
         await model.loadMore()
-        #expect(await asked.all == ["profile:bob", "page:bob:2026-08-01T00:00:00.000Z"])
+        #expect(await asked.all == ["profile:bob", "page:bob:\(PageAfter.token("t1"))"])
     }
 
     @Test func aProfileWithoutItsListsShowsNoCards() async {

@@ -181,6 +181,44 @@ extension HTTPRequest {
         #expect(transport.requests.isEmpty)
     }
 
+    @Test func theNextPageFollowsThePageToken() async throws {
+        let transport = StubTransport(body: "")
+        transport.reply = { request in
+            request.query("pageToken") == nil
+                ? #"{"cards":[\#(ReadingAPITests.card("c1"))],"nextCursor":"2026-09-01T08:00:00.000Z","nextPageToken":"WzE3LDAsImMxIl0"}"#
+                : #"{"cards":[\#(ReadingAPITests.card("c2"))],"nextCursor":null,"nextPageToken":null}"#
+        }
+        let first = try await api(transport).feed()
+        #expect(first.next == .token("WzE3LDAsImMxIl0"))
+        let second = try await api(transport).feed(after: first.next)
+        #expect(second.cards.map(\.id) == ["c2"])
+        #expect(second.next == nil)
+        // The token alone: the millisecond cursor would skip cards published in the same millisecond.
+        let asked = try #require(transport.requests.last)
+        #expect(asked.bare == "/feed")
+        #expect(asked.query("pageToken") == "WzE3LDAsImMxIl0")
+        #expect(asked.query("cursor") == nil)
+        #expect(transport.requests.first?.query("pageToken") == nil && transport.requests.first?.query("cursor") == nil)
+
+        // A person's cards page the same way.
+        _ = try await api(transport).profileCards("海風", limit: 12, after: .token("abc"))
+        let profile = try #require(transport.requests.last)
+        #expect(profile.bare == "/users/%E6%B5%B7%E9%A2%A8/cards")
+        #expect(profile.query("pageToken") == "abc")
+        #expect(profile.query("cursor") == nil)
+        #expect(profile.query("limit") == "12")
+    }
+
+    @Test func aServerWithoutPageTokensPagesByItsCursor() async throws {
+        let transport = StubTransport(body: #"{"cards":[\#(Self.card)],"nextCursor":"2026-09-01T08:00:00.000Z"}"#)
+        let page = try await api(transport).feed()
+        #expect(page.next == .cursor("2026-09-01T08:00:00.000Z"))
+        _ = try await api(transport).feed(after: page.next)
+        let asked = try #require(transport.requests.last)
+        #expect(asked.query("cursor").flatMap(ISO8601.date) == ISO8601.date("2026-09-01T08:00:00.000Z"))
+        #expect(asked.query("pageToken") == nil)
+    }
+
     @Test func aStoryLinkNamesItsCard() {
         #expect(CardKey.of(href: "/card/a-walk") == "a-walk")
         #expect(CardKey.of(href: "/card/a-walk?from=story#top") == "a-walk")

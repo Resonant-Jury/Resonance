@@ -18,8 +18,9 @@ public struct ReadingAPI: Sendable {
         self.client = client
     }
 
-    public func feed(limit: Int = 12, cursor: String? = nil) async throws -> FeedPage {
-        switch try await client.getFeed(query: .init(limit: limit, cursor: cursor.flatMap(ISO8601.date))) {
+    /// The latest public cards, a page at a time: the first page, or the one after `after`.
+    public func feed(limit: Int = 12, after: PageAfter? = nil) async throws -> FeedPage {
+        switch try await client.getFeed(query: .init(limit: limit, cursor: after?.cursorDate, pageToken: after?.token)) {
         case let .ok(r): return try r.body.json
         case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
         case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
@@ -138,14 +139,40 @@ public struct ReadingAPI: Sendable {
     }
 
     /// Their public cards after the first page (the profile brings that one).
-    public func profileCards(_ handle: String, limit: Int = 12, cursor: String? = nil) async throws -> FeedPage {
-        switch try await client.getProfileCards(path: .init(handle: handle), query: .init(limit: limit, cursor: cursor.flatMap(ISO8601.date))) {
+    public func profileCards(_ handle: String, limit: Int = 12, after: PageAfter? = nil) async throws -> FeedPage {
+        let query = Operations.GetProfileCards.Input.Query(limit: limit, cursor: after?.cursorDate, pageToken: after?.token)
+        switch try await client.getProfileCards(path: .init(handle: handle), query: query) {
         case let .ok(r): return try r.body.json
         case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
         case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
         case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
         case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
         }
+    }
+}
+
+/// Where a newest-first list (the latest feed, a person's cards) goes on
+/// after a page: its `nextPageToken`, which resumes exactly after the page's
+/// last card — or, from a server that sends none, its `nextCursor`, a time to
+/// the millisecond (cards sharing the boundary's millisecond are skipped).
+public enum PageAfter: Hashable, Sendable {
+    case token(String)
+    case cursor(String)
+
+    var token: String? {
+        if case let .token(token) = self { token } else { nil }
+    }
+
+    var cursorDate: Date? {
+        if case let .cursor(cursor) = self { ISO8601.date(cursor) } else { nil }
+    }
+}
+
+extension FeedPage {
+    /// The way to the next page; nil when this one is the last.
+    public var next: PageAfter? {
+        if let token = nextPageToken { return .token(token) }
+        return nextCursor.map(PageAfter.cursor)
     }
 }
 
