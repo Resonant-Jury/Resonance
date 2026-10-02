@@ -2299,6 +2299,16 @@
                 "$ref": "#/components/schemas/NoteRef"
               }
             ]
+          },
+          "replyTo": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,128}$"
+          },
+          "clientId": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16,64}$"
           }
         },
         "required": [
@@ -2356,6 +2366,15 @@
             "nullable": true,
             "type": "string",
             "maxLength": 40
+          },
+          "capabilities": {
+            "nullable": true,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,32}$"
+            }
           }
         },
         "required": [

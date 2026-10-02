@@ -333,6 +333,14 @@ export const SendMessageRequest = named(
     /** A card attached to the message (its id). */
     cardRef: DocId.nullish(),
     noteRef: NoteRef.nullish(),
+    /** The message this one answers: one in the same conversation (its id). The thread quotes it above the reply. */
+    replyTo: DocId.nullish(),
+    /**
+     * The sender's own id for this message, made before it is sent: it becomes
+     * the message's id, so sending it again (a retry after a lost answer) finds
+     * the one already written instead of writing it twice.
+     */
+    clientId: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/, 'Not a valid client id.').nullish(),
   }),
   'SendMessageRequest',
 );
@@ -362,6 +370,13 @@ export const RegisterDeviceRequest = named(
     /** The app's UI language — pushes are written in it ("zh…" reads zh-TW, anything else en). */
     locale: z.string().max(35).nullish(),
     appVersion: z.string().max(40).nullish(),
+    /**
+     * What this build can do with a push beyond showing it. `chat-push`: an
+     * Android build that draws a conversation's messages itself, so its chat
+     * pushes come as data (each message, stacked per conversation). Unknown
+     * values are kept and ignored.
+     */
+    capabilities: z.array(z.string().regex(/^[a-z0-9-]{1,32}$/)).max(8).nullish(),
   }),
   'RegisterDeviceRequest',
   "This install's push token. Register after sign-in and whenever the token or the app's language changes.",

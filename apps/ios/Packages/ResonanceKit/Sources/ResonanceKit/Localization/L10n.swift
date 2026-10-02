@@ -169,6 +169,8 @@ public enum L10n {
             public static var viewAll: String { Strings.shared.string("app.notifications.viewAll") }
             /// {handle} sent you a message.
             public static func message(handle: String) -> String { Strings.shared.format("app.notifications.message", ["handle": handle]) }
+            /// Shared a card
+            public static var messageCard: String { Strings.shared.string("app.notifications.messageCard") }
         }
         public enum SignOutConfirm {
             /// Sign out?
@@ -426,6 +428,72 @@ public enum L10n {
         public static var deleteConfirm: String { Strings.shared.string("messages.deleteConfirm") }
         /// Couldn’t delete — please try again.
         public static var deleteError: String { Strings.shared.string("messages.deleteError") }
+        /// Reply
+        public static var reply: String { Strings.shared.string("messages.reply") }
+        /// Replying to {handle}
+        public static func replyingTo(handle: String) -> String { Strings.shared.format("messages.replyingTo", ["handle": handle]) }
+        /// Replying to yourself
+        public static var replyingToSelf: String { Strings.shared.string("messages.replyingToSelf") }
+        /// Cancel reply
+        public static var replyCancel: String { Strings.shared.string("messages.replyCancel") }
+        /// {handle} replied to you
+        public static func repliedToYou(handle: String) -> String { Strings.shared.format("messages.repliedToYou", ["handle": handle]) }
+        /// {handle} replied to themselves
+        public static func repliedToThemselves(handle: String) -> String { Strings.shared.format("messages.repliedToThemselves", ["handle": handle]) }
+        /// You replied to {handle}
+        public static func youRepliedTo(handle: String) -> String { Strings.shared.format("messages.youRepliedTo", ["handle": handle]) }
+        /// You replied to yourself
+        public static var youRepliedToYourself: String { Strings.shared.string("messages.youRepliedToYourself") }
+        /// A card
+        public static var replyCard: String { Strings.shared.string("messages.replyCard") }
+        /// Copied
+        public static var copied: String { Strings.shared.string("messages.copied") }
+        /// Copy link
+        public static var copyLink: String { Strings.shared.string("messages.copyLink") }
+        /// Open link
+        public static var openLink: String { Strings.shared.string("messages.openLink") }
+        /// Open this link?
+        public static var linkConfirmTitle: String { Strings.shared.string("messages.linkConfirmTitle") }
+        /// It leads to {host}. Open it only if you trust where it goes.
+        public static func linkConfirmBody(host: String) -> String { Strings.shared.format("messages.linkConfirmBody", ["host": host]) }
+        /// Open
+        public static var linkConfirmOpen: String { Strings.shared.string("messages.linkConfirmOpen") }
+        /// Cancel
+        public static var linkConfirmCancel: String { Strings.shared.string("messages.linkConfirmCancel") }
+        /// This link can't be opened.
+        public static var linkUnsupported: String { Strings.shared.string("messages.linkUnsupported") }
+        /// Sending…
+        public static var sending: String { Strings.shared.string("messages.sending") }
+        /// Not sent · Tap to retry
+        public static var sendFailed: String { Strings.shared.string("messages.sendFailed") }
+        /// Retry
+        public static var retry: String { Strings.shared.string("messages.retry") }
+        /// Delete
+        public static var discardFailed: String { Strings.shared.string("messages.discardFailed") }
+        /// Loading earlier messages…
+        public static var loadingOlder: String { Strings.shared.string("messages.loadingOlder") }
+        /// Couldn't load earlier messages.
+        public static var loadOlderError: String { Strings.shared.string("messages.loadOlderError") }
+        /// This is the start of your conversation.
+        public static var beginning: String { Strings.shared.string("messages.beginning") }
+        /// Latest messages
+        public static var jumpToLatest: String { Strings.shared.string("messages.jumpToLatest") }
+        /// New messages
+        public static var newMessages: String { Strings.shared.string("messages.newMessages") }
+        /// Searching earlier messages…
+        public static var searchSearching: String { Strings.shared.string("messages.searchSearching") }
+        /// {index} of {count}
+        public static func searchPosition(index: String, count: Int) -> String { Strings.shared.format("messages.searchPosition", ["index": index, "count": count]) }
+        /// Earlier match
+        public static var searchPrevious: String { Strings.shared.string("messages.searchPrevious") }
+        /// Later match
+        public static var searchNext: String { Strings.shared.string("messages.searchNext") }
+        /// Show all matches
+        public static var searchShowList: String { Strings.shared.string("messages.searchShowList") }
+        /// Search the words in your messages
+        public static var searchHint: String { Strings.shared.string("messages.searchHint") }
+        /// You
+        public static var you: String { Strings.shared.string("messages.you") }
     }
     public enum Write {
         /// Give it a one-line title first.

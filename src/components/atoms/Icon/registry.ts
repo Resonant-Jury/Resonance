@@ -33,6 +33,10 @@ import { FlagIcon } from './icons/flag';
 import { BanIcon } from './icons/ban';
 import { ShareIcon } from './icons/share';
 import { SlidersIcon } from './icons/sliders';
+import { SendIcon } from './icons/send';
+import { ReplyIcon } from './icons/reply';
+import { CopyIcon } from './icons/copy';
+import { LinkIcon } from './icons/link';
 import type { IconRenderer } from './types';
 
 /**
@@ -85,6 +89,10 @@ export const ICONS = {
   ban: BanIcon,
   share: ShareIcon,
   sliders: SlidersIcon,
+  send: SendIcon,
+  reply: ReplyIcon,
+  copy: CopyIcon,
+  link: LinkIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

@@ -171,6 +171,8 @@ object L10n {
             val viewAll: String get() = Strings.string("app.notifications.viewAll")
             /** {handle} sent you a message. */
             fun message(handle: String): String = Strings.format("app.notifications.message", mapOf("handle" to handle))
+            /** Shared a card */
+            val messageCard: String get() = Strings.string("app.notifications.messageCard")
         }
         object SignOutConfirm {
             /** Sign out? */
@@ -428,6 +430,72 @@ object L10n {
         val deleteConfirm: String get() = Strings.string("messages.deleteConfirm")
         /** Couldn’t delete — please try again. */
         val deleteError: String get() = Strings.string("messages.deleteError")
+        /** Reply */
+        val reply: String get() = Strings.string("messages.reply")
+        /** Replying to {handle} */
+        fun replyingTo(handle: String): String = Strings.format("messages.replyingTo", mapOf("handle" to handle))
+        /** Replying to yourself */
+        val replyingToSelf: String get() = Strings.string("messages.replyingToSelf")
+        /** Cancel reply */
+        val replyCancel: String get() = Strings.string("messages.replyCancel")
+        /** {handle} replied to you */
+        fun repliedToYou(handle: String): String = Strings.format("messages.repliedToYou", mapOf("handle" to handle))
+        /** {handle} replied to themselves */
+        fun repliedToThemselves(handle: String): String = Strings.format("messages.repliedToThemselves", mapOf("handle" to handle))
+        /** You replied to {handle} */
+        fun youRepliedTo(handle: String): String = Strings.format("messages.youRepliedTo", mapOf("handle" to handle))
+        /** You replied to yourself */
+        val youRepliedToYourself: String get() = Strings.string("messages.youRepliedToYourself")
+        /** A card */
+        val replyCard: String get() = Strings.string("messages.replyCard")
+        /** Copied */
+        val copied: String get() = Strings.string("messages.copied")
+        /** Copy link */
+        val copyLink: String get() = Strings.string("messages.copyLink")
+        /** Open link */
+        val openLink: String get() = Strings.string("messages.openLink")
+        /** Open this link? */
+        val linkConfirmTitle: String get() = Strings.string("messages.linkConfirmTitle")
+        /** It leads to {host}. Open it only if you trust where it goes. */
+        fun linkConfirmBody(host: String): String = Strings.format("messages.linkConfirmBody", mapOf("host" to host))
+        /** Open */
+        val linkConfirmOpen: String get() = Strings.string("messages.linkConfirmOpen")
+        /** Cancel */
+        val linkConfirmCancel: String get() = Strings.string("messages.linkConfirmCancel")
+        /** This link can't be opened. */
+        val linkUnsupported: String get() = Strings.string("messages.linkUnsupported")
+        /** Sending… */
+        val sending: String get() = Strings.string("messages.sending")
+        /** Not sent · Tap to retry */
+        val sendFailed: String get() = Strings.string("messages.sendFailed")
+        /** Retry */
+        val retry: String get() = Strings.string("messages.retry")
+        /** Delete */
+        val discardFailed: String get() = Strings.string("messages.discardFailed")
+        /** Loading earlier messages… */
+        val loadingOlder: String get() = Strings.string("messages.loadingOlder")
+        /** Couldn't load earlier messages. */
+        val loadOlderError: String get() = Strings.string("messages.loadOlderError")
+        /** This is the start of your conversation. */
+        val beginning: String get() = Strings.string("messages.beginning")
+        /** Latest messages */
+        val jumpToLatest: String get() = Strings.string("messages.jumpToLatest")
+        /** New messages */
+        val newMessages: String get() = Strings.string("messages.newMessages")
+        /** Searching earlier messages… */
+        val searchSearching: String get() = Strings.string("messages.searchSearching")
+        /** {index} of {count} */
+        fun searchPosition(index: String, count: Int): String = Strings.format("messages.searchPosition", mapOf("index" to index, "count" to count))
+        /** Earlier match */
+        val searchPrevious: String get() = Strings.string("messages.searchPrevious")
+        /** Later match */
+        val searchNext: String get() = Strings.string("messages.searchNext")
+        /** Show all matches */
+        val searchShowList: String get() = Strings.string("messages.searchShowList")
+        /** Search the words in your messages */
+        val searchHint: String get() = Strings.string("messages.searchHint")
+        /** You */
+        val you: String get() = Strings.string("messages.you")
     }
     object Write {
         /** Give it a one-line title first. */
