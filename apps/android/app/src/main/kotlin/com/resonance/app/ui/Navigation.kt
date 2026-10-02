@@ -279,17 +279,20 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     val unread = notifications.count { it.isUnread }
     val conversations by session.conversations.state.collectAsStateWithLifecycle()
     val deletionDate by session.deletionDate.collectAsStateWithLifecycle()
-    // A language change re-renders every screen (the strings are read while composing); the stacks and their pages stay.
+    // A language change re-renders every screen (the strings are read while composing): the stacks
+    // stay, and their pages are composed afresh. The pages' saved state and ViewModels are made inside
+    // the key with them: kept outside it, the holder still had the old pages' keys registered when the
+    // new ones asked for the same keys ("Key … was used multiple times"), and the app crashed.
     val languageEpoch by session.languageEpoch.collectAsStateWithLifecycle()
 
     val motion = remember { PageMotion() }
-    val entries: Map<Tab, List<NavEntry<Route>>> = Tab.entries.associateWith { t ->
-        val own = stacks.getValue(t)
-        rememberStackEntries(t, own) { route -> PageFrame(motion) { Page(session, route, own) } }
-    }
 
     Box(Modifier.fillMaxSize().cream()) {
         key(languageEpoch) {
+            val entries: Map<Tab, List<NavEntry<Route>>> = Tab.entries.associateWith { t ->
+                val own = stacks.getValue(t)
+                rememberStackEntries(t, own) { route -> PageFrame(motion) { Page(session, route, own) } }
+            }
             NavDisplay(
                 entries = entries.getValue(tab),
                 onBack = { stack.popPage() },
