@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -43,11 +44,15 @@ export class R2StorageProvider implements IStorageProvider {
   private bucket = env('R2_BUCKET');
   private publicBase = env('R2_PUBLIC_BASE').replace(/\/$/, '');
 
+  /**
+   * `{kind}/{yyyy-mm}/{uuid}.{ext}` — never the owner: the key is in the
+   * picture's public URL, and an anonymous card's cover must not name its
+   * author. Whose it is lives in `uploads/{uuid}` (./uploads).
+   */
   private buildKey(intent: UploadIntent): string {
     const now = new Date();
     return [
       intent.kind,
-      intent.ownerId,
       `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`,
       `${crypto.randomUUID()}${extension(intent.filename)}`,
     ].join('/');
@@ -111,6 +116,13 @@ export class R2StorageProvider implements IStorageProvider {
 
   async deleteObject(key: string): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  async copyObject(fromKey: string, toKey: string): Promise<void> {
+    // The object's metadata (type, Cache-Control) is copied along by default.
+    await this.client.send(
+      new CopyObjectCommand({ Bucket: this.bucket, Key: toKey, CopySource: `${this.bucket}/${encodeURIComponent(fromKey).replace(/%2F/g, '/')}` }),
+    );
   }
 
   async deletePrefix(prefix: string): Promise<number> {

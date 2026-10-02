@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import type { UploadIntent } from '@/lib/storage';
+import { fakeAdminDb } from '../../../../test/fakeAdminDb';
 
 // POST /api/upload with real image bytes: whatever the client sends, what is
 // stored is a WebP the server encoded — upright, scaled to fit, with no EXIF
 // (GPS included) — typed and named by the encoder, never by the client. An
 // animated GIF stays animated; a profile photo is 256 px; a request past
-// Vercel's body limit is refused before it is read.
+// Vercel's body limit is refused before it is read. The key names no one
+// (it is in an anonymous card's public cover URL); whose it is goes on record.
 
 vi.mock('@/lib/auth', () => ({ requireUser: async () => ({ id: 'alice' }) }));
-vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => ({}) }));
+const admin = fakeAdminDb({});
+vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => admin.db }));
 const limited = vi.fn(async (..._a: unknown[]) => null as Response | null);
 vi.mock('@/lib/api/rateLimit', () => ({ limited: (...a: unknown[]) => limited(...a) }));
 const stored: { intent: UploadIntent; body: Uint8Array }[] = [];
@@ -17,8 +20,9 @@ vi.mock('@/lib/storage', () => ({
   getStorageProvider: () => ({
     uploadObject: async (intent: UploadIntent, body: Uint8Array) => {
       stored.push({ intent, body });
-      return { key: `image/alice/2026-10/k.${intent.filename.split('.').pop()}`, publicUrl: 'https://img.example/k' };
+      return { key: `image/2026-10/k.${intent.filename.split('.').pop()}`, publicUrl: 'https://img.example/k' };
     },
+    deleteObject: async () => {},
   }),
 }));
 
@@ -26,6 +30,7 @@ const { POST } = await import('./route');
 
 beforeEach(() => {
   stored.length = 0;
+  for (const path of Object.keys(admin.docs)) delete admin.docs[path];
   vi.clearAllMocks();
 });
 
@@ -64,7 +69,8 @@ describe('POST /api/upload', () => {
     // The client calls it a PNG named .html: neither reaches storage.
     const res = await upload(photo, { name: 'page.html', type: 'image/png' });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ publicUrl: 'https://img.example/k', key: 'image/alice/2026-10/k.webp' });
+    expect(await res.json()).toEqual({ publicUrl: 'https://img.example/k', key: 'image/2026-10/k.webp' });
+    expect(admin.docs['uploads/k']).toMatchObject({ ownerId: 'alice', key: 'image/2026-10/k.webp', kind: 'image' });
 
     const { intent, meta } = await storedImage();
     expect(intent).toMatchObject({ filename: 'upload.webp', contentType: 'image/webp', ownerId: 'alice', kind: 'image' });
@@ -116,6 +122,7 @@ describe('POST /api/upload', () => {
     const big = await upload(new Uint8Array(4 * 1024 * 1024));
     expect(big.status).toBe(413);
     expect(stored).toEqual([]);
+    expect(admin.docs).toEqual({});
     expect(limited).not.toHaveBeenCalled();
   });
 

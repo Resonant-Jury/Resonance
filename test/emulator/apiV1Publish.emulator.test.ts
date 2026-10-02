@@ -88,6 +88,15 @@ describe('publishCard', () => {
     expect((await db.doc('cards/c1').get()).get('slug')).toBe('a-quiet-night');
   });
 
+  it('leaves every published card with a boolean `anonymous` — the public lists filter on it', async () => {
+    await db.doc('cards/old').set({ authorId: 'alice', thoughtCore: '一篇舊稿', story: '...', visibility: 'public', publishedAt: null });
+    await publishCard(db, 'alice', 'old', slugBase);
+    expect((await db.doc('cards/old').get()).get('anonymous')).toBe(false);
+    await draft('anon', { anonymous: true });
+    await publishCard(db, 'alice', 'anon', slugBase);
+    expect((await db.doc('cards/anon').get()).get('anonymous')).toBe(true);
+  });
+
   it("is not_found for someone else's card, and refuses an untitled one", async () => {
     await draft('c1');
     expect((await failure(publishCard(db, 'bob', 'c1', slugBase))).code).toBe('not_found');
@@ -130,6 +139,16 @@ describe('publishCard', () => {
       expect((await publishCard(db, 'alice', 'r1', slugBase)).slug).toBe('a-quiet-night-2');
       expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
       expect((await notifications()).size).toBe(0);
+    });
+
+    it("rings an anonymous original's author but connects no one: the connection would name them to the resonator", async () => {
+      await db.doc('cards/orig').set({ anonymous: true }, { merge: true });
+      await draft('r1', { referenceCardId: 'orig' });
+      const result = await publishCard(db, 'alice', 'r1', slugBase);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+      const bell = await notifications();
+      expect(bell.size).toBe(1);
+      expect(result.notificationId).toBe(bell.docs[0].id);
     });
 
     it('reaches no one across a block, in either direction', async () => {

@@ -26,7 +26,7 @@ afterAll(() => {
 });
 
 describe('R2StorageProvider.uploadObject', () => {
-  it('stores each image under a fresh key, cacheable for good', async () => {
+  it('stores each image under a fresh key that names no one, cacheable for good', async () => {
     send.mockResolvedValue({});
     const bytes = new Uint8Array([1, 2, 3]);
     const stored = await new R2StorageProvider().uploadObject(
@@ -37,7 +37,10 @@ describe('R2StorageProvider.uploadObject', () => {
     const input = (send.mock.calls[0][0] as PutObjectCommand).input;
     expect(input).toMatchObject({ Bucket: 'bucket', ContentType: 'image/avif', ContentLength: 3, CacheControl: IMMUTABLE });
     expect(IMMUTABLE).toBe('public, max-age=31536000, immutable');
-    expect(input.Key).toMatch(/^image\/alice\/\d{4}-\d{2}\/[0-9a-f-]{36}\.avif$/);
+    // The key is in the picture's public URL — an anonymous card's cover too —
+    // so it never carries the owner (uploads/{uuid} records whose it is).
+    expect(input.Key).toMatch(/^image\/\d{4}-\d{2}\/[0-9a-f-]{36}\.avif$/);
+    expect(input.Key).not.toContain('alice');
     expect(stored.publicUrl).toBe(`https://img.example/${input.Key}`);
   });
 });

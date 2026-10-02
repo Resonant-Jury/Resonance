@@ -46,7 +46,10 @@ const wrapStyle = {
  *   hides in a browser someone is signed in in (cardHold.ts); a signed-out
  *   reader sees the server's HTML at once.
  * - `hold` — someone is signed in in this browser, and their block list (or,
- *   for an anonymous card from the server, which author it is) isn't known yet.
+ *   for an anonymous card from the server render, the answer of the browser's
+ *   own read) isn't known yet. Someone else's anonymous card never names its
+ *   author here: the server, which knows it, applies the reader's blocks to
+ *   it when it answers that read (a card by someone they blocked isn't there).
  * - `blocked` — the viewer blocked the author: the page reads as not found.
  */
 export type StoryGate = 'show' | 'hold' | 'unknown' | 'blocked';
@@ -57,12 +60,14 @@ export function storyGate(s: {
   authLoading: boolean;
   viewerId: string | undefined;
   blocked: Set<string> | undefined;
-  /** The card's author; empty while an anonymous card is still the server's (which never names them). */
+  /** The card's author; empty on someone else's anonymous card (the server never names them). */
   authorId: string;
   /** The browser's own read of the card failed: nothing more is coming. */
   failed: boolean;
+  /** The browser's own read has answered (not the server render's copy any more). */
+  answered?: boolean;
 }): StoryGate {
-  const { signedInHere, authLoading, viewerId, blocked, authorId, failed } = s;
+  const { signedInHere, authLoading, viewerId, blocked, authorId, failed, answered = false } = s;
   if (viewerId && authorId === viewerId) return 'show';
   if (viewerId && authorId && blocked?.has(authorId)) return 'blocked';
   if (signedInHere === null) return 'unknown';
@@ -72,7 +77,8 @@ export function storyGate(s: {
   if (authLoading) return 'hold';
   if (!viewerId) return 'show';
   if (!blocked) return 'hold';
-  if (!authorId) return failed ? 'show' : 'hold';
+  // An anonymous card: its read answered (with the reader's blocks applied by the server), or failed.
+  if (!authorId) return failed || answered ? 'show' : 'hold';
   return 'show';
 }
 
@@ -94,7 +100,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { data, isLoading, error } = useCard(slug, seed);
+  const { data, isLoading, error, fromServer } = useCard(slug, seed);
   const { data: blocked } = useMyBlockedIds();
   // False for the server render and hydration (which must draw the same
   // markup), true from then on.
@@ -106,6 +112,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
     blocked,
     authorId: data?.card?.authorId ?? '',
     failed: !!error,
+    answered: !!data && !fromServer,
   });
   const isOwner = !!user && !!data?.card && user.id === data.card.authorId;
   // The lists around the card (resonances, related, the author's linking
@@ -271,8 +278,8 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
                   onDeleted={() => router.replace('/me')}
                 />
               )}
-              {/* An anonymous card from the server names no author yet. */}
-              {user && !isOwner && card.authorId && (
+              {/* Someone else's anonymous card names no author: it can be reported, not its author blocked. */}
+              {user && !isOwner && (card.authorId || (card.anonymous && !fromServer)) && (
                 <CardSafetyMenu
                   card={{ id: card.id, authorId: card.authorId, anonymous: card.anonymous }}
                   authorHandle={author.handle}

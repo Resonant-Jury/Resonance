@@ -31,6 +31,9 @@ import { getDoc, getDocs } from 'firebase/firestore/lite';
 import {
   forgetCachedUser,
   getCurrentUserProfile,
+  getLatestPublishedFeed,
+  getPublicCardsByAuthor,
+  getResonanceCards,
   getUserByHandle,
   getUserById,
   getUsersByIds,
@@ -164,6 +167,27 @@ describe('profiles', () => {
     await expect(getUsersByIds(['a'])).rejects.toThrow('offline');
     usersQueryAnswer();
     expect((await getUsersByIds(['a'])).a.handle).toBe('h-a');
+  });
+});
+
+// An anonymous card's document names its author, so the rules list only
+// public cards that name theirs: every public list must ask for exactly that
+// (the server hands anonymous ones out, without their author).
+describe('public card lists', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getDocs).mockResolvedValue({ docs: [] } as never);
+  });
+  const filtersOf = (call: number) => (vi.mocked(getDocs).mock.calls[call][0] as unknown as { filters: unknown[] }).filters;
+
+  it('ask only for attributed cards: the latest feed, a card\'s resonances, a profile\'s cards', async () => {
+    await getLatestPublishedFeed(12);
+    await getResonanceCards('c1');
+    await getPublicCardsByAuthor('bob');
+    for (const call of [0, 1, 2]) {
+      expect(filtersOf(call)).toContainEqual({ field: 'anonymous', op: '==', value: false });
+      expect(filtersOf(call)).toContainEqual({ field: 'visibility', op: '==', value: 'public' });
+    }
   });
 });
 

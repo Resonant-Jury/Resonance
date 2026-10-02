@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { getStorageProvider } from '@/lib/storage';
+import { storeOwned } from '@/lib/storage/uploads';
 import { normalizeUpload, UnsupportedImage, type UploadPurpose } from '@/lib/storage/image';
 import { UPLOAD_MAX_BYTES, UPLOAD_MAX_FILE_BYTES } from '@/lib/images/limits';
 import { limited } from '@/lib/api/rateLimit';
@@ -50,7 +51,10 @@ export async function POST(req: Request) {
     throw e;
   }
 
-  const stored = await getStorageProvider().uploadObject(
+  // The key names no one (an anonymous card's cover is public); whose it is goes on record.
+  const stored = await storeOwned(
+    db,
+    getStorageProvider(),
     {
       filename: `upload.${image.extension}`,
       contentType: image.contentType,

@@ -192,15 +192,20 @@ export async function getCardDetail(
   const card = await visibleCard(db, viewerId, key);
   const ownerLinks = include.has('links') && card.authorId === viewerId;
   const embedKeys = include.has('embeds') ? embeddedCardKeys(String(card.story ?? '')) : [];
+  // Someone else's anonymous card: the reader can't tell whose it is, so the
+  // server applies their blocks to it (a card whose author they blocked is
+  // not there for them, as in every list).
+  const screen = card.anonymous === true && card.authorId !== viewerId;
   const [authorSnap, reference, blocked, resonances, recent, linking, embedded] = await Promise.all([
     card.anonymous ? null : db.doc(`users/${card.authorId}`).get(),
     card.referenceCardId ? cardDoc(db, card.referenceCardId) : null,
-    card.referenceCardId || include.size ? blockedByViewer(db, viewerId) : new Set<string>(),
+    card.referenceCardId || include.size || screen ? blockedByViewer(db, viewerId) : new Set<string>(),
     include.has('resonances') ? resonancesOf(db, card.id).get().then(toCards) : [],
     include.has('related') ? recentPublic(db).get().then(toCards) : [],
     ownerLinks ? cardsLinkingTo(db, card.id) : [],
     embedKeys.length ? cardsByKeys(db, embedKeys) : [],
   ]);
+  if (screen && blocked.has(card.authorId)) throw notFound();
   const [referenceCard, resonanceCards, relatedCards, linkCards, embedCards] = await presentAll(
     db,
     viewerId,
@@ -311,7 +316,7 @@ export async function getProfile(
         : db.doc(`users/${viewerId}/blocks/${user.id}`).get().then((s) => (s.exists ? new Set([user.id]) : null)),
     isSelf ? Promise.resolve(false) : connected(db, viewerId, user.id),
     db.collection('cards').where('authorId', '==', user.id).where('visibility', '==', 'public').orderBy('publishedAt', 'desc').limit(PROFILE_COUNT_LIMIT).get(),
-    include.has('links') ? cardsLinkingToAuthor(db, user.id) : [],
+    include.has('links') ? cardsLinkingToAuthor(db, user.id, viewerId) : [],
   ]);
   const blocked = !isSelf && !!blocks?.has(user.id);
   const cardCount = published.docs.filter((d) => d.get('publishedAt') && d.get('anonymous') !== true).length;
@@ -364,16 +369,29 @@ export async function getProfileCards(db: Firestore, viewerId: string, handle: s
   return profilePage(snap.docs, user.data(), limit);
 }
 
-/** Cards by others linking to this author's cards, newest link first. */
-async function cardsLinkingToAuthor(db: Firestore, userId: string): Promise<Card[]> {
+/**
+ * Cards by others linking to this author's cards, newest link first. To
+ * anyone but the author, only links into their attributed cards count: a
+ * link into one of their anonymous cards would tie that card to them (and a
+ * link whose card isn't theirs at all names them wrongly).
+ */
+async function cardsLinkingToAuthor(db: Firestore, userId: string, viewerId: string): Promise<Card[]> {
   const links = await db.collection('cardLinks').where('targetAuthorId', '==', userId).orderBy('createdAt', 'desc').limit(LINK_LIMIT).get();
-  return cardsByIds(db, links.docs.map((d) => String(d.get('sourceCardId') ?? '')).filter(Boolean));
+  let pairs = links.docs
+    .map((d) => ({ source: String(d.get('sourceCardId') ?? ''), target: String(d.get('targetCardId') ?? '') }))
+    .filter((p) => p.source);
+  if (viewerId !== userId) {
+    const targets = await cardsByIds(db, pairs.map((p) => p.target));
+    const named = new Set(targets.filter((c) => c.authorId === userId && c.anonymous !== true).map((c) => c.id));
+    pairs = pairs.filter((p) => named.has(p.target));
+  }
+  return cardsByIds(db, pairs.map((p) => p.source));
 }
 
 /** Cards by others that link to this author's cards (the profile's "linked" tab). */
 export async function getProfileLinks(db: Firestore, viewerId: string, handle: string): Promise<CardListBody> {
   const user = await userByHandle(db, handle);
-  const [cards, blocked] = await Promise.all([cardsLinkingToAuthor(db, user.id), blockedByViewer(db, viewerId)]);
+  const [cards, blocked] = await Promise.all([cardsLinkingToAuthor(db, user.id, viewerId), blockedByViewer(db, viewerId)]);
   return { cards: await present(db, viewerId, cards, { blocked }) };
 }
 

@@ -47,7 +47,7 @@ async function main() {
       story: '一段用來測試地圖效能的文字，長度大約兩三行，讓節點的摘要有東西可以排。'.repeat(1 + (i % 3)),
       tags: ['測試', ['日常', '散步', '回憶'][i % 3]], originalLocale: 'zh-TW', translations: {}, visibility: 'public',
       publishedAt: Timestamp.fromMillis(now.toMillis() - (i + 1) * 60_000), readCount: 0, resonanceCount: 0, inviteCount: 0,
-      accentHue: hues[i % hues.length],
+      accentHue: hues[i % hues.length], anonymous: false,
     });
     await add(map.collection('nodes').doc(id), { cardId: id, x: col * 260, y: row * 210, groupId: null, createdAt: now, updatedAt: now });
   }

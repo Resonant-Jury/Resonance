@@ -15,6 +15,8 @@ import {
 } from './sdk';
 import type { Card, User } from '@/lib/db/types';
 import type { CardBoxTab } from '@/lib/db/interfaces';
+import type { CardSeed } from '@/lib/data/cardSeed';
+import type { FeedPageBody } from '@/lib/api/v1/schemas';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
 import { mapCard, mapUser } from './map';
@@ -24,6 +26,11 @@ function connectionId(a: string, b: string): string {
 }
 
 // --- cards ---
+//
+// An anonymous card's document names its author, so the rules let only its
+// author read it (and list it) from here; every public list asks for
+// `anonymous == false`. Anyone else gets an anonymous card from the server,
+// which leaves the author out (getPublicCardView, the /api/v1 reads).
 
 /** Single card. Firestore rules enforce visibility; denied/missing → null. */
 export async function getCardById(id: string): Promise<Card | null> {
@@ -64,11 +71,38 @@ export async function resolveCardId(key: string): Promise<string | null> {
   return key;
 }
 
-/** Latest public, published cards. Mirrors FirestoreCardRepository.findLatestPublishedFeed. */
+/**
+ * A card as a signed-out reader sees it, from the server (GET
+ * /api/cards/view: the card page's seed) — for a card the rules won't let
+ * this browser read itself, an anonymous one. Null: nothing public there.
+ */
+export async function getPublicCardView(key: string): Promise<CardSeed | null> {
+  try {
+    const res = await fetch(`/api/cards/view?key=${encodeURIComponent(key)}`);
+    return res.ok ? ((await res.json()) as CardSeed) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The latest public cards for a signed-out reader, from the server (GET
+ * /api/cards/latest) — anonymous ones included, without their byline, which
+ * the rules keep out of the browser's own queries.
+ */
+export async function getPublicFeedPage(limit: number, cursor?: string): Promise<FeedPageBody> {
+  const params = new URLSearchParams({ limit: String(limit), ...(cursor ? { cursor } : {}) });
+  const res = await fetch(`/api/cards/latest?${params}`);
+  if (!res.ok) throw new Error(`Feed request failed (${res.status})`);
+  return (await res.json()) as FeedPageBody;
+}
+
+/** Latest public, published cards that name their author (anonymous ones are the server's to hand out). */
 export async function getLatestPublishedFeed(limit = 12, cursor?: Date): Promise<Card[]> {
   const db = getClientDb();
   const constraints = [
     where('visibility', '==', 'public'),
+    where('anonymous', '==', false),
     where('publishedAt', '!=', null),
     orderBy('publishedAt', 'desc'),
     fbLimit(limit),
@@ -82,8 +116,9 @@ export async function getLatestPublishedFeed(limit = 12, cursor?: Date): Promise
 
 /** Cards sharing tags with the given card. Mirrors FirestoreCardRepository.findRelated. */
 export async function getRelatedCards(cardId: string, limit = 3): Promise<Card[]> {
-  const base = await getDoc(doc(getClientDb(), 'cards', cardId));
-  const tags = ((base.data()?.tags ?? []) as string[]).slice(0, 5);
+  // An anonymous card is its author's alone to read here: then there are no tags to match.
+  const base = await getDoc(doc(getClientDb(), 'cards', cardId)).catch(() => null);
+  const tags = ((base?.data()?.tags ?? []) as string[]).slice(0, 5);
   const pool = await getLatestPublishedFeed(limit + 6);
   let cards = pool.filter((c) => c.id !== cardId);
   if (tags.length) {
@@ -98,9 +133,9 @@ export async function getRelatedCards(cardId: string, limit = 3): Promise<Card[]
 
 /**
  * Public cards that resonate with (reference) the given card, newest first.
- * Anonymous-readable: every match is `visibility == "public"`, so the Firestore
- * `list` rule allows signed-out viewers. Used for the card-detail resonance
- * section and the author-only resonator avatar group.
+ * Readable signed out: every match is public, published and attributed
+ * (`anonymous == false`), as the Firestore `list` rule asks. Used for the
+ * card-detail resonance section and the author-only resonator avatar group.
  */
 export async function getResonanceCards(cardId: string, limit = 30): Promise<Card[]> {
   const snap = await getDocs(
@@ -108,6 +143,7 @@ export async function getResonanceCards(cardId: string, limit = 30): Promise<Car
       collection(getClientDb(), 'cards'),
       where('referenceCardId', '==', cardId),
       where('visibility', '==', 'public'),
+      where('anonymous', '==', false),
       where('publishedAt', '!=', null),
       orderBy('publishedAt', 'desc'),
       fbLimit(limit)
@@ -206,7 +242,9 @@ export async function getPublicCardsByAuthor(authorId: string): Promise<Card[]> 
       collection(getClientDb(), 'cards'),
       where('authorId', '==', authorId),
       where('visibility', '==', 'public'),
-      // The rules list public cards only once published — the query must say so.
+      // The rules list public cards only once published, and only attributed
+      // ones — the query must say so.
+      where('anonymous', '==', false),
       where('publishedAt', '!=', null),
       orderBy('publishedAt', 'desc'),
       fbLimit(40)

@@ -3,8 +3,8 @@
  * (`R2_PUBLIC_BASE/<key>`), or null for any other URL — a picture hosted
  * elsewhere, or something that only looks like ours (`..`, an empty
  * segment, odd characters). The keys we write are
- * `{kind}/{ownerId}/{yyyy-mm}/{uuid}.{ext}`. Pure: no storage client, so
- * metadata code may ask it too.
+ * `{kind}/{yyyy-mm}/{uuid}.{ext}` (older ones `{kind}/{ownerId}/{yyyy-mm}/…`).
+ * Pure: no storage client, so metadata code may ask it too.
  */
 export function storageKeyOf(url: string | null | undefined, publicBase = process.env.R2_PUBLIC_BASE): string | null {
   if (!url || !publicBase) return null;

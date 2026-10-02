@@ -60,7 +60,13 @@ export async function publishCard(
     if (!snap.exists || snap.get('authorId') !== uid) throw new ApiFailure('not_found', 'No such card.');
     if (!String(snap.get('thoughtCore') ?? '').trim()) throw new ApiFailure('invalid_request', 'A card needs a title before it is published.');
     const firstPublish = snap.get('publishedAt') == null;
-    tx.set(ref, { ...(firstPublish ? { publishedAt: FieldValue.serverTimestamp() } : {}), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(ref, {
+      ...(firstPublish ? { publishedAt: FieldValue.serverTimestamp() } : {}),
+      // Always a boolean once public: lists that may show a card to anyone
+      // filter on `anonymous == false` (an absent field would drop it).
+      anonymous: snap.get('anonymous') === true,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
     return { data: snap.data()!, firstPublish };
   });
 
@@ -82,7 +88,12 @@ export async function publishCard(
   };
 }
 
-/** Connect the two authors and ring the original's bell; the bell row's id, or null when nothing rang. */
+/**
+ * Connect the two authors and ring the original's bell; the bell row's id, or
+ * null when nothing rang. An anonymous original rings its author's bell but
+ * connects no one: the resonator would find its author among their
+ * connections (as a note to it connects no one either).
+ */
 async function connectResonance(db: Firestore, uid: string, originalId: string): Promise<string | null> {
   const snap = await db.doc(`cards/${originalId}`).get();
   if (!snap.exists) return null;
@@ -99,7 +110,7 @@ async function connectResonance(db: Firestore, uid: string, originalId: string):
   const pair = uid < other ? `${uid}_${other}` : `${other}_${uid}`;
   const connection = db.doc(`connections/${pair}`);
   const batch = db.batch();
-  if (!(await connection.get()).exists) {
+  if (original.anonymous !== true && !(await connection.get()).exists) {
     batch.set(connection, { userIds: uid < other ? [uid, other] : [other, uid], establishedAt: FieldValue.serverTimestamp() });
   }
   const bell = db.collection('notifications').doc();

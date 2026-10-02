@@ -540,20 +540,24 @@ describe('closed legacy write paths', () => {
     );
   });
 
-  it('lets a note\'s recipient mark it read, and nothing else', async () => {
+  it('lets a note\'s recipient read it and mark it read, and nothing else', async () => {
     await seed(async (db) => {
       await setDoc(doc(db, 'notes', 'n1'), { fromUserId: 'carol', toUserId: 'alice', cardId: 'c1', text: 'hi', readAt: null, createdAt: new Date() });
     });
-    await assertSucceeds(getDoc(doc(as('carol'), 'notes', 'n1')));
+    await assertSucceeds(getDoc(doc(as('alice'), 'notes', 'n1')));
+    await assertSucceeds(getDocs(query(collection(as('alice'), 'notes'), where('toUserId', '==', 'alice'))));
+    // Its sender never reads it back: a note to an anonymous card names the author it went to.
+    await assertFails(getDoc(doc(as('carol'), 'notes', 'n1')));
+    await assertFails(getDocs(query(collection(as('carol'), 'notes'), where('fromUserId', '==', 'carol'))));
     await assertFails(getDoc(doc(as('bob'), 'notes', 'n1')));
     await assertFails(updateDoc(doc(as('alice'), 'notes', 'n1'), { text: 'rewritten' }));
     await assertSucceeds(updateDoc(doc(as('alice'), 'notes', 'n1'), { readAt: serverTimestamp() }));
   });
 
-  it('refuses card links from the client (nothing creates them any more), but lets their author remove one', async () => {
+  it("keeps card links to the server: they name both cards' authors, an anonymous card's too", async () => {
     await seed(async (db) => {
       await setDoc(doc(db, 'cards', 'mine'), publishedCard('carol'));
-      await setDoc(doc(db, 'cards', 'target'), publishedCard('alice'));
+      await setDoc(doc(db, 'cards', 'target'), publishedCard('alice', { anonymous: true }));
       await setDoc(doc(db, 'cardLinks', 'old_target'), {
         sourceCardId: 'old', sourceAuthorId: 'carol', targetCardId: 'target', targetAuthorId: 'alice', createdAt: new Date(),
       });
@@ -563,9 +567,11 @@ describe('closed legacy write paths', () => {
         sourceCardId: 'mine', sourceAuthorId: 'carol', targetCardId: 'target', targetAuthorId: 'bob', createdAt: serverTimestamp(),
       }),
     );
-    await assertSucceeds(getDocs(query(collection(anonymous(), 'cardLinks'), where('targetCardId', '==', 'target'))));
-    await assertFails(deleteDoc(doc(as('alice'), 'cardLinks', 'old_target')));
-    await assertSucceeds(deleteDoc(doc(as('carol'), 'cardLinks', 'old_target')));
+    // Listing the links into a card (or into someone's cards) would name its anonymous author.
+    await assertFails(getDocs(query(collection(anonymous(), 'cardLinks'), where('targetCardId', '==', 'target'))));
+    await assertFails(getDocs(query(collection(as('bob'), 'cardLinks'), where('targetAuthorId', '==', 'alice'))));
+    await assertFails(getDoc(doc(as('alice'), 'cardLinks', 'old_target')));
+    await assertFails(deleteDoc(doc(as('carol'), 'cardLinks', 'old_target')));
   });
 
   it('refuses writing resonance records, quotas and rate limits', async () => {
@@ -697,7 +703,7 @@ describe('cards: who can read which', () => {
   const published = new Date('2026-09-01T08:00:00Z');
   const card = (extra: Record<string, unknown>) => ({
     authorId: 'bob', thoughtCore: 't', story: 's', tags: [], readCount: 0, resonanceCount: 0, inviteCount: 0,
-    visibility: 'public', publishedAt: published, ...extra,
+    visibility: 'public', anonymous: false, publishedAt: published, ...extra,
   });
   beforeEach(async () => {
     await seedConnection();
@@ -706,11 +712,14 @@ describe('cards: who can read which', () => {
       await setDoc(doc(db, 'cards', 'priv'), card({ visibility: 'private' }));
       await setDoc(doc(db, 'cards', 'conn'), card({ visibility: 'connections' }));
       await setDoc(doc(db, 'cards', 'draft'), card({ publishedAt: null }));
+      // Published anonymously: its document names Bob, so only Bob reads it here.
+      await setDoc(doc(db, 'cards', 'anon'), card({ anonymous: true }));
+      await setDoc(doc(db, 'cards', 'anonconn'), card({ anonymous: true, visibility: 'connections' }));
     });
   });
 
   const feed = (db: Firestore) =>
-    query(collection(db, 'cards'), where('visibility', '==', 'public'), where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'), limit(12));
+    query(collection(db, 'cards'), where('visibility', '==', 'public'), where('anonymous', '==', false), where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'), limit(12));
 
   it('opens a published card to whoever it is for, and a draft to no one but its author', async () => {
     const carol = as('carol');
@@ -722,6 +731,29 @@ describe('cards: who can read which', () => {
     await assertFails(getDoc(doc(as('alice'), 'cards', 'draft')));
     await assertFails(getDoc(doc(anonymous(), 'cards', 'draft')));
     await assertSucceeds(getDoc(doc(as('bob'), 'cards', 'draft')));
+  });
+
+  it("opens an anonymous card to its author alone: its document names them (the server hands it to everyone else)", async () => {
+    await assertFails(getDoc(doc(as('carol'), 'cards', 'anon')));
+    await assertFails(getDoc(doc(anonymous(), 'cards', 'anon')));
+    // Connected to its author or not.
+    await assertFails(getDoc(doc(as('alice'), 'cards', 'anonconn')));
+    await assertSucceeds(getDoc(doc(as('bob'), 'cards', 'anon')));
+    await assertSucceeds(getDoc(doc(as('bob'), 'cards', 'anonconn')));
+  });
+
+  it("won't list public cards without leaving the anonymous ones out (an older page's query)", async () => {
+    const unfiltered = (db: Firestore) =>
+      query(collection(db, 'cards'), where('visibility', '==', 'public'), where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'), limit(12));
+    await assertFails(getDocs(unfiltered(as('carol'))));
+    await assertFails(getDocs(unfiltered(anonymous())));
+    await assertFails(getDocs(query(collection(as('carol'), 'cards'), where('visibility', '==', 'public'), where('anonymous', '==', true), where('publishedAt', '!=', null))));
+    const listed = await getDocs(feed(as('carol')));
+    if (listed.docs.some((d) => d.id.startsWith('anon'))) throw new Error('an anonymous card was listed');
+  });
+
+  it('still lets anyone answer an anonymous card with a resonance (it names no one to them)', async () => {
+    await assertSucceeds(setDoc(doc(collection(as('carol'), 'cards')), draft('carol', { referenceCardId: 'anon' })));
   });
 
   it("won't list someone else's cards beyond the published public ones", async () => {
@@ -741,14 +773,14 @@ describe('cards: who can read which', () => {
     await assertSucceeds(getDocs(feed(anonymous())));
     // A profile's public cards.
     await assertSucceeds(getDocs(query(collection(carol, 'cards'), where('authorId', '==', 'bob'), where('visibility', '==', 'public'),
-      where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'), limit(40))));
+      where('anonymous', '==', false), where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'), limit(40))));
     // A card's resonances.
     await assertSucceeds(getDocs(query(collection(carol, 'cards'), where('referenceCardId', '==', 'orig'), where('visibility', '==', 'public'),
-      where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'))));
-    // Your own card box, your resonance to a card, whether you've written anything.
+      where('anonymous', '==', false), where('publishedAt', '!=', null), orderBy('publishedAt', 'desc'))));
+    // Your own card box (anonymous cards and all), your resonance to a card, whether you've written anything.
     const bob = as('bob');
     const mine = await getDocs(query(collection(bob, 'cards'), where('authorId', '==', 'bob')));
-    if (mine.size !== 4) throw new Error(`expected all 4 of bob's cards, got ${mine.size}`);
+    if (mine.size !== 6) throw new Error(`expected all 6 of bob's cards, got ${mine.size}`);
     await assertSucceeds(getDocs(query(collection(bob, 'cards'), where('authorId', '==', 'bob'), where('referenceCardId', '==', 'orig'), limit(1))));
   });
 });

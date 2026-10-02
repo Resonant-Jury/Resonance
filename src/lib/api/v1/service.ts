@@ -44,10 +44,11 @@ export function properlyPublished(at: unknown, now = Date.now()): boolean {
 
 /**
  * Latest public cards, newest first — the web's latest-feed query, minus
- * authors the viewer blocked. Pages are cut on the *raw* query so a page of
- * blocked authors doesn't end the feed early (same as useFeed on the web).
+ * authors the viewer blocked (`viewerId` null: a signed-out reader, who has
+ * none). Anonymous cards come without their byline. Pages are cut on the
+ * *raw* query so a page of blocked authors doesn't end the feed early.
  */
-export async function getFeed(db: Firestore, viewerId: string, limit: number, cursor?: string): Promise<FeedPageBody> {
+export async function getFeed(db: Firestore, viewerId: string | null, limit: number, cursor?: string): Promise<FeedPageBody> {
   let q = db
     .collection('cards')
     .where('visibility', '==', 'public')
@@ -55,7 +56,7 @@ export async function getFeed(db: Firestore, viewerId: string, limit: number, cu
     .orderBy('publishedAt', 'desc')
     .limit(limit);
   if (cursor) q = q.startAfter(Timestamp.fromDate(new Date(cursor)));
-  const [snap, blocked] = await Promise.all([q.get(), blockedByViewer(db, viewerId)]);
+  const [snap, blocked] = await Promise.all([q.get(), viewerId ? blockedByViewer(db, viewerId) : new Set<string>()]);
 
   const cards = snap.docs
     .filter((d) => properlyPublished(d.get('publishedAt')))

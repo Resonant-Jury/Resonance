@@ -19,6 +19,8 @@ vi.mock('@/lib/db/firestore/client/reads', () => ({
   getCurrentUserProfile: vi.fn(),
   getLatestPublishedFeed: vi.fn(),
   getMyResonanceCard: vi.fn(),
+  getPublicCardView: vi.fn(),
+  getPublicFeedPage: vi.fn(),
   getRelatedCards: vi.fn(),
   getResonanceCards: vi.fn(),
   getUserById: vi.fn(),
@@ -34,13 +36,15 @@ vi.mock('@/lib/db/firestore/client/messages', () => ({
 }));
 vi.mock('@/lib/db/firestore/client/api', () => ({
   callApi: vi.fn(),
-  ApiError: class ApiError extends Error {},
-}));
-vi.mock('@/lib/db/firestore/client/cardLinks', () => ({
-  listLinksToAuthor: vi.fn(),
-}));
-vi.mock('@/lib/db/firestore/client/bookmarks', () => ({
-  listMyBookmarkIds: vi.fn(),
+  ApiError: class ApiError extends Error {
+    constructor(
+      readonly status: number,
+      readonly code: string,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
 }));
 vi.mock('@/lib/db/firestore/client/thoughtMap', () => ({
   loadMyThoughtMap: vi.fn(),
@@ -61,7 +65,8 @@ import {
   getCardBySlugOrId,
   getCardsByAuthor,
   getPublicCardsByAuthor,
-  getLatestPublishedFeed,
+  getPublicCardView,
+  getPublicFeedPage,
   getRelatedCards,
   getResonanceCards,
   getUserById,
@@ -72,10 +77,9 @@ import {
   resolveCardId,
 } from '@/lib/db/firestore/client/reads';
 import { listConversations } from '@/lib/db/firestore/client/messages';
-import { callApi } from '@/lib/db/firestore/client/api';
-import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
-import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
+import { ApiError, callApi } from '@/lib/db/firestore/client/api';
 import { loadMyThoughtMap } from '@/lib/db/firestore/client/thoughtMap';
+import type { CardDetailBody, FeedCardBody, FeedPageBody } from '@/lib/api/v1/schemas';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import {
   useCard,
@@ -128,6 +132,40 @@ function user(id: string, handle = id): User {
   };
 }
 
+/** A v1 card summary, as the server answers lists (an anonymous one has no author). */
+function summary(id: string, authorId: string | null, extra: Partial<FeedCardBody> = {}): FeedCardBody {
+  return {
+    id,
+    slug: null,
+    title: `Card ${id}`,
+    excerpt: `${id}, briefly`,
+    tags: [],
+    publishedAt: '2026-01-01T00:00:00.000Z',
+    author: authorId
+      ? { id: authorId, handle: `h-${authorId}`, initials: 'X', accentColor: 'c', avatarUrl: null, avatarSeed: '1', verified: false, region: null }
+      : null,
+    anonymous: authorId === null,
+    visibility: 'public',
+    imageUrl: null,
+    imageLabel: null,
+    accentHue: null,
+    readMinutes: 1,
+    referenceCardId: null,
+    reason: null,
+    ...extra,
+  };
+}
+
+/** Answer callApi by path (the first route whose prefix matches); anything else is a 404. */
+function api(routes: Record<string, unknown>) {
+  vi.mocked(callApi).mockImplementation((async (path: string) => {
+    const hit = Object.keys(routes).find((prefix) => path.startsWith(prefix));
+    if (hit === undefined) throw new ApiError(404, 'not_found', 'No such thing.');
+    const answer = routes[hit];
+    return typeof answer === 'function' ? (answer as (p: string) => unknown)(path) : answer;
+  }) as never);
+}
+
 // Fresh, isolated SWR cache per render so keys never leak between tests.
 function wrapper({ children }: { children: ReactNode }) {
   return (
@@ -139,32 +177,43 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   mockUseAuth.mockReturnValue({ user: { id: 'me' }, loading: false });
-  // Card-link / bookmark lookups default to empty so existing tests (card box,
-  // profile) exercise their original branches without standing up fixtures.
-  vi.mocked(listLinksToAuthor).mockResolvedValue([]);
-  vi.mocked(listMyBookmarkIds).mockResolvedValue([]);
   vi.mocked(getMyBlockedIds).mockResolvedValue(new Set());
+  api({});
 });
 afterEach(() => {
   vi.clearAllMocks();
 });
 
+// The latest feed comes from the server: an anonymous card's document names
+// its author, so the rules keep it out of the browser's own queries, and the
+// server hands it out without its byline.
 describe('useFeed', () => {
-  it('returns the latest feed cards with their resolved authors', async () => {
-    vi.mocked(getLatestPublishedFeed).mockResolvedValue([
-      card('c1', 'a1'),
-      card('c2', 'a2'),
-    ]);
-    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1'), a2: user('a2') });
+  it('signed in: one request to /api/v1/feed, bylines included, an anonymous card without one', async () => {
+    api({ '/api/v1/feed': { cards: [summary('c1', 'a1'), summary('anon', null)], nextCursor: null } satisfies FeedPageBody });
 
     const { result } = renderHook(() => useFeed(), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
 
-    expect(getLatestPublishedFeed).toHaveBeenCalledWith(12);
-    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['c1', 'c2']);
-    // authors were resolved from the cards' authorIds
-    expect(getUsersByIds).toHaveBeenCalledWith(['a1', 'a2']);
-    expect(result.current.data!.authors.a1.handle).toBe('a1');
+    expect(callApi).toHaveBeenCalledWith('/api/v1/feed?limit=12');
+    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['c1', 'anon']);
+    expect(result.current.data!.authors.a1.handle).toBe('h-a1');
+    expect(result.current.data!.cards[1]).toMatchObject({ anonymous: true, authorId: '' });
+    // Nothing read through the rules, no profile fetched.
+    expect(getUsersByIds).not.toHaveBeenCalled();
+    expect(getPublicFeedPage).not.toHaveBeenCalled();
+    expect(result.current.hasMore).toBe(false);
+  });
+
+  it('signed out: the public page from the server (anonymous cards in it too), at once', async () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: true });
+    vi.mocked(getPublicFeedPage).mockResolvedValue({ cards: [summary('c1', 'a1'), summary('anon', null)], nextCursor: '2026-01-01T00:00:00.000Z' });
+
+    const { result } = renderHook(() => useFeed(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(getPublicFeedPage).toHaveBeenCalledWith(12, undefined);
+    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['c1', 'anon']);
+    expect(result.current.hasMore).toBe(true);
+    expect(callApi).not.toHaveBeenCalled();
   });
 });
 
@@ -172,15 +221,6 @@ describe('useFeed', () => {
 // field), but the browser must never download the profile it is anonymous
 // from — every surface shows the anonymous byline for it anyway.
 describe('anonymous cards', () => {
-  it("don't fetch their author's profile in a list", async () => {
-    vi.mocked(getLatestPublishedFeed).mockResolvedValue([card('c1', 'a1'), card('anon', 'secret', { anonymous: true })]);
-    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
-    const { result } = renderHook(() => useFeed(), { wrapper });
-    await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['c1', 'anon']);
-    expect(getUsersByIds).toHaveBeenCalledWith(['a1']);
-  });
-
   it("don't fetch their author on the card page — unless the viewer wrote it", async () => {
     vi.mocked(getCardBySlugOrId).mockResolvedValue(card('anon', 'secret', { anonymous: true }));
     const { result } = renderHook(() => useCard('anon'), { wrapper });
@@ -196,25 +236,16 @@ describe('anonymous cards', () => {
   });
 });
 
-// Blocking hides the blocked person's cards from every feed surface, but the
-// feed must keep paginating on the raw Firestore page: a page that comes back
-// short only because a blocked author was dropped is not the end of the feed.
+// Blocking hides the blocked person's cards from every feed surface. The
+// server drops them from the feed (anonymous ones included) and cuts pages on
+// its raw query: a page short only because a blocked author was dropped is
+// not the end of the feed.
 describe('blocked authors', () => {
-  it('drops their cards from the feed without ending pagination early', async () => {
-    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['bad']));
-    const fullPage = Array.from({ length: 12 }, (_, i) =>
-      card(`c${i}`, i % 3 === 0 ? 'bad' : 'a1', { publishedAt: new Date(2026, 0, 30 - i) }),
-    );
-    vi.mocked(getLatestPublishedFeed).mockResolvedValue(fullPage);
-    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
-
+  it("keep paging past a page the server shortened by a blocked author's cards", async () => {
+    api({ '/api/v1/feed': { cards: [summary('c1', 'a1')], nextCursor: '2026-01-01T00:00:00.000Z' } satisfies FeedPageBody });
     const { result } = renderHook(() => useFeed(), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
-
-    expect(result.current.data!.cards.every((c) => c.authorId !== 'bad')).toBe(true);
-    expect(result.current.data!.cards).toHaveLength(8);
-    expect(getUsersByIds).toHaveBeenCalledWith(Array(8).fill('a1'));
-    // 12 raw cards came back, so there may be more — even though 8 are shown.
+    expect(result.current.data!.cards).toHaveLength(1);
     expect(result.current.hasMore).toBe(true);
   });
 
@@ -230,19 +261,12 @@ describe('blocked authors', () => {
     expect(result.current.data!.user!.id).toBe('u2');
   });
 
-  it('drops blocked people from the cards linking to a profile', async () => {
-    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['bad']));
+  it("show a signed-out reader no card links (they name an anonymous card's author too: the server reads them)", async () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
     vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'bob'));
-    vi.mocked(listLinksToAuthor).mockResolvedValue([
-      { id: 'l1', sourceCardId: 'x1', sourceAuthorId: 'bad', targetCardId: 'p1', targetAuthorId: 'u2', createdAt: new Date() },
-      { id: 'l2', sourceCardId: 'x2', sourceAuthorId: 'a1', targetCardId: 'p1', targetAuthorId: 'u2', createdAt: new Date() },
-    ]);
-    vi.mocked(getCardById).mockImplementation(async (id) => card(id, id === 'x1' ? 'bad' : 'a1'));
-    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
-
     const { result } = renderHook(() => useProfileLinks('bob').data, { wrapper });
-    await waitFor(() => expect(result.current).toBeDefined());
-    expect(result.current!.cards.map((c) => c.id)).toEqual(['x2']);
+    expect(result.current).toEqual({ cards: [], authors: {} });
+    expect(getCardById).not.toHaveBeenCalled();
   });
 
   it('drops blocked people from resonance and related lists', async () => {
@@ -260,17 +284,6 @@ describe('blocked authors', () => {
 // so the feed and related hooks must fetch *immediately* — even before the
 // client SDK finishes restoring auth — so logged-out visitors see content.
 describe('public reads do not wait on a signed-in viewer', () => {
-  it('useFeed fetches immediately even while auth is still resolving', async () => {
-    mockUseAuth.mockReturnValue({ user: null, loading: true });
-    vi.mocked(getLatestPublishedFeed).mockResolvedValue([card('c1', 'a1')]);
-    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
-
-    const { result } = renderHook(() => useFeed(), { wrapper });
-    await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(getLatestPublishedFeed).toHaveBeenCalledWith(12);
-    expect(result.current.data!.cards[0].id).toBe('c1');
-  });
-
   it('useRelated fetches with just a card id, no viewer required', async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     vi.mocked(getRelatedCards).mockResolvedValue([card('c2', 'a1')]);
@@ -323,10 +336,80 @@ describe('useCard auth-settle gating', () => {
   it('yields null (not-found) when the card is missing or not visible', async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     vi.mocked(getCardBySlugOrId).mockResolvedValue(null);
+    vi.mocked(getPublicCardView).mockResolvedValue({ id: null, view: null });
     const { result } = renderHook(() => useCard('missing'), { wrapper });
     await waitFor(() => expect(result.current.data).not.toBeUndefined());
     expect(result.current.data).toBeNull();
     expect(getUserById).not.toHaveBeenCalled();
+  });
+});
+
+// Someone else's anonymous card: the rules refuse the browser's read (its
+// document names its author), so the page asks the server, which answers it
+// without its author — and applies the reader's blocks to it.
+describe('useCard on a card the rules keep from the browser', () => {
+  const anonDetail = (extra: Partial<CardDetailBody> = {}): CardDetailBody => ({
+    card: summary('anon', null, { slug: 'a-quiet-night' }),
+    story: 'The whole story, from the server.',
+    visibility: 'public',
+    anonymous: true,
+    resonanceCount: 3,
+    coreInsight: null,
+    isOwner: false,
+    referenceCard: null,
+    ...extra,
+  });
+
+  it('signed in: asks GET /api/v1/cards/{key} and shows the card with the anonymous byline, its author never named', async () => {
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(null);
+    api({ '/api/v1/cards/a-quiet-night': anonDetail() });
+    const { result } = renderHook(() => useCard('a-quiet-night'), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    const view = result.current.data!;
+    expect(view.card).toMatchObject({ id: 'anon', authorId: '', anonymous: true, story: 'The whole story, from the server.', resonanceCount: 3 });
+    // A whole card, not a list summary (which would never seed a card page).
+    expect(view.card.summary).toBeUndefined();
+    expect(view.author).toMatchObject({ handle: '', initials: '·' });
+    expect(getUserById).not.toHaveBeenCalled();
+  });
+
+  it("is not found when the server says so (gone, private — or by someone the reader blocked)", async () => {
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(null);
+    api({});
+    const { result } = renderHook(() => useCard('a-quiet-night'), { wrapper });
+    await waitFor(() => expect(result.current.data).not.toBeUndefined());
+    expect(result.current.data).toBeNull();
+  });
+
+  it("names the viewer as the author of their own card when the server says they wrote it", async () => {
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(null);
+    vi.mocked(getUserById).mockResolvedValue(user('me'));
+    api({ '/api/v1/cards/mine': anonDetail({ isOwner: true }) });
+    const { result } = renderHook(() => useCard('mine'), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data!.card.authorId).toBe('me');
+    expect(result.current.data!.author!.id).toBe('me');
+  });
+
+  it("signed out: asks for the card page's public seed, which has the card without its author", async () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(null);
+    vi.mocked(getPublicCardView).mockResolvedValue({
+      id: 'anon',
+      view: {
+        card: {
+          id: 'anon', authorId: '', slug: 'a-quiet-night', thoughtCore: 'Unsigned', story: 'Public, unsigned.', tags: [],
+          media: null, originalLocale: 'en', referenceCardId: null, publishedAt: '2026-01-01T00:00:00.000Z',
+          resonanceCount: 0, accentHue: null, anonymous: true,
+        },
+        author: null,
+      },
+    });
+    const { result } = renderHook(() => useCard('a-quiet-night'), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(getPublicCardView).toHaveBeenCalledWith('a-quiet-night');
+    expect(result.current.data!.card).toMatchObject({ authorId: '', anonymous: true, story: 'Public, unsigned.' });
+    expect(callApi).not.toHaveBeenCalled();
   });
 });
 
@@ -433,46 +516,42 @@ describe('useCard with the server render', () => {
 });
 
 describe('useMyCardBox', () => {
-  it('fetches all four box tabs in parallel and aggregates them with authors', async () => {
+  it("reads the viewer's own shelves through the rules, and others' cards from the server", async () => {
     // Return a distinct card per tab so we can prove the mapping is correct.
     vi.mocked(getCardsByAuthor).mockImplementation(async (_uid, tab) => {
       const byTab: Record<string, Card> = {
         published: card('pub', 'me'),
         private: card('priv', 'me', { visibility: 'private' }),
         draft: card('draft', 'me', { publishedAt: null }),
-        resonated: card('res', 'other'),
       };
       return [byTab[tab]];
     });
-    vi.mocked(getUsersByIds).mockResolvedValue({ me: user('me'), other: user('other') });
+    vi.mocked(getUsersByIds).mockResolvedValue({ me: user('me') });
+    api({
+      '/api/v1/me/cards?tab=resonated': { cards: [summary('res', 'other'), summary('anon-orig', null)] },
+      '/api/v1/me/cards?tab=linked': { cards: [summary('linking', 'third')] },
+      '/api/v1/me/cards?tab=bookmarks': { cards: [summary('b1', 'other')] },
+    });
 
     const { result } = renderHook(() => useMyCardBox(), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
 
     const tabsCalled = vi.mocked(getCardsByAuthor).mock.calls.map((c) => c[1]).sort();
-    expect(tabsCalled).toEqual(['draft', 'private', 'published', 'resonated']);
+    expect(tabsCalled).toEqual(['draft', 'private', 'published']);
 
     const box = result.current.data!;
     expect(box.published[0].id).toBe('pub');
     expect(box.private[0].id).toBe('priv');
     expect(box.draft[0].id).toBe('draft');
-    expect(box.resonated[0].id).toBe('res');
-    // authors resolved across every tab's cards (me + the resonated author)
-    expect(Object.keys(box.authors).sort()).toEqual(['me', 'other']);
-  });
-
-  it('resolves bookmarks through the visibility-enforced read path (hidden cards drop out)', async () => {
-    vi.mocked(getCardsByAuthor).mockResolvedValue([]);
-    vi.mocked(listMyBookmarkIds).mockResolvedValue(['b1', 'gone-private']);
-    vi.mocked(getCardById).mockImplementation(async (id) =>
-      id === 'b1' ? card('b1', 'other') : null,
-    );
-    vi.mocked(getUsersByIds).mockResolvedValue({ other: user('other') });
-
-    const { result } = renderHook(() => useMyCardBox(), { wrapper });
-    await waitFor(() => expect(result.current.data).toBeDefined());
-
-    expect(result.current.data!.bookmarks.map((c) => c.id)).toEqual(['b1']);
+    // An anonymous original the viewer answered: there, without its author.
+    expect(box.resonated.map((c) => c.id)).toEqual(['res', 'anon-orig']);
+    expect(box.resonated[1]).toMatchObject({ authorId: '', anonymous: true });
+    expect(box.linked.map((c) => c.id)).toEqual(['linking']);
+    expect(box.bookmarks.map((c) => c.id)).toEqual(['b1']);
+    expect(Object.keys(box.authors).sort()).toEqual(['me', 'other', 'third']);
+    // Only the viewer's own cards' byline is read through the rules; nobody else's card is.
+    expect(getUsersByIds).toHaveBeenCalledWith(['me', 'me', 'me']);
+    expect(getCardById).not.toHaveBeenCalled();
   });
 
   it('stays idle (no fetch) when no viewer is signed in', async () => {
@@ -492,11 +571,12 @@ describe('useMyThoughtMap', () => {
         published: [card('own', 'me')],
         private: [],
         draft: [],
-        // An original by someone else that the viewer resonated with.
-        resonated: [card('theirs', 'other')],
       };
       return byTab[tab] ?? [];
     });
+    // An original by someone else that the viewer resonated with — from the server.
+    api({ '/api/v1/me/cards?tab=resonated': { cards: [summary('theirs', 'other')] }, '/api/v1/cards?keys=': { cards: [] } });
+    vi.mocked(getCardById).mockResolvedValue(null);
     const node = (cardId: string) => ({
       id: cardId,
       cardId,
@@ -529,6 +609,7 @@ describe('useMyThoughtMap', () => {
   it('keeps a placed card older than the newest 40 own cards the reads bring', async () => {
     vi.mocked(getCardsByAuthor).mockImplementation(async (_uid, tab) => (tab === 'published' ? [card('recent', 'me')] : []));
     vi.mocked(getCardById).mockImplementation(async (id) => (id === 'old' ? card('old', 'me') : null));
+    api({ '/api/v1/me/cards?tab=resonated': { cards: [] }, '/api/v1/cards?keys=': { cards: [] } });
     const node = (cardId: string) => ({ id: cardId, cardId, x: 0, y: 0, createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01') });
     vi.mocked(loadMyThoughtMap).mockResolvedValue({ nodes: [node('recent'), node('old'), node('gone')], edges: [], groups: [] });
 
@@ -540,6 +621,22 @@ describe('useMyThoughtMap', () => {
     expect(map.cards.old?.id).toBe('old');
     expect(getCardById).toHaveBeenCalledWith('old');
     expect(getCardById).toHaveBeenCalledWith('gone');
+  });
+
+  it("asks the server for a placed card the rules won't read here (someone else's anonymous card)", async () => {
+    vi.mocked(getCardsByAuthor).mockResolvedValue([]);
+    vi.mocked(getCardById).mockResolvedValue(null);
+    api({
+      '/api/v1/me/cards?tab=resonated': { cards: [] },
+      '/api/v1/cards?keys=unsigned': { cards: [summary('unsigned', null)] },
+    });
+    const node = (cardId: string) => ({ id: cardId, cardId, x: 0, y: 0, createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01') });
+    vi.mocked(loadMyThoughtMap).mockResolvedValue({ nodes: [node('unsigned')], edges: [], groups: [] });
+
+    const { result } = renderHook(() => useMyThoughtMap(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data!.nodes.map((n) => n.cardId)).toEqual(['unsigned']);
+    expect(result.current.data!.cards.unsigned).toMatchObject({ authorId: '', anonymous: true });
   });
 });
 
@@ -574,17 +671,16 @@ describe('profile hooks', () => {
     expect(getUserByHandle).toHaveBeenCalledTimes(1);
   });
 
-  it("reads the viewer's blocks, the connection, the cards and the links together, not in a chain", async () => {
+  it("reads the viewer's blocks, the connection and the cards together, not in a chain", async () => {
     vi.mocked(getUserByHandle).mockResolvedValue(user('u2', 'other'));
     // None of these answer until the test says so.
     const never = () => new Promise<never>(() => {});
     vi.mocked(getMyBlockedIds).mockImplementation(never);
     vi.mocked(isConnected).mockImplementation(never);
     vi.mocked(getPublicCardsByAuthor).mockImplementation(never);
-    vi.mocked(listLinksToAuthor).mockImplementation(never);
 
     const { result } = renderHook(() => useProfilePage('other'), { wrapper });
-    await waitFor(() => expect(listLinksToAuthor).toHaveBeenCalledWith('u2'));
+    await waitFor(() => expect(getPublicCardsByAuthor).toHaveBeenCalledWith('u2'));
     expect(getMyBlockedIds).toHaveBeenCalled();
     expect(isConnected).toHaveBeenCalledWith('me', 'u2');
     expect(getPublicCardsByAuthor).toHaveBeenCalledWith('u2');
@@ -636,8 +732,6 @@ describe('profile hooks', () => {
     await waitFor(() => expect(result.current.cards).toBeDefined());
     expect(result.current.head).toBeUndefined();
     expect(result.current.isLoading).toBe(true);
-    // Links are read as the viewer (connections-only cards, their blocks): they wait.
-    expect(listLinksToAuthor).not.toHaveBeenCalled();
 
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     rerender();
@@ -704,14 +798,13 @@ describe('revalidation on tab focus', () => {
   };
 
   it('leaves the feed alone', async () => {
-    vi.mocked(getLatestPublishedFeed).mockResolvedValue([card('c1', 'a1')]);
-    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
+    api({ '/api/v1/feed': { cards: [summary('c1', 'a1')], nextCursor: null } });
     const { result } = renderHook(() => useFeed(), { wrapper: appWrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
 
     await focusTab();
     await new Promise((r) => setTimeout(r, 20));
-    expect(getLatestPublishedFeed).toHaveBeenCalledTimes(1);
+    expect(callApi).toHaveBeenCalledTimes(1);
   });
 
   it('still refreshes conversations and the block list', async () => {
@@ -733,35 +826,41 @@ describe('revalidation on tab focus', () => {
 });
 
 describe('useFeed paging', () => {
-  it('fetches only the next page on "load more", not page one again', async () => {
-    const page = (from: number) =>
-      Array.from({ length: 12 }, (_, i) => card(`c${from + i}`, 'a1', { publishedAt: new Date(2026, 0, 30, 0, from + i) }));
-    vi.mocked(getLatestPublishedFeed).mockImplementation(async (_n, cursor) => (cursor ? page(12) : page(0)));
-    vi.mocked(getUsersByIds).mockResolvedValue({ a1: user('a1') });
+  it("fetches only the next page on \"load more\", from the server's cursor — not page one again", async () => {
+    const page = (from: number) => Array.from({ length: 12 }, (_, i) => summary(`c${from + i}`, 'a1'));
+    api({
+      '/api/v1/feed': (path: string) =>
+        path.includes('cursor=') ? { cards: page(12), nextCursor: null } : { cards: page(0), nextCursor: '2026-01-30T00:00:00.000Z' },
+    });
 
     const { result } = renderHook(() => useFeed(), { wrapper });
     await waitFor(() => expect(result.current.data?.cards).toHaveLength(12));
     act(() => result.current.loadMore());
     await waitFor(() => expect(result.current.data?.cards).toHaveLength(24));
 
-    expect(vi.mocked(getLatestPublishedFeed).mock.calls.map(([, cursor]) => (cursor ? 'next' : 'first'))).toEqual([
-      'first',
-      'next',
+    expect(vi.mocked(callApi).mock.calls.map(([path]) => path)).toEqual([
+      '/api/v1/feed?limit=12',
+      '/api/v1/feed?limit=12&cursor=2026-01-30T00%3A00%3A00.000Z',
     ]);
+    expect(result.current.hasMore).toBe(false);
   });
 });
 
 describe('useRecommendedFeed', () => {
-  it("asks with the viewer's ID token (callApi), so it never waits on the session cookie", async () => {
-    vi.mocked(callApi).mockResolvedValue({ items: [{ cardId: 'r1', reason: 'why' }] });
-    vi.mocked(getCardById).mockResolvedValue(card('r1', 'a2'));
-    vi.mocked(getUsersByIds).mockResolvedValue({ a2: user('a2') });
+  it("asks with the viewer's ID token (callApi), then for the picks themselves in one request", async () => {
+    api({
+      '/api/recommend/feed': { items: [{ cardId: 'r1', reason: 'why' }, { cardId: 'r2', reason: 'unsigned' }] },
+      '/api/v1/cards?keys=r1,r2': { cards: [summary('r1', 'a2'), summary('r2', null)] },
+    });
 
     const { result } = renderHook(() => useRecommendedFeed(), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(callApi).toHaveBeenCalledWith('/api/recommend/feed');
-    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['r1']);
-    expect(result.current.data!.reasons).toEqual({ r1: 'why' });
+    // An anonymous pick comes too, without its author; nothing is read through the rules.
+    expect(result.current.data!.cards.map((c) => c.id)).toEqual(['r1', 'r2']);
+    expect(result.current.data!.cards[1]).toMatchObject({ authorId: '', anonymous: true });
+    expect(result.current.data!.reasons).toEqual({ r1: 'why', r2: 'unsigned' });
+    expect(getCardById).not.toHaveBeenCalled();
   });
 
   it('counts as loading while auth is still restoring, so "none yet" never reads as "none"', async () => {

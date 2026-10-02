@@ -7,7 +7,7 @@ import { hydrateRoot } from 'react-dom/client';
 import { NextIntlClientProvider } from 'next-intl';
 import { SWRConfig } from 'swr';
 import enMessages from '@/messages/en.json';
-import { renderWithIntl, screen, waitFor } from '@/../test/render';
+import { renderWithIntl, screen, userEvent, waitFor } from '@/../test/render';
 import type { CardSeed } from '@/lib/data/cardSeed';
 import type { Card, User } from '@/lib/db/types';
 
@@ -27,6 +27,7 @@ vi.mock('@/i18n/navigation', () => ({
 vi.mock('@/lib/db/firestore/client/reads', () => ({
   getCardById: vi.fn(),
   getCardBySlugOrId: vi.fn(),
+  getPublicCardView: vi.fn(),
   resolveCardId: vi.fn(),
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(async () => ({})),
@@ -39,7 +40,6 @@ vi.mock('@/lib/db/firestore/client/blocks', () => ({
   blockUser: vi.fn(),
   unblockUser: vi.fn(),
 }));
-vi.mock('@/lib/db/firestore/client/cardLinks', () => ({ listLinksToAuthor: vi.fn(async () => []) }));
 // Signed in, the page's lists come from /api/v1 (callApi sends the ID token).
 vi.mock('@/lib/db/firestore/client/api', () => ({
   callApi: vi.fn(),
@@ -61,6 +61,7 @@ vi.mock('@/components/molecules/CardDetail/ReadAfterArea', () => ({
 import {
   getCardById,
   getCardBySlugOrId,
+  getPublicCardView,
   getRelatedCards,
   getResonanceCards,
   getUserById,
@@ -68,7 +69,7 @@ import {
   resolveCardId,
 } from '@/lib/db/firestore/client/reads';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
-import { callApi } from '@/lib/db/firestore/client/api';
+import { ApiError, callApi } from '@/lib/db/firestore/client/api';
 import type { CardDetailBody, FeedCardBody } from '@/lib/api/v1/schemas';
 import { CardDetailClient, storyGate } from './CardDetailClient';
 import { SESSION_MARK_STORAGE_KEY } from './cardHold';
@@ -301,22 +302,72 @@ describe('taking over from the server render', () => {
     await waitFor(() => expect(storyVisible()).toBe(true));
   });
 
-  it("holds an anonymous card from the server until the browser's own read names its author", async () => {
-    signIn();
-    mockUseAuth.mockReturnValue({ user: { id: 'me' }, loading: false });
-    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['secret']));
-    const read = deferred<Card | null>();
-    vi.mocked(getCardById).mockReturnValue(read.promise);
+  // Someone else's anonymous card: the rules refuse the browser's own read (its
+  // document names its author), so the page asks the server, which answers it
+  // without its author and applies the reader's blocks to it.
+  describe("someone else's anonymous card", () => {
+    /** The rules refuse the read; the server answers GET /api/v1/cards/{slug} with `answer`. */
+    function serverAnswers(answer: Promise<CardDetailBody | null>) {
+      vi.mocked(getCardById).mockResolvedValue(null);
+      vi.mocked(resolveCardId).mockResolvedValue('pub1');
+      vi.mocked(callApi).mockImplementation((async (path: string) => {
+        if (path === '/api/v1/cards/a-quiet-morning') {
+          const body = await answer;
+          if (!body) throw new ApiError(404, 'not_found', 'No such card.');
+          return body;
+        }
+        return detail({ card: summary('pub1', 'A quiet morning', { anonymous: true, author: null }), anonymous: true });
+      }) as never);
+    }
 
-    renderPage({ seed: seed({ anonymous: true }) });
-    await waitFor(() => expect(getMyBlockedIds).toHaveBeenCalled());
-    expect(storyVisible()).toBe(false);
+    it("is held until the server answers — and is not found when it is by someone the reader blocked", async () => {
+      signIn();
+      mockUseAuth.mockReturnValue({ user: { id: 'me' }, loading: false });
+      const answer = deferred<CardDetailBody | null>();
+      serverAnswers(answer.promise);
 
-    // The read comes back: written by someone this reader blocked.
-    await act(async () => read.resolve(card('pub1', { authorId: 'secret', anonymous: true, story: STORY })));
-    expect(await screen.findByText("This card can't be found")).toBeInTheDocument();
-    // Nor was the anonymous author's profile ever fetched.
-    expect(getUserById).not.toHaveBeenCalled();
+      renderPage({ seed: seed({ anonymous: true }) });
+      await waitFor(() => expect(callApi).toHaveBeenCalledWith('/api/v1/cards/a-quiet-morning'));
+      expect(storyVisible()).toBe(false);
+
+      // The server knows the author, and that this reader blocked them.
+      await act(async () => answer.resolve(null));
+      expect(await screen.findByText("This card can't be found")).toBeInTheDocument();
+      // The author was never named to the browser, nor their profile fetched.
+      expect(getUserById).not.toHaveBeenCalled();
+    });
+
+    it('shows its story under the anonymous byline once the server answered, and can be reported — not its author blocked', async () => {
+      signIn();
+      mockUseAuth.mockReturnValue({ user: { id: 'me' }, loading: false });
+      serverAnswers(
+        Promise.resolve(
+          detail({ card: summary('pub1', 'A quiet morning', { anonymous: true, author: null }), anonymous: true, story: STORY }),
+        ),
+      );
+
+      renderPage({ seed: seed({ anonymous: true }) });
+      await waitFor(() => expect(storyVisible()).toBe(true));
+      expect(getUserById).not.toHaveBeenCalled();
+
+      await userEvent.setup({ pointerEventsCheck: 0 }).click(screen.getByRole('button', { name: 'More options' }));
+      expect(screen.getByRole('menuitem', { name: /Report this card/ })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: /Block/ })).not.toBeInTheDocument();
+    });
+
+    it('signed out: takes the public card from the server (the page seed), story and all', async () => {
+      vi.mocked(getCardById).mockResolvedValue(null);
+      vi.mocked(resolveCardId).mockResolvedValue('pub1');
+      const anon = seed({ anonymous: true });
+      vi.mocked(getPublicCardView).mockResolvedValue({
+        ...anon,
+        view: { ...anon.view!, card: { ...anon.view!.card, story: 'Read again, from the server.' } },
+      });
+      renderPage({ seed: anon });
+      expect(await screen.findByText('Read again, from the server.')).toBeInTheDocument();
+      expect(getPublicCardView).toHaveBeenCalledWith('a-quiet-morning');
+      expect(callApi).not.toHaveBeenCalled();
+    });
   });
 
   it('shows the story when this browser remembers a sign-in the SDK no longer has', async () => {
@@ -540,8 +591,9 @@ describe('storyGate', () => {
   it('is unknown on the server and during hydration unless the author is known blocked', () => {
     expect(storyGate({ ...base, signedInHere: null, viewerId: undefined, blocked: undefined })).toBe('unknown');
   });
-  it('gives up holding an anonymous card when the browser read failed', () => {
+  it("holds someone else's anonymous card until its read answers (the server applied the blocks), or failed", () => {
     expect(storyGate({ ...base, authorId: '', failed: false })).toBe('hold');
+    expect(storyGate({ ...base, authorId: '', failed: false, answered: true })).toBe('show');
     expect(storyGate({ ...base, authorId: '', failed: true })).toBe('show');
   });
 });

@@ -1,6 +1,6 @@
 // A tiny in-memory stand-in for the Admin SDK's Firestore, for suites that
 // render server code (pages, route handlers) without the emulator: documents
-// by path, `doc(path).get()`, `collection(name).doc(id).get()` and
+// by path, `doc(path).get()` / `.set()`, `collection(name).doc(id)` and
 // equality `where(...).limit(n).get()`. Store timestamps as firebase-admin
 // `Timestamp`s so the real mappers convert them. Every read path is recorded
 // in `reads`, so a test can prove a document was never read.
@@ -29,6 +29,10 @@ export function fakeAdminDb(docs: Record<string, Data>): FakeAdminDb {
     get: async () => {
       reads.push(path);
       return snap(path);
+    },
+    // A plain replace (FieldValue sentinels are stored as they are).
+    set: async (data: Data) => {
+      docs[path] = data;
     },
   });
   const db = {

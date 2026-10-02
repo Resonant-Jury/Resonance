@@ -559,6 +559,7 @@ async function main() {
       resonanceCount: resonanceCounts.get(c.id) ?? 0,
       inviteCount: 0,
       accentHue: c.hue,
+      anonymous: false,
       ...(c.ref ? { referenceCardId: c.ref } : {}),
       ...(image ? { media: { type: 'image', url: image, label: c.title } } : {}),
     });
@@ -578,6 +579,7 @@ async function main() {
     readCount: 0,
     resonanceCount: 0,
     inviteCount: 0,
+    anonymous: false,
   });
 
   // A card of 海鹽's that links to one of hers (the bell's card_link, and her card box's "linked" shelf).

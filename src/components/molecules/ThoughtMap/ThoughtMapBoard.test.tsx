@@ -19,7 +19,9 @@ vi.mock('@/lib/db/firestore/client/thoughtMap', () => ({
   updateMapEdgeLabel: vi.fn(),
   updateMapGroup: vi.fn(),
 }));
-vi.mock('@/lib/db/firestore/client/reads', () => ({ getCardsByAuthor: vi.fn() }));
+vi.mock('@/lib/db/firestore/client/reads', () => ({ getCardsByAuthor: vi.fn(), getCardById: vi.fn() }));
+// Others' cards (the originals the viewer answered) come from the server.
+vi.mock('@/lib/db/firestore/client/api', () => ({ callApi: vi.fn(async () => ({ cards: [] })), ApiError: class extends Error {} }));
 vi.mock('@/components/providers/AuthProvider', () => ({
   useAuth: () => ({ user: { id: 'me' }, loading: false }),
 }));

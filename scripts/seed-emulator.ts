@@ -69,6 +69,7 @@ async function main() {
       resonanceCount: 0,
       inviteCount: 0,
       accentHue: hue,
+      anonymous: false,
     });
 
   await card(
@@ -96,6 +97,9 @@ async function main() {
     18,
   );
   await card('carol-note', 'carol', '陌生人的一句話', '在車站有人對我說辛苦了，那天就被接住了。', 200, 140);
+  // Published anonymously: only carol's own browser may read its document (it names her).
+  await card('unsigned-letter', 'carol', '一封沒有署名的信', '有些話，只有不署名才說得出口。\n\n謝謝那年冬天，借我一把傘的人。', 60, 300);
+  await db.doc('cards/unsigned-letter').update({ anonymous: true });
   // Every kind of content a story can hold, for checking readers (web and apps) side by side.
   await card(
     'rich-story',
@@ -124,11 +128,12 @@ async function main() {
   await db.doc('cards/alice-reply').set({
     authorId: 'alice', slug: 'alice-reply', thoughtCore: '我也在雨裡走過', story: '讀完那篇散步，我想起高中放學的那條路。',
     tags: ['回應'], originalLocale: 'zh-TW', translations: {}, visibility: 'public', publishedAt: at(25),
-    readCount: 0, resonanceCount: 0, inviteCount: 0, accentHue: 140, referenceCardId: 'rain-walk',
+    readCount: 0, resonanceCount: 0, inviteCount: 0, accentHue: 140, referenceCardId: 'rain-walk', anonymous: false,
   });
   await db.doc('cards/alice-draft').set({
     authorId: 'alice', thoughtCore: '還沒寫完的清晨', story: '五點的街道很安靜，', tags: [], originalLocale: 'zh-TW',
     translations: {}, visibility: 'public', publishedAt: null, updatedAt: at(15), readCount: 0, resonanceCount: 0, inviteCount: 0,
+    anonymous: false,
   });
 
   // alice's thought map: a region holding two of her cards, bob's walk she resonated with, one labelled arrow

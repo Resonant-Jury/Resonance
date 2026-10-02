@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { limited } from '@/lib/api/rateLimit';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { getStorageProvider } from '@/lib/storage';
+import { storeOwned } from '@/lib/storage/uploads';
 import { generateStoryImageStream } from '@/lib/ai/tasks';
 import { convertToAvif } from '@/lib/storage/image';
 
@@ -51,7 +52,10 @@ export async function POST(req: Request) {
           send({ type: 'partial', index, b64 });
         });
         const avifBuffer = await convertToAvif(bytes);
-        const stored = await getStorageProvider().uploadObject(
+        // The key names no one (an anonymous card's cover is public); whose it is goes on record.
+        const stored = await storeOwned(
+          getAdminDb(),
+          getStorageProvider(),
           {
             filename: 'generated.avif',
             contentType: 'image/avif',

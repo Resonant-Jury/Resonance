@@ -28,7 +28,8 @@ service cloud.firestore {
     // A card is its author's; anyone else sees it once it is published, and
     // then only as its visibility allows. (Drafts start as "public": that is
     // the choice they will be published with, not permission to read them.)
-    function cardVisible(data) {
+    // This is what answering a card asks — an anonymous card included.
+    function cardOpen(data) {
       return (signedIn() && data.authorId == request.auth.uid)
         || (
           data.publishedAt != null
@@ -37,6 +38,15 @@ service cloud.firestore {
             || (signedIn() && data.visibility == "connections" && connectedTo(data.authorId))
           )
         );
+    }
+
+    // What a client may read of a card. An anonymous card's document names
+    // its author, and rules cannot hide one field — so only its author reads
+    // it from here. Everyone else gets it from the server (/api/v1, the card
+    // page), which leaves the author out.
+    function cardReadable(data) {
+      return (signedIn() && data.authorId == request.auth.uid)
+        || (data.get("anonymous", false) != true && cardOpen(data));
     }
 
     // Either side has blocked the other (users/{uid}/blocks/{otherUid}). Every
@@ -144,19 +154,23 @@ service cloud.firestore {
     }
 
     // --- cards ---
-    // Reads are governed by visibility. The author writes a draft's content
-    // straight from the client (web, iOS and Android alike); everything that
-    // makes a card public or names it — publishedAt, the slug, the author,
-    // what it answers — is fixed at creation or set by the server
-    // (POST /api/v1/cards/{id}/publish), and the counters are the server's.
+    // Reads are governed by visibility and anonymity (cardReadable). The
+    // author writes a draft's content straight from the client (web, iOS and
+    // Android alike); everything that makes a card public or names it —
+    // publishedAt, the slug, the author, what it answers — is fixed at
+    // creation or set by the server (POST /api/v1/cards/{id}/publish), and the
+    // counters are the server's.
     match /cards/{cardId} {
-      allow get: if cardVisible(resource.data);
+      allow get: if cardReadable(resource.data);
       // Lists are either your own cards (queries scoped authorId == you) or
-      // published public ones (queries filtering visibility == "public" and
-      // publishedAt != null, as the feed, profiles and resonances do). A
-      // connections card is opened one at a time, by get.
+      // published public ones that name their author (queries filtering
+      // visibility == "public", anonymous == false and publishedAt != null,
+      // as the feed, profiles and resonances do). A connections card is
+      // opened one at a time, by get; an anonymous one through the server.
       allow list: if (signedIn() && resource.data.authorId == request.auth.uid)
-        || (resource.data.visibility == "public" && resource.data.publishedAt != null);
+        || (resource.data.visibility == "public"
+            && resource.data.publishedAt != null
+            && resource.data.anonymous == false);
       // A new draft: yours, unpublished, without a slug, stamped now, with
       // zeroed counters and an auto-generated id. A resonance must answer a
       // card you can read, with no block either way.
@@ -222,7 +236,7 @@ service cloud.firestore {
       }
 
       function originalReadable(original) {
-        return cardVisible(original) && !blockedBetween(request.auth.uid, original.authorId);
+        return cardOpen(original) && !blockedBetween(request.auth.uid, original.authorId);
       }
 
       // --- pending edits (cards/{cardId}/edits/current) ---
@@ -326,15 +340,14 @@ service cloud.firestore {
     }
 
     // --- notes (小紙條) ---
-    // A private note from a reader to a card's author. No audience: only the
-    // sender and the recipient can ever read it, and neither can list anyone
-    // else's notes (queries must constrain on their own uid, which these
-    // per-doc conditions enforce for every result). Sent by the server
-    // (POST /api/v1/notes), which finds the author from the card.
+    // A private note from a reader to a card's author. No audience: only its
+    // recipient reads it, and lists only their own (queries must constrain
+    // on their uid, which this per-doc condition enforces for every result).
+    // Sent by the server (POST /api/v1/notes), which finds the author from
+    // the card — so the document names an anonymous card's author too, and
+    // its sender (who has their own words) never reads it back.
     match /notes/{noteId} {
-      allow read: if signedIn()
-        && (resource.data.fromUserId == request.auth.uid
-            || resource.data.toUserId == request.auth.uid);
+      allow read: if signedIn() && resource.data.toUserId == request.auth.uid;
       allow create: if false;
       // The recipient may mark it read; nothing else ever changes.
       allow update: if signedIn()
@@ -344,13 +357,12 @@ service cloud.firestore {
     }
 
     // --- cardLinks ---
-    // A public association from one card to another ({sourceCardId}_{targetCardId}).
-    // Nothing creates them from the client any more; the existing ones stay
-    // readable and their source's author may remove them.
+    // A link from one card to another ({sourceCardId}_{targetCardId}), naming
+    // both cards' authors — an anonymous card's too. Nothing creates them any
+    // more, and they are read through the server (/api/v1), which leaves
+    // anonymous authors out; the client neither reads nor writes them.
     match /cardLinks/{linkId} {
-      allow read: if true;
-      allow create, update: if false;
-      allow delete: if signedIn() && resource.data.sourceAuthorId == request.auth.uid;
+      allow read, write: if false;
     }
 
     // --- thoughtMaps ---
@@ -437,6 +449,15 @@ service cloud.firestore {
     // Per-user counters the API keeps for its costly or far-reaching
     // endpoints (src/lib/api/rateLimit.ts). Clients never see or touch them.
     match /rateLimits/{docId} {
+      allow read, write: if false;
+    }
+
+    // --- uploads (server-only) ---
+    // Whose each stored picture is (keyed by its storage key's file name):
+    // the keys themselves name no one, so an anonymous card's cover can't
+    // point at its author, and the account purge deletes a person's pictures
+    // from these records.
+    match /uploads/{uploadId} {
       allow read, write: if false;
     }
 

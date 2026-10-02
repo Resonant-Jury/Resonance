@@ -10,9 +10,10 @@ import {
   getCardBySlugOrId,
   getCardsByAuthor,
   getCurrentUserProfile,
-  getLatestPublishedFeed,
   getMyResonanceCard,
+  getPublicCardView,
   getPublicCardsByAuthor,
+  getPublicFeedPage,
   getRelatedCards,
   getResonanceCards,
   getUserById,
@@ -23,18 +24,16 @@ import {
   listMyConnectionUids,
   resolveCardId,
 } from '@/lib/db/firestore/client/reads';
-import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
-import { listMyBookmarkIds } from '@/lib/db/firestore/client/bookmarks';
 import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
 import { listConversations, listenThread } from '@/lib/db/firestore/client/messages';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import { ApiError, callApi } from '@/lib/db/firestore/client/api';
 import { hasSessionMark } from '@/lib/auth/firebase/client';
-import type { CardDetailBody, CardListBody, FeedPageBody, ProfileBody } from '@/lib/api/v1/schemas';
+import type { CardBoxTabName, CardDetailBody, CardListBody, FeedPageBody, ProfileBody } from '@/lib/api/v1/schemas';
 import type { Conversation, Message } from '@/lib/db/types';
 import { anonymousAuthor, cardKey } from './cardPrefill';
 import type { CardSeed, PublicCardView } from './cardSeed';
-import { profileUser, summaryList } from './summaries';
+import { profileUser, summaryAuthor, summaryCard, summaryList } from './summaries';
 
 /**
  * For what the viewer edits themselves — their card, card box, map, profile:
@@ -101,12 +100,6 @@ async function withAuthors(cards: Card[]): Promise<CardsWithAuthors> {
   return { cards: visible, authors };
 }
 
-/** Resolve a list of source card ids → visible cards (private/denied drop out). */
-async function cardsFromIds(ids: string[]): Promise<Card[]> {
-  const cards = await Promise.all(ids.map((id) => getCardById(id)));
-  return cards.filter((c): c is Card => Boolean(c));
-}
-
 export interface RecommendedFeed extends CardsWithAuthors {
   /** cardId → 「為什麼這篇可能對你有共鳴」 one-liner from the funnel. */
   reasons: Record<string, string>;
@@ -114,9 +107,11 @@ export interface RecommendedFeed extends CardsWithAuthors {
 
 /**
  * The signed-in viewer's personalized「為你共振」feed. Fetches the funnel's
- * result (card ids + resonance reasons) from the server, then resolves each
- * card through the visibility-enforced read path. Gated on a signed-in viewer —
- * the API requires auth, and an anonymous user has no profile to match from.
+ * result (card ids + resonance reasons) from the server, then the cards
+ * themselves in one request (GET /api/v1/cards?keys=: those the viewer may
+ * read, minus authors they blocked, an anonymous one without its byline).
+ * Gated on a signed-in viewer — the API requires auth, and an anonymous user
+ * has no profile to match from.
  *
  * The request carries the viewer's ID token (like `callApi`), so it never
  * waits for the session cookie. `isLoading` also covers the moments before
@@ -132,7 +127,7 @@ export function useRecommendedFeed() {
     } catch {
       return { cards: [], authors: {}, reasons: {} };
     }
-    const { cards, authors } = await withAuthors(await cardsFromIds(items.map((i) => i.cardId)));
+    const { cards, authors } = items.length ? await fetchCardSummaries(items.map((i) => i.cardId)) : { cards: [], authors: {} };
     const reasons: Record<string, string> = {};
     for (const item of items) reasons[item.cardId] = item.reason;
     return { cards, authors, reasons };
@@ -142,12 +137,11 @@ export function useRecommendedFeed() {
 
 const FEED_PAGE_SIZE = 12;
 
-/** One fetched feed page. Pagination runs on the raw page (before blocked
- * authors are dropped) so a filtered-short page never ends the feed early. */
+/** One fetched feed page. The server cuts pages on its raw query (before
+ * blocked authors are dropped), so a filtered-short page never ends the feed. */
 interface FeedPage extends CardsWithAuthors {
-  rawCount: number;
-  /** publishedAt of the last raw card — the next page's cursor. */
-  cursorMs: number | null;
+  /** The next page's cursor; null at the end. */
+  next: string | null;
 }
 
 export interface FeedState {
@@ -160,29 +154,33 @@ export interface FeedState {
   loadMore: () => void;
 }
 
-/** Latest public feed for the home page, paginated by publishedAt cursor. */
+/**
+ * Latest public feed for the home page, a page at a time, from the server:
+ * anonymous cards are in it without their byline, which the rules keep out
+ * of the browser's own queries (their documents name their authors). Signed
+ * in: GET /api/v1/feed, minus authors the viewer blocked. Signed out: GET
+ * /api/cards/latest, the same for everyone (and kept by the CDN).
+ */
 export function useFeed(): FeedState {
-  // The feed lists only public cards, which Firestore rules allow anonymously,
-  // so it can fetch immediately regardless of auth state — no need to wait on
-  // the client SDK's async auth restoration.
+  const { user } = useAuth();
+  const path = useReadPath();
+  const viewer = path === 'v1' ? user!.id : 'anon';
   const { data, isLoading, size, setSize } = useSWRInfinite<FeedPage>(
     (index, prev: FeedPage | null) => {
-      // A short page means Firestore ran out — stop asking for more.
-      if (prev && prev.rawCount < FEED_PAGE_SIZE) return null;
-      if (index === 0) return ['feed:latest', null];
-      return ['feed:latest', prev!.cursorMs];
+      // Until it's known who is reading (auth restoring in a signed-in browser).
+      if (!path) return null;
+      // The server says when it ran out.
+      if (prev && prev.next === null) return null;
+      return ['feed:latest', viewer, index === 0 ? null : prev!.next];
     },
-    async ([, cursorMs]: [string, number | null]) => {
-      const cards =
-        cursorMs === null
-          ? await getLatestPublishedFeed(FEED_PAGE_SIZE)
-          : await getLatestPublishedFeed(FEED_PAGE_SIZE, new Date(cursorMs));
-      const last = cards[cards.length - 1];
-      return {
-        ...(await withAuthors(cards)),
-        rawCount: cards.length,
-        cursorMs: last?.publishedAt ? last.publishedAt.getTime() : null,
-      };
+    async ([, who, cursor]: [string, string, string | null]) => {
+      const page =
+        who === 'anon'
+          ? await getPublicFeedPage(FEED_PAGE_SIZE, cursor ?? undefined)
+          : await callApi<FeedPageBody>(
+              `/api/v1/feed?limit=${FEED_PAGE_SIZE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+            );
+      return { ...summaryList(page.cards), next: page.nextCursor };
     },
     // 「載入更多」fetches the next page only — not page one again.
     { revalidateFirstPage: false },
@@ -198,9 +196,9 @@ export function useFeed(): FeedState {
       : undefined;
   return {
     data: merged,
-    isLoading,
+    isLoading: isLoading || !path,
     isLoadingMore: size > pages.length,
-    hasMore: pages.length > 0 && pages[pages.length - 1].rawCount === FEED_PAGE_SIZE,
+    hasMore: pages.length > 0 && pages[pages.length - 1].next !== null,
     loadMore: () => void setSize((s) => s + 1),
   };
 }
@@ -227,6 +225,12 @@ const serverCardIds = new Map<string, string>();
  * anonymous one, and the profile it is anonymous from is never downloaded.
  * Null: no such card, or not one this viewer may read.
  *
+ * Someone else's anonymous card the rules won't read here at all (its
+ * document names its author): when the rules refuse, the server is asked —
+ * GET /api/v1/cards/{key} signed in (which applies the viewer's blocks to it
+ * too), the card page's public seed signed out — and answers it without its
+ * author (`authorId` empty).
+ *
  * `knownId` is the id the page's server render found for the segment (by
  * default, whatever {@link useCard} was handed for it): it is read directly,
  * and the server is asked again only when it no longer reads (the slug may
@@ -249,9 +253,37 @@ export async function fetchCardView(
   } else {
     card = await getCardBySlugOrId(key);
   }
-  if (!card) return null;
+  if (!card) return serverCardView(key, viewerId);
   if (card.anonymous && card.authorId !== viewerId) return { card, author: anonymousAuthor(card) };
   return { card, author: await getUserById(card.authorId) };
+}
+
+/** A card the rules wouldn't read here, as the server answers it (see fetchCardView). */
+async function serverCardView(key: string, viewerId: string | undefined): Promise<CardView | null> {
+  if (!viewerId) {
+    const seed = await getPublicCardView(key);
+    return seed?.view ? seedCardView(seed.view) : null;
+  }
+  const body = await getOrNull<CardDetailBody>(`/api/v1/cards/${encodeURIComponent(key)}`);
+  return body ? detailCardView(body, viewerId) : null;
+}
+
+/** GET /api/v1/cards/{key}'s answer as the card page's card and byline. */
+async function detailCardView(body: CardDetailBody, viewerId: string): Promise<CardView> {
+  // A summary's shape, with the whole story — never marked a summary.
+  const { summary: _summary, ...shown } = summaryCard(body.card);
+  const card: Card = {
+    ...shown,
+    // The server never names an anonymous card's author; the viewer's own card is theirs.
+    authorId: body.isOwner ? viewerId : (body.card.author?.id ?? ''),
+    story: body.story,
+    visibility: body.visibility,
+    anonymous: body.anonymous,
+    resonanceCount: body.resonanceCount,
+  };
+  if (body.isOwner) return { card, author: await getUserById(viewerId) };
+  if (body.anonymous || !body.card.author) return { card, author: body.anonymous ? anonymousAuthor(card) : null };
+  return { card, author: summaryAuthor(body.card.author) };
 }
 
 /** The server render's public card (see CardSeed) in the shapes the page draws. */
@@ -386,25 +418,42 @@ export interface MyCardBox {
   authors: Record<string, User>;
 }
 
-/** The card-box tabs for the signed-in viewer, plus resolved authors. */
+/**
+ * One of the card box's shelves of other people's cards, from the server
+ * (GET /api/v1/me/cards?tab=): those the viewer may read, minus authors they
+ * blocked, an anonymous one without its byline — the rules won't read
+ * someone else's anonymous card in the browser, nor any card link.
+ */
+async function othersShelf(tab: Extract<CardBoxTabName, 'resonated' | 'linked' | 'bookmarks'>): Promise<CardsWithAuthors> {
+  return summaryList(await callApi<CardListBody>(`/api/v1/me/cards?tab=${tab}`));
+}
+
+/**
+ * The card-box tabs for the signed-in viewer, plus resolved authors: their
+ * own cards read through the rules, the others' shelves from the server.
+ */
 export function useMyCardBox() {
   const { user } = useAuth();
   return useSWR<MyCardBox>(user ? `cardbox:${user.id}` : null, async () => {
     const uid = user!.id;
-    const tabs: CardBoxTab[] = ['published', 'private', 'draft', 'resonated'];
-    const [[published, priv, draft, resonated], links, bookmarkIds] = await Promise.all([
+    const tabs: CardBoxTab[] = ['published', 'private', 'draft'];
+    const [[published, priv, draft], resonated, linked, bookmarks] = await Promise.all([
       Promise.all(tabs.map((tab) => getCardsByAuthor(uid, tab))),
-      listLinksToAuthor(uid),
-      listMyBookmarkIds(),
-    ]);
-    const [linked, bookmarks] = await Promise.all([
-      cardsFromIds(links.map((l) => l.sourceCardId)),
+      othersShelf('resonated'),
+      othersShelf('linked'),
       // A bookmarked card that has since gone private simply drops out.
-      cardsFromIds(bookmarkIds),
+      othersShelf('bookmarks'),
     ]);
-    const all = [...published, ...priv, ...draft, ...resonated, ...linked, ...bookmarks];
-    const authors = await getUsersByIds(bylineAuthorIds(all, uid));
-    return { published, private: priv, draft, resonated, linked, bookmarks, authors };
+    const own = await getUsersByIds(bylineAuthorIds([...published, ...priv, ...draft], uid));
+    return {
+      published,
+      private: priv,
+      draft,
+      resonated: resonated.cards,
+      linked: linked.cards,
+      bookmarks: bookmarks.cards,
+      authors: { ...resonated.authors, ...linked.authors, ...bookmarks.authors, ...own },
+    };
   }, OWN_CONTENT);
 }
 
@@ -423,21 +472,28 @@ export function useMyThoughtMap() {
   const { user } = useAuth();
   return useSWR<MyThoughtMap>(user ? `thoughtmap:${user.id}` : null, async () => {
     const uid = user!.id;
-    const [map, published, priv, draft, resonated] = await Promise.all([
+    const [map, published, priv, draft, resonatedShelf] = await Promise.all([
       loadMyThoughtMap(),
       getCardsByAuthor(uid, 'published'),
       getCardsByAuthor(uid, 'private'),
       getCardsByAuthor(uid, 'draft'),
-      getCardsByAuthor(uid, 'resonated'),
+      // Others' cards come from the server (an anonymous one the rules won't read here);
+      // should that fail, the map still opens, without them this time.
+      othersShelf('resonated').catch(() => EMPTY),
     ]);
+    const resonated = resonatedShelf.cards;
     const cards: Record<string, Card> = {};
     // Resonated originals first so an own card by the same id (self-reference)
     // keeps its own-card entry.
     for (const c of [...resonated, ...published, ...priv, ...draft]) cards[c.id] = c;
     const resonatedIds = resonated.map((c) => c.id).filter((id) => cards[id].authorId !== uid);
-    // A card placed long ago can be older than the newest 40 read above: read those by id.
+    // A card placed long ago can be older than the newest 40 read above: read
+    // those by id — and ask the server for the ones the rules won't read here.
     const missing = map.nodes.map((n) => n.cardId).filter((id) => !cards[id]);
     for (const c of await Promise.all(missing.map((id) => getCardById(id)))) if (c) cards[c.id] = c;
+    const unread = missing.filter((id) => !cards[id]);
+    // (Should that fail, those cards are just not shown this time — the map keeps their places.)
+    if (unread.length) for (const c of (await fetchCardSummaries(unread).catch(() => EMPTY)).cards) cards[c.id] = c;
     // Drop nodes whose card has been deleted since being placed on the map.
     return { ...map, nodes: map.nodes.filter((n) => cards[n.cardId]), cards, resonatedIds };
   }, OWN_CONTENT);
@@ -792,18 +848,13 @@ export function useProfileCards(handle: string | undefined) {
 }
 
 /**
- * Cards by others that link to one of this person's cards (the newest few:
- * listLinksToAuthor's limit), with their authors. Read as the viewer — a
- * connections-only card shows to its author's connections, a blocked author's
- * card to nobody who blocked them — so it waits for auth to settle.
+ * Cards by others that link to one of this person's cards, for a signed-out
+ * reader: none. Card links name both cards' authors — an anonymous card's
+ * too — so only the server reads them (GET /api/v1/users/{handle}?include=
+ * links, for a signed-in reader), as with a card page's links.
  */
-export function useProfileLinks(handle: string | undefined) {
-  const { user: viewer, loading } = useAuth();
-  const uid = usePersonByHandle(handle).data?.id;
-  return useSWR<CardsWithAuthors>(uid && !loading ? `profileLinks:${uid}:${viewer?.id ?? 'anon'}` : null, async () => {
-    const links = await listLinksToAuthor(uid!);
-    return withAuthors(await cardsFromIds(links.map((l) => l.sourceCardId)));
-  });
+export function useProfileLinks(handle: string | undefined): { data: CardsWithAuthors | undefined } {
+  return { data: handle ? { cards: [], authors: {} } : undefined };
 }
 
 /** Everything a profile page shows; each part undefined until it arrives. */

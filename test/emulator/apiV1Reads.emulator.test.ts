@@ -129,6 +129,14 @@ describe('getCardDetail', () => {
     expect(detail.card.author).toBeNull();
   });
 
+  it("applies the reader's blocks to an anonymous card, whose author they can't know (not to its author)", async () => {
+    await card('anon', 'carol', 1, { anonymous: true });
+    // alice blocked carol: the card isn't there for her, as in every list.
+    expect((await failure(getCardDetail(db, 'alice', 'anon'))).code).toBe('not_found');
+    expect((await getCardDetail(db, 'dana', 'anon')).card.author).toBeNull();
+    expect((await getCardDetail(db, 'carol', 'anon')).isOwner).toBe(true);
+  });
+
   it('includes the card it responds to only when the viewer may read that one', async () => {
     await card('orig', 'bob', 5, { visibility: 'connections' });
     await card('resp', 'dana', 1, { referenceCardId: 'orig' });
@@ -222,6 +230,21 @@ describe('profiles', () => {
     await card('theirs', 'dana', 1);
     await set('cardLinks/l1', { sourceCardId: 'theirs', targetCardId: 'mine', targetAuthorId: 'bob', createdAt: minutesAgo(1) });
     expect((await getProfileLinks(db, 'alice', 'bob')).cards.map((c) => c.id)).toEqual(['theirs']);
+  });
+
+  it("never lists a link into one of their anonymous cards to anyone but them (it would tie the card to them), nor one naming them wrongly", async () => {
+    await card('mine', 'bob', 5);
+    await card('unsigned', 'bob', 4, { anonymous: true });
+    await card('notbobs', 'erin', 4);
+    await card('to-mine', 'dana', 1);
+    await card('to-unsigned', 'dana', 2);
+    await card('to-erin', 'dana', 3);
+    await set('cardLinks/l1', { sourceCardId: 'to-mine', targetCardId: 'mine', targetAuthorId: 'bob', createdAt: minutesAgo(1) });
+    await set('cardLinks/l2', { sourceCardId: 'to-unsigned', targetCardId: 'unsigned', targetAuthorId: 'bob', createdAt: minutesAgo(2) });
+    await set('cardLinks/l3', { sourceCardId: 'to-erin', targetCardId: 'notbobs', targetAuthorId: 'bob', createdAt: minutesAgo(3) });
+    expect((await getProfileLinks(db, 'alice', 'bob')).cards.map((c) => c.id)).toEqual(['to-mine']);
+    expect((await getProfile(db, 'alice', 'bob', { include: new Set(['links'] as const) })).links?.cards.map((c) => c.id)).toEqual(['to-mine']);
+    expect((await getProfileLinks(db, 'bob', 'bob')).cards.map((c) => c.id)).toEqual(['to-mine', 'to-unsigned', 'to-erin']);
   });
 
   it('finds the person through their pen name\'s reservation, and an unreserved older name by its earliest holder', async () => {

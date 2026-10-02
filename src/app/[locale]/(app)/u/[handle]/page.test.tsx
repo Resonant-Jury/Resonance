@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
 import { renderWithIntl, screen } from '@/../test/render';
-import type { Card, CardLink, User } from '@/lib/db/types';
+import type { Card, User } from '@/lib/db/types';
 
 // The public profile page on its real data hooks; the client read layer, the
 // v1 API (callApi), the viewer's blocks and auth are the module boundary.
@@ -30,7 +30,6 @@ vi.mock('@/lib/db/firestore/client/blocks', () => ({
   blockUser: vi.fn(),
   unblockUser: vi.fn(),
 }));
-vi.mock('@/lib/db/firestore/client/cardLinks', () => ({ listLinksToAuthor: vi.fn() }));
 vi.mock('@/lib/db/firestore/client/api', () => {
   class ApiError extends Error {
     constructor(
@@ -52,7 +51,6 @@ import {
   isConnected,
 } from '@/lib/db/firestore/client/reads';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
-import { listLinksToAuthor } from '@/lib/db/firestore/client/cardLinks';
 import { ApiError, callApi } from '@/lib/db/firestore/client/api';
 import type { FeedCardBody, ProfileBody } from '@/lib/api/v1/schemas';
 import PublicProfilePage from './page';
@@ -91,14 +89,6 @@ function card(id: string, authorId: string, title: string): Card {
     inviteCount: 0,
   };
 }
-const link = (sourceCardId: string, sourceAuthorId: string): CardLink => ({
-  id: `${sourceCardId}_p1`,
-  sourceCardId,
-  sourceAuthorId,
-  targetCardId: 'p1',
-  targetAuthorId: 'bob',
-  createdAt: new Date('2026-02-01'),
-});
 
 function renderPage() {
   return renderWithIntl(
@@ -114,27 +104,21 @@ beforeEach(() => {
   vi.mocked(getMyBlockedIds).mockResolvedValue(new Set());
   vi.mocked(isConnected).mockResolvedValue(false);
   vi.mocked(getPublicCardsByAuthor).mockResolvedValue([card('p1', 'bob', "Bob's first walk")]);
-  vi.mocked(listLinksToAuthor).mockResolvedValue([link('x1', 'carol')]);
   vi.mocked(getCardById).mockImplementation(async (id) => card(id, 'carol', "Carol's reply"));
   vi.mocked(getUsersByIds).mockResolvedValue({ carol: user('carol') });
 });
 afterEach(() => vi.clearAllMocks());
 
 describe('public profile page, signed out', () => {
-  it("shows the person, their cards and the cards linking to theirs, read through the rules", async () => {
+  it('shows the person and their cards, read through the rules — and no card links, which only the server reads', async () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'bob' })).toBeInTheDocument();
     expect(screen.getAllByText("Bob's first walk").length).toBeGreaterThan(0);
-    expect((await screen.findAllByText("Carol's reply")).length).toBeGreaterThan(0);
     expect(screen.getByText('1 public card')).toBeInTheDocument();
-    expect(callApi).not.toHaveBeenCalled();
-  });
-
-  it("doesn't hold the page for the cards linking to theirs", async () => {
-    vi.mocked(listLinksToAuthor).mockReturnValue(new Promise(() => {}));
-    renderPage();
-    expect((await screen.findAllByText("Bob's first walk")).length).toBeGreaterThan(0);
+    // A card link names both cards' authors, an anonymous one's too.
     expect(screen.queryAllByText("Carol's reply")).toHaveLength(0);
+    expect(getCardById).not.toHaveBeenCalled();
+    expect(callApi).not.toHaveBeenCalled();
   });
 
   it('says so for a pen name nobody has', async () => {
@@ -200,7 +184,7 @@ describe('public profile page, signed in', () => {
 
     expect(callApi).toHaveBeenCalledTimes(1);
     expect(callApi).toHaveBeenCalledWith('/api/v1/users/bob?include=cards,links&limit=30');
-    for (const read of [getUserByHandle, getMyBlockedIds, isConnected, getPublicCardsByAuthor, listLinksToAuthor, getCardById, getUsersByIds]) {
+    for (const read of [getUserByHandle, getMyBlockedIds, isConnected, getPublicCardsByAuthor, getCardById, getUsersByIds]) {
       expect(read).not.toHaveBeenCalled();
     }
   });
