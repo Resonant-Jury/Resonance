@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The card routes around the services: what they read from the request, and
 // that every change that can take a card out of public view drops its cached
-// pages — in every locale, after the response.
+// pages — in every locale, after the response — and, when it was or is
+// listable (the landing page among them), the sitemap.
 
 const getCurrentUser = vi.fn();
 vi.mock('@/lib/auth', () => ({ getCurrentUser: (...a: unknown[]) => getCurrentUser(...a) }));
@@ -36,7 +37,7 @@ const settled = async () => {
   return revalidatePath.mock.calls.map(([p]) => p);
 };
 const STALE = ['/card/c1', '/card/a-walk', '/u/alice', '/'];
-const LOCALIZED = ['/en/card/c1', '/zh-TW/card/c1', '/en/card/a-walk', '/zh-TW/card/a-walk', '/en/u/alice', '/zh-TW/u/alice', '/en', '/zh-TW'];
+const LOCALIZED = ['/en/card/c1', '/zh-TW/card/c1', '/en/card/a-walk', '/zh-TW/card/a-walk', '/en/u/alice', '/zh-TW/u/alice', '/en', '/zh-TW', '/sitemap.xml'];
 
 beforeEach(() => {
   vi.clearAllMocks();

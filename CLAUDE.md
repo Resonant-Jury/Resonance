@@ -43,6 +43,8 @@ App routes under `src/app/[locale]/`:
 - `(auth)/` — `signin`, `signup`
 - `(app)/` — `home` (feed), `me`, `settings`, `messages` (DMs), `write/[id]` (editor), `card/[slug]` (card page: ISR, `revalidate = 300`, and `next.config.ts`'s `expireTime: 86400` bounds any stale ISR HTML to a day; a server component seeds `CardDetailClient` through `src/lib/data/cardSeed.ts` — a public card's story is in the HTML, an anonymous card's author never is — and the client replaces it with its own read through the rules; blocks stay client-side, `cardHold.ts` hides the card pre-paint in a signed-in browser until the block list is known), `u/[handle]` (public profile)
 
+Outside `[locale]`, at the root: `robots.ts` (on the production deployment only — `VERCEL_ENV`; previews and local builds disallow everything — it opens the public pages, closes `/api/` except `/api/og/` and the signed-in app's pages, and names the sitemap) and `sitemap.ts` (the landing and policy pages in both locales with hreflang, and the newest `SITEMAP_MAX_CARDS` public, published, non-anonymous cards by slug, read with the Admin SDK; ISR hourly, and `revalidateLocalized` drops it whenever the landing page is among the paths). Lists in `src/lib/seo.ts`. A root file with neither a metadata route nor a `public/` file falls into `[locale]` and 404s — as /robots.txt and /favicon.ico once did.
+
 ### Authentication
 
 1. Browser signs in with the Firebase client SDK (Google / Email; phone OTP behind `NEXT_PUBLIC_ENABLE_PHONE_OTP`) and gets an ID token.

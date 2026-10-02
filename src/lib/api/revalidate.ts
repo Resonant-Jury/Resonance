@@ -1,5 +1,6 @@
 import { revalidatePath } from 'next/cache';
 import { routing } from '@/i18n/routing';
+import { SITEMAP_PATH } from '@/lib/seo';
 
 /**
  * The server's side of keeping the ISR pages honest: a card page or a profile
@@ -23,11 +24,17 @@ export function localizedPaths(paths: Iterable<string>): string[] {
   return [...out];
 }
 
-/** Revalidate logical paths in every locale; answers the localized paths. */
+/**
+ * Revalidate logical paths in every locale; answers the paths dropped. The
+ * landing page among them means a card that was or is listable changed
+ * (landingPagePaths), and the sitemap lists those cards too: it goes with it.
+ */
 export function revalidateLocalized(paths: Iterable<string>): string[] {
-  const localized = localizedPaths(paths);
-  for (const path of localized) revalidatePath(path);
-  return localized;
+  const logical = [...paths];
+  const dropped = localizedPaths(logical);
+  if (logical.includes('/')) dropped.push(SITEMAP_PATH);
+  for (const path of dropped) revalidatePath(path);
+  return dropped;
 }
 
 /** Where a card's page is cached: under its id, and under its slug when it has one. */

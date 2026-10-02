@@ -33,5 +33,7 @@ export default function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Never a path with a dot in it: /robots.txt, /sitemap.xml, /favicon.ico
+  // and the other root files are answered outside [locale] (middleware.test.ts).
   matcher: ['/', '/(en|zh-TW)/:path*', '/((?!_next|_vercel|api|.*\\..*).*)'],
 };
