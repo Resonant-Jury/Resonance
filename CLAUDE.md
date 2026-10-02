@@ -31,7 +31,7 @@ Seed the emulators with known test accounts: `npx tsx scripts/seed-emulator.ts`.
 
 **Resonance**（共振）is a multilingual social storytelling platform built around "story cards" — users write cards, respond to others by authoring a *resonance* (a response card with a `referenceCardId`, **not** a like), and form one-to-one connections by resonating or leaving a note (older invites can still be answered, none are sent). Built with Next.js 15 (App Router) + React 19 + TypeScript 5.7 (strict). No Tailwind — all styling uses CSS Modules + CSS custom properties defined in `src/styles/tokens.css`. See `README.md` for the full architecture write-up (in Chinese).
 
-Stack: Firebase Auth + session cookies, Cloud Firestore, Cloudflare R2 (object storage), OpenAI (slugs/tags/illustrations), Tiptap 3 editor + react-markdown reader, SWR for client data fetching. Deployed on Vercel (region `hnd1`).
+Stack: Firebase Auth + session cookies, Cloud Firestore, Cloudflare R2 (object storage), OpenAI (slugs/tags/illustrations), Tiptap 3 editor + react-markdown reader, SWR for client data fetching. Deployed on Vercel: functions in `hkg1` (nearest Firestore's asia-east1), except the routes that call OpenAI — which refuses requests from Hong Kong — pinned to `hnd1` in vercel.json `functions` (see AI).
 
 ### Routing & i18n
 
@@ -130,7 +130,7 @@ The iOS (SwiftUI, `apps/ios`) and Android (Compose) apps are a migration of this
 
 ### AI (`src/lib/ai/`)
 
-Card URLs use English slugs (LLM translates the title, then slugify + handle/numeric-suffix collision handling). `openai.ts` wraps API calls, `tasks.ts` defines the tasks (slug base, tag suggestions, story illustration), `slugify.ts`/`tags.ts` are pure logic with tests. OpenAI is only called from server routes — the key never reaches the client — and every call carries a timeout (`signal`). Recommendations (`src/lib/recommend`) search the vector store by COSINE distance (smaller = closer).
+Card URLs use English slugs (LLM translates the title, then slugify + handle/numeric-suffix collision handling). `openai.ts` wraps API calls, `tasks.ts` defines the tasks (slug base, tag suggestions, story illustration), `slugify.ts`/`tags.ts` are pure logic with tests. OpenAI is only called from server routes — the key never reaches the client — and every call carries a timeout (`signal`). A route that can reach the OpenAI client runs in `hnd1`: list it in vercel.json `functions` (with its `maxDuration`); `src/lib/ai/regions.test.ts` follows every route's imports and fails on a missing or stale entry. Recommendations (`src/lib/recommend`) search the vector store by COSINE distance (smaller = closer).
 
 ### Storage & Image Pipeline
 

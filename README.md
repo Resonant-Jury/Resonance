@@ -16,7 +16,7 @@
 | 編輯器 | Tiptap 3 + tiptap-markdown；閱讀端用 react-markdown + remark-gfm |
 | 資料抓取 | SWR（client hooks） |
 | 測試 | Vitest 3 + @testing-library/react + jsdom |
-| 部署 | Vercel（region `hnd1`）；Firebase CLI 管理 rules/indexes |
+| 部署 | Vercel（函式在 `hkg1`，呼叫 OpenAI 的 route 在 `hnd1`）；Firebase CLI 管理 rules/indexes |
 
 ## 常用指令
 
@@ -149,7 +149,7 @@ docs/                        # PRD（共振_產品需求書）、開發計畫、
 
 ## 部署
 
-- **Vercel**：`vercel.json` 指定 region `hnd1`（東京）。`vercel` CLI 已登入可直接操作。
+- **Vercel**：`vercel.json` 指定 region `hkg1`（香港，離 Firestore 的 asia-east1 最近）。OpenAI 不接受來自香港的請求，所以會呼叫 OpenAI 的 route 在 `functions` 裡固定在 `hnd1`（東京），`src/lib/ai/regions.test.ts` 會檢查這份清單是否完整。`vercel` CLI 已登入可直接操作。
 - **Firebase**：rules / indexes 在 `firebase/`，改動後需 `firebase deploy --only firestore:rules,firestore:indexes`。
 - **Cloudflare**：R2 由 `wrangler` 管理。
 
