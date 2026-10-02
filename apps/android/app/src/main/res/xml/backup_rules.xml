@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What Android's backup keeps (Android 11 and older; data_extraction_rules.xml is the same for 12+):
+  the app's settings (its language) and nothing else. Not this install's push id (push.xml: a phone
+  restored from another would claim the same device record, and one of the two would stop getting
+  pushes), nor Firestore's local copy of the account (databases), nor the caches.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="settings.xml" />
+</full-backup-content>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What a cloud backup or a move to a new phone takes along (Android 12+; backup_rules.xml is the
+  same for older versions): the app's settings (its language) and nothing else. Not this install's
+  push id (push.xml), nor Firestore's local copy of the account (databases), nor the caches.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="settings.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="settings.xml" />
+    </device-transfer>
+</data-extraction-rules>

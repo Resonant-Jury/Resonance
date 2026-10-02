@@ -26,7 +26,7 @@ struct DraftValues: Equatable {
 /// which leave the site's cached pages stale unless the server refreshes them.
 struct DraftService {
     let uid: String
-    private var db: Firestore { Firestore.firestore() }
+    private var db: Firestore { FirebaseBootstrap.db }
 
     private func fields(_ v: DraftValues) -> [String: Any] {
         [

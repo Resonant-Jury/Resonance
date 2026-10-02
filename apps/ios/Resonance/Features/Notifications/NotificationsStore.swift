@@ -30,7 +30,7 @@ final class NotificationsStore {
 
     func start(uid: String) {
         stop()
-        listener = Firestore.firestore().collection("notifications")
+        listener = FirebaseBootstrap.db.collection("notifications")
             .whereField("userId", isEqualTo: uid)
             .order(by: "createdAt", descending: true)
             .limit(to: 50)
@@ -59,7 +59,7 @@ final class NotificationsStore {
     /// A tapped push reads its row (it may not have arrived in the list yet).
     func markRead(id: String) {
         if let item = items.first(where: { $0.id == id }), !item.isUnread { return }
-        Firestore.firestore().collection("notifications").document(id)
+        FirebaseBootstrap.db.collection("notifications").document(id)
             .updateData(["readAt": FieldValue.serverTimestamp()])
     }
 

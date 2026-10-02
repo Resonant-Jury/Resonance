@@ -31,6 +31,7 @@ import com.resonance.kit.reading.FeedLoader
 import java.time.OffsetDateTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -198,7 +199,10 @@ class Session(
             _signedInUid.value = next
             cardCache.clear()
             // Signed out (deletion signs out too) or someone else signed in: nothing of the account stays.
-            if (previous != null) forget(previous)
+            // Its listeners stop first; the next account's start once Firestore's copy of it is gone.
+            notifications.stop()
+            conversations.stop()
+            val forgetting = previous?.let(::forget)
             _keptBlocks.value = emptySet()
             meReadAt = 0L
             _profile.value = Profile.Unknown
@@ -209,15 +213,17 @@ class Session(
             _phase.value = if (next == null) Phase.SignedOut else Phase.SignedIn
             if (next != null) {
                 _signedOutForDeletion.value = false
-                notifications.start(next)
-                conversations.start(next)
+                val listen = {
+                    if (uid == next) {
+                        notifications.start(next)
+                        conversations.start(next)
+                    }
+                }
+                if (forgetting == null) listen() else scope.launch { forgetting.join(); listen() }
                 scope.launch { restoreKept(next) }
                 scope.launch { runCatching { onSignedIn() } }
                 scope.launch { refreshDeletion() }
                 scope.launch { registerPush() }
-            } else {
-                notifications.stop()
-                conversations.stop()
             }
         }
     }
@@ -246,12 +252,17 @@ class Session(
      * Empties what the account left on the device: the HTTP cache and what the screens kept. Its
      * calls still running stop at once, before the next account's first call goes out.
      */
-    private fun forget(who: String) {
+    private fun forget(who: String): Job {
         httpCaching.cancelCalls()
         scope.launch(NonCancellable + Dispatchers.IO) {
             httpCaching.evict()
             kept?.clear(who)
         }
+        // The pushes it got, still in the shade, and the mark that it has a profile.
+        PushCenter.clearDelivered()
+        prefs.edit().remove(profileKey(who)).apply()
+        // Firestore's own copy of it: messages, notifications, drafts, writes not yet sent.
+        return scope.launch(NonCancellable) { AppFirebase.clearLocalData() }
     }
 
     /** The app came back to the foreground: a profile read long ago is read again (it stays on screen meanwhile). */
@@ -349,14 +360,16 @@ class Session(
     /**
      * This install stops getting the account's pushes: ask with the ID token the person still has
      * (usually cached), then sign out without waiting for the answer (iOS's SessionStore.signOut).
+     * By installation id, always — whether or not this run has fetched its FCM token yet, the
+     * server may hold one from an earlier run.
      */
     fun signOut() {
-        val user = auth.currentUser
-        if (PushCenter.token == null || user == null) return auth.signOut()
+        val user = auth.currentUser ?: return auth.signOut()
         scope.launch {
             val token = runCatching { user.getIdToken(false).await().token }.getOrNull()
             auth.signOut()
             if (token == null) return@launch
+            // Its own client: signing out cancels the calls of the shared one.
             val signedOut = PushApi(ApiConfiguration(config.origin) { token })
             runCatching { signedOut.unregister(PushCenter.installationId) }
         }
@@ -392,9 +405,20 @@ class Session(
         _deletionDate.value = runCatching { account.deletion() }.getOrNull()
     }
 
-    /** Schedules deletion; the server revokes every session, so sign out here too. */
+    /**
+     * Schedules deletion; the server revokes every session, so sign out here too. This install
+     * stops getting the account's pushes first, while its token is still good (after the
+     * revocation the server would refuse the request); should the scheduling fail, it registers
+     * again.
+     */
     suspend fun scheduleDeletion() {
-        account.scheduleDeletion()
+        runCatching { pushApi.unregister(PushCenter.installationId) }
+        try {
+            account.scheduleDeletion()
+        } catch (e: Exception) {
+            registerPush()
+            throw e
+        }
         _signedOutForDeletion.value = true
         auth.signOut()
     }

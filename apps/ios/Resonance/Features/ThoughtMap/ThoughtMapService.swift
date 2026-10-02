@@ -48,7 +48,7 @@ struct MapCard: Equatable, Sendable {
 /// and batches the same way.
 struct ThoughtMapService {
     let uid: String
-    private var db: Firestore { Firestore.firestore() }
+    private var db: Firestore { FirebaseBootstrap.db }
     private var map: DocumentReference { db.collection("thoughtMaps").document(uid) }
     private var nodesCol: CollectionReference { map.collection("nodes") }
     private var edgesCol: CollectionReference { map.collection("edges") }

@@ -4,6 +4,7 @@ import Observation
 import ResonanceAPI
 import ResonanceKit
 import UIKit
+import UserNotifications
 
 /// Who is signed in, and their profile as the API sees it.
 ///
@@ -180,9 +181,18 @@ final class SessionStore {
     }
 
     /// Schedules deletion; the server revokes every session, so sign out here
-    /// too — and nothing of the account stays on the phone meanwhile.
+    /// too — and nothing of the account stays on the phone meanwhile. This
+    /// install stops getting its pushes first, while the token is still good
+    /// (after the revocation the server would refuse the request); should the
+    /// scheduling fail, it registers again.
     func scheduleDeletion() async throws {
-        try await account.scheduleDeletion()
+        try? await pushAPI.unregister(installationId: PushCenter.installationId)
+        do {
+            try await account.scheduleDeletion()
+        } catch {
+            await registerPush()
+            throw error
+        }
         kept.removeAll()
         httpCache.use(account: nil)
         signedOutForDeletion = true
@@ -212,6 +222,7 @@ final class SessionStore {
     private func apply(_ newUID: String?) {
         guard newUID != uid || phase == .restoring else { return }
         let wasRestoring = phase == .restoring
+        let previous = uid
         uid = newUID
         // Only this account's answers are kept from now on: the last one's
         // (signed out, or switched from) go, HTTP cache and all.
@@ -227,23 +238,52 @@ final class SessionStore {
         // An account this install has seen with a profile opens straight onto the tabs.
         land(newUID != nil && UserDefaults.standard.string(forKey: Self.profiledKey) == newUID ? .tabs : .pending)
         deletionDate = nil
+        // The last account's listeners stop before anything of it is cleared off the device.
+        notifications.stop()
+        conversations.stop()
+        // Signed out (deletion signs out too), or switched: what Firestore and the system kept of
+        // the last account goes — the next one's listeners start once that is done.
+        let forgetting = previous.map { previous in Task { await Self.forget(previous) } }
         if let newUID {
             signedOutForDeletion = false
-            notifications.start(uid: newUID)
-            conversations.start(uid: newUID)
+            Task { [weak self] in
+                await forgetting?.value
+                guard let self, self.uid == newUID else { return }
+                notifications.start(uid: newUID)
+                conversations.start(uid: newUID)
+            }
             Task {
                 await loadMe()
                 await refreshDeletion()
             }
             Task { await registerPush() }
-        } else {
-            notifications.stop()
-            conversations.stop()
         }
         #if DEBUG
         if wasRestoring { autoSignInForTesting() }
         #endif
     }
+
+    /// What the device still holds of an account that signed out (or was
+    /// switched from), beyond the API caches `apply` empties: Firestore's
+    /// local cache (its messages, notifications and drafts), the pushes still
+    /// in Notification Center and the badge, a backup the account exported,
+    /// and the mark that it has a profile.
+    nonisolated static func forget(_ uid: String) async {
+        await FirebaseBootstrap.clearLocalData()
+        let center = UNUserNotificationCenter.current()
+        center.removeAllDeliveredNotifications()
+        try? await center.setBadgeCount(0)
+        let tmp = FileManager.default.temporaryDirectory
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: tmp.path)) ?? [] where name.hasPrefix(exportPrefix) {
+            try? FileManager.default.removeItem(at: tmp.appending(path: name))
+        }
+        if UserDefaults.standard.string(forKey: profiledKey) == uid {
+            UserDefaults.standard.removeObject(forKey: profiledKey)
+        }
+    }
+
+    /// The name an exported backup starts with (settings → account).
+    nonisolated static let exportPrefix = "resonance-backup-"
 
     #if DEBUG
     /// Emulator builds launched with `-email … -password …` sign that seeded
@@ -268,7 +308,7 @@ final class SessionStore {
     }
 
     /// The last account this install saw with a profile (see `landing`).
-    static let profiledKey = "profiledAccount"
+    nonisolated static let profiledKey = "profiledAccount"
 
     /// Asks for the account's profile. A failure keeps whatever was known
     /// (the card box offers a retry); only the API's "no profile yet" sends
@@ -344,9 +384,11 @@ final class SessionStore {
             try? Auth.auth().signOut()
             GIDSignIn.sharedInstance.signOut()
         }
-        guard push.token != nil, Auth.auth().currentUser != nil else { return finish() }
+        guard Auth.auth().currentUser != nil else { return finish() }
         // This install stops getting the account's pushes: ask with the ID token
         // it still has (usually cached), then sign out without waiting for the answer.
+        // By installation id, always — whether or not this launch has its push token
+        // yet, the server may hold one from an earlier launch.
         let origin = config.origin
         Task {
             let token = try? await Self.idToken()

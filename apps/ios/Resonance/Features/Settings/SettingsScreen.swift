@@ -362,7 +362,7 @@ private struct DeleteAccountSettings: View {
             return
         }
         let url = FileManager.default.temporaryDirectory
-            .appending(path: "resonance-backup-\(Date().formatted(.iso8601.year().month().day())).json")
+            .appending(path: "\(SessionStore.exportPrefix)\(Date().formatted(.iso8601.year().month().day())).json")
         if (try? data.write(to: url)) != nil { exportFile = url } else { failed = true }
     }
 

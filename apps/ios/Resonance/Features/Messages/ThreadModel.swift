@@ -136,7 +136,7 @@ final class ThreadModel {
 
     /// Their pen name now (users/{uid} is public); nil for an account that's gone.
     private func currentHandle(of uid: String) async throws -> String? {
-        let data = try await Firestore.firestore().collection("users").document(uid).getDocument().data()
+        let data = try await FirebaseBootstrap.db.collection("users").document(uid).getDocument().data()
         return Person(id: uid, data: data)?.handle
     }
 
@@ -150,7 +150,7 @@ final class ThreadModel {
     /// Listens to the conversation and its newest 50 messages, by pair id.
     private func attach() {
         guard let pairId, listeners.isEmpty else { return }
-        let ref = Firestore.firestore().collection("conversations").document(pairId)
+        let ref = FirebaseBootstrap.db.collection("conversations").document(pairId)
         listeners.append(ref.addSnapshotListener { [weak self] snap, error in
             MainActor.assumeIsolated {
                 guard let self else { return }
@@ -208,7 +208,7 @@ final class ThreadModel {
     private func markReadIfNeeded() {
         guard let pairId, let me, unreadForMe > 0 || (messages.last.map { $0.senderId != me } ?? false) else { return }
         guard unreadForMe > 0 else { return }
-        Firestore.firestore().collection("conversations").document(pairId).updateData(["unread.\(me)": 0])
+        FirebaseBootstrap.db.collection("conversations").document(pairId).updateData(["unread.\(me)": 0])
     }
 
     /// A shared card as the viewer may see it (nil: on its way, or not visible to them — drawn as nothing).
@@ -241,7 +241,7 @@ final class ThreadModel {
     /// Deletes the whole conversation, for both people (deleteConversation: messages in batches, then the parent).
     func deleteConversation() async -> Bool {
         guard let pairId else { return false }
-        let db = Firestore.firestore()
+        let db = FirebaseBootstrap.db
         let ref = db.collection("conversations").document(pairId)
         do {
             stop()

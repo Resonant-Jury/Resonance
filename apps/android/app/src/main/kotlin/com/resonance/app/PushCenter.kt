@@ -149,6 +149,11 @@ object PushCenter {
             .build()
     }
 
+    /** Signed out: the account's pushes still in the shade go (their words are its messages and notes). */
+    fun clearDelivered() {
+        if (::context.isInitialized) NotificationManagerCompat.from(context).cancelAll()
+    }
+
     /** Posts [notification] (tagged by the bell row, so the same push never shows twice). */
     fun show(context: Context, title: String, body: String?, route: String, notificationId: String?, fromUserId: String? = null) {
         if (!canNotify) return

@@ -60,7 +60,7 @@ final class ConversationsStore {
     func start(uid: String) {
         stop()
         self.uid = uid
-        let db = Firestore.firestore()
+        let db = FirebaseBootstrap.db
         listeners = [
             db.collection("conversations").whereField("participants", arrayContains: uid)
                 .order(by: "updatedAt", descending: true)
@@ -118,7 +118,7 @@ final class ConversationsStore {
         let wanted = Set(others + connectionUids).subtracting(people.keys).subtracting(missing)
         await withTaskGroup(of: (String, Person?).self) { group in
             for id in wanted {
-                group.addTask { (id, Person(id: id, data: try? await Firestore.firestore().collection("users").document(id).getDocument().data())) }
+                group.addTask { (id, Person(id: id, data: try? await FirebaseBootstrap.db.collection("users").document(id).getDocument().data())) }
             }
             for await (id, person) in group {
                 if let person { people[id] = person } else { missing.insert(id) }

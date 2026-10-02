@@ -8,7 +8,7 @@ struct BookmarkService {
     let uid: String
     /// Told after a bookmark is added or removed (the card box's shelf of them comes from the API).
     var onWrite: @Sendable () -> Void = {}
-    private var db: Firestore { Firestore.firestore() }
+    private var db: Firestore { FirebaseBootstrap.db }
 
     private func ref(_ cardId: String) -> DocumentReference {
         db.collection("users").document(uid).collection("bookmarks").document(cardId)

@@ -37,7 +37,7 @@ struct SafetyService {
     let api: SafetyAPI
     /// Told after a block or an unblock: what the API answered before may show the wrong people now.
     var onWrite: @Sendable () -> Void = {}
-    private var db: Firestore { Firestore.firestore() }
+    private var db: Firestore { FirebaseBootstrap.db }
 
     func report(_ target: Target, reason: Reason, detail: String) async throws {
         let detail = detail.trimmingCharacters(in: .whitespacesAndNewlines).prefix(utf16Units: Self.detailMax)

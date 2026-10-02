@@ -14,7 +14,7 @@ struct HintService {
     func claim(_ key: String) async -> Bool {
         let defaults = UserDefaults.standard
         let localKey = "hint:\(key)"
-        let user = Firestore.firestore().collection("users").document(uid)
+        let user = FirebaseBootstrap.db.collection("users").document(uid)
         let hintsSeen = (try? await user.getDocument())?.data()?["hintsSeen"] as? [String: Any]
         let count = max(defaults.integer(forKey: localKey), (hintsSeen?[key] as? NSNumber)?.intValue ?? 0)
         guard count < Self.limit else { return false }
