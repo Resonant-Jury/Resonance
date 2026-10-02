@@ -24,6 +24,12 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
 
 ## Both apps
 
+- **The site**: release builds talk to `https://resonance.channel` (`AppConfig`); the API (`/api/v1`), the
+  policy pages, shared card links and pushed paths all follow that origin. The host the site had before,
+  `resonance-world.vercel.app`, still serves the same deployment, so builds already installed keep working
+  and older links keep opening (see Story links). Android's App Links filter claims the pages the app
+  routes on both hosts (`AppLinksTest`); the iOS app declares no associated domains yet, so a site link
+  tapped elsewhere opens in Safari.
 - **HTTP**: every request goes through one setup (Android `AppHttp.client`, iOS `AppHTTP`) — User-Agent
   `Resonance/<version> (<OS>; build <n>)`, 30 s read/request timeout (15 s connect on Android); the
   illustration stream keeps 150 s. Android API calls run through `blocking`, which cancels the OkHttp
@@ -43,8 +49,9 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
   again only for a change that `concerns` it — its card, or a resonance to it; a change naming no card (a
   block) concerns every page. The thought map is kept by the session per account: a visit within 15
   minutes shows it where it was left, re-reading only the card the writer changed.
-- **Story links** (`StoryLink`): relative links and links on the site's host open in the app, other http(s)
-  links in the in-app browser, `mailto:` as written; any other scheme is plain text.
+- **Story links** (`StoryLink`): relative links and links on the site's host — the origin's, or the one it
+  had before (`StoryLink.formerHosts` / `FORMER_HOSTS`; the exact name only, never a look-alike) — open in
+  the app, other http(s) links in the in-app browser, `mailto:` as written; any other scheme is plain text.
 - **App Check** (watched, not enforced): iOS release builds attest with App Attest (the
   `appattest-environment` entitlement), Android release builds with Play Integrity (src/release);
   debug builds use the debug provider (src/debug on Android) — its token is in Xcode's console /
@@ -160,9 +167,9 @@ APNs auth key uploaded to Firebase (Project settings → Cloud Messaging), and
 
 ### Against the local backend
 
-Debug builds talk to production unless launched with `-emulator YES`, which
-points Firebase at the emulators (project `demo-resonance`) and the API at
-`http://127.0.0.1:3100`:
+Debug builds talk to production (`https://resonance.channel`) unless launched
+with `-emulator YES`, which points Firebase at the emulators (project
+`demo-resonance`) and the API at `http://127.0.0.1:3100`:
 
 ```bash
 npm run emulators                       # Auth + Firestore emulators
@@ -186,7 +193,7 @@ cd apps/android
 ./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :core:kit:test        # API clients, localization, story format, cover hue
-./gradlew :app:testDebugUnitTest  # the app's JVM tests: routes, App Links, pen names, settings sections, push routing
+./gradlew :app:testDebugUnitTest  # the app's JVM tests: the origin, routes, App Links, pen names, settings sections, push routing
 ```
 
 Debug launch extras mirror iOS's arguments: `--ez emulator true` points
