@@ -80,15 +80,21 @@ service cloud.firestore {
     // A picture we stored: https, and — once config/storage names the
     // storage's public host (`scripts/backfill.ts storage-host`) — on that
     // host, so a cover or an avatar can't be a tracking pixel somewhere else.
-    // Any https URL until it is set.
+    // During a move to a new host, `formerHosts` lists the ones the same
+    // pictures were served from before, so a draft or a pending edit still
+    // holding an old-host cover stays saveable. Any https URL until it is set.
     function storedFile(url) {
       return url is string
         && url.size() <= 2048
         && url.matches("https://[^ ]+")
         && (
           !exists(/databases/$(database)/documents/config/storage)
-          || url.split("/")[2] == get(/databases/$(database)/documents/config/storage).data.host
+          || storedHost(url.split("/")[2], get(/databases/$(database)/documents/config/storage).data)
         );
+    }
+
+    function storedHost(host, storage) {
+      return host == storage.host || host in storage.get("formerHosts", []);
     }
 
     // --- users ---
@@ -572,7 +578,8 @@ service cloud.firestore {
     }
 
     // --- configuration (server-only) ---
-    // config/storage: the storage's public host, which storedFile() holds
+    // config/storage: the storage's public host (and, during a move, the
+    // hosts it was served from before: formerHosts), which storedFile() holds
     // covers and avatars to (set by `scripts/backfill.ts storage-host`).
     match /config/{docId} {
       allow read, write: if false;

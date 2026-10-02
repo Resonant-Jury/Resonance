@@ -412,6 +412,23 @@ describe('profiles (users/{uid})', () => {
     await assertFails(updateDoc(me, { avatarUrl: 'https://img.resonance.test.evil.example/p.gif' }));
   });
 
+  it('take an avatar from a former storage host during a move — and from no third host', async () => {
+    const me = doc(as('alice'), 'users', 'alice');
+    // Without formerHosts (as before any move), the old host is not ours.
+    await seed(async (db) => {
+      await setDoc(doc(db, 'config', 'storage'), { host: 'img.resonance.test' });
+    });
+    await assertFails(updateDoc(me, { avatarUrl: 'https://pub-0123.r2.dev/image/2026-09/a.webp' }));
+
+    await seed(async (db) => {
+      await setDoc(doc(db, 'config', 'storage'), { host: 'img.resonance.test', formerHosts: ['pub-0123.r2.dev'] });
+    });
+    await assertSucceeds(updateDoc(me, { avatarUrl: 'https://img.resonance.test/image/2026-10/a.webp' }));
+    await assertSucceeds(updateDoc(me, { avatarUrl: 'https://pub-0123.r2.dev/image/2026-09/a.webp' }));
+    await assertFails(updateDoc(me, { avatarUrl: 'https://tracker.example/p.gif' }));
+    await assertFails(updateDoc(me, { avatarUrl: 'https://pub-0123.r2.dev.evil.example/p.gif' }));
+  });
+
   it('stay readable by anyone, signed in or not — a page at a time, never the whole directory', async () => {
     await assertSucceeds(getDoc(doc(anonymous(), 'users', 'alice')));
     await assertSucceeds(getDocs(query(collection(anonymous(), 'users'), where('handleLower', '==', 'alice'), limit(1))));
@@ -523,6 +540,25 @@ describe('cards: what the author may write', () => {
     // Its legacy cover unchanged, the card stays editable; a new cover must be ours.
     await assertSucceeds(setDoc(doc(db, 'cards', ID), { thoughtCore: 'Edited', updatedAt: serverTimestamp() }, { merge: true }));
     await assertFails(setDoc(doc(db, 'cards', ID), { media: { type: 'image', url: 'https://tracker.example/p.gif' }, updatedAt: serverTimestamp() }, { merge: true }));
+  });
+
+  it('takes a cover from a former storage host during a move, in a draft and in a pending edit — and from no third host', async () => {
+    const ID = 'cccccccccccccccccccc';
+    const FORMER = 'https://pub-0123.r2.dev/image/2026-09/c.webp';
+    const cover = (url: string) => ({ type: 'image', url, label: 'c' });
+    await seed(async (db) => {
+      await setDoc(doc(db, 'config', 'storage'), { host: 'img.resonance.test', formerHosts: ['pub-0123.r2.dev', 'old.example'] });
+      await setDoc(doc(db, 'cards', ID), publishedCard('alice', { media: cover(FORMER) }));
+    });
+    const db = as('alice');
+    await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice', { media: cover('https://img.resonance.test/image/2026-10/c.webp') })));
+    await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice', { media: cover(FORMER) })));
+    await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', { media: cover('https://tracker.example/p.gif') })));
+    // A pending edit of a published card, its cover still on the old host (autosaved as a whole copy).
+    const edit = doc(db, 'cards', ID, 'edits', 'current');
+    const working = { thoughtCore: 'Revised', story: 'Still writing', tags: ['a'], visibility: 'public', anonymous: false, updatedAt: serverTimestamp() };
+    await assertSucceeds(setDoc(edit, { ...working, media: cover(FORMER) }));
+    await assertFails(setDoc(edit, { ...working, media: cover('https://tracker.example/p.gif') }));
   });
 
   it('refuses a hand-picked document id (slugs and ids share the card URL)', async () => {
