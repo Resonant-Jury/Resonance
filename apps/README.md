@@ -22,6 +22,35 @@ apps/
 native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by the apps)
 ```
 
+## Both apps
+
+- **HTTP**: every request goes through one setup (Android `AppHttp.client`, iOS `AppHTTP`) — User-Agent
+  `Resonance/<version> (<OS>; build <n>)`, 30 s read/request timeout (15 s connect on Android); the
+  illustration stream keeps 150 s. Android API calls run through `blocking`, which cancels the OkHttp
+  call when its coroutine is cancelled: a new direct OkHttp call uses `blocking` and `apiClient`.
+- **Sign-out / account switch** stops the listeners, then terminates Firestore and clears its local data
+  (through `FirebaseBootstrap.db` / `AppFirebase.db` — never keep `Firestore.firestore()` around) before the
+  next account's listeners start, and clears delivered notifications, the badge, the push memo and the
+  profile mark. Android backup / device transfer keeps only `settings.xml`.
+- **Push**: the registration is sent again only when the uid, token, language or app version changes, or
+  after 24 h, never twice at once. Notification permission is asked after the first note, message or
+  published card (`PushCenter.reachedOut()`): before that nobody can reach the account. The iOS
+  installation id is tied to the phone (`identifierForVendor`), so a restored backup gets its own.
+- **Live lists** use `LiveListeners`: a failed listener re-attaches on the next foreground or a retry
+  button; only permission-denied / not-found means "gone". With nothing loaded yet, a screen shows a retry.
+- **The writer** reports a change only when it wrote something (iOS `WriteLauncher.Change`, Android
+  `Session.CardChange` / `takeWriterChange`), naming the card and the card it answers. The thought map
+  is kept by the session per account: a visit within 15 minutes shows it where it was left, re-reading only
+  the card the writer changed.
+- **Story links** (`StoryLink`): relative links and links on the site's host open in the app, other http(s)
+  links in the in-app browser, `mailto:` as written; any other scheme is plain text.
+- **Unknown enum values** in an API answer read as the nearest known one (Android `enumUnknownDefaultCase`,
+  iOS `OpenEnumsMiddleware`, whose table a test checks against every response enum in openapi.json).
+- **Not adopted yet** from the API: `Me.deletion` (instead of asking `/api/account/deletion` at start),
+  `GET /me/cardbox`, `pageToken` paging, `POST /api/v1/reports` (person and message reports still go
+  straight to Firestore), and anonymous originals on the thought map (the rules refuse them to a client
+  read now; `/me/cards?tab=resonated` has them).
+
 ## Generated from the web
 
 ```bash
@@ -115,7 +144,7 @@ simulator's defaults say `emulator` (with `emulatorAuthPort`/…), e.g.
 
 Push: the server pushes every bell row through FCM (`src/lib/push`); the app
 registers its token with `PUT /api/v1/me/devices/{installationId}` after
-sign-in and unregisters on sign-out. Real delivery needs the Apple team: an
+sign-in (see "Both apps" for when) and unregisters on sign-out. Real delivery needs the Apple team: an
 APNs auth key uploaded to Firebase (Project settings → Cloud Messaging), and
 `aps-environment` switched to `production` for release builds.
 
@@ -199,7 +228,6 @@ app's libavif decoder (`--ez avifDecoder true` forces it on any version). The ed
 the bundled island; external links open in the in-app browser.
 
 Push: the server pushes every bell row through FCM (`src/lib/push`, on the "activity" channel); the app
-asks for the notification permission once signed in (API 33+), registers its token with
-`PUT /api/v1/me/devices/{installationId}` (again on a new token or a language change) and
-unregisters on sign-out. Real delivery needs a build against production (not `--ez emulator true`)
+asks for the notification permission after the first note, message or publish (API 33+), registers its
+token with `PUT /api/v1/me/devices/{installationId}` (see "Both apps" for when) and unregisters on sign-out. Real delivery needs a build against production (not `--ez emulator true`)
 on a device with Google Play services.
