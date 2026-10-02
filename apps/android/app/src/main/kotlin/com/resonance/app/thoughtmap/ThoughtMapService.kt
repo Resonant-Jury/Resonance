@@ -4,8 +4,11 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
+import com.resonance.api.models.FeedCard
 import com.resonance.app.AppFirebase
 import com.resonance.app.FirestoreFailure
+import com.resonance.kit.api.ReadingApi
+import java.time.OffsetDateTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -24,6 +27,7 @@ data class MapGroupDoc(val id: String, val title: String, val hue: Double, val x
 /** What a node shows of its card (the fields ThoughtMapNode reads). */
 data class MapCard(
     val id: String,
+    /** Empty for someone else's anonymous card: the server never names its author. */
     val authorId: String,
     val slug: String?,
     val title: String,
@@ -40,9 +44,11 @@ data class MapCard(
  * The thought map (thoughtMaps/{uid}/nodes|edges|groups), read and written
  * straight to Firestore like the web's client/thoughtMap.ts — the owner's own
  * documents, `isSelf` in the rules. Every function mirrors its web twin and
- * batches the same way. The twin of iOS's ThoughtMapService.
+ * batches the same way. Its cards are read under the rules too, except those
+ * the rules keep from me (someone else's anonymous card I resonated with),
+ * which the server answers for (`reading`). The twin of iOS's ThoughtMapService.
  */
-class ThoughtMapService(val uid: String) {
+class ThoughtMapService(val uid: String, private val reading: ReadingApi) {
     private val db get() = AppFirebase.db
     private val map: DocumentReference get() = db.collection("thoughtMaps").document(uid)
     private val nodesCol get() = map.collection("nodes")
@@ -160,8 +166,8 @@ class ThoughtMapService(val uid: String) {
     /**
      * My own cards (getCardsByAuthor: the newest 40 published, and my drafts
      * read apart — the 40 last edited, newest first) and the originals I
-     * resonated with (my latest 60 cards' references, each read under the
-     * rules — one I can no longer read just isn't there).
+     * resonated with (my latest 60 cards' references: see [cards] by id — one
+     * I can no longer read just isn't there).
      */
     suspend fun cards(): CardSet = coroutineScope {
         val cardsCol = db.collection("cards")
@@ -172,34 +178,34 @@ class ThoughtMapService(val uid: String) {
         val drafts = async { cardsCol.whereEqualTo("authorId", uid).whereEqualTo("publishedAt", null).limit(DRAFT_SCAN.toLong()).get().await() }
         val replies = async { cardsCol.whereEqualTo("authorId", uid).limit(60).get().await() }
         val refs = replies.await().documents.mapNotNull { it.getString("referenceCardId") }.distinct()
-        val originals = refs.map { id -> async { attempt { card(cardsCol.document(id).get().await()) } } }.awaitAll().filterNotNull()
-        val byId = LinkedHashMap<String, MapCard>()
-        for (c in originals) byId[c.id] = c
-        for (d in own.await().documents) card(d)?.takeIf { it.publishedAt != null }?.let { byId[it.id] = it }
+        val originals = cards(refs)
+        val published = own.await().documents.mapNotNull { d -> card(d)?.takeIf { it.publishedAt != null } }
         val recentDrafts = drafts.await().documents
             .sortedByDescending { it.getTimestamp("updatedAt")?.toDate()?.time ?: 0L }
             .take(OWN_LIMIT)
-        // In this order: the store keeps drafts as they come (newest edit first).
-        for (d in recentDrafts) card(d)?.let { byId[it.id] = it }
-        CardSet(byId, originals.filter { it.authorId != uid }.map { it.id }.toSet())
+            .mapNotNull(::card)
+        cardSet(uid, originals, published, recentDrafts)
     }
 
     /**
      * One card as it is now: null when it is gone, or no longer readable by me (deleted, made
-     * private); a read that failed for now throws.
+     * private); a read that failed for now throws. Someone else's anonymous card, which the rules
+     * keep from me, comes from the server.
      */
-    suspend fun card(id: String): MapCard? = try {
-        card(db.collection("cards").document(id).get().await())
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        if (FirestoreFailure.isGone(e)) null else throw e
-    }
+    suspend fun card(id: String): MapCard? = readCard(
+        id,
+        read = { card(db.collection("cards").document(it).get().await()) },
+        refused = FirestoreFailure::isGone,
+        summaries = reading::cards,
+    )
 
-    /** Cards already on the map that the newest-40 read didn't bring (an older card placed long ago). */
-    suspend fun cards(ids: List<String>): List<MapCard> = coroutineScope {
+    /**
+     * Cards by id: the originals I resonated with, or cards already on the map that the newest-40
+     * read didn't bring (an older card placed long ago). See [readCards].
+     */
+    suspend fun cards(ids: List<String>): List<MapCard> {
         val cardsCol = db.collection("cards")
-        ids.map { id -> async { attempt { card(cardsCol.document(id).get().await()) } } }.awaitAll().filterNotNull()
+        return readCards(ids, read = { id -> attempt { card(cardsCol.document(id).get().await()) } }, summaries = reading::cards)
     }
 
     private fun card(d: DocumentSnapshot): MapCard? {
@@ -230,6 +236,86 @@ class ThoughtMapService(val uid: String) {
 
     companion object {
         fun edgeId(source: String, target: String) = "${source}_$target"
+
+        /**
+         * The cards the map can hold, by id: the originals I resonated with first, so my own card
+         * by the same id (one answering itself) keeps its own entry; then my published cards and
+         * drafts, in that order (the store keeps drafts as they come: newest edit first). The
+         * originals someone else wrote — an anonymous one, whose author I never learn, included —
+         * are the resonated ones.
+         */
+        fun cardSet(uid: String, originals: List<MapCard>, published: List<MapCard>, drafts: List<MapCard>): CardSet {
+            val byId = LinkedHashMap<String, MapCard>()
+            for (c in originals + published + drafts) byId[c.id] = c
+            return CardSet(byId, originals.filter { it.authorId != uid }.map { it.id }.toSet())
+        }
+
+        /**
+         * Cards by id, in that order: each read under the rules (`read`: null when refused or
+         * failed), and the ones that didn't come asked of the server in one go (GET /cards?keys=),
+         * which answers for someone else's anonymous card without its author. One neither gives
+         * isn't there; should the server fail, those are left out this time (the map keeps their
+         * places), as the web's useMyThoughtMap does.
+         */
+        suspend fun readCards(
+            ids: List<String>,
+            read: suspend (String) -> MapCard?,
+            summaries: suspend (List<String>) -> List<FeedCard>,
+        ): List<MapCard> = coroutineScope {
+            val wanted = ids.distinct()
+            val found = wanted.map { id -> async { read(id) } }.awaitAll().filterNotNull().associateBy { it.id }.toMutableMap()
+            val unread = wanted.filter { it !in found }
+            if (unread.isNotEmpty()) {
+                val served = try {
+                    summaries(unread)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    emptyList()
+                }
+                for (c in served) if (c.id in unread) found[c.id] = mapCard(c)
+            }
+            wanted.mapNotNull { found[it] }
+        }
+
+        /**
+         * One card by id, read under the rules (`read`: null when there's no such card). One the
+         * rules refuse (`refused`) is asked of the server, which answers for someone else's
+         * anonymous card and leaves out one I may no longer see. Null when it is gone; a read that
+         * failed for now throws.
+         */
+        suspend fun readCard(
+            id: String,
+            read: suspend (String) -> MapCard?,
+            refused: (Exception) -> Boolean,
+            summaries: suspend (List<String>) -> List<FeedCard>,
+        ): MapCard? {
+            try {
+                return read(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (!refused(e)) throw e
+            }
+            return summaries(listOf(id)).firstOrNull { it.id == id }?.let(::mapCard)
+        }
+
+        /**
+         * What a node shows of a card the server listed (the web's summaryCard): its excerpt stands
+         * in for the story, and an anonymous card names no author.
+         */
+        fun mapCard(c: FeedCard) = MapCard(
+            id = c.id,
+            authorId = c.author?.id ?: "",
+            slug = c.slug,
+            title = c.title,
+            story = c.excerpt,
+            tags = c.tags,
+            visibility = c.visibility.value,
+            publishedAt = c.publishedAt?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
+            mediaUrl = c.imageUrl,
+            accentHue = c.accentHue,
+        )
 
         /** A shelf's size (the web's BOX_LIMIT). */
         private const val OWN_LIMIT = 40

@@ -164,7 +164,7 @@ class Session(
      * The account's thought map, kept between visits so opening it again within a while shows it
      * at once without reading a hundred cards ([ThoughtMapStore.open]).
      */
-    var thoughtMap = ThoughtMapStore()
+    var thoughtMap = ThoughtMapStore(reading)
         private set
 
     /** A write that goes straight to Firestore (a bookmark): what the API reads back is read afresh. */
@@ -229,7 +229,7 @@ class Session(
             uid = next
             _signedInUid.value = next
             cardCache.clear()
-            thoughtMap = ThoughtMapStore()
+            thoughtMap = ThoughtMapStore(reading)
             writerChange = null
             // Signed out (deletion signs out too) or someone else signed in: nothing of the account stays.
             // Its listeners stop first; the next account's start once Firestore's copy of it is gone.

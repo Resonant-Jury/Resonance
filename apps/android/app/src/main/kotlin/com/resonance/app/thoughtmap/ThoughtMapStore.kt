@@ -38,6 +38,7 @@ import com.resonance.geometry.screenToWorld
 import com.resonance.geometry.seedFromString
 import com.resonance.geometry.wobRect
 import com.resonance.geometry.zoomAt
+import com.resonance.kit.api.ReadingApi
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.FeedLoader
 import kotlinx.coroutines.CancellationException
@@ -89,7 +90,7 @@ class EdgeGeo(val geo: EdgeGeometry, val path: Path, val head: Path)
  * `MapTouchSurface`, with hit-testing done in world coordinates in the web's
  * paint order. Every position is in dp (the web's CSS px).
  */
-class ThoughtMapStore {
+class ThoughtMapStore(private val reading: ReadingApi) {
     sealed interface Selection {
         data class Node(val id: String) : Selection
         data class Edge(val id: String) : Selection
@@ -238,7 +239,7 @@ class ThoughtMapStore {
     // Loading
 
     suspend fun load(uid: String) {
-        val service = ThoughtMapService(uid).also { this.service = it }
+        val service = ThoughtMapService(uid, reading).also { this.service = it }
         val started = System.currentTimeMillis()
         try {
             coroutineScope {
