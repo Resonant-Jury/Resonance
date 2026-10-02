@@ -1,6 +1,7 @@
 'use client';
 
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
+import { appCheckHeaders } from '@/lib/auth/firebase/appCheck';
 
 /** A failed /api/v1 call: the HTTP status and the body's `{ error: { code, message } }`. */
 export class ApiError extends Error {
@@ -17,13 +18,16 @@ export class ApiError extends Error {
 /**
  * Call the versioned API (/api/v1) from the browser, the way the apps do: the
  * signed-in user's Firebase ID token rides along as a Bearer token, so a call
- * made right after signing in never races the session cookie. JSON in, JSON
- * out; a non-2xx answer throws an ApiError.
+ * made right after signing in never races the session cookie, and so does
+ * an App Check token when one is at hand. JSON in, JSON out; a non-2xx
+ * answer throws an ApiError.
  */
 export async function callApi<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  const headers: Record<string, string> = {};
   const user = getFirebaseClientAuth().currentUser;
-  if (user) headers.Authorization = `Bearer ${await user.getIdToken()}`;
+  // The App Check token rides along when one is at hand (lib/auth/firebase/appCheck).
+  const [idToken, appCheck] = await Promise.all([user?.getIdToken(), appCheckHeaders()]);
+  const headers: Record<string, string> = { ...appCheck };
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
   if (init.body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await fetch(path, {
     method: init.method ?? 'GET',

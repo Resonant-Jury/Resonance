@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import type { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import type { AuthUser } from '@/lib/auth/types';
+import { noteAppCheck, routePattern } from '@/lib/appCheck/server';
 import type { ApiErrorBody } from './schemas';
 
 type Code = ApiErrorBody['error']['code'];
@@ -82,6 +83,7 @@ export function withUser<A extends unknown[]>(handler: (user: AuthUser, req: Req
   return async (req: Request, ...rest: A): Promise<Response> => {
     const cold = served++ === 0;
     const start = performance.now();
+    watchAppCheck(req);
     const read = req.method === 'GET' || req.method === 'HEAD';
     let user: AuthUser | null;
     try {
@@ -104,6 +106,18 @@ export function withUser<A extends unknown[]>(handler: (user: AuthUser, req: Req
     }
     return timed(res, authed - start, performance.now() - authed, cold);
   };
+}
+
+/**
+ * App Check is watched, not enforced: what each request's token says is
+ * logged after the response (lib/appCheck/server), costing the caller nothing.
+ */
+function watchAppCheck(req: Request): void {
+  try {
+    after(() => noteAppCheck(req, routePattern(new URL(req.url).pathname)));
+  } catch {
+    // Outside a request (a handler called from a test): nothing to watch.
+  }
 }
 
 /** Next.js passes a dynamic route's params as a promise. */

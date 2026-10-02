@@ -21,6 +21,7 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { isNativeApp, signInWithAppleNative, signInWithGoogleNative } from './native';
+import { startAppCheck } from './appCheck';
 import type { IAuthProvider } from '../interfaces';
 import type { AuthSession, AuthUser, PhoneVerificationInput, SignInInput, SignUpInput } from '../types';
 
@@ -37,7 +38,12 @@ function firebaseConfig() {
 }
 
 export function getFirebaseClientApp() {
-  return getApps()[0] ?? initializeApp(firebaseConfig());
+  const existing = getApps()[0];
+  if (existing) return existing;
+  const app = initializeApp(firebaseConfig());
+  // Firestore and Auth pick App Check up whenever it starts (./appCheck).
+  void startAppCheck(app);
+  return app;
 }
 
 /** Local-emulator mode (`npm run dev:emulator`); see scripts/emulator-env.mjs. */

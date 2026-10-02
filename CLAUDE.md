@@ -77,6 +77,7 @@ After editing `firebase/firestore.rules` or `firebase/firestore.indexes.json`, d
 | `POST /api/generate-image` | doodle-style illustration from story text → AVIF → R2 (`maxDuration: 120`) |
 | `POST /api/upload` | image upload proxy to R2 (multipart `file`, + `purpose=avatar`). The server re-encodes with sharp (`normalizeUpload`): JPEG/PNG/WebP/GIF only, ≤ 50 MP, EXIF-upright, fit 2048 px (avatar 256), WebP without EXIF/GPS, animated GIF → animated WebP; type and extension come from the encoder. 4 MB request limit, 413 before the body is read (`UPLOAD_MAX_BYTES`; the browser checks first in `uploadImageFile`) |
 | `GET /api/og/card/{id}?v=` · `GET /api/og/user/{id}?v=` | og:image: the stored cover / avatar as a JPEG ≤ 1200 px, CDN-cached a day; another `v` gets a 302 to the current one; a card that isn't public and published goes to /og-cover.jpg |
+| `POST /api/app-check` | the web's App Check exchange: a Turnstile token → an App Check token (see App Check) |
 | `POST /api/csp-report` | where the report-only CSP reports go: trimmed, capped `[csp]` log lines, always 204 |
 | `POST /api/revalidate` | authenticated `revalidatePath` (Zod-checked, at most `REVALIDATE_MAX_PATHS` = 10, expands locale prefixes) on the caller's own pages only: their cards (by id or slug), a card one of theirs answers, their own `/u/{handle}` |
 | `GET/POST/DELETE /api/account/deletion` | read / schedule (7-day grace, revokes refresh tokens) / cancel account deletion |
@@ -117,7 +118,11 @@ Stories are stored as Markdown, so the editor's schema *is* the storage format. 
 
 ### Security headers
 
-`next.config.ts` sends, on every path (`src/lib/api/securityHeaders.ts`): `X-Frame-Options: SAMEORIGIN` + CSP `frame-ancestors 'self'`, `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a restrictive `Permissions-Policy`, and a **report-only** CSP (reports to `/api/csp-report`) listing what the site loads — Firebase Auth's iframe and endpoints, apis.google.com, the R2 image origin, fonts. Watch the `[csp]` logs before enforcing it; a new script, frame, font or API origin must be added there.
+`next.config.ts` sends, on every path (`src/lib/api/securityHeaders.ts`): `X-Frame-Options: SAMEORIGIN` + CSP `frame-ancestors 'self'`, `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a restrictive `Permissions-Policy`, and a **report-only** CSP (reports to `/api/csp-report`) listing what the site loads — Firebase Auth's iframe and endpoints, apis.google.com, Turnstile (challenges.cloudflare.com), the R2 image origin, fonts. Watch the `[csp]` logs before enforcing it; a new script, frame, font or API origin must be added there.
+
+### App Check (watched, not enforced)
+
+Firestore and Auth are in App Check's monitoring mode, and the API only logs. The web's provider is Cloudflare Turnstile as a custom provider (`src/lib/appCheck/config.ts`, `src/lib/auth/firebase/appCheck.ts`): on the production origin only (`NEXT_PUBLIC_SITE_URL`; previews, local builds and emulators go without), the invisible widget's token is traded at `POST /api/app-check` (Cloudflare siteverify with `TURNSTILE_SECRET_KEY` — host, action, single use — then the Admin SDK mints a 12 h token for the web app; ten exchanges per address per 10 min per instance). Nothing waits on a challenge: a token kept from an earlier visit (`resonance:appcheck-until`) starts App Check at once, else the challenge runs when idle and App Check starts once it has a token. `callApi` sends `X-Firebase-AppCheck` when a token is at hand within 150 ms. Every v1 request's token is checked after the response (`withUser` → `noteAppCheck`): one `[appcheck] <valid|missing|invalid> <platform> <route>` line per kind per 10 min per instance, with a count. The privacy policy names Turnstile (its privacy addendum is required for the invisible widget). A new production domain needs the widget's hostname list in Cloudflare and NEXT_PUBLIC_SITE_URL changed together.
 
 ### Native apps (`apps/`)
 

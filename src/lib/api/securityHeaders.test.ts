@@ -41,10 +41,10 @@ describe('reportOnlyPolicy', () => {
   it('lists what production loads: Firebase Auth and Firestore, the stored pictures, Google Fonts', () => {
     const d = directives(reportOnlyPolicy(PRODUCTION));
     expect(d['default-src']).toEqual(["'self'"]);
-    expect(d['script-src']).toEqual(["'self'", "'unsafe-inline'", 'https://apis.google.com']);
+    expect(d['script-src']).toEqual(["'self'", "'unsafe-inline'", 'https://apis.google.com', 'https://challenges.cloudflare.com']);
     expect(d['img-src']).toContain('https://pub-123.r2.dev');
     expect(d['media-src']).toContain('https://pub-123.r2.dev');
-    expect(d['frame-src']).toEqual(["'self'", 'https://resonance-stories.firebaseapp.com', 'https://apis.google.com']);
+    expect(d['frame-src']).toEqual(["'self'", 'https://resonance-stories.firebaseapp.com', 'https://apis.google.com', 'https://challenges.cloudflare.com']);
     expect(d['connect-src']).toEqual(
       expect.arrayContaining(['https://firestore.googleapis.com', 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com']),
     );

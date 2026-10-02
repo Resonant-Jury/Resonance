@@ -71,12 +71,14 @@ export function reportOnlyPolicy(env: SecurityEnv): string {
   const directives: Record<string, (string | null | false)[]> = {
     'default-src': ["'self'"],
     // No nonces: the pages are static (ISR), so Next's inline bootstrap
-    // scripts need 'unsafe-inline'. Firebase Auth's popup loads gapi.
+    // scripts need 'unsafe-inline'. Firebase Auth's popup loads gapi; App
+    // Check's Turnstile challenge (lib/auth/firebase/appCheck) its script.
     'script-src': [
       "'self'",
       "'unsafe-inline'",
       dev && "'unsafe-eval'", // React Refresh in `next dev`
       'https://apis.google.com',
+      'https://challenges.cloudflare.com',
       recaptcha && 'https://www.google.com',
       recaptcha && 'https://www.gstatic.com',
       preview && 'https://vercel.live',
@@ -99,11 +101,12 @@ export function reportOnlyPolicy(env: SecurityEnv): string {
       preview && 'https://vercel.live',
       preview && 'wss://ws-us3.pusher.com',
     ],
-    // Firebase Auth's hidden iframe (and the emulator's), gapi, reCAPTCHA.
+    // Firebase Auth's hidden iframe (and the emulator's), gapi, Turnstile, reCAPTCHA.
     'frame-src': [
       "'self'",
       authDomain,
       'https://apis.google.com',
+      'https://challenges.cloudflare.com',
       authEmulator,
       recaptcha && 'https://www.google.com',
       recaptcha && 'https://recaptcha.google.com',
