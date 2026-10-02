@@ -146,6 +146,21 @@ internal suspend fun <T> call(block: () -> T): T = blocking {
     }
 }
 
+/**
+ * Where the next page of a list starts, as the page before it said ([next]): its page token, which
+ * resumes exactly after its last card — or, from a server older than the token, its millisecond
+ * cursor (cards published in that same millisecond can be skipped).
+ */
+data class NextPage(val token: String?, val cursor: String?)
+
+/** Where this page's list goes on, by token when the page has one; null at its end. */
+val FeedPage.next: NextPage?
+    get() = when {
+        nextPageToken != null -> NextPage(token = nextPageToken, cursor = null)
+        nextCursor != null -> NextPage(token = null, cursor = nextCursor)
+        else -> null
+    }
+
 /** The reading side of /api/v1 (feed, card page, author page, card box). */
 class ReadingApi(private val api: DefaultApi) {
     constructor(configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) : this(
@@ -153,7 +168,9 @@ class ReadingApi(private val api: DefaultApi) {
     )
 
     suspend fun me(): Me = call { api.getMe() }
-    suspend fun feed(limit: Int = 12, cursor: String? = null): FeedPage = call { api.getFeed(limit, cursor?.let(OffsetDateTime::parse)) }
+    /** The latest cards: the first page, or the one `after` names. */
+    suspend fun feed(limit: Int = 12, after: NextPage? = null): FeedPage =
+        call { api.getFeed(limit, after?.cursor?.let(OffsetDateTime::parse), after?.token) }
     suspend fun recommended(): List<FeedCard> = call { api.getRecommendedFeed().cards }
     /**
      * A card by slug or id, with its story — and, with `include`, the lists its page shows
@@ -184,8 +201,8 @@ class ReadingApi(private val api: DefaultApi) {
         val lists = include.takeIf { it.isNotEmpty() }?.joinToString(",")
         return call { api.getProfile(handle, lists, if (lists != null) limit else null) }
     }
-    suspend fun profileCards(handle: String, limit: Int = 12, cursor: String? = null): FeedPage =
-        call { api.getProfileCards(handle, limit, cursor?.let(OffsetDateTime::parse)) }
+    suspend fun profileCards(handle: String, limit: Int = 12, after: NextPage? = null): FeedPage =
+        call { api.getProfileCards(handle, limit, after?.cursor?.let(OffsetDateTime::parse), after?.token) }
     suspend fun profileLinks(handle: String): List<FeedCard> = call { api.getProfileLinks(handle).cards }
     suspend fun cardBox(tab: DefaultApi.TabGetCardBox): List<FeedCard> = call { api.getCardBox(tab).cards }
 

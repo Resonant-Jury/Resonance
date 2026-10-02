@@ -1,8 +1,11 @@
 package com.resonance.kit
 
+import com.resonance.api.models.FeedPage
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
+import com.resonance.kit.api.NextPage
 import com.resonance.kit.api.ReadingApi
+import com.resonance.kit.api.next
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -11,6 +14,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 
 /** The generated client through the kit's wrapper, against a local HTTP server. */
 class ReadingApiTest {
@@ -44,6 +48,27 @@ class ReadingApiTest {
         server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":{"code":"not_found","message":"No such card."}}""").setHeader("Content-Type", "application/json"))
         val e = assertFailsWith<ApiFailure> { api().card("nope") }
         assertEquals(ApiFailure("not_found", "No such card.", 404), e)
+    }
+
+    @Test fun aProfilesNextPageIsAskedForByItsToken() = runBlocking {
+        server.enqueue(json(pageJson("c1", cursor = "2026-09-01T08:00:00.000Z", token = "opaque/1")))
+        server.enqueue(json(pageJson("c2")))
+        val first = api().profileCards("小雨")
+        assertEquals(NextPage(token = "opaque/1", cursor = null), first.next)
+        val second = api().profileCards("小雨", after = first.next)
+        assertNull(second.next)
+        server.takeRequest()
+        val url = server.takeRequest().requestUrl!!
+        assertEquals("/api/v1/users/%E5%B0%8F%E9%9B%A8/cards", url.encodedPath)
+        assertEquals("opaque/1", url.queryParameter("pageToken"))
+        assertNull(url.queryParameter("cursor"))
+    }
+
+    @Test fun aPageWithoutATokenGoesOnByItsCursor() {
+        val old = FeedPage(emptyList(), nextCursor = "2026-09-01T08:00:00.000Z")
+        assertEquals(NextPage(token = null, cursor = "2026-09-01T08:00:00.000Z"), old.next)
+        assertEquals(NextPage(token = "t", cursor = null), old.copy(nextPageToken = "t").next)
+        assertNull(FeedPage(emptyList(), nextCursor = null, nextPageToken = null).next)
     }
 
     @Test fun refreshesARejectedTokenOnceAndRetries() = runBlocking {

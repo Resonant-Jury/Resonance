@@ -1,7 +1,9 @@
 package com.resonance.kit.reading
 
 import com.resonance.api.models.FeedCard
+import com.resonance.kit.api.NextPage
 import com.resonance.kit.api.ReadingApi
+import com.resonance.kit.api.next
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -46,7 +48,8 @@ class FeedLoader(
         val phase: Phase = Phase.Loading,
         val recommended: List<FeedCard> = emptyList(),
         val latest: List<FeedCard> = emptyList(),
-        val cursor: String? = null,
+        /** Where the latest cards' next page starts (null: no more). */
+        val next: NextPage? = null,
         /** The reader asked for the latest cards below the picks. */
         val showLatest: Boolean = false,
         /** Picks that arrived after the latest cards were shown: the hint offers them. */
@@ -67,7 +70,7 @@ class FeedLoader(
                 return recommended + latest.filter { it.id !in picked }
             }
 
-        val canLoadMore: Boolean get() = !latestVisible || cursor != null
+        val canLoadMore: Boolean get() = !latestVisible || next != null
         val picksReady: Boolean get() = waitingPicks.isNotEmpty()
 
         /** Loading until either list has something to show, or both have answered. */
@@ -136,7 +139,7 @@ class FeedLoader(
                     phase = Phase.Loaded,
                     recommended = picks.orEmpty(),
                     latest = latest?.cards.orEmpty(),
-                    cursor = latest?.nextCursor,
+                    next = latest?.next,
                     latestSettled = true,
                     picksSettled = true,
                 )
@@ -170,7 +173,7 @@ class FeedLoader(
                 }
                 _state.update { s ->
                     if (page == null) s.copy(latestSettled = true, latestFailed = true).settled()
-                    else s.copy(latest = page.cards, cursor = page.nextCursor, latestSettled = true, latestFailed = false).settled()
+                    else s.copy(latest = page.cards, next = page.next, latestSettled = true, latestFailed = false).settled()
                 }
                 if (page != null) keep?.let { runCatching { it.saveLatest(page) } }
             }
@@ -206,11 +209,11 @@ class FeedLoader(
             _state.update { it.copy(showLatest = true) }
             return
         }
-        val cursor = s.cursor ?: return
+        val next = s.next ?: return
         _state.update { it.copy(loadingMore = true) }
         scope.launch {
             val page = try {
-                api.feed(cursor = cursor)
+                api.feed(after = next)
             } catch (e: CancellationException) {
                 _state.update { it.copy(loadingMore = false) }
                 throw e
@@ -220,7 +223,7 @@ class FeedLoader(
             _state.update { st ->
                 if (page == null) return@update st.copy(loadingMore = false)
                 val known = st.latest.map { it.id }.toSet()
-                st.copy(latest = st.latest + page.cards.filter { it.id !in known }, cursor = page.nextCursor, loadingMore = false)
+                st.copy(latest = st.latest + page.cards.filter { it.id !in known }, next = page.next, loadingMore = false)
             }
         }
     }

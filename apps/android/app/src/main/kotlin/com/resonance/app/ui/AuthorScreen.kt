@@ -55,6 +55,8 @@ import com.resonance.geometry.seedFromString
 import com.resonance.design.cream
 import com.resonance.design.generated.Tokens
 import com.resonance.kit.api.ApiFailure
+import com.resonance.kit.api.NextPage
+import com.resonance.kit.api.next
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
 import com.resonance.kit.reading.FeedLoader
@@ -77,7 +79,8 @@ class AuthorModel(private val session: Session, private val handle: String) : Vi
         private set
     var linked by mutableStateOf<List<FeedCard>>(emptyList())
         private set
-    private var cursor: String? = null
+    /** Where their cards' next page starts (null: no more, or being read). */
+    private var next: NextPage? = null
     private var readFor: Int? = null
     private var readAt = 0L
     private var reading: Job? = null
@@ -99,7 +102,7 @@ class AuthorModel(private val session: Session, private val handle: String) : Vi
             val page = session.reading.profilePage(handle)
             profile = page.profile
             cards = page.cards.cards
-            cursor = page.cards.nextCursor
+            next = page.cards.next
             linked = page.links
             phase = "loaded"
         } catch (e: CancellationException) {
@@ -113,10 +116,10 @@ class AuthorModel(private val session: Session, private val handle: String) : Vi
 
     /** The next page of their cards, once the list reaches its end. */
     fun loadMore() {
-        val c = cursor ?: return
-        cursor = null
+        val after = next ?: return
+        next = null
         viewModelScope.launch {
-            runCatching { session.reading.profileCards(handle, cursor = c) }.onSuccess { cards = cards + it.cards; cursor = it.nextCursor }
+            runCatching { session.reading.profileCards(handle, after = after) }.onSuccess { cards = cards + it.cards; next = it.next }
         }
     }
 }

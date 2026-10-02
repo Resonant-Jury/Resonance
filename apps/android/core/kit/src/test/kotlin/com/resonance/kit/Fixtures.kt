@@ -24,8 +24,9 @@ internal fun cardJson(id: String, slug: String? = null, authorId: String = "bob"
 
 internal fun listJson(vararg ids: String) = """{"cards":[${ids.joinToString(",") { cardJson(it) }}]}"""
 
-internal fun pageJson(vararg ids: String, cursor: String? = null) =
-    """{"cards":[${ids.joinToString(",") { cardJson(it) }}],"nextCursor":${cursor?.let { "\"$it\"" } ?: "null"}}"""
+/** A page of cards; `token` is its nextPageToken, left out (a server older than it) when null. */
+internal fun pageJson(vararg ids: String, cursor: String? = null, token: String? = null) =
+    """{"cards":[${ids.joinToString(",") { cardJson(it) }}],"nextCursor":${cursor?.let { "\"$it\"" } ?: "null"}${token?.let { ",\"nextPageToken\":\"$it\"" } ?: ""}}"""
 
 /** A card page; the lists (`include`) are left out when null, as the server does when they weren't asked for. */
 internal fun detailJson(
@@ -68,10 +69,11 @@ internal class Routes : Dispatcher() {
     val queries = CopyOnWriteArrayList<String>()
 
     /** A query parameter of the first request for `path`. */
-    fun parameter(path: String, name: String): String? {
-        val i = requested.indexOf(path)
-        if (i < 0) return null
-        return okhttp3.HttpUrl.Builder().scheme("http").host("x").encodedQuery(queries[i].ifEmpty { null }).build().queryParameter(name)
+    fun parameter(path: String, name: String): String? = parameters(path, name).firstOrNull()
+
+    /** A query parameter of every request for `path`, in the order they came (null where it was absent). */
+    fun parameters(path: String, name: String): List<String?> = requested.indices.filter { requested[it] == path }.map { i ->
+        okhttp3.HttpUrl.Builder().scheme("http").host("x").encodedQuery(queries[i].ifEmpty { null }).build().queryParameter(name)
     }
 
     /** Answers `path`; with `after`, only once those paths have been asked for (from now on). */

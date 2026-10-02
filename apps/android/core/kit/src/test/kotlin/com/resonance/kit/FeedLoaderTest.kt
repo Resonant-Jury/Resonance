@@ -122,12 +122,42 @@ class FeedLoaderTest {
         routes.on("/feed") { json(pageJson("a", "b", cursor = "2026-09-01T08:00:00.000Z")) }
         routes.on("/feed/recommended") { json(listJson()) }
         loader.load()
-        until { it.phase == FeedLoader.Phase.Loaded && it.cursor != null }
+        until { it.phase == FeedLoader.Phase.Loaded && it.next != null }
         routes.on("/feed") { json(pageJson("b", "c")) }
         loader.loadMore()
         val more = until { it.cards.size == 3 }
         assertEquals(listOf("a", "b", "c"), more.cards.map { it.id })
         assertFalse(more.canLoadMore)
+    }
+
+    @Test fun theNextPageIsAskedForByItsTokenNotTheMillisecond() = runBlocking {
+        routes.on("/feed") { json(pageJson("a", "b", cursor = "2026-09-01T08:00:00.000Z", token = "t1")) }
+        routes.on("/feed/recommended") { json(listJson()) }
+        loader.load()
+        until { it.phase == FeedLoader.Phase.Loaded && it.next != null }
+        // Two cards published in the same millisecond as "b": the token resumes right after it.
+        routes.on("/feed") { json(pageJson("c", "d", cursor = "2026-09-01T08:00:00.000Z", token = "t2")) }
+        loader.loadMore()
+        until { it.cards.size == 4 }
+        assertEquals(listOf(null, "t1"), routes.parameters("/feed", "pageToken"))
+        assertEquals(listOf<String?>(null, null), routes.parameters("/feed", "cursor"))
+        routes.on("/feed") { json(pageJson("e")) }
+        loader.loadMore()
+        assertEquals(listOf("a", "b", "c", "d", "e"), until { it.cards.size == 5 }.cards.map { it.id })
+        assertEquals("t2", routes.parameters("/feed", "pageToken").last())
+        assertFalse(loader.state.value.canLoadMore)
+    }
+
+    @Test fun aServerWithoutTokensIsPagedByItsCursor() = runBlocking {
+        routes.on("/feed") { json(pageJson("a", cursor = "2026-09-01T08:00:00.123Z")) }
+        routes.on("/feed/recommended") { json(listJson()) }
+        loader.load()
+        until { it.phase == FeedLoader.Phase.Loaded && it.next != null }
+        routes.on("/feed") { json(pageJson("b")) }
+        loader.loadMore()
+        until { it.cards.size == 2 }
+        assertEquals(listOf<String?>(null, null), routes.parameters("/feed", "pageToken"))
+        assertEquals("2026-09-01T08:00:00.123Z", routes.parameters("/feed", "cursor").last())
     }
 
     @Test fun comingBackFindsTheFeedAsItWasUnlessItIsStale() = runBlocking {
