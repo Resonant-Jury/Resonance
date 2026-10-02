@@ -223,7 +223,7 @@ curve: 0.55   cornerJitter: 0.7   cornerOffset: 4
 mag: Math.min(w, h) * 0.025
 ```
 
-**ShapeGrain on desktop card:** `opacity: 0.3`, `frequency: 0.85`
+**ShapeGrain on desktop card:** `opacity: 0.2` (`STORY_GRAIN.paper`), `frequency: 0.85`
 
 **Chalk effect:** `chalkSeed={index}` passed to `HandDrawnBorder`
 
@@ -231,7 +231,7 @@ mag: Math.min(w, h) * 0.025
 
 **Tags:** unoutlined `TagPill`s filled 5 lightness points deeper than the card's fill, so they stay readable once the hovered interior (`92.5%`) washes toward it.
 
-**Image placeholder:** 16% × 62% aspect ratio area; diagonal stripe pattern `strokeOpacity: 0.28`, `strokeWidth: 1.5`; `GrainOverlay opacity: 0.055`
+**Image placeholder:** 16% × 62% aspect ratio area; diagonal stripe pattern `strokeOpacity: 0.28`, `strokeWidth: 1.5`; `GrainOverlay opacity: 0.03` (`STORY_GRAIN.cover`)
 
 **Wavy separator line:**
 ```
@@ -244,9 +244,11 @@ stroke: oklch(55% 0.04 {hue} / 0.4)   strokeWidth: 1.1
 background: cardInterior (full-width)
 padding: 32px calc(18px + clamp(24px, 5vw, 80px))
 margin: 0 calc(-1 * clamp(24px, 5vw, 80px))   (full-bleed)
-GrainOverlay opacity: 0.08
+GrainOverlay opacity: 0.045   (STORY_GRAIN.band)
 wavy divider between cards: strokeWidth 1.4
 ```
+
+The story cards' grain lives in [`src/lib/design/grain.ts`](../src/lib/design/grain.ts) (the apps copy it as `StoryGrain`). On a phone the overlay lies over everything in the band, text and cover included, so it stays light — at the old 0.08 + 0.055 it read as sandpaper. The card is its own stacking context (`isolation: isolate`): a control laid over it from outside, like the card box's ⋯ and its menu, floats above the grain.
 
 **CSS** ([`StoryCard.module.css`](../src/components/molecules/StoryCard/StoryCard.module.css)):
 ```css
@@ -293,8 +295,8 @@ feBlend: mode="multiply"
 
 Default `opacity: 0.06`. Used at:
 - Global page grain: `--grain-opacity: 0.10`
-- Card image placeholder: `opacity: 0.055`
-- Mobile card background: `opacity: 0.08`
+- Card cover / image placeholder: `opacity: 0.03` (`STORY_GRAIN.cover`)
+- Mobile card band: `opacity: 0.045` (`STORY_GRAIN.band`)
 
 ---
 

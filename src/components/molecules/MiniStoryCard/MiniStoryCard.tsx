@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useId, type MouseEvent } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
+import { STORY_GRAIN } from '@/lib/design/grain';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { useElementSize } from '@/lib/hooks/useElementSize';
@@ -113,7 +114,7 @@ export function MiniStoryCard({
     >
       {isMobile ? (
         <>
-          <GrainOverlay opacity={0.08} />
+          <GrainOverlay opacity={STORY_GRAIN.band} />
           <svg
             viewBox="0 0 200 6"
             preserveAspectRatio="none"
@@ -172,7 +173,7 @@ export function MiniStoryCard({
               </g>
             </svg>
           )}
-          <ShapeGrain w={w} h={h} d={borderPath} opacity={0.3} frequency={0.85} seed={seed} />
+          <ShapeGrain w={w} h={h} d={borderPath} opacity={STORY_GRAIN.paper} frequency={0.85} seed={seed} />
           <HandDrawnBorder
             w={w} h={h} R={R} seed={seed} mag={mag}
             strokeColor={bc1}
@@ -194,7 +195,7 @@ export function MiniStoryCard({
           {!imageUrl && (
             <div className={styles.imageFallback} style={{ background: accent }} aria-hidden />
           )}
-          <GrainOverlay opacity={0.055} />
+          <GrainOverlay opacity={STORY_GRAIN.cover} />
         </OrganicImage>
 
         <h3 className={styles.title}>{title}</h3>

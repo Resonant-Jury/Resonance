@@ -57,7 +57,7 @@ public struct StoryCardView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            OrganicImage(url: content.imageURL, seed: seed + 5, grain: 0.055) {
+            OrganicImage(url: content.imageURL, seed: seed + 5, grain: StoryGrain.cover) {
                 StoryImagePlaceholder(fill: palette.fill, stripe: palette.stripe, label: content.imageLabel)
             }
             .aspectRatio(1 / 0.62, contentMode: .fit)
@@ -203,7 +203,7 @@ public struct MiniStoryCardView: View {
         let seed = Double(position * 71 + 19)
         let accent = content.authorAccent ?? palette.accent
         VStack(alignment: .leading, spacing: 12) {
-            OrganicImage(url: content.imageURL, seed: seed + 5, grain: 0.055, fill: accent)
+            OrganicImage(url: content.imageURL, seed: seed + 5, grain: StoryGrain.cover, fill: accent)
                 .aspectRatio(1 / 0.56, contentMode: .fit)
                 .accessibilityHidden(true)
             CSSText(content.title, font: AppFonts.uiFont(.heading, size: 17, weight: .bold), lineHeight: 1.3)
@@ -239,6 +239,14 @@ struct StoryCardSeparator: View {
 /// web's page padding plus the card's own puts it (20 + 18), grain over
 /// everything (the web lays it above the text and the photo too), and the
 /// seven-turn pen rule on the top edge — repeated on the bottom of the last card.
+/// The story cards' grain (the web's STORY_GRAIN, src/lib/design/grain.ts):
+/// GrainOverlay's mean darkening over the band — text and cover included —
+/// and over a cover picture. Kept light: over the text it reads as sandpaper.
+enum StoryGrain {
+    static let band = 0.045
+    static let cover = 0.03
+}
+
 struct StoryBand: ViewModifier {
     let palette: CardPalette
     let seed: Double
@@ -251,9 +259,9 @@ struct StoryBand: ViewModifier {
             .padding(.horizontal, 38)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(palette.interior)
-            // GrainOverlay opacity 0.08: ink at 2× so the mean darkening is 8%.
+            // GrainOverlay at StoryGrain.band: ink at 2× so the mean darkening is the band's.
             .overlay {
-                GrainLayer(shape: Rectangle(), mode: .tile, opacity: 0.16, tile: "grain-overlay")
+                GrainLayer(shape: Rectangle(), mode: .tile, opacity: StoryGrain.band * 2, tile: "grain-overlay")
                     .accessibilityHidden(true)
             }
             .overlay(alignment: .top) { edge.offset(y: -3) }

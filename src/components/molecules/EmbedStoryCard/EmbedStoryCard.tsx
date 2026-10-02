@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
+import { STORY_GRAIN } from '@/lib/design/grain';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { INK } from '@/lib/design/strokes';
 import styles from './EmbedStoryCard.module.css';
@@ -56,7 +57,7 @@ export function EmbedStoryCard({
       <span className={styles.thumb}>
         <OrganicImage src={imageUrl} alt="" seed={seed + 5} ratio={1}>
           {!imageUrl && <span className={styles.thumbFallback} style={{ background: accent }} aria-hidden />}
-          <GrainOverlay opacity={0.055} />
+          <GrainOverlay opacity={STORY_GRAIN.cover} />
         </OrganicImage>
       </span>
       <span className={styles.text}>

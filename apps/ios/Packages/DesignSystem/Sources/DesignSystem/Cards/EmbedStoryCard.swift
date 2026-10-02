@@ -23,7 +23,7 @@ public struct EmbedStoryCard: View {
         let accent = OKLCHColor.color(0.9, 0.06, hue)
         let border = OKLCHColor.color(0.52, 0.11, hue)
         HStack(spacing: 12) {
-            OrganicImage(url: imageURL, seed: seed + 5, grain: 0.055, fill: accent)
+            OrganicImage(url: imageURL, seed: seed + 5, grain: StoryGrain.cover, fill: accent)
                 .frame(width: 52, height: 52)
             VStack(alignment: .leading, spacing: 2) {
                 CSSText(title, font: AppFonts.uiFont(.body, size: 14.5, weight: .semibold), lineHeight: 1.35, lineLimit: 2)

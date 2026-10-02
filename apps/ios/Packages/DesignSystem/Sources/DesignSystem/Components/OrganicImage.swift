@@ -13,7 +13,7 @@ public struct OrganicImage<Placeholder: View>: View {
     let placeholder: Placeholder
 
     /// `grain` is the web's GrainOverlay opacity laid over the picture (the
-    /// story cards' paper texture, 0.055); 0 draws none.
+    /// story cards' paper texture, StoryGrain.cover); 0 draws none.
     public init(url: URL?, seed: Double, radius: Double = 18, grain: Double = 0, @ViewBuilder placeholder: () -> Placeholder) {
         self.url = url
         self.seed = seed

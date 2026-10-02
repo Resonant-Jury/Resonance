@@ -5,6 +5,7 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
 import { INK, INK_LIGHT } from '@/lib/design/strokes';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
+import { STORY_GRAIN } from '@/lib/design/grain';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
@@ -98,7 +99,7 @@ function StoryImage({ label, accentFill, imageUrl, seed }: { label: string; acce
           </text>
         </svg>
       )}
-      <GrainOverlay opacity={0.055} />
+      <GrainOverlay opacity={STORY_GRAIN.cover} />
     </OrganicImage>
   );
 }
@@ -214,13 +215,13 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
         <>
           <div className={styles.skeletonChrome} aria-hidden style={{ background: cardInterior }} />
           <div className={styles.skeletonMobileChrome} aria-hidden>
-            <GrainOverlay opacity={0.08} />
+            <GrainOverlay opacity={STORY_GRAIN.band} />
             <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} />
           </div>
         </>
       ) : isMobile ? (
         <>
-          <GrainOverlay opacity={0.08} />
+          <GrainOverlay opacity={STORY_GRAIN.band} />
           <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} />
         </>
       ) : (
@@ -260,7 +261,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
               </g>
             </svg>
           )}
-          <ShapeGrain w={w} h={h} d={borderPath} opacity={0.3} frequency={0.85} seed={seed} />
+          <ShapeGrain w={w} h={h} d={borderPath} opacity={STORY_GRAIN.paper} frequency={0.85} seed={seed} />
           <HandDrawnBorder
             w={w} h={h} R={R} seed={seed} mag={mag}
             strokeColor={bc1}

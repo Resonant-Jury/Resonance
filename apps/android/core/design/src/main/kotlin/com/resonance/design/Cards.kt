@@ -55,6 +55,16 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 
+/**
+ * The story cards' grain (the web's STORY_GRAIN, src/lib/design/grain.ts):
+ * GrainOverlay's mean darkening over the band — text and cover included —
+ * and over a cover picture. Kept light: over the text it reads as sandpaper.
+ */
+private object StoryGrain {
+    const val Band = 0.045f
+    const val Cover = 0.03f
+}
+
 /** OrganicImage's wobble: a few gentle turns, corners drifting 6 (OrganicImage.tsx, OrganicStoryImage.tsx). */
 private val ImageWob = WobRectOptions(
     curve = 0.4, cornerJitter = 1.1, cornerOffset = 6.0, segmentsH = SegValue.Range(3, 4), segmentsV = SegValue.Range(2, 3),
@@ -83,7 +93,7 @@ internal fun imageBleed(w: Float, h: Float, magFactor: Double): Dp = ceil(min(w,
 /**
  * A remote image (or placeholder) in the organic clip, bleeding past its box
  * by the wobble's outward swing. `grain` lays the web's GrainOverlay over the
- * picture itself (StoryCard's covers carry 0.055).
+ * picture itself (StoryCard's covers carry StoryGrain.Cover).
  */
 @Composable
 fun OrganicImage(
@@ -205,7 +215,8 @@ private fun StoryBand(
                     drawPath(rule, border, style = stroke)
                     if (isLast) translate(top = size.height) { drawPath(rule, border, style = stroke) }
                     drawContent()
-                    grain?.let { drawRect(it, alpha = 0.16f) }
+                    // The tile's ink averages ½: twice the mean darkening.
+                    grain?.let { drawRect(it, alpha = StoryGrain.Band * 2) }
                 }
             }
             .padding(horizontal = 38.dp, vertical = verticalPadding),
@@ -233,7 +244,7 @@ fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false,
     val palette = CardPalette(content.accentHue, position)
     val seed = position * 77.0 + 13
     StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier) {
-        OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.62f), grain = 0.055f) {
+        OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.62f), grain = StoryGrain.Cover) {
             StoryImagePlaceholder(palette.fill, palette.stripe, content.imageLabel)
         }
         // The web renders the tag row even when empty (its 8px margin still counts).
@@ -309,7 +320,7 @@ fun MiniStoryCard(content: StoryCardContent, position: Int, isLast: Boolean = fa
     val seed = position * 71.0 + 19
     val accent = content.authorAccent ?: palette.accent
     StoryBand(palette, seed + 17, isLast, 28.dp, 12.dp, modifier) {
-        OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.56f), grain = 0.055f) {
+        OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.56f), grain = StoryGrain.Cover) {
             if (content.imageUrl == null) Box(Modifier.fillMaxSize().background(accent))
         }
         CssText(content.title, AppFonts.Family.Heading, 17f, 700, lineHeight = 1.3f, modifier = Modifier.fillMaxWidth())
@@ -347,7 +358,7 @@ fun EmbedStoryCard(title: String, author: String?, imageUrl: String?, hue: Doubl
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        OrganicImage(imageUrl, seed + 5, Modifier.size(52.dp), grain = 0.055f) {
+        OrganicImage(imageUrl, seed + 5, Modifier.size(52.dp), grain = StoryGrain.Cover) {
             if (imageUrl == null) Box(Modifier.fillMaxSize().background(accent))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
