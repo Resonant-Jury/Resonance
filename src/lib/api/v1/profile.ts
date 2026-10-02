@@ -35,7 +35,8 @@ export async function createProfile(db: Firestore, user: AuthUser, input: Create
       region: input.region,
       primaryLocale: input.primaryLocale,
       autoTranslateTo: input.primaryLocale === 'zh-TW' ? ['en'] : ['zh-TW'],
-      verified: user.emailVerified,
+      // No one is verified yet: the badge waits for a real verification process (a verified sign-in email is not one).
+      verified: false,
       phoneHash: '',
       avatarSeed,
       initials: input.handle.slice(0, 2).toUpperCase(),

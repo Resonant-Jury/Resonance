@@ -45,13 +45,13 @@ async function failure(p: Promise<unknown>): Promise<ApiFailure> {
 }
 
 describe('createProfile', () => {
-  it("writes the web signup's profile, with its defaults", async () => {
+  it("writes the web signup's profile, with its defaults — unverified, even with a verified sign-in email", async () => {
     const { me, created } = await createProfile(db, newcomer, { handle: '小夜', region: 'TW', primaryLocale: 'zh-TW' });
     expect(created).toBe(true);
     expect(me).toMatchObject({ id: 'nina', handle: '小夜', initials: '小夜', bio: null, region: 'TW', primaryLocale: 'zh-TW' });
     expect(me.handleChangedAt).toMatch(/^\d{4}-/);
     const doc = (await db.doc('users/nina').get()).data()!;
-    expect(doc).toMatchObject({ handleLower: '小夜', autoTranslateTo: ['en'], verified: true, phoneHash: '', accentColor: 'oklch(88% 0.08 55)' });
+    expect(doc).toMatchObject({ handleLower: '小夜', autoTranslateTo: ['en'], verified: false, phoneHash: '', accentColor: 'oklch(88% 0.08 55)' });
     expect(doc.avatarSeed).toBe(String([...'nina'].reduce((s, c) => s + c.charCodeAt(0), 0)));
   });
 
