@@ -74,6 +74,7 @@ public final class APIHTTPCache: Sendable {
 
     private static func partition(for uid: String?, root: URL) -> Partition {
         let configuration = URLSessionConfiguration.default
+        AppHTTP.configure(configuration)
         configuration.requestCachePolicy = .useProtocolCachePolicy
         guard let uid else {
             configuration.urlCache = nil

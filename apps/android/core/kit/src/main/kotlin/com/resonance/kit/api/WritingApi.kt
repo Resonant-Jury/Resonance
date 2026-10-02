@@ -5,11 +5,9 @@ import com.resonance.api.models.ApplyEditResponse
 import com.resonance.api.models.FeedCard
 import com.resonance.api.models.PublishResponse
 import com.resonance.api.models.UpdateCardRequest
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -29,7 +27,7 @@ import java.util.concurrent.TimeUnit
  * own documents and go straight to Firestore, as on the web.
  */
 class WritingApi(private val configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) {
-    private val http = http.newBuilder().addInterceptor(BearerAuthInterceptor(configuration.idToken)).build()
+    private val http = apiClient(http, configuration)
     private val api = DefaultApi(configuration.apiUrl, this.http)
 
     /**
@@ -115,31 +113,33 @@ class WritingApi(private val configuration: ApiConfiguration, http: OkHttpClient
      * read line by line as it arrives. Rendering can go quiet for a while, so
      * the read timeout is the route's own two minutes.
      */
-    fun illustrate(story: String): Flow<IllustrationEvent> = flow {
+    fun illustrate(story: String): Flow<IllustrationEvent> = channelFlow {
         val body = json.encodeToString(StoryBody.serializer(), StoryBody(story)).toRequestBody(JSON)
         val url = configuration.origin.trimEnd('/') + "/api/generate-image"
         val slow = http.newBuilder().readTimeout(150, TimeUnit.SECONDS).build()
-        slow.newCall(Request.Builder().url(url).post(body).build()).execute().use { r ->
-            if (r.code == 401) throw ApiFailure("unauthenticated", "Sign in again.", 401)
-            if (!r.isSuccessful) throw ApiFailure("unexpected", "HTTP ${r.code}", r.code)
-            val source = r.body?.source() ?: return@flow
-            while (true) {
-                val text = source.readUtf8Line() ?: break
-                if (text.isBlank()) continue
-                val line = runCatching { json.decodeFromString(IllustrationLine.serializer(), text) }.getOrNull() ?: continue
-                emit(
-                    when (line.type) {
+        // Read on the IO pool; the collector stopping (the writer closed) stops the stream at once.
+        blocking {
+            slow.newCall(Request.Builder().url(url).post(body).build()).execute().use { r ->
+                if (r.code == 401) throw ApiFailure("unauthenticated", "Sign in again.", 401)
+                if (!r.isSuccessful) throw ApiFailure("unexpected", "HTTP ${r.code}", r.code)
+                val source = r.body?.source() ?: return@blocking
+                while (true) {
+                    val text = source.readUtf8Line() ?: break
+                    if (text.isBlank()) continue
+                    val line = runCatching { json.decodeFromString(IllustrationLine.serializer(), text) }.getOrNull() ?: continue
+                    val event = when (line.type) {
                         "partial" -> IllustrationEvent.Partial(line.b64?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() } ?: continue)
                         "done" -> line.publicUrl?.let { IllustrationEvent.Done(it) } ?: IllustrationEvent.Failed
                         else -> IllustrationEvent.Failed
-                    },
-                )
+                    }
+                    trySendBlocking(event)
+                }
             }
         }
-    }.flowOn(Dispatchers.IO)
+    }
 
     /** POSTs with the ID token (refreshed once on a 401 by the interceptor). */
-    private suspend fun post(path: String, body: RequestBody): ByteArray = withContext(Dispatchers.IO) {
+    private suspend fun post(path: String, body: RequestBody): ByteArray = blocking {
         val url = configuration.origin.trimEnd('/') + "/" + path
         http.newCall(Request.Builder().url(url).post(body).build()).execute().use { r ->
             if (r.code == 401) throw ApiFailure("unauthenticated", "Sign in again.", 401)

@@ -11,13 +11,14 @@ import com.resonance.api.models.FeedCard
 import com.resonance.api.models.FeedPage
 import com.resonance.api.models.Me
 import com.resonance.api.models.Profile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import okhttp3.Call
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -64,8 +65,73 @@ data class ApiFailure(val code: String, override val message: String, val status
 
 private val json = Json { ignoreUnknownKeys = true }
 
+/**
+ * The OkHttp call a coroutine is waiting on. A blocking `execute()` doesn't notice its coroutine
+ * being cancelled, so [blocking] cancels the call itself: the request in flight stops, its
+ * connection is let go, and the caller is free at once instead of after the server answers or
+ * the read times out.
+ */
+internal class InFlight {
+    private var call: Call? = null
+    private var cancelled = false
+
+    @Synchronized fun attach(call: Call) {
+        this.call = call
+        if (cancelled) call.cancel()
+    }
+
+    @Synchronized fun cancel() {
+        cancelled = true
+        call?.cancel()
+    }
+
+    companion object {
+        /** The [InFlight] of the coroutine running on this thread (set by [blocking]). */
+        val current = ThreadLocal<InFlight?>()
+
+        /**
+         * Hands each call to the coroutine that runs it. An application interceptor runs on the
+         * thread that called `execute()`, which is the one [blocking] marked.
+         */
+        val interceptor = Interceptor { chain ->
+            current.get()?.attach(chain.call())
+            chain.proceed(chain.request())
+        }
+    }
+}
+
+/**
+ * Runs blocking OkHttp work off the main thread; cancelling the caller cancels its call in flight.
+ * The work hands back its outcome rather than failing, so the call's own "Canceled" never stands
+ * in for the caller's cancellation.
+ */
+internal suspend fun <T> blocking(block: () -> T): T = coroutineScope {
+    val inFlight = InFlight()
+    val work = async(Dispatchers.IO) {
+        InFlight.current.set(inFlight)
+        try {
+            runCatching(block)
+        } finally {
+            InFlight.current.remove()
+        }
+    }
+    try {
+        work.await().getOrThrow()
+    } catch (e: CancellationException) {
+        inFlight.cancel()
+        throw e
+    }
+}
+
+/**
+ * The API's client on top of the app's one [http]: the ID token on every call (refreshed once on
+ * a 401), and calls a coroutine's cancellation reaches.
+ */
+internal fun apiClient(http: OkHttpClient, configuration: ApiConfiguration): OkHttpClient =
+    http.newBuilder().addInterceptor(InFlight.interceptor).addInterceptor(BearerAuthInterceptor(configuration.idToken)).build()
+
 /** Runs a generated (blocking) call off the main thread, mapping errors to [ApiFailure]. */
-internal suspend fun <T> call(block: () -> T): T = withContext(Dispatchers.IO) {
+internal suspend fun <T> call(block: () -> T): T = blocking {
     try {
         block()
     } catch (e: ClientException) {
@@ -83,7 +149,7 @@ internal suspend fun <T> call(block: () -> T): T = withContext(Dispatchers.IO) {
 /** The reading side of /api/v1 (feed, card page, author page, card box). */
 class ReadingApi(private val api: DefaultApi) {
     constructor(configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) : this(
-        DefaultApi(configuration.apiUrl, http.newBuilder().addInterceptor(BearerAuthInterceptor(configuration.idToken)).build()),
+        DefaultApi(configuration.apiUrl, apiClient(http, configuration)),
     )
 
     suspend fun me(): Me = call { api.getMe() }

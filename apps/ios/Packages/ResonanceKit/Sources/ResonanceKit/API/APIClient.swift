@@ -23,7 +23,7 @@ public struct APIConfiguration: Sendable {
 
 public enum ResonanceClient {
     /// A generated v1 client that authenticates every call with the ID token.
-    public static func make(_ configuration: APIConfiguration, session: URLSession = .shared) -> Client {
+    public static func make(_ configuration: APIConfiguration, session: URLSession = AppHTTP.session) -> Client {
         make(configuration, transport: URLSessionTransport(configuration: .init(session: session)),
              middlewares: [BearerAuthMiddleware(idToken: configuration.idToken)])
     }

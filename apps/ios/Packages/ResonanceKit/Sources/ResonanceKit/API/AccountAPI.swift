@@ -7,7 +7,7 @@ public struct AccountAPI: Sendable {
     let configuration: APIConfiguration
     let session: URLSession
 
-    public init(_ configuration: APIConfiguration, session: URLSession = .shared) {
+    public init(_ configuration: APIConfiguration, session: URLSession = AppHTTP.session) {
         self.configuration = configuration
         self.session = session
     }

@@ -15,7 +15,7 @@ import okhttp3.OkHttpClient
  */
 class MessagingApi(private val api: DefaultApi) {
     constructor(configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) : this(
-        DefaultApi(configuration.apiUrl, http.newBuilder().addInterceptor(BearerAuthInterceptor(configuration.idToken)).build()),
+        DefaultApi(configuration.apiUrl, apiClient(http, configuration)),
     )
 
     /** The note a message answers. */

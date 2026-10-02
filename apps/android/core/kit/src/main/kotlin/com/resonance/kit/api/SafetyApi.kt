@@ -11,7 +11,7 @@ import okhttp3.OkHttpClient
  */
 class SafetyApi(private val api: DefaultApi) {
     constructor(configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) : this(
-        DefaultApi(configuration.apiUrl, http.newBuilder().addInterceptor(BearerAuthInterceptor(configuration.idToken)).build()),
+        DefaultApi(configuration.apiUrl, apiClient(http, configuration)),
     )
 
     /** Reports the card (`key`: its slug or id) for `reason` (the contract's key, e.g. "self_harm"); returns the report's id. */

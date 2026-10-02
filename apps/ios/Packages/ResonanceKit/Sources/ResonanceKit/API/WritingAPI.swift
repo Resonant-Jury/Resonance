@@ -14,7 +14,7 @@ public struct WritingAPI: Sendable {
     let configuration: APIConfiguration
     let session: URLSession
 
-    public init(client: Client, configuration: APIConfiguration, session: URLSession = .shared) {
+    public init(client: Client, configuration: APIConfiguration, session: URLSession = AppHTTP.session) {
         self.client = client
         self.configuration = configuration
         self.session = session

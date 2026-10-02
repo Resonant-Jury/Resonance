@@ -14,7 +14,7 @@ import okhttp3.OkHttpClient
  */
 class ProfileApi(private val api: DefaultApi) {
     constructor(configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) : this(
-        DefaultApi(configuration.apiUrl, http.newBuilder().addInterceptor(BearerAuthInterceptor(configuration.idToken)).build()),
+        DefaultApi(configuration.apiUrl, apiClient(http, configuration)),
     )
 
     /** Whether a pen name is free — your own counts as free (GET /api/v1/handles/{handle}). */

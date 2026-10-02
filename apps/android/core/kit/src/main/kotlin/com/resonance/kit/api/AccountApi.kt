@@ -1,7 +1,5 @@
 package com.resonance.kit.api
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -15,7 +13,7 @@ import java.time.OffsetDateTime
  * ID token and 401 refresh as the v1 client — the twin of iOS's AccountAPI.
  */
 class AccountApi(private val configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) {
-    private val http = http.newBuilder().addInterceptor(BearerAuthInterceptor(configuration.idToken)).build()
+    private val http = apiClient(http, configuration)
 
     @Serializable private data class Deletion(val requestedAt: String, val purgeAfter: String)
     @Serializable private data class DeletionBody(val deletion: Deletion? = null)
@@ -38,7 +36,7 @@ class AccountApi(private val configuration: ApiConfiguration, http: OkHttpClient
         return body.deletion?.let { runCatching { OffsetDateTime.parse(it.purgeAfter) }.getOrNull() }
     }
 
-    private suspend fun send(method: String, path: String): ByteArray = withContext(Dispatchers.IO) {
+    private suspend fun send(method: String, path: String): ByteArray = blocking {
         val url = configuration.origin.trimEnd('/') + "/" + path
         val body = if (method == "POST") ByteArray(0).toRequestBody() else null
         http.newCall(Request.Builder().url(url).method(method, body).build()).execute().use { r ->

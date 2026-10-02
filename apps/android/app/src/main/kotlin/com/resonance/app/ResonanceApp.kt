@@ -8,18 +8,20 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.resonance.design.AppFonts
 import com.resonance.design.Grain
+import com.resonance.kit.api.AppHttp
 import com.resonance.kit.api.HttpCaching
 import com.resonance.kit.l10n.Strings
 import com.resonance.kit.reading.ApiCache
 import okhttp3.Cache
-import okhttp3.OkHttpClient
 import java.io.File
 
 class ResonanceApp : Application(), SingletonImageLoader.Factory {
     private var session: Session? = null
 
     /** The app's one HTTP client: the API and the images share its connections and threads. */
-    private val http by lazy { OkHttpClient() }
+    private val http by lazy {
+        AppHttp.client(AppHttp.userAgent(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE.toLong(), Build.VERSION.RELEASE))
+    }
     /** The API's HTTP cache (what the server lets a private cache keep; emptied on sign-out). */
     private val httpCaching by lazy { HttpCaching(Cache(File(cacheDir, "http"), 10L * 1024 * 1024)) }
 

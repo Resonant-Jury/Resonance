@@ -14,7 +14,7 @@ import okhttp3.OkHttpClient
  */
 class PushApi(private val api: DefaultApi) {
     constructor(configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) : this(
-        DefaultApi(configuration.apiUrl, http.newBuilder().addInterceptor(BearerAuthInterceptor(configuration.idToken)).build()),
+        DefaultApi(configuration.apiUrl, apiClient(http, configuration)),
     )
 
     suspend fun register(installationId: String, token: String, language: Strings.Language, appVersion: String?) = call {
