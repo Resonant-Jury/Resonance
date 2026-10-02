@@ -10,6 +10,7 @@ import com.resonance.kit.api.next
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import java.time.OffsetDateTime
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -49,6 +50,16 @@ class ReadingApiTest {
         server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":{"code":"not_found","message":"No such card."}}""").setHeader("Content-Type", "application/json"))
         val e = assertFailsWith<ApiFailure> { api().card("nope") }
         assertEquals(ApiFailure("not_found", "No such card.", 404), e)
+    }
+
+    @Test fun theAccountComesWithItsScheduledDeletion() = runBlocking {
+        val me = """{"id":"alice","handle":"alice","initials":"AL","accentColor":"oklch(88% 0.08 55)","bio":null,"avatarUrl":null,
+            "region":"TW","primaryLocale":"zh-TW","handleChangedAt":null"""
+        server.enqueue(json("$me,\"deletion\":{\"requestedAt\":\"2026-09-28T03:00:00.000Z\",\"purgeAfter\":\"2026-10-05T03:00:00.000Z\"}}"))
+        server.enqueue(json("$me,\"deletion\":null}"))
+        assertEquals(OffsetDateTime.parse("2026-10-05T03:00:00.000Z"), api().me().deletion?.purgeAfter)
+        assertNull(api().me().deletion)
+        assertEquals(listOf("/api/v1/me", "/api/v1/me"), List(2) { server.takeRequest().path })
     }
 
     @Test fun aProfilesNextPageIsAskedForByItsToken() = runBlocking {

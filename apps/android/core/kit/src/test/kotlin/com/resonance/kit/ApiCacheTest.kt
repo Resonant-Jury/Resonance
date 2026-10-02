@@ -1,5 +1,6 @@
 package com.resonance.kit
 
+import com.resonance.api.models.AccountDeletionStatus
 import com.resonance.api.models.FeedPage
 import com.resonance.api.models.Me
 import com.resonance.kit.api.ApiConfiguration
@@ -18,6 +19,7 @@ import okhttp3.mockwebserver.MockWebServer
 import java.nio.file.Files
 import java.time.Clock
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
@@ -67,6 +69,22 @@ class ApiCacheTest {
         assertEquals(listOf("p1"), next.picks()?.map { it.id })
         assertEquals(me, next.me())
         assertEquals(listOf("mine"), next.published()?.map { it.id })
+    }
+
+    @Test fun aScheduledDeletionAndTheNextPagesTokenAreKeptToo() = runBlocking {
+        val leaving = me.copy(
+            deletion = AccountDeletionStatus(OffsetDateTime.parse("2026-09-28T03:00:00Z"), OffsetDateTime.parse("2026-10-05T03:00:00Z")),
+        )
+        launch().of("alice").run {
+            saveMe(leaving)
+            saveLatest(FeedPage(listOf(feedCard("a")), nextCursor = "2026-09-01T08:00:00.000Z", nextPageToken = "t1"))
+        }
+        val next = launch().of("alice")
+        assertEquals(OffsetDateTime.parse("2026-10-05T03:00:00Z"), next.me()?.deletion?.purgeAfter)
+        assertEquals("t1", next.latest()?.nextPageToken)
+        // Undone: the profile kept from then on has none.
+        next.saveMe(leaving.copy(deletion = null))
+        assertNull(launch().of("alice").me()?.deletion)
     }
 
     @Test fun yesterdaysPicksAreNotTodays() = runBlocking {

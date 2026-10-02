@@ -13,7 +13,6 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
 
 /** The account routes (deletion, export) against a local HTTP server. */
 class AccountApiTest {
@@ -32,9 +31,12 @@ class AccountApiTest {
         assertEquals("Bearer token", request.getHeader("Authorization"))
     }
 
-    @Test fun noScheduledDeletionIsNull() = runBlocking {
+    @Test fun cancelsTheScheduledDeletion() = runBlocking {
         server.enqueue(MockResponse().setBody("""{"deletion":null}"""))
-        assertNull(api().deletion())
+        api().cancelDeletion()
+        val request = server.takeRequest()
+        assertEquals("DELETE", request.method)
+        assertEquals("/api/account/deletion", request.path)
     }
 
     @Test fun exportsTheRawBackup() = runBlocking {

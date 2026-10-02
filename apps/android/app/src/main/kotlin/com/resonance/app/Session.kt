@@ -112,7 +112,10 @@ class Session(
     val cardCache = CardCache()
     val cardPages = CardPageLoader(reading, cardCache)
 
-    /** When a scheduled account deletion will run (the undo banner shows until then). */
+    /**
+     * When a scheduled account deletion will run (the undo banner shows until then): as /me
+     * answers it (`deletion`), or as the profile kept on the device had it until /me answers.
+     */
     private val _deletionDate = MutableStateFlow<OffsetDateTime?>(null)
     val deletionDate: StateFlow<OffsetDateTime?> = _deletionDate
     /** Set when the app signed the person out because they scheduled deletion. */
@@ -252,7 +255,6 @@ class Session(
                 if (forgetting == null) listen() else scope.launch { forgetting.join(); listen() }
                 scope.launch { restoreKept(next) }
                 scope.launch { runCatching { onSignedIn() } }
-                scope.launch { refreshDeletion() }
                 scope.launch { registerPush() }
             }
         }
@@ -275,7 +277,10 @@ class Session(
         account.blocked()?.let { if (uid == who) _keptBlocks.value = it }
         val me = account.me() ?: return
         val now = _profile.value
-        if (uid == who && (now == Profile.Unknown || now == Profile.Loading || now == Profile.Failed)) _profile.value = Profile.Loaded(me)
+        if (uid == who && (now == Profile.Unknown || now == Profile.Loading || now == Profile.Failed)) {
+            _profile.value = Profile.Loaded(me)
+            _deletionDate.value = me.deletion?.purgeAfter
+        }
     }
 
     /**
@@ -361,9 +366,13 @@ class Session(
         return me
     }
 
-    /** The profile as the API returned it; the device remembers the account has one (and the profile, for the next cold start). */
+    /**
+     * The profile as the API returned it, with the account's scheduled deletion; the device
+     * remembers the account has one (and the profile, for the next cold start).
+     */
     private fun setMe(me: Me) {
         _profile.value = Profile.Loaded(me)
+        _deletionDate.value = me.deletion?.purgeAfter
         uid?.let { who ->
             prefs.edit().putBoolean(profileKey(who), true).apply()
             scope.launch { kept?.of(who)?.saveMe(me) }
@@ -451,10 +460,6 @@ class Session(
 
     // Account deletion
 
-    suspend fun refreshDeletion() {
-        _deletionDate.value = runCatching { account.deletion() }.getOrNull()
-    }
-
     /**
      * Schedules deletion; the server revokes every session, so sign out here too. This install
      * stops getting the account's pushes first, while its token is still good (after the
@@ -477,6 +482,8 @@ class Session(
     suspend fun cancelDeletion() {
         account.cancelDeletion()
         _deletionDate.value = null
+        // The profile kept for the next cold start no longer has it either.
+        me?.let { setMe(it.copy(deletion = null)) }
     }
 
     companion object {

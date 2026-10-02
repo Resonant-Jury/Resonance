@@ -11,15 +11,14 @@ import java.time.OffsetDateTime
  * The account routes (they predate /api/v1 and stay as the web uses them):
  * scheduling or cancelling deletion, and exporting one's own writing. Same
  * ID token and 401 refresh as the v1 client — the twin of iOS's AccountAPI.
+ * Whether a deletion is scheduled comes with the account (GET /api/v1/me's
+ * `deletion`), not from here.
  */
 class AccountApi(private val configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) {
     private val http = apiClient(http, configuration)
 
     @Serializable private data class Deletion(val requestedAt: String, val purgeAfter: String)
     @Serializable private data class DeletionBody(val deletion: Deletion? = null)
-
-    /** When the account will be purged, if its deletion is scheduled. */
-    suspend fun deletion(): OffsetDateTime? = deletionCall("GET")
 
     /** Schedules deletion (7-day grace). The server revokes every session, so the app signs out right after. */
     suspend fun scheduleDeletion(): OffsetDateTime? = deletionCall("POST")
