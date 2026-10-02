@@ -38,6 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.scale
@@ -331,8 +334,16 @@ fun OrganicButton(
     mirrorIcon: Boolean = false,
     /** An icon-only chip at the size's own padding (sm: 9×18) instead of the tight 9×11. */
     roomy: Boolean = false,
+    /**
+     * The label while [busy] ("Signing in…"). Both labels are laid out in the
+     * same spot, so the button keeps one size when it turns busy and back.
+     */
+    busyTitle: String? = null,
+    /** Working on the last tap: dimmed like a disabled button, showing [busyTitle], ignoring taps. */
+    busy: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val active = enabled && !busy
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val haptic = LocalHapticFeedback.current
@@ -364,7 +375,7 @@ fun OrganicButton(
     }
     Row(
         modifier
-            .alpha(if (enabled) 1f else 0.6f)
+            .fade(if (active) 1f else 0.6f)
             .scale(if (pressed) 0.97f else 1f)
             .drawWithCache {
                 val o = shape.createOutline(size, layoutDirection, this)
@@ -383,7 +394,7 @@ fun OrganicButton(
                 }
             }
             // The web's hover brush as a press: ink spreading from the finger, inside the pill.
-            .clickable(interaction, indication = remember(overlay, shape) { OrganicIndication(overlay, shape = shape) }, enabled = enabled, role = Role.Button) {
+            .clickable(interaction, indication = remember(overlay, shape) { OrganicIndication(overlay, shape = shape) }, enabled = active, role = Role.Button) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             }
@@ -395,9 +406,27 @@ fun OrganicButton(
     ) {
         if (icon != null) OrganicIcon(icon, size = iconSize ?: if (iconOnly) 17.dp else 16.dp, color = text, mirrored = mirrorIcon)
         if (image != null) Image(image, contentDescription = null, modifier = Modifier.size(18.dp))
-        if (!iconOnly) BasicText(title, style = AppFonts.body(if (small) 14f else 15f, 600, lineHeight = 1.3f, color = text).copy(letterSpacing = 0.02.em))
+        if (!iconOnly) {
+            val style = AppFonts.body(if (small) 14f else 15f, 600, lineHeight = 1.3f, color = text).copy(letterSpacing = 0.02.em)
+            if (busyTitle == null) BasicText(title, style = style)
+            else Box(contentAlignment = Alignment.CenterStart) {
+                // The label not showing still takes its room (drawn as nothing, not read out).
+                val unseen = Modifier.drawWithContent { }.clearAndSetSemantics { }
+                BasicText(title, style = style, maxLines = 1, modifier = if (busy) unseen else Modifier)
+                BasicText(busyTitle, style = style, maxLines = 1, modifier = if (busy) Modifier else unseen)
+            }
+        }
     }
 }
+
+/**
+ * Fade a hand-drawn control as a whole (disabled, busy) without cutting it:
+ * `Modifier.alpha` draws into a layer the size of the box, and a pen line's
+ * wobble — or half its stroke — lies outside the box and would be clipped
+ * straight. This fades each drawing instead.
+ */
+fun Modifier.fade(alpha: Float): Modifier =
+    if (alpha >= 1f) this else graphicsLayer { this.alpha = alpha; compositingStrategy = CompositingStrategy.ModulateAlpha }
 
 /**
  * Primary, Ghost and Outline are the web's; the rest keep a control from

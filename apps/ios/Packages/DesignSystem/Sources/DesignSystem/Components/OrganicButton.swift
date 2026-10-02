@@ -79,6 +79,21 @@ public struct OrganicButton: View {
         return copy
     }
 
+    /// Working on the last tap ("Signing in…"): dimmed like a disabled
+    /// button, showing `label`, ignoring taps. Both labels are laid out in the
+    /// same spot, so the button keeps one size when it turns busy and back.
+    var busyTitle: String?
+    var isBusy = false
+
+    public func busy(_ busy: Bool, label: String) -> OrganicButton {
+        var copy = self
+        copy.busyTitle = label
+        copy.isBusy = busy
+        return copy
+    }
+
+    private var active: Bool { isEnabled && !isBusy }
+
     @State private var pressPoint: CGPoint? = nil
     @State private var revealed = false
     @State private var ink: Double = 0
@@ -118,7 +133,7 @@ public struct OrganicButton: View {
                 }
             }
             // Busy / inactive: the web dims the whole button (fill, grain, ink, label).
-            .opacity(isEnabled ? 1 : 0.6)
+            .opacity(active ? 1 : 0.6)
             .scaleEffect(pressed ? 0.97 : 1)
             .contentShape(shape)
             .onGeometryChange(for: CGSize.self) { $0.size } action: { bounds = $0 }
@@ -126,12 +141,12 @@ public struct OrganicButton: View {
                 DragGesture(minimumDistance: 0)
                     .updating($touching) { _, state, _ in state = true }
                     .onChanged { g in
-                        guard isEnabled, !pressed else { return }
+                        guard active, !pressed else { return }
                         press(at: g.startLocation)
                     }
                     .onEnded { g in
                         // A real button's rule: lifting the finger off it (with a little slop) cancels.
-                        guard isEnabled, CGRect(origin: .zero, size: bounds).insetBy(dx: -16, dy: -16).contains(g.location) else { return }
+                        guard active, CGRect(origin: .zero, size: bounds).insetBy(dx: -16, dy: -16).contains(g.location) else { return }
                         action()
                     }
             )
@@ -140,9 +155,9 @@ public struct OrganicButton: View {
             }
             .sensoryFeedback(.impact(weight: .light), trigger: pressed) { _, new in new }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(title)
+            .accessibilityLabel(isBusy ? busyTitle ?? title : title)
             .accessibilityAddTraits(.isButton)
-            .accessibilityAction { if isEnabled { action() } }
+            .accessibilityAction { if active { action() } }
     }
 
     private func press(at point: CGPoint) {
@@ -181,7 +196,7 @@ extension OrganicButton {
                 .padding(.horizontal, roomyIcon ? (size == .sm ? 18 : 32) : 11)
                 .padding(.vertical, roomyIcon ? (size == .sm ? 9 : 14) : 9)
         } else {
-            style.label(title, icon: icon, image: image)
+            style.label(title, icon: icon, image: image, busyTitle: busyTitle, busy: isBusy)
         }
     }
 }
@@ -272,12 +287,24 @@ struct OrganicButtonStyle {
     }
 
     /// Label row: 16pt glyphs 7 apart; brand marks are 18pt, 10 from the text.
-    func label(_ title: String, icon: IconName?, image: String?) -> some View {
+    /// With a `busyTitle`, both labels share one spot (the one not showing is
+    /// clear), so the button is as wide in either state.
+    func label(_ title: String, icon: IconName?, image: String?, busyTitle: String? = nil, busy: Bool = false) -> some View {
         let fontSize: CGFloat = size == .sm ? 14 : 15
+        func text(_ s: String) -> some View {
+            Text(s).font(AppFonts.body(fontSize, weight: .semibold)).tracking(fontSize * 0.02).lineLimit(1)
+        }
         return HStack(spacing: image != nil ? 10 : 7) {
             if let icon { OrganicIcon(icon, size: 16) }
             if let image { Image(image).resizable().scaledToFit().frame(width: 18, height: 18) }
-            Text(title).font(AppFonts.body(fontSize, weight: .semibold)).tracking(fontSize * 0.02)
+            if let busyTitle {
+                ZStack(alignment: .leading) {
+                    text(title).opacity(busy ? 0 : 1)
+                    text(busyTitle).opacity(busy ? 1 : 0)
+                }
+            } else {
+                Text(title).font(AppFonts.body(fontSize, weight: .semibold)).tracking(fontSize * 0.02)
+            }
         }
         .foregroundStyle(textColor)
         .padding(.horizontal, size == .sm ? 18 : 32)

@@ -76,10 +76,11 @@ fun SignInScreen(session: Session) {
                 BasicText(L10n.Auth.deletionScheduled, style = AppFonts.body(14f, 600, lineHeight = 1.6f, color = Tokens.Terracotta), modifier = Modifier.padding(bottom = 20.dp))
             }
             OrganicButton(
-                if (signingIn) L10n.Auth.signingIn else L10n.Auth.continueWithGoogle,
+                L10n.Auth.continueWithGoogle,
                 variant = ButtonVariant.Outline,
                 image = painterResource(R.drawable.google_mark),
-                enabled = !signingIn,
+                busyTitle = L10n.Auth.signingIn,
+                busy = signingIn,
             ) {
                 scope.launch { session.signInWithGoogle(context) }
             }

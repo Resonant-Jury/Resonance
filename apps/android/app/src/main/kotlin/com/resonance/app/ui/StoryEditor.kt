@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Matrix
 import com.resonance.design.OrganicVerticalRule
 import com.resonance.design.SketchLoader
@@ -57,6 +56,7 @@ import com.resonance.design.AppFonts
 import com.resonance.design.OrganicIcon
 import com.resonance.design.WavyDivider
 import com.resonance.design.WobRectShape
+import com.resonance.design.fade
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
@@ -275,7 +275,7 @@ private fun Tool(
     val color = if (on) Tokens.Terracotta else Tokens.Text
     Row(
         Modifier
-            .alpha(if (enabled) 1f else 0.6f)
+            .fade(if (enabled) 1f else 0.6f)
             .drawWithCache {
                 val h = (size.height / density).toDouble()
                 // A soft two-turn pill (R 0.4h, mag 1.4, bow 1.5).

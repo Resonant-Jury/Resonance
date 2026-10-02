@@ -30,6 +30,21 @@ function claimResume(): boolean {
   }
 }
 
+/**
+ * A button label that turns into "Signing in…" without resizing the button:
+ * both labels sit in one grid cell, the one not showing hidden, so the cell
+ * is as wide as the longer.
+ */
+function BusyLabel({ busy, idle, working }: { busy: boolean; idle: string; working: string }) {
+  const cell = { gridArea: '1 / 1' } as const;
+  return (
+    <span style={{ display: 'inline-grid' }}>
+      <span style={{ ...cell, visibility: busy ? 'hidden' : 'visible' }}>{idle}</span>
+      <span style={{ ...cell, visibility: busy ? 'visible' : 'hidden' }}>{working}</span>
+    </span>
+  );
+}
+
 export default function SignInPage() {
   return (
     <Suspense fallback={null}>
@@ -117,14 +132,14 @@ function SignInPageInner() {
         <OrganicButton variant="outline" onClick={() => signInWith('google')}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
             <GoogleMark size={18} />
-            {pending ? t('signingIn') : t('continueWithGoogle')}
+            <BusyLabel busy={pending} idle={t('continueWithGoogle')} working={t('signingIn')} />
           </span>
         </OrganicButton>
         {showApple && (
           <OrganicButton variant="outline" onClick={() => signInWith('apple')}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
               <AppleMark size={18} />
-              {pending ? t('signingIn') : t('continueWithApple')}
+              <BusyLabel busy={pending} idle={t('continueWithApple')} working={t('signingIn')} />
             </span>
           </OrganicButton>
         )}

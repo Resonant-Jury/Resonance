@@ -58,14 +58,15 @@ struct SignInScreen: View {
                     .padding(.bottom, 20)
             }
             VStack(alignment: .leading, spacing: 14) {
-                OrganicButton(session.isSigningIn ? L10n.Auth.signingIn : L10n.Auth.continueWithGoogle, image: "GoogleMark", variant: .outline) {
+                OrganicButton(L10n.Auth.continueWithGoogle, image: "GoogleMark", variant: .outline) {
                     Task { await session.signInWithGoogle() }
                 }
-                OrganicButton(session.isSigningIn ? L10n.Auth.signingIn : L10n.Auth.continueWithApple, image: "AppleMark", variant: .outline) {
+                .busy(session.isSigningIn, label: L10n.Auth.signingIn)
+                OrganicButton(L10n.Auth.continueWithApple, image: "AppleMark", variant: .outline) {
                     Task { await session.signInWithApple() }
                 }
+                .busy(session.isSigningIn, label: L10n.Auth.signingIn)
             }
-            .disabled(session.isSigningIn)
             if let error = session.signInError {
                 Text(error)
                     .font(AppFonts.body(13))
