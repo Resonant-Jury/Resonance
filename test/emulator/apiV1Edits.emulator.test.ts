@@ -159,6 +159,25 @@ describe('applyCardEdit', () => {
     }
   });
 
+  it('takes a new cover still on the storage\'s former host while it moves (R2_FORMER_PUBLIC_BASES)', async () => {
+    const env = { base: process.env.R2_PUBLIC_BASE, former: process.env.R2_FORMER_PUBLIC_BASES };
+    process.env.R2_PUBLIC_BASE = 'https://img.resonance.test';
+    try {
+      const cover = { type: 'image', url: 'https://pub-0123.r2.dev/image/2026-09/f.webp', label: 'f' };
+      delete process.env.R2_FORMER_PUBLIC_BASES;
+      await buffer({ media: cover });
+      expect((await failure(applyCardEdit(db, 'alice', 'live'))).code).toBe('invalid_request');
+      process.env.R2_FORMER_PUBLIC_BASES = 'https://pub-0123.r2.dev/';
+      await expect(applyCardEdit(db, 'alice', 'live')).resolves.toMatchObject({ applied: true });
+      expect((await db.doc('cards/live').get()).get('media')).toEqual(cover);
+    } finally {
+      for (const [key, value] of [['R2_PUBLIC_BASE', env.base], ['R2_FORMER_PUBLIC_BASES', env.former]] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
   it('refuses an untitled revision and a draft', async () => {
     await buffer({ thoughtCore: '  ' });
     expect((await failure(applyCardEdit(db, 'alice', 'live'))).code).toBe('invalid_request');
