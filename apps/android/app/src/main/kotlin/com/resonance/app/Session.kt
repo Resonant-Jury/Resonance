@@ -6,7 +6,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -326,17 +326,21 @@ class Session(
 
     private fun profileKey(uid: String) = "hasProfile:$uid"
 
+    /**
+     * The "Continue with Google" button: Sign in with Google's own button flow
+     * (GetSignInWithGoogleOption) — the account chooser, which can also add an
+     * account — rather than the bottom sheet of accounts already on the
+     * device, which fails outright on a phone without one.
+     */
     suspend fun signInWithGoogle(context: Context) = signIn {
-        val option = GetGoogleIdOption.Builder()
-            .setServerClientId(context.getString(R.string.default_web_client_id))
-            .setFilterByAuthorizedAccounts(false)
-            .build()
+        val option = GetSignInWithGoogleOption.Builder(context.getString(R.string.default_web_client_id)).build()
         val result = CredentialManager.create(context).getCredential(context, GetCredentialRequest.Builder().addCredentialOption(option).build())
         val credential = result.credential
-        if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-            val google = GoogleIdTokenCredential.createFrom(credential.data)
-            auth.signInWithCredential(GoogleAuthProvider.getCredential(google.idToken, null)).await()
+        check(credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+            "unexpected credential ${credential.type}"
         }
+        val google = GoogleIdTokenCredential.createFrom(credential.data)
+        auth.signInWithCredential(GoogleAuthProvider.getCredential(google.idToken, null)).await()
     }
 
     /** Email and password — emulator builds only, for the seeded test accounts. */
