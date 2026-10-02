@@ -247,6 +247,7 @@ final class WriteModel {
         values.anonymous = anonymous
         guard let id = await saveNow() else { throw APIFailure(code: "invalid_request", message: "Nothing to publish.", status: nil) }
         let result = try await writing.publish(id)
+        PushCenter.shared.reachedOut()
         return result.slug ?? result.id
     }
 

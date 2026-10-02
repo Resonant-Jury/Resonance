@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.resonance.app.DraftService
 import com.resonance.app.DraftValues
+import com.resonance.app.PushCenter
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.WritingApi
 import com.resonance.kit.images.AccentHue
@@ -335,6 +336,7 @@ class WriteModel(
         update { copy(visibility = visibility, anonymous = anonymous) }
         val id = saveNow() ?: throw ApiFailure("invalid_request", "Nothing to publish.", null)
         val result = writing.publish(id)
+        PushCenter.reachedOut()
         return result.slug ?: result.id
     }
 

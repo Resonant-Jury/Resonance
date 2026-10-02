@@ -10,8 +10,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.resonance.app.ui.ResonanceRoot
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -77,14 +75,15 @@ class MainActivity : ComponentActivity() {
                 if (phase == Session.Phase.SignedIn) PushCenter.fetchToken(config.usesEmulator)
             }
         }
-        // Ask to show notifications (API 33+, once) when the app itself opens — not over the
-        // sign-in or pen-name steps, before there is anything to be notified about.
+        // Ask to show notifications (API 33+, once) the first time the person reaches someone — a
+        // note, a message, a card published (PushCenter.reachedOut) — when an answer is worth
+        // hearing about; not on first opening the app.
         lifecycleScope.launch {
-            combine(session.phase, session.entry) { phase, entry -> phase == Session.Phase.SignedIn && entry == Session.Entry.App }
-                .distinctUntilChanged()
-                .collect { inApp ->
-                    if (inApp && PushCenter.takePermissionRequest()) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
+            PushCenter.permissionWanted.collect { wanted ->
+                if (!wanted) return@collect
+                PushCenter.permissionShown()
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
     }
 

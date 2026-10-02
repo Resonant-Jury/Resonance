@@ -82,6 +82,29 @@ object PushCenter {
     /** False while the person has switched the app's notifications off (or, on API 33+, not granted the permission yet). */
     val canNotify: Boolean get() = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
+    /** The registration this install last sent (see [PushRegistration]); null once signed out. */
+    var lastRegistration: String?
+        get() = prefs.getString(REGISTRATION_KEY, null)
+        set(value) = prefs.edit().apply { if (value == null) remove(REGISTRATION_KEY) else putString(REGISTRATION_KEY, value) }.apply()
+
+    private val _permissionWanted = MutableStateFlow(false)
+    /** The notification permission dialog should show now (MainActivity shows it, then [permissionShown]). */
+    val permissionWanted: StateFlow<Boolean> = _permissionWanted
+
+    /**
+     * The person just reached someone — a note, a message, a card published: the moment a reply,
+     * a resonance or a note back is worth hearing about, so the moment to ask (once; see
+     * [takePermissionRequest]) — not on first opening the app, before there is anything to be
+     * notified about.
+     */
+    fun reachedOut() {
+        if (::context.isInitialized && takePermissionRequest()) _permissionWanted.value = true
+    }
+
+    fun permissionShown() {
+        _permissionWanted.value = false
+    }
+
     /**
      * Whether to show the notification permission dialog now: API 33+ only, not granted, and
      * not asked before (once per install; the system remembers a refusal too, and it stays
@@ -164,5 +187,6 @@ object PushCenter {
     }
 
     private const val INSTALLATION_KEY = "installationId"
+    private const val REGISTRATION_KEY = "registration"
     private const val ASKED_KEY = "permissionAsked"
 }

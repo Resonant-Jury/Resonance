@@ -240,6 +240,7 @@ final class ThreadModel {
         do {
             try await session.messaging.sendMessage(to: otherId, text: draft.trimmingCharacters(in: .whitespacesAndNewlines),
                                                     cardRef: pendingCard?.id, noteRef: noteRef)
+            PushCenter.shared.reachedOut()
             draft = ""
             pendingCard = nil
             noteRef = nil

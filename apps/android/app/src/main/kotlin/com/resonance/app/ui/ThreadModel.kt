@@ -16,6 +16,7 @@ import com.resonance.api.models.Profile
 import com.resonance.app.AppFirebase
 import com.resonance.app.FirestoreFailure
 import com.resonance.app.Person
+import com.resonance.app.PushCenter
 import com.resonance.app.Session
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.MessagingApi
@@ -317,6 +318,7 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         error = null
         try {
             session.messaging.sendMessage(other, draft.trim(), pendingCard?.id, noteRef)
+            PushCenter.reachedOut()
             draft = ""
             pendingCard = null
             noteRef = null

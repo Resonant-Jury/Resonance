@@ -30,3 +30,41 @@ struct PushAPITests {
         await #expect(throws: APIFailure.self) { try await api(transport).unregister(installationId: "x") }
     }
 }
+
+/// A launch doesn't send the same push registration again: only a change (who,
+/// the token, the language, the version, the install) or a day gone by sends
+/// it — and nothing kept (signed out, a first run) always does.
+struct PushRegistrationTests {
+    let sent = PushRegistration(installationId: "install-1", uid: "alice", token: "fcm-token", language: "zh-TW", version: "2.0.0")
+    let at = Date(timeIntervalSince1970: 1_000_000_000)
+    var kept: String { sent.encode(sentAt: at) }
+
+    @Test func theSameRegistrationIsntSentAgainTheSameDay() {
+        #expect(PushRegistration.isFresh(kept, sent, now: at.addingTimeInterval(60)))
+        #expect(PushRegistration.isFresh(kept, sent, now: at.addingTimeInterval(PushRegistration.ttl - 1)))
+    }
+
+    @Test func aDayLaterItIsSentAgain() {
+        #expect(!PushRegistration.isFresh(kept, sent, now: at.addingTimeInterval(PushRegistration.ttl)))
+        // A clock set back counts as stale too.
+        #expect(!PushRegistration.isFresh(kept, sent, now: at.addingTimeInterval(-1)))
+    }
+
+    @Test func anyChangeSendsItAgain() {
+        let now = at.addingTimeInterval(60)
+        let changed = [
+            PushRegistration(installationId: "install-2", uid: "alice", token: "fcm-token", language: "zh-TW", version: "2.0.0"),
+            PushRegistration(installationId: "install-1", uid: "bob", token: "fcm-token", language: "zh-TW", version: "2.0.0"),
+            PushRegistration(installationId: "install-1", uid: "alice", token: "fcm-token-2", language: "zh-TW", version: "2.0.0"),
+            PushRegistration(installationId: "install-1", uid: "alice", token: "fcm-token", language: "en", version: "2.0.0"),
+            PushRegistration(installationId: "install-1", uid: "alice", token: "fcm-token", language: "zh-TW", version: "2.0.1"),
+        ]
+        for registration in changed { #expect(!PushRegistration.isFresh(kept, registration, now: now)) }
+    }
+
+    @Test func nothingKeptAlwaysSends() {
+        #expect(!PushRegistration.isFresh(nil, sent, now: at))
+        #expect(!PushRegistration.isFresh("", sent, now: at))
+        #expect(!PushRegistration.isFresh("garbage", sent, now: at))
+    }
+}

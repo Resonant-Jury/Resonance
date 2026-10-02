@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 
 /**
@@ -258,11 +259,12 @@ class Session(
             httpCaching.evict()
             kept?.clear(who)
         }
-        // The pushes it got, still in the shade, and the mark that it has a profile.
+        // The pushes it got, still in the shade, what this install told the server, and the mark that it has a profile.
         PushCenter.clearDelivered()
+        PushCenter.lastRegistration = null
         prefs.edit().remove(profileKey(who)).apply()
         // Firestore's own copy of it: messages, notifications, drafts, writes not yet sent.
-        return scope.launch(NonCancellable) { AppFirebase.clearLocalData() }
+        return scope.launch { withContext(NonCancellable) { AppFirebase.clearLocalData() } }
     }
 
     /** The app came back to the foreground: a profile read long ago is read again (it stays on screen meanwhile). */
@@ -391,12 +393,19 @@ class Session(
 
     // Push
 
-    /** This install gets the signed-in person's pushes (again, whenever the token or the language changes). */
+    /**
+     * This install gets the signed-in person's pushes (again whenever the token, the language or
+     * the app's version changes — and once a day; not on every cold start, see [PushRegistration]).
+     */
     suspend fun registerPush() {
         val token = PushCenter.token
-        if (_phase.value != Phase.SignedIn || token == null || !PushCenter.canNotify) return
+        val uid = uid
+        if (_phase.value != Phase.SignedIn || uid == null || token == null || !PushCenter.canNotify) return
+        val wanted = PushRegistration(PushCenter.installationId, uid, token, Strings.language.tag, BuildConfig.VERSION_NAME)
+        if (PushRegistration.isFresh(PushCenter.lastRegistration, wanted, System.currentTimeMillis())) return
         try {
-            pushApi.register(PushCenter.installationId, token, Strings.language, BuildConfig.VERSION_NAME)
+            pushApi.register(wanted.installationId, token, Strings.language, wanted.version)
+            if (this.uid == uid) PushCenter.lastRegistration = wanted.encode(System.currentTimeMillis())
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -417,6 +426,7 @@ class Session(
      * again.
      */
     suspend fun scheduleDeletion() {
+        PushCenter.lastRegistration = null
         runCatching { pushApi.unregister(PushCenter.installationId) }
         try {
             account.scheduleDeletion()

@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.resonance.app.PushCenter
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
@@ -138,6 +139,7 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
                         try {
                             session.messaging.sendNote(cardId, text.trim())
                             sent = true
+                            PushCenter.reachedOut()
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: ApiFailure) {

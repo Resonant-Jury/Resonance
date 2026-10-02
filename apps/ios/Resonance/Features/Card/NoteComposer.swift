@@ -101,6 +101,7 @@ struct NoteComposer: View {
         do {
             _ = try await session.messaging.sendNote(cardId: cardId, text: text.trimmingCharacters(in: .whitespacesAndNewlines))
             sent = true
+            PushCenter.shared.reachedOut()
         } catch let failure as APIFailure {
             error = failure.status == 403 ? failure.message : L10n.Messages.sendError
         } catch {

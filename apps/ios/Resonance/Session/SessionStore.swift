@@ -162,11 +162,16 @@ final class SessionStore {
 
     /// This install gets the signed-in person's pushes (again, whenever the token or the language changes).
     func registerPush() async {
-        guard phase == .signedIn, let token = push.token else { return }
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        guard phase == .signedIn, let uid, let token = push.token else { return }
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let wanted = PushRegistration(installationId: PushCenter.installationId, uid: uid, token: token,
+                                      language: Strings.shared.language.rawValue, version: version)
+        // Sent already today, as it is now: not again on every launch.
+        guard !PushRegistration.isFresh(PushCenter.lastRegistration, wanted, now: .now) else { return }
         do {
-            try await pushAPI.register(installationId: PushCenter.installationId, token: token,
+            try await pushAPI.register(installationId: wanted.installationId, token: token,
                                        language: Strings.shared.language, appVersion: version)
+            if self.uid == uid { PushCenter.lastRegistration = wanted.encode(sentAt: .now) }
         } catch {
             #if DEBUG
             print("Push registration failed: \(error)")
@@ -186,6 +191,7 @@ final class SessionStore {
     /// (after the revocation the server would refuse the request); should the
     /// scheduling fail, it registers again.
     func scheduleDeletion() async throws {
+        PushCenter.lastRegistration = nil
         try? await pushAPI.unregister(installationId: PushCenter.installationId)
         do {
             try await account.scheduleDeletion()
@@ -243,6 +249,7 @@ final class SessionStore {
         conversations.stop()
         // Signed out (deletion signs out too), or switched: what Firestore and the system kept of
         // the last account goes — the next one's listeners start once that is done.
+        if previous != nil { PushCenter.lastRegistration = nil }
         let forgetting = previous.map { previous in Task { await Self.forget(previous) } }
         if let newUID {
             signedOutForDeletion = false
@@ -264,10 +271,11 @@ final class SessionStore {
     }
 
     /// What the device still holds of an account that signed out (or was
-    /// switched from), beyond the API caches `apply` empties: Firestore's
-    /// local cache (its messages, notifications and drafts), the pushes still
-    /// in Notification Center and the badge, a backup the account exported,
-    /// and the mark that it has a profile.
+    /// switched from), beyond the API caches and the push registration's
+    /// memo `apply` empties: Firestore's local cache (its messages,
+    /// notifications and drafts), the pushes still in Notification Center and
+    /// the badge, a backup the account exported, and the mark that it has a
+    /// profile.
     nonisolated static func forget(_ uid: String) async {
         await FirebaseBootstrap.clearLocalData()
         let center = UNUserNotificationCenter.current()
@@ -298,13 +306,13 @@ final class SessionStore {
     }
     #endif
 
-    /// Where a signed-in person lands. Reaching the tabs is when the app asks
-    /// to send notifications — not over the sign-in or pen-name steps, where
-    /// the question would come before there is anything to be notified about.
+    /// Where a signed-in person lands. Reaching the tabs is when the app
+    /// registers for pushes, if they are allowed already; asking waits for the
+    /// first note, message or card published (`PushCenter.reachedOut`).
     private func land(_ next: Landing) {
         let arrived = next == .tabs && landing != .tabs
         landing = next
-        if arrived, phase == .signedIn { Task { await push.requestPermission() } }
+        if arrived, phase == .signedIn { Task { await push.registerIfAllowed() } }
     }
 
     /// The last account this install saw with a profile (see `landing`).

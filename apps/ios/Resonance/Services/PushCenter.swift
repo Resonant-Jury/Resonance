@@ -27,22 +27,64 @@ final class PushCenter {
     /// Called with each new FCM token (the session registers it under whoever is signed in).
     @ObservationIgnored var onToken: ((String) -> Void)?
 
-    /// This install's own id — the key the server keeps its token under.
+    /// This install's own id — the key the server keeps its token under. It
+    /// belongs to this phone: a backup restored onto another one carries the
+    /// app's settings along, so the phone it was made on is kept beside it
+    /// (identifierForVendor), and on a different phone the install gets an id
+    /// of its own instead of claiming the first phone's device record.
     static var installationId: String {
-        let key = "pushInstallationId"
-        if let id = UserDefaults.standard.string(forKey: key) { return id }
+        let defaults = UserDefaults.standard
+        let key = "pushInstallationId", deviceKey = "pushInstallationDevice"
+        let device = UIDevice.current.identifierForVendor?.uuidString
+        if let id = defaults.string(forKey: key) {
+            // Unknown for now (before the first unlock): keep what there is.
+            guard let device else { return id }
+            switch defaults.string(forKey: deviceKey) {
+            case device: return id
+            case nil:
+                // Made by a build before this check: it was made here.
+                defaults.set(device, forKey: deviceKey)
+                return id
+            default:
+                break
+            }
+        }
         let id = UUID().uuidString
-        UserDefaults.standard.set(id, forKey: key)
+        defaults.set(id, forKey: key)
+        defaults.set(device, forKey: deviceKey)
+        defaults.removeObject(forKey: registrationKey)
         return id
     }
 
-    /// Ask once (the system remembers the answer), then register with APNs;
-    /// FCM hands back its token through `tokenChanged`.
-    func requestPermission() async {
-        let center = UNUserNotificationCenter.current()
-        let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-        guard granted else { return }
+    /// The registration this install last sent (see PushRegistration); nil once signed out.
+    static var lastRegistration: String? {
+        get { UserDefaults.standard.string(forKey: registrationKey) }
+        set { UserDefaults.standard.set(newValue, forKey: registrationKey) }
+    }
+
+    private static let registrationKey = "pushRegistration"
+
+    /// Signed in: with notifications already allowed, registers with APNs (each
+    /// launch; FCM hands back its token through `tokenChanged`). It doesn't ask —
+    /// that waits for `reachedOut()`.
+    func registerIfAllowed() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus) else { return }
         UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    /// The person just reached someone — a note, a message, a card published:
+    /// the moment a reply, a resonance or a note back is worth hearing about,
+    /// so the moment to ask (once; the system remembers the answer) — not on
+    /// first opening the app, before there is anything to be notified about.
+    func reachedOut() {
+        Task {
+            let center = UNUserNotificationCenter.current()
+            guard await center.notificationSettings().authorizationStatus == .notDetermined else { return }
+            let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            guard granted else { return }
+            UIApplication.shared.registerForRemoteNotifications()
+        }
     }
 
     func tokenChanged(_ token: String?) {
