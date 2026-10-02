@@ -21,7 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.onFocusChanged
@@ -48,6 +47,7 @@ import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
 import com.resonance.design.polylinePath
 import com.resonance.design.toPath
+import com.resonance.design.fade
 import com.resonance.geometry.SegValue
 import com.resonance.geometry.WobRectOptions
 import com.resonance.geometry.wobRect
@@ -137,7 +137,7 @@ fun TagInputBar(value: String, onValueChange: (String) -> Unit, placeholder: Str
             Modifier
                 .fillMaxHeight()
                 .onSizeChanged { addWidth = it.width / scale }
-                .alpha(if (canAdd) 1f else 0.7f)
+                .fade(if (canAdd) 1f else 0.7f)
                 .plainClickable(role = Role.Button) { if (canAdd) onAdd() }
                 .padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,

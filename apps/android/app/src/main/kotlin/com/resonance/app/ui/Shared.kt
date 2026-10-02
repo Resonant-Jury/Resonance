@@ -35,7 +35,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -56,6 +55,7 @@ import com.resonance.design.StoryCardContent
 import com.resonance.design.cream
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
+import com.resonance.design.fade
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
 import java.time.OffsetDateTime
@@ -209,7 +209,8 @@ private fun rememberQuickReturn(list: LazyListState): QuickReturn {
  */
 fun Modifier.dimmedUnless(active: Boolean): Modifier =
     if (active) this
-    else alpha(0.5f).pointerInput(Unit) {
+    // fade, not alpha: alpha's layer is the box's size and would cut a hand-drawn button's wobble straight.
+    else fade(0.5f).pointerInput(Unit) {
         awaitPointerEventScope {
             while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
         }

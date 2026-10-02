@@ -15,7 +15,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -30,6 +29,7 @@ import com.resonance.design.OrganicMenuItem
 import com.resonance.design.OrganicModal
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
+import com.resonance.design.fade
 import com.resonance.kit.l10n.L10n
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -86,7 +86,7 @@ fun CardActionsMenu(
         OrganicMenuItem(L10n.Me.Actions.delete, IconName.Trash, destructive = true) { confirming = true },
     )
 
-    Box(Modifier.alpha(if (busy && !confirming) 0.6f else 1f)) {
+    Box(Modifier.fade(if (busy && !confirming) 0.6f else 1f)) {
         OrganicMenu(items, L10n.Me.Actions.menuLabel, seed, hue = hue, trigger = trigger)
     }
     if (confirming) {

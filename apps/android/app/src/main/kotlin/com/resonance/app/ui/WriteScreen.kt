@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.asImageBitmap
 import com.resonance.design.HandDrawnImage
 import com.resonance.design.OrganicCloseChip
@@ -95,6 +94,7 @@ import com.resonance.design.cream
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
+import com.resonance.design.fade
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
 import kotlinx.coroutines.CancellationException
@@ -376,7 +376,7 @@ private fun Cover(model: WriteModel, pick: () -> Unit) {
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .alpha(if (model.canGenerate) 1f else 0.55f)
+                        .fade(if (model.canGenerate) 1f else 0.55f)
                         .plainClickable(role = Role.Button) { model.generateCover() },
                 )
             }
