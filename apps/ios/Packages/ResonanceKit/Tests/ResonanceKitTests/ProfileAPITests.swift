@@ -95,6 +95,36 @@ struct ProfileAPITests {
         // No author in the request: the server knows it, anonymous cards included.
         #expect(sent.keys.sorted() == ["reason"])
     }
+
+    @Test func reportsAPersonOrAMessageThroughTheServer() async throws {
+        let transport = StubTransport(status: .created, body: #"{"id":"r2"}"#)
+        let safety = SafetyAPI(client: Client(serverURL: URL(string: "https://example.test/api/v1")!, transport: transport))
+        #expect(try await safety.report(.person("mallory"), reason: .harassment, detail: "每天都來") == "r2")
+        try await safety.report(.message("m7", conversationId: "alice_mallory"), reason: .spam, detail: nil)
+        try await safety.report(.conversation("alice_mallory"), reason: .other, detail: nil)
+        #expect(transport.requests.allSatisfy { $0.method == .post && $0.path?.hasSuffix("/reports") == true })
+        let sent = transport.sentJSON.compactMap { $0 }
+        #expect(sent.count == 3)
+        #expect(sent[0]["targetType"] as? String == "user")
+        #expect(sent[0]["targetId"] as? String == "mallory")
+        #expect(sent[0]["conversationId"] == nil)
+        #expect(sent[0]["reason"] as? String == "harassment")
+        #expect(sent[0]["detail"] as? String == "每天都來")
+        #expect(sent[1]["targetType"] as? String == "message")
+        #expect(sent[1]["targetId"] as? String == "m7")
+        #expect(sent[1]["conversationId"] as? String == "alice_mallory")
+        #expect(sent[1]["detail"] == nil)
+        // A conversation as a whole: the message report naming the conversation itself.
+        #expect(sent[2]["targetType"] as? String == "message")
+        #expect(sent[2]["targetId"] as? String == "alice_mallory")
+        #expect(sent[2]["conversationId"] as? String == "alice_mallory")
+
+        let refused = StubTransport(status: .notFound, body: #"{"error":{"code":"not_found","message":"No such message."}}"#)
+        await #expect(throws: APIFailure(code: "not_found", message: "No such message.", status: 404)) {
+            try await SafetyAPI(client: Client(serverURL: URL(string: "https://example.test/api/v1")!, transport: refused))
+                .report(.message("gone", conversationId: "alice_mallory"), reason: .spam, detail: nil)
+        }
+    }
 }
 
 /// The pen name's rules, as the contract's `Handle` checks them.

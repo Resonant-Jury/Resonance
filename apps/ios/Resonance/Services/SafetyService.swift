@@ -2,12 +2,12 @@ import FirebaseFirestore
 import Foundation
 import ResonanceKit
 
-/// Report and block. Card reports go through the API, which fills in the
-/// author (anonymous cards included); the rest is written straight to
-/// Firestore under the same rules the web's client uses
-/// (lib/db/firestore/client/reports.ts, blocks.ts): reports are create-only;
-/// the block list is owner-only, and blocking also ends the connection and
-/// withdraws the blocker's pending invites.
+/// Report and block. Reports go through the API, which fills in a card's
+/// author (anonymous cards included) and keeps what was reported as
+/// evidence; blocks are written straight to Firestore under the same rules
+/// the web's client uses (lib/db/firestore/client/blocks.ts): the block list
+/// is owner-only, and blocking also ends the connection and withdraws the
+/// blocker's pending invites.
 struct SafetyService {
     enum Reason: String, CaseIterable, Identifiable {
         case spam, harassment, hate, sexual, selfHarm = "self_harm", violence, other
@@ -18,6 +18,7 @@ struct SafetyService {
         /// `authorId` is nil for an anonymous card: the app never learns who wrote it.
         case card(id: String, authorId: String?)
         case user(id: String)
+        /// A message — or, with the conversation's own id as `id`, the conversation as a whole.
         case message(id: String, senderId: String, conversationId: String)
 
         /// The person behind it, when the app knows them (someone to block).
@@ -28,9 +29,19 @@ struct SafetyService {
             case let .message(_, sender, _): sender
             }
         }
+
+        /// What POST /api/v1/reports is told it is (nil for a card, reported through its own route).
+        var reportTarget: SafetyAPI.ReportTarget? {
+            switch self {
+            case .card: nil
+            case let .user(id): .person(id)
+            case let .message(id, _, conversation):
+                id == conversation ? .conversation(id) : .message(id, conversationId: conversation)
+            }
+        }
     }
 
-    /// Mirrors the cap in firestore.rules (and the contract's REPORT_DETAIL_MAX).
+    /// The contract's REPORT_DETAIL_MAX.
     static let detailMax = 1000
 
     let uid: String
@@ -40,30 +51,14 @@ struct SafetyService {
     private var db: Firestore { FirebaseBootstrap.db }
 
     func report(_ target: Target, reason: Reason, detail: String) async throws {
-        let detail = detail.trimmingCharacters(in: .whitespacesAndNewlines).prefix(utf16Units: Self.detailMax)
-        var data: [String: Any]
-        switch target {
-        case let .card(id, _):
-            // The server knows the author, and checks the card is one the reporter can see.
-            try await api.reportCard(id, reason: SafetyAPI.ReportReason(rawValue: reason.rawValue) ?? .other,
-                                     detail: detail.isEmpty ? nil : detail)
-            return
-        case let .user(id):
-            data = ["targetType": "user", "targetId": id, "targetUserId": id]
-        case let .message(id, sender, conversation):
-            data = ["targetType": "message", "targetId": id, "targetUserId": sender, "contextId": conversation]
-        }
-        data["reporterId"] = uid
-        data["reason"] = reason.rawValue
-        data["detail"] = detail
-        data["createdAt"] = FieldValue.serverTimestamp()
-        data["status"] = "open"
-        let reports = db.collection("reports")
-        // The completion form: the payload never leaves the main actor.
-        try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
-            reports.addDocument(data: data) { error in
-                if let error { done.resume(throwing: error) } else { done.resume() }
-            }
+        let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines).prefix(utf16Units: Self.detailMax)
+        let (reason, detail) = (SafetyAPI.ReportReason(rawValue: reason.rawValue) ?? .other, trimmed.isEmpty ? nil : trimmed)
+        // The server knows a card's author and a message's sender, and checks the
+        // reporter can see the card or is in the conversation.
+        if case let .card(id, _) = target {
+            try await api.reportCard(id, reason: reason, detail: detail)
+        } else if let filed = target.reportTarget {
+            try await api.report(filed, reason: reason, detail: detail)
         }
     }
 
