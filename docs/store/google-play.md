@@ -5,7 +5,7 @@
 
 ## 1. 隱私權政策
 
-- 網址：`https://resonance-world.vercel.app/zh-TW/privacy`
+- 網址：`https://resonance.channel/zh-TW/privacy`
 
 ## 2. 應用程式存取權（登入詳細資料）
 
@@ -15,7 +15,7 @@
   - 使用者名稱／密碼：留空（暫不提供測試帳號）
   - 其他說明：
 
-    > Most of Resonance is public and can be read without an account at https://resonance-world.vercel.app. The app asks you to sign in because it is built around writing and answering stories: tap "Continue with Google" on the sign-in screen and use any Google account. On first sign-in, choose a pen name to finish setting up; after that every feature is available. No other credentials are needed.
+    > Most of Resonance is public and can be read without an account at https://resonance.channel. The app asks you to sign in because it is built around writing and answering stories: tap "Continue with Google" on the sign-in screen and use any Google account. On first sign-in, choose a pen name to finish setting up; after that every feature is available. No other credentials are needed.
 
 ## 3. 廣告
 
@@ -23,7 +23,7 @@
 
 ## 4. 內容分級（IARC 問卷）
 
-- 電子郵件：`assist.resonance@gmail.com`
+- 電子郵件：`support@resonance.channel`
 - 類別：**社群網路、論壇、網誌和使用者原創內容分享**（Social Networking, Forums, Blogs and UGC Sharing）
 
 | 問題 | 回答 | 說明 |
@@ -61,7 +61,7 @@
 | 是否收集或分享必要的使用者資料類型？ | 是 |
 | 所有收集的使用者資料是否都經過傳輸加密？ | 是（HTTPS） |
 | 使用者可以透過哪些方式建立帳戶？ | OAuth（Android App 只有 Google 登入） |
-| 刪除帳戶的網址 | `https://resonance-world.vercel.app/zh-TW/support` |
+| 刪除帳戶的網址 | `https://resonance.channel/zh-TW/support` |
 | 使用者能否要求刪除部分資料而不刪除帳戶？ | 暫不填（選填；選「是」須附一個說明如何刪除的網址，支援頁目前只寫刪除帳號） |
 
 **資料類型**（全部：已收集、**不分享**給第三方、非暫時處理、與使用者身分相關）
@@ -90,8 +90,8 @@
 
 ### 兒童安全標準（社交類必填，未填就無法送審）
 
-- 安全標準網址：`https://resonance-world.vercel.app/en/child-safety`（中文版 `/zh-TW/child-safety`，來源 `docs/legal/child-safety.*.md`）
-- 聯絡資訊：選「使用其他電子郵件地址」→ `assist.resonance@gmail.com`
+- 安全標準網址：`https://resonance.channel/en/child-safety`（中文版 `/zh-TW/child-safety`，來源 `docs/legal/child-safety.*.md`）
+- 聯絡資訊：選「使用其他電子郵件地址」→ `support@resonance.channel`
 - 條款兩項都勾：App 內可檢舉（每張卡片、個人頁、對話的「⋯」選單）；遵守兒童安全法律並向主管機關通報（頁面寫明向 NCMEC 與臺灣警方通報 CSAM）
 - 這是對 Google 的法律聲明，由帳號擁有者本人勾選送出
 
@@ -100,8 +100,8 @@
 - 應用程式或遊戲：應用程式
 - 類別：**社交**
 - 標記（最多 5 個）：寫作、日記、社群、故事、生活
-- 電子郵件：`assist.resonance@gmail.com`
-- 網站：`https://resonance-world.vercel.app`
+- 電子郵件：`support@resonance.channel`
+- 網站：`https://resonance.channel`
 - 電話：（可留空）
 
 ## 9. 主要商店資訊
@@ -186,6 +186,6 @@
 
 - 測試群組：Google 群組 `tuckin@googlegroups.com`（20 人）
 - 國家／地區：全部 177 個（2026-10-01 已設定）
-- 意見回饋：`assist.resonance@gmail.com`
+- 意見回饋：`support@resonance.channel`
 - 版本：封閉測試 - Alpha 已存好 versionCode 4（2.0.0），在「發布總覽」送審（15 項變更，含商店資訊與各項聲明）
 - 條件：至少 12 人選擇加入，並連續 14 天保持參加，才可申請正式版。

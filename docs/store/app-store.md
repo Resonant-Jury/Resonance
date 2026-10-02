@@ -31,9 +31,9 @@
 
   英文：`story,writing,journal,life,memoir,cards,reflection,share,connect,thought map`
 
-- **支援網址**：`https://resonance-world.vercel.app/zh-TW/support`（英文 `/en/support`）
-- **行銷網址**：`https://resonance-world.vercel.app`
-- **隱私權政策網址**：`https://resonance-world.vercel.app/zh-TW/privacy`（英文 `/en/privacy`）
+- **支援網址**：`https://resonance.channel/zh-TW/support`（英文 `/en/support`）
+- **行銷網址**：`https://resonance.channel`
+- **隱私權政策網址**：`https://resonance.channel/zh-TW/privacy`（英文 `/en/privacy`）
 - **版權**：`© 2026 共振團隊`
 
 ### 螢幕截圖
@@ -75,17 +75,17 @@
 ## 5. App 審查資訊
 
 - **登入資訊**：不提供示範帳號（取消勾選「需要登入」）。在備註說明：網站上的公開內容不需要帳號就能瀏覽；App 需要登入，但可用審查人員自己的 Apple ID（Sign in with Apple）或 Google 帳號。
-- **聯絡資訊**：姓名、電話 **【你來填】**；電子郵件 `assist.resonance@gmail.com`
+- **聯絡資訊**：姓名、電話 **【你來填】**；電子郵件 `support@resonance.channel`
 - **備註**（英文，審查人員讀）：
 
-  > Resonance is a story-sharing app. Most of its content is public and can be read without an account at https://resonance-world.vercel.app. The app itself asks you to sign in, since it is built around writing and answering stories: tap "Continue with Apple" (any Apple ID) or Google — no demo account is needed. On first sign-in, choose a pen name to finish setting up.
+  > Resonance is a story-sharing app. Most of its content is public and can be read without an account at https://resonance.channel. The app itself asks you to sign in, since it is built around writing and answering stories: tap "Continue with Apple" (any Apple ID) or Google — no demo account is needed. On first sign-in, choose a pen name to finish setting up.
   >
   > User-generated content safeguards (Guideline 1.2):
-  > - Terms of Use with a zero-tolerance clause: https://resonance-world.vercel.app/en/terms — users agree to them when they sign in.
+  > - Terms of Use with a zero-tolerance clause: https://resonance.channel/en/terms — users agree to them when they sign in.
   > - Report: the "⋯" menu on every card, profile and conversation.
   > - Block: the same menu; blocked users can no longer contact the blocker and their cards are hidden.
   > - Reports are reviewed within 24 hours; offending content is removed and accounts suspended.
-  > - Contact: assist.resonance@gmail.com
+  > - Contact: support@resonance.channel
   >
   > Account deletion (5.1.1(v)): My Card Box → Edit profile → Delete account. The account is deleted after a 7-day grace period (signing back in cancels it).
   >
