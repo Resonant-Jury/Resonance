@@ -16,6 +16,7 @@ vi.mock('@/lib/hints', () => ({
 }));
 
 import { sendNote } from '@/lib/db/firestore/client/notes';
+import { ApiError } from '@/lib/db/firestore/client/api';
 
 beforeEach(() => {
   mockUseMyProfile.mockReturnValue({ data: { id: 'me', handle: 'my-handle' } });
@@ -59,6 +60,22 @@ describe('NoteComposer', () => {
     await user().click(cancel);
     expect(onClose).toHaveBeenCalled();
     expect(sendNote).not.toHaveBeenCalled();
+  });
+
+  // A letter holds three notes until the author answers; the fourth is refused, said in the reader's words.
+  it('asks the writer to wait for an answer when their letter is full, and never shows the server’s words', async () => {
+    vi.mocked(sendNote).mockRejectedValueOnce(new ApiError(409, 'conflict', 'Wait for them to reply.'));
+    renderWithIntl(<NoteComposer cardId="c1" />);
+    fireEvent.change(screen.getByPlaceholderText('Something you want to tell the author…'), { target: { value: 'One more thing' } });
+    await user().click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText("You've left notes they haven't answered yet — wait for their reply.")).toBeInTheDocument();
+    expect(screen.queryByText('Wait for them to reply.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your note is on its way.')).not.toBeInTheDocument();
+
+    vi.mocked(sendNote).mockRejectedValueOnce(new ApiError(403, 'blocked', 'You cannot send a note to this person.'));
+    await user().click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText("Couldn't send — please try again.")).toBeInTheDocument();
+    expect(screen.queryByText('You cannot send a note to this person.')).not.toBeInTheDocument();
   });
 
   it('does not send an empty note', async () => {

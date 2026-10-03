@@ -4,6 +4,7 @@ import { collection, getDocs, orderBy, query, Timestamp, where } from './sdk';
 import type { Note } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
+import { callApi } from './api';
 
 /** Hard cap mirrored in firestore.rules — keep the two in sync. */
 export const NOTE_MAX_LENGTH = 2000;
@@ -36,25 +37,20 @@ function mapNote(id: string, data: Record<string, unknown>): Note {
  * Send a private note (小紙條) to a card's author, through the server
  * (POST /api/v1/notes, the same call the apps make). The server finds the
  * author from the card, writes the note and the author's "note" bell (with
- * a short preview), and connects the two so the exchange can continue in
- * 私訊 — except for an anonymous card, whose author a connection would name.
- * It also re-checks what the rules can't: that you can read the card, that
- * it isn't yours, and that no block stands between you.
+ * a short preview), and — on a named card — the note into the two people's
+ * thread, where the author's answer is what connects them (a letter). It
+ * also re-checks what the rules can't: that you can read the card, that it
+ * isn't yours, and that no block stands between you. A refusal throws an
+ * ApiError: `conflict` (409) when the writer has left as many notes as a
+ * letter holds and waits for the author's answer.
  */
 export async function sendNote(input: { cardId: string; text: string }): Promise<string> {
   requireUid();
   const text = input.text.trim();
   if (!text) throw new Error('Note is empty');
   if (text.length > NOTE_MAX_LENGTH) throw new Error('Note too long');
-
-  const res = await fetch('/api/v1/notes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cardId: input.cardId, text }),
-  });
-  const body = (await res.json().catch(() => null)) as { id?: string; error?: { message?: string } } | null;
-  if (!res.ok || !body?.id) throw new Error(body?.error?.message ?? `Sending the note failed (${res.status})`);
-  return body.id;
+  const { id } = await callApi<{ id: string }>('/api/v1/notes', { method: 'POST', body: { cardId: input.cardId, text } });
+  return id;
 }
 
 /** Notes the signed-in viewer has received, newest first. */
