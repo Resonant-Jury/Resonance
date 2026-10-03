@@ -29,7 +29,8 @@ public struct CSSTextView: UIViewRepresentable {
         container.lineFragmentPadding = 0
         layout.addTextContainer(container)
         storage.addLayoutManager(layout)
-        let view = UITextView(frame: .zero, textContainer: container)
+        let view = LinkWaveTextView(frame: .zero, textContainer: container)
+        view.waveColor = UIColor(Tokens.terracotta)
         view.isEditable = false
         view.isSelectable = true
         view.isScrollEnabled = false
@@ -46,6 +47,8 @@ public struct CSSTextView: UIViewRepresentable {
         context.coordinator.onOpenURL = onOpenURL
         let boxes = CSSLineBoxes(font: font, lineHeight: lineHeight)
         context.coordinator.lineBoxes = boxes
+        // Under the letters, not under the line box: 0.2em below the baseline, like OrganicLink.
+        (view as? LinkWaveTextView)?.waveDrop = font.pointSize * 0.2
         view.layoutManager.delegate = boxes
         if view.attributedText != text { view.attributedText = text }
     }
@@ -122,7 +125,6 @@ public struct ProseStyle: Sendable {
             if let link = run.link, let url = URL(string: link) {
                 attrs[.link] = url
                 attrs[.foregroundColor] = UIColor(Tokens.terracotta)
-                attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
             }
             if let paragraph { attrs[.paragraphStyle] = paragraph }
             out.append(NSAttributedString(string: run.text, attributes: attrs))
