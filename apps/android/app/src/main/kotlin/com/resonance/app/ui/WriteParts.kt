@@ -190,7 +190,7 @@ private fun TagFlow(content: @Composable () -> Unit) {
 private val TAG_GAP = 8.dp
 
 /** The least width the input row takes before it goes down a line. */
-private val ENTRY_MIN = 190.dp
+private val ENTRY_MIN = 240.dp
 
 /** One line of the tag field: how many pills it holds and whether the input row ends it. */
 internal class TagLine(val pills: Int, val entry: Boolean)

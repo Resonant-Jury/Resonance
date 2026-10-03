@@ -86,7 +86,7 @@ struct TagField: View {
 /// centred on their line.
 private struct TagFlow: Layout {
     var spacing: CGFloat = 8
-    var entryMin: CGFloat = 190
+    var entryMin: CGFloat = 240
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 320
