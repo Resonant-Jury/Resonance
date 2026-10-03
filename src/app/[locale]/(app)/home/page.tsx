@@ -160,9 +160,6 @@ export default function HomeFeedPage() {
                   {isLoadingMore ? t('moreLoading') : t('moreBtn')}
                 </OrganicButton>
               )}
-              <Link href="/write" style={{ textDecoration: 'none' }}>
-                <OrganicButton variant="primary">{t('writeResponse')}</OrganicButton>
-              </Link>
             </div>
           </footer>
         </>

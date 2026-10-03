@@ -119,7 +119,7 @@ describe('HomeFeedPage', () => {
     expect(loadMore).toHaveBeenCalled();
     unmount();
 
-    // Exhausted feed: the button disappears; the write CTA remains.
+    // Exhausted feed: the button disappears, and nothing else asks to write (the header's pen does).
     mockUseFeed.mockReturnValue({
       data: { cards: [card('c1', 'a1', 'A thought')], authors: { a1: user('a1') } },
       isLoading: false,
@@ -128,7 +128,8 @@ describe('HomeFeedPage', () => {
     });
     renderWithIntl(<HomeFeedPage />);
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
-    expect(screen.getByText('Write a card')).toBeInTheDocument();
+    expect(screen.queryByText('Write a card')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /write/i })).not.toBeInTheDocument();
   });
 
   it('renders recommended cards without surfacing their match reasons', () => {

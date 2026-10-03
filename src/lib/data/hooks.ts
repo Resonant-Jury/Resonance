@@ -217,10 +217,10 @@ export interface CardView {
 /**
  * Card URL segment → the document id it names, as the card page's server
  * render found it (and as the browser learnt since). Every reader of a card's
- * SWR key fetches through {@link fetchCardView} — the page, and the floating
- * write button beside it, whose fetch may well be the one that runs (SWR
- * starts a hook holding fallbackData a frame later) — so whichever does skips
- * the slug lookup.
+ * SWR key fetches through {@link fetchCardView} — the page, and any other
+ * reader of the key beside it (an embed of the same card), whose fetch may
+ * well be the one that runs (SWR starts a hook holding fallbackData a frame
+ * later) — so whichever does skips the slug lookup.
  */
 const serverCardIds = new Map<string, string>();
 

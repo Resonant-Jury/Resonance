@@ -74,6 +74,16 @@
   gap: 12px;
 }
 
+/* A glyph of the account row standing for a place (the writer): the
+   messages' and the bell's footprint, in the header's ink. */
+.entry {
+  position: relative;
+  display: inline-flex;
+  padding: 6px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
 /* Phone or wide is decided here, not after hydration: both are in the HTML,
    so the first paint (scripts loading, or none) is already the right one. */
 .phoneOnly {

@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { AppHeader } from '@/components/sections/AppHeader/AppHeader';
 import { AppChromeProvider } from '@/components/providers/AppChrome';
-import { FloatingWriteButton } from '@/components/sections/AppHeader/FloatingWriteButton';
 import { AccountDeletionBanner } from '@/components/molecules/AccountDeletionBanner/AccountDeletionBanner';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile } from '@/lib/data/hooks';
@@ -55,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [loading, authUser, profileLoading, profile, pathname, router]);
 
   // Full-bleed workspaces (the thought map and the draft editor beside it)
-  // own the whole viewport: no header, no floating write button. The writer
+  // own the whole viewport: no header. The writer
   // stands its own bar (back + title) where the header would be; the thought
   // map has a Back control floating over it.
   const writer = pathname === '/write' || pathname.startsWith('/write/');
@@ -77,7 +76,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main style={{ minHeight: '100vh' }}>{children}</main>
       {/* The banner's status comes from a cookie-authenticated /api route. */}
       {authUser && sessionReady && <AccountDeletionBanner belowHeader={!bareChrome || writer} />}
-      {authUser && !bareChrome && <FloatingWriteButton />}
     </AppChromeProvider>
   );
 }
