@@ -147,6 +147,7 @@
       "hint": "Only the author can see this.",
       "upgrade": "Want to turn this into a resonance card?",
       "sent": "Your note is on its way.",
+      "waitForReply": "You've left notes they haven't answered yet — wait for their reply.",
       "send": "Send",
       "cancel": "Cancel",
       "close": "Close"
@@ -222,6 +223,8 @@
     "send": "Send",
     "sendError": "Couldn't send — please try again.",
     "notConnected": "You can only message people you're connected with.",
+    "awaitingReply": "They'll see your note. Once they reply, you can keep talking.",
+    "replyToConnect": "Reply to start talking with {handle}.",
     "viewProfile": "View profile",
     "back": "All conversations",
     "youPrefix": "You: ",

@@ -147,6 +147,7 @@
       "hint": "這段話只有作者看得到。",
       "upgrade": "這段話想寫成一張共振卡嗎？",
       "sent": "紙條寄出了。",
+      "waitForReply": "你留的紙條對方還沒回覆，先等等對方吧。",
       "send": "寄出",
       "cancel": "取消",
       "close": "關閉"
@@ -222,6 +223,8 @@
     "send": "送出",
     "sendError": "沒送出去，再試一次。",
     "notConnected": "只能與已連結的人對話",
+    "awaitingReply": "對方會收到你的紙條，回覆後就能繼續聊。",
+    "replyToConnect": "回覆後，你們就能開始聊天。",
     "viewProfile": "看看個人頁",
     "back": "所有對話",
     "youPrefix": "你：",

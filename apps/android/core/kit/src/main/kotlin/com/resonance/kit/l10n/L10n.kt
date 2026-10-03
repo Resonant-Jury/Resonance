@@ -267,6 +267,8 @@ object L10n {
             val upgrade: String get() = Strings.string("card.note.upgrade")
             /** Your note is on its way. */
             val sent: String get() = Strings.string("card.note.sent")
+            /** You've left notes they haven't answered yet — wait for their reply. */
+            val waitForReply: String get() = Strings.string("card.note.waitForReply")
             /** Send */
             val send: String get() = Strings.string("card.note.send")
             /** Cancel */
@@ -398,6 +400,10 @@ object L10n {
         val sendError: String get() = Strings.string("messages.sendError")
         /** You can only message people you're connected with. */
         val notConnected: String get() = Strings.string("messages.notConnected")
+        /** They'll see your note. Once they reply, you can keep talking. */
+        val awaitingReply: String get() = Strings.string("messages.awaitingReply")
+        /** Reply to start talking with {handle}. */
+        fun replyToConnect(handle: String): String = Strings.format("messages.replyToConnect", mapOf("handle" to handle))
         /** View profile */
         val viewProfile: String get() = Strings.string("messages.viewProfile")
         /** All conversations */
