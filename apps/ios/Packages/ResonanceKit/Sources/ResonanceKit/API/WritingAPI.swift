@@ -3,9 +3,11 @@ import ResonanceAPI
 
 public typealias PublishResult = Components.Schemas.PublishResponse
 public typealias ApplyEditResult = Components.Schemas.ApplyEditResponse
+public typealias ResonateResult = Components.Schemas.ResonateResponse
 
-/// What the writing screen asks of the server: publishing, and a card's
-/// visibility, byline and deletion from its ⋯ (the v1 contract); and the web
+/// What the writing screen asks of the server: publishing, a card's
+/// visibility, byline and deletion from its ⋯, and resonating with a card by
+/// one already written (the v1 contract); and the web
 /// editor's helpers it shares as they are — AI tag suggestions, the publish
 /// panel's insight echo, and photo uploads. Drafts themselves are the
 /// author's own documents and go straight to Firestore, as on the web.
@@ -65,6 +67,37 @@ public struct WritingAPI: Sendable {
     /// (DELETE /api/v1/cards/{id}); the server refreshes the site's cached pages.
     public func deleteCard(_ cardId: String) async throws {
         switch try await client.deleteCard(path: .init(key: cardId)) {
+        case .noContent: return
+        case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
+        case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
+        case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
+        case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
+        }
+    }
+
+    /// Makes your published public card `cardId` a resonance of the card `targetId` — instead of
+    /// writing a new one (POST /api/v1/cards/{targetId}/resonances). Answers your card as your card
+    /// box shows it, and whether anything changed (`false`: it already answered this card). Throws
+    /// `conflict` when it answers another card, or another of yours answers this one;
+    /// `forbidden` without a pen name or across a block; `rate_limited` past the day's budget.
+    @discardableResult
+    public func resonate(with targetId: String, cardId: String) async throws -> ResonateResult {
+        switch try await client.resonateWithCard(path: .init(key: targetId), body: .json(.init(cardId: cardId))) {
+        case let .ok(r): return try r.body.json
+        case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
+        case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
+        case let .forbidden(r): throw APIFailure(try r.body.json, status: 403)
+        case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
+        case let .conflict(r): throw APIFailure(try r.body.json, status: 409)
+        case let .tooManyRequests(r): throw APIFailure(try r.body.json, status: 429)
+        case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
+        }
+    }
+
+    /// Your card `cardId` no longer answers `targetId`; the card itself stays
+    /// (DELETE /api/v1/cards/{targetId}/resonances/{cardId}). Nothing to undo is no error.
+    public func unresonate(from targetId: String, cardId: String) async throws {
+        switch try await client.unresonateCard(path: .init(key: targetId, cardId: cardId)) {
         case .noContent: return
         case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
         case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)

@@ -59,6 +59,7 @@ struct CardScreen: View {
                     // anonymous cards included (App Store 1.2), whose author only the server knows: Report alone.
                     if detail.isOwner {
                         CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, seed: hue + 3,
+                                        answering: card.referenceCardId, answeringTitle: detail.referenceCard?.value1.title,
                                         showsCardAfterEdit: false, onDeleted: { openRoute.dismissToRoot() }, trigger: .bare)
                     } else {
                         let author = detail.anonymous ? nil : card.author?.value1
@@ -105,7 +106,7 @@ struct CardScreen: View {
                     .padding(.bottom, 40)
                 }
                 if !detail.isOwner {
-                    CardViewerActions(cardId: card.id).padding(.bottom, 40)
+                    CardViewerActions(cardId: card.id, referenceCardId: card.referenceCardId).padding(.bottom, 40)
                 }
                 if !model.links.isEmpty {
                     Text(L10n.Card.linkedCards)
