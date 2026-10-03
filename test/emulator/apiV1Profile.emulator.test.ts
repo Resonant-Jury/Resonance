@@ -68,6 +68,28 @@ describe('createProfile', () => {
     expect(again.me.handle).toBe('nina');
   });
 
+  // A profile made before onboarding asked for a pen name can reach no one
+  // (hasPenName): the web sends it back to onboarding, which names it here.
+  it('names a profile that has none, reserving the name, and keeps the rest of it', async () => {
+    await db.doc('users/nina').set({ handle: '', bio: 'already here', accentColor: 'oklch(80% 0.1 200)', avatarSeed: '7', region: 'JP', primaryLocale: 'en' });
+    const { me, created, named } = await createProfile(db, newcomer, { handle: '小夜', region: 'TW', primaryLocale: 'zh-TW' });
+    expect({ created, named }).toEqual({ created: false, named: true });
+    expect(me).toMatchObject({ handle: '小夜', initials: '小夜', bio: 'already here', region: 'TW', primaryLocale: 'zh-TW' });
+    expect(me.handleChangedAt).toMatch(/^\d{4}-/);
+    const doc = (await db.doc('users/nina').get()).data()!;
+    expect(doc).toMatchObject({ handleLower: '小夜', accentColor: 'oklch(80% 0.1 200)', avatarSeed: '7' });
+    expect((await db.doc('handles/小夜').get()).get('uid')).toBe('nina');
+    // Named now: it comes back unchanged from here on.
+    expect(await createProfile(db, newcomer, { handle: 'other', region: 'JP', primaryLocale: 'en' })).toMatchObject({ created: false, named: false, me: { handle: '小夜' } });
+  });
+
+  it('keeps initials a nameless profile already had, and still refuses a name someone has', async () => {
+    await db.doc('users/nina').set({ initials: 'NN' });
+    expect((await failure(createProfile(db, newcomer, { handle: 'bob', region: 'TW', primaryLocale: 'en' }))).code).toBe('conflict');
+    expect((await db.doc('users/nina').get()).data()).toEqual({ initials: 'NN' });
+    expect((await createProfile(db, newcomer, { handle: 'nina', region: 'TW', primaryLocale: 'en' })).me).toMatchObject({ handle: 'nina', initials: 'NN' });
+  });
+
   it('gives a contested name to exactly one of two simultaneous sign-ups', async () => {
     const other: AuthUser = { ...newcomer, id: 'omar' };
     const results = await Promise.allSettled([

@@ -12,7 +12,8 @@ public struct MessagingAPI: Sendable {
         self.client = client
     }
 
-    /// A note to a card's author (the server finds the author); returns its id.
+    /// A note to a card's author (the server finds the author); returns its id. Notes still waiting for the
+    /// author's answer, three of them, throw `conflict` (wait for their reply).
     public func sendNote(cardId: String, text: String) async throws -> String {
         switch try await client.sendNote(body: .json(.init(cardId: cardId, text: text))) {
         case let .created(r): return try r.body.json.id
@@ -20,6 +21,7 @@ public struct MessagingAPI: Sendable {
         case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
         case let .forbidden(r): throw APIFailure(try r.body.json, status: 403)
         case let .notFound(r): throw APIFailure(try r.body.json, status: 404)
+        case let .conflict(r): throw APIFailure(try r.body.json, status: 409)
         case let .undocumented(status, _): throw APIFailure.unexpected(status: status)
         }
     }

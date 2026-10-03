@@ -1,11 +1,14 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
-import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { DocumentReference, getFirestore, Timestamp, Transaction, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { publishCard } from '@/lib/api/v1/publish';
 import { unfurlCardLinks } from '@/lib/links/cardLinks';
 import { verifyImageSignature } from '@/lib/links/imageProxy';
 import { createPreviewMemo, type PreviewFetch } from '@/lib/links/preview';
+import { resonateWith, tryReachResonance, unresonate } from '@/lib/api/v1/resonate';
+import { updateCard } from '@/lib/api/v1/cards';
+import { sendNote } from '@/lib/api/v1/conversations';
 
 // Publishing through the v1 API against the Firestore emulator — what the web
 // editor's submit() does from the client (stamp once, slug, resonance
@@ -24,6 +27,10 @@ beforeAll(() => {
 
 afterAll(async () => {
   await deleteApp(app);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 beforeEach(async () => {
@@ -124,6 +131,15 @@ describe('publishCard', () => {
       expect(bell.docs[0].data()).toMatchObject({ type: 'resonance', readAt: null, payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' } });
     });
 
+    it('answers a letter waiting between the two: the connection it makes clears the request', async () => {
+      await sendNote(db, 'alice', { cardId: 'orig', text: 'a letter before the resonance' });
+      expect((await db.doc('conversations/alice_bob').get()).get('request')).toMatchObject({ from: 'alice', count: 1 });
+      await draft('r1', { referenceCardId: 'orig' });
+      await publishCard(db, 'alice', 'r1', slugBase);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(true);
+      expect((await db.doc('conversations/alice_bob').get()).get('request')).toBeUndefined();
+    });
+
     it("connects the authors without waiting for a slow slug", async () => {
       await draft('r1', { referenceCardId: 'orig' });
       let release!: () => void;
@@ -167,6 +183,137 @@ describe('publishCard', () => {
       await draft('r1', { referenceCardId: 'orig' });
       await publishCard(db, 'alice', 'r1', slugBase);
       expect((await notifications()).size).toBe(0);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+    });
+
+    it('rings with the one bell this reader has for that card', async () => {
+      await draft('r1', { referenceCardId: 'orig' });
+      expect((await publishCard(db, 'alice', 'r1', slugBase)).notificationId).toBe('resonance_alice_orig');
+      expect((await notifications()).docs.map((d) => d.id)).toEqual(['resonance_alice_orig']);
+    });
+
+    for (const visibility of ['private', 'connections']) {
+      it(`reaches no one when published ${visibility}: the original's author could never see it, and the card is still published`, async () => {
+        await draft('r1', { referenceCardId: 'orig', visibility });
+        const result = await publishCard(db, 'alice', 'r1', slugBase);
+        expect(result).toMatchObject({ firstPublish: true, notificationId: null });
+        expect((await db.doc('cards/r1').get()).get('publishedAt')).toBeInstanceOf(Timestamp);
+        expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+        expect((await notifications()).size).toBe(0);
+      });
+    }
+
+    it('reaches no one from an account without a pen name, and is published all the same', async () => {
+      for (const profile of [null, { handle: '' }, { handleLower: 'x' }]) {
+        if (profile) await db.doc('users/alice').set(profile);
+        else await db.doc('users/alice').delete();
+        await draft('r1', { referenceCardId: 'orig' });
+        const result = await publishCard(db, 'alice', 'r1', slugBase);
+        expect(result).toMatchObject({ firstPublish: true, notificationId: null });
+        expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+        expect((await notifications()).size).toBe(0);
+      }
+    });
+
+    it('rings an author once for each reader, whichever path rang first — and connects no one again without a ring', async () => {
+      // Alice resonated with Bob's card using one she had written: connected, rung.
+      await db.doc('cards/mine').set({ authorId: 'alice', thoughtCore: '舊作', story: '', visibility: 'public', anonymous: false, publishedAt: Timestamp.now() });
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      await unresonate(db, 'alice', 'orig', 'mine');
+      // Bob blocked and unblocked her since: the block ended the connection.
+      await db.doc('connections/alice_bob').delete();
+      await draft('r1', { referenceCardId: 'orig' });
+      const result = await publishCard(db, 'alice', 'r1', slugBase);
+      expect(result.notificationId).toBeNull();
+      expect((await notifications()).docs.map((d) => d.id)).toEqual(['resonance_alice_orig']);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+    });
+
+    // Bells written before they had a fixed id (the old publish path, and the
+    // browser before it, under random ids) are the same record.
+    it("counts a bell rung before the bell had a fixed id: no second ring, no connection again", async () => {
+      await db.collection('notifications').add({
+        userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' }, readAt: null, createdAt: Timestamp.now(),
+      });
+      // Bob blocked and unblocked her since: the block ended the connection the old bell came with.
+      await draft('r1', { referenceCardId: 'orig' });
+      expect((await publishCard(db, 'alice', 'r1', slugBase)).notificationId).toBeNull();
+      expect((await notifications()).size).toBe(1);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+      // Someone else's old bell for the card, or Alice's for another card, stands for nothing.
+      await db.collection('notifications').get().then((s) => Promise.all(s.docs.map((d) => d.ref.delete())));
+      await db.collection('notifications').add({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'carol', cardId: 'orig' }, readAt: null });
+      await db.collection('notifications').add({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', cardId: 'other' }, readAt: null });
+      await db.collection('notifications').add({ userId: 'bob', type: 'note', payload: { fromUserId: 'alice', cardId: 'orig' }, readAt: null });
+      await draft('r2', { referenceCardId: 'orig' });
+      expect((await publishCard(db, 'alice', 'r2', slugBase)).notificationId).toBe('resonance_alice_orig');
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(true);
+    });
+
+    // Best effort: a reach that throws (Firestore unavailable halfway through
+    // its reads) is logged, and the card is published all the same.
+    it('is published when its reach fails, which reaches no one', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const txGet = Transaction.prototype.get;
+      vi.spyOn(Transaction.prototype, 'get').mockImplementation(async function (this: Transaction, ref: unknown) {
+        if (ref instanceof DocumentReference && ref.path === 'notifications/resonance_alice_orig') throw new Error('14 UNAVAILABLE');
+        return (txGet as (r: unknown) => Promise<unknown>).call(this, ref);
+      } as typeof Transaction.prototype.get);
+      await draft('r1', { referenceCardId: 'orig' });
+      const result = await publishCard(db, 'alice', 'r1', slugBase);
+      expect(result).toMatchObject({ id: 'r1', firstPublish: true, notificationId: null });
+      expect((await db.doc('cards/r1').get()).get('publishedAt')).toBeInstanceOf(Timestamp);
+      expect(error).toHaveBeenCalledWith('[api/v1] resonance', 'r1', expect.anything());
+      expect((await notifications()).size).toBe(0);
+    });
+
+    // Two of her cards reaching the same original at once — publishing one
+    // while another goes public — ring Bob once and connect them once.
+    it('rings and connects once when two paths reach the same original at the same time', async () => {
+      await draft('r1', { referenceCardId: 'orig' });
+      await db.doc('cards/r2').set({
+        authorId: 'alice', thoughtCore: '另一張', story: '', visibility: 'private', anonymous: false, referenceCardId: 'orig', publishedAt: Timestamp.now(),
+      });
+      const [published, patched] = await Promise.all([
+        publishCard(db, 'alice', 'r1', slugBase),
+        updateCard(db, 'alice', 'r2', { visibility: 'public' }, { setVisibility: async () => {} }).then(async (r) => (r.reaches ? tryReachResonance(db, 'alice', 'r2') : null)),
+      ]);
+      expect([published.notificationId, patched].filter(Boolean)).toEqual(['resonance_alice_orig']);
+      expect((await notifications()).docs.map((d) => d.id)).toEqual(['resonance_alice_orig']);
+      expect((await db.doc('connections/alice_bob').get()).get('userIds')).toEqual(['alice', 'bob']);
+    });
+
+    it('never leaves a connection across a block made while the resonance reaches out', async () => {
+      // Bob blocks Alice from his phone the moment publishing has read the
+      // blocks: the block, then the connection deleted if there is one (client/blocks.ts).
+      let blocking: Promise<void> | null = null;
+      const block = async () => {
+        await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+        const connection = db.doc('connections/alice_bob');
+        if ((await connection.get()).exists) await connection.delete();
+      };
+      const blockPath = 'users/bob/blocks/alice';
+      const plainGet = DocumentReference.prototype.get;
+      vi.spyOn(DocumentReference.prototype, 'get').mockImplementation(async function (this: DocumentReference) {
+        const snap = await plainGet.call(this);
+        // A read outside any transaction: nothing holds the block back.
+        if (this.path === blockPath && !blocking) await (blocking = block());
+        return snap;
+      });
+      const txGet = Transaction.prototype.get;
+      vi.spyOn(Transaction.prototype, 'get').mockImplementation(async function (this: Transaction, ref: unknown) {
+        const snap = await (txGet as (r: unknown) => Promise<unknown>).call(this, ref);
+        // Inside a transaction the block waits for it (awaiting it here would wait forever).
+        if (ref instanceof DocumentReference && ref.path === blockPath && !blocking) blocking = block();
+        return snap;
+      } as typeof Transaction.prototype.get);
+
+      await draft('r1', { referenceCardId: 'orig' });
+      await publishCard(db, 'alice', 'r1', slugBase);
+      expect(blocking).not.toBeNull();
+      await blocking;
+      expect((await db.doc(blockPath).get()).exists).toBe(true);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
     });
   });
 });

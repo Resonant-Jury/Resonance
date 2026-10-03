@@ -209,8 +209,41 @@ describe('a block refuses contact in both directions', () => {
         });
         await assertFails(setDoc(doc(collection(as(d.actor), 'cards')), draft(d.actor, { referenceCardId: 'orig' })));
       });
+
+      // The writer keeps their own block list: a draft refused only across a
+      // block would tell them who wrote the card. Answering one reaches no one
+      // (the server's reach reads the blocks).
+      it('can answer an anonymous card all the same, as anyone may', async () => {
+        await seed(async (db) => {
+          await setDoc(doc(db, 'cards', 'masked'), publishedCard(d.target, { anonymous: true }));
+          await setDoc(doc(db, 'cards', 'maskedConn'), publishedCard(d.target, { anonymous: true, visibility: 'connections' }));
+        });
+        await assertSucceeds(setDoc(doc(collection(as(d.actor), 'cards')), draft(d.actor, { referenceCardId: 'masked' })));
+        await assertSucceeds(setDoc(doc(collection(as(d.actor), 'cards')), draft(d.actor, { referenceCardId: 'masked', anonymous: true })));
+        // Visibility still holds: a connections-only card needs the connection (a block ended it).
+        await assertFails(setDoc(doc(collection(as(d.actor), 'cards')), draft(d.actor, { referenceCardId: 'maskedConn' })));
+      });
     });
   }
+
+  it("answers a stranger's anonymous card the same with or without a block", async () => {
+    await seedProfiles();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'cards', 'masked'), publishedCard('bob', { anonymous: true }));
+      await setDoc(doc(db, 'cards', 'named'), publishedCard('bob'));
+    });
+    // Carol blocks one guess after another; the anonymous card answers alike for each.
+    for (const guess of ['alice', 'bob']) {
+      await block('carol', guess);
+      await assertSucceeds(setDoc(doc(collection(as('carol'), 'cards')), draft('carol', { referenceCardId: 'masked' })));
+      await seed(async (db) => {
+        await deleteDoc(doc(db, 'users', 'carol', 'blocks', guess));
+      });
+    }
+    // A named card keeps every block behaviour.
+    await block('carol', 'bob');
+    await assertFails(setDoc(doc(collection(as('carol'), 'cards')), draft('carol', { referenceCardId: 'named' })));
+  });
 
   it('control: without a block the same contact is allowed', async () => {
     await seedProfiles();
@@ -306,6 +339,59 @@ describe('conversations and messages are written by the server', () => {
     await assertSucceeds(batch.commit());
     await assertSucceeds(deleteDoc(doc(db, 'conversations', PAIR)));
     await assertFails(getDocs(collection(as('carol'), 'conversations', PAIR, 'messages')));
+  });
+});
+
+describe("a letter's request is the server's (POST /api/v1/notes)", () => {
+  // Alice left Bob a note; they aren't connected, so it waits for his answer.
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'conversations', PAIR), {
+        participants: ['alice', 'bob'],
+        lastMessage: { text: 'a letter', senderId: 'alice', sentAt: new Date() },
+        unread: { alice: 0, bob: 1 },
+        request: { from: 'alice', cardId: 'c1', at: new Date(), count: 1 },
+      });
+      await setDoc(doc(db, 'conversations', PAIR, 'messages', 'n1'), { senderId: 'alice', text: 'a letter', sentAt: new Date(), cardRef: 'c1', kind: 'note' });
+    });
+  });
+
+  it('refuses every client write of it — clearing, counting, forging — by either participant, and a conversation opened with one', async () => {
+    for (const [uid, other] of [['alice', 'bob'], ['bob', 'alice']]) {
+      const convo = doc(as(uid), 'conversations', PAIR);
+      await assertFails(updateDoc(convo, { request: deleteField() }));
+      await assertFails(updateDoc(convo, { 'request.count': 0 }));
+      await assertFails(updateDoc(convo, { 'request.from': other }));
+      await assertFails(updateDoc(convo, { request: { from: other, cardId: 'c1', at: serverTimestamp(), count: 1 } }));
+      // Not even beside what a participant may change.
+      await assertFails(updateDoc(convo, { [`unread.${uid}`]: 0, request: deleteField() }));
+    }
+    await assertFails(
+      setDoc(doc(as('carol'), 'conversations', 'bob_carol'), {
+        participants: ['bob', 'carol'], lastMessage: null, unread: { bob: 0, carol: 0 },
+        request: { from: 'carol', cardId: 'c1', at: serverTimestamp(), count: 1 },
+      }),
+    );
+    // Zeroing your own unread still works beside it.
+    await assertSucceeds(updateDoc(doc(as('bob'), 'conversations', PAIR), { 'unread.bob': 0 }));
+  });
+
+  it('keeps letters until they are answered: their writer can delete neither the thread nor its messages, the one they were left for can', async () => {
+    const alice = as('alice');
+    await assertFails(deleteDoc(doc(alice, 'conversations', PAIR, 'messages', 'n1')));
+    await assertFails(deleteDoc(doc(alice, 'conversations', PAIR)));
+    const bob = as('bob');
+    await assertSucceeds(deleteDoc(doc(bob, 'conversations', PAIR, 'messages', 'n1')));
+    await assertSucceeds(deleteDoc(doc(bob, 'conversations', PAIR)));
+  });
+
+  it('lets the writer delete the thread once the letter is answered (the server clears it)', async () => {
+    await seed(async (db) => {
+      await updateDoc(doc(db, 'conversations', PAIR), { request: deleteField() });
+    });
+    const alice = as('alice');
+    await assertSucceeds(deleteDoc(doc(alice, 'conversations', PAIR, 'messages', 'n1')));
+    await assertSucceeds(deleteDoc(doc(alice, 'conversations', PAIR)));
   });
 });
 

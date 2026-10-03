@@ -6,7 +6,7 @@ import type { Card, RecommendationItem } from '@/lib/db/types';
 import { embeddedCardKeys } from './embeds';
 import { ApiFailure } from './http';
 import { pageEnd, pageQuery, type PageStart } from './paging';
-import { blockedByViewer, canView, connected, loadAuthors, presentLinkPreviews, toAuthor, toFeedCard, visibilityOf, visibleTo } from './present';
+import { blockedByViewer, blockHides, canView, connected, loadAuthors, presentLinkPreviews, toAuthor, toFeedCard, visibilityOf, visibleTo } from './present';
 import { properlyPublished } from './service';
 import {
   CARD_KEYS_MAX,
@@ -85,7 +85,7 @@ interface PresentOptions {
  * read once for all of them.
  */
 async function presentAll(db: Firestore, viewerId: string, lists: ListCard[][], blocked: Set<string>, reasons?: Map<string, string>): Promise<FeedCardBody[][]> {
-  const unblocked = lists.map((cards) => cards.filter((c) => !blocked.has(c.authorId)));
+  const unblocked = lists.map((cards) => cards.filter((c) => !blockHides(c, blocked)));
   const visible = new Set(await visibleTo(db, viewerId, unblocked.flat()));
   const [authors] = await Promise.all([loadAuthors(db, [...visible]), withStories(db, [...visible])]);
   // An empty reason (a quick first pass has none) is no reason.
@@ -94,7 +94,7 @@ async function presentAll(db: Firestore, viewerId: string, lists: ListCard[][], 
   );
 }
 
-/** Cards the viewer may read, in the given order, minus blocked authors. */
+/** Cards the viewer may read, in the given order, minus the named cards of people they blocked (blockHides). */
 async function present(db: Firestore, viewerId: string, cards: ListCard[], opts: PresentOptions = {}): Promise<FeedCardBody[]> {
   const blocked = opts.blocked ?? (await blockedByViewer(db, viewerId));
   return (await presentAll(db, viewerId, [cards], blocked, opts.reasons))[0];
@@ -147,8 +147,9 @@ async function cardsByKeys(db: Firestore, keys: string[]): Promise<ListCard[]> {
 
 /**
  * GET /cards?keys= — summaries of the cards named (slugs or ids), in the
- * order asked, for previews: those the viewer may read, minus authors they
- * blocked; anonymous ones without a byline.
+ * order asked, for previews: those the viewer may read, minus the named
+ * cards of people they blocked; anonymous ones without a byline (and never
+ * left out for a block, see blockHides).
  */
 export async function getCardsByKeys(db: Firestore, viewerId: string, keys: string[]): Promise<CardListBody> {
   const [cards, blocked] = await Promise.all([cardsByKeys(db, keys), blockedByViewer(db, viewerId)]);
@@ -201,20 +202,19 @@ export async function getCardDetail(
   const card = await visibleCard(db, viewerId, key);
   const ownerLinks = include.has('links') && card.authorId === viewerId;
   const embedKeys = include.has('embeds') ? embeddedCardKeys(String(card.story ?? '')) : [];
-  // Someone else's anonymous card: the reader can't tell whose it is, so the
-  // server applies their blocks to it (a card whose author they blocked is
-  // not there for them, as in every list).
-  const screen = card.anonymous === true && card.authorId !== viewerId;
+  // The card itself is never kept from the viewer by their blocks: a named
+  // one by someone they blocked is the client's to hide (its page knows the
+  // byline), and an anonymous one is there for everyone (blockHides). The
+  // viewer's blocks only thin the lists around it.
   const [authorSnap, reference, blocked, resonances, recent, linking, embedded] = await Promise.all([
     card.anonymous ? null : db.doc(`users/${card.authorId}`).get(),
     card.referenceCardId ? cardsByIds(db, [card.referenceCardId]) : [],
-    card.referenceCardId || include.size || screen ? blockedByViewer(db, viewerId) : new Set<string>(),
+    card.referenceCardId || include.size ? blockedByViewer(db, viewerId) : new Set<string>(),
     include.has('resonances') ? resonancesOf(db, card.id).get().then(toCards) : [],
     include.has('related') ? recentPublic(db).get().then(toCards) : [],
     ownerLinks ? cardsLinkingTo(db, card.id) : [],
     embedKeys.length ? cardsByKeys(db, embedKeys) : [],
   ]);
-  if (screen && blocked.has(card.authorId)) throw notFound();
   const [referenceCard, resonanceCards, relatedCards, linkCards, embedCards] = await presentAll(
     db,
     viewerId,

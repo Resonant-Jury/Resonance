@@ -265,6 +265,8 @@ public enum L10n {
             public static var upgrade: String { Strings.shared.string("card.note.upgrade") }
             /// Your note is on its way.
             public static var sent: String { Strings.shared.string("card.note.sent") }
+            /// You've left notes they haven't answered yet — wait for their reply.
+            public static var waitForReply: String { Strings.shared.string("card.note.waitForReply") }
             /// Send
             public static var send: String { Strings.shared.string("card.note.send") }
             /// Cancel
@@ -396,6 +398,10 @@ public enum L10n {
         public static var sendError: String { Strings.shared.string("messages.sendError") }
         /// You can only message people you're connected with.
         public static var notConnected: String { Strings.shared.string("messages.notConnected") }
+        /// They'll see your note. Once they reply, you can keep talking.
+        public static var awaitingReply: String { Strings.shared.string("messages.awaitingReply") }
+        /// Reply to start talking with {handle}.
+        public static func replyToConnect(handle: String) -> String { Strings.shared.format("messages.replyToConnect", ["handle": handle]) }
         /// View profile
         public static var viewProfile: String { Strings.shared.string("messages.viewProfile") }
         /// All conversations
@@ -948,6 +954,10 @@ public enum L10n {
         public static func expiresAt(date: String) -> String { Strings.shared.format("inviteInbox.expiresAt", ["date": date]) }
         /// (No message)
         public static var emptyMessage: String { Strings.shared.string("inviteInbox.emptyMessage") }
+        /// This invite has closed — it can't be accepted any more.
+        public static var closed: String { Strings.shared.string("inviteInbox.closed") }
+        /// That didn't go through. Try again.
+        public static var error: String { Strings.shared.string("inviteInbox.error") }
     }
     public enum Auth {
         /// Welcome back

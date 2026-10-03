@@ -82,7 +82,15 @@ function mapInvite(id: string, data: Record<string, unknown>): Invite {
   };
 }
 
-export async function listIncomingPendingInvites(): Promise<Invite[]> {
+/**
+ * The invites still waiting for the signed-in viewer's answer, newest first:
+ * pending and not yet past their "respond by" date. One past it the server
+ * refuses (409) and closes as expired, but until someone taps Accept it is
+ * still `pending` — so the date is checked here, on the invites the query
+ * finds (a few at most: none are sent any more). One without a date was
+ * never sent by a writer of ours, and is as closed as the server finds it.
+ */
+export async function listIncomingPendingInvites(now: Date = new Date()): Promise<Invite[]> {
   const uid = getFirebaseClientAuth().currentUser?.uid;
   if (!uid) return [];
   const snap = await getDocs(
@@ -93,5 +101,5 @@ export async function listIncomingPendingInvites(): Promise<Invite[]> {
       orderBy('createdAt', 'desc'),
     ),
   );
-  return snap.docs.map((d) => mapInvite(d.id, d.data()));
+  return snap.docs.map((d) => mapInvite(d.id, d.data())).filter((i) => i.expiresAt.getTime() > now.getTime());
 }

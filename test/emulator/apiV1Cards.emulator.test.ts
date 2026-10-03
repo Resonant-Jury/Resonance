@@ -5,6 +5,8 @@ import { ApiFailure } from '@/lib/api/v1/http';
 import { deleteCard, updateCard } from '@/lib/api/v1/cards';
 import { getCardDetail, getProfileCards } from '@/lib/api/v1/reads';
 import { CardDetail } from '@/lib/api/v1/schemas';
+import { tryReachResonance } from '@/lib/api/v1/resonate';
+import type { UpdateCardInput } from '@/lib/api/v1/schemas';
 import { FirestoreVectorStore } from '@/lib/recommend/vectorStore/firestore';
 import type { IVectorStore } from '@/lib/recommend/vectorStore/interfaces';
 
@@ -115,6 +117,136 @@ describe('updateCard (PATCH /cards/{id})', () => {
     expect((await failure(updateCard(db, 'bob', 'live', { visibility: 'private' }))).code).toBe('not_found');
     expect((await failure(updateCard(db, 'alice', 'missing', { visibility: 'private' }))).code).toBe('not_found');
     expect((await card()).visibility).toBe('public');
+  });
+});
+
+// A resonance published private, connections-only or anonymous reached no
+// one (its original's author could never see it as theirs); made public under
+// its writer's name, it reaches them as publishing it so would have — once.
+describe('a published resonance made public under its writer\'s name (PATCH /cards/{id})', () => {
+  const bells = async () => (await db.collection('notifications').get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+  const connected = async () => (await db.doc('connections/alice_bob').get()).exists;
+  // What the route does: the change, then — after its response — the reach it made possible (its bell's id, for the push).
+  const patch = async (id: string, input: UpdateCardInput) => {
+    const result = await updateCard(db, 'alice', id, input);
+    return { ...result, notificationId: result.reaches ? await tryReachResonance(db, 'alice', id) : null };
+  };
+  const answer = (extra: Record<string, unknown> = {}) =>
+    db.doc('cards/answer').set({
+      authorId: 'alice',
+      thoughtCore: '回應',
+      story: '我也是',
+      visibility: 'private',
+      anonymous: false,
+      referenceCardId: 'orig',
+      publishedAt: published,
+      updatedAt: earlier,
+      ...extra,
+    });
+
+  beforeEach(async () => {
+    await db.doc('cards/orig').set({ authorId: 'bob', thoughtCore: '一場雨', story: 'x', visibility: 'public', anonymous: false, publishedAt: published });
+  });
+
+  it("connects the two and rings the original's author, the bell's id coming back for its push", async () => {
+    await answer();
+    const { notificationId, card: box } = await patch('answer', { visibility: 'public' });
+    expect(box).toMatchObject({ id: 'answer', visibility: 'public', referenceCardId: 'orig' });
+    expect(notificationId).toBe('resonance_alice_orig');
+    expect(await connected()).toBe(true);
+    expect(await bells()).toEqual([
+      expect.objectContaining({ id: 'resonance_alice_orig', userId: 'bob', type: 'resonance', readAt: null, payload: { fromUserId: 'alice', fromHandle: '小安', cardId: 'orig' } }),
+    ]);
+  });
+
+  it('reaches out when a public anonymous resonance takes its byline back, and from connections-only too', async () => {
+    await answer({ visibility: 'public', anonymous: true });
+    expect((await patch('answer', { anonymous: false })).notificationId).toBe('resonance_alice_orig');
+    expect(await connected()).toBe(true);
+
+    await db.doc('connections/alice_bob').delete();
+    await db.doc('notifications/resonance_alice_orig').delete();
+    await answer({ visibility: 'connections' });
+    expect((await patch('answer', { visibility: 'public' })).notificationId).toBe('resonance_alice_orig');
+  });
+
+  it('rings once: hidden and shown again, it reaches no one a second time', async () => {
+    await answer();
+    await patch('answer', { visibility: 'public' });
+    await patch('answer', { visibility: 'private' });
+    // Bob blocked and unblocked her meanwhile: the block ended the connection.
+    await db.doc('connections/alice_bob').delete();
+    expect((await patch('answer', { visibility: 'public' })).notificationId).toBeNull();
+    expect(await bells()).toHaveLength(1);
+    expect(await connected()).toBe(false);
+  });
+
+  // The review's repro: published public and named before bells had a fixed
+  // id, it rang Bob under a random one; Bob's block ended the connection;
+  // hidden and shown again, it must neither ring nor connect them again.
+  it('counts a bell rung before the bell had a fixed id: hidden and shown again, it reaches no one', async () => {
+    await answer({ visibility: 'public' });
+    await db.collection('notifications').add({
+      userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', fromHandle: '小安', cardId: 'orig' }, readAt: null, createdAt: earlier,
+    });
+    await patch('answer', { visibility: 'private' });
+    expect((await patch('answer', { visibility: 'public' })).notificationId).toBeNull();
+    expect(await bells()).toHaveLength(1);
+    expect(await connected()).toBe(false);
+  });
+
+  it("rings an anonymous original's author but connects no one: the connection would name them", async () => {
+    await db.doc('cards/orig').update({ anonymous: true });
+    await answer();
+    expect((await patch('answer', { visibility: 'public' })).notificationId).toBe('resonance_alice_orig');
+    expect(await bells()).toEqual([expect.objectContaining({ id: 'resonance_alice_orig', userId: 'bob' })]);
+    expect(await connected()).toBe(false);
+  });
+
+  // The route runs the reach after its response, so a PATCH can't fail for it;
+  // the reach itself, failing, is logged and reaches no one.
+  it('changes the card whatever its reach does: one that fails is logged and reaches no one', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await answer();
+    const result = await updateCard(db, 'alice', 'answer', { visibility: 'public' });
+    expect(result.reaches).toBe(true);
+    expect((await db.doc('cards/answer').get()).get('visibility')).toBe('public');
+    vi.spyOn(db, 'runTransaction').mockImplementationOnce(() => Promise.reject(new Error('14 UNAVAILABLE')));
+    expect(await tryReachResonance(db, 'alice', 'answer')).toBeNull();
+    expect(error).toHaveBeenCalledWith('[api/v1] resonance', 'answer', expect.any(Error));
+    expect(await bells()).toEqual([]);
+    // Asked again once Firestore answers, it reaches out (the route would only on the next change).
+    vi.mocked(db.runTransaction).mockRestore();
+    expect(await tryReachResonance(db, 'alice', 'answer')).toBe('resonance_alice_orig');
+    error.mockRestore();
+  });
+
+  it('reaches no one while it stays out of sight or anonymous', async () => {
+    await answer();
+    expect((await patch('answer', { visibility: 'connections' })).notificationId).toBeNull();
+    expect((await patch('answer', { visibility: 'public', anonymous: true })).notificationId).toBeNull();
+    expect(await bells()).toEqual([]);
+    expect(await connected()).toBe(false);
+  });
+
+  it('reaches no one across a block, without a pen name, from a draft, or for a card answering nothing', async () => {
+    await answer();
+    await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+    expect((await patch('answer', { visibility: 'public' })).notificationId).toBeNull();
+    await db.doc('users/bob/blocks/alice').delete();
+
+    await answer();
+    await db.doc('users/alice').set({ initials: '小' });
+    expect((await patch('answer', { visibility: 'public' })).notificationId).toBeNull();
+    await db.doc('users/alice').set({ handle: '小安', handleLower: '小安' });
+
+    await answer({ publishedAt: null });
+    expect((await patch('answer', { visibility: 'public' })).notificationId).toBeNull();
+
+    expect((await patch('live', { visibility: 'private' })).notificationId).toBeNull();
+    expect((await patch('live', { visibility: 'public' })).notificationId).toBeNull();
+    expect(await bells()).toEqual([]);
+    expect(await connected()).toBe(false);
   });
 });
 

@@ -12,11 +12,14 @@ export const dynamic = 'force-dynamic';
 /** GET /api/v1/me — the signed-in account (see openapi/v1/openapi.json). */
 export const GET = withUser(async (user, req) => cachedJson(req, await getMe(getAdminDb(), user.id), OWN));
 
-/** POST /api/v1/me — onboarding: create the profile (201), or return the existing one (200). */
+/**
+ * POST /api/v1/me — onboarding: create the profile (201), or return the
+ * existing one (200) — having given it the pen name chosen, when it had none.
+ */
 export const POST = withUser(async (user, req) => {
   const input = parse(CreateProfileRequest, await req.json().catch(() => null));
-  const { me, created } = await createProfile(getAdminDb(), user, input);
-  if (created) revalidateProfile(me.handle);
+  const { me, created, named } = await createProfile(getAdminDb(), user, input);
+  if (named) revalidateProfile(me.handle);
   return NextResponse.json(me, { status: created ? 201 : 200 });
 });
 

@@ -4,6 +4,7 @@ import { getVectorStore, type IVectorStore } from '@/lib/recommend/vectorStore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { ApiFailure } from './http';
 import { toFeedCard } from './present';
+import { becameReachable } from './resonate';
 import { summaryFields } from './summary';
 import type { FeedCardBody, UpdateCardInput } from './schemas';
 
@@ -24,6 +25,8 @@ export interface UpdatedCard {
   card: FeedCardBody;
   /** Card, profile and landing pages to revalidate; empty when nothing changed. */
   stale: string[];
+  /** The change made a published resonance reachable: the route reaches its original after the response (tryReachResonance). */
+  reaches: boolean;
 }
 
 /**
@@ -34,6 +37,13 @@ export interface UpdatedCard {
  * their own copy of the visibility (the candidate pool's filter): a new one
  * reaches them too, so a card made private or connections-only stops being
  * recommended to others — and one made public again rejoins the pool.
+ *
+ * A published resonance made public under its writer's name — published
+ * private, connections-only or anonymous, it reached no one — now reaches the
+ * original's author as publishing it so would have (`reaches`: the route
+ * runs tryReachResonance after its response, so the answer never waits on
+ * it): the two connected, their bell rung, once for each reader and card
+ * whatever path rings it. The reach reads the card again, as it is then.
  */
 export async function updateCard(
   db: Firestore,
@@ -71,6 +81,7 @@ export async function updateCard(
   return {
     card: toFeedCard(card, author, { deanonymize: true }),
     stale: changed ? [...cardPagePaths(card), ...profilePagePaths(author?.handle), ...landingPagePaths(before, data)] : [],
+    reaches: changed && becameReachable(before, data),
   };
 }
 

@@ -5,6 +5,7 @@ import { ApiFailure } from '@/lib/api/v1/http';
 import { applyCardEdit } from '@/lib/api/v1/edits';
 import { unfurlCardLinks } from '@/lib/links/cardLinks';
 import { createPreviewMemo, type PreviewFetch } from '@/lib/links/preview';
+import { tryReachResonance } from '@/lib/api/v1/resonate';
 
 // Applying a published card's pending edit through the v1 API against the
 // Firestore emulator — what saving changes in an editor (web or app) does:
@@ -82,6 +83,8 @@ describe('applyCardEdit', () => {
       // names, the profile listing it, and the landing page it was public on
       // (this edit took it to connections-only).
       stale: ['/card/live', '/card/a-quiet-night', '/u/小安', `/u/${encodeURIComponent('小安')}`, '/'],
+      // No resonance to reach (it answers no card).
+      reaches: false,
     });
     const card = (await db.doc('cards/live').get()).data()!;
     expect(card).toMatchObject({
@@ -117,7 +120,7 @@ describe('applyCardEdit', () => {
   });
 
   it('changes nothing when there is no pending edit (a retry after success)', async () => {
-    await expect(applyCardEdit(db, 'alice', 'live')).resolves.toEqual({ id: 'live', slug: 'a-quiet-night', applied: false, stale: [] });
+    await expect(applyCardEdit(db, 'alice', 'live')).resolves.toEqual({ id: 'live', slug: 'a-quiet-night', applied: false, stale: [], reaches: false });
     expect((await db.doc('cards/live').get()).get('story')).toBe('原本的故事');
   });
 
@@ -186,6 +189,61 @@ describe('applyCardEdit', () => {
     expect((await db.doc('cards/live/edits/current').get()).exists).toBe(true);
     await db.doc('cards/draft').set({ authorId: 'alice', thoughtCore: '草稿', story: '', visibility: 'public', publishedAt: null });
     expect((await failure(applyCardEdit(db, 'alice', 'draft'))).code).toBe('invalid_request');
+  });
+
+  describe('of a resonance', () => {
+    const bells = async () => (await db.collection('notifications').get()).docs.map((d) => d.id);
+    const connected = async () => (await db.doc('connections/alice_bob').get()).exists;
+    // What the route does: the edit, then — after its response — the reach it made possible (its bell's id, for the push).
+    const apply = async () => {
+      const result = await applyCardEdit(db, 'alice', 'live');
+      return { ...result, notificationId: result.reaches ? await tryReachResonance(db, 'alice', 'live') : null };
+    };
+
+    beforeEach(async () => {
+      await db.doc('users/bob').set({ handle: 'bob', handleLower: 'bob' });
+      await db.doc('cards/orig').set({ authorId: 'bob', thoughtCore: '一場雨', story: 'x', visibility: 'public', anonymous: false, publishedAt: published });
+      // Alice's answer to it, published private: it reached no one.
+      await db.doc('cards/live').set({ visibility: 'private', referenceCardId: 'orig' }, { merge: true });
+    });
+
+    it("that makes it public under her name reaches the original's author, once", async () => {
+      await buffer({ visibility: 'public' });
+      expect((await apply()).notificationId).toBe('resonance_alice_orig');
+      expect(await connected()).toBe(true);
+      expect(await bells()).toEqual(['resonance_alice_orig']);
+
+      await db.doc('cards/live').update({ visibility: 'private' });
+      await buffer({ visibility: 'public' });
+      expect((await apply()).notificationId).toBeNull();
+      expect(await bells()).toEqual(['resonance_alice_orig']);
+    });
+
+    it("that makes it public under her name rings an anonymous original's author, connecting no one", async () => {
+      await db.doc('cards/orig').update({ anonymous: true });
+      await buffer({ visibility: 'public' });
+      const result = await apply();
+      expect(result).toMatchObject({ applied: true, reaches: true, notificationId: 'resonance_alice_orig' });
+      expect(await bells()).toEqual(['resonance_alice_orig']);
+      expect(await connected()).toBe(false);
+    });
+
+    it('that a bell from before bells had a fixed id already stands for reaches no one again', async () => {
+      await db.collection('notifications').add({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', cardId: 'orig' }, readAt: null });
+      await buffer({ visibility: 'public' });
+      expect((await apply()).notificationId).toBeNull();
+      expect(await bells()).toHaveLength(1);
+      expect(await connected()).toBe(false);
+    });
+
+    it('that keeps it out of sight, or anonymous, reaches no one', async () => {
+      await buffer({ visibility: 'connections' });
+      expect((await apply()).notificationId).toBeNull();
+      await buffer({ visibility: 'public', anonymous: true });
+      expect((await apply()).notificationId).toBeNull();
+      expect(await bells()).toEqual([]);
+      expect(await connected()).toBe(false);
+    });
   });
 });
 

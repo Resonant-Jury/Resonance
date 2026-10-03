@@ -235,7 +235,7 @@ async function main() {
     createdAt: at(link.ago),
   });
 
-  // ---- connections: whoever resonated with whom is connected (connectResonance in lib/api/v1/publish.ts) ----
+  // ---- connections: whoever resonated with whom is connected (as reachOriginal in lib/api/v1/resonate.ts connects a public, named resonance) ----
   const pair = (a: string, b: string) => (a < b ? [a, b] : [b, a]);
   const connectedAt = new Map<string, number>();
   for (const c of cards) {

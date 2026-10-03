@@ -4,6 +4,7 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import { ApiFailure } from '@/lib/api/v1/http';
 import { getCardBox, getCardDetail } from '@/lib/api/v1/reads';
 import { resonateWith, unresonate } from '@/lib/api/v1/resonate';
+import { sendNote } from '@/lib/api/v1/conversations';
 
 // Resonating with a card already written (POST/DELETE /cards/{id}/resonances)
 // against the Firestore emulator: the reader's card comes to answer the one
@@ -130,6 +131,59 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
     expect((await read('mine2')).referenceCardId).toBe('orig');
   });
 
+  it('connects no one again without a ring: a connection a block ended stays ended', async () => {
+    await resonateWith(db, 'alice', 'orig', 'mine');
+    await unresonate(db, 'alice', 'orig', 'mine');
+    // Bob blocked and unblocked her: the block deleted the connection.
+    await db.doc('connections/alice_bob').delete();
+    const again = await resonateWith(db, 'alice', 'orig', 'mine2');
+    expect(again).toMatchObject({ changed: true, notificationId: null });
+    expect(await connected()).toBe(false);
+    expect(await bells()).toHaveLength(1);
+  });
+
+  it('counts a bell rung before bells had a fixed id as hers: no second ring, no connection again', async () => {
+    await db.collection('notifications').add({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' }, readAt: null });
+    const result = await resonateWith(db, 'alice', 'orig', 'mine');
+    expect(result).toMatchObject({ changed: true, notificationId: null });
+    expect(await bells()).toHaveLength(1);
+    expect(await connected()).toBe(false);
+  });
+
+  it('is refused to a reader without a pen name, writing nothing (the bell would name no one)', async () => {
+    for (const profile of [null, { handle: '  ' }, { initials: 'a' }]) {
+      if (profile) await db.doc('users/alice').set(profile);
+      else await db.doc('users/alice').delete();
+      const refused = await failure(resonateWith(db, 'alice', 'orig', 'mine'));
+      expect(refused.code).toBe('forbidden');
+      expect(refused.message).toBe('Choose a pen name first.');
+      await nothingWritten();
+    }
+  });
+
+  // A pen name is what reaching someone takes; an anonymous card reaches no
+  // one, as publishing one without a pen name does.
+  it('lets a reader without a pen name pick an anonymous card: it answers, ringing and connecting no one', async () => {
+    for (const profile of [null, { handle: '' }]) {
+      if (profile) await db.doc('users/alice').set(profile);
+      else await db.doc('users/alice').delete();
+      for (const target of ['orig', 'bobMasked']) {
+        const result = await resonateWith(db, 'alice', target, 'mineMasked');
+        expect(result).toMatchObject({ changed: true, notificationId: null, card: { id: 'mineMasked', referenceCardId: target, anonymous: true } });
+        expect(await bells()).toEqual([]);
+        expect(await connected()).toBe(false);
+        await unresonate(db, 'alice', target, 'mineMasked');
+      }
+    }
+  });
+
+  it('asks for the pen name before the blocks, as everywhere', async () => {
+    await db.doc('users/alice').set({ handle: '' });
+    await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+    expect((await failure(resonateWith(db, 'alice', 'orig', 'mine'))).message).toBe('Choose a pen name first.');
+    await nothingWritten();
+  });
+
   it('keeps an existing connection as it is (muted, its date)', async () => {
     const since = Timestamp.fromDate(new Date('2026-01-01T00:00:00Z'));
     await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: since, muted: { by: 'bob' } });
@@ -162,6 +216,31 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
       const [bell] = await bells();
       expect(bell).toMatchObject({ userId: 'bob', type: 'resonance', payload: { cardId: 'bobMasked', fromUserId: 'alice' } });
       expect(await connected()).toBe(false);
+    });
+  });
+
+  describe('a letter waiting between the two (a note not yet answered)', () => {
+    const request = async () => (await db.doc('conversations/alice_bob').get()).get('request');
+
+    for (const [writer, cardId] of [['alice', 'orig'], ['bob', 'mine2']] as const) {
+      it(`is answered by the connection the resonance makes (${writer} wrote it): the request is cleared with it`, async () => {
+        await sendNote(db, writer, { cardId, text: 'a letter' });
+        expect(await request()).toMatchObject({ from: writer, count: 1 });
+        await resonateWith(db, 'alice', 'orig', 'mine');
+        expect(await connected()).toBe(true);
+        expect(await request()).toBeUndefined();
+        // The rest of the conversation is as the letter left it.
+        expect((await db.doc('conversations/alice_bob').get()).get('unread')).toEqual(writer === 'alice' ? { alice: 0, bob: 1 } : { alice: 1, bob: 0 });
+      });
+    }
+
+    it('keeps waiting when the resonance connects no one: an anonymous original, or an anonymous card picked', async () => {
+      await sendNote(db, 'alice', { cardId: 'orig', text: 'a letter' });
+      const before = await request();
+      await resonateWith(db, 'alice', 'bobMasked', 'mine');
+      await resonateWith(db, 'alice', 'orig', 'mineMasked');
+      expect(await connected()).toBe(false);
+      expect(await request()).toEqual(before);
     });
   });
 
@@ -250,10 +329,22 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
       await nothingWritten();
     });
 
-    it("is not there at all when it is anonymous and the reader blocked its author (as on its page)", async () => {
-      await db.doc('users/alice/blocks/bob').set({ blockedUid: 'bob' });
-      expect((await failure(resonateWith(db, 'alice', 'bobMasked', 'mine'))).code).toBe('not_found');
-      await nothingWritten();
+    // A block never answers for an anonymous card: a refusal would name its author.
+    it('answers an anonymous card across a block, either way, exactly as without one — and reaches no one', async () => {
+      const plain = await resonateWith(db, 'alice', 'bobMasked', 'mine');
+      expect(plain).toMatchObject({ changed: true, notificationId: 'resonance_alice_bobMasked' });
+      for (const [blocker, blocked] of [['alice', 'bob'], ['bob', 'alice']]) {
+        await db.recursiveDelete(db.collection('notifications'));
+        await unresonate(db, 'alice', 'bobMasked', 'mine');
+        await db.doc(`users/${blocker}/blocks/${blocked}`).set({ blockedUid: blocked });
+        const across = await resonateWith(db, 'alice', 'bobMasked', 'mine');
+        expect({ ...across, notificationId: null }).toEqual({ ...plain, notificationId: null });
+        expect(across.notificationId).toBeNull();
+        expect((await read('mine')).referenceCardId).toBe('bobMasked');
+        expect(await bells()).toEqual([]);
+        expect(await connected()).toBe(false);
+        await db.doc(`users/${blocker}/blocks/${blocked}`).delete();
+      }
     });
   });
 

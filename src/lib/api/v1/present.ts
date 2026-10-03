@@ -100,10 +100,21 @@ export async function loadAuthors(db: Firestore, cards: Card[]): Promise<Map<str
   return new Map(snaps.filter((s) => s.exists).map((s) => [s.id, s.data()!]));
 }
 
-/** Everyone the viewer blocked: their cards drop out of every list. */
+/** Everyone the viewer blocked: their named cards drop out of every list (blockHides). */
 export async function blockedByViewer(db: Firestore, uid: string): Promise<Set<string>> {
   const snap = await db.collection(`users/${uid}/blocks`).get();
   return new Set(snap.docs.map((d) => d.id));
+}
+
+/**
+ * Whether the viewer's blocks (`blocked`, blockedByViewer) keep a card from
+ * them: one under the name of someone they blocked. Never an anonymous card —
+ * the viewer writes their own block list, so a card that vanished when they
+ * blocked someone would tell them who wrote it. A block hides people and
+ * their named cards; an anonymous card is there for everyone who may read it.
+ */
+export function blockHides(card: Pick<Card, 'authorId' | 'anonymous'>, blocked: ReadonlySet<string>): boolean {
+  return card.anonymous !== true && blocked.has(card.authorId);
 }
 
 export async function connected(db: Firestore, a: string, b: string): Promise<boolean> {
@@ -114,9 +125,10 @@ export async function connected(db: Firestore, a: string, b: string): Promise<bo
 
 /**
  * firestore.rules `cardVisible` once the viewer's connection to the author is
- * known — `isConnected` is only asked for a published connections card.
+ * known — `isConnected` is only asked for a published connections card. A
+ * transaction that read the connection itself asks this (canView reads it).
  */
-function cardVisible(card: Card, viewerId: string, isConnected: (authorId: string) => boolean): boolean {
+export function cardVisible(card: Card, viewerId: string, isConnected: (authorId: string) => boolean): boolean {
   if (card.authorId === viewerId) return true;
   // A draft is its author's alone, whatever visibility it will be published with.
   if (!card.publishedAt) return false;

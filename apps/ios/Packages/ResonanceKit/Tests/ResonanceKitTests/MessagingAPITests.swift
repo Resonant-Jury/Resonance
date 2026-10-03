@@ -41,6 +41,13 @@ struct MessagingAPITests {
         #expect(json["clientId"] as? String == "Ab3dEf6hIj9lMn0pQr2t")
     }
 
+    @Test func notesWaitingForAnAnswerAreAConflict() async throws {
+        let transport = StubTransport(status: .conflict, body: #"{"error":{"code":"conflict","message":"Wait for them to reply."}}"#)
+        let failure = await #expect(throws: APIFailure.self) { try await api(transport).sendNote(cardId: "walk", text: "a fourth note") }
+        #expect(failure?.isConflict == true)
+        #expect(failure?.status == 409)
+    }
+
     @Test func aBlockIsAFailureWithItsMessage() async throws {
         let transport = StubTransport(status: .forbidden, body: #"{"error":{"code":"blocked","message":"You cannot message this person."}}"#)
         await #expect(throws: APIFailure(code: "blocked", message: "You cannot message this person.", status: 403)) {

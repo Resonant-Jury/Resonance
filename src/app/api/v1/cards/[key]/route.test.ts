@@ -32,7 +32,10 @@ vi.mock('@/lib/links/cardLinks', () => ({ unfurlCardLinks: (db: unknown, id: str
 const publishCard = vi.fn();
 vi.mock('@/lib/api/v1/publish', () => ({ publishCard: (...a: unknown[]) => publishCard(...a) }));
 vi.mock('@/lib/api/rateLimit', () => ({ spend: async () => {} }));
-vi.mock('@/lib/push/ring', () => ({ ringAfter: () => {} }));
+const ringAfter = vi.fn();
+vi.mock('@/lib/push/ring', () => ({ ringAfter: (...a: unknown[]) => ringAfter(...a) }));
+const tryReachResonance = vi.fn(async (..._a: unknown[]) => 'resonance_alice_orig' as string | null);
+vi.mock('@/lib/api/v1/resonate', () => ({ tryReachResonance: (...a: unknown[]) => tryReachResonance(...a) }));
 
 const { GET, PATCH, DELETE } = await import('./route');
 const { POST: applyEdit } = await import('./edits/apply/route');
@@ -80,9 +83,25 @@ describe('PATCH /api/v1/cards/{id}', () => {
   });
 
   it('revalidates nothing when nothing changed', async () => {
-    updateCard.mockResolvedValue({ card: { id: 'c1' }, stale: [] });
+    updateCard.mockResolvedValue({ card: { id: 'c1' }, stale: [], reaches: false });
     await patch({ visibility: 'public' });
     expect(await settled()).toEqual([]);
+    expect(ringAfter).not.toHaveBeenCalled();
+  });
+
+  // The reach is a transaction of its own (three round trips, retried on
+  // contention): the answer doesn't wait for it, nor can it fail for it.
+  it("reaches the original's author only after the response when the change let a resonance reach them, and rings them", async () => {
+    updateCard.mockResolvedValue({ card: { id: 'c1', visibility: 'public' }, stale: STALE, reaches: true });
+    const res = await patch({ visibility: 'public' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: 'c1', visibility: 'public' });
+    expect(tryReachResonance).not.toHaveBeenCalled();
+    expect(ringAfter).toHaveBeenCalledWith({}, expect.any(Function));
+    // What ringAfter runs after the response: the reach, whose bell it then pushes.
+    const [, reach] = ringAfter.mock.calls[0] as [unknown, () => Promise<string | null>];
+    expect(await reach()).toBe('resonance_alice_orig');
+    expect(tryReachResonance).toHaveBeenCalledWith({}, 'alice', 'c1');
   });
 
   it('refuses a body off the contract, and a slug where an id belongs', async () => {
@@ -114,10 +133,15 @@ describe('DELETE /api/v1/cards/{id}', () => {
 describe('POST /api/v1/cards/{id}/edits/apply', () => {
   const apply = () => applyEdit(new Request('http://localhost/api/v1/cards/c1/edits/apply', { method: 'POST' }), ctx('c1'));
 
-  it('keeps the page list out of the answer, and revalidates the card by id and slug and the profile', async () => {
-    applyCardEdit.mockResolvedValue({ id: 'c1', slug: 'a-walk', applied: true, stale: STALE });
+  it('keeps the page list out of the answer, revalidates the card by id and slug and the profile, and reaches out for a resonance it made reachable — after the response', async () => {
+    applyCardEdit.mockResolvedValue({ id: 'c1', slug: 'a-walk', applied: true, stale: STALE, reaches: true });
     const res = await apply();
     expect(await res.json()).toEqual({ id: 'c1', slug: 'a-walk', applied: true });
+    expect(tryReachResonance).not.toHaveBeenCalled();
+    expect(ringAfter).toHaveBeenCalledWith({}, expect.any(Function));
+    const [, reach] = ringAfter.mock.calls[0] as [unknown, () => Promise<string | null>];
+    await reach();
+    expect(tryReachResonance).toHaveBeenCalledWith({}, 'alice', 'c1');
     expect(await settled()).toEqual(LOCALIZED);
     expect(indexCard).toHaveBeenCalledWith('c1');
   });
@@ -148,11 +172,12 @@ describe('POST /api/v1/cards/{id}/edits/apply', () => {
   });
 
   it('does nothing after a retry that applied nothing', async () => {
-    applyCardEdit.mockResolvedValue({ id: 'c1', slug: 'a-walk', applied: false, stale: [] });
+    applyCardEdit.mockResolvedValue({ id: 'c1', slug: 'a-walk', applied: false, stale: [], reaches: false });
     await apply();
     expect(await settled()).toEqual([]);
     expect(indexCard).not.toHaveBeenCalled();
     expect(unfurlCardLinks).not.toHaveBeenCalled();
+    expect(ringAfter).not.toHaveBeenCalled();
   });
 });
 

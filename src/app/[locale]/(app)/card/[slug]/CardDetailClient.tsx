@@ -50,8 +50,9 @@ const wrapStyle = {
  * - `hold` — someone is signed in in this browser, and their block list (or,
  *   for an anonymous card from the server render, the answer of the browser's
  *   own read) isn't known yet. Someone else's anonymous card never names its
- *   author here: the server, which knows it, applies the reader's blocks to
- *   it when it answers that read (a card by someone they blocked isn't there).
+ *   author here, and a block never hides one (one that vanished when the
+ *   reader blocked someone would tell them who wrote it): it shows once that
+ *   read answers.
  * - `blocked` — the viewer blocked the author: the page reads as not found.
  */
 export type StoryGate = 'show' | 'hold' | 'unknown' | 'blocked';
@@ -79,7 +80,7 @@ export function storyGate(s: {
   if (authLoading) return 'hold';
   if (!viewerId) return 'show';
   if (!blocked) return 'hold';
-  // An anonymous card: its read answered (with the reader's blocks applied by the server), or failed.
+  // An anonymous card: its read answered (a block never hides one), or failed.
   if (!authorId) return failed || answered ? 'show' : 'hold';
   return 'show';
 }

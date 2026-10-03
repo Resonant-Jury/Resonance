@@ -65,9 +65,23 @@ async function* array(...sources: AsyncIterable<DocumentData[]>[]): AsyncGenerat
   yield ']';
 }
 
-async function* rows(q: Query, extra: Record<string, unknown> = {}): AsyncGenerator<DocumentData[]> {
-  for await (const docs of pages(q)) yield docs.map((d) => ({ ...extra, ...row(d) }));
+async function* rows(q: Query, extra: Record<string, unknown> = {}, omit: readonly string[] = []): AsyncGenerator<DocumentData[]> {
+  for await (const docs of pages(q)) {
+    yield docs.map((d) => {
+      const r: DocumentData = { ...extra, ...row(d) };
+      for (const key of omit) delete r[key];
+      return r;
+    });
+  }
 }
+
+/**
+ * What a note of yours keeps in your export: your words and the card you left
+ * them on — not whom they reached (the author of an anonymous card is no one's
+ * to know, and a note withheld across a block reached no one) nor whether
+ * they were read.
+ */
+const NOTE_OMIT = ['toUserId', 'readAt'] as const;
 
 /**
  * The export, as JSON text in pieces (an AccountExport once joined). The
@@ -92,7 +106,7 @@ export async function* exportAccountJson(db: Firestore, uid: string, now = new D
   yield ',"groups":';
   yield* array(rows(map.collection('groups')));
   yield '},"notesSent":';
-  yield* array(rows(db.collection('notes').where('fromUserId', '==', uid)));
+  yield* array(rows(db.collection('notes').where('fromUserId', '==', uid), {}, NOTE_OMIT));
 
   yield ',"messagesSent":';
   const conversations = await db.collection('conversations').where('participants', 'array-contains', uid).select().get();

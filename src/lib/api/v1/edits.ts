@@ -2,6 +2,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { cardContentProblem } from '@/lib/db/firestore/cardContent';
 import { ApiFailure } from './http';
+import { becameReachable } from './resonate';
 import { summaryFields } from './summary';
 
 export interface ApplyEditResult {
@@ -12,6 +13,8 @@ export interface ApplyEditResult {
   applied: boolean;
   /** The card, profile and landing pages the revision made stale, for the route to revalidate (never returned). */
   stale: string[];
+  /** The revision made a published resonance reachable: the route reaches its original after the response (never returned). */
+  reaches: boolean;
 }
 
 const VISIBILITIES = new Set(['public', 'connections', 'private']);
@@ -30,6 +33,10 @@ const VISIBILITIES = new Set(['public', 'connections', 'private']);
  * those limits (lib/db/firestore/cardContent) is refused. A cover missing
  * from the buffer was removed: it is deleted from the card too.
  * Applying twice is harmless — with no buffer left, nothing changes.
+ *
+ * The buffer carries the card's visibility and byline too: a resonance it
+ * makes public under its writer's name reaches the original's author as a
+ * PATCH doing so would (`reaches`, see updateCard).
  */
 export async function applyCardEdit(db: Firestore, uid: string, id: string): Promise<ApplyEditResult> {
   const ref = db.doc(`cards/${id}`);
@@ -42,7 +49,7 @@ export async function applyCardEdit(db: Firestore, uid: string, id: string): Pro
       throw new ApiFailure('invalid_request', 'A draft saves as you write; publish it instead.');
     }
     const slug = typeof snap.get('slug') === 'string' ? (snap.get('slug') as string) : null;
-    if (!edit.exists) return { id, slug, applied: false, stale: [] };
+    if (!edit.exists) return { id, slug, applied: false, stale: [], reaches: false };
 
     const e = edit.data()!;
     const thoughtCore = typeof e.thoughtCore === 'string' ? e.thoughtCore : '';
@@ -77,7 +84,8 @@ export async function applyCardEdit(db: Firestore, uid: string, id: string): Pro
       ...profilePagePaths(me.get('handle')),
       ...landingPagePaths(snap.data(), { visibility: fields.visibility, publishedAt: snap.get('publishedAt') }),
     ];
-    return { id, slug, applied: true, stale };
+    const reaches = becameReachable(snap.data()!, { ...snap.data(), visibility: fields.visibility, anonymous: fields.anonymous });
+    return { id, slug, applied: true, stale, reaches };
   });
 }
 

@@ -131,11 +131,12 @@ describe('getCardDetail', () => {
     expect(detail.card.author).toBeNull();
   });
 
-  it("applies the reader's blocks to an anonymous card, whose author they can't know (not to its author)", async () => {
+  it("never applies the reader's blocks to an anonymous card: one that vanished would name its author", async () => {
     await card('anon', 'carol', 1, { anonymous: true });
-    // alice blocked carol: the card isn't there for her, as in every list.
-    expect((await failure(getCardDetail(db, 'alice', 'anon'))).code).toBe('not_found');
-    expect((await getCardDetail(db, 'dana', 'anon')).card.author).toBeNull();
+    // alice blocked carol, and reads carol's anonymous card exactly as dana, who didn't.
+    const seen = await getCardDetail(db, 'alice', 'anon');
+    expect(seen.card.author).toBeNull();
+    expect(seen).toEqual(await getCardDetail(db, 'dana', 'anon'));
     expect((await getCardDetail(db, 'carol', 'anon')).isOwner).toBe(true);
   });
 
@@ -507,8 +508,8 @@ describe('the card page in one request (GET /cards/{key}?include=)', () => {
     });
     expect((await ids('carol')).resonances).toEqual(['r-alice', 'r-anon', 'r-carol', 'r-dana']);
     expect((await ids('carol')).embeds).toEqual(['by-dana', 'by-carol']);
-    // bob blocked erin: her anonymous resonance and her link drop out of his lists too.
-    expect(await ids('bob')).toMatchObject({ resonances: ['r-alice', 'r-carol', 'r-dana'], links: ['by-carol', 'by-dana'] });
+    // bob blocked erin, yet her anonymous resonance and the link it makes stay in his lists: a block never hides an anonymous card.
+    expect(await ids('bob')).toMatchObject({ resonances: ['r-alice', 'r-anon', 'r-carol', 'r-dana'], links: ['r-anon', 'by-carol', 'by-dana'] });
   });
 
   it('asks for nothing it was not asked for', async () => {

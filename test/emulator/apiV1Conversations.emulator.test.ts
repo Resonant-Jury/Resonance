@@ -1,13 +1,16 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
-import { sendMessage, sendNote } from '@/lib/api/v1/conversations';
+import { NOTE_REQUEST_MAX, sendMessage, sendNote } from '@/lib/api/v1/conversations';
 import { SendMessageRequest } from '@/lib/api/v1/schemas';
 
 // Notes and messages through the v1 API against the Firestore emulator — what
 // the web's sendNote() and openConversation() + sendMessage() write from the
 // client, with the rules' guarantees (connection, blocks, visibility) re-checked.
+// A note is a letter: between two people not connected it waits in their
+// conversation (`request`) until the card's author answers it, and that
+// answer is what connects them.
 
 const PROJECT = 'demo-resonance-api-conversations';
 let app: App;
@@ -21,6 +24,10 @@ beforeAll(() => {
 
 afterAll(async () => {
   await deleteApp(app);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 beforeEach(async () => {
@@ -51,13 +58,14 @@ async function failure(p: Promise<unknown>): Promise<ApiFailure> {
 const docs = async (path: string) => (await db.collection(path).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
 
 describe('sendNote', () => {
-  it("leaves the note with the card's author, rings their bell and connects the two", async () => {
+  it("leaves the note with the card's author and rings their bell — connecting no one: it waits for their answer", async () => {
     const { id } = await sendNote(db, 'alice', { cardId: 'walk', text: '謝謝你寫下這段，我也常在雨後散步 🌧️' });
     const note = (await db.doc(`notes/${id}`).get()).data()!;
     expect(note).toMatchObject({ cardId: 'walk', fromUserId: 'alice', toUserId: 'bob', readAt: null });
     const [bell] = await docs('notifications');
     expect(bell).toMatchObject({ userId: 'bob', type: 'note', readAt: null, payload: { noteId: id, cardId: 'walk', fromUserId: 'alice', fromHandle: 'alice' } });
-    expect((await db.doc('connections/alice_bob').get()).get('userIds')).toEqual(['alice', 'bob']);
+    expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+    expect((await db.doc('conversations/alice_bob').get()).get('request')).toMatchObject({ from: 'alice', cardId: 'walk', count: 1 });
   });
 
   it('cuts the preview by characters, never through an emoji', async () => {
@@ -135,6 +143,8 @@ describe('sendNote', () => {
       // One bell for the conversation's first message (bob's), one for the note.
       expect((await docs('notifications')).map((b) => (b as { type?: string }).type).sort()).toEqual(['message', 'note']);
       expect(began.conversationId).toBe('alice_bob');
+      // Between two people already connected a note is one more message: no letter waits.
+      expect(convo).not.toHaveProperty('request');
     });
 
     it('keeps a note on an anonymous card out of every thread, even between two people already connected', async () => {
@@ -149,6 +159,20 @@ describe('sendNote', () => {
       const bell = (await db.doc(`notifications/${sent.notificationId}`).get()).data()!;
       expect(bell).toMatchObject({ userId: 'bob', type: 'note', payload: { noteId: sent.id } });
       expect(bell).not.toHaveProperty('pushedAt');
+    });
+
+    it('reads the card\'s byline in its own transaction: one made anonymous the moment the note is sent stays out of the thread', async () => {
+      // Bob takes his byline off between the note's first read of the card and its transaction.
+      const run = db.runTransaction.bind(db);
+      vi.spyOn(db, 'runTransaction').mockImplementationOnce(async (fn, opts) => {
+        await db.doc('cards/walk').update({ anonymous: true });
+        return run(fn, opts);
+      });
+      const sent = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi' });
+      expect(sent.push).toBeNull();
+      expect(await docs('conversations')).toHaveLength(0);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+      expect((await db.doc(`notes/${sent.id}`).get()).exists).toBe(true);
     });
 
     it('opens no conversation for a note on an anonymous card between strangers', async () => {
@@ -196,10 +220,277 @@ describe('sendNote', () => {
     expect(await docs('notifications')).toHaveLength(0);
   });
 
+  it('needs a pen name first, writing nothing', async () => {
+    for (const profile of [null, { handle: '' }, { initials: 'a' }]) {
+      if (profile) await db.doc('users/alice').set(profile);
+      else await db.doc('users/alice').delete();
+      const refused = await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'hi' }));
+      expect(refused.code).toBe('forbidden');
+      expect(refused.message).toBe('Choose a pen name first.');
+    }
+    expect(await docs('notes')).toHaveLength(0);
+    expect(await docs('notifications')).toHaveLength(0);
+    expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+  });
+
+  it('asks for the pen name before the blocks, so a refusal says nothing of who blocked whom', async () => {
+    await db.doc('users/alice').set({ handle: '' });
+    for (const [blocker, blocked] of [['alice', 'bob'], ['bob', 'alice']]) {
+      await db.doc(`users/${blocker}/blocks/${blocked}`).set({ blockedUid: blocked });
+      for (const cardId of ['walk', 'masked']) {
+        expect((await failure(sendNote(db, 'alice', { cardId, text: 'hi' }))).message).toBe('Choose a pen name first.');
+      }
+      await db.doc(`users/${blocker}/blocks/${blocked}`).delete();
+    }
+    expect(await docs('notes')).toHaveLength(0);
+  });
+
+  describe('an anonymous card across a block', () => {
+    // A block never answers for an anonymous card: the sender keeps their own
+    // block list, and a refusal would name the author.
+    it('is answered as delivered, and delivers nothing: no bell, no push, the note addressed to no one', async () => {
+      for (const [blocker, blocked] of [['alice', 'bob'], ['bob', 'alice']]) {
+        await db.doc(`users/${blocker}/blocks/${blocked}`).set({ blockedUid: blocked });
+        const sent = await sendNote(db, 'alice', { cardId: 'masked', text: 'about your anonymous card' });
+        expect(sent).toEqual({ id: expect.stringMatching(/^[A-Za-z0-9]{20}$/), notificationId: null, push: null });
+        const note = (await db.doc(`notes/${sent.id}`).get()).data()!;
+        expect(note).toMatchObject({ cardId: 'masked', fromUserId: 'alice', toUserId: null, text: 'about your anonymous card', readAt: null });
+        expect(note.createdAt).toBeInstanceOf(Timestamp);
+        await db.doc(`users/${blocker}/blocks/${blocked}`).delete();
+      }
+      expect(await docs('notifications')).toHaveLength(0);
+      expect(await docs('conversations')).toHaveLength(0);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+    });
+
+    it('looks to the sender like a note that was delivered: the same answer, the same record of it', async () => {
+      const delivered = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
+      await db.doc('users/alice/blocks/bob').set({ blockedUid: 'bob' });
+      const withheld = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
+      expect(Object.keys(withheld).sort()).toEqual(Object.keys(delivered).sort());
+      // All the sender ever sees of a note is its id (the route answers `{ id }`) and their export.
+      const { exportAccountData } = await import('@/lib/account/export');
+      const rows = (await exportAccountData(db, 'alice')).notesSent.map(({ id: _id, createdAt: _at, ...row }) => row);
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toEqual(rows[1]);
+    });
+
+    it('still refuses a named card, with one answer for both directions', async () => {
+      for (const [blocker, blocked] of [['alice', 'bob'], ['bob', 'alice']]) {
+        await db.doc(`users/${blocker}/blocks/${blocked}`).set({ blockedUid: blocked });
+        const refused = await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'hi' }));
+        expect([refused.code, refused.message]).toEqual(['blocked', 'You cannot send a note to this person.']);
+        await db.doc(`users/${blocker}/blocks/${blocked}`).delete();
+      }
+      expect(await docs('notes')).toHaveLength(0);
+    });
+  });
+
+  // The card read before the transaction can change before it runs: the
+  // transaction's own read of it decides.
+  it('is not_found when the card is deleted or hidden between its first read and the transaction, writing nothing', async () => {
+    const run = db.runTransaction.bind(db);
+    for (const change of [() => db.doc('cards/walk').delete(), () => db.doc('cards/walk').update({ visibility: 'private' })]) {
+      await db.doc('cards/walk').set({ authorId: 'bob', thoughtCore: 'title walk', story: 's', visibility: 'public', anonymous: false, publishedAt: Timestamp.now() });
+      vi.spyOn(db, 'runTransaction').mockImplementationOnce(async (fn, opts) => {
+        await change();
+        return run(fn, opts);
+      });
+      expect((await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'hi' }))).code).toBe('not_found');
+    }
+    expect(await docs('notes')).toHaveLength(0);
+    expect(await docs('notifications')).toHaveLength(0);
+    expect(await docs('conversations')).toHaveLength(0);
+  });
+
   it("takes the card's id (the contract's cardId): a slug names no card here", async () => {
     await db.doc('cards/walk').set({ slug: 'a-rainy-walk' }, { merge: true });
     expect((await failure(sendNote(db, 'alice', { cardId: 'a-rainy-walk', text: 'hi' }))).code).toBe('not_found');
     expect(await docs('notes')).toHaveLength(0);
+  });
+});
+
+describe('a letter: a note between two people not connected', () => {
+  beforeEach(async () => {
+    const published = Timestamp.fromDate(new Date('2026-09-02T08:00:00Z'));
+    const card = (id: string, authorId: string, extra: Record<string, unknown> = {}) =>
+      db.doc(`cards/${id}`).set({ authorId, thoughtCore: `title ${id}`, story: 's', visibility: 'public', anonymous: false, publishedAt: published, ...extra });
+    await Promise.all([card('river', 'bob'), card('dawn', 'alice'), card('aliceMasked', 'alice', { anonymous: true })]);
+  });
+
+  const convo = async () => (await db.doc('conversations/alice_bob').get()).data();
+  const connected = async () => (await db.doc('connections/alice_bob').get()).exists;
+
+  it('goes into their thread and rings the author through the chat push, but connects no one: the conversation holds the request', async () => {
+    const sent = await sendNote(db, 'alice', { cardId: 'walk', text: '我也在雨後散步' });
+    expect(sent.push).toEqual({ conversationId: 'alice_bob', messageId: sent.id, from: 'alice', to: 'bob' });
+    expect((await db.doc(`conversations/alice_bob/messages/${sent.id}`).get()).data()).toMatchObject({ senderId: 'alice', cardRef: 'walk', kind: 'note' });
+    expect((await db.doc(`notifications/${sent.notificationId}`).get()).get('pushedAt')).toBeInstanceOf(Timestamp);
+    expect(await connected()).toBe(false);
+    const c = (await convo())!;
+    expect(c).toMatchObject({ participants: ['alice', 'bob'], unread: { alice: 0, bob: 1 }, lastMessage: { senderId: 'alice' } });
+    expect(Object.keys(c.request).sort()).toEqual(['at', 'cardId', 'count', 'from']);
+    expect(c.request).toMatchObject({ from: 'alice', cardId: 'walk', count: 1 });
+    expect(c.request.at).toBeInstanceOf(Timestamp);
+  });
+
+  it(`counts each note, naming the latest one's card and time; past ${NOTE_REQUEST_MAX} it is refused "Wait for them to reply.", writing and ringing nothing`, async () => {
+    expect(NOTE_REQUEST_MAX).toBe(3);
+    await sendNote(db, 'alice', { cardId: 'walk', text: 'one' });
+    const firstAt = (await convo())!.request.at as Timestamp;
+    await sendNote(db, 'alice', { cardId: 'river', text: 'two' });
+    await sendNote(db, 'alice', { cardId: 'walk', text: 'three' });
+    const third = (await convo())!;
+    expect(third.request).toMatchObject({ from: 'alice', cardId: 'walk', count: 3 });
+    expect((third.request.at as Timestamp).toMillis()).toBeGreaterThanOrEqual(firstAt.toMillis());
+
+    const refused = await failure(sendNote(db, 'alice', { cardId: 'river', text: 'four' }));
+    expect(refused.code).toBe('conflict');
+    expect(refused.message).toBe('Wait for them to reply.');
+    expect(await docs('notes')).toHaveLength(3);
+    expect(await docs('notifications')).toHaveLength(3);
+    expect(await docs('conversations/alice_bob/messages')).toHaveLength(3);
+    expect(await convo()).toEqual(third);
+    expect(await connected()).toBe(false);
+  });
+
+  it("can't be followed by a message from its writer: refused as any stranger's, the letter left as it was", async () => {
+    await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+    const before = await convo();
+    const refused = await failure(sendMessage(db, 'alice', { to: 'bob', text: 'and a message' }));
+    expect(refused.code).toBe('forbidden');
+    expect(refused.message).toBe('You can message people you are connected with.');
+    expect(await convo()).toEqual(before);
+    expect(await docs('conversations/alice_bob/messages')).toHaveLength(1);
+    // Nor does a letter to Bob let Bob's other strangers, or Alice, write to anyone else.
+    expect((await failure(sendMessage(db, 'bob', { to: 'carol', text: 'hi' }))).code).toBe('forbidden');
+    expect((await failure(sendMessage(db, 'alice', { to: 'carol', text: 'hi' }))).code).toBe('forbidden');
+  });
+
+  it("is answered by the author's reply, which connects the two, clears the request and is delivered like any message", async () => {
+    const note = await sendNote(db, 'alice', { cardId: 'walk', text: '謝謝你寫下這段' });
+    expect(await connected()).toBe(false);
+    const reply = await sendMessage(db, 'bob', { to: 'alice', text: '謝謝你的紙條', replyTo: note.id });
+    expect(reply).toMatchObject({ conversationId: 'alice_bob', duplicate: false, push: { conversationId: 'alice_bob', messageId: reply.id, from: 'bob', to: 'alice' } });
+    const connection = (await db.doc('connections/alice_bob').get()).data()!;
+    expect(connection.userIds).toEqual(['alice', 'bob']);
+    expect(connection.establishedAt).toBeInstanceOf(Timestamp);
+    const c = (await convo())!;
+    expect(c).not.toHaveProperty('request');
+    expect(c).toMatchObject({ unread: { alice: 1, bob: 1 }, lastMessage: { text: '謝謝你的紙條', senderId: 'bob' } });
+    expect((await db.doc(`conversations/alice_bob/messages/${reply.id}`).get()).data()).toMatchObject({
+      senderId: 'bob', text: '謝謝你的紙條', replyTo: { id: note.id, senderId: 'alice', cardRef: 'walk' },
+    });
+    // The conversation was there: no "new conversation" bell beside the note's.
+    expect((await docs('notifications')).map((b) => (b as { type?: string }).type)).toEqual(['note']);
+
+    // Connected now: both write freely, and a note is one more message, opening no letter.
+    await sendMessage(db, 'alice', { to: 'bob', text: '真高興收到回覆' });
+    for (let i = 0; i < NOTE_REQUEST_MAX + 1; i++) await sendNote(db, 'alice', { cardId: 'river', text: `note ${i}` });
+    expect(await convo()).not.toHaveProperty('request');
+  });
+
+  it('is answered as older builds answer a note too: a reply carrying its noteRef', async () => {
+    const note = await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+    expect(await connected()).toBe(false);
+    await sendMessage(db, 'bob', { to: 'alice', text: 'thanks', noteRef: { cardId: 'walk', noteId: note.id } });
+    expect(await connected()).toBe(true);
+    expect(await convo()).not.toHaveProperty('request');
+  });
+
+  it('crossing letters: a note to someone whose own letter waits answers it — connected, the request cleared, the note threaded and rung', async () => {
+    await sendNote(db, 'alice', { cardId: 'walk', text: "alice's letter" });
+    expect(await connected()).toBe(false);
+    const crossing = await sendNote(db, 'bob', { cardId: 'dawn', text: "bob's letter" });
+    expect(await connected()).toBe(true);
+    const c = (await convo())!;
+    expect(c).not.toHaveProperty('request');
+    expect(c.unread).toEqual({ alice: 1, bob: 1 });
+    expect(crossing.push).toEqual({ conversationId: 'alice_bob', messageId: crossing.id, from: 'bob', to: 'alice' });
+    expect((await db.doc(`conversations/alice_bob/messages/${crossing.id}`).get()).data()).toMatchObject({ senderId: 'bob', cardRef: 'dawn', kind: 'note' });
+    expect((await db.doc(`notifications/${crossing.notificationId}`).get()).get('pushedAt')).toBeInstanceOf(Timestamp);
+  });
+
+  it('answers past the cap: crossing letters are a reply, never a fourth note', async () => {
+    for (let i = 0; i < NOTE_REQUEST_MAX; i++) await sendNote(db, 'bob', { cardId: 'dawn', text: `bob ${i}` });
+    expect((await convo())!.request).toMatchObject({ from: 'bob', count: NOTE_REQUEST_MAX });
+    await sendNote(db, 'alice', { cardId: 'walk', text: 'answering' });
+    expect(await connected()).toBe(true);
+    expect(await convo()).not.toHaveProperty('request');
+  });
+
+  describe('anonymous cards, unchanged: the bell alone', () => {
+    it('opens no conversation, no request and no connection between strangers', async () => {
+      const sent = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
+      expect(sent.push).toBeNull();
+      expect(await convo()).toBeUndefined();
+      expect(await connected()).toBe(false);
+    });
+
+    it("neither counts toward a letter's cap nor is refused by it — that would tell whose card it is", async () => {
+      for (let i = 0; i < NOTE_REQUEST_MAX; i++) await sendNote(db, 'alice', { cardId: 'walk', text: `note ${i}` });
+      const before = await convo();
+      expect(before!.request).toMatchObject({ from: 'alice', count: NOTE_REQUEST_MAX });
+      const sent = await sendNote(db, 'alice', { cardId: 'masked', text: 'about your anonymous card' });
+      expect(sent.push).toBeNull();
+      expect((await db.doc(`notes/${sent.id}`).get()).exists).toBe(true);
+      expect(await convo()).toEqual(before);
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(NOTE_REQUEST_MAX);
+    });
+
+    it("doesn't answer a letter either: a note on the writer's anonymous card connects no one and leaves it waiting", async () => {
+      await sendNote(db, 'alice', { cardId: 'walk', text: "alice's letter" });
+      const before = await convo();
+      const sent = await sendNote(db, 'bob', { cardId: 'aliceMasked', text: 'hi' });
+      expect(sent.push).toBeNull();
+      expect(await connected()).toBe(false);
+      expect(await convo()).toEqual(before);
+    });
+  });
+
+  describe('across a block', () => {
+    it("refuses the author's reply when they blocked the writer, leaving the letter waiting", async () => {
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+      const before = await convo();
+      await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+      expect((await failure(sendMessage(db, 'bob', { to: 'alice', text: 'hi' }))).code).toBe('blocked');
+      expect(await connected()).toBe(false);
+      expect(await convo()).toEqual(before);
+      // Unblocked, the letter is still theirs to answer.
+      await db.doc('users/bob/blocks/alice').delete();
+      await sendMessage(db, 'bob', { to: 'alice', text: 'hi' });
+      expect(await connected()).toBe(true);
+      expect(await convo()).not.toHaveProperty('request');
+    });
+
+    it('refuses the reply when the writer blocked the author since, with the same answer', async () => {
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+      const before = await convo();
+      await db.doc('users/alice/blocks/bob').set({ blockedUid: 'bob' });
+      expect((await failure(sendMessage(db, 'bob', { to: 'alice', text: 'hi' }))).code).toBe('blocked');
+      expect((await failure(sendNote(db, 'bob', { cardId: 'dawn', text: 'hi' }))).code).toBe('blocked');
+      expect(await connected()).toBe(false);
+      expect(await convo()).toEqual(before);
+    });
+  });
+
+  it("needs the answerer's pen name, as every message does, leaving the letter waiting", async () => {
+    await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+    const before = await convo();
+    await db.doc('users/bob').set({ handle: '' });
+    expect((await failure(sendMessage(db, 'bob', { to: 'alice', text: 'hi' }))).code).toBe('forbidden');
+    expect(await connected()).toBe(false);
+    expect(await convo()).toEqual(before);
+  });
+
+  it('clears a request found beside a connection with the next note or message (whatever connected them)', async () => {
+    await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+    await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
+    await sendMessage(db, 'alice', { to: 'bob', text: 'hi' });
+    expect(await convo()).not.toHaveProperty('request');
+    await db.doc('conversations/alice_bob').update({ request: { from: 'bob', cardId: 'dawn', at: Timestamp.now(), count: 1 } });
+    await sendNote(db, 'alice', { cardId: 'walk', text: 'a note' });
+    expect(await convo()).not.toHaveProperty('request');
   });
 });
 
@@ -250,6 +541,60 @@ describe('sendMessage', () => {
     expect((await failure(sendMessage(db, 'alice', { to: 'bob', text: 'hi' }))).code).toBe('blocked');
     expect((await db.doc('conversations/alice_bob').get()).exists).toBe(false);
   });
+  it('needs a pen name first, even between two people already connected: the thread and every push name the sender', async () => {
+    for (const profile of [null, { handle: ' ' }, { initials: 'a' }]) {
+      if (profile) await db.doc('users/alice').set(profile);
+      else await db.doc('users/alice').delete();
+      const refused = await failure(sendMessage(db, 'alice', { to: 'bob', text: 'hi' }));
+      expect(refused.code).toBe('forbidden');
+      expect(refused.message).toBe('Choose a pen name first.');
+    }
+    expect((await db.doc('conversations/alice_bob').get()).exists).toBe(false);
+    expect(await docs('notifications')).toHaveLength(0);
+  });
+
+  it('asks for the pen name before the blocks', async () => {
+    await db.doc('users/alice').set({ handle: '' });
+    await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+    expect((await failure(sendMessage(db, 'alice', { to: 'bob', text: 'hi' }))).message).toBe('Choose a pen name first.');
+  });
+
+  describe('noteRef', () => {
+    // A message answers a note the recipient left the sender, on the card it
+    // names — anything else is one and the same refusal, so a note of your own
+    // on an anonymous card can't ask, by which error comes back, who wrote it.
+    it('answers only a note the recipient left the sender, on the card it names', async () => {
+      const { id: theirs } = await sendNote(db, 'alice', { cardId: 'walk', text: 'from alice to bob' });
+      expect((await sendMessage(db, 'bob', { to: 'alice', text: 'thanks', noteRef: { cardId: 'walk', noteId: theirs } })).duplicate).toBe(false);
+      const refusals = [
+        // Your own note to them, quoted back.
+        () => sendMessage(db, 'alice', { to: 'bob', text: 'x', noteRef: { cardId: 'walk', noteId: theirs } }),
+        // Their note to you, on another card than it names.
+        () => sendMessage(db, 'bob', { to: 'alice', text: 'x', noteRef: { cardId: 'masked', noteId: theirs } }),
+        // A note that isn't there.
+        () => sendMessage(db, 'bob', { to: 'alice', text: 'x', noteRef: { cardId: 'walk', noteId: 'nope' } }),
+      ];
+      for (const refused of refusals) {
+        const e = await failure(refused());
+        expect([e.code, e.message]).toEqual(['invalid_request', 'That is not a note they left you.']);
+      }
+    });
+
+    it("answers a note of your own on an anonymous card with one refusal, whoever wrote the card", async () => {
+      // Alice is connected with Bob (who wrote `masked`) and with Carol (who didn't).
+      await db.doc('connections/alice_carol').set({ userIds: ['alice', 'carol'], establishedAt: Timestamp.now() });
+      const { id } = await sendNote(db, 'alice', { cardId: 'masked', text: 'whose is this?' });
+      const answers = [];
+      for (const to of ['bob', 'carol']) {
+        const e = await failure(sendMessage(db, 'alice', { to, text: 'x', noteRef: { cardId: 'masked', noteId: id }, replyTo: 'nope' }));
+        answers.push([e.code, e.message]);
+      }
+      expect(answers[0]).toEqual(answers[1]);
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(0);
+      expect(await docs('conversations/alice_carol/messages')).toHaveLength(0);
+    });
+  });
+
   it('hands back what the chat push needs, for a message that was just written', async () => {
     const sent = await sendMessage(db, 'alice', { to: 'bob', text: 'hi' });
     expect(sent).toMatchObject({

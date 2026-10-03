@@ -1,10 +1,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { assignSlug } from '@/lib/ai/assignSlug';
-import { mapCard } from '@/lib/db/firestore/mapper';
-import { pairOf } from './conversations';
 import { ApiFailure } from './http';
-import { canView } from './present';
-import { reachOriginal } from './resonate';
+import { reachable, tryReachResonance } from './resonate';
 import { summaryFields } from './summary';
 
 /** How long publishing waits for the slug (an LLM call) before answering without it. */
@@ -37,10 +34,14 @@ function within<T>(p: Promise<T>, ms: number): Promise<T | typeof LATE> {
  * Publish one of your own cards: what the web editor's submit() does from the
  * client, in one server call. Stamps publishedAt once (re-stamping would
  * re-date the card in every feed), gives it its slug, and — for a resonance,
- * the first time only — connects the two authors and rings the original
- * author's bell, re-checking what firestore.rules would: the original must be
- * visible to the resonator and no block may stand between them. Anonymous
- * resonances do neither: a connection names both uids.
+ * the first time only — reaches the original's author (reachResonance: the
+ * two connected, their bell rung once, in one transaction), re-checking what
+ * firestore.rules would: the original must be visible to the resonator and no
+ * block may stand between them. Only a resonance published public and under
+ * its writer's name reaches anyone: a private or connections-only one is
+ * never listed under the original, and an anonymous one would be named by
+ * the connection. A resonator without a pen name reaches no one either; the
+ * card is published all the same.
  *
  * The slug and the resonance are made side by side. The slug is waited for
  * `slugWaitMs` at most: past that the answer says `slug: null` (the id is a
@@ -81,12 +82,11 @@ export async function publishCard(
 
   // Publishing never waits long on — or fails for — the AI step; the id is a working URL.
   const slugP = assignSlug(db, id, slugBase).catch((e) => (console.error('[api/v1] slug', e), null));
-  const referenceCardId = typeof card.data.referenceCardId === 'string' ? card.data.referenceCardId : null;
+  const resonance = card.firstPublish && typeof card.data.referenceCardId === 'string' && reachable(card.data);
   const [slug, notificationId] = await Promise.all([
     within(slugP, opts.slugWaitMs ?? SLUG_WAIT_MS),
-    card.firstPublish && referenceCardId && card.data.anonymous !== true
-      ? connectResonance(db, uid, referenceCardId).catch((e) => (console.error('[api/v1] resonance', e), null))
-      : null,
+    // Best effort: a resonance that can't reach anyone is still published.
+    resonance ? tryReachResonance(db, uid, id) : null,
   ]);
   return {
     id,
@@ -95,39 +95,4 @@ export async function publishCard(
     notificationId,
     pendingSlug: slug === LATE ? slugP : null,
   };
-}
-
-/**
- * Connect the two authors and ring the original's bell (reachOriginal, which
- * resonating with a card already written shares); the bell row's id, or
- * null when nothing rang. Best effort, never failing the publish: an
- * original gone, the resonator's own, out of their sight or across a block
- * reaches no one.
- */
-async function connectResonance(db: Firestore, uid: string, originalId: string): Promise<string | null> {
-  const snap = await db.doc(`cards/${originalId}`).get();
-  if (!snap.exists) return null;
-  const original = mapCard(snap.id, snap.data()!);
-  const other = original.authorId;
-  if (!other || other === uid || !(await canView(db, original, uid))) return null;
-  const [out, inn, me, connection] = await Promise.all([
-    db.doc(`users/${uid}/blocks/${other}`).get(),
-    db.doc(`users/${other}/blocks/${uid}`).get(),
-    db.doc(`users/${uid}`).get(),
-    // Only an original with a byline connects the two (see reachOriginal).
-    original.anonymous === true ? null : db.doc(`connections/${pairOf(uid, other)}`).get(),
-  ]);
-  if (out.exists || inn.exists) return null;
-
-  const batch = db.batch();
-  const bell = db.collection('notifications').doc();
-  reachOriginal(batch, db, {
-    from: uid,
-    fromHandle: String(me.get('handle') ?? ''),
-    original: { id: originalId, authorId: other, anonymous: original.anonymous === true },
-    connected: connection?.exists === true,
-    bell,
-  });
-  await batch.commit();
-  return bell.id;
 }
