@@ -75,13 +75,15 @@
 }
 
 /* A glyph of the account row standing for a place (the writer): the
-   messages' and the bell's footprint, in the header's ink. */
+   messages' and the bell's footprint, in the header's ink, set on their
+   line as the messages' glyph is. */
 .entry {
   position: relative;
   display: inline-flex;
   padding: 6px;
   color: var(--color-text);
   text-decoration: none;
+  transform: translateY(1.25px);
 }
 
 /* Phone or wide is decided here, not after hydration: both are in the HTML,
@@ -106,14 +108,23 @@
   }
 }
 
-/* Very narrow devices (below the common 375px phones): the three action
-   icons already carry ~6px of their own padding, so the flex gap collapses
-   to keep the trio from spreading apart. */
+/* Very narrow devices (below the common 375px phones): the action icons
+   already carry ~6px of their own padding, so the flex gap collapses to keep
+   them from spreading apart, the row's right edge leans on that padding (the
+   last glyph still sits a page's margin in), and the name steps down a size
+   so the pen, the messages, the bell and the menu all fit beside it. */
 @media (max-width: 360px) {
   .account {
     gap: 2px;
   }
   .row {
-    gap: 12px;
+    gap: 8px;
+    padding-right: calc(var(--page-pad-x) - 6px);
+  }
+  .logo {
+    gap: 8px;
+  }
+  .brand {
+    font-size: 18px;
   }
 }
