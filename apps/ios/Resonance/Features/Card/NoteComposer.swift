@@ -29,15 +29,14 @@ struct NoteComposer: View {
 
     var body: some View {
         if sent {
-            HStack(spacing: 10) {
-                OrganicIcon(.note, size: 18, color: Tokens.text)
-                Text(L10n.Card.Note.sent).font(AppFonts.body(14)).foregroundStyle(Tokens.text)
-                Spacer(minLength: 0)
-                Button(action: onClose) {
-                    OrganicIcon(.close, size: 16, color: Tokens.textMuted).padding(4)
+            VStack(spacing: 14) {
+                HStack(spacing: 10) {
+                    OrganicIcon(.note, size: 18, color: Tokens.text)
+                    Text(L10n.Card.Note.sent).font(AppFonts.body(14)).foregroundStyle(Tokens.text)
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.Card.Note.close)
+                // Said and done: the one way out, under the confirmation (a modal keeps no ✕ in its corner).
+                ModalCloseButton(L10n.Card.Note.close, action: onClose)
             }
         } else {
             form

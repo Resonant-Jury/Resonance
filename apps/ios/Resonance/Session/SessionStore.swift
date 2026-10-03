@@ -77,6 +77,9 @@ final class SessionStore {
     let conversations = ConversationsStore()
     /// Cards seen in lists, drawn while a card's page loads (this account's only).
     let cardPreviews = CardPreviewCache()
+    /// The messages this account sent that are still on their way, one queue per conversation
+    /// (they outlive the thread that sent them; emptied when the account changes).
+    let outboxes: ChatOutboxes
     /// The account's thought map, kept between visits so opening it again within a
     /// while shows it at once without reading a hundred cards (ThoughtMapStore.open).
     private(set) var thoughtMap: ThoughtMapStore
@@ -87,7 +90,9 @@ final class SessionStore {
     init(config: AppConfig) {
         self.config = config
         let configuration = APIConfiguration(origin: config.origin, idToken: { force in try await Self.idToken(forceRefresh: force) })
-        api = ResonanceClient.make(configuration, cache: httpCache)
+        let client = ResonanceClient.make(configuration, cache: httpCache)
+        api = client
+        outboxes = ChatOutboxes(messaging: { MessagingAPI(client: client) }, sent: { PushCenter.shared.reachedOut() })
         account = AccountAPI(configuration)
         writing = WritingAPI(client: api, configuration: configuration)
         thoughtMap = ThoughtMapStore(api: ReadingAPI(client: api))
@@ -257,6 +262,9 @@ final class SessionStore {
         // Drawn until the API answers (the card box's header on a cold start).
         me = newUID.flatMap { kept.value(.me, uid: $0) }
         cardPreviews.clear()
+        // Messages still on their way were the last account's.
+        outboxes.clear()
+        push.signedIn = newUID
         // The thought map belongs to the account too (kept between visits while it is signed in).
         thoughtMap = ThoughtMapStore(api: reading)
         profile = .unknown

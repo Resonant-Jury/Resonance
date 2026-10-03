@@ -91,7 +91,9 @@ extension WobRectOptions {
             case let .range(a, b)?: "\(a)-\(b)"
             }
         }
-        return "\(curve ?? -1)|\(cornerJitter ?? -1)|\(cornerOffset ?? -1)|\(seg(segmentsH))|\(seg(segmentsV))"
+        // Shapes that differ only in their corners (a bubble's tucked ones) are different paths.
+        let radii = cornerRadii.map { "\($0.topLeft),\($0.topRight),\($0.bottomRight),\($0.bottomLeft)" } ?? "-"
+        return "\(curve ?? -1)|\(cornerJitter ?? -1)|\(cornerOffset ?? -1)|\(seg(segmentsH))|\(seg(segmentsV))|\(radii)"
     }
 }
 

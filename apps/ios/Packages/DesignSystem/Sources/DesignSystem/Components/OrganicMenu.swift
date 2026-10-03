@@ -151,9 +151,6 @@ struct MenuStage: View {
     let triggerSize: CGFloat
     let close: (OrganicMenuItem?) -> Void
     @State private var shown = false
-    @State private var pressed: Int?
-    @State private var ink = MenuInk()
-    @State private var choosing = false
 
     var body: some View {
         GeometryReader { geo in
@@ -177,6 +174,40 @@ struct MenuStage: View {
     }
 
     private var panel: some View {
+        OrganicMenuPanel(items: items, seed: seed, colors: colors) { close($0) }
+    }
+}
+
+/// The rows of an organic menu on their hand-drawn panel (rowMenu.ts): wavy pen lines between the
+/// rows, ink spreading from the finger under the one being pressed, the warning wash under a
+/// destructive row — and, with a `footer`, one quieter line under the rows (a message's time, under
+/// its long-press menu). ``OrganicMenu`` drops it from its trigger; a screen can hang it anywhere
+/// (the thread's long-press). `onChoose` comes a moment after the tap, once the ink has been seen;
+/// the panel takes one choice.
+public struct OrganicMenuPanel: View {
+    let items: [OrganicMenuItem]
+    let seed: Double
+    let footer: String?
+    let colors: MenuColors
+    let onChoose: (OrganicMenuItem) -> Void
+    @State private var pressed: Int?
+    @State private var ink = MenuInk()
+    @State private var choosing = false
+
+    public init(items: [OrganicMenuItem], seed: Double, footer: String? = nil, hue: Double? = nil,
+                onChoose: @escaping (OrganicMenuItem) -> Void) {
+        self.init(items: items, seed: seed, footer: footer, colors: MenuColors(hue: hue), onChoose: onChoose)
+    }
+
+    init(items: [OrganicMenuItem], seed: Double, footer: String? = nil, colors: MenuColors, onChoose: @escaping (OrganicMenuItem) -> Void) {
+        self.items = items
+        self.seed = seed
+        self.footer = footer
+        self.colors = colors
+        self.onChoose = onChoose
+    }
+
+    public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
                 Button { choose(item) } label: {
@@ -197,6 +228,14 @@ struct MenuStage: View {
                     if g.translation == .zero { ink.origin = g.startLocation }
                 })
             }
+            if let footer {
+                Text(footer)
+                    .font(AppFonts.body(12))
+                    .foregroundStyle(Tokens.textMuted)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity, minHeight: MenuPanelShape.footerHeight, maxHeight: MenuPanelShape.footerHeight, alignment: .leading)
+            }
         }
         .frame(minWidth: 180 - 16, alignment: .leading)
         .padding(.horizontal, 8)
@@ -204,22 +243,21 @@ struct MenuStage: View {
         .background {
             GeometryReader { geo in
                 MenuPanelBackground(size: geo.size, seed: seed, colors: colors,
-                                    dangerIndex: items.firstIndex(where: \.danger), ink: ink, count: items.count)
+                                    dangerIndex: items.firstIndex(where: \.danger), ink: ink, count: items.count,
+                                    bands: items.count + (footer == nil ? 0 : 1))
             }
         }
         .coordinateSpace(.named(MenuPanelShape.space))
         .accessibilityElement(children: .contain)
     }
-}
 
-extension MenuStage {
-    /// A tap is shorter than the ink's spread: the panel stays long enough to show it, then goes.
-    fileprivate func choose(_ item: OrganicMenuItem) {
+    /// A tap is shorter than the ink's spread: the choice is told once it has shown.
+    private func choose(_ item: OrganicMenuItem) {
         guard !choosing else { return }
         choosing = true
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(150))
-            close(item)
+            onChoose(item)
         }
     }
 }
@@ -272,11 +310,13 @@ struct MenuPanelBackground: View {
     let colors: MenuColors
     let dangerIndex: Int?
     let ink: MenuInk
+    /// The rows; `bands` counts a footer under them too (a divider above it, no ink in it).
     let count: Int
+    var bands: Int? = nil
     private let bleed: CGFloat = 6
 
     var body: some View {
-        let geometry = MenuPanelShape(seed: seed, count: count)
+        let geometry = MenuPanelShape(seed: seed, count: bands ?? count)
         let rect = CGRect(origin: .zero, size: size)
         let w = Double(size.width), h = Double(size.height)
         let boundaries = geometry.boundaries(width: w)
@@ -289,14 +329,14 @@ struct MenuPanelBackground: View {
                 inside.clip(to: outer)
                 inside.fill(outer, with: .color(colors.cream))
                 if let dangerIndex {
-                    let region = rowRegion(dangerIndex, count: count, boundaries: boundaries, w: w, h: h, pad: pad).path()
+                    let region = rowRegion(dangerIndex, count: bands ?? count, boundaries: boundaries, w: w, h: h, pad: pad).path()
                     inside.fill(region, with: .color(colors.dangerWash(pressed: false)))
                 }
             }
             if let row = ink.row, row < count {
                 let origin = ink.origin ?? CGPoint(x: size.width / 2, y: (CGFloat(row) + 0.5) * MenuPanelShape.rowHeight)
                 let far = hypot(max(origin.x, size.width - origin.x), max(origin.y, size.height - origin.y)) + 4
-                let region = rowRegion(row, count: count, boundaries: boundaries, w: w, h: h, pad: pad).path()
+                let region = rowRegion(row, count: bands ?? count, boundaries: boundaries, w: w, h: h, pad: pad).path()
                 Circle()
                     .fill(row == dangerIndex ? colors.dangerWash(pressed: true) : colors.borderHover.opacity(0.15))
                     .frame(width: far * 2 * ink.reach, height: far * 2 * ink.reach)
@@ -331,9 +371,12 @@ private nonisolated struct PathShape: Shape {
 }
 
 /// OrganicMenu's geometry: 42pt rows, a radius-16 outline with the auto
-/// wobble, and a wavy boundary (amplitude 2) between each pair of rows.
+/// wobble, and a wavy boundary (amplitude 2) between each pair of rows (and
+/// above a footer: `count` is the bands, the footer one of them).
 nonisolated struct MenuPanelShape {
     static let rowHeight: CGFloat = 42
+    /// A footer line under the rows is a little shorter than a row.
+    static let footerHeight: CGFloat = 38
     /// The panel's coordinate space, where a row's press is placed.
     static let space = "organicMenuPanel"
     let seed: Double

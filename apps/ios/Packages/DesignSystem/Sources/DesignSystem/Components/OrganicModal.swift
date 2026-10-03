@@ -3,9 +3,13 @@ import SwiftUI
 // MARK: - Modal
 
 extension View {
-    /// The web's Modal: a wobbly card on the warm backdrop, over everything
-    /// (tab bar included). Tapping outside or the ✕ closes it unless
-    /// `dismissible` is false (an action in flight).
+    /// The web's Modal: a wobbly card on the warm backdrop, over the whole
+    /// screen (tab bar, status bar and home indicator included). There is no ✕:
+    /// a modal's ways out are the buttons at its foot (one with nothing else
+    /// there ends in a ``ModalCloseButton``), a tap beside the card, and
+    /// VoiceOver's escape — none of them while `dismissible` is false (an
+    /// action in flight). `closeLabel` is what the backdrop says it does to
+    /// VoiceOver: the modal's own cancel or close words.
     public func organicModal<Card: View>(isPresented: Binding<Bool>, seed: Double = 17, maxWidth: CGFloat = 440,
                                          closeLabel: String, dismissible: Bool = true,
                                          @ViewBuilder content: @escaping () -> Card) -> some View {
@@ -119,6 +123,27 @@ public struct ModalActions<Content: View>: View {
     }
 }
 
+/// The way out of a modal with nothing else at its foot (a list to look
+/// through, a note just sent): its close words as a quiet text button,
+/// centred under the content. Where there is a choice (cancel and a verb)
+/// the two sit at the bottom right instead, in ``ModalActions``. Android's
+/// ModalCloseButton.
+public struct ModalCloseButton: View {
+    let label: String
+    let action: () -> Void
+
+    public init(_ label: String, action: @escaping () -> Void) {
+        self.label = label
+        self.action = action
+    }
+
+    public var body: some View {
+        OrganicButton(label, variant: .text, size: .sm, action: action)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 4)
+    }
+}
+
 struct OrganicModalPresenter<Card: View>: ViewModifier {
     @Binding var isPresented: Bool
     let seed: Double
@@ -158,15 +183,23 @@ struct OrganicModalStage<Card: View>: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
+                // Over the whole screen, the status bar and the home indicator too, so no band
+                // of another brightness is left at either end. For VoiceOver it is the way out,
+                // read after the card (whose ✕ it used to be).
                 Tokens.backdrop
                     .ignoresSafeArea()
                     .opacity(shown ? 1 : 0)
-                    .accessibilityHidden(true)
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: close)
+                    .accessibilityElement()
+                    .accessibilityLabel(closeLabel)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction(.default, close)
+                    .accessibilityHidden(!dismissible)
                 // The backdrop scrolls when the dialog is taller than the screen
                 // (the web's overflow-y: auto); a tap beside the card closes it.
                 ScrollView {
-                    OrganicModalCard(seed: seed, maxWidth: maxWidth, closeLabel: closeLabel,
-                                     onClose: dismissible ? { isPresented = false } : nil, content: card)
+                    OrganicModalCard(seed: seed, maxWidth: maxWidth, content: card)
                         .contentShape(Rectangle())
                         .onTapGesture {}
                         .scaleEffect(shown ? 1 : 0.96)
@@ -174,11 +207,16 @@ struct OrganicModalStage<Card: View>: View {
                         .padding(12)
                         .frame(maxWidth: .infinity, minHeight: geo.size.height)
                         .contentShape(Rectangle())
-                        .onTapGesture { if dismissible { isPresented = false } }
+                        .onTapGesture(perform: close)
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollIndicators(.hidden)
+                .accessibilitySortPriority(1)
             }
+            // VoiceOver stays inside (the card and the backdrop's close), and its escape closes.
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
+            .accessibilityAction(.escape, close)
         }
         .onAppear {
             withAnimation(.timingCurve(0.2, 0.9, 0.3, 1.05, duration: 0.28)) { shown = true }
@@ -190,16 +228,18 @@ struct OrganicModalStage<Card: View>: View {
             }
         }
     }
+
+    private func close() {
+        if dismissible { isPresented = false }
+    }
 }
 
 /// The dialog card: card paper with grain in the wobbly outline — radius 26,
 /// the wobble 2.5% of its short side, three or four turns across and five or
-/// six down — the ink border, and the hand-drawn ✕.
+/// six down — and the ink border.
 struct OrganicModalCard<Content: View>: View {
     let seed: Double
     let maxWidth: CGFloat
-    let closeLabel: String
-    let onClose: (() -> Void)?
     let content: () -> Content
 
     var body: some View {
@@ -213,22 +253,7 @@ struct OrganicModalCard<Content: View>: View {
                 GrainLayer(shape: shape, mode: .tile, opacity: 0.3, tile: "grain-card")
                 shape.stroke(Tokens.modalBorder, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
             }
-            .overlay(alignment: .topTrailing) {
-                Button { onClose?() } label: {
-                    ModalCloseMark()
-                        .stroke(Tokens.text, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
-                        .frame(width: 18, height: 18)
-                        .opacity(0.55)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(OrganicPressStyle(inset: 6))
-                .padding(.top, 17)
-                .padding(.trailing, 13)
-                .accessibilityLabel(closeLabel)
-            }
             .accessibilityElement(children: .contain)
-            .accessibilityAddTraits(.isModal)
     }
 }
 
@@ -240,19 +265,5 @@ nonisolated struct ModalShape: Shape {
         return WobRectShape(radius: 26, seed: seed, mag: m, options: WobRectOptions(
             curve: 0.6, cornerJitter: 0.9, cornerOffset: 5, segmentsH: .range(3, 4), segmentsV: .range(5, 6)))
             .path(in: rect)
-    }
-}
-
-/// Modal.tsx's own ✕: two pen strokes in an 18-unit box.
-nonisolated struct ModalCloseMark: Shape {
-    func path(in rect: CGRect) -> Path {
-        let s = Double(rect.width) / 18
-        func pt(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: Double(rect.minX) + x * s, y: Double(rect.minY) + y * s) }
-        var p = Path()
-        p.move(to: pt(4, 4.2))
-        p.addCurve(to: pt(13.8, 13.9), control1: pt(7, 6.4), control2: pt(11.8, 7.2))
-        p.move(to: pt(13.9, 4.1))
-        p.addCurve(to: pt(4.1, 13.8), control1: pt(11.6, 7), control2: pt(7.1, 10.2))
-        return p
     }
 }

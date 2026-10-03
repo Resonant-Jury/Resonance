@@ -121,6 +121,14 @@ keys checks where tapping a push leads.
 `-feedPicksDelay <seconds>` holds back the recommended feed, to see the
 late-picks hint.
 
+The launch screen (`UILaunchScreen`: the paper and `LaunchMark`, which
+`LaunchCover.swift` draws again and dissolves into the first screen) is a
+picture the system takes once and keeps, and its renderer keeps the app's asset
+catalog as it first read it. After changing either, reboot the simulator and
+delete the app's `Library/SplashBoard` (`xcrun simctl get_app_container booted
+com.resonance.stories data`) before judging it: until then the old picture
+shows, even across reinstalls.
+
 Reading: a card's page is one `GET /api/v1/cards/{key}?include=resonances,related,links,embeds`
 (story embeds come from `embeds`, matched by slug or id with `CardKey.of(href:)`; an unmatched link
 stays a plain link), a person's page one `GET /api/v1/users/{handle}?include=cards,links&limit=12`, and

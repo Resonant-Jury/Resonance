@@ -34,14 +34,27 @@ public struct MessagingAPI: Sendable {
         }
     }
 
-    /// A message to someone you're connected with; returns the conversation's id.
+    /// What the server answered to a message: the conversation it is in and its document's id.
+    public struct Sent: Sendable, Equatable {
+        public let conversationId: String
+        public let id: String
+    }
+
+    /// A message to someone you're connected with. `replyTo` names the message of the conversation it
+    /// answers (the server keeps a snapshot of it on the reply); `clientId` (16–64 of `[A-Za-z0-9_-]`)
+    /// becomes the message's document id, so sending the same message again after a lost answer
+    /// finds it instead of writing it twice.
     @discardableResult
-    public func sendMessage(to userId: String, text: String, cardRef: String? = nil, noteRef: NoteRef? = nil) async throws -> String {
+    public func sendMessage(to userId: String, text: String, cardRef: String? = nil, noteRef: NoteRef? = nil,
+                            replyTo: String? = nil, clientId: String? = nil) async throws -> Sent {
         let body = Components.Schemas.SendMessageRequest(
             to: userId, text: text, cardRef: cardRef,
-            noteRef: noteRef.map { .init(value1: .init(cardId: $0.cardId, noteId: $0.noteId)) })
+            noteRef: noteRef.map { .init(value1: .init(cardId: $0.cardId, noteId: $0.noteId)) },
+            replyTo: replyTo, clientId: clientId)
         switch try await client.sendMessage(body: .json(body)) {
-        case let .created(r): return try r.body.json.conversationId
+        case let .created(r):
+            let sent = try r.body.json
+            return Sent(conversationId: sent.conversationId, id: sent.id)
         case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
         case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
         case let .forbidden(r): throw APIFailure(try r.body.json, status: 403)
