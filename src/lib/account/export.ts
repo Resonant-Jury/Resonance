@@ -65,23 +65,33 @@ async function* array(...sources: AsyncIterable<DocumentData[]>[]): AsyncGenerat
   yield ']';
 }
 
-async function* rows(q: Query, extra: Record<string, unknown> = {}, omit: readonly string[] = []): AsyncGenerator<DocumentData[]> {
-  for await (const docs of pages(q)) {
+async function* rows(q: Query, extra: Record<string, unknown> = {}): AsyncGenerator<DocumentData[]> {
+  for await (const docs of pages(q)) yield docs.map((d) => ({ ...extra, ...row(d) }));
+}
+
+/**
+ * What a note of yours on an anonymous card keeps in your export: your words
+ * and the card you left them on — not whom they reached (its author is no
+ * one's to know, and a note withheld across a block reached no one) nor
+ * whether they were read. A note on a card under its author's name keeps both,
+ * as a card's page names them anyway; the card is read as it is now, so one
+ * made anonymous since, or deleted (it may have been anonymous), keeps neither.
+ */
+const NOTE_OMIT = ['toUserId', 'readAt'] as const;
+
+/** Your notes, a page at a time, each with whom it reached only when its card names its author (NOTE_OMIT). */
+async function* noteRows(db: Firestore, uid: string): AsyncGenerator<DocumentData[]> {
+  for await (const docs of pages(db.collection('notes').where('fromUserId', '==', uid))) {
+    const ids = [...new Set(docs.map((d) => d.get('cardId')).filter((id): id is string => typeof id === 'string' && !!id && !id.includes('/')))];
+    const cards = ids.length ? await db.getAll(...ids.map((id) => db.doc(`cards/${id}`)), { fieldMask: ['anonymous'] }) : [];
+    const named = new Set(cards.filter((c) => c.exists && c.get('anonymous') !== true).map((c) => c.id));
     yield docs.map((d) => {
-      const r: DocumentData = { ...extra, ...row(d) };
-      for (const key of omit) delete r[key];
+      const r: DocumentData = row(d);
+      if (!named.has(d.get('cardId'))) for (const key of NOTE_OMIT) delete r[key];
       return r;
     });
   }
 }
-
-/**
- * What a note of yours keeps in your export: your words and the card you left
- * them on — not whom they reached (the author of an anonymous card is no one's
- * to know, and a note withheld across a block reached no one) nor whether
- * they were read.
- */
-const NOTE_OMIT = ['toUserId', 'readAt'] as const;
 
 /**
  * The export, as JSON text in pieces (an AccountExport once joined). The
@@ -106,7 +116,7 @@ export async function* exportAccountJson(db: Firestore, uid: string, now = new D
   yield ',"groups":';
   yield* array(rows(map.collection('groups')));
   yield '},"notesSent":';
-  yield* array(rows(db.collection('notes').where('fromUserId', '==', uid), {}, NOTE_OMIT));
+  yield* array(noteRows(db, uid));
 
   yield ',"messagesSent":';
   const conversations = await db.collection('conversations').where('participants', 'array-contains', uid).select().get();

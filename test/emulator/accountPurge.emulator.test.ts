@@ -224,6 +224,54 @@ describe('purgeAccount', () => {
     }
   });
 
+  // A note left on an anonymous card across a block is kept as its writer's
+  // words, addressed to no one (toUserId null): only its card finds it. Left
+  // behind when the delivered notes went with the author, it would tell its
+  // writer a block stood between them and whoever wrote the card.
+  it("removes every note on the account's cards, the ones withheld across a block too", async () => {
+    await seedWorld();
+    const at = Timestamp.fromDate(new Date('2026-09-30T00:00:00Z'));
+    await Promise.all([
+      db.doc('cards/alice-masked').set({ authorId: 'alice', thoughtCore: 'M', story: 's', visibility: 'public', anonymous: true, publishedAt: at }),
+      db.doc('notes/delivered').set({ cardId: 'alice-masked', fromUserId: 'bob', toUserId: 'alice', text: 'hi', readAt: null, createdAt: at }),
+      db.doc('notes/withheld').set({ cardId: 'alice-masked', fromUserId: 'carol', toUserId: null, text: 'hi', readAt: null, createdAt: at }),
+      db.doc('notes/on-bob').set({ cardId: 'bob-card', fromUserId: 'carol', toUserId: null, text: 'hi', readAt: null, createdAt: at }),
+    ]);
+    await purgeAccount({ db, deleteAuthUser: vi.fn(async () => {}) }, 'alice');
+    expect(await exists('notes/delivered')).toBe(false);
+    expect(await exists('notes/withheld')).toBe(false);
+    // A note withheld on someone else's card is theirs to go with.
+    expect(await exists('notes/on-bob')).toBe(true);
+  });
+
+  it('removes the notes on a card before the card, so a purge cut short leaves none its next run could no longer find', async () => {
+    const at = Timestamp.fromDate(new Date('2026-09-30T00:00:00Z'));
+    const writer = db.bulkWriter();
+    void writer.set(db.doc('users/pat'), { handle: 'pat', handleLower: 'pat' });
+    for (let i = 0; i < 30; i++) {
+      void writer.set(db.doc(`cards/pat-${i}`), { authorId: 'pat', thoughtCore: 't', story: 's', visibility: 'public', anonymous: true, publishedAt: at });
+      void writer.set(db.doc(`notes/w-${i}`), { cardId: `pat-${i}`, fromUserId: 'carol', toUserId: null, text: 'hi', readAt: null, createdAt: at });
+      void writer.set(db.doc(`resonances/pat-${i}_carol`), { cardId: `pat-${i}`, userId: 'carol' });
+    }
+    await writer.close();
+    await scheduleAccountDeletion(db, 'pat', new Date('2026-09-01T00:00:00Z'));
+    let calls = 0;
+    // Time is up a few cards in.
+    const clock = () => (++calls > 6 ? 1_000_000 : 0);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cut = await purgeDueAccounts({ db, deleteAuthUser: vi.fn(async () => {}) }, { now: new Date('2026-10-01T00:00:00Z'), budgetMs: 1000, clock });
+    expect(cut.deferred).toEqual(['pat']);
+    // Whatever card is gone took its records with it.
+    for (let i = 0; i < 30; i++) {
+      if (await exists(`cards/pat-${i}`)) continue;
+      expect(await exists(`notes/w-${i}`)).toBe(false);
+      expect(await exists(`resonances/pat-${i}_carol`)).toBe(false);
+    }
+    expect((await purgeDueAccounts({ db, deleteAuthUser: vi.fn(async () => {}) }, { now: new Date('2026-10-02T00:00:00Z') })).purged).toEqual(['pat']);
+    expect((await db.collection('notes').count().get()).data().count).toBe(0);
+    expect((await db.collection('resonances').count().get()).data().count).toBe(0);
+  });
+
   it('still deletes the account when storage cleanup fails', async () => {
     await seedWorld();
     const deleteAuthUser = vi.fn(async () => {});
@@ -377,12 +425,13 @@ describe('exportAccountData', () => {
     expect(data.messagesSent[0]).toEqual({ conversationId: 'alice_bob', id: 'm1', senderId: 'alice', text: 'hi' });
   });
 
-  // Whom a note reached is not the writer's to keep: on an anonymous card it
+  // Whom a note on an anonymous card reached is not the writer's to keep: it
   // is the author no one may know, and a note withheld across a block (sent to
   // an anonymous card's author either of them blocked) reached no one — the
   // two must look alike, or the export would tell who wrote the card.
-  it("keeps each note as its writer's words and card, never whom it reached or whether they read it", async () => {
+  it("keeps a note on an anonymous card as its writer's words and card, never whom it reached or whether they read it", async () => {
     const at = Timestamp.fromDate(new Date('2026-09-30T00:00:00Z'));
+    await db.doc('cards/anon').set({ authorId: 'bob', thoughtCore: 'A', story: 's', visibility: 'public', anonymous: true, publishedAt: at });
     await db.doc('notes/delivered').set({ cardId: 'anon', fromUserId: 'alice', toUserId: 'bob', text: 'hello', readAt: at, createdAt: at });
     await db.doc('notes/withheld').set({ cardId: 'anon', fromUserId: 'alice', toUserId: null, text: 'hello', readAt: null, createdAt: at });
     const { notesSent } = await exportAccountData(db, 'alice');
@@ -390,6 +439,29 @@ describe('exportAccountData', () => {
     const { id: _b, ...withheld } = notesSent.find((n) => n.id === 'withheld')!;
     expect(delivered).toEqual({ cardId: 'anon', fromUserId: 'alice', text: 'hello', createdAt: '2026-09-30T00:00:00.000Z' });
     expect(withheld).toEqual(delivered);
+  });
+
+  // A card under its author's name names them on its page: a note on one
+  // keeps whom it reached and when they read it, as it always did.
+  it('keeps whom a note on a named card reached, and when they read it — judged by the card as it is now', async () => {
+    const at = Timestamp.fromDate(new Date('2026-09-30T00:00:00Z'));
+    await Promise.all([
+      db.doc('cards/named').set({ authorId: 'bob', thoughtCore: 'N', story: 's', visibility: 'public', anonymous: false, publishedAt: at }),
+      db.doc('cards/older').set({ authorId: 'carol', thoughtCore: 'O', story: 's', visibility: 'public', publishedAt: at }), // before the field
+      db.doc('cards/masked-since').set({ authorId: 'bob', thoughtCore: 'M', story: 's', visibility: 'public', anonymous: true, publishedAt: at }),
+      db.doc('notes/on-named').set({ cardId: 'named', fromUserId: 'alice', toUserId: 'bob', text: 'hi', readAt: at, createdAt: at }),
+      db.doc('notes/on-older').set({ cardId: 'older', fromUserId: 'alice', toUserId: 'carol', text: 'hi', readAt: null, createdAt: at }),
+      db.doc('notes/on-masked-since').set({ cardId: 'masked-since', fromUserId: 'alice', toUserId: 'bob', text: 'hi', readAt: at, createdAt: at }),
+      db.doc('notes/on-gone').set({ cardId: 'gone', fromUserId: 'alice', toUserId: 'bob', text: 'hi', readAt: null, createdAt: at }),
+    ]);
+    const { notesSent } = await exportAccountData(db, 'alice');
+    const byId = new Map(notesSent.map((n) => [n.id, n]));
+    expect(byId.get('on-named')).toMatchObject({ toUserId: 'bob', readAt: '2026-09-30T00:00:00.000Z' });
+    expect(byId.get('on-older')).toMatchObject({ toUserId: 'carol', readAt: null });
+    for (const id of ['on-masked-since', 'on-gone']) {
+      expect(byId.get(id), id).not.toHaveProperty('toUserId');
+      expect(byId.get(id), id).not.toHaveProperty('readAt');
+    }
   });
 
   // The backup was built whole in memory and sent as one indented JSON body:
