@@ -96,6 +96,16 @@ struct ThreadScreen: View {
             .onChange(of: conversationListed) { _, listed in
                 if listed { model?.resume() }
             }
+            // Opened for a note that is in the thread: there, flashed, and the reply to it set up.
+            .onChange(of: model?.noteToShow) { _, id in
+                guard let id, let model else { return }
+                model.noteShown()
+                Task {
+                    guard await model.ensureLoaded(id), let message = model.message(id) else { return }
+                    model.reply(to: message)
+                    jump(to: id, pulse: true)
+                }
+            }
             // The words typed are searched for a moment after the last key; a blank field is no search.
             .task(id: searching ? query : nil) {
                 guard searching, let model else { return }
@@ -155,35 +165,56 @@ struct ThreadScreen: View {
             .padding(.top, barHeight)
             Spacer()
         case .ready:
-            if model.connected == false {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(L10n.Messages.notConnected).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+            // The messages show whoever may write: only the foot changes with it.
+            ZStack(alignment: .bottom) {
+                MessageList(rows: model.rows, ctx: context(model), position: $scroll, topMargin: barHeight,
+                            pillVisible: !(searching && showResults) && toast == nil, underBar: $underBar)
+                if searching && showResults {
+                    ThreadSearchResults(model: model, query: query, topMargin: barHeight, underBar: $resultsUnderBar) { pick($0) }
+                }
+                if let toast {
+                    ThreadPill(icon: .check, text: toast)
+                        .padding(.bottom, 10)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
+            }
+            .frame(maxHeight: .infinity)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
+            foot(model)
+        }
+    }
+
+    /// Under the messages: the composer — with a quiet line over it when answering their note
+    /// connects the two — or, where there is nothing to write, a calm line in its place: the wait
+    /// for an answer to one's own note, or why messages can't be sent here. Nothing while that isn't known yet.
+    @ViewBuilder private func foot(_ model: ThreadModel) -> some View {
+        if model.accessKnown {
+            switch model.access {
+            case .open, .replyToConnect:
+                VStack(spacing: 0) {
+                    if model.access == .replyToConnect {
+                        ThreadFootNote(text: L10n.Messages.replyToConnect(handle: model.displayHandle), size: 12.5)
+                            .padding(.top, 10)
+                    }
+                    ThreadComposer(model: model, composing: $composing) { pickingCard = true }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 14)
+            case .awaitingReply:
+                ThreadFootNote(text: L10n.Messages.awaitingReply)
+                    .padding(.horizontal, 28)
+                    .padding(.top, 14)
+                    .padding(.bottom, 22)
+            case .notConnected:
+                VStack(spacing: 6) {
+                    ThreadFootNote(text: L10n.Messages.notConnected)
                     Button(L10n.Messages.viewProfile) { openRoute(.author(model.displayHandle)) }
                         .font(AppFonts.body(13)).foregroundStyle(Tokens.terracotta).underline().buttonStyle(.plain)
+                        .frame(minHeight: 32)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 20)
-                .padding(.horizontal, 16)
-                .padding(.top, barHeight)
-                Spacer()
-            } else {
-                ZStack(alignment: .bottom) {
-                    MessageList(rows: model.rows, ctx: context(model), position: $scroll, topMargin: barHeight,
-                                pillVisible: !(searching && showResults) && toast == nil, underBar: $underBar)
-                    if searching && showResults {
-                        ThreadSearchResults(model: model, query: query, topMargin: barHeight, underBar: $resultsUnderBar) { pick($0) }
-                    }
-                    if let toast {
-                        ThreadPill(icon: .check, text: toast)
-                            .padding(.bottom, 10)
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                    }
-                }
-                .frame(maxHeight: .infinity)
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
-                ThreadComposer(model: model, composing: $composing) { pickingCard = true }
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 14)
+                .padding(.horizontal, 28)
+                .padding(.top, 14)
+                .padding(.bottom, 16)
             }
         }
     }

@@ -105,12 +105,13 @@ struct MainTabView: View {
             }
         }
         #if DEBUG
-        // `-route /card/<slug>` or `-route /u/<handle>` opens that page at launch (screen checks).
+        // `-route /card/<slug>` or `-route /u/<handle>` opens that page at launch (screen checks); a query
+        // comes along (`/messages/<handle>?note=…&card=…`, a bell's link).
         .task {
             // Once per launch: the tab view reappears (a language change), and must not push the page again.
             guard !Self.openedLaunchRoute, let path = UserDefaults.standard.string(forKey: "route") else { return }
             Self.openedLaunchRoute = true
-            open(session.config.origin.appending(path: path))
+            open(URL(string: path, relativeTo: session.config.origin)?.absoluteURL ?? session.config.origin.appending(path: path))
         }
         #endif
     }

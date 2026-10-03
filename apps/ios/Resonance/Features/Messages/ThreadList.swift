@@ -115,8 +115,12 @@ struct MessageList: View {
                             .onAppear { if oldest.contains(row.id) { model.loadOlder() } }
                     }
                     if model.threadReady && model.messages.isEmpty {
-                        // Not "no messages yet" when they couldn't be read.
-                        QuietNote(model.listenFailed ? L10n.Native.loadError : L10n.Messages.noMessagesYet).upsideDown()
+                        // Not "no messages yet" when they couldn't be read, nor "say hello" where nothing can be said.
+                        if model.listenFailed {
+                            QuietNote(L10n.Native.loadError).upsideDown()
+                        } else if model.access.canWrite {
+                            QuietNote(L10n.Messages.noMessagesYet).upsideDown()
+                        }
                     } else if model.threadReady && !rows.isEmpty {
                         OlderRow(model: model).upsideDown()
                     }
@@ -315,7 +319,7 @@ private struct MessageItem: View {
         let mine = model.isMine(message)
         // A card the viewer can't see, sent alone: nothing to draw (not even a face beside it).
         if model.carried(message) != .nothing {
-            SwipeToReply(enabled: message.canReply, mine: mine, onReply: { ctx.onReply(message) }) {
+            SwipeToReply(enabled: model.canReply(message), mine: mine, onReply: { ctx.onReply(message) }) {
                 HStack(alignment: .bottom, spacing: 0) {
                     if mine { Spacer(minLength: 0) } else { TheirFace(shown: !row.position.joinsBelow, ctx: ctx) }
                     VStack(alignment: mine ? .trailing : .leading, spacing: 0) {
@@ -406,7 +410,7 @@ struct MessageCore: View {
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { ctx.frames.frames[message.key] = $0 }
                 .gesture(MessagePress { link in press(link, carried: carried) })
                 // The press-and-hold is the message's whole menu: assistive tech reaches it (and Reply) as actions.
-                .accessibilityAction(named: L10n.Messages.reply) { if message.canReply { ctx.onReply(message) } }
+                .accessibilityAction(named: L10n.Messages.reply) { if ctx.model.canReply(message) { ctx.onReply(message) } }
                 .accessibilityAction(named: L10n.Messages.moreMenu) { press(nil, carried: carried) }
         } else {
             core

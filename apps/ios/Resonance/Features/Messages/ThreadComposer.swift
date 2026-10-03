@@ -61,6 +61,22 @@ struct ThreadComposer: View {
     }
 }
 
+/// A calm line at the thread's foot, centred and muted: in the composer's place where there is
+/// nothing to write (a note waiting for its answer, no connection), or over it.
+struct ThreadFootNote: View {
+    let text: String
+    var size: CGFloat = 13
+
+    var body: some View {
+        Text(text)
+            .font(AppFonts.body(size)).foregroundStyle(Tokens.textMuted)
+            .lineSpacing(size * 0.35)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+    }
+}
+
 /// Over the field while replying: a wavy terracotta rule, whom to and a line of what, and a ✕.
 private struct ReplyBar: View {
     let model: ThreadModel

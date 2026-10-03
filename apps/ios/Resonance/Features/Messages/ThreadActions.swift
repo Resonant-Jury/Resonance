@@ -14,7 +14,7 @@ extension MessageMenu {
                copied: @escaping () -> Void) -> [OrganicMenuItem] {
         let message = row.message
         var items: [OrganicMenuItem] = []
-        if message.canReply {
+        if model.canReply(message) {
             items.append(OrganicMenuItem(id: "reply", title: L10n.Messages.reply, icon: .reply, action: reply))
         }
         if !message.text.isEmpty {

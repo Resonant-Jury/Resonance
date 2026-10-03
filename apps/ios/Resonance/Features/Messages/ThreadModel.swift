@@ -25,6 +25,12 @@ import ResonanceKit
 ///
 /// It is read — its unread count reset, its pushes taken out of Notification Center — only while
 /// the screen says it is on show (`setOnScreen`).
+///
+/// **Letters.** A note left on a card connects no one: the card's author answering it does. The
+/// conversation says whose letter waits (`request.from`), and `access` what the thread's foot
+/// offers — the composer, the wait for an answer, the answer that connects, or nothing to write.
+/// Opened for a note (`?note=`, a bell or an older push), the thread goes to it once it is read and
+/// sets up a reply to it; a note too old to be in the thread is answered with the chip instead.
 @MainActor @Observable
 final class ThreadModel {
     /// `failed`: who they are couldn't be asked (offline, a server error) — not
@@ -44,6 +50,12 @@ final class ThreadModel {
     private(set) var connected: Bool?
     private(set) var isBlocked = false
     private(set) var conversationExists = false
+    /// Who wrote the letter waiting for an answer here (the conversation's `request.from`), if one waits.
+    private(set) var requestFrom: String?
+    /// The conversation has been read once (or found not to exist): whether a letter waits is known.
+    private(set) var conversationRead = false
+    /// The note the thread was opened for, found in it: the screen takes the thread there (once).
+    private(set) var noteToShow: String?
 
     /// The conversation as the thread draws it, oldest first: every message held (the live window
     /// and the older pages read), then this person's own still on their way. A list keeps its rows
@@ -108,12 +120,14 @@ final class ThreadModel {
     @ObservationIgnored private var onScreen = false
     @ObservationIgnored private var watchedOutbox: Outbox?
     @ObservationIgnored private var rebuilding = false
+    /// The note the route named, until the thread is read and it is looked for.
+    @ObservationIgnored private var openedFor: MessagingAPI.NoteRef?
     /// Each message's shared card, worked out once per version of the message.
     @ObservationIgnored private var shares: [String: (message: ChatMessage, share: CardShare?)] = [:]
 
     init(handle: String, uid: String?, noteRef: MessagingAPI.NoteRef?, session: SessionStore) {
         self.handle = handle
-        self.noteRef = noteRef
+        openedFor = noteRef
         self.session = session
         sharedCards = CardSummaries(api: session.reading)
         let previews = session.cardPreviews
@@ -133,6 +147,17 @@ final class ThreadModel {
 
     /// Their pen name as shown: the current one, once known.
     var displayHandle: String { other?.handle ?? handle }
+
+    /// What the thread's foot offers: the composer, or a word in its place (the letter states).
+    var access: ThreadAccess {
+        ThreadAccess.of(connected: connected, blocked: isBlocked, requestFrom: requestFrom, me: me)
+    }
+
+    /// Whether what the foot offers is known: not before the conversation is read when the two aren't connected.
+    var accessKnown: Bool { connected != false || conversationRead }
+
+    /// A message can be answered: delivered, and the thread has a composer to answer it from.
+    func canReply(_ message: ChatMessage) -> Bool { message.canReply && access.canWrite }
 
     /// Whether `message` is the viewer's own (drawn on the right).
     func isMine(_ message: ChatMessage) -> Bool { message.senderId == me }
@@ -229,10 +254,11 @@ final class ThreadModel {
             MainActor.assumeIsolated {
                 guard let self, run == self.listening else { return }
                 if let error { return self.listenerFailed(error, pair: pairId) }
-                guard let snap, snap.exists else { return }
+                guard let snap, snap.exists else { return self.letterChanged(nil) }
                 self.conversationExists = true
                 self.refusals = 0
                 self.unreadForMe = ((snap.get("unread") as? [String: Any])?[self.me ?? ""] as? NSNumber)?.intValue ?? 0
+                self.letterChanged(ThreadAccess.requestFrom(snap.data()))
                 self.markReadIfNeeded()
             }
         })
@@ -253,6 +279,7 @@ final class ThreadModel {
                     self.threadReady = true
                     self.historyChanged()
                     self.markReadIfNeeded()
+                    self.lookForOpenedNote()
                 }
             })
     }
@@ -272,11 +299,51 @@ final class ThreadModel {
         }
         conversationExists = false
         unreadForMe = 0
+        letterChanged(nil)
         resetHistory()
+        lookForOpenedNote()
         if refusals < 3, session.conversations.conversations.contains(where: { $0.id == pair }) {
             refusals += 1
             attach()
         }
+    }
+
+    /// The letter waiting here, as the conversation now says. One that is gone while the two weren't
+    /// connected was answered (the answer connected them) or taken back: who may write is asked again.
+    private func letterChanged(_ from: String?) {
+        conversationRead = true
+        guard from != requestFrom else { return }
+        let settled = requestFrom != nil && from == nil
+        requestFrom = from
+        guard settled, connected == false else { return }
+        // Their answer is their write, not ours: a profile kept from a moment ago would still say "not connected".
+        session.httpCache.freshness.invalidate()
+        Task { await refreshConnection() }
+    }
+
+    /// The note the thread was opened for, once the thread has been read: in the thread (a note the
+    /// server copied there), the screen goes to it and sets up a reply to it. One that isn't — an
+    /// older note, never copied — is answered with the chip, unless the card it was left on is
+    /// anonymous: an answer tied to that note would tell its writer who wrote the card (and so would
+    /// a card that can't be read now, which then gets no chip either).
+    private func lookForOpenedNote() {
+        guard let note = openedFor, let pairId else { return }
+        openedFor = nil
+        Task {
+            let ref = FirebaseBootstrap.db.collection("conversations").document(pairId).collection("messages").document(note.noteId)
+            if (try? await ref.getDocument())?.exists == true {
+                noteToShow = note.noteId
+                return
+            }
+            // Asked on its own: the thread's cards may still be on their way.
+            let card = try? await session.reading.cards(keys: [note.cardId]).first { $0.id == note.cardId }
+            if let card, !card.anonymous { noteRef = note }
+        }
+    }
+
+    /// The note was shown.
+    func noteShown() {
+        noteToShow = nil
     }
 
     /// Reading a conversation that doesn't exist is refused by the rules (PERMISSION_DENIED).
@@ -542,9 +609,10 @@ final class ThreadModel {
 
     // MARK: - Replying
 
-    /// The next message answers `message`; only a delivered one can be answered (a pending one has no document yet).
+    /// The next message answers `message`; only a delivered one can be answered (a pending one has
+    /// no document yet), and only where there is a composer to answer from.
     func reply(to message: ChatMessage) {
-        if message.canReply { replyingTo = ReplyQuote.of(message) }
+        if canReply(message) { replyingTo = ReplyQuote.of(message) }
     }
 
     func cancelReply() {
