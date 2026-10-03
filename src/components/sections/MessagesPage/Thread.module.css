@@ -26,7 +26,31 @@
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  padding: 4px 16px 14px 4px;
+  /* The foot is the edge's 12px deeper than the air under the last bubble:
+     at rest the newest message sits clear of the fade. */
+  padding: 4px 16px 26px 4px;
+}
+
+/* Where the thread meets the composer (or the reply bar over it): no line —
+   the paper dissolving upward over the messages scrolling under it, eased so
+   no band edge shows, while the composer stays opaque on the same paper. It
+   catches no pointer; the way back down, the search's list and the
+   long-press menu lie over it. */
+.edge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  height: 12px;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    var(--color-cream) 0%,
+    color-mix(in oklch, var(--color-cream) 75%, transparent) 35%,
+    color-mix(in oklch, var(--color-cream) 30%, transparent) 70%,
+    transparent 100%
+  );
 }
 
 /* ── Rows ─────────────────────────────────────────────────────────── */

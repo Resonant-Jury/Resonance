@@ -524,6 +524,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                   />
                 ))}
               </div>
+              {/* Where the thread meets what is fixed under it: the paper dissolving upward over the messages. */}
+              <div className={styles.edge} aria-hidden />
               {showPill && (
                 <Pill
                   className={styles.pill}
