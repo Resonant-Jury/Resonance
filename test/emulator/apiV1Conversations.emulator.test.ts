@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
@@ -21,6 +21,10 @@ beforeAll(() => {
 
 afterAll(async () => {
   await deleteApp(app);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 beforeEach(async () => {
@@ -149,6 +153,20 @@ describe('sendNote', () => {
       const bell = (await db.doc(`notifications/${sent.notificationId}`).get()).data()!;
       expect(bell).toMatchObject({ userId: 'bob', type: 'note', payload: { noteId: sent.id } });
       expect(bell).not.toHaveProperty('pushedAt');
+    });
+
+    it('reads the card\'s byline in its own transaction: one made anonymous the moment the note is sent stays out of the thread', async () => {
+      // Bob takes his byline off between the note's first read of the card and its transaction.
+      const run = db.runTransaction.bind(db);
+      vi.spyOn(db, 'runTransaction').mockImplementationOnce(async (fn, opts) => {
+        await db.doc('cards/walk').update({ anonymous: true });
+        return run(fn, opts);
+      });
+      const sent = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi' });
+      expect(sent.push).toBeNull();
+      expect(await docs('conversations')).toHaveLength(0);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+      expect((await db.doc(`notes/${sent.id}`).get()).exists).toBe(true);
     });
 
     it('opens no conversation for a note on an anonymous card between strangers', async () => {

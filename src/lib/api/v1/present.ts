@@ -98,9 +98,10 @@ export async function connected(db: Firestore, a: string, b: string): Promise<bo
 
 /**
  * firestore.rules `cardVisible` once the viewer's connection to the author is
- * known — `isConnected` is only asked for a published connections card.
+ * known — `isConnected` is only asked for a published connections card. A
+ * transaction that read the connection itself asks this (canView reads it).
  */
-function cardVisible(card: Card, viewerId: string, isConnected: (authorId: string) => boolean): boolean {
+export function cardVisible(card: Card, viewerId: string, isConnected: (authorId: string) => boolean): boolean {
   if (card.authorId === viewerId) return true;
   // A draft is its author's alone, whatever visibility it will be published with.
   if (!card.publishedAt) return false;

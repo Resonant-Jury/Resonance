@@ -1,6 +1,8 @@
 import { FieldValue, type DocumentSnapshot, type Firestore } from 'firebase-admin/firestore';
+import { mapCard } from '@/lib/db/firestore/mapper';
 import type { MessagePush } from '@/lib/push/chat';
 import { ApiFailure } from './http';
+import { cardVisible } from './present';
 import { visibleCardById } from './reads';
 
 /** notes.ts / firestore.rules: a note's length, and the bell's preview of it. */
@@ -52,6 +54,8 @@ export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name fi
  * is the one buzz. A note on an anonymous card stays out of every thread,
  * even between two people already connected: the conversation would tell the
  * sender whose card it was. It rings through its bell row, as before.
+ * Whether it is anonymous is read in the note's transaction, beside the
+ * blocks: a byline taken off a moment before still keeps the note out.
  */
 export interface SentNote {
   id: string;
@@ -69,19 +73,26 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
   const pair = pairOf(uid, author);
   const connection = db.doc(`connections/${pair}`);
   const conversation = db.doc(`conversations/${pair}`);
-  const threaded = !card.anonymous;
 
   return db.runTransaction(async (tx) => {
-    const [me, blockOut, blockIn, connected, convo] = await Promise.all([
+    const [now, me, blockOut, blockIn, connected, convo] = await Promise.all([
+      tx.get(db.doc(`cards/${card.id}`)),
       tx.get(db.doc(`users/${uid}`)),
       tx.get(db.doc(`users/${uid}/blocks/${author}`)),
       tx.get(db.doc(`users/${author}/blocks/${uid}`)),
       tx.get(connection),
-      threaded ? tx.get(conversation) : Promise.resolve(null),
+      tx.get(conversation),
     ]);
+    // The card as it is now: one deleted or hidden from the sender since the read above takes no note.
+    const current = now.exists ? mapCard(now.id, now.data()!) : null;
+    if (!current || current.authorId !== author || !current.publishedAt || !cardVisible(current, uid, () => connected.exists)) {
+      throw new ApiFailure('not_found', 'No such card.');
+    }
     // One answer for both directions: the sender must not learn they were blocked.
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot send a note to this person.');
     if (!hasPenName(me)) throw noPenName();
+    // Its byline as of this transaction: made anonymous a moment ago, it still keeps the note out of the thread.
+    const threaded = current.anonymous !== true;
 
     const note = db.collection('notes').doc();
     tx.set(note, {
@@ -114,7 +125,7 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
     }
     if (!threaded) return { id: note.id, notificationId: bell.id, push: null };
 
-    if (!convo?.exists) {
+    if (!convo.exists) {
       tx.set(conversation, {
         participants: [uid, author].sort(),
         createdAt: FieldValue.serverTimestamp(),
