@@ -64,6 +64,25 @@ describe('GET /api/cards/view', () => {
     expect(res.headers.get('cache-control')).toContain('s-maxage=60');
   });
 
+  it("carries the story's link previews a reader may draw (an anonymous card's too)", async () => {
+    await card('unsigned', {
+      anonymous: true,
+      story: 'https://example.com/a',
+      linkPreviews: [
+        { url: 'https://example.com/a', title: 'A page', image: '/api/link-image?u=x&s=y' },
+        { url: 'https://example.com/b', title: 'B', image: 'https://tracker.example/p.gif' },
+        { url: 'data:text/html,hi', title: 'Never' },
+      ],
+      linkPreviewsFor: ['https://example.com/a'],
+    });
+    const seed = (await (await get('unsigned')).json()) as CardSeed;
+    expect(seed.view?.card.linkPreviews).toEqual([
+      { url: 'https://example.com/a', title: 'A page', image: '/api/link-image?u=x&s=y' },
+      { url: 'https://example.com/b', title: 'B' },
+    ]);
+    expect(JSON.stringify(seed)).not.toContain('linkPreviewsFor');
+  });
+
   it("gives nothing of a card a signed-out reader may not see, and never keeps that answer", async () => {
     await card('secret', { visibility: 'private' });
     await card('conn', { visibility: 'connections' });

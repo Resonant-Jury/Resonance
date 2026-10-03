@@ -4,6 +4,7 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import { ApiFailure } from '@/lib/api/v1/http';
 import { deleteCard, updateCard } from '@/lib/api/v1/cards';
 import { getCardDetail, getProfileCards } from '@/lib/api/v1/reads';
+import { CardDetail } from '@/lib/api/v1/schemas';
 import { FirestoreVectorStore } from '@/lib/recommend/vectorStore/firestore';
 import type { IVectorStore } from '@/lib/recommend/vectorStore/interfaces';
 
@@ -228,5 +229,33 @@ describe('deleteCard (DELETE /cards/{id})', () => {
       console.error = quiet;
     }
     expect((await db.doc('cards/live').get()).exists).toBe(false);
+  });
+});
+
+describe('GET /cards/{key}: the story\'s link previews', () => {
+  const stored = [
+    { url: 'https://example.com/a', title: 'A page', description: 'About it.', siteName: 'Example', image: '/api/link-image?u=x&s=y' },
+    { url: 'https://example.com/b', title: 'Another', image: 'https://tracker.example/p.gif' },
+    { url: 'javascript:alert(1)', title: 'Never' },
+    { url: 'https://example.com/untitled' },
+  ];
+
+  it('answers the ones a reader may draw, in order, on the contract (absent fields null, a foreign picture dropped)', async () => {
+    await db.doc('cards/live').update({ story: 'https://example.com/a\n\nhttps://example.com/b', linkPreviews: stored });
+    const detail = await getCardDetail(db, 'bob', 'a-quiet-night');
+    expect(detail.linkPreviews).toEqual([
+      { url: 'https://example.com/a', title: 'A page', description: 'About it.', siteName: 'Example', image: '/api/link-image?u=x&s=y' },
+      { url: 'https://example.com/b', title: 'Another', description: null, siteName: null, image: null },
+    ]);
+    expect(() => CardDetail.parse(detail)).not.toThrow();
+  });
+
+  it('answers them for an anonymous card too (they name pages, never its author), and none for a card without', async () => {
+    await db.doc('cards/live').update({ anonymous: true, linkPreviews: stored.slice(0, 1) });
+    const detail = await getCardDetail(db, 'bob', 'live');
+    expect(detail.card.author).toBeNull();
+    expect(detail.linkPreviews).toHaveLength(1);
+    await db.doc('cards/live').update({ anonymous: false, linkPreviews: 'not a list' });
+    expect((await getCardDetail(db, 'bob', 'live')).linkPreviews).toEqual([]);
   });
 });

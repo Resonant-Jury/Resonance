@@ -2,6 +2,7 @@
 
 import { Timestamp } from './sdk';
 import type { Card, CardMedia, InsightSignature, Locale, User } from '@/lib/db/types';
+import { linkPreviewsOf } from '@/lib/links/previewShape';
 
 type Raw = Record<string, unknown>;
 
@@ -40,7 +41,14 @@ export function mapCard(id: string, data: Raw): Card {
     // (`coreInsight`); insightScore stays server-side policy — never shown.
     signature: data.signature as InsightSignature | undefined,
     anonymous: data.anonymous === true,
+    // The server's previews of the story's standalone links, each checked before it is drawn.
+    ...withPreviews(data.linkPreviews),
   };
+}
+
+function withPreviews(value: unknown): Pick<Card, 'linkPreviews'> {
+  const linkPreviews = linkPreviewsOf(value);
+  return linkPreviews.length ? { linkPreviews } : {};
 }
 
 /** Map a client-SDK Firestore user document into the shared User shape. */

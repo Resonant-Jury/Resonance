@@ -30,6 +30,7 @@ import { listenNotifications } from '@/lib/db/firestore/client/notifications';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import { ApiError, callApi } from '@/lib/db/firestore/client/api';
 import { hasSessionMark } from '@/lib/auth/firebase/client';
+import { linkPreviewsOf } from '@/lib/links/previewShape';
 import type { CardBoxTabName, CardDetailBody, CardListBody, FeedPageBody, ProfileBody } from '@/lib/api/v1/schemas';
 import type { Conversation, Message, Notification } from '@/lib/db/types';
 import { useLive, type LiveState } from './live';
@@ -283,10 +284,21 @@ async function detailCardView(body: CardDetailBody, viewerId: string): Promise<C
     visibility: body.visibility,
     anonymous: body.anonymous,
     resonanceCount: body.resonanceCount,
+    ...previewsOf(body.linkPreviews),
   };
   if (body.isOwner) return { card, author: await getUserById(viewerId) };
   if (body.anonymous || !body.card.author) return { card, author: body.anonymous ? anonymousAuthor(card) : null };
   return { card, author: summaryAuthor(body.card.author) };
+}
+
+/**
+ * A card's link previews as an answer carried them (the seed, a v1 detail —
+ * maybe from an older deployment, without them), checked again here: they
+ * came over the network.
+ */
+function previewsOf(value: unknown): Pick<Card, 'linkPreviews'> {
+  const linkPreviews = linkPreviewsOf(value);
+  return linkPreviews.length ? { linkPreviews } : {};
 }
 
 /** The server render's public card (see CardSeed) in the shapes the page draws. */
@@ -309,6 +321,7 @@ export function seedCardView({ card: c, author: a }: PublicCardView): CardView {
     inviteCount: 0,
     ...(c.accentHue != null ? { accentHue: c.accentHue } : {}),
     anonymous: c.anonymous,
+    ...previewsOf(c.linkPreviews),
   };
   const author: User = a
     ? {

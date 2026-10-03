@@ -1,4 +1,5 @@
-import type { Card, CardMedia, Locale, User } from '@/lib/db/types';
+import type { Card, CardMedia, LinkPreview, Locale, User } from '@/lib/db/types';
+import { linkPreviewsOf } from '@/lib/links/previewShape';
 
 /**
  * What the card page's server render hands the browser: the document id its
@@ -44,6 +45,12 @@ export interface PublicCard {
   resonanceCount: number;
   accentHue: number | null;
   anonymous: boolean;
+  /**
+   * The story's standalone links' previews, checked (lib/links/previewShape);
+   * empty when none. Always written here — optional only because an answer of
+   * GET /api/cards/view cached from an older deployment has none.
+   */
+  linkPreviews?: LinkPreview[];
 }
 
 /** What a byline shows, and nothing else of the profile. */
@@ -99,6 +106,8 @@ export function toCardSeed(id: string | null, card: Card | null, author: User | 
         resonanceCount: Number(card.resonanceCount ?? 0) || 0,
         accentHue: typeof card.accentHue === 'number' && Number.isFinite(card.accentHue) ? card.accentHue : null,
         anonymous,
+        // They name pages, never the author: an anonymous card keeps them too.
+        linkPreviews: linkPreviewsOf(card.linkPreviews),
       },
       author:
         anonymous || !author

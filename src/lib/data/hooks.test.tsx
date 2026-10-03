@@ -418,6 +418,25 @@ describe('useCard on a card the rules keep from the browser', () => {
     expect(result.current.data!.author!.id).toBe('me');
   });
 
+  it("carries the story's link previews the server answered, each checked, absent fields absent", async () => {
+    vi.mocked(getCardBySlugOrId).mockResolvedValue(null);
+    api({
+      '/api/v1/cards/a-quiet-night': anonDetail({
+        linkPreviews: [
+          { url: 'https://example.com/a', title: 'A', description: null, siteName: 'Ex', image: '/api/link-image?u=x&s=y' },
+          { url: 'https://example.com/b', title: 'B', description: 'About b', siteName: null, image: 'https://tracker.example/p.gif' },
+          { url: 'ftp://example.com/c', title: 'C', description: null, siteName: null, image: null },
+        ],
+      }),
+    });
+    const { result } = renderHook(() => useCard('a-quiet-night'), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data!.card.linkPreviews).toStrictEqual([
+      { url: 'https://example.com/a', title: 'A', siteName: 'Ex', image: '/api/link-image?u=x&s=y' },
+      { url: 'https://example.com/b', title: 'B', description: 'About b' },
+    ]);
+  });
+
   it("signed out: asks for the card page's public seed, which has the card without its author", async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     vi.mocked(getCardBySlugOrId).mockResolvedValue(null);
@@ -518,6 +537,17 @@ describe('useCard with the server render', () => {
     await waitFor(() => expect(result.current.data).toBeNull());
     // The slug still names the same id: it isn't read a second time.
     expect(getCardById).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the story's link previews the server render handed over", () => {
+    const linkPreviews = [{ url: 'https://example.com/a', title: 'A', image: '/api/link-image?u=x&s=y' }];
+    const withPreviews: CardSeed = { id: 'doc1', view: { ...seed.view!, card: { ...seed.view!.card, linkPreviews } } };
+    mockUseAuth.mockReturnValue({ user: null, loading: true });
+    const { result } = renderHook(() => useCard('a-slug', withPreviews), { wrapper });
+    expect(result.current.data!.card.linkPreviews).toEqual(linkPreviews);
+    // A seed without any (none in the story, or an older deployment's answer) has no field.
+    const { result: plain } = renderHook(() => useCard('b-slug', seed), { wrapper });
+    expect(plain.current.data!.card).not.toHaveProperty('linkPreviews');
   });
 
   it("keeps an anonymous card's author unknown and unread, as without the server", async () => {
