@@ -15,6 +15,10 @@
  *       anonymous cards' pictures under keys that name no one (needs R2 credentials to apply)
  *   npx tsx scripts/backfill.ts rehost-images [--apply] [--emulator]
  *       stored pictures' URLs on a former base (R2_FORMER_PUBLIC_BASES) → the same key on R2_PUBLIC_BASE
+ *   npx tsx scripts/backfill.ts notes         [--apply] [--emulator]
+ *       notes left before notes went into the thread → a `kind: 'note'` message in the two people's
+ *       conversation (never on an anonymous card; no unread counted; opens a missing conversation,
+ *       which may be one its people had deleted — production runs are the owner's call)
  *
  * Production credentials come from .env; `--emulator` runs against the local
  * emulators (EMULATOR_FIRESTORE_PORT etc., see scripts/emulator-env.mjs) and
@@ -90,8 +94,13 @@ async function main() {
       await rehostImages(db, { apply, publicBase, formerBases });
       return;
     }
+    case 'notes': {
+      const { backfillNotes } = await import('./backfills/notes');
+      await backfillNotes(db, { apply });
+      return;
+    }
     default:
-      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images)`);
+      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images | notes)`);
   }
 }
 

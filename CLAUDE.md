@@ -17,7 +17,7 @@ npm run dev:emulator    # Next dev server wired to the emulators (no real Fireba
 npm run test:emulator   # Rules + Admin SDK suites in test/emulator (starts/stops the emulators itself)
 EMULATOR_AUTH_PORT=9199 EMULATOR_FIRESTORE_PORT=8180 npm run emulators:at [-- "<command>"]   # a private pair of emulators beside the shared ones (dev:emulator, seeds and the apps' emulatorAuthPort/emulatorFirestorePort/emulatorApiPort launch args follow the same variables)
 npm run moderation -- list [--emulator]   # read the report queue (reports are write-only for clients); `show <id>` prints one with its kept evidence
-npx tsx scripts/backfill.ts <anonymous|handles|edits|storage-host|rekey-images|rehost-images> [--apply] [--emulator] [--delete-old]   # older data the rules now expect (dry run unless --apply); rehost-images moves stored picture URLs off a former storage host (see Storage)
+npx tsx scripts/backfill.ts <anonymous|handles|edits|storage-host|rekey-images|rehost-images|notes> [--apply] [--emulator] [--delete-old]   # older data the rules now expect (dry run unless --apply); rehost-images moves stored picture URLs off a former storage host (see Storage); notes carries notes left before they went into the thread into it (see API Routes — it can bring back a conversation someone deleted, so a production run is the owner's call)
 npx tsx scripts/backfill-card-summaries.ts [--write] [--all] [--emulator]   # list summaries on older cards (dry run unless --write)
 npx tsx scripts/integrity.ts [--emulator]   # read-only check for data the rules would refuse today
 npm run api:openapi     # regenerate openapi/v1/openapi.json from the Zod contract (a test fails when stale)
