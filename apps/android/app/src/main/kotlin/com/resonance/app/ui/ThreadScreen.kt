@@ -192,13 +192,16 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     BackHandler(enabled = searching) {
         if (showResults && currentHit != null) showResults = false else closeSearch()
     }
-    val rowMax = LocalConfiguration.current.screenWidthDp.dp * 0.72f
-    val ctx = remember(model, rowMax, links, highlights, currentHit, open, scroll) {
+    // The row is the list's width inside its 16 margins; their face's column is not counted.
+    val rowMax = (LocalConfiguration.current.screenWidthDp.dp - 32.dp) * 0.72f
+    val lifted = menu?.row?.message?.key
+    val ctx = remember(model, rowMax, links, highlights, currentHit, open, scroll, lifted) {
         ThreadContext(
             model, rowMax, links, open, highlights, currentHit, flash, scroll,
             onMenu = { menu = it },
             onReply = reply,
             onQuote = { id -> jump(id, true) },
+            lifted = lifted,
         )
     }
 
@@ -456,9 +459,9 @@ internal fun dayLabel(date: Date): String {
     return date.toInstant().atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern(pattern, Strings.language.locale))
 }
 
-/** The time label inside a day: 下午3:04 / 3:04 PM. */
+/** The time label inside a day: 下午 3:04 / 3:04 PM. */
 internal fun timeLabel(date: Date): String {
-    val pattern = if (Strings.language == Strings.Language.ZhTW) "ah:mm" else "h:mm a"
+    val pattern = if (Strings.language == Strings.Language.ZhTW) "a h:mm" else "h:mm a"
     return date.toInstant().atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern(pattern, Strings.language.locale))
 }
 

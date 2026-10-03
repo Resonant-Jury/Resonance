@@ -108,6 +108,8 @@ internal fun MessageMenuOverlay(
     val dismiss: () -> Unit = {
         if (!leaving) {
             leaving = true
+            // The message settles back into its place as the scrim lifts, and the thread's own takes over.
+            scope.launch { lift.animateTo(1f, tween(120)) }
             scope.launch {
                 appear.animateTo(0f, tween(120))
                 onDismiss()
