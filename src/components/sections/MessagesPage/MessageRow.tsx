@@ -17,6 +17,7 @@ import type { User } from '@/lib/db/types';
 import { firstLinkOf, parseLink } from '@/lib/links/linkify';
 import { BubbleWords, MessageBubble, type MessageLink } from './MessageBubble';
 import { LinkPreviewPart, SharedCardPart, SharedCardSkeleton } from './BubbleParts';
+import { NoteQuote } from './NoteQuote';
 import { ReplyQuote } from './ReplyQuote';
 import { chooseMenuItem, messageMenuItems, useThreadActions } from './threadActions';
 import styles from './Thread.module.css';
@@ -59,6 +60,21 @@ export function MessageCore({ message: m, own, position, carried, highlights, hi
   // A preview whose address the link rules refuse shows nothing of itself.
   const previewLink = carried.kind === 'preview' ? parseLink(carried.preview.url) : null;
   const carries = carried.kind === 'card' || carried.kind === 'cardLoading' ? 'card' : previewLink ? 'preview' : undefined;
+
+  // A note left on a card: the card over it, as a reply's quote is; its bubble holds its words alone.
+  if (m.kind === 'note') {
+    return (
+      <>
+        <NoteQuote seedKey={m.key} own={own} otherHandle={actions.otherHandle} carried={carried} interactive={interactive} />
+        <div className={styles.slot} data-over-quote="">
+          <MessageBubble seedKey={m.key} own={own} position={position} flash={flash} overQuote title={title}>
+            <BubbleWords text={m.text} ranges={highlights} strong={hitStrong} onLink={onLink} />
+          </MessageBubble>
+          {aside}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

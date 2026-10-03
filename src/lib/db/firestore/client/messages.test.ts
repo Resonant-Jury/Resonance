@@ -48,9 +48,10 @@ const listener = vi.hoisted(() => ({
 }));
 vi.mock('./realtime', () => ({ listenNewest: listener.listenNewest }));
 
-import { getDocs } from 'firebase/firestore/lite';
+import { getDoc, getDocs } from 'firebase/firestore/lite';
 import {
   conversationId,
+  getConversation,
   getOlderMessages,
   listenConversations,
   listenThread,
@@ -220,6 +221,24 @@ describe('the listeners (thread, conversations)', () => {
     expect(messages[2].preview).toBeUndefined();
   });
 
+  // A note left on a card lands in the thread as a message of its own kind; a kind this build doesn't know
+  // is a plain message (the server may add others).
+  it("hears a note as a note, and a kind it doesn't know as a plain message", async () => {
+    const heard = vi.fn();
+    listenThread('aaa_bbb', heard);
+    await vi.waitFor(() => expect(listener.listenNewest).toHaveBeenCalled());
+    const sentAt = fullSdkTimestamp('2026-09-01T08:00:00Z');
+    listener.onDocs!([
+      { id: 'later', data: { senderId: 'aaa', text: 'hm', sentAt, kind: 'sticker' } },
+      { id: 'note-1', data: { senderId: 'aaa', text: 'Your walk stayed with me.', sentAt, cardRef: 'walk', kind: 'note' } },
+    ]);
+    const [later, note] = heardMessages(heard);
+    expect(note).toMatchObject({ id: 'note-1', kind: 'note', cardRef: 'walk', text: 'Your walk stayed with me.' });
+    expect(note.noteRef).toBeUndefined();
+    expect(later.kind).toBeUndefined();
+    expect('kind' in later).toBe(false);
+  });
+
   // The header's unread badge and the messages list: one listener on the
   // viewer's own conversations (what the rules let them list), newest 50.
   it("hears the viewer's newest conversations, most recently active first", async () => {
@@ -284,5 +303,25 @@ describe('the listeners (thread, conversations)', () => {
     listenThread('aaa_bbb', vi.fn())();
     await new Promise((r) => setTimeout(r, 10));
     expect(listener.listenNewest).not.toHaveBeenCalled();
+  });
+});
+
+describe('a conversation read once', () => {
+  const snap = (data: Record<string, unknown>) => ({ exists: () => true, id: 'aaa_bbb', data: () => data });
+
+  // Whose turn it is in a thread between two people who aren't connected: the letter's writer waits, the other
+  // answers it.
+  it('carries the letter waiting in it, and reads one written oddly as none', async () => {
+    vi.mocked(getDoc).mockResolvedValueOnce(
+      snap({ participants: ['aaa', 'bbb'], unread: {}, request: { from: 'aaa', cardId: 'walk', count: 2, at: {} } }) as never,
+    );
+    expect((await getConversation('aaa_bbb'))?.request).toEqual({ from: 'aaa', cardId: 'walk', count: 2 });
+
+    vi.mocked(getDoc).mockResolvedValueOnce(snap({ participants: ['aaa', 'bbb'], unread: {}, request: { from: '', count: 1 } }) as never);
+    expect((await getConversation('aaa_bbb'))?.request).toBeUndefined();
+    vi.mocked(getDoc).mockResolvedValueOnce(snap({ participants: ['aaa', 'bbb'], unread: {} }) as never);
+    expect((await getConversation('aaa_bbb'))?.request).toBeUndefined();
+    vi.mocked(getDoc).mockResolvedValueOnce(snap({ participants: ['aaa', 'bbb'], unread: {}, request: { from: 'bbb', count: 'x' } }) as never);
+    expect((await getConversation('aaa_bbb'))?.request).toEqual({ from: 'bbb', cardId: undefined, count: 0 });
   });
 });

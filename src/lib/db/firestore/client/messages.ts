@@ -69,6 +69,24 @@ function mapConversation(id: string, data: Record<string, unknown>): Conversatio
       : null,
     unread: (data.unread as Record<string, number>) ?? {},
     originCardId: data.originCardId ? String(data.originCardId) : undefined,
+    request: mapRequest(data.request),
+  };
+}
+
+/**
+ * The letter a conversation holds, if any: who left the notes is all that
+ * matters to the thread (whose turn it is). A count the server wrote oddly
+ * reads as none; a `from` that isn't a uid as no letter at all.
+ */
+function mapRequest(v: unknown): Conversation['request'] {
+  if (!v || typeof v !== 'object') return undefined;
+  const r = v as Record<string, unknown>;
+  const from = str(r.from);
+  if (!from) return undefined;
+  return {
+    from,
+    cardId: str(r.cardId),
+    count: typeof r.count === 'number' && Number.isInteger(r.count) && r.count >= 0 ? r.count : 0,
   };
 }
 
@@ -84,6 +102,8 @@ function mapMessage(id: string, data: Record<string, unknown>): Message {
     noteRef: data.noteRef as Message['noteRef'],
     replyTo: mapReplyQuote(data.replyTo),
     preview: mapPreview(data.preview),
+    // A kind this build doesn't know is a plain message.
+    ...(data.kind === 'note' ? { kind: 'note' as const } : {}),
   };
 }
 

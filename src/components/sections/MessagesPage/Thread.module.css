@@ -171,6 +171,18 @@
   --bubble-fill: var(--bubble-mine);
 }
 
+/* The card a note was left on, over the note: a quote's quieter fill. */
+.bubble[data-tone='quote'] {
+  --bubble-fill: var(--bubble-quote);
+}
+
+/* Its plain stand-in (a card still being read, nothing measured yet) ends
+   where its rounded corners do: a picture meant to run past the wobbly edge
+   to be cut by it stays inside instead. */
+.bubble:not([data-shaped]) {
+  overflow: hidden;
+}
+
 /* Measured: its fill reaches past the box (where the wobble swings out) and
    the outline cuts it — and everything inside, a picture edge to edge. */
 .bubble[data-shaped] {
@@ -353,6 +365,17 @@
   position: absolute;
   inset: 0;
   box-shadow: inset 0 0 0 2px var(--field-border-focus);
+}
+
+/* A quote that answers nothing to a click: a note's card the viewer can't see. */
+.quoteBubble[data-plain] {
+  cursor: default;
+}
+
+/* Room at the foot of a note's card, which the note's own bubble lies over. */
+.quoteFoot {
+  display: block;
+  height: 14px;
 }
 
 .quoteText {
@@ -876,6 +899,41 @@ span.pill {
 }
 
 /* ── The composer ─────────────────────────────────────────────────── */
+
+/* Between two people who aren't connected, in the composer's place or over
+   it: a calm line — the viewer's letter waits for its answer, or the way to
+   them is their profile — or, over the composer, that answering their letter
+   is what connects the two. */
+.letterLine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 24px 6px;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.letterLine p {
+  margin: 0;
+}
+
+.letterLink {
+  font-size: 13px;
+  color: var(--color-terracotta);
+  text-underline-offset: 3px;
+}
+
+.letterHint {
+  margin: 0;
+  padding: 10px 14px 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
 
 /* Replying: a short wavy pen rule in terracotta, whom, and the words. */
 .replyBar {

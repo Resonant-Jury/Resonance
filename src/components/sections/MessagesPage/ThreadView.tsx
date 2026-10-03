@@ -46,7 +46,11 @@ import styles from './Thread.module.css';
 
 export interface ThreadViewProps {
   handle: string;
-  /** A note being replied to — the first message quotes it as a reply. */
+  /**
+   * A note the thread was opened for (a bell row's link, an older push): the
+   * thread goes to it and the next message answers it — or, for an older note
+   * that never came into the thread, quotes it.
+   */
   replyNote?: { noteId: string; cardId: string };
 }
 
@@ -104,6 +108,11 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     },
   });
 
+  // Whose turn it is between two people who aren't connected: the one who left notes (a letter) waits for the
+  // other, whose answer connects them.
+  const letter: 'mine' | 'theirs' | null =
+    connected !== false || !convo?.request ? null : convo.request.from === user?.id ? 'mine' : convo.request.from === other?.id ? 'theirs' : null;
+
   // Listen only once the conversation doc exists — the messages read rule
   // get()s the parent doc, so listening earlier would just error. The first
   // message makes it: then it is read again, and listened to.
@@ -113,14 +122,26 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     listen: !!convo,
     onSent: () => {
       if (!convo) void mutateConvo();
+      // An answer to their letter connected the two: the thread is an ordinary one now.
+      if (connected === false) {
+        void globalMutate(`connected:${pairId}`);
+        void mutateConvo();
+      }
     },
   });
+  // A note the thread was opened for that isn't in it (left before notes came into threads): the card it was
+  // left on is looked up with the thread's cards, so its quote rides the next message only when the card is
+  // named — answering a note on an anonymous card with it would tell its writer whose card it was.
+  const [olderNote, setOlderNote] = useState<{ noteId: string; cardId: string } | null>(null);
   // The cards this thread is about — shared ones, and Resonance card links —
   // each looked up once, a few to a request, as messages come in or older
   // ones are read: what the cards in the bubbles and the「卡片與連結」list
   // look up. Held still between answers, so the rows reading it draw again
   // only when a card arrives.
-  const cardKeys = useMemo(() => threadCardKeys(thread.messages), [thread.messages]);
+  const cardKeys = useMemo(
+    () => [...threadCardKeys(thread.messages), ...(olderNote ? [olderNote.cardId] : [])],
+    [thread.messages, olderNote],
+  );
   const summaries = useCardSummaries(cardKeys);
   const summariesReady = summaries?.status === 'ready' ? summaries : null;
   const sharedCards = useMemo(
@@ -128,21 +149,30 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [summaries?.status, summariesReady?.cards, summariesReady?.asked, summariesReady?.failed],
   );
-  const sharedCardIds = useMemo(
-    () => [...new Set(thread.messages.flatMap((m) => (m.cardRef ? [m.cardRef] : [])))],
-    [thread.messages],
-  );
-  // Links written in messages, each once, for the same list.
-  const sharedLinks = useMemo(
-    () => [
-      ...new Map(
-        thread.messages
-          .flatMap((m) => linkify(m.text))
-          .flatMap((seg) => (seg.type === 'link' ? [seg] : []))
-          .map((l) => [l.url, l]),
-      ).values(),
-    ],
-    [thread.messages],
+  const noteQuote = useMemo(() => {
+    if (!olderNote || summaries?.status !== 'ready' || !summaries.asked?.has(olderNote.cardId)) return undefined;
+    const card = summaries.cards.cards.find((c) => c.id === olderNote.cardId);
+    return card && !card.anonymous ? olderNote : undefined;
+  }, [olderNote, summaries]);
+  // Every card this thread is about — shared, or linked to (the bubbles' own detection) — each once.
+  const sharedCardKeys = useMemo(() => threadCardKeys(thread.messages), [thread.messages]);
+  // The「卡片與連結」list (the header menu's).
+  const [mediaOpen, setMediaOpen] = useState(false);
+  // Links written in messages, each once, for the same list — but a link to one of our cards, which is among
+  // its cards. Worked out while the list is open only: it reads every word of the thread.
+  const mediaLinks = useMemo(
+    () =>
+      mediaOpen
+        ? [
+            ...new Map(
+              thread.messages
+                .flatMap((m) => linkify(m.text))
+                .flatMap((seg) => (seg.type === 'link' && !resonanceCardKey(seg.url) ? [seg] : []))
+                .map((l) => [l.url, l]),
+            ).values(),
+          ]
+        : [],
+    [mediaOpen, thread.messages],
   );
   // The newest message the conversation holds (not one still on its way):
   // what the unread counter is about.
@@ -159,7 +189,6 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // While searching: the list of matches over the thread, or the thread itself at the match picked from it.
   const [listShown, setListShown] = useState(true);
   const [hitIndex, setHitIndex] = useState<number | null>(null);
-  const [mediaOpen, setMediaOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // A link that is easy to mistake for another place (an IP address, a
   // punycode name) waits here for the reader's yes before it opens.
@@ -185,6 +214,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
       // hear the zeroed counter on their own, nothing to read again.
       void markConversationRead(pairId).then(() => void mutateConvo());
     }
+    // Their answer to the viewer's letter connected the two: read again whether they are.
+    if (incoming && connected === false) void globalMutate(`connected:${pairId}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convo, user?.id, pairId, lastMessageId]);
 
@@ -303,6 +334,30 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     [user?.id, other?.handle],
   );
 
+  // The note the thread was opened for: once the conversation's first messages are in (older ones read for it
+  // if need be), it is gone to, washed and answered; one that isn't in the conversation is an older note.
+  const noteAsked = useRef<string | null>(null);
+  const [noteFound, setNoteFound] = useState<string | null>(null);
+  useEffect(() => {
+    if (!replyNote || noteAsked.current === replyNote.noteId || convo === undefined || (convo && !thread.ready)) return;
+    noteAsked.current = replyNote.noteId;
+    setOlderNote(null);
+    if (!convo) {
+      setOlderNote(replyNote);
+      return;
+    }
+    void thread.ensureLoaded(replyNote.noteId).then((held) => (held ? setNoteFound(replyNote.noteId) : setOlderNote(replyNote)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyNote?.noteId, convo, thread.ready]);
+  useEffect(() => {
+    const note = noteFound ? thread.messages.find((m) => m.id === noteFound) : undefined;
+    if (!note) return;
+    setNoteFound(null);
+    actions.reply(note);
+    setJumpTarget({ id: note.id, flash: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteFound, thread.messages]);
+
   // Escape leaves the search wherever the focus is (after a click on a match it isn't in the field) — unless
   // something over the thread (a message's menu) is the one to close.
   useEffect(() => {
@@ -354,6 +409,15 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   }
 
   const profileHref = `/u/${other.handle}` as const;
+  // Not connected, and no letter of theirs to answer: the way to them is their profile.
+  const notConnected = (
+    <div className={styles.letterLine}>
+      <p className={pageStyles.quietNote}>{t('notConnected')}</p>
+      <Link href={profileHref} className={styles.letterLink}>
+        {t('viewProfile')}
+      </Link>
+    </div>
+  );
   const replyHandle = thread.replyingTo?.senderId === user?.id ? null : other.handle;
   // The way back to the latest message — not under the search's list, which covers the thread.
   // (A word that something was copied takes its place for a moment.)
@@ -470,16 +534,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
           <Divider seed={41} spacing={0} strokeWidth={INK} />
         </div>
 
-        {connected === false ? (
-          <div style={{ padding: '20px 2px' }}>
-            <p className={pageStyles.quietNote}>{t('notConnected')}</p>
-            <Link
-              href={profileHref}
-              style={{ fontSize: 13, color: 'var(--color-terracotta)', textUnderlineOffset: 3 }}
-            >
-              {t('viewProfile')}
-            </Link>
-          </div>
+        {connected === false && !convo ? (
+          // Someone the viewer isn't connected with and has never written with: nothing to show but that.
+          convo === null && notConnected
         ) : (
           <>
             <div className={styles.body}>
@@ -551,16 +608,26 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               )}
             </div>
 
-            <ThreadComposer
-              inputRef={inputRef}
-              otherHandle={other.handle}
-              replyingTo={thread.replyingTo}
-              replyHandle={replyHandle}
-              onCancelReply={thread.cancelReply}
-              replyNote={replyNote}
-              send={thread.send}
-              ready={!!pairId}
-            />
+            {connected === false && letter === 'mine' ? (
+              // Their answer is what connects the two: until it comes, nothing more to write here.
+              <p className={styles.letterLine}>{t('awaitingReply')}</p>
+            ) : connected === false && letter !== 'theirs' ? (
+              notConnected
+            ) : (
+              <>
+                {letter === 'theirs' && <p className={styles.letterHint}>{t('replyToConnect', { handle: other.handle })}</p>}
+                <ThreadComposer
+                  inputRef={inputRef}
+                  otherHandle={other.handle}
+                  replyingTo={thread.replyingTo}
+                  replyHandle={replyHandle}
+                  onCancelReply={thread.cancelReply}
+                  replyNote={noteQuote}
+                  send={thread.send}
+                  ready={!!pairId}
+                />
+              </>
+            )}
             {error && <p className={styles.error}>{error}</p>}
 
             {pressed && (
@@ -584,26 +651,26 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
             >
               <h3 className={pageStyles.mediaTitle}>{t('mediaTitle')}</h3>
               <p className={pageStyles.mediaSubtitle}>{t('mediaSubtitle')}</p>
-              {sharedCardIds.length === 0 && sharedLinks.length === 0 ? (
+              {sharedCardKeys.length === 0 && mediaLinks.length === 0 ? (
                 <p className={pageStyles.quietNote}>{t('mediaEmpty')}</p>
               ) : (
                 <div className={pageStyles.mediaArea}>
                   <div ref={mediaScrollRef} className={pageStyles.mediaBody}>
-                    {sharedCardIds.length > 0 && (
+                    {sharedCardKeys.length > 0 && (
                       <section>
                         <h4 className={pageStyles.mediaSection}>{t('mediaCards')}</h4>
-                        {sharedCardIds.map((id, i) => (
-                          <Fragment key={id}>
+                        {sharedCardKeys.map((key, i) => (
+                          <Fragment key={key}>
                             {i > 0 && <Divider seed={53 + i * 7} spacing={0} />}
-                            <SharedCardRow cardId={id} />
+                            <SharedCardRow cardKey={key} />
                           </Fragment>
                         ))}
                       </section>
                     )}
-                    {sharedLinks.length > 0 && (
+                    {mediaLinks.length > 0 && (
                       <section>
                         <h4 className={pageStyles.mediaSection}>{t('mediaLinks')}</h4>
-                        {sharedLinks.map((link, i) => (
+                        {mediaLinks.map((link, i) => (
                           <Fragment key={link.url}>
                             {i > 0 && <Divider seed={97 + i * 11} spacing={0} />}
                             <a
@@ -718,8 +785,8 @@ function Pill({ label, icon, onClick, className }: { label: string; icon?: 'chev
  * previews, like an in-thread card — a card the viewer can no longer see
  * simply renders nothing.
  */
-function SharedCardRow({ cardId }: { cardId: string }) {
-  const data = useCardEmbed(`/card/${cardId}`);
+function SharedCardRow({ cardKey }: { cardKey: string }) {
+  const data = useCardEmbed(`/card/${cardKey}`);
   if (data.status !== 'ready') return null;
   const { card } = data;
   return (

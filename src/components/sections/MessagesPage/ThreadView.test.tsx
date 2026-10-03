@@ -62,9 +62,10 @@ const deliver = (messages: Message[]) => act(() => server.emit!(server.windowOf(
 vi.mock('@/components/molecules/MarkdownEditor/InsertCardModal', () => ({ InsertCardModal: () => null }));
 
 import { callApi } from '@/lib/db/firestore/client/api';
-import { getCardById, getCardBySlugOrId, getUserByHandle, getUserById } from '@/lib/db/firestore/client/reads';
+import { getCardById, getCardBySlugOrId, getUserByHandle, getUserById, isConnected } from '@/lib/db/firestore/client/reads';
 import { getConversation, sendMessage } from '@/lib/db/firestore/client/messages';
 import { forgetOutboxes } from '@/lib/data/thread';
+import { wobRect } from '@/lib/design/wobRect';
 import { ThreadView } from './ThreadView';
 
 const alice: User = {
@@ -127,6 +128,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue({ user: { id: 'me' }, loading: false });
   vi.mocked(getUserByHandle).mockResolvedValue(alice);
   vi.mocked(getConversation).mockResolvedValue(conversation);
+  vi.mocked(isConnected).mockResolvedValue(true);
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -515,3 +517,164 @@ describe('Messenger’s thread, drawn by hand', () => {
     expect(screen.queryByText('are you there')).not.toBeInTheDocument();
   });
 });
+
+describe('notes in a thread', () => {
+  const note = (id: string, cardRef: string, body: string, senderId = 'alice'): Message => ({
+    id,
+    senderId,
+    text: body,
+    sentAt: new Date('2026-03-01T10:00:00Z'),
+    cardRef,
+    kind: 'note',
+  });
+
+  it('draws a note under the card it was left on, as a reply lies under its quote — on either side', async () => {
+    server.messages = [
+      note('n1', 'c1', 'Your walk stayed with me all day.'),
+      { ...note('n2', 'c2', 'I loved this one too.', 'me'), sentAt: new Date('2026-03-01T10:20:00Z') },
+    ];
+    vi.mocked(callApi).mockResolvedValue({ cards: [summary('c1', 'A walk at dawn'), summary('c2', 'Their letter')] });
+    const { container } = renderWithIntl(thread());
+
+    expect(await screen.findByText('alice left a note on your card')).toBeInTheDocument();
+    expect(screen.getByText("You left a note on alice's card")).toBeInTheDocument();
+    // The card is the quote over the note, on the quieter fill, and opens the card; the note's words are its own bubble.
+    const card = await screen.findByRole('link', { name: /A walk at dawn/ });
+    expect(card).toHaveAttribute('href', '/card/c1-slug');
+    expect(card.closest('[data-tone="quote"]')).toBeInTheDocument();
+    expect(card).not.toHaveTextContent('Your walk stayed with me all day.');
+    const words = screen.getByText('Your walk stayed with me all day.');
+    expect(words.closest('[data-over-quote]')).toBeInTheDocument();
+    expect(words.closest('[data-tone="quote"]')).toBeNull();
+    // Not the old note label: the note isn't a reply to one.
+    expect(screen.queryByText('In reply to your note')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('[data-tone="quote"]')).toHaveLength(2);
+  });
+
+  it('quotes「A card」over a note on a card the viewer can no longer see', async () => {
+    server.messages = [note('n1', 'gone', 'This one is gone now.')];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+    expect(await screen.findByText('A card')).toBeInTheDocument();
+    expect(screen.getByText('alice left a note on your card')).toBeInTheDocument();
+    expect(screen.getByText('This one is gone now.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /A card/ })).not.toBeInTheDocument();
+  });
+
+  it('goes to the note it was opened for and answers it, with no older note’s quote', async () => {
+    const scrollTo = vi.fn();
+    Element.prototype.scrollTo = scrollTo as unknown as Element['scrollTo'];
+    server.messages = [text('m0', 'earlier'), note('n1', 'c1', 'Your walk stayed with me all day.')];
+    vi.mocked(callApi).mockResolvedValue({ cards: [summary('c1', 'A walk at dawn')] });
+    renderWithIntl(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <ThreadView handle="alice" replyNote={{ noteId: 'n1', cardId: 'c1' }} />
+      </SWRConfig>,
+    );
+
+    expect(await screen.findByText('Replying to alice')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Conversation with alice' })).toHaveFocus();
+    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+    expect(screen.queryByText('In reply to your note')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Conversation with alice' }), { target: { value: 'thank you' } });
+    vi.mocked(sendMessage).mockResolvedValue({ conversationId: 'alice_me', id: 'r1' });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(sendMessage).toHaveBeenCalledWith('alice', 'thank you', expect.objectContaining({ replyTo: 'n1', noteRef: undefined })),
+    );
+  });
+});
+
+describe('a letter: notes between two people who aren’t connected', () => {
+  const notes: Message[] = [
+    { id: 'n1', senderId: 'me', text: 'Your walk stayed with me.', sentAt: new Date('2026-03-01T10:00:00Z'), cardRef: 'c1', kind: 'note' },
+  ];
+
+  it('shows the writer their letter and that the answer is the other’s to give', async () => {
+    vi.mocked(isConnected).mockResolvedValue(false);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = notes;
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    expect(screen.getByText('Your walk stayed with me.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
+    // Taking the letter back is deleting the conversation, still offered.
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    expect(screen.getByRole('menuitem', { name: 'Delete conversation' })).toBeInTheDocument();
+  });
+
+  it('lets the one a letter came to answer it, which connects the two', async () => {
+    vi.mocked(isConnected).mockResolvedValue(false);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'alice', cardId: 'c1', count: 1 } });
+    server.messages = [{ ...notes[0], senderId: 'alice' }];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    vi.mocked(sendMessage).mockResolvedValue({ conversationId: 'alice_me', id: 'r1' });
+    renderWithIntl(thread());
+
+    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+    const field = screen.getByRole('textbox', { name: 'Conversation with alice' });
+    const asked = vi.mocked(isConnected).mock.calls.length;
+    vi.mocked(isConnected).mockResolvedValue(true);
+    fireEvent.change(field, { target: { value: 'Thank you for this.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith('alice', 'Thank you for this.', expect.anything()));
+    // Answered, the two are connected: the thread asks again, and the line goes.
+    await waitFor(() => expect(vi.mocked(isConnected).mock.calls.length).toBeGreaterThan(asked));
+    await waitFor(() => expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument());
+  });
+
+  it('keeps the messages of a conversation that no longer connects them, with the way to their profile', async () => {
+    vi.mocked(isConnected).mockResolvedValue(false);
+    server.messages = [text('m1', 'from before')];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+    expect(await screen.findByText('from before')).toBeInTheDocument();
+    const line = (await screen.findByText("You can only message people you're connected with.")).parentElement!;
+    expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
+    expect(within(line).getByRole('link', { name: 'View profile' })).toHaveAttribute('href', '/u/alice');
+  });
+});
+
+describe('around the thread', () => {
+  it('lists a card shared by its link among the thread’s cards, not its links', async () => {
+    server.messages = [
+      text('m1', 'https://resonance.channel/zh-TW/card/rain-walk'),
+      text('m2', 'and https://example.com/post', {}, 'me'),
+      message('m3', 'c1'),
+    ];
+    vi.mocked(callApi).mockResolvedValue({
+      cards: [summary('c9', 'One walk after the rain', { slug: 'rain-walk' }), summary('c1', 'A walk at dawn')],
+    });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+    await screen.findByRole('link', { name: /One walk after the rain/ });
+
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Cards & links' }));
+    const list = await screen.findByRole('dialog', { name: 'Cards & links' });
+    const cards = within(list).getByRole('heading', { name: 'Shared cards' }).parentElement!;
+    expect(within(cards).getByRole('link', { name: /One walk after the rain/ })).toHaveAttribute('href', '/card/rain-walk');
+    expect(within(cards).getByRole('link', { name: /A walk at dawn/ })).toBeInTheDocument();
+    const links = within(list).getByRole('heading', { name: 'Links' }).parentElement!;
+    expect(within(links).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['https://example.com/post']);
+  });
+
+  // The apps draw the same outline (WobRectShape on seed 23), a little wider than tall, the plane centred as drawn.
+  it('draws Send as a wobbly rounded rectangle, the field’s height', async () => {
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+    const send = await screen.findByRole('button', { name: 'Send' });
+    const face = send.querySelector('svg')!;
+    expect(face).toHaveAttribute('width', '48');
+    expect(face).toHaveAttribute('height', '40');
+    expect(face.querySelector('path')).toHaveAttribute(
+      'd',
+      wobRect(48, 40, 12, 23, 1.0, { segmentsH: 1, segmentsV: 1, curve: 1.3, cornerJitter: 2.4, cornerOffset: 2 }),
+    );
+  });
+});
+
