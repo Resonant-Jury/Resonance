@@ -59,9 +59,32 @@
   margin-bottom: 0;
 }
 
-.prose a {
+.prose .link {
   color: var(--color-terracotta);
-  text-underline-offset: 2px;
+  text-decoration: none;
+  /* The pen's wave repeats along the bottom of every line fragment of the link
+     (--wave is a 36x6 tile set per link in StoryMarkdown). The tile's centre
+     rides just under the letters; padding makes room without changing the line. */
+  background-image: var(--wave);
+  background-repeat: repeat-x;
+  background-size: 36px 6px;
+  background-position: 0 calc(100% + 2px);
+  padding-bottom: 0.12em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: background-image 160ms ease;
+}
+
+.prose .link:hover,
+.prose .link:focus-visible,
+.prose .link:active {
+  background-image: var(--wave-strong);
+}
+
+.prose .link:focus-visible {
+  outline: 2px solid var(--color-terracotta-light);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 /* Story images render through OrganicStoryImage (curved clip, natural size).
