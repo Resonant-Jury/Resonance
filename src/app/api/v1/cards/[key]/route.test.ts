@@ -27,6 +27,8 @@ const applyCardEdit = vi.fn();
 vi.mock('@/lib/api/v1/edits', () => ({ applyCardEdit: (...a: unknown[]) => applyCardEdit(...a) }));
 const indexCard = vi.fn(async (_id: string) => ({ indexed: true }));
 vi.mock('@/lib/recommend/indexCard', () => ({ indexCard: (id: string) => indexCard(id) }));
+const ringAfter = vi.fn();
+vi.mock('@/lib/push/ring', () => ({ ringAfter: (...a: unknown[]) => ringAfter(...a) }));
 
 const { GET, PATCH, DELETE } = await import('./route');
 const { POST: applyEdit } = await import('./edits/apply/route');
@@ -72,9 +74,17 @@ describe('PATCH /api/v1/cards/{id}', () => {
   });
 
   it('revalidates nothing when nothing changed', async () => {
-    updateCard.mockResolvedValue({ card: { id: 'c1' }, stale: [] });
+    updateCard.mockResolvedValue({ card: { id: 'c1' }, stale: [], notificationId: null });
     await patch({ visibility: 'public' });
     expect(await settled()).toEqual([]);
+    expect(ringAfter).toHaveBeenCalledWith({}, null);
+  });
+
+  it("rings the original's author after the response when the change let a resonance reach them, keeping the bell out of the answer", async () => {
+    updateCard.mockResolvedValue({ card: { id: 'c1', visibility: 'public' }, stale: STALE, notificationId: 'resonance_alice_orig' });
+    const res = await patch({ visibility: 'public' });
+    expect(await res.json()).toEqual({ id: 'c1', visibility: 'public' });
+    expect(ringAfter).toHaveBeenCalledWith({}, 'resonance_alice_orig');
   });
 
   it('refuses a body off the contract, and a slug where an id belongs', async () => {
@@ -106,10 +116,11 @@ describe('DELETE /api/v1/cards/{id}', () => {
 describe('POST /api/v1/cards/{id}/edits/apply', () => {
   const apply = () => applyEdit(new Request('http://localhost/api/v1/cards/c1/edits/apply', { method: 'POST' }), ctx('c1'));
 
-  it('keeps the page list out of the answer, and revalidates the card by id and slug and the profile', async () => {
-    applyCardEdit.mockResolvedValue({ id: 'c1', slug: 'a-walk', applied: true, stale: STALE });
+  it('keeps the page list and the bell out of the answer, revalidates the card by id and slug and the profile, and rings a resonance it made reach out', async () => {
+    applyCardEdit.mockResolvedValue({ id: 'c1', slug: 'a-walk', applied: true, stale: STALE, notificationId: 'resonance_alice_orig' });
     const res = await apply();
     expect(await res.json()).toEqual({ id: 'c1', slug: 'a-walk', applied: true });
+    expect(ringAfter).toHaveBeenCalledWith({}, 'resonance_alice_orig');
     expect(await settled()).toEqual(LOCALIZED);
     expect(indexCard).toHaveBeenCalledWith('c1');
   });

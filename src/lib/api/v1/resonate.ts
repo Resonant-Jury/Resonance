@@ -1,9 +1,10 @@
-import { FieldValue, type DocumentData, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
+import { FieldValue, type DocumentData, type DocumentSnapshot, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import { mapCard } from '@/lib/db/firestore/mapper';
+import type { Card } from '@/lib/db/types';
 import { cardPagePaths } from '@/lib/api/revalidate';
-import { pairOf } from './conversations';
+import { hasPenName, noPenName, pairOf } from './conversations';
 import { ApiFailure } from './http';
-import { toFeedCard } from './present';
+import { cardVisible, toFeedCard } from './present';
 import { visibleCardById } from './reads';
 import type { FeedCardBody } from './schemas';
 import { properlyPublished } from './service';
@@ -19,57 +20,135 @@ import { properlyPublished } from './service';
  * else is written for it.
  */
 
-/** A batch or a transaction: whatever writes the original's side of a resonance. */
-interface Writes {
-  set(ref: DocumentReference, data: DocumentData): unknown;
-}
+/**
+ * The one bell row a reader's resonances with a card ring, whichever of
+ * their cards answers it and whichever path reaches it: picking a card,
+ * taking it back and picking it (or another) again, publishing one, making
+ * one public — the original author is rung once.
+ */
+export const resonanceBellId = (uid: string, targetId: string) => `resonance_${uid}_${targetId}`;
 
-export interface ResonanceReach {
-  /** The resonator, and their pen name as the bell shows it. */
-  from: string;
-  fromHandle: string;
-  original: { id: string; authorId: string; anonymous?: boolean };
-  /** Whether the two are connected already (an existing connection is never written over: it carries `muted`, its date). */
-  connected: boolean;
-  /** The bell row to write on the original author's side; null when it has rung already. */
-  bell: DocumentReference | null;
+/** A document id that can be put in a path (a stored field could hold anything). */
+const docId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && !v.includes('/');
+
+/**
+ * Whether a resonance may reach the original's author at all: only one shown
+ * publicly under its writer's name. The original's list shows public cards
+ * only, so a private or connections-only resonance is one its author could
+ * never see — it must neither ring them nor connect the two — and an
+ * anonymous one would name its writer in the connection and the bell.
+ */
+export function reachable(card: DocumentData | undefined): boolean {
+  return card?.visibility === 'public' && card.anonymous !== true;
 }
 
 /**
- * The original author's side of a named resonance, once the caller has read
- * what this needs and checked that it may reach them (a card the resonator
- * can read, no block either way): the two are connected — unless the
- * original is anonymous (the connection would name its author to the
- * resonator) or they are already — and the original author's bell rings.
- * An anonymous resonance reaches no one, and never comes here: a connection
- * and a bell row both name the resonator. Publishing a written resonance and
- * resonating with a card already written both reach the original this way.
+ * Whether a change to a card (`before` → `after`, its stored fields) made a
+ * published resonance reachable: public under its writer's name where it
+ * wasn't. Such a card reaches the original then (reachResonance) — once: a
+ * reader who already rang that card's author rings nothing again.
  */
-export function reachOriginal(w: Writes, db: Firestore, r: ResonanceReach): void {
-  const other = r.original.authorId;
-  if (r.original.anonymous !== true && !r.connected) {
-    w.set(db.doc(`connections/${pairOf(r.from, other)}`), {
-      userIds: [r.from, other].sort(),
+export function becameReachable(before: DocumentData, after: DocumentData): boolean {
+  return before.publishedAt != null && docId(after.referenceCardId) && !reachable(before) && reachable(after);
+}
+
+/** All a resonance's reach depends on, read in its transaction (readReach). */
+export interface ReachReads {
+  /** The resonator, and the card their resonance answers. */
+  from: string;
+  originalId: string;
+  /** The original as it is now; null when it is gone. */
+  original: Card | null;
+  /** The resonator's profile: the bell carries their pen name. */
+  me: DocumentSnapshot;
+  blockOut: boolean;
+  blockIn: boolean;
+  connected: boolean;
+  /** This reader's one bell for that card (resonanceBellId): once it exists, they have reached its author. */
+  bell: DocumentSnapshot;
+}
+
+/**
+ * Read, in `tx` and before it writes anything, what a resonance from `from`
+ * to the card `originalId` (a valid id) depends on: the original, the
+ * resonator's profile and their bell for it, then — the author known — the
+ * blocks both ways and the connection.
+ */
+export async function readReach(tx: Transaction, db: Firestore, from: string, originalId: string): Promise<ReachReads> {
+  const [snap, me, bell] = await Promise.all([
+    tx.get(db.doc(`cards/${originalId}`)),
+    tx.get(db.doc(`users/${from}`)),
+    tx.get(db.doc(`notifications/${resonanceBellId(from, originalId)}`)),
+  ]);
+  const original = snap.exists ? mapCard(snap.id, snap.data()!) : null;
+  const none: ReachReads = { from, originalId, original, me, bell, blockOut: false, blockIn: false, connected: false };
+  const other = original?.authorId;
+  if (!docId(other) || other === from) return none;
+  const [out, inn, connection] = await Promise.all([
+    tx.get(db.doc(`users/${from}/blocks/${other}`)),
+    tx.get(db.doc(`users/${other}/blocks/${from}`)),
+    tx.get(db.doc(`connections/${pairOf(from, other)}`)),
+  ]);
+  return { ...none, blockOut: out.exists, blockIn: inn.exists, connected: connection.exists };
+}
+
+/**
+ * Reach the original's author, in the transaction that read `r` — `card` is
+ * the resonance as that transaction leaves it. Every resonance path comes
+ * here (publishing one, resonating with a card already written, making a
+ * published one public and named), so all hold to the same:
+ *
+ * - the resonance is the resonator's, published, answers that original, and
+ *   is public under their name (reachable);
+ * - the original is there, someone else's, and theirs to read (cardVisible,
+ *   with the connection read in this transaction);
+ * - no block either way, and the resonator has a pen name (hasPenName);
+ * - they have never reached that card's author before: the bell
+ *   `resonance_{uid}_{originalId}` is the record, written once — so a reader
+ *   rings a card's author once whichever path fires, and a connection a
+ *   block ended is never made again without a ring.
+ *
+ * Then the original author's bell rings and the two are connected — unless
+ * the original is anonymous (the connection would name its author to the
+ * resonator) or they are already (a connection carries `muted`, its date:
+ * never written over). Answers the bell's id, or null when nothing reached.
+ */
+export function reachOriginal(tx: Transaction, db: Firestore, card: DocumentData, r: ReachReads): string | null {
+  const o = r.original;
+  if (!reachable(card) || card.authorId !== r.from || card.referenceCardId !== r.originalId || !properlyPublished(card.publishedAt)) return null;
+  if (!o || !docId(o.authorId) || o.authorId === r.from || !cardVisible(o, r.from, () => r.connected)) return null;
+  if (r.blockOut || r.blockIn || !hasPenName(r.me) || r.bell.exists) return null;
+  if (o.anonymous !== true && !r.connected) {
+    tx.set(db.doc(`connections/${pairOf(r.from, o.authorId)}`), {
+      userIds: [r.from, o.authorId].sort(),
       establishedAt: FieldValue.serverTimestamp(),
     });
   }
-  if (r.bell) {
-    w.set(r.bell, {
-      userId: other,
-      type: 'resonance',
-      payload: { fromUserId: r.from, fromHandle: r.fromHandle, cardId: r.original.id },
-      readAt: null,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-  }
+  tx.set(r.bell.ref, {
+    userId: o.authorId,
+    type: 'resonance',
+    payload: { fromUserId: r.from, fromHandle: String(r.me.get('handle')), cardId: r.originalId },
+    readAt: null,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  return r.bell.id;
 }
 
 /**
- * The one bell row a reader's resonances with a card ring, whichever of
- * their cards answers it: picking a card, taking it back and picking it (or
- * another) again rings the original author once.
+ * Reach the original your card `cardId` answers (reachOriginal), in a
+ * transaction of its own: what publishing a resonance, and making a published
+ * one public and named, do once their own write is in. The card is read as it
+ * is now, so one made private or anonymous in between reaches no one. Answers
+ * the bell's id, or null.
  */
-export const resonanceBellId = (uid: string, targetId: string) => `resonance_${uid}_${targetId}`;
+export async function reachResonance(db: Firestore, uid: string, cardId: string): Promise<string | null> {
+  const ref = db.doc(`cards/${cardId}`);
+  return db.runTransaction(async (tx) => {
+    const card = (await tx.get(ref)).data();
+    if (!card || card.authorId !== uid || !reachable(card) || !docId(card.referenceCardId)) return null;
+    return reachOriginal(tx, db, card, await readReach(tx, db, uid, card.referenceCardId));
+  });
+}
 
 export interface Resonated {
   /** The chosen card as its author's card box shows it (their byline kept when anonymous), now answering the target. */
@@ -87,11 +166,12 @@ const notFound = () => new ApiFailure('not_found', 'No such card.');
 /**
  * Make one of your published public cards a resonance of `targetId` (POST
  * /cards/{targetId}/resonances): it now answers that card, as if it had been
- * written in response to it — the same reach as publishing one (./publish):
- * the authors connected (not across anonymity), the original author's bell
- * rung once. What firestore.rules would ask of a resonance written in the
- * browser is asked here: a card you can read that isn't yours, no block
- * either way.
+ * written in response to it — the same reach as publishing one, in the same
+ * transaction as the pointing (reachOriginal): the authors connected (not
+ * across anonymity), the original author's bell rung once. What
+ * firestore.rules would ask of a resonance written in the browser is asked
+ * here: a card you can read that isn't yours, no block either way. And what
+ * reaching anyone asks: a pen name.
  *
  * A card answers one card, and a reader answers a card with one of theirs
  * (the card page's 共振 / 修改 button stands on it): a card already
@@ -108,36 +188,27 @@ export async function resonateWith(db: Firestore, uid: string, targetId: string,
   const target = await visibleCardById(db, uid, targetId);
   if (!target.publishedAt) throw notFound();
   if (target.authorId === uid) throw new ApiFailure('invalid_request', 'You cannot resonate with your own card.');
-  const other = target.authorId;
   const chosenRef = db.doc(`cards/${cardId}`);
-  const bellRef = db.doc(`notifications/${resonanceBellId(uid, targetId)}`);
   // "One per reader": any card of theirs already answering the target (a draft too — the button says 修改 then).
   const answering = db.collection('cards').where('authorId', '==', uid).where('referenceCardId', '==', targetId).limit(2);
 
   return db.runTransaction(async (tx) => {
-    const [chosen, targetNow, blockOut, blockIn, me, connection, bell, answers] = await Promise.all([
-      tx.get(chosenRef),
-      tx.get(db.doc(`cards/${targetId}`)),
-      tx.get(db.doc(`users/${uid}/blocks/${other}`)),
-      tx.get(db.doc(`users/${other}/blocks/${uid}`)),
-      tx.get(db.doc(`users/${uid}`)),
-      tx.get(db.doc(`connections/${pairOf(uid, other)}`)),
-      tx.get(bellRef),
-      tx.get(answering),
-    ]);
+    const [chosen, answers, reach] = await Promise.all([tx.get(chosenRef), tx.get(answering), readReach(tx, db, uid, targetId)]);
+    const targetNow = reach.original;
     // Someone else's card is as absent as a missing one.
     if (!chosen.exists || chosen.get('authorId') !== uid) throw notFound();
-    if (!targetNow.exists) throw notFound();
+    if (!targetNow || targetNow.authorId !== target.authorId || !cardVisible(targetNow, uid, () => reach.connected)) throw notFound();
     // An anonymous card by someone they blocked isn't there for them (as on its page, reads.ts getCardDetail).
-    if (blockOut.exists && target.anonymous === true) throw notFound();
+    if (reach.blockOut && targetNow.anonymous === true) throw notFound();
     // One answer for both directions: they must not learn which of them blocked whom.
-    if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot resonate with this card.');
+    if (reach.blockOut || reach.blockIn) throw new ApiFailure('blocked', 'You cannot resonate with this card.');
+    if (!hasPenName(reach.me)) throw noPenName();
     if (!properlyPublished(chosen.get('publishedAt'))) throw new ApiFailure('invalid_request', 'Only a published card can resonate.');
     if (chosen.get('visibility') !== 'public') throw new ApiFailure('invalid_request', 'Only a public card can resonate.');
 
     const answered: DocumentData = { ...chosen.data()!, referenceCardId: targetId };
     const result = (changed: boolean, notificationId: string | null): Resonated => ({
-      card: toFeedCard(mapCard(cardId, answered), me.data(), { deanonymize: true }),
+      card: toFeedCard(mapCard(cardId, answered), reach.me.data(), { deanonymize: true }),
       changed,
       notificationId,
       stale: changed ? cardPagePaths({ id: cardId, slug: typeof answered.slug === 'string' ? answered.slug : null }) : [],
@@ -147,19 +218,11 @@ export async function resonateWith(db: Firestore, uid: string, targetId: string,
     if (current === targetId) return result(false, null);
     if (typeof current === 'string' && current) throw new ApiFailure('conflict', 'This card already resonates with another card.');
     if (answers.docs.some((d) => d.id !== cardId)) throw new ApiFailure('conflict', 'Another of your cards already resonates with this one.');
-    if (targetNow.get('referenceCardId') === cardId) throw new ApiFailure('invalid_request', 'That card already resonates with this one.');
+    if (targetNow.referenceCardId === cardId) throw new ApiFailure('invalid_request', 'That card already resonates with this one.');
 
     tx.update(chosenRef, { referenceCardId: targetId });
-    if (chosen.get('anonymous') === true) return result(true, null);
-    const ring = !bell.exists;
-    reachOriginal(tx, db, {
-      from: uid,
-      fromHandle: String(me.get('handle') ?? ''),
-      original: { id: targetId, authorId: other, anonymous: target.anonymous === true },
-      connected: connection.exists,
-      bell: ring ? bellRef : null,
-    });
-    return result(true, ring ? bellRef.id : null);
+    // An anonymous card reaches no one (reachable): it still answers.
+    return result(true, reachOriginal(tx, db, answered, reach));
   });
 }
 

@@ -117,6 +117,91 @@ describe('updateCard (PATCH /cards/{id})', () => {
   });
 });
 
+// A resonance published private, connections-only or anonymous reached no
+// one (its original's author could never see it as theirs); made public under
+// its writer's name, it reaches them as publishing it so would have — once.
+describe('a published resonance made public under its writer\'s name (PATCH /cards/{id})', () => {
+  const bells = async () => (await db.collection('notifications').get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+  const connected = async () => (await db.doc('connections/alice_bob').get()).exists;
+  const answer = (extra: Record<string, unknown> = {}) =>
+    db.doc('cards/answer').set({
+      authorId: 'alice',
+      thoughtCore: '回應',
+      story: '我也是',
+      visibility: 'private',
+      anonymous: false,
+      referenceCardId: 'orig',
+      publishedAt: published,
+      updatedAt: earlier,
+      ...extra,
+    });
+
+  beforeEach(async () => {
+    await db.doc('cards/orig').set({ authorId: 'bob', thoughtCore: '一場雨', story: 'x', visibility: 'public', anonymous: false, publishedAt: published });
+  });
+
+  it("connects the two and rings the original's author, the bell's id coming back for its push", async () => {
+    await answer();
+    const { notificationId, card: box } = await updateCard(db, 'alice', 'answer', { visibility: 'public' });
+    expect(box).toMatchObject({ id: 'answer', visibility: 'public', referenceCardId: 'orig' });
+    expect(notificationId).toBe('resonance_alice_orig');
+    expect(await connected()).toBe(true);
+    expect(await bells()).toEqual([
+      expect.objectContaining({ id: 'resonance_alice_orig', userId: 'bob', type: 'resonance', readAt: null, payload: { fromUserId: 'alice', fromHandle: '小安', cardId: 'orig' } }),
+    ]);
+  });
+
+  it('reaches out when a public anonymous resonance takes its byline back, and from connections-only too', async () => {
+    await answer({ visibility: 'public', anonymous: true });
+    expect((await updateCard(db, 'alice', 'answer', { anonymous: false })).notificationId).toBe('resonance_alice_orig');
+    expect(await connected()).toBe(true);
+
+    await db.doc('connections/alice_bob').delete();
+    await db.doc('notifications/resonance_alice_orig').delete();
+    await answer({ visibility: 'connections' });
+    expect((await updateCard(db, 'alice', 'answer', { visibility: 'public' })).notificationId).toBe('resonance_alice_orig');
+  });
+
+  it('rings once: hidden and shown again, it reaches no one a second time', async () => {
+    await answer();
+    await updateCard(db, 'alice', 'answer', { visibility: 'public' });
+    await updateCard(db, 'alice', 'answer', { visibility: 'private' });
+    // Bob blocked and unblocked her meanwhile: the block ended the connection.
+    await db.doc('connections/alice_bob').delete();
+    expect((await updateCard(db, 'alice', 'answer', { visibility: 'public' })).notificationId).toBeNull();
+    expect(await bells()).toHaveLength(1);
+    expect(await connected()).toBe(false);
+  });
+
+  it('reaches no one while it stays out of sight or anonymous', async () => {
+    await answer();
+    expect((await updateCard(db, 'alice', 'answer', { visibility: 'connections' })).notificationId).toBeNull();
+    expect((await updateCard(db, 'alice', 'answer', { visibility: 'public', anonymous: true })).notificationId).toBeNull();
+    expect(await bells()).toEqual([]);
+    expect(await connected()).toBe(false);
+  });
+
+  it('reaches no one across a block, without a pen name, from a draft, or for a card answering nothing', async () => {
+    await answer();
+    await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+    expect((await updateCard(db, 'alice', 'answer', { visibility: 'public' })).notificationId).toBeNull();
+    await db.doc('users/bob/blocks/alice').delete();
+
+    await answer();
+    await db.doc('users/alice').set({ initials: '小' });
+    expect((await updateCard(db, 'alice', 'answer', { visibility: 'public' })).notificationId).toBeNull();
+    await db.doc('users/alice').set({ handle: '小安', handleLower: '小安' });
+
+    await answer({ publishedAt: null });
+    expect((await updateCard(db, 'alice', 'answer', { visibility: 'public' })).notificationId).toBeNull();
+
+    expect((await updateCard(db, 'alice', 'live', { visibility: 'private' })).notificationId).toBeNull();
+    expect((await updateCard(db, 'alice', 'live', { visibility: 'public' })).notificationId).toBeNull();
+    expect(await bells()).toEqual([]);
+    expect(await connected()).toBe(false);
+  });
+});
+
 // cardVectors keeps its own copy of each card's visibility: the recommender's
 // candidate pool is the vectors whose copy says public. A change made through
 // the API reaches it, so a card made non-public isn't recommended to anyone.

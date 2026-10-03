@@ -80,6 +80,8 @@ describe('applyCardEdit', () => {
       // names, the profile listing it, and the landing page it was public on
       // (this edit took it to connections-only).
       stale: ['/card/live', '/card/a-quiet-night', '/u/小安', `/u/${encodeURIComponent('小安')}`, '/'],
+      // No resonance reached out (it answers no card).
+      notificationId: null,
     });
     const card = (await db.doc('cards/live').get()).data()!;
     expect(card).toMatchObject({
@@ -115,7 +117,7 @@ describe('applyCardEdit', () => {
   });
 
   it('changes nothing when there is no pending edit (a retry after success)', async () => {
-    await expect(applyCardEdit(db, 'alice', 'live')).resolves.toEqual({ id: 'live', slug: 'a-quiet-night', applied: false, stale: [] });
+    await expect(applyCardEdit(db, 'alice', 'live')).resolves.toEqual({ id: 'live', slug: 'a-quiet-night', applied: false, stale: [], notificationId: null });
     expect((await db.doc('cards/live').get()).get('story')).toBe('原本的故事');
   });
 
@@ -184,5 +186,38 @@ describe('applyCardEdit', () => {
     expect((await db.doc('cards/live/edits/current').get()).exists).toBe(true);
     await db.doc('cards/draft').set({ authorId: 'alice', thoughtCore: '草稿', story: '', visibility: 'public', publishedAt: null });
     expect((await failure(applyCardEdit(db, 'alice', 'draft'))).code).toBe('invalid_request');
+  });
+
+  describe('of a resonance', () => {
+    const bells = async () => (await db.collection('notifications').get()).docs.map((d) => d.id);
+    const connected = async () => (await db.doc('connections/alice_bob').get()).exists;
+
+    beforeEach(async () => {
+      await db.doc('users/bob').set({ handle: 'bob', handleLower: 'bob' });
+      await db.doc('cards/orig').set({ authorId: 'bob', thoughtCore: '一場雨', story: 'x', visibility: 'public', anonymous: false, publishedAt: published });
+      // Alice's answer to it, published private: it reached no one.
+      await db.doc('cards/live').set({ visibility: 'private', referenceCardId: 'orig' }, { merge: true });
+    });
+
+    it("that makes it public under her name reaches the original's author, once", async () => {
+      await buffer({ visibility: 'public' });
+      expect((await applyCardEdit(db, 'alice', 'live')).notificationId).toBe('resonance_alice_orig');
+      expect(await connected()).toBe(true);
+      expect(await bells()).toEqual(['resonance_alice_orig']);
+
+      await db.doc('cards/live').update({ visibility: 'private' });
+      await buffer({ visibility: 'public' });
+      expect((await applyCardEdit(db, 'alice', 'live')).notificationId).toBeNull();
+      expect(await bells()).toEqual(['resonance_alice_orig']);
+    });
+
+    it('that keeps it out of sight, or anonymous, reaches no one', async () => {
+      await buffer({ visibility: 'connections' });
+      expect((await applyCardEdit(db, 'alice', 'live')).notificationId).toBeNull();
+      await buffer({ visibility: 'public', anonymous: true });
+      expect((await applyCardEdit(db, 'alice', 'live')).notificationId).toBeNull();
+      expect(await bells()).toEqual([]);
+      expect(await connected()).toBe(false);
+    });
   });
 });

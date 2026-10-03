@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
-import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { DocumentReference, getFirestore, Timestamp, Transaction, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { publishCard } from '@/lib/api/v1/publish';
+import { resonateWith, unresonate } from '@/lib/api/v1/resonate';
 
 // Publishing through the v1 API against the Firestore emulator — what the web
 // editor's submit() does from the client (stamp once, slug, resonance
@@ -21,6 +22,10 @@ beforeAll(() => {
 
 afterAll(async () => {
   await deleteApp(app);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 beforeEach(async () => {
@@ -164,6 +169,83 @@ describe('publishCard', () => {
       await draft('r1', { referenceCardId: 'orig' });
       await publishCard(db, 'alice', 'r1', slugBase);
       expect((await notifications()).size).toBe(0);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+    });
+
+    it('rings with the one bell this reader has for that card', async () => {
+      await draft('r1', { referenceCardId: 'orig' });
+      expect((await publishCard(db, 'alice', 'r1', slugBase)).notificationId).toBe('resonance_alice_orig');
+      expect((await notifications()).docs.map((d) => d.id)).toEqual(['resonance_alice_orig']);
+    });
+
+    for (const visibility of ['private', 'connections']) {
+      it(`reaches no one when published ${visibility}: the original's author could never see it, and the card is still published`, async () => {
+        await draft('r1', { referenceCardId: 'orig', visibility });
+        const result = await publishCard(db, 'alice', 'r1', slugBase);
+        expect(result).toMatchObject({ firstPublish: true, notificationId: null });
+        expect((await db.doc('cards/r1').get()).get('publishedAt')).toBeInstanceOf(Timestamp);
+        expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+        expect((await notifications()).size).toBe(0);
+      });
+    }
+
+    it('reaches no one from an account without a pen name, and is published all the same', async () => {
+      for (const profile of [null, { handle: '' }, { handleLower: 'x' }]) {
+        if (profile) await db.doc('users/alice').set(profile);
+        else await db.doc('users/alice').delete();
+        await draft('r1', { referenceCardId: 'orig' });
+        const result = await publishCard(db, 'alice', 'r1', slugBase);
+        expect(result).toMatchObject({ firstPublish: true, notificationId: null });
+        expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+        expect((await notifications()).size).toBe(0);
+      }
+    });
+
+    it('rings an author once for each reader, whichever path rang first — and connects no one again without a ring', async () => {
+      // Alice resonated with Bob's card using one she had written: connected, rung.
+      await db.doc('cards/mine').set({ authorId: 'alice', thoughtCore: '舊作', story: '', visibility: 'public', anonymous: false, publishedAt: Timestamp.now() });
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      await unresonate(db, 'alice', 'orig', 'mine');
+      // Bob blocked and unblocked her since: the block ended the connection.
+      await db.doc('connections/alice_bob').delete();
+      await draft('r1', { referenceCardId: 'orig' });
+      const result = await publishCard(db, 'alice', 'r1', slugBase);
+      expect(result.notificationId).toBeNull();
+      expect((await notifications()).docs.map((d) => d.id)).toEqual(['resonance_alice_orig']);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+    });
+
+    it('never leaves a connection across a block made while the resonance reaches out', async () => {
+      // Bob blocks Alice from his phone the moment publishing has read the
+      // blocks: the block, then the connection deleted if there is one (client/blocks.ts).
+      let blocking: Promise<void> | null = null;
+      const block = async () => {
+        await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+        const connection = db.doc('connections/alice_bob');
+        if ((await connection.get()).exists) await connection.delete();
+      };
+      const blockPath = 'users/bob/blocks/alice';
+      const plainGet = DocumentReference.prototype.get;
+      vi.spyOn(DocumentReference.prototype, 'get').mockImplementation(async function (this: DocumentReference) {
+        const snap = await plainGet.call(this);
+        // A read outside any transaction: nothing holds the block back.
+        if (this.path === blockPath && !blocking) await (blocking = block());
+        return snap;
+      });
+      const txGet = Transaction.prototype.get;
+      vi.spyOn(Transaction.prototype, 'get').mockImplementation(async function (this: Transaction, ref: unknown) {
+        const snap = await (txGet as (r: unknown) => Promise<unknown>).call(this, ref);
+        // Inside a transaction the block waits for it (awaiting it here would wait forever).
+        if (ref instanceof DocumentReference && ref.path === blockPath && !blocking) blocking = block();
+        return snap;
+      } as typeof Transaction.prototype.get);
+
+      await draft('r1', { referenceCardId: 'orig' });
+      await publishCard(db, 'alice', 'r1', slugBase);
+      expect(blocking).not.toBeNull();
+      await blocking;
+      expect((await db.doc(blockPath).get()).exists).toBe(true);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
     });
   });
 });

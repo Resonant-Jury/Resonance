@@ -130,6 +130,28 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
     expect((await read('mine2')).referenceCardId).toBe('orig');
   });
 
+  it('connects no one again without a ring: a connection a block ended stays ended', async () => {
+    await resonateWith(db, 'alice', 'orig', 'mine');
+    await unresonate(db, 'alice', 'orig', 'mine');
+    // Bob blocked and unblocked her: the block deleted the connection.
+    await db.doc('connections/alice_bob').delete();
+    const again = await resonateWith(db, 'alice', 'orig', 'mine2');
+    expect(again).toMatchObject({ changed: true, notificationId: null });
+    expect(await connected()).toBe(false);
+    expect(await bells()).toHaveLength(1);
+  });
+
+  it('is refused to a reader without a pen name, writing nothing (the bell would name no one)', async () => {
+    for (const profile of [null, { handle: '  ' }, { initials: 'a' }]) {
+      if (profile) await db.doc('users/alice').set(profile);
+      else await db.doc('users/alice').delete();
+      const refused = await failure(resonateWith(db, 'alice', 'orig', 'mine'));
+      expect(refused.code).toBe('forbidden');
+      expect(refused.message).toBe('Choose a pen name first.');
+      await nothingWritten();
+    }
+  });
+
   it('keeps an existing connection as it is (muted, its date)', async () => {
     const since = Timestamp.fromDate(new Date('2026-01-01T00:00:00Z'));
     await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: since, muted: { by: 'bob' } });

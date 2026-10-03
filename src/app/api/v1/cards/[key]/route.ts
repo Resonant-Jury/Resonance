@@ -6,6 +6,7 @@ import { CardDetailQuery, CardIdParam, CardKey, UpdateCardRequest } from '@/lib/
 import { revalidateLocalized } from '@/lib/api/revalidate';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { BRIEF, OWN, cachedJson } from '@/lib/api/v1/cache';
+import { ringAfter } from '@/lib/push/ring';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,13 +22,19 @@ export const GET = withUser(async (user, req, ctx: RouteContext<'key'>) => {
   return cachedJson(req, detail, detail.isOwner ? OWN : BRIEF);
 });
 
-/** PATCH /api/v1/cards/{id} — your card's visibility and/or anonymity (see updateCard). */
+/**
+ * PATCH /api/v1/cards/{id} — your card's visibility and/or anonymity (see
+ * updateCard). A resonance it made public under your name rings the
+ * original's author after the response.
+ */
 export const PATCH = withUser(async (user, req, ctx: RouteContext<'key'>) => {
   const id = parse(CardIdParam, await routeParam(ctx, 'key'));
   const body = await req.json().catch(() => {
     throw new ApiFailure('invalid_request', 'The body must be JSON.');
   });
-  const { card, stale } = await updateCard(getAdminDb(), user.id, id, parse(UpdateCardRequest, body));
+  const db = getAdminDb();
+  const { card, stale, notificationId } = await updateCard(db, user.id, id, parse(UpdateCardRequest, body));
+  ringAfter(db, notificationId);
   if (stale.length) after(() => void revalidateLocalized(stale));
   return NextResponse.json(card);
 });
