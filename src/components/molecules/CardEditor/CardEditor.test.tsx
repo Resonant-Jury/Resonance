@@ -106,7 +106,7 @@ describe('CardEditor', () => {
     vi.stubGlobal('fetch', fetchMock);
     try {
       renderWithIntl(<CardEditor locale="en" />);
-      await userEvent.click(screen.getByRole('button', { name: 'AI: suggest 2–3' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Suggest with AI' }));
       await waitFor(() => expect(screen.getByText('記憶')).toBeInTheDocument());
       expect(screen.getByText('家庭')).toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledWith(
@@ -118,19 +118,69 @@ describe('CardEditor', () => {
     }
   });
 
-  it('adds a typed tag via the input and hides the AI pill while typing', async () => {
+  it('turns the tag field\'s action from AI into Add while a tag is being typed', async () => {
     renderWithIntl(<CardEditor locale="en" />);
     const input = screen.getByLabelText('Type a tag…');
 
+    // One trailing action: with nothing typed it asks the model…
+    expect(screen.getByRole('button', { name: 'Suggest with AI' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument();
+
+    // …with something typed it adds that tag instead.
     fireEvent.change(input, { target: { value: '旅行' } });
-    // The AI pill steps aside once the user starts typing their own tag…
-    expect(screen.queryByRole('button', { name: 'AI: suggest 2–3' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Suggest with AI' })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(screen.getByText('旅行')).toBeInTheDocument();
     expect(input).toHaveValue('');
-    // …and returns once the input is committed/cleared.
-    expect(screen.getByRole('button', { name: 'AI: suggest 2–3' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Suggest with AI' })).toBeInTheDocument();
+  });
+
+  it('adds a typed tag on Enter and keeps the text it was typed with', async () => {
+    renderWithIntl(<CardEditor locale="en" />);
+    const input = screen.getByLabelText('Type a tag…');
+
+    fireEvent.change(input, { target: { value: '  旅行 ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(screen.getByText('旅行')).toBeInTheDocument();
+    expect(input).toHaveValue('');
+    expect(screen.getByText('Press Enter to add one, or let AI suggest from your story')).toBeInTheDocument();
+  });
+
+  it('keeps a tag typed while the model is still thinking when its suggestions arrive', async () => {
+    let answer: (v: unknown) => void = () => undefined;
+    const fetchMock = vi.fn().mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      renderWithIntl(<CardEditor locale="en" />);
+      await userEvent.click(screen.getByRole('button', { name: 'Suggest with AI' }));
+      // The field is still usable while the model thinks.
+      expect(screen.getByRole('button', { name: 'Thinking…' })).toBeInTheDocument();
+      const input = screen.getByLabelText('Type a tag…');
+      fireEvent.change(input, { target: { value: '旅行' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      answer({ ok: true, json: async () => ({ tags: ['記憶', '旅行'] }) });
+      await waitFor(() => expect(screen.getByText('記憶')).toBeInTheDocument());
+      // Neither lost nor doubled.
+      expect(screen.getAllByText('旅行')).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('shows a failed suggestion in place of the helper line', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      renderWithIntl(<CardEditor locale="en" />);
+      await userEvent.click(screen.getByRole('button', { name: 'Suggest with AI' }));
+      expect(await screen.findByText('Couldn’t suggest tags. Please try again.')).toBeInTheDocument();
+      expect(screen.queryByText('Press Enter to add one, or let AI suggest from your story')).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('opens the publish panel, then publishes and navigates to the new card', async () => {

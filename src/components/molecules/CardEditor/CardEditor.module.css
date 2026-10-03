@@ -15,108 +15,6 @@
   min-width: 0;
 }
 
-.tagBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.tagRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-/* Segmented-bar style tag input: text segment on the left, add action on the
-   right — one wobbly border with a wavy divider, drawn in the backdrop SVG. */
-.tagInputBar {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  width: 100%;
-}
-.tagInputBackdrop {
-  position: absolute;
-  top: 0;
-  left: 0;
-  overflow: visible;
-  pointer-events: none;
-  z-index: 0;
-}
-.tagInputField {
-  flex: 1 1 auto;
-  min-width: 0;
-  position: relative;
-  z-index: 1;
-  padding: var(--field-pad-y) var(--field-pad-x);
-  border: none;
-  background: transparent;
-  font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--color-text);
-  outline: none;
-  border-radius: var(--field-radius);
-}
-.tagInputBtn {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: none;
-  background: none;
-  padding: 0 clamp(18px, 2.8vw, 26px);
-  color: var(--color-terracotta);
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.tagInputBtn:active {
-  opacity: 0.82;
-}
-.tagInputBtn:disabled {
-  cursor: not-allowed;
-  color: var(--color-text-muted);
-  opacity: 0.7;
-}
-
-.tagError {
-  font-size: 12px;
-  color: var(--color-terracotta);
-}
-
-.addTag {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  background: none;
-  border: none;
-  padding: 6px 16px;
-  color: var(--color-text-muted);
-  font-family: var(--font-body);
-  font-size: 12px;
-  cursor: pointer;
-  transition: color 150ms;
-}
-.addTag:hover {
-  color: var(--color-text);
-}
-.addTagBody {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-}
-
-
 .fileInputWrap {
   width: 100%;
   border-radius: var(--field-radius);
@@ -203,6 +101,43 @@
   align-items: center;
   flex-wrap: wrap;
   margin-top: 6px;
+}
+
+/* While a save or publish is in flight the buttons wait, dimmed. */
+.primaryAction[data-pending],
+.secondaryAction[data-pending] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.actionError {
+  font-size: 12px;
+  color: var(--color-terracotta);
+}
+
+/* On a phone the two do not sit side by side: Publish (or Save changes)
+   takes the width, and the ghost way out (Save draft and leave, Discard
+   changes) is centred on its own row under it, the error line centred
+   under both — one balanced column instead of a button and a stray word. */
+@media (max-width: 640px) {
+  .actionsStack {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  /* The button's own face (.btn) is inline-flex and measures itself, so a
+     full-width wrapper needs the face stretched too: it redraws at that width. */
+  .primaryAction > button {
+    display: flex;
+    width: 100%;
+  }
+  .secondaryAction {
+    align-self: center;
+  }
+  .actionError {
+    align-self: center;
+    text-align: center;
+  }
 }
 
 .aiRow {

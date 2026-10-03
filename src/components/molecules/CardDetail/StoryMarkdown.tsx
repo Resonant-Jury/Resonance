@@ -9,6 +9,8 @@ import { OrganicStoryImage } from '@/components/atoms/OrganicImage/OrganicStoryI
 import { CardEmbedLink } from '@/components/molecules/EmbedStoryCard/CardEmbedLink';
 import { isBlankParagraph } from '@/lib/markdown/blankLines';
 import { seedFromString } from '@/lib/design/prng';
+import { storyLinkWave } from '@/lib/design/storyLinkWave';
+import type { CSSProperties } from 'react';
 import styles from './StoryMarkdown.module.css';
 
 /** The paragraph's only element child (ignoring whitespace), if any. */
@@ -26,6 +28,22 @@ function hastText(node: ElementContent): string {
 }
 
 const components: Components = {
+  // Links wear the pen's wavy underline as a repeating background, so a link
+  // that wraps gets a stroke under every line (OrganicLink's absolutely
+  // positioned svg can't follow a wrapped inline box).
+  a: ({ node: _node, href, children, ...rest }) => {
+    const wave = storyLinkWave(href ?? '');
+    return (
+      <a
+        {...rest}
+        href={href}
+        className={styles.link}
+        style={{ '--wave': wave.rest, '--wave-strong': wave.strong } as CSSProperties}
+      >
+        {children}
+      </a>
+    );
+  },
   // Replace the flat accent border with a hand-drawn vertical curve.
   blockquote: ({ children }) => (
     <blockquote>

@@ -310,11 +310,12 @@
       }
     },
     "tagsLabel": "標籤",
-    "tagsSuggest": "AI 幫你想 2–3 個",
+    "tagsSuggest": "AI 建議",
     "tagsSuggesting": "AI 思考中⋯",
     "tagsSuggestError": "標籤建議失敗，請再試一次。",
     "tagsPlaceholder": "輸入標籤⋯",
     "tagsAdd": "新增",
+    "tagsHelp": "按 Enter 新增，或讓 AI 從故事裡建議",
     "mediaLabel": "搭配一張圖片（選填）",
     "mediaRemove": "移除圖片",
     "mediaPlaceholder": "點一下，或把圖片拖進來",

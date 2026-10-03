@@ -32,6 +32,9 @@ import {
 import type { Card } from '@/lib/db/types';
 import { MessageBubble } from './MessageBubble';
 import { MessageCardRef } from './MessageCardRef';
+import { LinkPreviewCard } from './LinkPreviewCard';
+import { ReplyQuote } from './ReplyQuote';
+import { linkify } from '@/lib/links/linkify';
 import styles from './MessagesPage.module.css';
 import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
 
@@ -117,6 +120,11 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mediaOpen, setMediaOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // A link that is easy to mistake for another place (an IP address, a
+  // punycode name) waits here for the reader's yes before it opens.
+  const [linkToConfirm, setLinkToConfirm] = useState<{ url: string; host: string } | null>(null);
+  // The message a tap on a quote scrolled to, washed for a moment.
+  const [flashId, setFlashId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   // The note-reply quote rides the next message; dismissable if reconsidered.
   const [noteRef, setNoteRef] = useState(replyNote);
@@ -181,6 +189,16 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     });
   }
 
+  function jumpTo(messageId: string) {
+    const row = [...(scrollerRef.current?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])].find(
+      (el) => el.dataset.messageId === messageId,
+    );
+    if (!row) return;
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setFlashId(messageId);
+    window.setTimeout(() => setFlashId((cur) => (cur === messageId ? null : cur)), 1000);
+  }
+
   function confirmDelete() {
     if (deleting || !pairId || !user) return;
     setDeleting(true);
@@ -217,8 +235,14 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
 
   // Everything shareable in this thread: card embeds (sharedCardIds) and links found in text.
   const sharedLinks = [
-    ...new Set(thread.messages.flatMap((m) => m.text.match(/https?:\/\/[^\s)]+/g) ?? [])),
+    ...new Map(
+      thread.messages
+        .flatMap((m) => linkify(m.text))
+        .flatMap((s) => (s.type === 'link' ? [s] : []))
+        .map((l) => [l.url, l]),
+    ).values(),
   ];
+  const loadedIds = new Set(thread.messages.map((m) => m.id));
 
   return (
     <CardEmbedSourceContext.Provider value={sharedCards}>
@@ -341,18 +365,37 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               return (
                 <div key={m.id} style={{ display: 'contents' }}>
                   {newDay && <span className={styles.dayLabel}>{dayFmt.format(m.sentAt)}</span>}
-                  <div className={styles.bubbleRow} data-own={own || undefined}>
+                  <div
+                    className={styles.bubbleRow}
+                    data-own={own || undefined}
+                    data-message-id={m.id}
+                    data-flash={flashId === m.id || undefined}
+                  >
                     <div className={styles.messageStack} data-own={own || undefined}>
-                      {m.cardRef && <MessageCardRef cardId={m.cardRef} />}
-                      {(m.text || m.noteRef) && (
-                        <MessageBubble
-                          id={m.id}
-                          text={m.text}
+                      {m.replyTo && user && (
+                        <ReplyQuote
+                          quote={m.replyTo}
                           own={own}
-                          title={fullFmt.format(m.sentAt)}
-                          quoteLabel={m.noteRef ? t('quotedNote') : undefined}
+                          viewerId={user.id}
+                          otherHandle={other.handle}
+                          canJump={loadedIds.has(m.replyTo.id)}
+                          onJump={jumpTo}
                         />
                       )}
+                      {m.cardRef && <MessageCardRef cardId={m.cardRef} />}
+                      {(m.text || m.noteRef) && (
+                        <div className={styles.bubbleWrap}>
+                          <MessageBubble
+                            id={m.id}
+                            text={m.text}
+                            own={own}
+                            title={fullFmt.format(m.sentAt)}
+                            quoteLabel={m.noteRef ? t('quotedNote') : undefined}
+                            onConfirmLink={setLinkToConfirm}
+                          />
+                        </div>
+                      )}
+                      {m.preview && <LinkPreviewCard preview={m.preview} onConfirmLink={setLinkToConfirm} />}
                     </div>
                   </div>
                 </div>
@@ -477,16 +520,21 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                   {sharedLinks.length > 0 && (
                     <section>
                       <h4 className={styles.mediaSection}>{t('mediaLinks')}</h4>
-                      {sharedLinks.map((url, i) => (
-                        <Fragment key={url}>
+                      {sharedLinks.map((link, i) => (
+                        <Fragment key={link.url}>
                           {i > 0 && <Divider seed={97 + i * 11} spacing={0} />}
                           <a
                             className={styles.mediaLinkRow}
-                            href={url}
+                            href={link.url}
                             target="_blank"
-                            rel="noopener noreferrer"
+                            rel="noopener noreferrer nofollow ugc"
+                            onClick={(e) => {
+                              if (!link.suspicious) return;
+                              e.preventDefault();
+                              setLinkToConfirm({ url: link.url, host: link.host });
+                            }}
                           >
-                            {url}
+                            {link.text}
                           </a>
                         </Fragment>
                       ))}
@@ -496,6 +544,33 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 <OrganicScrollbar targetRef={mediaScrollRef} seed={71} />
               </div>
             )}
+          </Modal>
+
+          {/* Before a link to an IP address or a punycode name opens. */}
+          <Modal
+            open={!!linkToConfirm}
+            onClose={() => setLinkToConfirm(null)}
+            seed={61}
+            maxWidth={400}
+            ariaLabel={t('linkConfirmTitle')}
+          >
+            <h3 className={styles.mediaTitle}>{t('linkConfirmTitle')}</h3>
+            <p className={styles.mediaSubtitle}>{t('linkConfirmBody', { host: linkToConfirm?.host ?? '' })}</p>
+            <div className={styles.confirmActions}>
+              <OrganicButton variant="text" size="sm" onClick={() => setLinkToConfirm(null)}>
+                {t('linkConfirmCancel')}
+              </OrganicButton>
+              <OrganicButton
+                variant="solid"
+                size="sm"
+                onClick={() => {
+                  if (linkToConfirm) window.open(linkToConfirm.url, '_blank', 'noopener,noreferrer');
+                  setLinkToConfirm(null);
+                }}
+              >
+                {t('linkConfirmOpen')}
+              </OrganicButton>
+            </div>
           </Modal>
 
           <Modal

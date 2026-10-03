@@ -11,8 +11,12 @@ public struct CSSTextView: UIViewRepresentable {
     let font: UIFont
     let lineHeight: CGFloat
     var onOpenURL: (URL) -> Void
+    /// Take the text's own width (a chat bubble shrink-wrapping its words) rather than all that's offered.
+    var fitsContent: Bool
 
-    public init(_ text: NSAttributedString, font: UIFont, lineHeight: CGFloat, onOpenURL: @escaping (URL) -> Void = { _ in }) {
+    public init(_ text: NSAttributedString, font: UIFont, lineHeight: CGFloat, fitsContent: Bool = false,
+                onOpenURL: @escaping (URL) -> Void = { _ in }) {
+        self.fitsContent = fitsContent
         self.text = text
         self.font = font
         self.lineHeight = lineHeight
@@ -29,7 +33,8 @@ public struct CSSTextView: UIViewRepresentable {
         container.lineFragmentPadding = 0
         layout.addTextContainer(container)
         storage.addLayoutManager(layout)
-        let view = UITextView(frame: .zero, textContainer: container)
+        let view = LinkWaveTextView(frame: .zero, textContainer: container)
+        view.waveColor = UIColor(Tokens.terracotta)
         view.isEditable = false
         view.isSelectable = true
         view.isScrollEnabled = false
@@ -46,6 +51,8 @@ public struct CSSTextView: UIViewRepresentable {
         context.coordinator.onOpenURL = onOpenURL
         let boxes = CSSLineBoxes(font: font, lineHeight: lineHeight)
         context.coordinator.lineBoxes = boxes
+        // Under the letters, not under the line box: 0.2em below the baseline, like OrganicLink.
+        (view as? LinkWaveTextView)?.waveDrop = font.pointSize * 0.2
         view.layoutManager.delegate = boxes
         if view.attributedText != text { view.attributedText = text }
     }
@@ -58,7 +65,7 @@ public struct CSSTextView: UIViewRepresentable {
         }
         uiView.layoutManager.ensureLayout(for: container)
         let used = uiView.layoutManager.usedRect(for: container)
-        return CGSize(width: width, height: ceil(used.height))
+        return CGSize(width: fitsContent ? min(width, ceil(used.width)) : width, height: ceil(used.height))
     }
 
     public final class Coordinator: NSObject, UITextViewDelegate {
@@ -122,7 +129,6 @@ public struct ProseStyle: Sendable {
             if let link = run.link, let url = URL(string: link) {
                 attrs[.link] = url
                 attrs[.foregroundColor] = UIColor(Tokens.terracotta)
-                attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
             }
             if let paragraph { attrs[.paragraphStyle] = paragraph }
             out.append(NSAttributedString(string: run.text, attributes: attrs))

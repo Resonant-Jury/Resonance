@@ -165,11 +165,19 @@ final class WriteModel {
 
     // MARK: Tags
 
+    /// Add what is in the field as a tag (Done, or the field's Add): trimmed, and not twice.
     func addTag() {
-        let tag = tagDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let word = tagDraft
         tagDraft = ""
-        guard !tag.isEmpty, !values.tags.contains(tag) else { return }
-        values.tags.append(tag)
+        values.tags = TagInput.merge(values.tags, [word])
+    }
+
+    /// The field's text as typed or pasted: a comma ends a tag (see ``TagInput``), the rest stays to be typed on.
+    func typedTag(_ text: String) {
+        let (words, rest) = TagInput.split(text)
+        guard !words.isEmpty else { return }
+        tagDraft = rest
+        values.tags = TagInput.merge(values.tags, words)
     }
 
     func removeTag(_ tag: String) {

@@ -29,4 +29,16 @@ describe('StoryMarkdown', () => {
     const { container } = renderWithIntl(<StoryMarkdown source={'one\n\ntwo'} />);
     expect(container.querySelectorAll('p')).toHaveLength(2);
   });
+
+  it('underlines a link with the pen wave, per link, and no straight rule', () => {
+    renderWithIntl(<StoryMarkdown source={'see [here](https://example.com/a) and [there](https://example.com/b)'} />);
+    const a = screen.getByRole('link', { name: 'here' });
+    const b = screen.getByRole('link', { name: 'there' });
+    expect(a.className).toMatch(/link/);
+    expect(a.getAttribute('href')).toBe('https://example.com/a');
+    const wa = a.style.getPropertyValue('--wave');
+    expect(wa).toContain('data:image/svg+xml');
+    expect(a.style.getPropertyValue('--wave-strong')).toContain('stroke-opacity');
+    expect(b.style.getPropertyValue('--wave')).not.toBe(wa);
+  });
 });

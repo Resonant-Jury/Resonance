@@ -25,6 +25,10 @@ struct ThreadScreen: View {
     @State private var confirmingBlock = false
     @State private var confirmingDelete = false
     @State private var busy = false
+    /// A link to an IP address or a punycode name waits here for the reader's yes.
+    @State private var linkToConfirm: ChatLinks.Parsed?
+    /// The message a tap on a quote scrolled to, washed for a moment.
+    @State private var flashId: String?
     @State private var blockError: String?
     @FocusState private var composing: Bool
     @FocusState private var searchFocused: Bool
@@ -52,6 +56,13 @@ struct ThreadScreen: View {
             }
         }
         .background(Tokens.cream)
+        .organicConfirm(isPresented: Binding(get: { linkToConfirm != nil }, set: { if !$0 { linkToConfirm = nil } }),
+                        title: L10n.Messages.linkConfirmTitle, message: L10n.Messages.linkConfirmBody(host: linkToConfirm?.host ?? ""),
+                        cancelLabel: L10n.Messages.linkConfirmCancel, confirmLabel: L10n.Messages.linkConfirmOpen,
+                        closeLabel: L10n.Messages.linkConfirmCancel, seed: 61) {
+            if let link = linkToConfirm { InAppBrowser.open(link.url) }
+            linkToConfirm = nil
+        }
         .toolbar(.hidden, for: .navigationBar)
         .task {
             if let model {
@@ -154,7 +165,10 @@ struct ThreadScreen: View {
         .frame(minHeight: 38)
         .padding(.vertical, 10)
         .organicModal(isPresented: $showingMedia, seed: 53, maxWidth: 480, closeLabel: L10n.Messages.mediaTitle) {
-            SharedMediaContent(model: model)
+            SharedMediaContent(model: model) { link in
+                showingMedia = false
+                openLink(link)
+            }
         }
         .organicModal(isPresented: $reporting, seed: 83, maxWidth: 460, closeLabel: L10n.Safety.Report.close, dismissible: !sendingReport) {
             if let other = model.other, let pair = model.pairId {
@@ -192,6 +206,18 @@ struct ThreadScreen: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+    }
+
+    /// Opens a link from a message: straight into the in-app browser, unless it's an
+    /// IP address or a punycode name — those ask first.
+    private func openLink(_ link: ChatLinks.Parsed) {
+        if link.suspicious { linkToConfirm = link } else { InAppBrowser.open(link.url) }
+    }
+
+    /// A tap in a bubble's text: checked again, so only an http(s) address that passes opens.
+    private func openLink(_ url: URL) {
+        guard let link = ChatLinks.parse(url.absoluteString) else { return }
+        openLink(link)
     }
 
     private func menuItems(_ model: ThreadModel) -> [OrganicMenuItem] {
@@ -252,7 +278,7 @@ struct ThreadScreen: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6).padding(.bottom, 2)
                         }
-                        row(message, model: model).id(message.id)
+                        row(message, model: model, jump: { id in jump(to: id, proxy: proxy, in: model) }).id(message.id)
                     }
                 }
                 .padding(.vertical, 14)
@@ -269,17 +295,32 @@ struct ThreadScreen: View {
         }
     }
 
+    /// A tap on a reply's quote: scroll to the original if it's among the loaded messages, and wash it for a moment.
+    private func jump(to id: String, proxy: ScrollViewProxy, in model: ThreadModel) {
+        guard model.messages.contains(where: { $0.id == id }) else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
+        flashId = id
+        Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            withAnimation(.easeOut(duration: 0.9)) { flashId = nil }
+        }
+    }
+
     private func quietNote(_ text: String) -> some View {
         Text(text).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// One message: a shared card over the bubble, on your side or theirs, at most 72% wide.
-    private func row(_ message: ThreadModel.Message, model: ThreadModel) -> some View {
+    private func row(_ message: ThreadModel.Message, model: ThreadModel, jump: @escaping (String) -> Void) -> some View {
         let mine = message.senderId == model.me
         return HStack(spacing: 0) {
             if mine { Spacer(minLength: 0) }
             VStack(alignment: mine ? .trailing : .leading, spacing: 6) {
+                if let quote = message.replyTo, let viewer = model.me {
+                    ReplyQuoteView(quote: quote, mine: mine, viewerId: viewer, otherHandle: model.displayHandle,
+                                   canJump: model.messages.contains { $0.id == quote.id }) { jump(quote.id) }
+                }
                 if let id = message.cardRef, let card = model.card(id) {
                     Button { openRoute(.card(card.routeKey)) } label: {
                         EmbedStoryCard(title: card.title, author: card.anonymous ? nil : card.author?.value1.handle,
@@ -291,11 +332,24 @@ struct ThreadScreen: View {
                 }
                 if !message.text.isEmpty || message.noteRef != nil {
                     MessageBubble(text: message.text, mine: mine, seed: seedFromId(message.id),
-                                  quoteLabel: message.noteRef == nil ? nil : L10n.Messages.quotedNote)
+                                  quoteLabel: message.noteRef == nil ? nil : L10n.Messages.quotedNote,
+                                  links: ChatLinks.links(in: message.text).map { MessageLinkRange(range: $0.range, url: $0.url) },
+                                  onOpenURL: { openLink($0) })
+                        .overlay {
+                            // The wash of a bubble a tap on a quote scrolled to.
+                            MessageBubbleShape(seed: seedFromId(message.id))
+                                .fill(Tokens.terracotta.opacity(0.22))
+                                .opacity(flashId == message.id ? 1 : 0)
+                                .allowsHitTesting(false)
+                        }
                         .contextMenu {
                             Text(Self.full(message.sentAt))
                             if !message.text.isEmpty { Button(L10n.Native.copy) { UIPasteboard.general.string = message.text } }
                         }
+                        .zIndex(1)
+                }
+                if let preview = message.preview {
+                    LinkPreviewCard(preview: preview, origin: session.config.origin) { openLink($0) }
                 }
             }
             .frame(maxWidth: UIScreen.main.bounds.width * 0.72, alignment: mine ? .trailing : .leading)
@@ -400,8 +454,8 @@ private struct AttachmentChip: View {
 /// "Cards & links": everything shared in the loaded messages.
 private struct SharedMediaContent: View {
     let model: ThreadModel
+    let onOpenLink: (ChatLinks.Parsed) -> Void
     @Environment(\.openRoute) private var openRoute
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         let shared = model.shared
@@ -439,10 +493,10 @@ private struct SharedMediaContent: View {
                     if !shared.links.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
                             head(L10n.Messages.mediaLinks)
-                            ForEach(Array(shared.links.enumerated()), id: \.element) { i, url in
+                            ForEach(Array(shared.links.enumerated()), id: \.element.url) { i, link in
                                 if i > 0 { WavyDivider(seed: Double(97 + i * 11)) }
-                                Button { openURL(url) } label: {
-                                    Text(url.absoluteString).font(AppFonts.body(13.5)).foregroundStyle(Tokens.terracotta).underline()
+                                Button { onOpenLink(.init(url: link.url, host: link.host, suspicious: link.suspicious)) } label: {
+                                    Text(link.text).font(AppFonts.body(13.5)).foregroundStyle(Tokens.terracotta).underline()
                                         .multilineTextAlignment(.leading)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.vertical, 10).padding(.horizontal, 4)

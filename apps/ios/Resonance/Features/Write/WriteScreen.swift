@@ -4,9 +4,9 @@ import ResonanceKit
 import SwiftUI
 
 /// Writing a card (the web's write page on a phone): the one-line title, the
-/// story in the editor island under the web's text toolbar, tags with the AI
-/// pill, the cover photo, then Publish (through the publish panel) or leave
-/// with the draft saved. Drafts save themselves a moment after typing stops.
+/// story in the editor island under the web's text toolbar, tags in one field
+/// (typed, or suggested by the model), the cover photo, then Publish (through
+/// the publish panel) or leave with the draft saved. Drafts save themselves a moment after typing stops.
 /// Opened on one of your cards (write/[id]) it resumes a draft, or revises a
 /// published card: then Save changes / Discard changes.
 /// A page on the tab's stack like the others: the bar's arrow (or the edge
@@ -17,6 +17,7 @@ struct WriteScreen: View {
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.openRoute) private var openRoute
     @State private var model: WriteModel?
     @State private var scrolled = false
@@ -217,28 +218,21 @@ struct WriteScreen: View {
             .foregroundStyle(Tokens.textMuted)
     }
 
-    /// Tags: the chosen ones (lg pills with their ×), the AI pill while nothing
-    /// is being typed, and the two-segment tag bar.
+    /// Tags (CardEditor's TagField): one field holding the chosen tags, the input
+    /// and its one action (AI suggestions, or Add once something is typed), and
+    /// under it a muted line on how — the error in its place when there is one.
     private func tags(_ model: WriteModel) -> some View {
         @Bindable var model = model
         return VStack(alignment: .leading, spacing: 10) {
             label(L10n.Write.tagsLabel)
-            VStack(alignment: .leading, spacing: 12) {
-                FlowRow(spacing: 10) {
-                    ForEach(model.values.tags, id: \.self) { tag in
-                        TagPill(tag, fill: Tokens.terracottaLight, size: .lg) { model.removeTag(tag) }
-                    }
-                    // The AI pill steps aside once the user starts typing their own tag.
-                    if model.tagDraft.trimmingCharacters(in: .whitespaces).isEmpty {
-                        AddTagButton(label: model.suggestingTags ? L10n.Write.tagsSuggesting : L10n.Write.tagsSuggest) {
-                            Task { await model.suggestTags() }
-                        }
-                    }
-                }
-                TagInputBar(text: $model.tagDraft, placeholder: L10n.Write.tagsPlaceholder, addLabel: L10n.Write.tagsAdd) { model.addTag() }
-                if let error = model.tagError {
-                    Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta)
-                }
+            VStack(alignment: .leading, spacing: 6) {
+                TagField(tags: model.values.tags, draft: $model.tagDraft, placeholder: L10n.Write.tagsPlaceholder,
+                         suggesting: model.suggestingTags, onRemove: model.removeTag, onAdd: model.addTag,
+                         onSuggest: { Task { await model.suggestTags() } })
+                    .onChange(of: model.tagDraft) { _, text in model.typedTag(text) }
+                Text(model.tagError ?? L10n.Write.tagsHelp)
+                    .font(AppFonts.body(Tokens.hintSize))
+                    .foregroundStyle(model.tagError == nil ? Tokens.textMuted : Tokens.terracotta)
             }
         }
     }
@@ -294,32 +288,52 @@ struct WriteScreen: View {
 
     /// Everything autosaves; these are only about intent. A draft: publish it,
     /// or step away. A live card: put the revision in front of readers, or drop it.
+    /// On a phone one centred column: the verb across the width, the quiet way out
+    /// (Save draft and leave / Discard changes) on its own row under it, the error
+    /// centred under both; a wider layout keeps them in a row.
     private func actions(_ model: WriteModel) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            FlowRow(spacing: 12) {
-                if model.isPublished {
-                    OrganicButton(discarding ? L10n.Write.saving : L10n.Write.saveChanges) {
-                        actionError = nil
-                        publishing = true
-                    }
-                    if model.hasPendingEdit {
-                        OrganicButton(L10n.Write.discardChanges, variant: .text) { Task { await discard(model) } }
+        let compact = sizeClass == .compact
+        return VStack(alignment: compact ? .center : .leading, spacing: compact ? 4 : 8) {
+            Group {
+                if compact {
+                    VStack(spacing: 4) {
+                        primaryAction(model).fillingWidth()
+                        secondaryAction(model)
                     }
                 } else {
-                    OrganicButton(L10n.Write.publish) {
-                        actionError = nil
-                        publishing = true
+                    FlowRow(spacing: 12) {
+                        primaryAction(model)
+                        secondaryAction(model)
                     }
-                    OrganicButton(L10n.Write.saveDraftAndLeave, variant: .text) { Task { await leave(model) } }
                 }
             }
             .opacity(discarding ? 0.6 : 1)
             .allowsHitTesting(!discarding)
             if let actionError {
-                Text(actionError).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta)
+                Text(actionError)
+                    .font(AppFonts.body(12))
+                    .foregroundStyle(Tokens.terracotta)
+                    .multilineTextAlignment(compact ? .center : .leading)
             }
         }
+        .frame(maxWidth: .infinity, alignment: compact ? .center : .leading)
         .padding(.top, 6)
+    }
+
+    private func primaryAction(_ model: WriteModel) -> OrganicButton {
+        OrganicButton(model.isPublished ? (discarding ? L10n.Write.saving : L10n.Write.saveChanges) : L10n.Write.publish) {
+            actionError = nil
+            publishing = true
+        }
+    }
+
+    @ViewBuilder
+    private func secondaryAction(_ model: WriteModel) -> some View {
+        if !model.isPublished {
+            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .text) { Task { await leave(model) } }
+        } else if model.hasPendingEdit {
+            OrganicButton(L10n.Write.discardChanges, variant: .text) { Task { await discard(model) } }
+        }
     }
 
     private func discard(_ model: WriteModel) async {

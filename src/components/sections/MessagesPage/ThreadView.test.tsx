@@ -184,3 +184,118 @@ describe('cards shared in a thread', () => {
     expect(screen.getByText('A walk at dawn')).toBeInTheDocument();
   });
 });
+
+function text(id: string, body: string, extra: Partial<Message> = {}, senderId = 'alice'): Message {
+  return { id, senderId, text: body, sentAt: new Date('2026-03-01T10:00:00Z'), ...extra };
+}
+
+describe('replies, links and link previews in a thread', () => {
+  it('shows what a reply answers above its bubble, and scrolls to the original when it is loaded', async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    mockUseThread.mockReturnValue({
+      messages: [
+        text('m1', 'Are you coming on Friday?', {}, 'me'),
+        text('m2', 'Yes!', { replyTo: { id: 'm1', senderId: 'me', text: 'Are you coming on Friday?' } }),
+        text('m3', 'Sure', { replyTo: { id: 'old', senderId: 'alice', text: 'much earlier' } }),
+        text('m4', 'Thanks', { replyTo: { id: 'm1', senderId: 'me', text: '', cardRef: 'c1' } }),
+      ],
+      ready: true,
+      error: null,
+    });
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+
+    expect(await screen.findAllByText('alice replied to you')).toHaveLength(2);
+    expect(screen.getByText('alice replied to themselves')).toBeInTheDocument();
+    // A card-only original reads as「A card」.
+    expect(screen.getByRole('button', { name: 'A card' })).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: 'Are you coming on Friday?' })[0]);
+    expect(scrollIntoView).toHaveBeenCalled();
+    scrollIntoView.mockClear();
+    await user.click(screen.getByRole('button', { name: 'much earlier' }));
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('draws the link preview under the bubble, picture from our own route only', async () => {
+    mockUseThread.mockReturnValue({
+      messages: [
+        text('m1', 'look https://example.com/post', {
+          preview: {
+            url: 'https://www.example.com/post',
+            title: 'A post worth reading',
+            description: 'About walking.',
+            image: '/api/link-image?u=abc&s=def',
+          },
+        }),
+      ],
+      ready: true,
+      error: null,
+    });
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const { container } = renderWithIntl(thread());
+
+    const card = (await screen.findByText('A post worth reading')).closest('a')!;
+    expect(card).toHaveAttribute('href', 'https://www.example.com/post');
+    expect(card).toHaveAttribute('rel', 'noopener noreferrer nofollow ugc');
+    expect(card).toHaveAttribute('target', '_blank');
+    expect(card).toHaveTextContent('example.com');
+    const img = container.querySelector('img')!;
+    expect(img).toHaveAttribute('src', '/api/link-image?u=abc&s=def');
+    expect(img).toHaveAttribute('referrerpolicy', 'no-referrer');
+    expect(img).toHaveAttribute('loading', 'lazy');
+  });
+
+  it('draws no preview card for an address that is not a plain http(s) link', async () => {
+    mockUseThread.mockReturnValue({
+      messages: [text('m1', 'hmm', { preview: { url: 'https://user@example.com/', title: 'Sneaky' } })],
+      ready: true,
+      error: null,
+    });
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+    await screen.findByText('hmm');
+    expect(screen.queryByText('Sneaky')).not.toBeInTheDocument();
+  });
+
+  it('makes only safe http(s) addresses tappable', async () => {
+    mockUseThread.mockReturnValue({
+      messages: [
+        text('m1', 'ok https://example.com/a. and www.example.org'),
+        text('m2', 'bad javascript:alert(1) data:text/html,hi http://user@evil.com/x https://example.com:8443/'),
+      ],
+      ready: true,
+      error: null,
+    });
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+    await screen.findByText(/^bad /);
+
+    const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(expect.arrayContaining(['https://example.com/a', 'https://www.example.org/']));
+    for (const href of hrefs) expect(href).toMatch(/^(https?:\/\/(www\.)?example\.(com\/a|org\/)|\/)/);
+    expect(screen.getByText(/javascript:alert/)).not.toHaveAttribute('href');
+  });
+
+  it('asks before opening a link to an IP address or a punycode name', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    mockUseThread.mockReturnValue({
+      messages: [text('m1', 'try http://192.168.0.5/admin or https://xn--pple-43d.com/')],
+      ready: true,
+      error: null,
+    });
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const userEvent = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+
+    await userEvent.click(await screen.findByRole('link', { name: 'http://192.168.0.5/admin' }));
+    expect(open).not.toHaveBeenCalled();
+    expect(await screen.findByText('Open this link?')).toBeInTheDocument();
+    expect(screen.getByText(/leads to 192\.168\.0\.5/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    expect(open).toHaveBeenCalledWith('http://192.168.0.5/admin', '_blank', 'noopener,noreferrer');
+    open.mockRestore();
+  });
+});

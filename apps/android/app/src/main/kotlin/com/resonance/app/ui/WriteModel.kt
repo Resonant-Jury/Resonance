@@ -219,14 +219,26 @@ class WriteModel(
 
     // Tags
 
+    /** Add what is in the field as a tag (Done, or the field's Add): trimmed, and not twice. */
     fun addTag() {
-        val tag = tagDraft.trim()
+        val word = tagDraft
         tagDraft = ""
-        if (tag.isEmpty() || tag in values.tags) return
-        update { copy(tags = tags + tag) }
+        addTags(listOf(word))
     }
 
+    /** The field's text as typed or pasted: a comma ends a tag (see [TagInput]), the rest stays to be typed on. */
+    fun typeTag(text: String) {
+        val (words, rest) = TagInput.split(text)
+        tagDraft = rest
+        if (words.isNotEmpty()) addTags(words)
+    }
+
+    private fun addTags(words: List<String>) = update { copy(tags = TagInput.merge(tags, words)) }
+
     fun removeTag(tag: String) = update { copy(tags = tags - tag) }
+
+    /** Backspace in an empty field takes the last tag back. */
+    fun removeLastTag() = update { copy(tags = tags.dropLast(1)) }
 
     /** Two or three from the model, informed by the author's past tags; new ones only. */
     fun suggestTags() {
@@ -236,6 +248,7 @@ class WriteModel(
         scope.launch {
             try {
                 val suggested = writing.suggestTags(values.title, values.story, values.tags)
+                // The field stays open meanwhile: merge into the tags as they are now.
                 update { copy(tags = tags + suggested.filter { it !in tags }) }
             } catch (e: CancellationException) {
                 throw e

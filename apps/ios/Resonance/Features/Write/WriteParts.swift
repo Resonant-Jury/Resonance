@@ -2,115 +2,129 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// CardEditor's AddTagButton — the AI pill: a quiet frame in the field's line
-/// (R ≤ 18, seed 67), a small plus and muted 12pt text.
-struct AddTagButton: View {
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                OrganicIcon(.plus, size: 12, color: Tokens.textMuted)
-                Text(label).font(AppFonts.body(12))
-            }
-            .foregroundStyle(Tokens.textMuted)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-            .background {
-                GeometryReader { geo in
-                    WobRectShape(radius: min(geo.size.height / 2, 18), seed: 67)
-                        .stroke(Tokens.fieldBorder, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// CardEditor's TagInput: a two-segment bar — the text on the left, Add on
-/// the right — under one wobbly line (seed 53) with a wavy divider between,
-/// the Add segment washed in the light terracotta.
-struct TagInputBar: View {
-    @Binding var text: String
+/// TagField.tsx: the writer's tags as one control. A single input frame (the
+/// field's line; terracotta while anything inside it has focus) holds the
+/// chosen tags as bare `md` pills — one frame per layer, so none draws a pen
+/// line — then the text input and one trailing action that follows the
+/// context: with nothing typed it asks the model for tags (the action breathes
+/// while it thinks), with something typed it adds that tag. Return, a comma
+/// (，、 too) or the action adds. The pills wrap, and the input with its
+/// action goes down together once the line is full (``TagFlow``). The helper
+/// line under it is the caller's.
+struct TagField: View {
+    let tags: [String]
+    @Binding var draft: String
     let placeholder: String
-    let addLabel: String
+    let suggesting: Bool
+    let onRemove: (String) -> Void
     let onAdd: () -> Void
-    @FocusState private var focused: Bool
-    @State private var addWidth: CGFloat = 96
+    let onSuggest: () -> Void
 
-    private var canAdd: Bool { !text.trimmingCharacters(in: .whitespaces).isEmpty }
+    @FocusState private var focused: Bool
+    @State private var breathing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var canAdd: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var thinking: Bool { suggesting && !canAdd }
 
     var body: some View {
-        HStack(spacing: 0) {
-            TextField(text: $text, prompt: fieldPrompt(placeholder)) { Text(placeholder) }
-                .font(AppFonts.body(15))
-                .foregroundStyle(Tokens.text)
-                .focused($focused)
-                .submitLabel(.done)
-                .onSubmit(commit)
-                .padding(.horizontal, Tokens.fieldPadX)
-                .padding(.vertical, Tokens.fieldPadY)
-            Button(action: commit) {
-                HStack(spacing: 6) {
-                    OrganicIcon(.plus, size: 12, color: canAdd ? Tokens.terracotta : Tokens.textMuted)
-                    Text(addLabel).font(AppFonts.body(13, weight: .semibold))
-                }
-                .foregroundStyle(canAdd ? Tokens.terracotta : Tokens.textMuted)
-                .opacity(canAdd ? 1 : 0.7)
-                .padding(.horizontal, 18)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
+        TagFlow {
+            ForEach(tags, id: \.self) { tag in
+                TagPill(tag, fill: Tokens.terracottaLight, size: .md) { onRemove(tag) }
             }
-            .buttonStyle(.plain)
-            .disabled(!canAdd)
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { addWidth = $0 }
+            HStack(spacing: 4) {
+                TextField(text: $draft, prompt: fieldPrompt(placeholder)) { Text(placeholder) }
+                    .font(AppFonts.body(15))
+                    .foregroundStyle(Tokens.text)
+                    .focused($focused)
+                    .submitLabel(.done)
+                    .onSubmit(commit)
+                    // The line box of a 15pt body (1.6), as the other fields.
+                    .frame(minHeight: 15 * 1.6)
+                OrganicButton(actionTitle, icon: canAdd ? .plus : .sparkle, variant: .textAccent, size: .sm) {
+                    if canAdd { commit() } else { onSuggest() }
+                }
+                // The sparkle breathes (the action fades as a whole: the button draws its label and glyph together) until the tags arrive.
+                .opacity(thinking ? (breathing ? 1 : 0.45) : 1)
+            }
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .background { TagBarBackdrop(addWidth: addWidth, stroke: focused ? Tokens.terracotta : Tokens.fieldBorder) }
+        // The action carries its own room, so the right edge pads less.
+        .padding(.leading, Tokens.fieldPadX)
+        .padding(.trailing, 4)
+        .padding(.vertical, 8)
+        .modifier(FieldSurface(seed: 53, focused: focused))
+        // The empty parts of the frame are the input's too; the pills' ✕ and the action take their own taps first.
+        .contentShape(Rectangle())
+        .onTapGesture { focused = true }
+        .onChange(of: thinking) { _, on in
+            if on, !reduceMotion {
+                withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { breathing = true }
+            } else {
+                withAnimation(.easeOut(duration: 0.15)) { breathing = false }
+            }
+        }
     }
 
+    private var actionTitle: String {
+        if canAdd { return L10n.Write.tagsAdd }
+        return suggesting ? L10n.Write.tagsSuggesting : L10n.Write.tagsSuggest
+    }
+
+    /// Add what is typed and stay for the next one (Return would otherwise put the keyboard away).
     private func commit() {
         guard canAdd else { return }
         onAdd()
+        Task { @MainActor in focused = true }
     }
 }
 
-/// The tag bar's drawing: SegmentedActionBar's wobble recipe, cream paper,
-/// the Add segment's wash up to the shared boundary, and the boundary's line.
-private struct TagBarBackdrop: View {
-    let addWidth: CGFloat
-    let stroke: Color
+/// The tag field's flow: the pills in order, wrapping as words do, then the
+/// input row (the last child) on whatever is left of the last line — or, when
+/// less than `entryMin` of it is left, on a line of its own. FlowRow can't say
+/// "fill the rest of the line, but not less than this", so the lines are broken
+/// by ``TagInput/breakLines(pillWidths:entryMin:maxWidth:gap:)``. Children sit
+/// centred on their line.
+private struct TagFlow: Layout {
+    var spacing: CGFloat = 8
+    var entryMin: CGFloat = 240
 
-    /// Room past the bar's box: the wobble swings outside it (the web's SVG is overflow: visible).
-    private let spill: CGFloat = 8
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 320
+        return CGSize(width: width, height: arrange(width, subviews).height)
+    }
 
-    var body: some View {
-        Canvas { ctx, size in
-            let w = Double(size.width - spill * 2), h = Double(size.height - spill * 2)
-            guard w > 0, h > 0 else { return }
-            ctx.translateBy(x: spill, y: spill)
-            let outer = wobRect(w, h, 16, seed: 53, mag: min(w, h) * 0.05, options: WobRectOptions(
-                curve: 1.2, cornerJitter: 1.2, cornerOffset: h * 0.04, segmentsH: .range(7, 9), segmentsV: .range(2, 3)
-            )).path()
-            let pad = max(12, h * 0.3)
-            let boundary = boundaryPoints(x: w - Double(addWidth), h: h, seed: 53 + 11, amp: 1.6, pad: pad)
-            var region = Path(polyline: boundary)
-            region.addLine(to: CGPoint(x: w + pad, y: h + pad))
-            region.addLine(to: CGPoint(x: w + pad, y: -pad))
-            region.closeSubpath()
-            ctx.drawLayer { layer in
-                layer.clip(to: outer)
-                layer.fill(outer, with: .color(Tokens.cream))
-                layer.fill(region, with: .color(Tokens.terracottaLight.opacity(0.6)))
-                layer.stroke(Path(polyline: boundary), with: .color(stroke), style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
-            }
-            ctx.stroke(outer, with: .color(stroke), style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for (index, frame) in arrange(bounds.width, subviews).frames.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                                  proposal: ProposedViewSize(frame.size))
         }
-        .padding(-spill)
-        .animation(.easeOut(duration: 0.15), value: stroke)
-        .accessibilityHidden(true)
+    }
+
+    private func arrange(_ maxWidth: CGFloat, _ subviews: Subviews) -> (frames: [CGRect], height: CGFloat) {
+        guard let entry = subviews.last else { return ([], 0) }
+        let sizes = subviews.dropLast().map { $0.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil)) }
+        let lines = TagInput.breakLines(pillWidths: sizes.map(\.width), entryMin: entryMin, maxWidth: maxWidth, gap: spacing)
+        var frames: [CGRect] = []
+        var y: CGFloat = 0
+        var next = 0
+        for (i, line) in lines.enumerated() {
+            var items = Array(sizes[next ..< next + line.pills])
+            next += line.pills
+            if line.entry {
+                let used = items.reduce(0) { $0 + $1.width } + spacing * CGFloat(items.count)
+                let width = max(0, maxWidth - used)
+                let size = entry.sizeThatFits(ProposedViewSize(width: width, height: nil))
+                items.append(CGSize(width: width, height: size.height))
+            }
+            let height = items.map(\.height).max() ?? 0
+            var x: CGFloat = 0
+            for item in items {
+                frames.append(CGRect(x: x, y: y + (height - item.height) / 2, width: item.width, height: item.height))
+                x += item.width + spacing
+            }
+            y += height + (i < lines.count - 1 ? spacing : 0)
+        }
+        return (frames, y)
     }
 }
 
