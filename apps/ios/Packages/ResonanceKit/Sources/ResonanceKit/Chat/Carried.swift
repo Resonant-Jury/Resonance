@@ -47,10 +47,11 @@ public enum Carried<Card> {
     }
 
     /// The words the bubble shows with what it carries: all of them — except that a card stands
-    /// for the link to it, so a message that is that link alone shows none.
+    /// for the link to it, so a message that is that link alone shows none (as on Android and the
+    /// web: words around the link keep it, as written).
     public func words(of message: ChatMessage) -> String {
         switch self {
-        case let .card(_, share), let .cardLoading(share): share.text
+        case let .card(_, share), let .cardLoading(share): share.link != nil && share.text.isEmpty ? "" : message.text
         case .words, .preview, .nothing: message.text
         }
     }

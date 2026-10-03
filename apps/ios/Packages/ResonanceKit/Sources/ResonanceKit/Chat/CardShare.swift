@@ -10,8 +10,9 @@ public struct CardShare: Equatable, Sendable {
     /// The link it was written as; nil for a card shared with the card button. Should the reader
     /// not be allowed to see the card, the message falls back to this link (and its preview).
     public let link: ChatLinks.Parsed?
-    /// The message's words besides that link, trimmed: what the bubble shows above the card
-    /// (empty when the link was all it said). For a card shared with the button, all its words.
+    /// The message's words besides that link, trimmed: empty when the link was all it said (the
+    /// card then stands for it, and the bubble shows no words). For a card shared with the button,
+    /// all its words.
     public let text: String
 
     public init(key: String, link: ChatLinks.Parsed?, text: String) {

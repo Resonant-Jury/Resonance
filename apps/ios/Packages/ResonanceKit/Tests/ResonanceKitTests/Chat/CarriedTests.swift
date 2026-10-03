@@ -18,11 +18,11 @@ import Testing
         Carried.of(m, share: m.cardShare(), lookup: { _ in lookup })
     }
 
-    @Test func aCardReadIsTheCardAndALinkToItShowsTheWordsAroundIt() throws {
+    @Test func aCardReadIsTheCardAndALinkToItKeepsTheWordsWrittenAroundIt() throws {
         let linked = message("看看這篇 https://resonance.channel/card/a-walk", preview: preview)
         let share = try #require(linked.cardShare())
         #expect(carried(linked, .found("card")) == .card("card", share))
-        #expect(carried(linked, .found("card")).words(of: linked) == "看看這篇")
+        #expect(carried(linked, .found("card")).words(of: linked) == linked.text)
         let alone = message("https://resonance.channel/card/a-walk", preview: preview)
         #expect(carried(alone, .found("card")).words(of: alone).isEmpty)
         // A card shared with the button keeps all its words.
