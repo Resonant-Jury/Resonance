@@ -303,8 +303,9 @@ service cloud.firestore {
 
     // --- connections ---
     // Two people are connected by a story-shaped act, and the server makes
-    // it: a resonance's first publish, a note, or answering a legacy invite
-    // (/api/v1), each re-checking blocks. No client creates one.
+    // it: a resonance reaching its original, a card's author answering a
+    // note (a note alone is a letter: it connects no one), or answering a
+    // legacy invite (/api/v1), each re-checking blocks. No client creates one.
     // The doc id is deterministic: min(uidA, uidB) + "_" + max(...).
     match /connections/{connectionId} {
       // The doc id is the sorted pair `uid1_uid2`, so either person may ask for
@@ -326,9 +327,18 @@ service cloud.firestore {
     // each message, the preview and the other side's unread counter all
     // happen in one transaction (POST /api/v1/messages), which re-checks the
     // connection and blocks. A participant may only zero their own unread.
+    // A note between two people not connected opens it too, with `request`
+    // (`{ from, cardId, at, count }`): letters waiting for an answer, which
+    // only the server writes or clears (POST /api/v1/notes).
     match /conversations/{conversationId} {
       function isParticipant() {
         return signedIn() && request.auth.uid in resource.data.participants;
+      }
+      // Letters `convo` holds from the signed-in user, still unanswered. They
+      // stay until answered: deleting the thread would also reset how many
+      // the writer may leave. The person they were left for may delete it.
+      function awaitingAnswer(convo) {
+        return convo.get("request", {}).get("from", "") == request.auth.uid;
       }
       allow read: if isParticipant();
       allow create: if false;
@@ -337,8 +347,9 @@ service cloud.firestore {
         && request.resource.data.unread.diff(resource.data.unread).affectedKeys().hasOnly([request.auth.uid])
         && request.resource.data.unread[request.auth.uid] == 0;
       // Either participant may delete the whole conversation (the client
-      // deletes the message docs first — Firestore doesn't cascade).
-      allow delete: if isParticipant();
+      // deletes the message docs first — Firestore doesn't cascade) — but
+      // not the writer of letters still waiting in it.
+      allow delete: if isParticipant() && !awaitingAnswer(resource.data);
 
       match /messages/{messageId} {
         function parentConvo() {
@@ -347,8 +358,10 @@ service cloud.firestore {
         allow read: if signedIn() && request.auth.uid in parentConvo().participants;
         allow create, update: if false;
         // Deletable only as part of deleting the whole conversation — by
-        // either participant, not just the sender.
-        allow delete: if signedIn() && request.auth.uid in parentConvo().participants;
+        // either participant, not just the sender (and as the conversation:
+        // not by the writer of letters still waiting in it).
+        allow delete: if signedIn() && request.auth.uid in parentConvo().participants
+          && !awaitingAnswer(parentConvo());
       }
     }
 
@@ -357,8 +370,9 @@ service cloud.firestore {
     match /invites/{inviteId} {
       allow read: if signedIn()
         && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
-      // Legacy: nothing sends invites any more (a resonance or a note connects
-      // people), so none can be created; the pending ones are answered.
+      // Legacy: nothing sends invites any more (a resonance or an answered
+      // note connects people), so none can be created; the pending ones are
+      // answered.
       // Accepting one connects the two and rings the sender, so the server
       // does it (POST /api/v1/invites/{id}/accept).
       allow create: if false;

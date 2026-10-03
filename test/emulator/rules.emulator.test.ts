@@ -309,6 +309,59 @@ describe('conversations and messages are written by the server', () => {
   });
 });
 
+describe("a letter's request is the server's (POST /api/v1/notes)", () => {
+  // Alice left Bob a note; they aren't connected, so it waits for his answer.
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'conversations', PAIR), {
+        participants: ['alice', 'bob'],
+        lastMessage: { text: 'a letter', senderId: 'alice', sentAt: new Date() },
+        unread: { alice: 0, bob: 1 },
+        request: { from: 'alice', cardId: 'c1', at: new Date(), count: 1 },
+      });
+      await setDoc(doc(db, 'conversations', PAIR, 'messages', 'n1'), { senderId: 'alice', text: 'a letter', sentAt: new Date(), cardRef: 'c1', kind: 'note' });
+    });
+  });
+
+  it('refuses every client write of it — clearing, counting, forging — by either participant, and a conversation opened with one', async () => {
+    for (const [uid, other] of [['alice', 'bob'], ['bob', 'alice']]) {
+      const convo = doc(as(uid), 'conversations', PAIR);
+      await assertFails(updateDoc(convo, { request: deleteField() }));
+      await assertFails(updateDoc(convo, { 'request.count': 0 }));
+      await assertFails(updateDoc(convo, { 'request.from': other }));
+      await assertFails(updateDoc(convo, { request: { from: other, cardId: 'c1', at: serverTimestamp(), count: 1 } }));
+      // Not even beside what a participant may change.
+      await assertFails(updateDoc(convo, { [`unread.${uid}`]: 0, request: deleteField() }));
+    }
+    await assertFails(
+      setDoc(doc(as('carol'), 'conversations', 'bob_carol'), {
+        participants: ['bob', 'carol'], lastMessage: null, unread: { bob: 0, carol: 0 },
+        request: { from: 'carol', cardId: 'c1', at: serverTimestamp(), count: 1 },
+      }),
+    );
+    // Zeroing your own unread still works beside it.
+    await assertSucceeds(updateDoc(doc(as('bob'), 'conversations', PAIR), { 'unread.bob': 0 }));
+  });
+
+  it('keeps letters until they are answered: their writer can delete neither the thread nor its messages, the one they were left for can', async () => {
+    const alice = as('alice');
+    await assertFails(deleteDoc(doc(alice, 'conversations', PAIR, 'messages', 'n1')));
+    await assertFails(deleteDoc(doc(alice, 'conversations', PAIR)));
+    const bob = as('bob');
+    await assertSucceeds(deleteDoc(doc(bob, 'conversations', PAIR, 'messages', 'n1')));
+    await assertSucceeds(deleteDoc(doc(bob, 'conversations', PAIR)));
+  });
+
+  it('lets the writer delete the thread once the letter is answered (the server clears it)', async () => {
+    await seed(async (db) => {
+      await updateDoc(doc(db, 'conversations', PAIR), { request: deleteField() });
+    });
+    const alice = as('alice');
+    await assertSucceeds(deleteDoc(doc(alice, 'conversations', PAIR, 'messages', 'n1')));
+    await assertSucceeds(deleteDoc(doc(alice, 'conversations', PAIR)));
+  });
+});
+
 describe('notifications', () => {
   beforeEach(seedProfiles);
 
