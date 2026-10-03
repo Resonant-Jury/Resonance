@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
@@ -27,6 +27,8 @@ export interface LinkPreviewCardProps {
 export function LinkPreviewCard({ preview, onConfirmLink }: LinkPreviewCardProps) {
   const ref = useRef<HTMLAnchorElement>(null);
   const { w, h } = useElementSize(ref);
+  // A picture that fails to load leaves no empty frame behind.
+  const [imageFailed, setImageFailed] = useState(false);
   const link = parseLink(preview.url);
   if (!link) return null;
   const seed = seedFromString(preview.url);
@@ -54,7 +56,7 @@ export function LinkPreviewCard({ preview, onConfirmLink }: LinkPreviewCardProps
         strokeColor="var(--field-border)"
         strokeWidth={INK}
       />
-      {preview.image && (
+      {preview.image && !imageFailed && (
         <span className={styles.previewImage}>
           <OrganicImage seed={seed + 3} R={12} ratio={1 / 1.91}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -64,6 +66,7 @@ export function LinkPreviewCard({ preview, onConfirmLink }: LinkPreviewCardProps
               loading="lazy"
               decoding="async"
               referrerPolicy="no-referrer"
+              onError={() => setImageFailed(true)}
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
             />
           </OrganicImage>

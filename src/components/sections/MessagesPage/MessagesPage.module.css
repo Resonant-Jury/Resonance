@@ -605,11 +605,11 @@
 }
 
 /* The bubble a tap on a quote scrolled to, washed for a moment. */
-.bubbleRow[data-flash] [data-bubble] {
+.bubbleRow[data-flash] .bubbleWrap {
   animation: messageFlash 900ms ease-out;
 }
 
-[data-bubble] {
+.bubbleWrap {
   position: relative;
   z-index: 1;
 }
@@ -620,7 +620,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bubbleRow[data-flash] [data-bubble] {
+  .bubbleRow[data-flash] .bubbleWrap {
     animation: none;
   }
 }

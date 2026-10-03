@@ -384,7 +384,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                       )}
                       {m.cardRef && <MessageCardRef cardId={m.cardRef} />}
                       {(m.text || m.noteRef) && (
-                        <div data-bubble>
+                        <div className={styles.bubbleWrap}>
                           <MessageBubble
                             id={m.id}
                             text={m.text}
