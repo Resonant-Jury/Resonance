@@ -371,9 +371,9 @@ struct ThreadScreen: View {
                 if let link = linkToConfirm { InAppBrowser.open(link.url) }
                 linkToConfirm = nil
             }
-            .organicModal(isPresented: $showingMedia, seed: 53, maxWidth: 480, closeLabel: L10n.Messages.mediaTitle) {
+            .organicModal(isPresented: $showingMedia, seed: 53, maxWidth: 480, closeLabel: L10n.Safety.Report.close) {
                 if let model {
-                    SharedMediaContent(model: model) { url in
+                    SharedMediaContent(model: model, onClose: { showingMedia = false }) { url in
                         showingMedia = false
                         openLink(url)
                     }
@@ -452,6 +452,7 @@ struct ThreadScreen: View {
 /// "Cards & links": everything shared in the loaded messages.
 private struct SharedMediaContent: View {
     let model: ThreadModel
+    let onClose: () -> Void
     let onOpenLink: (URL) -> Void
     @Environment(\.openRoute) private var openRoute
 
@@ -507,6 +508,9 @@ private struct SharedMediaContent: View {
             }
             .frame(maxHeight: min(420, UIScreen.main.bounds.height * 0.55))
             .scrollIndicators(.hidden)
+            // Nothing to choose here, only to look through: the way out is under the list.
+            ModalCloseButton(L10n.Safety.Report.close, action: onClose)
+                .padding(.top, 14)
         }
     }
 

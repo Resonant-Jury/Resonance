@@ -45,7 +45,7 @@ private let menuFooter: CGFloat = 38
 private let menuGap: CGFloat = 10
 private let menuMargin: CGFloat = 12
 
-/// The long-press layer over the whole screen: an ink scrim, the message drawn again where it lies
+/// The long-press layer over the whole screen: the modals' scrim, the message drawn again where it lies
 /// (a little lifted), and its menu under it — over it when there's no room below, and when there's
 /// room neither way the message gives way. A tap on the scrim (or the escape gesture) puts it back.
 struct MessageMenuOverlay: View {
@@ -67,7 +67,7 @@ struct MessageMenuOverlay: View {
             let frame = menu.frame.offsetBy(dx: -screen.minX, dy: -screen.minY)
             let place = Placement(frame: frame, height: geo.size.height, menuHeight: CGFloat(items.count) * menuRow + menuFooter, safe: safe)
             ZStack(alignment: .topLeading) {
-                Tokens.text.opacity(shown ? 0.3 : 0)
+                Tokens.backdrop.opacity(shown ? 1 : 0)
                     .contentShape(Rectangle())
                     .onTapGesture(perform: dismiss)
                     .accessibilityHidden(true)

@@ -48,7 +48,8 @@ struct CardPickerContent: View {
             } else {
                 Text("…").font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted).padding(.vertical, 12)
             }
-            ModalActions { OrganicButton(L10n.Write.Editor.CardModal.cancel, variant: .text, size: .sm, action: onCancel) }
+            // A list to pick from: its one way out, centred under it (its rows carry their own 10).
+            ModalCloseButton(L10n.Write.Editor.CardModal.cancel, action: onCancel)
         }
         // getCardsByAuthor(me, 'published'), public ones only.
         .task { cards = ((try? await session.reading.cardBox(.published)) ?? []).filter { $0.visibility == ._public && $0.publishedAt != nil } }

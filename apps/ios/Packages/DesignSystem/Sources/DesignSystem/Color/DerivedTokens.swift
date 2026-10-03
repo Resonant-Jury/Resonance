@@ -11,8 +11,10 @@ extension Tokens {
     public nonisolated static let terracottaOutline = oklch(0.62 * 0.85, 0.14 * 0.85, 45)
     /// Divider's default ink: color-mix(in oklch, field-border-hover 35%, transparent).
     public nonisolated static let dividerInk = fieldBorderHover.opacity(0.35)
-    /// Modal.tsx's backdrop.
-    public nonisolated static let backdrop = oklch(0.2, 0.04, 60, alpha: 0.42)
+    /// What a modal (and a message's long-press menu) lays over the whole screen: the warm ink of
+    /// Modal.tsx's backdrop, lighter than its first 0.42 — over the cream that read muddy, the
+    /// paper gone grey rather than set back. Android's ModalScrim.
+    public nonisolated static let backdrop = oklch(0.2, 0.04, 60, alpha: 0.28)
     /// HandDrawnAvatar's rim.
     public nonisolated static let avatarStroke = oklch(0.36, 0.06, 60, alpha: 0.55)
     /// TagPill's outline.
