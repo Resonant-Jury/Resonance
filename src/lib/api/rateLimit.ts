@@ -18,8 +18,12 @@ export const LIMITS = {
   tags: { max: 60, windowMs: HOUR },
   /** Publishing: a slug LLM call, the index, maybe a bell. */
   publish: { max: 30, windowMs: DAY },
-  /** Resonating with a card with one already written: rings the original author once per card. */
-  resonate: { max: 60, windowMs: DAY },
+  /**
+   * Resonating with a card with one already written: rings the original
+   * author once per card, and may connect the two — which taking it back
+   * undoes, so a tight budget keeps that from becoming a way to reach anyone.
+   */
+  resonate: { max: 20, windowMs: DAY },
   /**
    * Links in stories the server fetches for their previews (lib/links/cardLinks),
    * charged per link not already stored, after publishing or saving an edit.

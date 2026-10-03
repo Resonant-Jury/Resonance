@@ -5,7 +5,7 @@ import { getVectorStore, type IVectorStore } from '@/lib/recommend/vectorStore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { ApiFailure } from './http';
 import { toFeedCard } from './present';
-import { becameReachable } from './resonate';
+import { becameReachable, readTakeBack } from './resonate';
 import { summaryFields } from './summary';
 import type { FeedCardBody, UpdateCardInput } from './schemas';
 
@@ -104,6 +104,10 @@ export async function updateCard(
  * (a subcollection the client's delete leaves behind) and its recommendation
  * vectors. Links and resonances pointing at it dangle, as they always have:
  * readers resolve a missing card to nothing. Answers the stale pages.
+ *
+ * A resonance takes back the connection it made, as taking it back without
+ * deleting it does (unresonate): while the two have written each other
+ * nothing, the connection goes in the same transaction as the card.
  */
 export async function deleteCard(
   db: Firestore,
@@ -115,6 +119,17 @@ export async function deleteCard(
   const [snap, me] = await Promise.all([ref.get(), db.doc(`users/${uid}`).get()]);
   if (!snap.exists || snap.get('authorId') !== uid) throw notFound();
   const card = mapCard(id, snap.data()!);
+  const original = snap.get('referenceCardId');
+  if (typeof original === 'string' && original) {
+    await db.runTransaction(async (tx) => {
+      const now = await tx.get(ref);
+      if (!now.exists || now.get('authorId') !== uid) return;
+      const connection = now.get('referenceCardId') === original ? await readTakeBack(tx, db, uid, id, original) : null;
+      if (connection) tx.delete(connection);
+      tx.delete(ref);
+    });
+  }
+  // The card with what is under it (its pending edit), whether or not the above took the document first.
   await db.recursiveDelete(ref);
   // The card is gone either way; stray vectors only cost the recommender a candidate it then can't read.
   await Promise.resolve()

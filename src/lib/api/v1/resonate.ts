@@ -1,4 +1,4 @@
-import { FieldValue, type DocumentData, type DocumentSnapshot, type Firestore, type Transaction } from 'firebase-admin/firestore';
+import { FieldValue, type DocumentData, type DocumentReference, type DocumentSnapshot, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card } from '@/lib/db/types';
 import { cardPagePaths } from '@/lib/api/revalidate';
@@ -81,6 +81,13 @@ export interface ReachReads {
  * publish path, and older still the browser, wrote `type: 'resonance'` rows
  * under random ids, with the same payload. Equality on four fields only, so
  * Firestore merges its single-field indexes: no composite index.
+ *
+ * For one day (2026-06-04/05, 5998ec4 → 90d9728) the browser also rang this
+ * row for a "like" (markResonance, before a resonance became a card): the
+ * same type, the same payload, its own random id — nothing in the row tells
+ * the two apart. So a reader who liked a card that day and answers it now
+ * counts as having rung its author already: no second ring, and no
+ * connection made by it.
  */
 const legacyBell = (db: Firestore, from: string, author: string, originalId: string) =>
   db.collection('notifications')
@@ -149,10 +156,11 @@ export async function readReach(tx: Transaction, db: Firestore, from: string, or
  * resonator) or they are already (a connection carries `muted`, its date:
  * never written over). Connecting them answers any letter waiting in their
  * conversation (`request`, see sendNote): it is deleted in the same
- * transaction, with both people's letters/* counts. Answers the bell's id,
- * or null when nothing reached.
+ * transaction, with both people's letters/* counts. The connection names
+ * what made it (`via`, ConnectionVia), so taking the resonance back can take
+ * it back too. Answers the bell's id, or null when nothing reached.
  */
-export function reachOriginal(tx: Transaction, db: Firestore, card: DocumentData, r: ReachReads): string | null {
+export function reachOriginal(tx: Transaction, db: Firestore, cardId: string, card: DocumentData, r: ReachReads): string | null {
   const o = r.original;
   if (!reachable(card) || card.authorId !== r.from || card.referenceCardId !== r.originalId || !properlyPublished(card.publishedAt)) return null;
   if (!o || !docId(o.authorId) || o.authorId === r.from || !cardVisible(o, r.from, () => r.connected)) return null;
@@ -161,6 +169,8 @@ export function reachOriginal(tx: Transaction, db: Firestore, card: DocumentData
     tx.set(db.doc(`connections/${pairOf(r.from, o.authorId)}`), {
       userIds: [r.from, o.authorId].sort(),
       establishedAt: FieldValue.serverTimestamp(),
+      // What made it: taking this resonance back takes the connection back (readTakeBack).
+      via: { kind: 'resonance', by: r.from, cardId, originalId: r.originalId } satisfies ConnectionVia,
     });
     if (holdsRequest(r.conversation)) tx.update(r.conversation!.ref, { request: FieldValue.delete() });
     clearLetters(tx, db, r.from, o.authorId);
@@ -187,7 +197,7 @@ export async function reachResonance(db: Firestore, uid: string, cardId: string)
   return db.runTransaction(async (tx) => {
     const card = (await tx.get(ref)).data();
     if (!card || card.authorId !== uid || !reachable(card) || !docId(card.referenceCardId)) return null;
-    return reachOriginal(tx, db, card, await readReach(tx, db, uid, card.referenceCardId));
+    return reachOriginal(tx, db, cardId, card, await readReach(tx, db, uid, card.referenceCardId));
   });
 }
 
@@ -279,15 +289,52 @@ export async function resonateWith(db: Firestore, uid: string, targetId: string,
 
     tx.update(chosenRef, { referenceCardId: targetId });
     // An anonymous card reaches no one (reachable): it still answers.
-    return result(true, reachOriginal(tx, db, answered, reach));
+    return result(true, reachOriginal(tx, db, cardId, answered, reach));
   });
+}
+
+/**
+ * `connections/{pair}.via`: what made a connection, when a resonance did —
+ * `by` (the resonator) answering the card `originalId` with their card
+ * `cardId`. Written by reachOriginal only; a connection made any other way
+ * (an answered note, an invite) or before it was written has none, and
+ * nothing takes it back.
+ */
+export interface ConnectionVia {
+  kind: 'resonance';
+  by: string;
+  cardId: string;
+  originalId: string;
+}
+
+/**
+ * Read, in `tx` before it writes: the connection `uid`'s card `cardId` made
+ * by answering `originalId` (its `via` names the three), if the two have
+ * written each other nothing since — no conversation, or none with a message
+ * in it (a note between them is one). That connection is what taking the
+ * resonance back takes back: it was the resonance's doing alone. One the two
+ * have used, or one anything else made, stays. Answers its reference, or null.
+ */
+export async function readTakeBack(tx: Transaction, db: Firestore, uid: string, cardId: string, originalId: string): Promise<DocumentReference | null> {
+  const made = await tx.get(db.collection('connections').where('via.cardId', '==', cardId).limit(5));
+  const mine = made.docs.find((d) => {
+    const via = d.get('via') as Partial<ConnectionVia> | undefined;
+    const users = d.get('userIds');
+    return via?.kind === 'resonance' && via.by === uid && via.originalId === originalId && Array.isArray(users) && users.includes(uid);
+  });
+  if (!mine) return null;
+  const said = await tx.get(db.collection(`conversations/${mine.id}/messages`).limit(1));
+  return said.empty ? mine.ref : null;
 }
 
 /**
  * Stop your card answering `targetId` (DELETE /cards/{targetId}/resonances/
  * {cardId}): it stays, as a card of its own. Written resonances too. The
- * connection and the bell row stay, as when a resonance is deleted. Asking
- * again changes nothing (`changed: false`); someone else's card is not_found.
+ * connection it made goes with it while the two of you have written each
+ * other nothing (readTakeBack); one you've used, or one made otherwise,
+ * stays. The bell row stays: answering that card again rings no one and
+ * connects no one (reachOriginal rings a reader once per card). Asking again
+ * changes nothing (`changed: false`); someone else's card is not_found.
  */
 export async function unresonate(db: Firestore, uid: string, targetId: string, cardId: string): Promise<{ changed: boolean; stale: string[] }> {
   const ref = db.doc(`cards/${cardId}`);
@@ -295,8 +342,10 @@ export async function unresonate(db: Firestore, uid: string, targetId: string, c
     const snap = await tx.get(ref);
     if (!snap.exists || snap.get('authorId') !== uid) throw notFound();
     if (snap.get('referenceCardId') !== targetId) return { changed: false, stale: [] };
+    const connection = await readTakeBack(tx, db, uid, cardId, targetId);
     // Not `updatedAt` either: nothing a list shows of it changes.
     tx.update(ref, { referenceCardId: FieldValue.delete() });
+    if (connection) tx.delete(connection);
     const slug = snap.get('slug');
     return { changed: true, stale: cardPagePaths({ id: cardId, slug: typeof slug === 'string' ? slug : null }) };
   });

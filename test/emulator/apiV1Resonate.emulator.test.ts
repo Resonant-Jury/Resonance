@@ -4,6 +4,7 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import { ApiFailure } from '@/lib/api/v1/http';
 import { getCardBox, getCardDetail } from '@/lib/api/v1/reads';
 import { resonateWith, unresonate } from '@/lib/api/v1/resonate';
+import { deleteCard } from '@/lib/api/v1/cards';
 import { sendNote } from '@/lib/api/v1/conversations';
 
 // Resonating with a card already written (POST/DELETE /cards/{id}/resonances)
@@ -360,16 +361,90 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
 });
 
 describe('unresonate (DELETE /cards/{id}/resonances/{cardId})', () => {
-  it('takes the card out of the original’s resonances and keeps it, the connection and the bell', async () => {
+  it('takes the card out of the original’s resonances and keeps it — and the bell', async () => {
     await resonateWith(db, 'alice', 'orig', 'mine');
     expect(await unresonate(db, 'alice', 'orig', 'mine')).toEqual({ changed: true, stale: ['/card/mine', '/card/slug-mine'] });
     const after = await read('mine');
     expect('referenceCardId' in after).toBe(false);
     expect((after.updatedAt as Timestamp).isEqual(edited)).toBe(true);
     expect(after.thoughtCore).toBe('title mine');
-    expect(await connected()).toBe(true);
     expect(await bells()).toHaveLength(1);
     expect((await getCardDetail(db, 'carol', 'orig', new Set(['resonances']))).resonances?.cards).toEqual([]);
+  });
+
+  describe('takes back the connection the resonance made', () => {
+    const via = async () => (await db.doc('connections/alice_bob').get()).get('via');
+
+    it('which names what made it', async () => {
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      expect(await via()).toEqual({ kind: 'resonance', by: 'alice', cardId: 'mine', originalId: 'orig' });
+    });
+
+    it('while the two have written each other nothing: resonate then take back, and nothing is left to message through', async () => {
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      expect(await connected()).toBe(true);
+      await unresonate(db, 'alice', 'orig', 'mine');
+      expect(await connected()).toBe(false);
+      // Her other cards for connections are closed to her again.
+      expect((await failure(getCardDetail(db, 'alice', 'bobCircle'))).code).toBe('not_found');
+      // The bell stays, and stands for the ring: answering that card again rings and connects no one.
+      expect(await bells()).toHaveLength(1);
+      expect(await resonateWith(db, 'alice', 'orig', 'mine2')).toMatchObject({ changed: true, notificationId: null });
+      expect(await connected()).toBe(false);
+    });
+
+    it('also with an empty conversation (opened, nothing in it)', async () => {
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      await db.doc('conversations/alice_bob').set({ participants: ['alice', 'bob'], lastMessage: null, unread: { alice: 0, bob: 0 } });
+      await unresonate(db, 'alice', 'orig', 'mine');
+      expect(await connected()).toBe(false);
+    });
+
+    it('never once they have written each other — a message or a note — nor when anything else made it', async () => {
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      await db.doc('conversations/alice_bob/messages/m1').set({ senderId: 'bob', text: 'thank you', sentAt: Timestamp.now() });
+      await unresonate(db, 'alice', 'orig', 'mine');
+      expect(await connected()).toBe(true);
+      expect(await via()).toMatchObject({ cardId: 'mine' });
+
+      // Connected before the resonance (an answered note): nothing names it, nothing takes it back.
+      await db.recursiveDelete(db.collection('conversations'));
+      await db.recursiveDelete(db.collection('notifications'));
+      await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      await unresonate(db, 'alice', 'orig', 'mine');
+      expect(await connected()).toBe(true);
+      expect(await via()).toBeUndefined();
+    });
+
+    it("only for the card that made it: another of hers taken back leaves it", async () => {
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      // A card of hers answering another of Bob's, rung before (no reach of its own).
+      await card('other', 'bob');
+      await db.doc('notifications/resonance_alice_other').set({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', cardId: 'other' } });
+      await resonateWith(db, 'alice', 'other', 'mine2');
+      await unresonate(db, 'alice', 'other', 'mine2');
+      expect(await connected()).toBe(true);
+      await unresonate(db, 'alice', 'orig', 'mine');
+      expect(await connected()).toBe(false);
+    });
+
+    it('when the resonance card itself is deleted (DELETE /cards/{id}), its pending edit with it', async () => {
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      await db.doc('cards/mine/edits/current').set({ thoughtCore: 'wip', story: 'wip', authorId: 'alice' });
+      await deleteCard(db, 'alice', 'mine', { deleteByCard: async () => {} });
+      expect((await db.doc('cards/mine').get()).exists).toBe(false);
+      expect((await db.doc('cards/mine/edits/current').get()).exists).toBe(false);
+      expect(await connected()).toBe(false);
+      expect(await bells()).toHaveLength(1);
+    });
+
+    it('but not when the deleted card answers that card no more, or the two have written each other', async () => {
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      await db.doc('conversations/alice_bob/messages/m1').set({ senderId: 'alice', text: 'hi', sentAt: Timestamp.now() });
+      await deleteCard(db, 'alice', 'mine', { deleteByCard: async () => {} });
+      expect(await connected()).toBe(true);
+    });
   });
 
   it('is harmless asked again, or for another original than the one it answers', async () => {

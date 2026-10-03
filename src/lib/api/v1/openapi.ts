@@ -177,6 +177,9 @@ export function buildOpenApi(): Json {
         delete: {
           operationId: 'deleteCard',
           summary: 'Delete your card, draft or published (a retry after success is 404)',
+          description:
+            'A resonance takes back the connection it made, as `DELETE /cards/{key}/resonances/{cardId}` does: while you two ' +
+            'have written each other nothing.',
           parameters: [pathParam('key', 'The card id')],
           responses: { '204': { description: 'Deleted' }, ...errors(400, 401, 404) },
         },
@@ -201,6 +204,10 @@ export function buildOpenApi(): Json {
         delete: {
           operationId: 'unresonateCard',
           summary: 'Your card stops answering this one and stays as a card of its own (204 whether or not it still did)',
+          description:
+            "The connection it made with the card's author goes with it while you two have written each other nothing (no " +
+            "message in your conversation); one you've used, or one made otherwise, stays. Their bell stays too: answering that " +
+            'card again rings and connects no one.',
           parameters: [pathParam('key', 'The card id it answers'), pathParam('cardId', 'Your card id')],
           responses: { '204': { description: 'It no longer answers this card' }, ...errors(400, 401, 404) },
         },
