@@ -28,10 +28,12 @@
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:supportsRtl="true">
+        <!-- Starts on the launch theme (the waves on the paper), which hands over to Theme.Resonance. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:theme="@style/Theme.Resonance.Starting"
             android:windowSoftInputMode="adjustResize">
             <!-- singleTop: a site link (or the debug route) opened while the app is
                  running arrives in onNewIntent instead of being dropped. -->

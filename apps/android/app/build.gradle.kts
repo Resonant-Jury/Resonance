@@ -99,6 +99,8 @@ tasks.matching { it.name == "preDebugBuild" }.configureEach {
 dependencies {
     implementation(project(":core:design"))
     implementation("androidx.activity:activity-compose:1.13.0")
+    // The launch: Android 12's splash (the waves on the paper), backported to 10–11, and its hand-off to the first screen.
+    implementation("androidx.core:core-splashscreen:1.2.0")
     // Custom Tabs: the policy pages open inside the app (Play wants the privacy policy reachable there).
     implementation("androidx.browser:browser:1.8.0")
     // The Google libraries below pull in an old Fragment (1.2.5), which lint refuses next to the ActivityResult API (the notification permission).

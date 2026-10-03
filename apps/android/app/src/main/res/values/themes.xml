@@ -3,6 +3,25 @@
     <string name="app_name">Resonance</string>
     <!-- The paper color while the first frame draws (the color-cream token). -->
     <style name="Theme.Resonance" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">#FAF2E9</item>
+        <item name="android:windowBackground">@color/paper</item>
     </style>
+
+    <!--
+      The launch (androidx SplashScreen; Android 12's own splash, and its backport on 10–11): the
+      launcher icon's waves on the paper, then Theme.Resonance. The app is drawn on paper whatever the
+      system's mode, so nothing here takes a night value: left to the system, the splash of a phone in
+      dark mode is black, the waves set on it like a stranger's. Dark bar glyphs, as on every screen.
+      The hand-off into the first screen is MainActivity's (Launch.kt).
+    -->
+    <style name="Base.Theme.Resonance.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/paper</item>
+        <!-- The launcher's foreground as it is: on the splash's 108-unit canvas the waves sit inside the 2/3 circle the system keeps. -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Resonance</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+    <style name="Theme.Resonance.Starting" parent="Base.Theme.Resonance.Starting" />
 </resources>
