@@ -181,6 +181,50 @@ describe('bare trigger', () => {
   });
 });
 
+describe('from the keyboard', () => {
+  // A floating panel lies at the end of the page, out of the trigger's tab order: it takes the focus itself.
+  it('puts the focus on the first row of a floating panel, walks the rows with the arrows, and comes back on Escape', async () => {
+    const onChoose = vi.fn();
+    render(<OrganicMenu items={ITEMS} onChoose={onChoose} label="More" bare floating />);
+    const trigger = screen.getByRole('button', { name: 'More' });
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+    const rows = screen.getAllByRole('menuitem');
+    expect(rows[0]).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(rows[1]).toHaveFocus();
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}');
+    expect(rows[2]).toHaveFocus();
+    await userEvent.keyboard('{Home}');
+    expect(rows[0]).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('menuitem')).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('closes a floating panel as Tab leaves its last row, back on the trigger, and chooses with Enter', async () => {
+    const onChoose = vi.fn();
+    render(<OrganicMenu items={ITEMS} onChoose={onChoose} label="More" bare floating />);
+    const trigger = screen.getByRole('button', { name: 'More' });
+    trigger.focus();
+    await userEvent.keyboard('{Enter}{End}');
+    await userEvent.tab();
+    expect(screen.queryByRole('menuitem')).toBeNull();
+    expect(trigger).toHaveFocus();
+
+    await userEvent.keyboard('{Enter}{ArrowDown}{Enter}');
+    expect(onChoose).toHaveBeenCalledWith('share');
+    expect(trigger).toHaveFocus();
+  });
+
+  it('leaves the focus on the trigger when a pointer opens a menu hanging under it', async () => {
+    render(<OrganicMenu items={ITEMS} onChoose={vi.fn()} label="Manage" />);
+    const trigger = screen.getByRole('button', { name: 'Manage' });
+    await userEvent.click(trigger);
+    expect(trigger).toHaveFocus();
+  });
+});
+
 describe('floating panel', () => {
   // A trigger inside something that scrolls (a message in a thread): the panel floats over the page instead.
   function triggerAt(rect: Partial<DOMRect>) {
