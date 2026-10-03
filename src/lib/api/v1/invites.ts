@@ -1,4 +1,4 @@
-import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { hasPenName, noPenName, pairOf } from './conversations';
 import { ApiFailure } from './http';
 
@@ -18,13 +18,19 @@ export interface AcceptedInvite {
  * bell rings "invite accepted", under the recipient's pen name as it is now.
  *
  * Only its recipient may accept it: anyone else's is not_found. A block
- * either way refuses it; one no longer pending (declined, withdrawn) is a
- * conflict. Accepting twice is harmless: the second answers the same
- * connection and rings nothing.
+ * either way refuses it; one no longer pending (declined, withdrawn,
+ * expired) is a conflict. Accepting twice is harmless: the second answers the
+ * same connection and rings nothing.
+ *
+ * An invite was open for a week (`expiresAt`, which every sender — the web's
+ * and the API's — wrote beside it, and the inbox shows as "respond by"). One
+ * past it is refused as a conflict and closed as `expired`, so the inbox
+ * stops offering it; one without a date was never sent by a writer of ours
+ * (the old rules let any client create one), and is treated the same.
  */
 export async function acceptInvite(db: Firestore, uid: string, inviteId: string): Promise<AcceptedInvite> {
   const ref = db.doc(`invites/${inviteId}`);
-  return db.runTransaction(async (tx) => {
+  const accepted = await db.runTransaction(async (tx): Promise<AcceptedInvite | 'expired'> => {
     const snap = await tx.get(ref);
     const other = snap.exists ? snap.get('fromUserId') : null;
     if (!snap.exists || snap.get('toUserId') !== uid || typeof other !== 'string' || !other || other.includes('/') || other === uid) {
@@ -34,6 +40,10 @@ export async function acceptInvite(db: Firestore, uid: string, inviteId: string)
     const status = snap.get('status');
     if (status === 'accepted') return { connectionId: pair, notificationId: null };
     if (status !== 'pending') throw new ApiFailure('conflict', 'This invite is no longer open.');
+    if (!open(snap.get('expiresAt'))) {
+      tx.update(ref, { status: 'expired' });
+      return 'expired';
+    }
 
     const connection = db.doc(`connections/${pair}`);
     const [me, blockOut, blockIn, existing] = await Promise.all([
@@ -60,4 +70,11 @@ export async function acceptInvite(db: Firestore, uid: string, inviteId: string)
     });
     return { connectionId: pair, notificationId: bell.id };
   });
+  if (accepted === 'expired') throw new ApiFailure('conflict', 'This invite has expired.');
+  return accepted;
+}
+
+/** Whether an invite's `expiresAt` is still ahead (a missing or malformed one never is). */
+function open(expiresAt: unknown, now = Date.now()): boolean {
+  return expiresAt instanceof Timestamp && expiresAt.toMillis() > now;
 }

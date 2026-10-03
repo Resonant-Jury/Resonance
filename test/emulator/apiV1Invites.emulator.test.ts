@@ -13,6 +13,8 @@ import { acceptInvite } from '@/lib/api/v1/invites';
 const PROJECT = 'demo-resonance-api-invites';
 let app: App;
 let db: Firestore;
+/** Every invite was sent open for a week (`expiresAt`); this one still is. */
+const open = () => Timestamp.fromDate(new Date(Date.now() + 3 * 86_400_000));
 
 beforeAll(() => {
   process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
@@ -32,8 +34,8 @@ beforeEach(async () => {
     db.doc('users/alice').set({ handle: '小安', handleLower: '小安' }),
     db.doc('users/bob').set({ handle: 'bob', handleLower: 'bob' }),
     db.doc('users/carol').set({ handle: 'carol', handleLower: 'carol' }),
-    // bob invited alice, long ago.
-    db.doc('invites/i1').set({ fromUserId: 'bob', toUserId: 'alice', message: 'hi', status: 'pending', createdAt: Timestamp.now() }),
+    // bob invited alice, a few days ago.
+    db.doc('invites/i1').set({ fromUserId: 'bob', toUserId: 'alice', message: 'hi', status: 'pending', expiresAt: open(), createdAt: Timestamp.now() }),
   ]);
 });
 
@@ -113,10 +115,41 @@ describe('acceptInvite (POST /invites/{id}/accept)', () => {
   });
 
   it('needs a pen name first (the bell names its sender)', async () => {
-    await db.doc('invites/i2').set({ fromUserId: 'bob', toUserId: 'dana', status: 'pending' });
+    await db.doc('invites/i2').set({ fromUserId: 'bob', toUserId: 'dana', status: 'pending', expiresAt: open() });
     expect((await failure(acceptInvite(db, 'dana', 'i2'))).code).toBe('forbidden');
     await db.doc('users/dana').set({ initials: 'D' });
     expect((await failure(acceptInvite(db, 'dana', 'i2'))).code).toBe('forbidden');
     expect(await data('connections/bob_dana')).toBeUndefined();
+  });
+
+  it('refuses one past its date as a conflict, and closes it as expired so the inbox stops offering it', async () => {
+    await db.doc('invites/i1').update({ expiresAt: Timestamp.fromDate(new Date(Date.now() - 60_000)) });
+    const refused = await failure(acceptInvite(db, 'alice', 'i1'));
+    expect(refused.code).toBe('conflict');
+    expect(refused.message).toBe('This invite has expired.');
+    expect((await data('invites/i1'))?.status).toBe('expired');
+    expect(await data('connections/alice_bob')).toBeUndefined();
+    expect(await bells()).toEqual([]);
+    // Asked again, it is simply no longer open.
+    expect((await failure(acceptInvite(db, 'alice', 'i1'))).code).toBe('conflict');
+  });
+
+  it('treats one without a date as expired: every invite we sent carried one (the old rules let a client write one without)', async () => {
+    for (const expiresAt of [null, 'next week', Date.now() + 86_400_000]) {
+      await db.doc('invites/i1').set({ fromUserId: 'bob', toUserId: 'alice', message: 'hi', status: 'pending', expiresAt });
+      expect((await failure(acceptInvite(db, 'alice', 'i1'))).code).toBe('conflict');
+      expect((await data('invites/i1'))?.status).toBe('expired');
+    }
+    await db.doc('invites/i1').set({ fromUserId: 'bob', toUserId: 'alice', status: 'pending' });
+    expect((await failure(acceptInvite(db, 'alice', 'i1'))).code).toBe('conflict');
+    expect(await data('connections/alice_bob')).toBeUndefined();
+    expect(await bells()).toEqual([]);
+  });
+
+  it('leaves an accepted one accepted, whatever its date has become', async () => {
+    await acceptInvite(db, 'alice', 'i1');
+    await db.doc('invites/i1').update({ expiresAt: Timestamp.fromDate(new Date(Date.now() - 60_000)) });
+    expect(await acceptInvite(db, 'alice', 'i1')).toEqual({ connectionId: 'alice_bob', notificationId: null });
+    expect((await data('invites/i1'))?.status).toBe('accepted');
   });
 });

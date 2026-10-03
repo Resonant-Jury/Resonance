@@ -218,7 +218,7 @@ describe('pushNotification', () => {
 
 describe('an accepted legacy invite', () => {
   it("rings its sender, opening the thread with the one who accepted, under their pen name as it is now", async () => {
-    await db.doc('invites/i1').set({ fromUserId: 'bob', toUserId: 'alice', status: 'pending', message: 'hi' });
+    await db.doc('invites/i1').set({ fromUserId: 'bob', toUserId: 'alice', status: 'pending', message: 'hi', expiresAt: Timestamp.fromDate(new Date(Date.now() + 86_400_000)) });
     await registerDevice(db, 'bob', 'bob-pixel', { token: 'bob-en', platform: 'android', locale: 'en' });
     const { notificationId } = await acceptInvite(db, 'alice', 'i1');
     const fcm = fakeFcm();
