@@ -259,6 +259,28 @@ export interface Message {
   cardRef?: string;
   /** Set when the message quotes the 紙條 that seeded the conversation. */
   noteRef?: { cardId: string; noteId: string };
+  /** The message this one answers, as it read when the reply was sent. */
+  replyTo?: MessageReplyQuote;
+  /** The first link's title and picture, which the server adds a moment after the message. */
+  preview?: MessageLinkPreview;
+}
+
+export interface MessageReplyQuote {
+  id: string;
+  senderId: string;
+  /** Up to 140 characters of the quoted text; empty when it was only a card. */
+  text: string;
+  cardRef?: string;
+}
+
+export interface MessageLinkPreview {
+  /** The http(s) address that was unfurled. */
+  url: string;
+  title: string;
+  description?: string;
+  siteName?: string;
+  /** A site-relative `/api/link-image?…` path, loaded from our own origin. */
+  image?: string;
 }
 
 export interface Notification {

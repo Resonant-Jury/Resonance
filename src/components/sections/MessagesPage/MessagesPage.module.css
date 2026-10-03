@@ -548,3 +548,142 @@
     display: inline-flex;
   }
 }
+
+/* Links inside a message: terracotta with an underline, like a link in any chat. */
+.messageLink {
+  color: var(--color-terracotta);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+/* A reply's quote: caption row, then a faded ghost of the original that the
+   reply bubble overlaps by a few pixels. */
+.replyQuote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  margin-bottom: -14px;
+  max-width: 100%;
+}
+
+.replyQuote[data-own] {
+  align-items: flex-end;
+}
+
+.replyCaption {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.replyGhost {
+  all: unset;
+  box-sizing: border-box;
+  max-width: 100%;
+  opacity: 0.8;
+  cursor: default;
+}
+
+.replyGhost[data-jumpable] {
+  cursor: pointer;
+}
+
+.replyGhost:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 2px;
+}
+
+.ghostText {
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* The bubble a tap on a quote scrolled to, washed for a moment. */
+.bubbleRow[data-flash] [data-bubble] {
+  animation: messageFlash 900ms ease-out;
+}
+
+[data-bubble] {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes messageFlash {
+  0% { filter: drop-shadow(0 0 0 transparent) brightness(0.93); }
+  100% { filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubbleRow[data-flash] [data-bubble] {
+    animation: none;
+  }
+}
+
+/* A link's preview under its bubble: picture, title, description, host. */
+.previewCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 280px;
+  max-width: 100%;
+  padding: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.previewImage {
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+
+.previewText {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 4px 2px;
+  min-width: 0;
+}
+
+.previewTitle {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.previewDescription {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.previewHost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

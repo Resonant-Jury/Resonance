@@ -137,6 +137,48 @@ describe('the listeners (thread, conversations)', () => {
     expect(messages[1].sentAt.toISOString()).toBe('2026-09-01T08:05:00.000Z');
   });
 
+  it('carries a reply quote and a link preview, and drops a preview that is not safe to show', async () => {
+    const heard = vi.fn();
+    listenThread('aaa_bbb', heard);
+    await vi.waitFor(() => expect(listener.listenNewest).toHaveBeenCalled());
+    const sentAt = fullSdkTimestamp('2026-09-01T08:00:00Z');
+    listener.onDocs!([
+      {
+        id: 'm3',
+        data: {
+          senderId: 'aaa',
+          text: 'bad',
+          sentAt,
+          preview: { url: 'javascript:alert(1)', title: 'x' },
+        },
+      },
+      {
+        id: 'm2',
+        data: {
+          senderId: 'aaa',
+          text: 'see https://example.com',
+          sentAt,
+          preview: { url: 'https://example.com/', title: 'Example', image: 'https://evil.test/p.png' },
+        },
+      },
+      {
+        id: 'm1',
+        data: {
+          senderId: 'bbb',
+          text: 'yes',
+          sentAt,
+          replyTo: { id: 'm0', senderId: 'aaa', text: 'hello', cardRef: 'walk' },
+          preview: { url: 'https://example.com/', title: 'Example', siteName: 'Ex', image: '/api/link-image?u=a&s=b' },
+        },
+      },
+    ]);
+    const [messages] = heard.mock.calls[0];
+    expect(messages[0].replyTo).toEqual({ id: 'm0', senderId: 'aaa', text: 'hello', cardRef: 'walk' });
+    expect(messages[0].preview).toMatchObject({ title: 'Example', siteName: 'Ex', image: '/api/link-image?u=a&s=b' });
+    expect(messages[1].preview).toMatchObject({ title: 'Example', image: undefined });
+    expect(messages[2].preview).toBeUndefined();
+  });
+
   // The header's unread badge and the messages list: one listener on the
   // viewer's own conversations (what the rules let them list), newest 50.
   it("hears the viewer's newest conversations, most recently active first", async () => {

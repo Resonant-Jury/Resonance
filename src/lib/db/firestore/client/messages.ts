@@ -68,6 +68,44 @@ function mapMessage(id: string, data: Record<string, unknown>): Message {
     sentAt: tsToDate(data.sentAt) ?? new Date(),
     cardRef: data.cardRef ? String(data.cardRef) : undefined,
     noteRef: data.noteRef as Message['noteRef'],
+    replyTo: mapReplyQuote(data.replyTo),
+    preview: mapPreview(data.preview),
+  };
+}
+
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+
+function mapReplyQuote(v: unknown): Message['replyTo'] {
+  if (!v || typeof v !== 'object') return undefined;
+  const q = v as Record<string, unknown>;
+  const id = str(q.id);
+  if (!id) return undefined;
+  return {
+    id,
+    senderId: String(q.senderId ?? ''),
+    text: typeof q.text === 'string' ? q.text : '',
+    cardRef: str(q.cardRef),
+  };
+}
+
+/**
+ * The server writes `preview` after the message, so it arrives as a later
+ * update. Only an http(s) address with a title counts, and the picture only
+ * from our own link-image route — nothing else is ever put in an `<img>`.
+ */
+function mapPreview(v: unknown): Message['preview'] {
+  if (!v || typeof v !== 'object') return undefined;
+  const p = v as Record<string, unknown>;
+  const url = str(p.url);
+  const title = str(p.title);
+  if (!url || !title || !/^https?:\/\//i.test(url)) return undefined;
+  const image = str(p.image);
+  return {
+    url,
+    title,
+    description: str(p.description),
+    siteName: str(p.siteName),
+    image: image && image.startsWith('/api/link-image?') ? image : undefined,
   };
 }
 
