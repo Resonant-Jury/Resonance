@@ -4,6 +4,7 @@ import { DocumentReference, getFirestore, Timestamp, Transaction, type Firestore
 import { ApiFailure } from '@/lib/api/v1/http';
 import { publishCard } from '@/lib/api/v1/publish';
 import { resonateWith, unresonate } from '@/lib/api/v1/resonate';
+import { sendNote } from '@/lib/api/v1/conversations';
 
 // Publishing through the v1 API against the Firestore emulator — what the web
 // editor's submit() does from the client (stamp once, slug, resonance
@@ -124,6 +125,15 @@ describe('publishCard', () => {
       expect(first.notificationId).toBe(bell.docs[0].id);
       expect(again.notificationId).toBeNull();
       expect(bell.docs[0].data()).toMatchObject({ type: 'resonance', readAt: null, payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' } });
+    });
+
+    it('answers a letter waiting between the two: the connection it makes clears the request', async () => {
+      await sendNote(db, 'alice', { cardId: 'orig', text: 'a letter before the resonance' });
+      expect((await db.doc('conversations/alice_bob').get()).get('request')).toMatchObject({ from: 'alice', count: 1 });
+      await draft('r1', { referenceCardId: 'orig' });
+      await publishCard(db, 'alice', 'r1', slugBase);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(true);
+      expect((await db.doc('conversations/alice_bob').get()).get('request')).toBeUndefined();
     });
 
     it("connects the authors without waiting for a slow slug", async () => {

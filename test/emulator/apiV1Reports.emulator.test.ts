@@ -100,6 +100,8 @@ describe('createReport: a message', () => {
   it('reports a note left in the thread, keeping what it was (kind) and the card it was left on', async () => {
     await db.doc('cards/walk').set({ authorId: 'alice', thoughtCore: 'A walk', story: 's', visibility: 'public', anonymous: false, publishedAt: at(30) });
     const note = await sendNote(db, 'bob', { cardId: 'walk', text: '你寫的我都看了，我知道你住哪' });
+    // A letter: they aren't connected, and its recipient can report it all the same.
+    expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
     // The card's author reports the note from the thread's message menu: the message is the note's own id.
     const id = await createReport(db, 'alice', { targetType: 'message', targetId: note.id, conversationId: PAIR, reason: 'harassment' });
     expect(await data(`reports/${id}`)).toMatchObject({ targetType: 'message', targetId: note.id, targetUserId: 'bob', contextId: PAIR });

@@ -22,6 +22,37 @@ export const REPLY_QUOTE_CHARS = 140;
 /** What a message is, beyond words and a card: `note` — a note (小紙條) left on the recipient's card, carried into the thread. */
 export const NOTE_MESSAGE_KIND = 'note';
 
+/** How many notes someone may leave a person they aren't connected with before that person answers (`request.count`). */
+export const NOTE_REQUEST_MAX = 3;
+
+/**
+ * `conversations/{pair}.request`: notes left by someone the other isn't
+ * connected with, waiting for an answer — a letter (see sendNote). `from` is
+ * the writer; `cardId` and `at` are their latest note's card and time;
+ * `count` how many they have left since it opened. Written by the server
+ * only (the rules let a participant change nothing but their unread count),
+ * and deleted by whatever connects the two.
+ */
+export interface NoteRequest {
+  from: string;
+  count: number;
+}
+
+/**
+ * The letter a conversation holds, if any. A count the server can't read
+ * counts as full: the writer waits for an answer, as they would anyway.
+ */
+export function openRequest(convo: DocumentSnapshot): NoteRequest | null {
+  const request: unknown = convo.exists ? convo.get('request') : null;
+  if (!request || typeof request !== 'object') return null;
+  const { from, count } = request as { from?: unknown; count?: unknown };
+  if (typeof from !== 'string' || !from) return null;
+  return { from, count: typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : NOTE_REQUEST_MAX };
+}
+
+/** Whether a conversation holds a `request` field at all (one to delete when the two connect). */
+export const holdsRequest = (convo: DocumentSnapshot | null | undefined) => convo?.exists === true && convo.get('request') !== undefined;
+
 /**
  * Whether a profile has a pen name — what reaching anyone takes: a note, a
  * message, a resonance's connection and bell, accepting an invite. Whatever
@@ -42,20 +73,30 @@ export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name fi
  * the client (client/notes.ts), with the author taken from the card — so the
  * app never needs to know who wrote an anonymous one — and with the rules'
  * guarantees re-checked: a card the sender can read, not their own, no block
- * either way. The note rings the author's bell and connects the two, so the
- * author can answer in Messages; an anonymous card connects no one (the
- * connection would name its author, as a resonance to it doesn't either).
+ * either way. The note rings the author.
  *
  * A note on a named card also lands in the two people's conversation (opened
  * if need be) as a message of its own — `conversations/{pair}/messages/{noteId}`
  * = `{ senderId, text, sentAt, cardRef: cardId, kind: 'note' }` — so both see
  * it in their thread, the author answers it like any message, and it counts
  * as unread there. Its bell row is then written already pushed: the chat push
- * is the one buzz. A note on an anonymous card stays out of every thread,
- * even between two people already connected: the conversation would tell the
- * sender whose card it was. It rings through its bell row, as before.
- * Whether it is anonymous is read in the note's transaction, beside the
- * blocks: a byline taken off a moment before still keeps the note out.
+ * is the one buzz.
+ *
+ * A note is a letter: it connects no one by itself. Between two people who
+ * aren't connected it opens, or adds to, the conversation's `request`
+ * (`{ from, cardId, at, count }`, see NoteRequest), and the author's answer is
+ * what connects them (sendMessage). While their letter waits, the writer may
+ * leave NOTE_REQUEST_MAX notes in all; one more is a conflict ("Wait for them
+ * to reply."), writing and ringing nothing. Crossing letters: a note to
+ * someone whose own letter to the sender is waiting answers it — the two are
+ * connected and `request` is gone, in the same transaction. Between two
+ * people already connected a note is one more message.
+ *
+ * A note on an anonymous card stays out of every thread, even between two
+ * people already connected (the conversation would tell the sender whose card
+ * it was), and connects, opens or answers nothing: it rings through its bell
+ * row, as before. Whether it is anonymous is read in the note's transaction,
+ * beside the blocks: a byline taken off a moment before still keeps it out.
  */
 export interface SentNote {
   id: string;
@@ -93,6 +134,13 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
     if (!hasPenName(me)) throw noPenName();
     // Its byline as of this transaction: made anonymous a moment ago, it still keeps the note out of the thread.
     const threaded = current.anonymous !== true;
+    // Not connected, on a named card: a letter, waiting for its answer.
+    const letter = threaded && !connected.exists;
+    const request = openRequest(convo);
+    // Crossing letters: theirs to me is waiting, and this note answers it.
+    const answers = letter && request?.from === author;
+    const left = letter && request?.from === uid ? request.count : 0;
+    if (letter && !answers && left >= NOTE_REQUEST_MAX) throw new ApiFailure('conflict', 'Wait for them to reply.');
 
     const note = db.collection('notes').doc();
     tx.set(note, {
@@ -119,8 +167,8 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
       ...(threaded ? { pushedAt: FieldValue.serverTimestamp() } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
-    // Never over an existing connection: that would drop what it carries (muted, its date).
-    if (!connected.exists && threaded) {
+    // Their letter answered: the two are connected (`answers` means there was no connection to write over).
+    if (answers) {
       tx.set(connection, { userIds: [uid, author].sort(), establishedAt: FieldValue.serverTimestamp() });
     }
     if (!threaded) return { id: note.id, notificationId: bell.id, push: null };
@@ -147,6 +195,10 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
       lastMessage: { text: cut(input.text, LAST_MESSAGE_PREVIEW), senderId: uid, sentAt: FieldValue.serverTimestamp() },
       updatedAt: FieldValue.serverTimestamp(),
       unread: { [author]: FieldValue.increment(1) },
+      // A letter waits for its answer; an answer, or a note between two connected, leaves none waiting.
+      ...(letter && !answers
+        ? { request: { from: uid, cardId: card.id, at: FieldValue.serverTimestamp(), count: left + 1 } }
+        : holdsRequest(convo) ? { request: FieldValue.delete() } : {}),
     }, { merge: true });
     return { id: note.id, notificationId: bell.id, push: { conversationId: pair, messageId: note.id, from: uid, to: author } };
   });
@@ -175,6 +227,13 @@ const RESERVED_ID = /^__.*__$/;
  * conditions are re-checked — a connection, no block either way, a
  * non-empty message unless it carries a card (one you can read). A reply to
  * a note carries its noteRef so the thread shows what it answers.
+ *
+ * Or answer a letter: with no connection, a message is allowed only to
+ * someone whose notes to you wait in your conversation (`request.from` is
+ * them, see sendNote), and that answer is what connects you — the
+ * connection made and `request` deleted in the same transaction as the
+ * message. Everyone else, the letter's own writer included, is refused as
+ * before.
  *
  * `replyTo` names a message of this same conversation; the new message keeps
  * a snapshot of it (`replyTo: { id, senderId, text, cardRef? }`, the text cut
@@ -236,8 +295,10 @@ export async function sendMessage(
     }
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot message this person.');
     if (!hasPenName(me)) throw noPenName();
-    // Connected first (a resonance or a note connects you); a block also ends the connection.
-    if (!connection.exists) throw new ApiFailure('forbidden', 'You can message people you are connected with.');
+    // Answering their letter: this reply is what connects the two of you.
+    const answers = !connection.exists && openRequest(convo)?.from === other;
+    // Connected first (a resonance, or an answered note, connects you); a block also ends the connection.
+    if (!connection.exists && !answers) throw new ApiFailure('forbidden', 'You can message people you are connected with.');
     // A quoted note must be one between the two of you.
     if (note && (!note.exists || note.get('cardId') !== input.noteRef!.cardId
       || ![uid, other].includes(note.get('fromUserId')) || ![uid, other].includes(note.get('toUserId')))) {
@@ -246,6 +307,10 @@ export async function sendMessage(
     // A reply answers a message of this conversation (the path alone keeps it from being anyone else's).
     if (replied && !replied.exists) throw new ApiFailure('invalid_request', 'No such message to reply to.');
 
+    if (answers) {
+      tx.set(db.doc(`connections/${pair}`), { userIds: [uid, other].sort(), establishedAt: FieldValue.serverTimestamp() });
+    }
+    // An answered letter has a conversation already: no "new conversation" bell for it.
     const first = !convo.exists;
     if (first) {
       tx.set(conversation, {
@@ -270,6 +335,8 @@ export async function sendMessage(
       lastMessage: { text: cut(input.text || card?.thoughtCore || '', LAST_MESSAGE_PREVIEW), senderId: uid, sentAt: FieldValue.serverTimestamp() },
       updatedAt: FieldValue.serverTimestamp(),
       unread: { [other]: FieldValue.increment(1) },
+      // Connected (or connecting now): no letter waits any more.
+      ...(holdsRequest(convo) ? { request: FieldValue.delete() } : {}),
     }, { merge: true });
     if (first) {
       // The bell lists a new conversation, but the push for it is the chat push's (pushedAt marks it done).

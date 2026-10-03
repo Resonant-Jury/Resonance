@@ -4,6 +4,7 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import { ApiFailure } from '@/lib/api/v1/http';
 import { getCardBox, getCardDetail } from '@/lib/api/v1/reads';
 import { resonateWith, unresonate } from '@/lib/api/v1/resonate';
+import { sendNote } from '@/lib/api/v1/conversations';
 
 // Resonating with a card already written (POST/DELETE /cards/{id}/resonances)
 // against the Firestore emulator: the reader's card comes to answer the one
@@ -184,6 +185,31 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
       const [bell] = await bells();
       expect(bell).toMatchObject({ userId: 'bob', type: 'resonance', payload: { cardId: 'bobMasked', fromUserId: 'alice' } });
       expect(await connected()).toBe(false);
+    });
+  });
+
+  describe('a letter waiting between the two (a note not yet answered)', () => {
+    const request = async () => (await db.doc('conversations/alice_bob').get()).get('request');
+
+    for (const [writer, cardId] of [['alice', 'orig'], ['bob', 'mine2']] as const) {
+      it(`is answered by the connection the resonance makes (${writer} wrote it): the request is cleared with it`, async () => {
+        await sendNote(db, writer, { cardId, text: 'a letter' });
+        expect(await request()).toMatchObject({ from: writer, count: 1 });
+        await resonateWith(db, 'alice', 'orig', 'mine');
+        expect(await connected()).toBe(true);
+        expect(await request()).toBeUndefined();
+        // The rest of the conversation is as the letter left it.
+        expect((await db.doc('conversations/alice_bob').get()).get('unread')).toEqual(writer === 'alice' ? { alice: 0, bob: 1 } : { alice: 1, bob: 0 });
+      });
+    }
+
+    it('keeps waiting when the resonance connects no one: an anonymous original, or an anonymous card picked', async () => {
+      await sendNote(db, 'alice', { cardId: 'orig', text: 'a letter' });
+      const before = await request();
+      await resonateWith(db, 'alice', 'bobMasked', 'mine');
+      await resonateWith(db, 'alice', 'orig', 'mineMasked');
+      expect(await connected()).toBe(false);
+      expect(await request()).toEqual(before);
     });
   });
 

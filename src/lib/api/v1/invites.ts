@@ -1,5 +1,5 @@
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
-import { hasPenName, noPenName, pairOf } from './conversations';
+import { hasPenName, holdsRequest, noPenName, pairOf } from './conversations';
 import { ApiFailure } from './http';
 
 export interface AcceptedInvite {
@@ -14,8 +14,10 @@ export interface AcceptedInvite {
  * answered). What the web's acceptInvite() did from the browser, in one
  * transaction: the invite goes from pending to accepted, the two are
  * connected — naming the invite; a connection they already have (a
- * resonance or a note made it since) is kept as it is — and the sender's
- * bell rings "invite accepted", under the recipient's pen name as it is now.
+ * resonance or an answered note made it since) is kept as it is — and the
+ * sender's bell rings "invite accepted", under the recipient's pen name as
+ * it is now. Connecting them answers any letter waiting in their
+ * conversation (`request`, see sendNote): it is deleted.
  *
  * Only its recipient may accept it: anyone else's is not_found. A block
  * either way refuses it; one no longer pending (declined, withdrawn,
@@ -46,11 +48,12 @@ export async function acceptInvite(db: Firestore, uid: string, inviteId: string)
     }
 
     const connection = db.doc(`connections/${pair}`);
-    const [me, blockOut, blockIn, existing] = await Promise.all([
+    const [me, blockOut, blockIn, existing, conversation] = await Promise.all([
       tx.get(db.doc(`users/${uid}`)),
       tx.get(db.doc(`users/${uid}/blocks/${other}`)),
       tx.get(db.doc(`users/${other}/blocks/${uid}`)),
       tx.get(connection),
+      tx.get(db.doc(`conversations/${pair}`)),
     ]);
     // One answer for both directions: the recipient must not learn they were blocked.
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot connect with this person.');
@@ -59,6 +62,7 @@ export async function acceptInvite(db: Firestore, uid: string, inviteId: string)
     tx.update(ref, { status: 'accepted' });
     if (!existing.exists) {
       tx.set(connection, { userIds: [uid, other].sort(), establishedAt: FieldValue.serverTimestamp(), inviteId });
+      if (holdsRequest(conversation)) tx.update(conversation.ref, { request: FieldValue.delete() });
     }
     const bell = db.collection('notifications').doc();
     tx.set(bell, {

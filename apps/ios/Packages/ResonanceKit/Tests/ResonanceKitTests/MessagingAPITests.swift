@@ -26,6 +26,13 @@ struct MessagingAPITests {
         #expect(transport.requests.first?.path?.hasSuffix("/messages") == true)
     }
 
+    @Test func notesWaitingForAnAnswerAreAConflict() async throws {
+        let transport = StubTransport(status: .conflict, body: #"{"error":{"code":"conflict","message":"Wait for them to reply."}}"#)
+        let failure = await #expect(throws: APIFailure.self) { try await api(transport).sendNote(cardId: "walk", text: "a fourth note") }
+        #expect(failure?.isConflict == true)
+        #expect(failure?.status == 409)
+    }
+
     @Test func aBlockIsAFailureWithItsMessage() async throws {
         let transport = StubTransport(status: .forbidden, body: #"{"error":{"code":"blocked","message":"You cannot message this person."}}"#)
         await #expect(throws: APIFailure.self) { try await api(transport).sendMessage(to: "bob", text: "hi") }

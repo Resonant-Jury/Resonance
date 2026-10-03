@@ -2,7 +2,7 @@ import { FieldValue, type DocumentData, type DocumentSnapshot, type Firestore, t
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card } from '@/lib/db/types';
 import { cardPagePaths } from '@/lib/api/revalidate';
-import { hasPenName, noPenName, pairOf } from './conversations';
+import { hasPenName, holdsRequest, noPenName, pairOf } from './conversations';
 import { ApiFailure } from './http';
 import { cardVisible, toFeedCard } from './present';
 import { visibleCardById } from './reads';
@@ -64,6 +64,8 @@ export interface ReachReads {
   blockOut: boolean;
   blockIn: boolean;
   connected: boolean;
+  /** The two people's conversation (null when there is no one to reach): connecting them answers any letter waiting in it. */
+  conversation: DocumentSnapshot | null;
   /** This reader's one bell for that card (resonanceBellId): once it exists, they have reached its author. */
   bell: DocumentSnapshot;
 }
@@ -72,7 +74,7 @@ export interface ReachReads {
  * Read, in `tx` and before it writes anything, what a resonance from `from`
  * to the card `originalId` (a valid id) depends on: the original, the
  * resonator's profile and their bell for it, then — the author known — the
- * blocks both ways and the connection.
+ * blocks both ways, the connection and the conversation.
  */
 export async function readReach(tx: Transaction, db: Firestore, from: string, originalId: string): Promise<ReachReads> {
   const [snap, me, bell] = await Promise.all([
@@ -81,15 +83,17 @@ export async function readReach(tx: Transaction, db: Firestore, from: string, or
     tx.get(db.doc(`notifications/${resonanceBellId(from, originalId)}`)),
   ]);
   const original = snap.exists ? mapCard(snap.id, snap.data()!) : null;
-  const none: ReachReads = { from, originalId, original, me, bell, blockOut: false, blockIn: false, connected: false };
+  const none: ReachReads = { from, originalId, original, me, bell, blockOut: false, blockIn: false, connected: false, conversation: null };
   const other = original?.authorId;
   if (!docId(other) || other === from) return none;
-  const [out, inn, connection] = await Promise.all([
+  const pair = pairOf(from, other);
+  const [out, inn, connection, conversation] = await Promise.all([
     tx.get(db.doc(`users/${from}/blocks/${other}`)),
     tx.get(db.doc(`users/${other}/blocks/${from}`)),
-    tx.get(db.doc(`connections/${pairOf(from, other)}`)),
+    tx.get(db.doc(`connections/${pair}`)),
+    tx.get(db.doc(`conversations/${pair}`)),
   ]);
-  return { ...none, blockOut: out.exists, blockIn: inn.exists, connected: connection.exists };
+  return { ...none, blockOut: out.exists, blockIn: inn.exists, connected: connection.exists, conversation };
 }
 
 /**
@@ -111,7 +115,9 @@ export async function readReach(tx: Transaction, db: Firestore, from: string, or
  * Then the original author's bell rings and the two are connected — unless
  * the original is anonymous (the connection would name its author to the
  * resonator) or they are already (a connection carries `muted`, its date:
- * never written over). Answers the bell's id, or null when nothing reached.
+ * never written over). Connecting them answers any letter waiting in their
+ * conversation (`request`, see sendNote): it is deleted in the same
+ * transaction. Answers the bell's id, or null when nothing reached.
  */
 export function reachOriginal(tx: Transaction, db: Firestore, card: DocumentData, r: ReachReads): string | null {
   const o = r.original;
@@ -123,6 +129,7 @@ export function reachOriginal(tx: Transaction, db: Firestore, card: DocumentData
       userIds: [r.from, o.authorId].sort(),
       establishedAt: FieldValue.serverTimestamp(),
     });
+    if (holdsRequest(r.conversation)) tx.update(r.conversation!.ref, { request: FieldValue.delete() });
   }
   tx.set(r.bell.ref, {
     userId: o.authorId,

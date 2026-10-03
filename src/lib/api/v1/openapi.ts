@@ -243,16 +243,21 @@ export function buildOpenApi(): Json {
         post: {
           operationId: 'sendNote',
           summary:
-            "Send a note to a card's author: rings their bell and connects you; it also lands in your conversation as a message " +
-            "(`kind: 'note'`, `cardRef` = the card). On an anonymous card: the bell only — no connection, no conversation",
+            "Send a note to a card's author: rings them and lands in your conversation as a message (`kind: 'note'`, " +
+            '`cardRef` = the card). A note is a letter: it connects no one. Between two people not connected it waits in ' +
+            'the conversation (`request: { from, cardId, at, count }`) until the author answers it with a message, which ' +
+            'connects you (so does a note of theirs to you while yours waits); at most 3 wait unanswered, then 409 ' +
+            '`conflict` ("Wait for them to reply."). On an anonymous card: the bell only — no conversation, no connection',
           requestBody: { required: true, ...json(ref('SendNoteRequest')) },
-          responses: { '201': { description: 'Created', ...json(ref('SendNoteResponse')) }, ...errors(400, 401, 403, 404) },
+          responses: { '201': { description: 'Created', ...json(ref('SendNoteResponse')) }, ...errors(400, 401, 403, 404, 409) },
         },
       },
       '/messages': {
         post: {
           operationId: 'sendMessage',
-          summary: 'Message someone you are connected with (opens the conversation; its first message rings their bell)',
+          summary:
+            'Message someone you are connected with (opens the conversation; its first message rings their bell), or answer ' +
+            "a note they left you while you weren't (`request.from` is them): that answer connects you",
           requestBody: { required: true, ...json(ref('SendMessageRequest')) },
           responses: { '201': { description: 'Created', ...json(ref('SendMessageResponse')) }, ...errors(400, 401, 403, 404) },
         },

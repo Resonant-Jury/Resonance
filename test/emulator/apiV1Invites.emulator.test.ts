@@ -3,6 +3,7 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { acceptInvite } from '@/lib/api/v1/invites';
+import { sendNote } from '@/lib/api/v1/conversations';
 
 // Accepting a legacy invite through the v1 API against the Firestore
 // emulator — what the web's acceptInvite() used to write from the browser
@@ -77,7 +78,22 @@ describe('acceptInvite (POST /invites/{id}/accept)', () => {
     expect(await bells()).toHaveLength(1);
   });
 
-  it('keeps a connection a resonance or a note already made, as it is', async () => {
+  for (const writer of ['alice', 'bob']) {
+    it(`answers a letter waiting between the two (${writer} wrote it): the connection it makes clears the request`, async () => {
+      const published = Timestamp.fromDate(new Date('2026-09-01T08:00:00Z'));
+      const authorOf = writer === 'alice' ? 'bob' : 'alice';
+      await db.doc('cards/c1').set({ authorId: authorOf, thoughtCore: 'a card', story: 's', visibility: 'public', anonymous: false, publishedAt: published });
+      await sendNote(db, writer, { cardId: 'c1', text: 'a letter' });
+      expect((await data('conversations/alice_bob'))?.request).toMatchObject({ from: writer, count: 1 });
+      await acceptInvite(db, 'alice', 'i1');
+      expect(await data('connections/alice_bob')).toMatchObject({ userIds: ['alice', 'bob'], inviteId: 'i1' });
+      const convo = await data('conversations/alice_bob');
+      expect(convo).not.toHaveProperty('request');
+      expect(convo?.lastMessage).toMatchObject({ text: 'a letter', senderId: writer });
+    });
+  }
+
+  it('keeps a connection a resonance or an answered note already made, as it is', async () => {
     const since = Timestamp.fromDate(new Date('2026-09-01T00:00:00Z'));
     await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: since });
     await acceptInvite(db, 'alice', 'i1');

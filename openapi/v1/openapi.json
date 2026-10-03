@@ -1570,7 +1570,7 @@
     "/notes": {
       "post": {
         "operationId": "sendNote",
-        "summary": "Send a note to a card's author: rings their bell and connects you; it also lands in your conversation as a message (`kind: 'note'`, `cardRef` = the card). On an anonymous card: the bell only — no connection, no conversation",
+        "summary": "Send a note to a card's author: rings them and lands in your conversation as a message (`kind: 'note'`, `cardRef` = the card). A note is a letter: it connects no one. Between two people not connected it waits in the conversation (`request: { from, cardId, at, count }`) until the author answers it with a message, which connects you (so does a note of theirs to you while yours waits); at most 3 wait unanswered, then 409 `conflict` (\"Wait for them to reply.\"). On an anonymous card: the bell only — no conversation, no connection",
         "requestBody": {
           "required": true,
           "content": {
@@ -1631,6 +1631,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
@@ -1638,7 +1648,7 @@
     "/messages": {
       "post": {
         "operationId": "sendMessage",
-        "summary": "Message someone you are connected with (opens the conversation; its first message rings their bell)",
+        "summary": "Message someone you are connected with (opens the conversation; its first message rings their bell), or answer a note they left you while you weren't (`request.from` is them): that answer connects you",
         "requestBody": {
           "required": true,
           "content": {
