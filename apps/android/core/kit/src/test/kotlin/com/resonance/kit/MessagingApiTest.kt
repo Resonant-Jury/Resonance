@@ -42,8 +42,8 @@ class MessagingApiTest {
             MockResponse().setResponseCode(201).setHeader("Content-Type", "application/json")
                 .setBody("""{"conversationId":"alice_bob","id":"m1"}"""),
         )
-        val id = api().sendMessage("bob", "hi", noteRef = MessagingApi.Note("walk", "n1"))
-        assertEquals("alice_bob", id)
+        val answer = api().sendMessage("bob", "hi", noteRef = MessagingApi.Note("walk", "n1"))
+        assertEquals(MessagingApi.Sent("alice_bob", "m1"), answer)
         val request = server.takeRequest()
         assertEquals("/api/v1/messages", request.path)
         val sent = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
@@ -54,6 +54,22 @@ class MessagingApiTest {
         assertEquals("n1", note["noteId"]!!.jsonPrimitive.content)
         // Kotlin clients send an absent optional as null (the contract accepts it).
         assertTrue(sent["cardRef"] == null || sent["cardRef"] is JsonNull)
+        assertTrue(sent["replyTo"] == null || sent["replyTo"] is JsonNull)
+        assertTrue(sent["clientId"] == null || sent["clientId"] is JsonNull)
+    }
+
+    @Test fun aReplyAndAClientIdGoWithTheMessage() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(201).setHeader("Content-Type", "application/json")
+                // A newer server also says whether it was a duplicate: unknown fields are tolerated.
+                .setBody("""{"conversationId":"alice_bob","id":"AbCdEfGhIjKlMnOpQrSt","duplicate":false}"""),
+        )
+        val sent = api().sendMessage("bob", "agreed", replyTo = "m1", clientId = "AbCdEfGhIjKlMnOpQrSt")
+        // The server uses the client id as the document's id.
+        assertEquals("AbCdEfGhIjKlMnOpQrSt", sent.id)
+        val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("m1", body["replyTo"]!!.jsonPrimitive.content)
+        assertEquals("AbCdEfGhIjKlMnOpQrSt", body["clientId"]!!.jsonPrimitive.content)
     }
 
     @Test fun aBlockIsAFailureWithItsMessage() = runBlocking {

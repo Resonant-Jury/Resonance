@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,7 +57,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -73,9 +73,11 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.BuildConfig
 import com.resonance.app.DebugLaunch
+import com.resonance.app.PushCenter
 import com.resonance.app.SafetyService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
@@ -108,6 +110,8 @@ import com.resonance.design.plainClickable
 import com.resonance.design.seedFromId
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.api.MessagingApi
+import com.resonance.kit.chat.ChatMessage
+import com.resonance.kit.chat.Delivery
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
 import kotlinx.coroutines.CancellationException
@@ -138,6 +142,15 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     // Back in the foreground: listeners that failed listen again; a thread that couldn't find its person asks again.
     val foregrounded by session.foregrounded.collectAsStateWithLifecycle()
     LaunchedEffect(model, foregrounded) { model.resumeIfFailed() }
+    // The conversation counts as being looked at only while this screen is resumed: its pushes then stay quiet,
+    // and the one in the shade goes. (Not once the app is in the background, or the screen covered.)
+    val pair = model.pairId
+    if (pair != null) {
+        LifecycleResumeEffect(pair) {
+            PushCenter.viewing(pair)
+            onPauseOrDispose { PushCenter.stoppedViewing(pair) }
+        }
+    }
 
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -148,6 +161,7 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     var confirmingDelete by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var blockError by remember { mutableStateOf<String?>(null) }
+    val links = rememberLinkOpener()
 
     Column(Modifier.fillMaxSize().cream().statusBarsPadding().navigationBarsPadding().imePadding()) {
         when (model.phase) {
@@ -182,7 +196,7 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
                     }
                     add(OrganicMenuItem(L10n.Messages.menuDelete, IconName.Trash, destructive = true) { confirmingDelete = true })
                 }
-                ThreadHeader(model, searching, query, { query = it }, { searching = false; query = "" }, menu, open, back)
+                ThreadHeader(model, searching, query, { query = it; model.search(it) }, { searching = false; query = ""; model.endSearch() }, menu, open, back)
                 WavyDivider(seed = 41.0, lineWidth = Tokens.Ink)
                 if (model.connected == false) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 20.dp, horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -194,7 +208,7 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
                         )
                     }
                 } else {
-                    Messages(model, searching, query, open = { route ->
+                    Messages(model, searching, query, links, open = { route ->
                         showingMedia = false
                         open(route)
                     })
@@ -202,12 +216,12 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
                 }
 
                 if (showingMedia) OrganicModal({ showingMedia = false }, L10n.Messages.mediaTitle, seed = 53.0, maxWidth = 480.dp, closeLabel = L10n.Messages.mediaTitle) {
-                    SharedMediaContent(model) { route ->
+                    SharedMediaContent(model, links) { route ->
                         showingMedia = false
                         open(route)
                     }
                 }
-                val pair = model.pairId
+                LinkDialogs(links)
                 if (reporting && other != null && pair != null) ReportDialog(
                     session, SafetyService.Target.Message(pair, other.id, pair), other.handle,
                     onBlocked = { scope.launch { model.refreshConnection() } },
@@ -330,7 +344,7 @@ private fun ThreadHeader(
             }
             if (query.trim().isNotEmpty()) {
                 BasicText(
-                    L10n.Messages.searchCount(model.filtered(query).size),
+                    L10n.Messages.searchCount(model.searchHits.size),
                     style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted),
                 )
             }
@@ -390,9 +404,11 @@ private fun QuietNote(text: String) {
 }
 
 @Composable
-private fun ColumnScope.Messages(model: ThreadModel, searching: Boolean, query: String, open: (Route) -> Unit) {
+private fun ColumnScope.Messages(model: ThreadModel, searching: Boolean, query: String, links: LinkOpener, open: (Route) -> Unit) {
     val searchingFor = searching && query.trim().isNotEmpty()
-    val shown = model.filtered(if (searching) query else "").filter { !(searchingFor && it.text.isEmpty()) }
+    // The search narrows the thread to the messages that match (the hits are the model's, read off its whole history).
+    val hitIds = remember(model.searchHits) { model.searchHits.mapTo(HashSet()) { it.messageId } }
+    val shown = if (searchingFor) model.messages.filter { it.id in hitIds } else model.messages
     val quiet = when {
         // Not "no messages yet" when they couldn't be read.
         model.threadReady && model.messages.isEmpty() -> if (model.listenFailed) L10n.Native.loadError else L10n.Messages.noMessagesYet
@@ -400,11 +416,17 @@ private fun ColumnScope.Messages(model: ThreadModel, searching: Boolean, query: 
         else -> null
     }
     val list = rememberLazyListState()
-    // Newest at the bottom, and back at the bottom whenever a newer message arrives (the web's
-    // `scrollTop = scrollHeight`, no animation) — keyed by the newest message, not the count, which
+    // Newest at the bottom, and back at the bottom whenever a newer message arrives or one is sent (the web's
+    // `scrollTop = scrollHeight`, no animation) — keyed by the newest message's key, not the count, which
     // stops changing once the thread holds its 50. A reversed list keeps that end pinned however the rows measure.
-    LaunchedEffect(model.messages.lastOrNull()?.id) { list.scrollToItem(0) }
-    val newestFirst = shown.asReversed()
+    LaunchedEffect(model.messages.lastOrNull()?.key) { list.scrollToItem(0) }
+    val newestFirst = remember(shown) { shown.asReversed() }
+    // Scrolled up to within a few messages of the oldest held: the next page of older ones is read.
+    LaunchedEffect(model, list) {
+        snapshotFlow { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }.collect { last ->
+            if (last >= 0 && last >= list.layoutInfo.totalItemsCount - OLDER_AHEAD) model.loadOlder()
+        }
+    }
     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
         // The stack is at most 72% of the screen's width (iOS's own number).
         val rowMax = maxWidth * 0.72f
@@ -415,7 +437,8 @@ private fun ColumnScope.Messages(model: ThreadModel, searching: Boolean, query: 
             contentPadding = PaddingValues(vertical = 14.dp, horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            itemsIndexed(newestFirst, key = { _, m -> m.id }) { i, message ->
+            // The key a row had while it was sending is the one its document comes under, so it doesn't jump.
+            itemsIndexed(newestFirst, key = { _, m -> m.key }) { i, message ->
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     // The day label leads the first message of a day (the one before it in time is the next row).
                     val before = newestFirst.getOrNull(i + 1)
@@ -426,7 +449,7 @@ private fun ColumnScope.Messages(model: ThreadModel, searching: Boolean, query: 
                             modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
                         )
                     }
-                    MessageRow(message, model, rowMax, open)
+                    MessageRow(message, model, rowMax, links, open)
                 }
             }
             if (quiet != null) item(key = "quiet") { QuietNote(quiet) }
@@ -434,10 +457,13 @@ private fun ColumnScope.Messages(model: ThreadModel, searching: Boolean, query: 
     }
 }
 
+/** How close to the oldest message held the list comes before the next page is read. */
+private const val OLDER_AHEAD = 6
+
 /** One message: a shared card over the bubble, on your side or theirs, at most 72% wide. */
 @Composable
-private fun MessageRow(message: ThreadModel.Message, model: ThreadModel, rowMax: Dp, open: (Route) -> Unit) {
-    val mine = message.senderId == model.me
+private fun MessageRow(message: ChatMessage, model: ThreadModel, rowMax: Dp, links: LinkOpener, open: (Route) -> Unit) {
+    val mine = model.isMine(message)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
         Column(
             Modifier.widthIn(max = rowMax),
@@ -456,17 +482,25 @@ private fun MessageRow(message: ThreadModel.Message, model: ThreadModel, rowMax:
                 )
             }
             if (message.text.isNotEmpty() || message.noteRef != null) Bubble(message, mine)
+            // A message that didn't go: here to try again (the server won't write it twice).
+            if (message.delivery == Delivery.Failed) {
+                BasicText(
+                    L10n.Messages.sendFailed,
+                    style = AppFonts.body(11f, lineHeight = 1.3f, color = Tokens.Terracotta),
+                    modifier = Modifier.plainClickable(role = Role.Button, onClickLabel = L10n.Messages.retry) { model.retry(message.key) },
+                )
+            }
         }
     }
 }
 
 /** The bubble, with a long-press for its full time and Copy (the web's hover title). */
 @Composable
-private fun Bubble(message: ThreadModel.Message, mine: Boolean) {
+private fun Bubble(message: ChatMessage, mine: Boolean) {
     var menu by remember { mutableStateOf(false) }
     Box {
         MessageBubble(
-            message.text, mine, seedFromId(message.id),
+            message.text, mine, seedFromId(message.key),
             Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { menu = true }) },
             quoteLabel = if (message.noteRef == null) null else L10n.Messages.quotedNote,
         )
@@ -521,7 +555,6 @@ private class BelowBubble(private val mine: Boolean, private val gap: Int) : Pop
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Composer(model: ThreadModel, handle: String, onPickCard: () -> Unit, modifier: Modifier = Modifier) {
-    val scope = rememberCoroutineScope()
     var focused by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth()) {
         if (model.noteRef != null || model.pendingCard != null) {
@@ -563,9 +596,10 @@ private fun Composer(model: ThreadModel, handle: String, onPickCard: () -> Unit,
                 )
             }
             // `height: 100%`: Send stretches to the field's height; dimmed and deaf until there is something to send.
+            // Sending never holds it: the message goes to the outbox and the field is free for the next one.
             Box(Modifier.fillMaxHeight().dimmedUnless(model.canSend)) {
-                OrganicButton(if (model.sending) "…" else L10n.Messages.send, Modifier.fillMaxHeight(), variant = ButtonVariant.Solid, small = true) {
-                    if (model.canSend) scope.launch { model.send() }
+                OrganicButton(L10n.Messages.send, Modifier.fillMaxHeight(), variant = ButtonVariant.Solid, small = true) {
+                    model.send()
                 }
             }
         }
@@ -598,10 +632,9 @@ private fun AttachmentChip(icon: IconName, title: String, onRemove: () -> Unit) 
 
 /** "Cards & links": everything shared in the loaded messages. */
 @Composable
-private fun SharedMediaContent(model: ThreadModel, open: (Route) -> Unit) {
+private fun SharedMediaContent(model: ThreadModel, opener: LinkOpener, open: (Route) -> Unit) {
     val (cardIds, links) = model.shared
     val cards = cardIds.mapNotNull { model.cards[it] }
-    val uri = LocalUriHandler.current
     Column(Modifier.fillMaxWidth()) {
         Box(Modifier.padding(bottom = 8.dp)) { ModalTitle(L10n.Messages.mediaTitle) }
         CssText(
@@ -645,7 +678,7 @@ private fun SharedMediaContent(model: ThreadModel, open: (Route) -> Unit) {
                         style = AppFonts.body(13.5f, lineHeight = 1.3f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .plainClickable(role = Role.Button) { runCatching { uri.openUri(url) } }
+                            .plainClickable(role = Role.Button) { opener.tap(url) }
                             .padding(vertical = 10.dp, horizontal = 4.dp),
                     )
                 }

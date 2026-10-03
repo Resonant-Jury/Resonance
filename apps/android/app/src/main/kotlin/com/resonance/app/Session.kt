@@ -206,6 +206,9 @@ class Session(
     private val auth: FirebaseAuth get() = AppFirebase.auth
     private val scope = MainScope()
 
+    /** Messages on their way, per conversation: they outlive the thread screen (see [ChatOutboxes]). */
+    val outboxes = ChatOutboxes(scope, messaging) { PushCenter.reachedOut() }
+
     /**
      * Whom the person has blocked: live once Firestore has said, until then as last read. Lists
      * drawn from what the app kept are filtered by it before they show, and again when it changes.
@@ -241,6 +244,7 @@ class Session(
             // Its listeners stop first; the next account's start once Firestore's copy of it is gone.
             notifications.stop()
             conversations.stop()
+            outboxes.clear()
             val forgetting = previous?.let(::forget)
             _keptBlocks.value = emptySet()
             meReadAt = 0L

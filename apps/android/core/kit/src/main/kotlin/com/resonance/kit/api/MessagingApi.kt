@@ -24,10 +24,28 @@ class MessagingApi(private val api: DefaultApi) {
     /** A note to a card's author (the server finds the author); returns its id. */
     suspend fun sendNote(cardId: String, text: String): String = call { api.sendNote(SendNoteRequest(cardId = cardId, text = text)).id }
 
-    /** A message to someone you're connected with; returns the conversation's id. */
-    suspend fun sendMessage(to: String, text: String, cardRef: String? = null, noteRef: Note? = null): String = call {
-        api.sendMessage(
-            SendMessageRequest(to = to, text = text, cardRef = cardRef, noteRef = noteRef?.let { NoteRef(cardId = it.cardId, noteId = it.noteId) }),
-        ).conversationId
+    /** What the server answers a message with: the conversation, and the message's document id in it. */
+    data class Sent(val conversationId: String, val id: String)
+
+    /**
+     * A message to someone you're connected with. [replyTo] is the id of a message of that conversation
+     * it answers; [clientId] is the sender's own id for it, which the server makes the document's id — sending
+     * the same one again (a retry after an answer was lost) finds the message instead of writing a second.
+     */
+    suspend fun sendMessage(
+        to: String,
+        text: String,
+        cardRef: String? = null,
+        noteRef: Note? = null,
+        replyTo: String? = null,
+        clientId: String? = null,
+    ): Sent = call {
+        val sent = api.sendMessage(
+            SendMessageRequest(
+                to = to, text = text, cardRef = cardRef, noteRef = noteRef?.let { NoteRef(cardId = it.cardId, noteId = it.noteId) },
+                replyTo = replyTo, clientId = clientId,
+            ),
+        )
+        Sent(sent.conversationId, sent.id)
     }
 }

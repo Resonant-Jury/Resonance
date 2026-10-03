@@ -20,6 +20,14 @@ import com.resonance.app.PushCenter
 import com.resonance.app.Session
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.MessagingApi
+import com.resonance.kit.chat.ChatMessage
+import com.resonance.kit.chat.Linkify
+import com.resonance.kit.chat.MessageHistory
+import com.resonance.kit.chat.MessageSearch
+import com.resonance.kit.chat.Outbox
+import com.resonance.kit.chat.ReplyQuote
+import com.resonance.kit.chat.SearchHit
+import com.resonance.kit.chat.ThreadMessages
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.cardsById
 import kotlinx.coroutines.CancellationException
@@ -30,12 +38,23 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.util.Date
 
 /**
- * One conversation (ThreadView.tsx): who it's with, whether you may write, the
- * newest 50 messages live, and sending through the API. The twin of iOS's
- * ThreadModel.
+ * One conversation (ThreadView.tsx): who it's with, whether you may write, its messages — the
+ * newest 50 live, older ones paged in as the thread is scrolled or searched — and sending
+ * through the API. The twin of iOS's ThreadModel.
+ *
+ * **Messages** ([messages], oldest first) are the conversation's [MessageHistory] followed by this
+ * person's own messages still on their way (the conversation's [Outbox]); a message sent from here
+ * is drawn the moment it is sent and the document replaces it in place, under the same
+ * [ChatMessage.key].
+ *
+ * **Sending** ([send]) takes what the composer holds and frees the composer at once; the outbox
+ * sends in order and a failure stays in the thread as a [com.resonance.kit.chat.Delivery.Failed]
+ * message ([retry], [discard]). The outbox belongs to the app's session, not to this model, so a
+ * send carries on when the screen is rotated, covered by a profile or left.
  *
  * Opened from somewhere that knows the other person's uid (the conversation
  * list, a notification), it listens to the conversation by its pair id at once
@@ -45,17 +64,10 @@ import java.util.Date
  * doesn't is refused: that refusal means "no conversation yet", and the thread
  * then watches for it to appear among the person's conversations — whoever
  * writes first — and listens from then on.
+ *
+ * Used on the main thread, like every Compose state it holds.
  */
 class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?, private val session: Session) {
-    data class Message(
-        val id: String,
-        val senderId: String,
-        val text: String,
-        val sentAt: Date,
-        val cardRef: String?,
-        val noteRef: MessagingApi.Note?,
-    )
-
     /** A card waiting to go with the next message: what the chip shows and what is sent. */
     data class Attachment(val id: String, val title: String)
 
@@ -76,7 +88,13 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         private set
     var conversationExists by mutableStateOf(false)
         private set
-    var messages by mutableStateOf<List<Message>>(emptyList())
+
+    /**
+     * The conversation as the thread draws it, oldest first: every message held ([history]), then
+     * this person's own still on their way. A new list whenever anything in it changes; rows are
+     * kept by [ChatMessage.key].
+     */
+    var messages by mutableStateOf<List<ChatMessage>>(emptyList())
         private set
     /** The first snapshot of messages has arrived (or there is no conversation yet). */
     var threadReady by mutableStateOf(false)
@@ -87,20 +105,59 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
     /** Shared cards, as the viewer may see them (a null value: not visible to them, or still being read — drawn as nothing). */
     val cards = mutableStateMapOf<String, FeedCard?>()
 
+    // Paging
+
+    /** There may be messages older than the oldest held: [loadOlder] reads the next page. False at the beginning of the conversation. */
+    var hasOlder by mutableStateOf(false)
+        private set
+    /** A page of older messages (or the whole history, for a search) is being read. */
+    var loadingOlder by mutableStateOf(false)
+        private set
+    /** The last read of older messages failed; [loadOlder] tries again. */
+    var olderError by mutableStateOf(false)
+        private set
+
+    // The composer
+
     var draft by mutableStateOf("")
     var pendingCard by mutableStateOf<Attachment?>(null)
     var noteRef by mutableStateOf(noteRef)
-    var sending by mutableStateOf(false)
+    /** The message the next one answers (set by [reply], cleared by sending and [cancelReply]). */
+    var replyingTo by mutableStateOf<ReplyQuote?>(null)
         private set
     var error by mutableStateOf<String?>(null)
 
+    // Search
+
+    /** What is being searched for ([search]); blank when not searching. */
+    var searchQuery by mutableStateOf("")
+        private set
+    /** The messages that match, newest first, each with the stretches of text to highlight. */
+    var searchHits by mutableStateOf<List<SearchHit>>(emptyList())
+        private set
+    /** Every message of the conversation is held, so [searchHits] is complete. */
+    val searchComplete: Boolean get() = !hasOlder
+    /** The whole history was read as far as the cap allows and there is still more: older matches may exist. */
+    var searchCapped by mutableStateOf(false)
+        private set
+    /** Older messages are being read for the search: [searchHits] may still grow. */
+    val searchLoading: Boolean get() = loadingOlder && searchQuery.isNotBlank()
+
+    private val history = MessageHistory<DocumentSnapshot>()
     private var listeners: List<ListenerRegistration> = emptyList()
     /** Which [listen] the live listeners belong to (a late callback of a removed one is ignored). */
     private var listening = 0
+    /** Which life of the conversation's history a page read belongs to (a reset makes a late page void). */
+    private var epoch = 0
     /** Refusals met while the conversation list already had it (a creation racing the first read). */
     private var refusals = 0
     private var watching: Job? = null
+    private var outboxWatch: Job? = null
+    private var paging: Job? = null
+    private var searching: Job? = null
+    private var allRequested = false
     private var unreadForMe = 0
+    private val thread = ThreadMessages()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val me: String? get() = session.uid
@@ -111,11 +168,11 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
             return listOf(me, other).sorted().joinToString("_")
         }
 
-    /** ThreadView's `valid`: text or a card, within 2000, somewhere to send it. */
+    /** ThreadView's `valid`: text or a card, within 2000, somewhere to send it. Sending in flight doesn't matter: the next message queues behind it. */
     val canSend: Boolean
         get() {
             val trimmed = draft.trim()
-            return (trimmed.isNotEmpty() || pendingCard != null) && trimmed.length <= NOTE_MAX_LENGTH && pairId != null && !sending
+            return (trimmed.isNotEmpty() || pendingCard != null) && trimmed.length <= NOTE_MAX_LENGTH && pairId != null
         }
 
     suspend fun load() {
@@ -199,6 +256,7 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
     /** Listens to the conversation, and watches for it to appear should it not exist yet. */
     private fun watch() {
         val pair = pairId ?: return
+        attachOutbox()
         if (watching == null) {
             watching = scope.launch {
                 session.conversations.ids.collect { ids -> if (pair in ids && listeners.isEmpty()) listen(pair) }
@@ -221,16 +279,18 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
                 unreadForMe = ((doc.get("unread") as? Map<*, *>)?.get(me ?: "") as? Number)?.toInt() ?: 0
                 markReadIfNeeded()
             },
-            ref.collection("messages").orderBy("sentAt", Query.Direction.DESCENDING).limit(50)
+            ref.collection("messages").orderBy("sentAt", Query.Direction.DESCENDING).limit(MessageHistory.LIVE_LIMIT.toLong())
                 .addSnapshotListener { docs, error ->
                     if (run != listening) return@addSnapshotListener
                     if (error != null) return@addSnapshotListener refused(pair, error)
                     docs ?: return@addSnapshotListener
-                    // A pending server time (our own message, in flight) sorts last.
-                    messages = docs.documents.map { message(it) }.reversed()
+                    // The newest 50 join what is held; the ones that slid out of the window stay.
+                    val merged = history.mergeWindow(docs.documents.map { MessageHistory.Entry(toMessage(it), it) }, authoritative = !docs.metadata.isFromCache)
+                    // Held nothing in common with the window: it started afresh, and a page being read for the old one is void.
+                    if (merged == MessageHistory.Merged.Restarted) forgetPaging()
                     threadReady = true
+                    historyChanged()
                     markReadIfNeeded()
-                    loadCards()
                 },
         )
     }
@@ -250,7 +310,7 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
             return
         }
         conversationExists = false
-        messages = emptyList()
+        resetHistory()
         threadReady = true
         if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED && pair in session.conversations.ids.value && refusals++ < 3) {
             listen(pair)
@@ -275,19 +335,240 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         listeners = emptyList()
     }
 
-    /** The screen is gone: listeners, the watch and card lookups stop. */
+    /** The screen is gone: listeners, the watch and card lookups stop. Messages still sending carry on (they belong to the session). */
     fun close() {
         stop()
         scope.cancel()
     }
 
-    /** Opening a thread reads it: the unread count says whether it needs resetting. */
+    /** Opening a thread reads it: the unread count says whether it needs resetting; the push for it, if any, goes. */
     private fun markReadIfNeeded() {
         val pair = pairId ?: return
         val me = me ?: return
+        // Only while the screen is on show: a message that arrives behind the lock screen is not read yet.
+        if (PushCenter.viewingConversation == pair) PushCenter.cancelConversation(pair)
         if (unreadForMe <= 0) return
         AppFirebase.db.collection("conversations").document(pair).update("unread.$me", 0)
     }
+
+    // History
+
+    /** The documents or the outbox changed: what the thread draws, what paging and search know, the cards to look up. */
+    private fun historyChanged() {
+        hasOlder = history.hasOlder
+        rebuild()
+        loadCards()
+        if (searchQuery.isNotBlank()) runSearch()
+    }
+
+    /** History and what is on its way, as one list; a message on its way whose document has arrived is dropped from the outbox. */
+    private fun rebuild() {
+        val box = outbox
+        messages = thread.build(history, box?.entries?.value.orEmpty())
+        box?.reconcile { it.isIn(history) }
+    }
+
+    /** Everything held is forgotten (the conversation is gone, or the listener lost track of it). */
+    private fun resetHistory() {
+        history.clear()
+        forgetPaging()
+        thread.clear()
+        historyChanged()
+    }
+
+    /** Pages being read belong to a history that is no more: they stop, and the next read starts from the new one. */
+    private fun forgetPaging() {
+        epoch++
+        paging?.cancel()
+        paging = null
+        loadingOlder = false
+        olderError = false
+        allRequested = false
+        searchCapped = false
+    }
+
+    /** The message with this id or key, if the thread holds it. */
+    fun find(idOrKey: String): ChatMessage? = messages.firstOrNull { it.id == idOrKey || it.key == idOrKey }
+
+    /**
+     * Reads the next page of older messages (50) into the thread. Does nothing at the beginning of the
+     * conversation or while a page is already being read. Prepends: nothing already held moves.
+     */
+    fun loadOlder() {
+        if (!history.hasOlder || paging?.isActive == true) return
+        page { fetchOlder(OLDER_PAGE) }
+    }
+
+    /**
+     * Reads older pages until the message with [id] is held, at most [maxPages] of 100; false if it
+     * isn't (it isn't in this conversation, the beginning came first, a read failed).
+     */
+    suspend fun ensureLoaded(id: String, maxPages: Int = 20): Boolean {
+        // A read that failed before is tried again: the person asked for this one.
+        olderError = false
+        var pages = 0
+        while (id !in history) {
+            if (!history.hasOlder || pages++ >= maxPages) return false
+            val running = paging?.takeIf { it.isActive }
+            (running ?: page { fetchOlder(JUMP_PAGE) }).join()
+            if (olderError) return false
+        }
+        return true
+    }
+
+    /**
+     * Reads the whole conversation, 200 at a time, up to [cap] messages (the search needs all of
+     * them); once per start of a search. [searchCapped] says whether the cap cut it short.
+     */
+    fun loadAll(cap: Int = LOAD_ALL_CAP) {
+        if (allRequested) return
+        allRequested = true
+        page {
+            while (history.hasOlder && history.size < cap) {
+                if (!fetchOlder(ALL_PAGE)) break
+            }
+            searchCapped = history.hasOlder && history.size >= cap
+            // A read that failed is asked again by the next search.
+            if (olderError) allRequested = false
+        }
+    }
+
+    /** One paging job at a time: [work] runs after the one before it. */
+    private fun page(work: suspend () -> Unit): Job {
+        val before = paging
+        val job = scope.launch {
+            before?.join()
+            loadingOlder = true
+            try {
+                work()
+            } finally {
+                loadingOlder = false
+            }
+        }
+        paging = job
+        return job
+    }
+
+    /** One older page into the history; whether it brought a page in. */
+    private suspend fun fetchOlder(limit: Int): Boolean {
+        val pair = pairId ?: return false
+        val cursor = history.oldestCursor ?: return false
+        val life = epoch
+        olderError = false
+        try {
+            val docs = AppFirebase.db.collection("conversations").document(pair).collection("messages")
+                .orderBy("sentAt", Query.Direction.DESCENDING).startAfter(cursor).limit(limit.toLong())
+                .get().await()
+            if (life != epoch) return false
+            // Offline, Firestore answers from what it has: a short answer then is no sign of the beginning.
+            if (docs.metadata.isFromCache && docs.size() < limit) {
+                olderError = true
+                return false
+            }
+            history.mergePage(docs.documents.map { MessageHistory.Entry(toMessage(it), it) }, limit)
+            historyChanged()
+            return true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (life == epoch) olderError = true
+            return false
+        }
+    }
+
+    // Outbox
+
+    /** This conversation's outbox (kept by the session, so it outlives this model). Null until we know whom it is with. */
+    private val outbox: Outbox?
+        get() {
+            val pair = pairId ?: return null
+            val to = otherId ?: return null
+            return session.outboxes.of(pair, to)
+        }
+
+    private fun attachOutbox() {
+        if (outboxWatch?.isActive == true) return
+        val box = outbox ?: return
+        outboxWatch = scope.launch { box.entries.collect { onOutbox(it) } }
+    }
+
+    private fun onOutbox(entries: List<Outbox.Outgoing>) {
+        // A message that failed shows on its own row, with its retry.
+        rebuild()
+        // The first message made the conversation: listen to it now.
+        val pair = pairId
+        if (pair != null && listeners.isEmpty() && entries.any { it.status == Outbox.Status.Sent }) listen(pair)
+    }
+
+    /**
+     * Sends what the composer holds — the text, the card, the quoted note, the message being replied
+     * to — and clears the composer at once. The message appears in the thread as sending; failure
+     * keeps it there to [retry] or [discard]. Never waits: the next one can be written and sent while
+     * this one is on its way.
+     */
+    fun send() {
+        if (!canSend) return
+        val me = me ?: return
+        val box = outbox ?: return
+        attachOutbox()
+        box.enqueue(
+            Outbox.Outgoing(
+                clientId = Outbox.newClientId(),
+                senderId = me,
+                text = draft.trim(),
+                cardRef = pendingCard?.id,
+                noteRef = noteRef,
+                replyTo = replyingTo,
+                queuedAt = Date(),
+            ),
+        )
+        draft = ""
+        pendingCard = null
+        noteRef = null
+        replyingTo = null
+        error = null
+    }
+
+    /**
+     * Sends a message that failed again ([ChatMessage.key] or id), under the id it was first written
+     * under (the server doesn't write one twice). The messages written before it that failed with it go
+     * first, so the order the person wrote them in holds.
+     */
+    fun retry(keyOrId: String) {
+        outbox?.let { box -> clientIdOf(box, keyOrId)?.let(box::retry) }
+    }
+
+    /** Sends again every message that failed, in the order they were written. */
+    fun retryAll() {
+        outbox?.retryFailed()
+    }
+
+    /** Deletes a message that failed ([ChatMessage.key] or id); one still sending can't be taken back. */
+    fun discard(keyOrId: String) {
+        outbox?.let { box -> clientIdOf(box, keyOrId)?.let(box::discard) }
+    }
+
+    private fun clientIdOf(box: Outbox, keyOrId: String): String? =
+        box.entries.value.firstOrNull { it.clientId == keyOrId || it.serverId == keyOrId }?.clientId
+
+    // Replying
+
+    /** The next message answers [message]; only a delivered one can be answered (a pending one has no document yet). */
+    fun reply(message: ChatMessage) {
+        if (message.canReply) replyingTo = ReplyQuote.of(message)
+    }
+
+    fun cancelReply() {
+        replyingTo = null
+    }
+
+    /** The reply the composer held before the screen was covered (see [threadSaver]). */
+    internal fun restoreReply(quote: ReplyQuote) {
+        replyingTo = quote
+    }
+
+    /** The messages that are mine, to tell mine from theirs. */
+    fun isMine(message: ChatMessage): Boolean = message.senderId == me
 
     /**
      * The cards shared in the messages, each read once: the ones not yet asked for go out
@@ -311,28 +592,6 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         }
     }
 
-    suspend fun send() {
-        val other = otherId ?: return
-        if (!canSend) return
-        sending = true
-        error = null
-        try {
-            session.messaging.sendMessage(other, draft.trim(), pendingCard?.id, noteRef)
-            PushCenter.reachedOut()
-            draft = ""
-            pendingCard = null
-            noteRef = null
-            // The first message made the conversation: listen to it now.
-            pairId?.let { if (!conversationExists) listen(it) }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            error = L10n.Messages.sendError
-        } finally {
-            sending = false
-        }
-    }
-
     /** Deletes the whole conversation, for both people (deleteConversation: messages in batches, then the parent). */
     suspend fun deleteConversation(): Boolean {
         val pair = pairId ?: return false
@@ -347,6 +606,8 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
                 batch.commit().await()
             }
             ref.delete().await()
+            session.outboxes.forget(pair)
+            resetHistory()
             true
         } catch (e: CancellationException) {
             throw e
@@ -359,11 +620,35 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
 
     // Search and media
 
-    /** Messages matching the search (card-only ones step aside while searching). */
-    fun filtered(query: String): List<Message> {
-        val q = query.trim().lowercase()
-        if (q.isEmpty()) return messages
-        return messages.filter { it.text.lowercase().contains(q) }
+    /**
+     * Searches the conversation for [query] (case and the width of ASCII letters don't matter): the
+     * matches, newest first, are [searchHits]. The first search of a visit also reads the whole
+     * history ([loadAll]), and the hits grow as it arrives. A blank query ends the search.
+     */
+    fun search(query: String) {
+        searchQuery = query
+        if (query.isBlank()) return endSearch()
+        loadAll()
+        runSearch()
+    }
+
+    /** Leaves the search: no query, no hits (the history read for it stays). */
+    fun endSearch() {
+        searching?.cancel()
+        searching = null
+        searchQuery = ""
+        searchHits = emptyList()
+    }
+
+    private fun runSearch() {
+        val query = searchQuery
+        val held = history.messages
+        searching?.cancel()
+        searching = scope.launch {
+            // A long conversation is searched off the main thread.
+            val hits = if (held.size < SEARCH_OFF_MAIN) MessageSearch.find(held, query) else withContext(Dispatchers.Default) { MessageSearch.find(held, query) }
+            searchHits = hits
+        }
     }
 
     /** Cards shared here (in thread order, once each) and links written in messages. */
@@ -373,46 +658,53 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
             val seenLinks = LinkedHashSet<String>()
             for (m in messages) {
                 m.cardRef?.let { seenCards.add(it) }
-                LINK.findAll(m.text).forEach { seenLinks.add(it.value) }
+                Linkify.find(m.text).forEach { seenLinks.add(it.url) }
             }
             return seenCards.toList() to seenLinks.toList()
         }
 
-    private fun message(doc: DocumentSnapshot): Message {
-        @Suppress("UNCHECKED_CAST")
-        val note = doc.get("noteRef") as? Map<String, Any?>
-        val noteCard = note?.get("cardId") as? String
-        val noteId = note?.get("noteId") as? String
-        return Message(
-            id = doc.id,
-            senderId = doc.getString("senderId") ?: "",
-            text = doc.getString("text") ?: "",
-            sentAt = doc.getTimestamp("sentAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toDate() ?: Date(),
-            cardRef = doc.getString("cardRef"),
-            noteRef = if (noteCard != null && noteId != null) MessagingApi.Note(noteCard, noteId) else null,
-        )
-    }
+    private fun toMessage(doc: DocumentSnapshot): ChatMessage = ChatMessage.from(
+        id = doc.id,
+        fields = doc.data ?: emptyMap(),
+        // A pending server time (a document just written) reads as an estimate, so it sorts last.
+        sentAt = doc.getTimestamp("sentAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toDate() ?: Date(),
+        origin = session.config.origin,
+    )
 
     private companion object {
-        val LINK = Regex("""https?://[^\s)]+""")
+        /** The page [loadOlder] reads. */
+        const val OLDER_PAGE = 50
+        /** The page [ensureLoaded] reads while it looks for a message. */
+        const val JUMP_PAGE = 100
+        /** The page [loadAll] reads. */
+        const val ALL_PAGE = 200
+        const val LOAD_ALL_CAP = 5000
+        /** Above this many messages a search runs off the main thread. */
+        const val SEARCH_OFF_MAIN = 400
     }
 }
 
 /**
- * What the composer holds (the draft, the quoted note, the attached card), kept
- * while the thread is covered by a profile or a card. Navigation composes only
- * the top screen, so without this the person would come back to an empty field;
- * on iOS the covered screen simply stays alive.
+ * What the composer holds (the draft, the quoted note, the attached card, the message being
+ * replied to), kept while the thread is covered by a profile or a card. Navigation composes only
+ * the top screen, so without this the person would come back to an empty field; on iOS the
+ * covered screen simply stays alive. Messages already sent are not here: they are in the session's
+ * outbox, which survives the screen.
  */
 internal fun threadSaver(handle: String, uid: String?, session: Session): Saver<ThreadModel, Any> = listSaver(
     save = { m ->
-        listOf(m.draft, m.noteRef?.cardId.orEmpty(), m.noteRef?.noteId.orEmpty(), m.pendingCard?.id.orEmpty(), m.pendingCard?.title.orEmpty())
+        val reply = m.replyingTo
+        listOf(
+            m.draft, m.noteRef?.cardId.orEmpty(), m.noteRef?.noteId.orEmpty(), m.pendingCard?.id.orEmpty(), m.pendingCard?.title.orEmpty(),
+            reply?.id.orEmpty(), reply?.senderId.orEmpty(), reply?.text.orEmpty(), reply?.cardRef.orEmpty(),
+        )
     },
     restore = { v ->
         val note = if (v[1].isNotEmpty() && v[2].isNotEmpty()) MessagingApi.Note(v[1], v[2]) else null
         ThreadModel(handle, uid, note, session).also { m ->
             m.draft = v[0]
             if (v[3].isNotEmpty()) m.pendingCard = ThreadModel.Attachment(v[3], v[4])
+            if (v.size >= 9 && v[5].isNotEmpty()) m.restoreReply(ReplyQuote(v[5], v[6], v[7], v[8].ifEmpty { null }))
         }
     },
 )
