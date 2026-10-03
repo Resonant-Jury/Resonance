@@ -9,8 +9,9 @@ import { getAdminDb } from '@/lib/db/firestore/admin';
  * it as a light retrieval boost, and the data stays joinable for future offline
  * tuning.
  *
- * Reads only the two fields it needs (never the stories), the originals in
- * one batch.
+ * Reads only the fields it needs (never the stories), the originals in one
+ * batch. Only named originals count: an anonymous card's author is no one's
+ * to know, and a boost would point at them.
  */
 export async function getEngagedAuthorIds(uid: string, db: Firestore = getAdminDb()): Promise<Set<string>> {
   // The reader's own cards that reference another card = their resonances.
@@ -24,10 +25,13 @@ export async function getEngagedAuthorIds(uid: string, db: Firestore = getAdminD
   );
   if (refIds.length === 0) return new Set();
 
-  const referenced = await db.getAll(...refIds.map((id) => db.collection('cards').doc(id)), { fieldMask: ['authorId'] });
+  const referenced = await db.getAll(...refIds.map((id) => db.collection('cards').doc(id)), { fieldMask: ['authorId', 'anonymous'] });
   const authors = new Set<string>();
   for (const snap of referenced) {
     const authorId = snap.get('authorId');
+    // An anonymous original names no one: boosting its author's other cards
+    // would show a reader who answered only it whose card it was.
+    if (snap.get('anonymous') === true) continue;
     if (typeof authorId === 'string' && authorId !== uid) authors.add(authorId);
   }
   return authors;
