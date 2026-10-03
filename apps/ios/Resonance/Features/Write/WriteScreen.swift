@@ -417,7 +417,15 @@ private struct PublishPanel: View {
                     WavyDivider(seed: 49).padding(.vertical, 2)
                     visibilityRow("private", L10n.Write.Visibility.`private`, icon: .lock, seed: 73)
                 }
+                // Why there is no other audience for it (a connections card made anonymous has just gone public).
+                if anonymous {
+                    Text(L10n.Write.PublishPanel.anonymousVisibility)
+                        .font(AppFonts.body(Tokens.hintSize)).foregroundStyle(Tokens.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
+                }
             }
+            .animation(.easeOut(duration: 0.2), value: anonymous)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
                     Text(L10n.Write.PublishPanel.anonymousToggle).font(AppFonts.body(14)).foregroundStyle(Tokens.text)
@@ -453,9 +461,12 @@ private struct PublishPanel: View {
             }
             if let error { Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta) }
         }
+        // Anonymous is public or yours alone: a card for connections turns public as it goes anonymous.
+        .onChange(of: anonymous) { _, on in visibility = WriteModel.visibility(visibility, anonymous: on) }
         .task {
-            // As it is: a connections card shows neither row picked, and keeps its audience unless one is.
-            visibility = model.values.visibility
+            // As it is: a connections card shows neither row picked, and keeps its audience unless one is
+            // (or it is anonymous, which no connections card may be).
+            visibility = WriteModel.visibility(model.values.visibility, anonymous: model.values.anonymous)
             anonymous = model.values.anonymous
             // The mirror moment is for a first publication only.
             guard !model.isPublished else { return }
