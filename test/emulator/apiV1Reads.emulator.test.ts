@@ -45,6 +45,8 @@ const card = (id: string, authorId: string, m: number, extra: Record<string, unk
     story: `## Heading\n\nSome **bold** words and [a link](https://example.com) in ${id}.\n\n- a list item\n\n---`,
     tags: ['日常'],
     visibility: 'public',
+    // Publishing always writes a boolean (lists that show a card to anyone filter on it).
+    anonymous: false,
     publishedAt: minutesAgo(m),
     resonanceCount: 0,
     ...extra,
@@ -248,6 +250,49 @@ describe('profiles', () => {
     expect((await getProfile(db, 'alice', 'bob')).cardCount).toBe(1);
     expect((await getProfile(db, 'alice', 'carol')).cardCount).toBe(0);
     expect((await getProfileCards(db, 'alice', 'carol', 10)).cards).toEqual([]);
+  });
+
+  it('pages and counts their named cards only: no page token, cursor or count ever lands on one of their anonymous cards', async () => {
+    // Bob's named cards with his anonymous ones between them (the newest one too).
+    const named = ['n1', 'n2', 'n3', 'n4'];
+    const masked = ['m0', 'm1', 'm2', 'm3', 'm4'];
+    await Promise.all([
+      ...named.map((id, i) => card(id, 'bob', 2 * i + 2)),
+      ...masked.map((id, i) => card(id, 'bob', 2 * i + 1, { anonymous: true })),
+    ]);
+    const maskedAt = new Set(
+      await Promise.all(masked.map(async (id) => ((await db.doc(`cards/${id}`).get()).get('publishedAt') as Timestamp).toDate().toISOString())),
+    );
+    const tokenCard = (token: string) => (JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as [number, number, string])[2];
+
+    for (const limit of [1, 2, 3]) {
+      // Walking GET /users/bob/cards to its end, a page at a time.
+      const seen: string[] = [];
+      let page = await getProfileCards(db, 'alice', 'bob', limit);
+      const first = (await getProfile(db, 'alice', 'bob', { include: new Set(['cards'] as const), limit })).cards!;
+      expect(first, `include=cards, limit ${limit}`).toEqual(page);
+      for (;;) {
+        seen.push(...page.cards.map((c) => c.id));
+        if (!page.nextPageToken) break;
+        // A page that comes back short (or empty) while a token goes on is the leak.
+        expect(page.cards, `limit ${limit}`).toHaveLength(limit);
+        expect(named).toContain(tokenCard(page.nextPageToken));
+        expect(maskedAt.has(page.nextCursor!)).toBe(false);
+        page = await getProfileCards(db, 'alice', 'bob', limit, { pageToken: page.nextPageToken });
+      }
+      expect(seen).toEqual(named);
+      // The older cursor walks the same named cards.
+      const byCursor: string[] = [];
+      let cursorPage = await getProfileCards(db, 'alice', 'bob', limit);
+      for (;;) {
+        byCursor.push(...cursorPage.cards.map((c) => c.id));
+        if (!cursorPage.nextCursor) break;
+        cursorPage = await getProfileCards(db, 'alice', 'bob', limit, { cursor: cursorPage.nextCursor });
+      }
+      expect(byCursor).toEqual(named);
+    }
+    expect((await getProfile(db, 'alice', 'bob')).cardCount).toBe(named.length);
+    expect((await getProfile(db, 'bob', 'bob')).cardCount).toBe(named.length);
   });
 
   it("lists others' cards that link to theirs", async () => {
@@ -654,9 +699,9 @@ describe('the profile in one request (GET /users/{handle}?include=)', () => {
         );
       }
     }
-    // Not empty lists: bob's first page is his newest 12 public cards less the anonymous one, with a way on.
+    // Not empty lists: bob's first page is his newest 12 public named cards (the anonymous one is never among them), with a way on.
     const bob = await getProfile(db, 'alice', 'bob', { include: BOTH });
-    expect(bob.cards?.cards.map((c) => c.id)).toEqual(Array.from({ length: 11 }, (_, i) => `b${i}`));
+    expect(bob.cards?.cards.map((c) => c.id)).toEqual(Array.from({ length: 12 }, (_, i) => `b${i}`));
     expect(bob.cards?.nextCursor).not.toBeNull();
     expect(bob.links?.cards.map((c) => c.id)).toEqual(['by-dana']); // carol's is left out: alice blocked her
     expect((await getProfile(db, 'dana', 'bob', { include: BOTH })).links?.cards.map((c) => c.id)).toEqual(['by-carol', 'by-dana']);
