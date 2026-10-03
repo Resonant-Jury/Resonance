@@ -565,6 +565,17 @@ final class ThreadModel {
     /// Where a shared card stands: on its way, found, hidden from the viewer (or gone), or not read (offline).
     func cardLookup(_ key: String) -> CardSummaries.Lookup { sharedCards.lookup(key) }
 
+    /// What `message`'s bubble carries besides its words: the card it shares (or its stand-in while
+    /// that is read), else its link's preview, else nothing more (`Carried.of`).
+    func carried(_ message: ChatMessage) -> Carried<FeedCard> {
+        Carried.of(message, share: cardShare(of: message), lookup: sharedCards.lookup)
+    }
+
+    /// The card a link in a message leads to, when it is a card page of the site (it opens in the app).
+    func cardKey(of url: URL) -> String? {
+        CardLinks.cardKey(url, origin: session.config.origin)
+    }
+
     /// A shared card as the viewer may see it (nil: on its way, or not visible to them).
     func card(_ key: String) -> FeedCard? { sharedCards.card(key) }
 

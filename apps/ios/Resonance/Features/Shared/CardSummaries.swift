@@ -6,17 +6,8 @@ import ResonanceKit
 /// (GET /api/v1/cards?keys=) — never a whole card with its story apiece.
 @MainActor @Observable
 final class CardSummaries {
-    /// Where a card asked for stands.
-    enum Lookup: Equatable {
-        /// Not answered yet (or not asked yet).
-        case loading
-        case found(FeedCard)
-        /// The server answered without it: gone, not visible to the reader (private, by someone they
-        /// blocked), or no card by that key.
-        case hidden
-        /// The request failed (offline, a server error); the next `load` asks again.
-        case failed
-    }
+    /// Where a card asked for stands (on its way, found, hidden from the reader, or not read).
+    typealias Lookup = CardLookup<FeedCard>
 
     /// What the server answered, by the key asked (an id or a slug).
     private var found: [String: FeedCard] = [:]
