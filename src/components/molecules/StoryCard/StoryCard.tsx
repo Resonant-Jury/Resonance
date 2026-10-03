@@ -33,7 +33,8 @@ export interface Story {
   accentHue?: number;
 }
 
-const CARD_FILLS = [
+/** The fills of the six palette families, in CARD_HUES order (a shared card's band in a thread draws with them too). */
+export const CARD_FILLS = [
   'oklch(90% 0.065 55)',
   'oklch(94% 0.032 290)',
   'oklch(93% 0.042 140)',
@@ -42,7 +43,7 @@ const CARD_FILLS = [
   'oklch(89% 0.047 18)',
 ];
 
-const CARD_BORDERS = [
+export const CARD_BORDERS = [
   ['oklch(52% 0.13 55)',  'oklch(38% 0.11 55)'],
   ['oklch(54% 0.10 290)', 'oklch(42% 0.09 290)'],
   ['oklch(50% 0.12 140)', 'oklch(38% 0.11 140)'],

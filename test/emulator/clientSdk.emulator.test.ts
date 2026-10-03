@@ -195,7 +195,7 @@ describe('writes on Lite', () => {
 });
 
 describe('an open thread, on the full SDK', () => {
-  it('hears its messages, oldest first, at the times they were sent', async () => {
+  it('hears its newest messages at the times they were sent', async () => {
     const pairId = [me, 'bob'].sort().join('_');
     await db.doc(`conversations/${pairId}`).set({ participants: [me, 'bob'].sort(), unread: { [me]: 1, bob: 0 } });
     await db.doc(`conversations/${pairId}/messages/m1`).set({ senderId: 'bob', text: 'hello', sentAt: at('2026-09-01T08:00:00Z') });
@@ -205,20 +205,78 @@ describe('an open thread, on the full SDK', () => {
     const heard = await new Promise<{ id: string; text: string; sentAt: Date }[]>((resolveHeard, reject) => {
       const stop = listenThread(
         pairId,
-        (messages) => {
+        (window) => {
+          if (window.fromCache) return;
           stop();
-          resolveHeard(messages);
+          resolveHeard(window.entries.map((e) => e.message));
         },
         reject,
       );
     });
     expect(heard.map((m) => [m.id, m.text, m.sentAt.toISOString()])).toEqual([
-      ['m1', 'hello', '2026-09-01T08:00:00.000Z'],
       ['m2', 'hi bob', '2026-09-01T08:05:00.000Z'],
+      ['m1', 'hello', '2026-09-01T08:00:00.000Z'],
     ]);
 
     // Reading it is a Lite write the rules allow (the viewer's own unread count only).
     await markConversationRead(pairId);
     expect((await db.doc(`conversations/${pairId}`).get()).get(`unread.${me}`)).toBe(0);
+  });
+
+  it('pages back from the oldest message the listener heard, on Lite, missing none and none twice', async () => {
+    const pairId = [me, 'bob'].sort().join('_');
+    await db.doc(`conversations/${pairId}`).set({ participants: [me, 'bob'].sort(), unread: {} });
+    // Nine messages. Three share a millisecond (the server stamps to the microsecond), their ids in the
+    // opposite order to their times — a cursor to the millisecond would lose some — and two share the very instant.
+    const base = Date.parse('2026-09-01T08:00:00Z') / 1000;
+    const stamps: [string, number, number][] = [
+      ['a1', base, 0],
+      ['a2', base + 60, 0],
+      ['x3', base + 120, 1_000],
+      ['x2', base + 120, 2_000],
+      ['x1', base + 120, 3_000],
+      ['b6', base + 180, 0],
+      ['a6', base + 180, 0],
+      ['a7', base + 240, 0],
+      ['a8', base + 300, 0],
+    ];
+    for (const [id, seconds, nanos] of stamps) {
+      await db.doc(`conversations/${pairId}/messages/${id}`).set({ senderId: 'bob', text: id, sentAt: new Timestamp(seconds, nanos) });
+    }
+
+    const { listenThread, getOlderMessages } = await client.messages();
+    const window = await new Promise<Awaited<ReturnType<typeof getOlderMessages>>>((resolveHeard, reject) => {
+      const stop = listenThread(
+        pairId,
+        (w) => {
+          if (w.fromCache) return;
+          stop();
+          resolveHeard(w.entries);
+        },
+        reject,
+        3,
+      );
+    });
+    expect(window.map((e) => e.message.id)).toEqual(['a8', 'a7', 'b6']);
+
+    const read = window.map((e) => e.message.id);
+    let cursor = window[window.length - 1].cursor;
+    for (let pages = 0; pages < 10; pages++) {
+      const page = await getOlderMessages(pairId, cursor, 2);
+      read.push(...page.map((e) => e.message.id));
+      if (page.length < 2) break;
+      cursor = page[page.length - 1].cursor;
+    }
+    // Newest first: by the send time to the microsecond, then by id (descending) within one instant.
+    expect(read).toEqual(['a8', 'a7', 'b6', 'a6', 'x1', 'x2', 'x3', 'a2', 'a1']);
+  });
+
+  it("keeps someone else's conversation out of a page read", async () => {
+    await db.doc('conversations/bob_carol').set({ participants: ['bob', 'carol'], unread: {} });
+    await db.doc('conversations/bob_carol/messages/m1').set({ senderId: 'bob', text: 'private', sentAt: at('2026-09-01T08:00:00Z') });
+    const { getOlderMessages } = await client.messages();
+    await expect(getOlderMessages('bob_carol', { seconds: 2_000_000_000, nanoseconds: 0, id: 'zz' }, 10)).rejects.toMatchObject({
+      code: 'permission-denied',
+    });
   });
 });

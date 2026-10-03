@@ -1,10 +1,12 @@
 'use client';
 
+import { useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/atoms/Icon';
+import { QUOTE_RADIUS, bubbleStandInRadius, seedFromId } from '@/lib/design/bubble';
 import type { MessageReplyQuote } from '@/lib/db/types';
-import { MessageBubble } from './MessageBubble';
-import styles from './MessagesPage.module.css';
+import { useBubbleClip } from './MessageBubble';
+import styles from './Thread.module.css';
 
 export interface ReplyQuoteProps {
   quote: MessageReplyQuote;
@@ -12,18 +14,18 @@ export interface ReplyQuoteProps {
   own: boolean;
   viewerId: string;
   otherHandle: string;
-  /** The quoted message is among the loaded ones, so tapping can scroll to it. */
-  canJump: boolean;
-  onJump: (messageId: string) => void;
+  /** A click goes to the original (null: the long-press copy, which only shows it). */
+  onJump: ((messageId: string) => void) | null;
 }
 
 /**
- * What a reply answers, above its bubble: a small caption (who replied to
- * whom) and the quoted words as a faded, two-line ghost of a bubble that the
- * reply bubble slightly overlaps. A card-only original reads「一張卡片」.
- * Tapping it scrolls to the original when it is loaded.
+ * What a reply answers, over it (Messenger's): a caption — who answered whom —
+ * inset from the bubble's outer edge, then the quoted words as a quieter
+ * bubble of their own (`--bubble-quote`, two lines at most) whose foot the
+ * reply's bubble lies over. A card-only original reads「一張卡片」. A click
+ * goes to the original, reading older pages for it when it isn't loaded.
  */
-export function ReplyQuote({ quote, own, viewerId, otherHandle, canJump, onJump }: ReplyQuoteProps) {
+export function ReplyQuote({ quote, own, viewerId, otherHandle, onJump }: ReplyQuoteProps) {
   const t = useTranslations('messages');
   const quotesViewer = quote.senderId === viewerId;
   const caption = own
@@ -33,26 +35,28 @@ export function ReplyQuote({ quote, own, viewerId, otherHandle, canJump, onJump 
     : quotesViewer
       ? t('repliedToYou', { handle: otherHandle })
       : t('repliedToThemselves', { handle: otherHandle });
-  const words = quote.text || (quote.cardRef ? t('replyCard') : '');
+  const words = quote.text || t('replyCard');
+  const ref = useRef<HTMLButtonElement>(null);
+  const clip = useBubbleClip(ref, seedFromId(quote.id, 19), { maxRadius: QUOTE_RADIUS });
 
   return (
-    <div className={styles.replyQuote} data-own={own || undefined}>
-      <span className={styles.replyCaption}>
+    <div className={styles.quote} data-own={own || undefined}>
+      <span className={styles.quoteCaption}>
         <Icon name="reply" size={12} />
         {caption}
       </span>
-      {words && (
-        <button
-          type="button"
-          className={styles.replyGhost}
-          data-own={own || undefined}
-          data-jumpable={canJump || undefined}
-          aria-label={words}
-          onClick={() => canJump && onJump(quote.id)}
-        >
-          <MessageBubble id={`q-${quote.id}`} text={words} own={own} ghost />
-        </button>
-      )}
+      <button
+        ref={ref}
+        type="button"
+        className={styles.quoteBubble}
+        style={clip ? { clipPath: clip } : { borderRadius: bubbleStandInRadius({ maxRadius: QUOTE_RADIUS }) }}
+        data-shaped={clip ? '' : undefined}
+        aria-label={words}
+        tabIndex={onJump ? undefined : -1}
+        onClick={() => onJump?.(quote.id)}
+      >
+        <span className={styles.quoteText}>{words}</span>
+      </button>
     </div>
   );
 }

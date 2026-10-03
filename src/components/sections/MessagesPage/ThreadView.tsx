@@ -1,15 +1,16 @@
 'use client';
 
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react';
-import dynamic from 'next/dynamic';
+import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import useSWR, { useSWRConfig } from 'swr';
-import { Textarea } from '@/components/atoms/Field/Field';
+import { BareIconButton } from '@/components/atoms/BareIconButton/BareIconButton';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
+import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
+import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { OrganicMenu } from '@/components/molecules/OrganicMenu/OrganicMenu';
@@ -17,31 +18,31 @@ import { CardEmbedSourceContext, useCardEmbed } from '@/components/molecules/Emb
 import { useSafetyActions } from '@/components/molecules/SafetyActions/useSafetyActions';
 import { INK } from '@/lib/design/strokes';
 import { seedFromString } from '@/lib/design/prng';
+import { useElementSize } from '@/lib/hooks/useElementSize';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { useCardSummaries, useMyBlockedIds, useThread } from '@/lib/data/hooks';
+import { useCardSummaries, useMyBlockedIds } from '@/lib/data/hooks';
+import { useChatThread } from '@/lib/data/thread';
+import { resonanceCardKey, threadCardKeys } from '@/lib/chat/cardLink';
+import { threadRows } from '@/lib/chat/rows';
+import type { TextRange } from '@/lib/chat/search';
 import { getUserByHandle, isConnected } from '@/lib/db/firestore/client/reads';
 import {
-  MESSAGE_MAX_LENGTH,
   conversationId,
   deleteConversation,
   getConversation,
   markConversationRead,
-  sendMessage,
 } from '@/lib/db/firestore/client/messages';
-import type { Card } from '@/lib/db/types';
-import { MessageBubble } from './MessageBubble';
-import { MessageCardRef } from './MessageCardRef';
-import { LinkPreviewCard } from './LinkPreviewCard';
-import { ReplyQuote } from './ReplyQuote';
 import { linkify } from '@/lib/links/linkify';
-import styles from './MessagesPage.module.css';
-import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
-
-// The card picker loads when it is first opened, not with the thread.
-const InsertCardModal = dynamic(() =>
-  import('@/components/molecules/MarkdownEditor/InsertCardModal').then((m) => m.InsertCardModal),
-);
+import type { MessageLink } from './MessageBubble';
+import { MessageRow } from './MessageRow';
+import { MessageMenuOverlay } from './MessageMenuOverlay';
+import { SearchResults } from './ThreadSearch';
+import { ThreadComposer } from './ThreadComposer';
+import { ThreadActionsContext, type PressedMessage, type ThreadActions } from './threadActions';
+import { centerRow, useThreadScroll } from './useThreadScroll';
+import pageStyles from './MessagesPage.module.css';
+import styles from './Thread.module.css';
 
 export interface ThreadViewProps {
   handle: string;
@@ -50,10 +51,18 @@ export interface ThreadViewProps {
 }
 
 /**
- * One open conversation. The conversation doc is created lazily on the first
- * send (not on page open), so browsing to a connected person's thread never
- * litters either list with empty conversations. Messages stream in realtime
- * via {@link useThread} once the doc exists.
+ * One open conversation, laid out the way Messenger lays one out, drawn in
+ * our hand: one person's messages sent close together stack in runs, their
+ * face beside the last of each of their runs; a reply lies over the message
+ * it quotes; a link's preview and a shared Resonance card sit inside their
+ * bubbles. On a pointer device a message's tools show beside it on hover; on
+ * a touch screen pressing and holding lifts it out with its menu.
+ *
+ * The conversation doc is created lazily on the first send (not on page
+ * open), so browsing to a connected person's thread never litters either list
+ * with empty conversations. Its messages — the newest live once the doc
+ * exists, older ones paged in as the reader scrolls up or searches, and the
+ * viewer's own still on their way — come from {@link useChatThread}.
  */
 export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const t = useTranslations('messages');
@@ -95,40 +104,74 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     },
   });
 
-  // Subscribe only once the conversation doc exists — the messages read rule
-  // get()s the parent doc, so listening earlier would just error.
-  const thread = useThread(convo ? pairId : undefined);
-  // The cards shared in this thread (its latest 50 messages), each once:
-  // their previews come in one request, which the cards in the bubbles and
-  // the「卡片與連結」list look up (MessageCardRef, SharedCardRow).
-  const sharedCardIds = [...new Set(thread.messages.flatMap((m) => (m.cardRef ? [m.cardRef] : [])))];
-  const sharedCards = useCardSummaries(sharedCardIds);
-  // The newest message. The listener keeps only the latest 50, so once a
-  // thread passes 50 the count stops changing — what changes is the last one.
-  const lastMessage = thread.messages[thread.messages.length - 1];
+  // Listen only once the conversation doc exists — the messages read rule
+  // get()s the parent doc, so listening earlier would just error. The first
+  // message makes it: then it is read again, and listened to.
+  const thread = useChatThread({
+    pairId,
+    to: other?.id,
+    listen: !!convo,
+    onSent: () => {
+      if (!convo) void mutateConvo();
+    },
+  });
+  // The cards this thread is about — shared ones, and Resonance card links —
+  // each looked up once, a few to a request, as messages come in or older
+  // ones are read: what the cards in the bubbles and the「卡片與連結」list
+  // look up. Held still between answers, so the rows reading it draw again
+  // only when a card arrives.
+  const cardKeys = useMemo(() => threadCardKeys(thread.messages), [thread.messages]);
+  const summaries = useCardSummaries(cardKeys);
+  const summariesReady = summaries?.status === 'ready' ? summaries : null;
+  const sharedCards = useMemo(
+    () => summaries,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [summaries?.status, summariesReady?.cards, summariesReady?.asked, summariesReady?.failed],
+  );
+  const sharedCardIds = useMemo(
+    () => [...new Set(thread.messages.flatMap((m) => (m.cardRef ? [m.cardRef] : [])))],
+    [thread.messages],
+  );
+  // Links written in messages, each once, for the same list.
+  const sharedLinks = useMemo(
+    () => [
+      ...new Map(
+        thread.messages
+          .flatMap((m) => linkify(m.text))
+          .flatMap((seg) => (seg.type === 'link' ? [seg] : []))
+          .map((l) => [l.url, l]),
+      ).values(),
+    ],
+    [thread.messages],
+  );
+  // The newest message the conversation holds (not one still on its way):
+  // what the unread counter is about.
+  const lastMessage = useMemo(
+    () => [...thread.messages].reverse().find((m) => m.delivery === 'delivered'),
+    [thread.messages],
+  );
   const lastMessageId = lastMessage?.id;
 
-  const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const [cardModalOpen, setCardModalOpen] = useState(false);
-  const cardModalLoaded = useOpenedOnce(cardModalOpen);
-  const [pendingCard, setPendingCard] = useState<Card | null>(null);
   // Header「⋯」menu surfaces: in-thread search, the shared cards/links list,
   // and delete-with-confirm.
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  // While searching: the list of matches over the thread, or the thread itself at the match picked from it.
+  const [listShown, setListShown] = useState(true);
+  const [hitIndex, setHitIndex] = useState<number | null>(null);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // A link that is easy to mistake for another place (an IP address, a
   // punycode name) waits here for the reader's yes before it opens.
   const [linkToConfirm, setLinkToConfirm] = useState<{ url: string; host: string } | null>(null);
-  // The message a tap on a quote scrolled to, washed for a moment.
+  // The message a quote's click scrolled to, washed for a moment.
   const [flashId, setFlashId] = useState<string | null>(null);
+  // A message to scroll to once it is drawn (it may have needed older pages first), and whether to wash it.
+  const [jumpTarget, setJumpTarget] = useState<{ id: string; flash: boolean } | null>(null);
+  // The message a long-press lifted out, with its menu.
+  const [pressed, setPressed] = useState<PressedMessage | null>(null);
+  const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // The note-reply quote rides the next message; dismissable if reconsidered.
-  const [noteRef, setNoteRef] = useState(replyNote);
-  useEffect(() => setNoteRef(replyNote), [replyNote?.noteId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Entering (or receiving into) a thread clears the viewer's unread counter.
   // The `convo` snapshot goes stale while the realtime thread is open (SWR
@@ -145,58 +188,147 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convo, user?.id, pairId, lastMessageId]);
 
-  // Keep the newest message in view.
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   // The「卡片與連結」modal's scroll area (hand-drawn rail replaces the native bar).
   const mediaScrollRef = useRef<HTMLDivElement>(null);
+
+  const rows = useMemo(() => threadRows(thread.messages), [thread.messages]);
+  const newest = thread.messages[thread.messages.length - 1];
+
+  // The newest message stays in view as messages come in (the viewer's own
+  // always), older ones going in above leave the view where it was, and
+  // scrolling up near the top reads the next older page.
+  const scroll = useThreadScroll(scrollerRef, {
+    firstKey: thread.messages[0]?.key,
+    lastKey: newest?.key,
+    lastIsOwn: !!newest && newest.senderId === user?.id,
+    onNearTop: thread.loadOlder,
+  });
+
+  // Search runs over the whole conversation (older pages are read for it);
+  // every match is marked in its bubble, the one being looked at stronger.
+  const query = thread.search.query;
+  const hits = thread.search.hits;
+  const searching = searchOpen && query.trim().length > 0;
+  const hitRanges = useMemo(
+    () => new Map<string, readonly TextRange[]>(searching ? hits.map((h) => [h.messageId, h.ranges]) : []),
+    [searching, hits],
+  );
+  const currentHit = searching && hitIndex != null ? hits[hitIndex]?.messageId : undefined;
+
+  // A message, once it is drawn: centre it in the thread (and, for a quote's original, wash it for a moment
+  // once it has arrived — washed on the way, it would be over before it is seen).
   useEffect(() => {
-    const el = scrollerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [lastMessageId]);
-
-  // Auto-grow: the input rests at one line and takes its height from the
-  // content (the CSS max-height caps it, after which it scrolls).
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
-
-  const trimmed = text.trim();
-  const hasBody = trimmed.length > 0 || !!pendingCard;
-  const valid = hasBody && trimmed.length <= MESSAGE_MAX_LENGTH && !!pairId;
-
-  function send() {
-    if (!valid || pending || !other || !pairId) return;
-    setError(null);
-    const card = pendingCard;
-    const quotedNote = noteRef;
-    start(async () => {
-      try {
-        // The server opens the conversation with the first message and rings
-        // the recipient's bell for it once; after that only the unread badge
-        // speaks (no per-message pings).
-        await sendMessage(other.id, trimmed, { cardRef: card?.id, noteRef: quotedNote });
-        setText('');
-        setPendingCard(null);
-        setNoteRef(undefined);
-        if (!convo) await mutateConvo();
-      } catch {
-        setError(t('sendError'));
-      }
+    if (!jumpTarget) return;
+    const scroller = scrollerRef.current;
+    const row = scroller?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(jumpTarget.id)}"]`);
+    if (!scroller || !row) return;
+    const arrived = centerRow(scroller, row);
+    setJumpTarget(null);
+    if (!jumpTarget.flash) return;
+    const id = jumpTarget.id;
+    void arrived.then(() => {
+      // Off first, so a second jump to the same message washes it again.
+      setFlashId(null);
+      window.requestAnimationFrame(() => setFlashId(id));
+      window.setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1000);
     });
+  }, [jumpTarget, rows]);
+
+  // The thread's labels and times, worked out once per message rather than on every draw.
+  const dayFmt = useMemo(() => new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', weekday: 'short' }), [locale]);
+  const timeFmt = useMemo(() => new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }), [locale]);
+  const fullFmt = useMemo(
+    () => new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+    [locale],
+  );
+  const laidOut = useMemo(
+    () =>
+      rows.map((r, i) => {
+        const m = r.message;
+        const own = m.senderId === user?.id;
+        return {
+          ...r,
+          own,
+          label: r.dayLabel ? dayFmt.format(m.sentAt) : r.timeLabel ? timeFmt.format(m.sentAt) : undefined,
+          fullTime: fullFmt.format(m.sentAt),
+          // Their face beside the last bubble of each of their runs.
+          face: !own && !r.joinsBelow ? (other ?? null) : null,
+          // A run still on its way says so once, under its newest message: the stack stays one stack.
+          deliveryLine: !(r.joinsBelow && rows[i + 1]?.message.delivery === 'sending'),
+        };
+      }),
+    [rows, user?.id, other, dayFmt, timeFmt, fullFmt],
+  );
+
+  // What every message can ask of the thread — the same functions for as long as the conversation is open.
+  const live = useRef({ thread, router });
+  live.current = { thread, router };
+  const actions = useMemo<ThreadActions>(
+    () => ({
+      viewerId: user?.id ?? '',
+      otherHandle: other?.handle ?? '',
+      openLink: (link: MessageLink, e?: MouseEvent<HTMLAnchorElement>) => {
+        // A new tab asked for on purpose is the browser's to open.
+        if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0)) return;
+        const card = resonanceCardKey(link.url);
+        if (card) {
+          e?.preventDefault();
+          live.current.router.push(`/card/${card}`);
+        } else if (link.suspicious) {
+          e?.preventDefault();
+          setLinkToConfirm({ url: link.url, host: link.host });
+        } else if (!e) {
+          window.open(link.url, '_blank', 'noopener,noreferrer');
+        }
+      },
+      reply: (message) => {
+        live.current.thread.reply(message);
+        inputRef.current?.focus();
+      },
+      jumpTo: (id) => {
+        void live.current.thread.ensureLoaded(id).then((held) => held && setJumpTarget({ id, flash: true }));
+      },
+      retry: (key) => live.current.thread.retry(key),
+      discard: (key) => live.current.thread.discard(key),
+      copy: (text) => {
+        void navigator.clipboard?.writeText(text).then(() => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1600);
+        });
+      },
+      press: setPressed,
+    }),
+    [user?.id, other?.handle],
+  );
+
+  // Escape leaves the search wherever the focus is (after a click on a match it isn't in the field) — unless
+  // something over the thread (a message's menu) is the one to close.
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || pressed || document.querySelector('[role="menu"]')) return;
+      closeSearch();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
+
+  function closeSearch() {
+    setSearchOpen(false);
+    setHitIndex(null);
+    setListShown(true);
+    thread.setSearchQuery('');
   }
 
-  function jumpTo(messageId: string) {
-    const row = [...(scrollerRef.current?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])].find(
-      (el) => el.dataset.messageId === messageId,
-    );
-    if (!row) return;
-    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    setFlashId(messageId);
-    window.setTimeout(() => setFlashId((cur) => (cur === messageId ? null : cur)), 1000);
+  /** Looks at match `i` (newest first): the list goes away and the thread takes that message to its middle. */
+  function pickHit(i: number) {
+    const hit = hits[i];
+    if (!hit) return;
+    setHitIndex(i);
+    setListShown(false);
+    setJumpTarget({ id: hit.messageId, flash: false });
   }
 
   function confirmDelete() {
@@ -204,6 +336,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     setDeleting(true);
     void deleteConversation(pairId)
       .then(() => {
+        thread.forget();
         void globalMutate(`conversations:${user.id}`);
         void globalMutate(`conversation:${pairId}`, null, { revalidate: false });
         router.push('/messages');
@@ -217,394 +350,367 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
 
   if (loadingOther) return null;
   if (!other || (user && other.id === user.id)) {
-    return <p className={styles.quietNote}>{t('userNotFound')}</p>;
+    return <p className={pageStyles.quietNote}>{t('userNotFound')}</p>;
   }
 
   const profileHref = `/u/${other.handle}` as const;
-  const dayFmt = new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric' });
-  const fullFmt = new Intl.DateTimeFormat(locale, {
-    month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-
-  // In-thread search narrows the scroller to matching messages (a card-only
-  // message matches on nothing and hides while a query is active).
-  const query = searchOpen ? searchQuery.trim().toLowerCase() : '';
-  const visibleMessages = query
-    ? thread.messages.filter((m) => m.text.toLowerCase().includes(query))
-    : thread.messages;
-
-  // Everything shareable in this thread: card embeds (sharedCardIds) and links found in text.
-  const sharedLinks = [
-    ...new Map(
-      thread.messages
-        .flatMap((m) => linkify(m.text))
-        .flatMap((s) => (s.type === 'link' ? [s] : []))
-        .map((l) => [l.url, l]),
-    ).values(),
-  ];
-  const loadedIds = new Set(thread.messages.map((m) => m.id));
+  const replyHandle = thread.replyingTo?.senderId === user?.id ? null : other.handle;
+  // The way back to the latest message — not under the search's list, which covers the thread.
+  // (A word that something was copied takes its place for a moment.)
+  const showPill = !copied && !(searchOpen && listShown) && (scroll.newBelow || (scroll.farUp && !scroll.atBottom));
 
   return (
     <CardEmbedSourceContext.Provider value={sharedCards}>
-      {/* In-thread search lives *in* the header: opening it swaps the
-          avatar/name/menu for the input, and the close button sits exactly
-          where the「⋯」trigger was. On single-pane phones the app header is
-          gone, so a back control leads this row instead. */}
-      <div className={styles.threadHeader}>
-        {searchOpen ? (
-          <>
-            <span className={styles.headerSearchIcon}>
-              <Icon name="search" size={17} />
-            </span>
-            <input
-              className={styles.searchInput}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('searchPlaceholder')}
-              aria-label={t('menuSearch')}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setSearchOpen(false);
-                  setSearchQuery('');
-                }
-              }}
-            />
-            {query && (
-              <span className={styles.searchCount}>
-                {t('searchCount', { count: visibleMessages.length })}
+      <ThreadActionsContext.Provider value={actions}>
+        {/* In-thread search lives *in* the header: opening it swaps the
+            avatar/name/menu for the field, and its close sits exactly where
+            the「⋯」trigger was. Once a match is picked from the list, the
+            header steps through the matches. On single-pane phones the app
+            header is gone, so a back control leads this row instead. */}
+        <div className={pageStyles.threadHeader}>
+          {searchOpen ? (
+            <>
+              <span className={pageStyles.headerSearchIcon}>
+                <Icon name="search" size={17} />
               </span>
-            )}
-            <button
-              type="button"
-              className={styles.headerSearchClose}
-              aria-label={t('searchClose')}
-              onClick={() => {
-                setSearchOpen(false);
-                setSearchQuery('');
-              }}
-            >
-              <Icon name="close" size={16} />
-            </button>
-          </>
-        ) : (
-          <>
-            <Link href="/messages" className={styles.headerBack} aria-label={t('back')}>
-              {/* translateY optically centres the arrow against the serif name,
-                  whose ink sits a hair below its line-box centre. */}
-              <span style={{ display: 'inline-flex', transform: 'scaleX(-1) translateY(1px)' }}>
-                <Icon name="arrow-right" size={16} />
-              </span>
-            </Link>
-            <Link href={profileHref} className={styles.threadAvatarLink} title={t('viewProfile')}>
-              <HandDrawnAvatar
-                src={other.avatarUrl}
-                initials={other.initials}
-                size={38}
-                color={other.accentColor}
-                seed={Number(other.avatarSeed) || 3}
-              />
-            </Link>
-            <Link href={profileHref} className={styles.threadHandle}>
-              {other.handle}
-            </Link>
-            <span className={styles.threadHeaderSpacer} />
-            {convo && (
-              <OrganicMenu
-                label={t('moreMenu')}
-                seed={seedFromString(convo.id)}
-                triggerSize={34}
-                busy={deleting}
-                items={[
-                  { key: 'search', icon: 'search', label: t('menuSearch') },
-                  { key: 'media', icon: 'cards', label: t('menuMedia') },
-                  ...safety.items,
-                  { key: 'delete', icon: 'trash', label: t('menuDelete'), danger: true },
-                ]}
-                onChoose={(key) => {
-                  if (safety.choose(key)) return;
-                  if (key === 'search') setSearchOpen(true);
-                  else if (key === 'media') setMediaOpen(true);
-                  else if (key === 'delete') setConfirmingDelete(true);
+              <input
+                className={pageStyles.searchInput}
+                value={query}
+                onChange={(e) => {
+                  thread.setSearchQuery(e.target.value);
+                  setHitIndex(null);
+                  setListShown(true);
                 }}
-              />
-            )}
-          </>
-        )}
-      </div>
-      <div className={styles.threadDivider}>
-        <Divider seed={41} spacing={0} strokeWidth={INK} />
-      </div>
-
-      {connected === false ? (
-        <div style={{ padding: '20px 2px' }}>
-          <p className={styles.quietNote}>{t('notConnected')}</p>
-          <Link
-            href={profileHref}
-            style={{ fontSize: 13, color: 'var(--color-terracotta)', textUnderlineOffset: 3 }}
-          >
-            {t('viewProfile')}
-          </Link>
-        </div>
-      ) : (
-        <>
-          <div ref={scrollerRef} className={styles.scroller}>
-            {thread.ready && thread.messages.length === 0 && (
-              <p className={styles.quietNote}>{t('noMessagesYet')}</p>
-            )}
-            {convo === null && !thread.ready && (
-              <p className={styles.quietNote}>{t('noMessagesYet')}</p>
-            )}
-            {query && visibleMessages.length === 0 && (
-              <p className={styles.quietNote}>{t('searchCount', { count: 0 })}</p>
-            )}
-            {visibleMessages.map((m, i) => {
-              const prev = visibleMessages[i - 1];
-              const newDay = !prev || prev.sentAt.toDateString() !== m.sentAt.toDateString();
-              const own = m.senderId === user?.id;
-              return (
-                <div key={m.id} style={{ display: 'contents' }}>
-                  {newDay && <span className={styles.dayLabel}>{dayFmt.format(m.sentAt)}</span>}
-                  <div
-                    className={styles.bubbleRow}
-                    data-own={own || undefined}
-                    data-message-id={m.id}
-                    data-flash={flashId === m.id || undefined}
-                  >
-                    <div className={styles.messageStack} data-own={own || undefined}>
-                      {m.replyTo && user && (
-                        <ReplyQuote
-                          quote={m.replyTo}
-                          own={own}
-                          viewerId={user.id}
-                          otherHandle={other.handle}
-                          canJump={loadedIds.has(m.replyTo.id)}
-                          onJump={jumpTo}
-                        />
-                      )}
-                      {m.cardRef && <MessageCardRef cardId={m.cardRef} />}
-                      {(m.text || m.noteRef) && (
-                        <div className={styles.bubbleWrap}>
-                          <MessageBubble
-                            id={m.id}
-                            text={m.text}
-                            own={own}
-                            title={fullFmt.format(m.sentAt)}
-                            quoteLabel={m.noteRef ? t('quotedNote') : undefined}
-                            onConfirmLink={setLinkToConfirm}
-                          />
-                        </div>
-                      )}
-                      {m.preview && <LinkPreviewCard preview={m.preview} onConfirmLink={setLinkToConfirm} />}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Pending attachments ride the next message. */}
-          {(noteRef || pendingCard) && (
-            <div className={styles.attachments}>
-              {noteRef && (
-                <span className={styles.attachChip}>
-                  <Icon name="note" size={14} />
-                  {t('quotedNote')}
-                  <button
-                    type="button"
-                    aria-label={t('removeCard')}
-                    className={styles.attachRemove}
-                    onClick={() => setNoteRef(undefined)}
-                  >
-                    <Icon name="close" size={13} />
-                  </button>
-                </span>
-              )}
-              {pendingCard && (
-                <span className={styles.attachChip}>
-                  <Icon name="cards" size={14} />
-                  <span className={styles.attachCardTitle}>{pendingCard.thoughtCore}</span>
-                  <button
-                    type="button"
-                    aria-label={t('removeCard')}
-                    className={styles.attachRemove}
-                    onClick={() => setPendingCard(null)}
-                  >
-                    <Icon name="close" size={13} />
-                  </button>
-                </span>
-              )}
-            </div>
-          )}
-
-          <div className={styles.composer}>
-            <button
-              type="button"
-              className={styles.attachBtn}
-              aria-label={t('attachCard')}
-              title={t('attachCard')}
-              onClick={() => setCardModalOpen(true)}
-            >
-              <Icon name="cards" size={18} />
-            </button>
-            <div className={styles.composerField}>
-              <Textarea
-                ref={inputRef}
-                className={styles.composerInput}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
+                onClick={() => setListShown(true)}
+                placeholder={t('searchPlaceholder')}
+                aria-label={t('menuSearch')}
+                autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                     e.preventDefault();
-                    send();
+                    // Enter looks at the newest match, then steps back through the older ones (Shift: forward).
+                    if (listShown || hitIndex == null) pickHit(0);
+                    else pickHit(Math.max(0, Math.min(hits.length - 1, hitIndex + (e.shiftKey ? -1 : 1))));
                   }
                 }}
-                placeholder={t('placeholder')}
-                aria-label={t('threadWith', { handle: other.handle })}
-                rows={1}
-                maxLength={MESSAGE_MAX_LENGTH}
               />
-            </div>
-            <div
-              className={styles.sendWrap}
-              style={{ opacity: valid && !pending ? 1 : 0.5, pointerEvents: valid && !pending ? 'auto' : 'none' }}
+              {!listShown && hitIndex != null && hits.length > 0 && (
+                <>
+                  <span className={pageStyles.searchCount}>
+                    {t('searchPosition', { index: hitIndex + 1, count: hits.length })}
+                  </span>
+                  <BareIconButton
+                    icon="chevron-down"
+                    rotate={180}
+                    label={t('searchPrevious')}
+                    tip="below"
+                    disabled={hitIndex >= hits.length - 1}
+                    onClick={() => pickHit(hitIndex + 1)}
+                  />
+                  <BareIconButton
+                    icon="chevron-down"
+                    label={t('searchNext')}
+                    tip="below"
+                    disabled={hitIndex <= 0}
+                    onClick={() => pickHit(hitIndex - 1)}
+                  />
+                </>
+              )}
+              <BareIconButton icon="close" label={t('searchClose')} iconSize={16} tip="below" tipAlign="end" onClick={closeSearch} />
+            </>
+          ) : (
+            <>
+              <Link href="/messages" className={pageStyles.headerBack} aria-label={t('back')}>
+                {/* translateY optically centres the arrow against the serif name,
+                    whose ink sits a hair below its line-box centre. */}
+                <span style={{ display: 'inline-flex', transform: 'scaleX(-1) translateY(1px)' }}>
+                  <Icon name="arrow-right" size={16} />
+                </span>
+              </Link>
+              <Link href={profileHref} className={pageStyles.threadAvatarLink} title={t('viewProfile')}>
+                <HandDrawnAvatar
+                  src={other.avatarUrl}
+                  initials={other.initials}
+                  size={38}
+                  color={other.accentColor}
+                  seed={Number(other.avatarSeed) || 3}
+                />
+              </Link>
+              <Link href={profileHref} className={pageStyles.threadHandle}>
+                {other.handle}
+              </Link>
+              <span className={pageStyles.threadHeaderSpacer} />
+              {convo && (
+                <OrganicMenu
+                  label={t('moreMenu')}
+                  seed={seedFromString(convo.id)}
+                  triggerSize={34}
+                  busy={deleting}
+                  items={[
+                    { key: 'search', icon: 'search', label: t('menuSearch') },
+                    { key: 'media', icon: 'cards', label: t('menuMedia') },
+                    ...safety.items,
+                    { key: 'delete', icon: 'trash', label: t('menuDelete'), danger: true },
+                  ]}
+                  onChoose={(key) => {
+                    if (safety.choose(key)) return;
+                    if (key === 'search') setSearchOpen(true);
+                    else if (key === 'media') setMediaOpen(true);
+                    else if (key === 'delete') setConfirmingDelete(true);
+                  }}
+                />
+              )}
+            </>
+          )}
+        </div>
+        <div className={pageStyles.threadDivider}>
+          <Divider seed={41} spacing={0} strokeWidth={INK} />
+        </div>
+
+        {connected === false ? (
+          <div style={{ padding: '20px 2px' }}>
+            <p className={pageStyles.quietNote}>{t('notConnected')}</p>
+            <Link
+              href={profileHref}
+              style={{ fontSize: 13, color: 'var(--color-terracotta)', textUnderlineOffset: 3 }}
             >
-              <OrganicButton variant="solid" size="sm" onClick={send} style={{ height: '100%' }}>
-                {pending ? '…' : t('send')}
-              </OrganicButton>
-            </div>
+              {t('viewProfile')}
+            </Link>
           </div>
-          {error && (
-            <p style={{ fontSize: 12, color: 'var(--color-terracotta)', margin: '6px 0 0' }}>{error}</p>
-          )}
-
-          {cardModalLoaded && (
-            <InsertCardModal
-              open={cardModalOpen}
-              onClose={() => setCardModalOpen(false)}
-              title={t('pickCard')}
-              subtitle={t('pickCardSubtitle')}
-              onPick={(card) => {
-                setPendingCard(card);
-                setCardModalOpen(false);
-              }}
-            />
-          )}
-
-          {/* Everything shared in this thread: card embeds and plain links. */}
-          <Modal
-            open={mediaOpen}
-            onClose={() => setMediaOpen(false)}
-            seed={53}
-            maxWidth={480}
-            ariaLabel={t('mediaTitle')}
-          >
-            <h3 className={styles.mediaTitle}>{t('mediaTitle')}</h3>
-            <p className={styles.mediaSubtitle}>{t('mediaSubtitle')}</p>
-            {sharedCardIds.length === 0 && sharedLinks.length === 0 ? (
-              <p className={styles.quietNote}>{t('mediaEmpty')}</p>
-            ) : (
-              <div className={styles.mediaArea}>
-                <div ref={mediaScrollRef} className={styles.mediaBody}>
-                  {sharedCardIds.length > 0 && (
-                    <section>
-                      <h4 className={styles.mediaSection}>{t('mediaCards')}</h4>
-                      {sharedCardIds.map((id, i) => (
-                        <Fragment key={id}>
-                          {i > 0 && <Divider seed={53 + i * 7} spacing={0} />}
-                          <SharedCardRow cardId={id} />
-                        </Fragment>
-                      ))}
-                    </section>
-                  )}
-                  {sharedLinks.length > 0 && (
-                    <section>
-                      <h4 className={styles.mediaSection}>{t('mediaLinks')}</h4>
-                      {sharedLinks.map((link, i) => (
-                        <Fragment key={link.url}>
-                          {i > 0 && <Divider seed={97 + i * 11} spacing={0} />}
-                          <a
-                            className={styles.mediaLinkRow}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer nofollow ugc"
-                            onClick={(e) => {
-                              if (!link.suspicious) return;
-                              e.preventDefault();
-                              setLinkToConfirm({ url: link.url, host: link.host });
-                            }}
-                          >
-                            {link.text}
-                          </a>
-                        </Fragment>
-                      ))}
-                    </section>
-                  )}
-                </div>
-                <OrganicScrollbar targetRef={mediaScrollRef} seed={71} />
+        ) : (
+          <>
+            <div className={styles.body}>
+              <div ref={scrollerRef} className={styles.scroller}>
+                {thread.ready && thread.messages.length === 0 && <p className={pageStyles.quietNote}>{t('noMessagesYet')}</p>}
+                {convo === null && !thread.ready && <p className={pageStyles.quietNote}>{t('noMessagesYet')}</p>}
+                {/* Older pages: read as the reader nears the top, said here while they come. The row
+                    keeps its height, so its words coming and going never nudge the messages under it. */}
+                {thread.messages.length > 0 && (
+                  <div className={styles.older}>
+                    {thread.olderError ? (
+                      <>
+                        <span>{t('loadOlderError')}</span>
+                        <OrganicButton variant="textAccent" size="sm" onClick={() => thread.loadOlder()}>
+                          {t('retry')}
+                        </OrganicButton>
+                      </>
+                    ) : thread.hasOlder ? (
+                      thread.loadingOlder && (
+                        <>
+                          <SketchLoader size={20} />
+                          <span>{t('loadingOlder')}</span>
+                        </>
+                      )
+                    ) : (
+                      thread.ready && <span>{t('beginning')}</span>
+                    )}
+                  </div>
+                )}
+                {laidOut.map((r) => (
+                  <MessageRow
+                    key={r.message.key}
+                    message={r.message}
+                    own={r.own}
+                    position={r.position}
+                    label={r.label}
+                    joinsAbove={r.joinsAbove}
+                    face={r.face}
+                    deliveryLine={r.deliveryLine}
+                    highlights={hitRanges.get(r.message.id)}
+                    hitStrong={currentHit === r.message.id}
+                    flash={flashId === r.message.id}
+                    lifted={pressed?.message.key === r.message.key}
+                    fullTime={r.fullTime}
+                  />
+                ))}
               </div>
+              {showPill && (
+                <Pill
+                  className={styles.pill}
+                  onClick={() => scroll.toBottom('smooth')}
+                  icon="chevron-down"
+                  label={scroll.newBelow ? t('newMessages') : t('jumpToLatest')}
+                />
+              )}
+              {copied && <Pill className={styles.pill} label={t('copied')} />}
+              {searchOpen && listShown && (
+                <SearchResults
+                  query={query}
+                  hits={hits}
+                  messages={thread.messages}
+                  viewerId={user?.id ?? ''}
+                  otherHandle={other.handle}
+                  loading={thread.search.loading}
+                  onPick={pickHit}
+                />
+              )}
+            </div>
+
+            <ThreadComposer
+              inputRef={inputRef}
+              otherHandle={other.handle}
+              replyingTo={thread.replyingTo}
+              replyHandle={replyHandle}
+              onCancelReply={thread.cancelReply}
+              replyNote={replyNote}
+              send={thread.send}
+              ready={!!pairId}
+            />
+            {error && <p className={styles.error}>{error}</p>}
+
+            {pressed && (
+              <MessageMenuOverlay
+                pressed={pressed}
+                own={pressed.message.senderId === user?.id}
+                fullTime={fullFmt.format(pressed.message.sentAt)}
+                onClose={() => setPressed(null)}
+              />
             )}
-          </Modal>
 
-          {/* Before a link to an IP address or a punycode name opens. */}
-          <Modal
-            open={!!linkToConfirm}
-            onClose={() => setLinkToConfirm(null)}
-            seed={61}
-            maxWidth={400}
-            ariaLabel={t('linkConfirmTitle')}
-          >
-            <h3 className={styles.mediaTitle}>{t('linkConfirmTitle')}</h3>
-            <p className={styles.mediaSubtitle}>{t('linkConfirmBody', { host: linkToConfirm?.host ?? '' })}</p>
-            <div className={styles.confirmActions}>
-              <OrganicButton variant="text" size="sm" onClick={() => setLinkToConfirm(null)}>
-                {t('linkConfirmCancel')}
-              </OrganicButton>
-              <OrganicButton
-                variant="solid"
-                size="sm"
-                onClick={() => {
-                  if (linkToConfirm) window.open(linkToConfirm.url, '_blank', 'noopener,noreferrer');
-                  setLinkToConfirm(null);
-                }}
-              >
-                {t('linkConfirmOpen')}
-              </OrganicButton>
-            </div>
-          </Modal>
-
-          <Modal
-            open={confirmingDelete}
-            onClose={() => (deleting ? undefined : setConfirmingDelete(false))}
-            seed={59}
-            maxWidth={400}
-            ariaLabel={t('deleteConfirmTitle')}
-          >
-            <h3 className={styles.mediaTitle}>{t('deleteConfirmTitle')}</h3>
-            <p className={styles.mediaSubtitle}>{t('deleteConfirmBody')}</p>
-            <div
-              className={styles.confirmActions}
-              style={deleting ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
+            {/* Everything shared in this thread: card embeds and plain links. */}
+            <Modal
+              open={mediaOpen}
+              onClose={() => setMediaOpen(false)}
+              seed={53}
+              maxWidth={480}
+              ariaLabel={t('mediaTitle')}
+              // A list with nothing to do at its foot: the close lies there.
+              closeButton
             >
-              <OrganicButton variant="text" size="sm" onClick={() => setConfirmingDelete(false)}>
-                {t('deleteCancel')}
-              </OrganicButton>
-              <OrganicButton variant="danger" size="sm" onClick={confirmDelete}>
-                {deleting ? '…' : t('deleteConfirm')}
-              </OrganicButton>
-            </div>
-          </Modal>
-          {safety.modals}
-        </>
-      )}
+              <h3 className={pageStyles.mediaTitle}>{t('mediaTitle')}</h3>
+              <p className={pageStyles.mediaSubtitle}>{t('mediaSubtitle')}</p>
+              {sharedCardIds.length === 0 && sharedLinks.length === 0 ? (
+                <p className={pageStyles.quietNote}>{t('mediaEmpty')}</p>
+              ) : (
+                <div className={pageStyles.mediaArea}>
+                  <div ref={mediaScrollRef} className={pageStyles.mediaBody}>
+                    {sharedCardIds.length > 0 && (
+                      <section>
+                        <h4 className={pageStyles.mediaSection}>{t('mediaCards')}</h4>
+                        {sharedCardIds.map((id, i) => (
+                          <Fragment key={id}>
+                            {i > 0 && <Divider seed={53 + i * 7} spacing={0} />}
+                            <SharedCardRow cardId={id} />
+                          </Fragment>
+                        ))}
+                      </section>
+                    )}
+                    {sharedLinks.length > 0 && (
+                      <section>
+                        <h4 className={pageStyles.mediaSection}>{t('mediaLinks')}</h4>
+                        {sharedLinks.map((link, i) => (
+                          <Fragment key={link.url}>
+                            {i > 0 && <Divider seed={97 + i * 11} spacing={0} />}
+                            <a
+                              className={pageStyles.mediaLinkRow}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer nofollow ugc"
+                              onClick={(e) => actions.openLink(link, e)}
+                            >
+                              {link.text}
+                            </a>
+                          </Fragment>
+                        ))}
+                      </section>
+                    )}
+                  </div>
+                  <OrganicScrollbar targetRef={mediaScrollRef} seed={71} />
+                </div>
+              )}
+            </Modal>
+
+            {/* Before a link to an IP address or a punycode name opens. */}
+            <Modal
+              open={!!linkToConfirm}
+              onClose={() => setLinkToConfirm(null)}
+              seed={61}
+              maxWidth={400}
+              ariaLabel={t('linkConfirmTitle')}
+            >
+              <h3 className={pageStyles.mediaTitle}>{t('linkConfirmTitle')}</h3>
+              <p className={pageStyles.mediaSubtitle}>{t('linkConfirmBody', { host: linkToConfirm?.host ?? '' })}</p>
+              <div className={pageStyles.confirmActions}>
+                <OrganicButton variant="text" size="sm" onClick={() => setLinkToConfirm(null)}>
+                  {t('linkConfirmCancel')}
+                </OrganicButton>
+                <OrganicButton
+                  variant="solid"
+                  size="sm"
+                  onClick={() => {
+                    if (linkToConfirm) window.open(linkToConfirm.url, '_blank', 'noopener,noreferrer');
+                    setLinkToConfirm(null);
+                  }}
+                >
+                  {t('linkConfirmOpen')}
+                </OrganicButton>
+              </div>
+            </Modal>
+
+            <Modal
+              open={confirmingDelete}
+              onClose={() => (deleting ? undefined : setConfirmingDelete(false))}
+              seed={59}
+              maxWidth={400}
+              ariaLabel={t('deleteConfirmTitle')}
+            >
+              <h3 className={pageStyles.mediaTitle}>{t('deleteConfirmTitle')}</h3>
+              <p className={pageStyles.mediaSubtitle}>{t('deleteConfirmBody')}</p>
+              <div
+                className={pageStyles.confirmActions}
+                style={deleting ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
+              >
+                <OrganicButton variant="text" size="sm" onClick={() => setConfirmingDelete(false)}>
+                  {t('deleteCancel')}
+                </OrganicButton>
+                <OrganicButton variant="danger" size="sm" onClick={confirmDelete}>
+                  {deleting ? '…' : t('deleteConfirm')}
+                </OrganicButton>
+              </div>
+            </Modal>
+            {safety.modals}
+          </>
+        )}
+      </ThreadActionsContext.Provider>
     </CardEmbedSourceContext.Provider>
+  );
+}
+
+/**
+ * The small pill over the foot of the thread — the way back to the latest
+ * message (`onClick`), or a word that something happened (copied): a
+ * wobbly terracotta-light wash with no pen line.
+ */
+function Pill({ label, icon, onClick, className }: { label: string; icon?: 'chevron-down'; onClick?: () => void; className?: string }) {
+  const ref = useRef<HTMLElement>(null);
+  const { w, h } = useElementSize(ref);
+  const body = (
+    <>
+      <HandDrawnBorder w={w} h={h} R={h / 2} seed={41} mag={1.2} segmentsH={2} segmentsV={1} curve={1.4} fillColor="var(--color-terracotta-light)" />
+      {icon && <Icon name={icon} size={14} className={styles.pillGlyph} />}
+      <span className={styles.pillLabel}>{label}</span>
+    </>
+  );
+  const shared = {
+    className: `${className ?? ''} res-shape-stand-in`,
+    'data-shape-pending': w > 0 && h > 0 ? undefined : '',
+    style: { '--shape-fill': 'var(--color-terracotta-light)', '--shape-radius': '999px' } as React.CSSProperties,
+  };
+  return onClick ? (
+    <button ref={ref as React.RefObject<HTMLButtonElement>} type="button" onClick={onClick} {...shared}>
+      {body}
+    </button>
+  ) : (
+    <span ref={ref as React.RefObject<HTMLSpanElement>} role="status" {...shared}>
+      {body}
+    </span>
   );
 }
 
 /**
  * One shared card as a compact row in the「卡片與連結」list: organic thumb +
  * title, linking to the card page. Looked up in the thread's shared-card
- * previews, like an in-thread embed — a card the viewer can no longer see
+ * previews, like an in-thread card — a card the viewer can no longer see
  * simply renders nothing.
  */
 function SharedCardRow({ cardId }: { cardId: string }) {
@@ -614,19 +720,19 @@ function SharedCardRow({ cardId }: { cardId: string }) {
   return (
     <Link
       href={`/card/${card.slug ?? card.id}` as `/card/${string}`}
-      className={styles.mediaRow}
+      className={pageStyles.mediaRow}
     >
-      <span className={styles.mediaThumb}>
+      <span className={pageStyles.mediaThumb}>
         <OrganicImage src={card.media?.url} alt={card.thoughtCore} seed={7} ratio={1}>
           {!card.media?.url && (
             <span
-              className={styles.mediaThumbFallback}
+              className={pageStyles.mediaThumbFallback}
               style={{ background: `oklch(90% 0.06 ${card.accentHue ?? 55})` }}
             />
           )}
         </OrganicImage>
       </span>
-      <span className={styles.mediaRowTitle}>{card.thoughtCore}</span>
+      <span className={pageStyles.mediaRowTitle}>{card.thoughtCore}</span>
     </Link>
   );
 }

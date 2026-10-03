@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -25,13 +25,13 @@ import {
   resolveCardId,
 } from '@/lib/db/firestore/client/reads';
 import { loadMyThoughtMap, type ThoughtMapData } from '@/lib/db/firestore/client/thoughtMap';
-import { listenConversations, listenThread } from '@/lib/db/firestore/client/messages';
+import { listenConversations } from '@/lib/db/firestore/client/messages';
 import { listenNotifications } from '@/lib/db/firestore/client/notifications';
 import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import { ApiError, callApi } from '@/lib/db/firestore/client/api';
 import { hasSessionMark } from '@/lib/auth/firebase/client';
 import type { CardBoxTabName, CardDetailBody, CardListBody, FeedPageBody, ProfileBody } from '@/lib/api/v1/schemas';
-import type { Conversation, Message, Notification } from '@/lib/db/types';
+import type { Conversation, Notification } from '@/lib/db/types';
 import { useLive, type LiveState } from './live';
 import { anonymousAuthor, cardKey } from './cardPrefill';
 import type { CardSeed, PublicCardView } from './cardSeed';
@@ -571,7 +571,20 @@ export function useResonators(cardId: string | undefined, referenceCardId?: stri
  * Cards a page already has for the embeds it draws (see useCardEmbed):
  * `loading` while they are on their way.
  */
-export type CardEmbedSource = { status: 'loading' } | { status: 'ready'; cards: CardsWithAuthors };
+export type CardEmbedSource =
+  | { status: 'loading' }
+  | {
+      status: 'ready';
+      cards: CardsWithAuthors;
+      /**
+       * The cards (slugs or ids) this answer covers, for a source that grows
+       * (a thread's): a card outside them is still on its way. Absent: the
+       * answer covers every card the page has.
+       */
+      asked?: ReadonlySet<string>;
+      /** Cards whose request failed: each of those embeds reads its own card. */
+      failed?: ReadonlySet<string>;
+    };
 
 /** The lists around a card on its page; each is undefined until it arrives. */
 export interface CardPageLists {
@@ -682,25 +695,73 @@ async function fetchCardSummaries(keys: string[]): Promise<CardsWithAuthors> {
   return summaryList(lists.flatMap((l) => l.cards));
 }
 
+interface CardSummariesState {
+  uid: string | null;
+  cards: CardsWithAuthors;
+  asked: ReadonlySet<string>;
+  failed: ReadonlySet<string>;
+}
+
+const noSummaries = (uid: string | null): CardSummariesState => ({
+  uid,
+  cards: { cards: [], authors: {} },
+  asked: new Set(),
+  failed: new Set(),
+});
+
 /**
- * Previews of several cards by id or slug — the cards shared in a thread —
- * in one request (GET /api/v1/cards?keys=, up to 30 a request) instead of
- * one read each, for those cards' embeds to look up (see useCardEmbed).
- * Signed-in viewers only. Null when there is nothing to fetch, or the
- * request failed (each embed then reads its own card).
+ * Previews of several cards by id or slug — the cards a thread is about —
+ * for those cards' embeds to look up (see useCardEmbed), read a few at a time
+ * (GET /api/v1/cards?keys=, up to 30 a request) instead of one read each.
+ * Signed-in viewers only; null when there is nothing to look up.
  *
- * When a card joins the list, what was already here stays up while the new
- * list loads: lookups are by id, so the cards of an earlier list never stand
- * in for another card.
+ * Each card is asked for once: as the list grows (a new message, an older
+ * page, a search reading the whole conversation) only the cards not asked
+ * for yet go out, and what was already here stays up meanwhile — the answer
+ * names the cards it covers (`asked`), so a card still on its way reads as
+ * loading, never as one the viewer can't see. A card whose request failed is
+ * listed as `failed`, and its embed reads it by itself.
  */
 export function useCardSummaries(keys: string[]): CardEmbedSource | null {
   const { user, loading } = useAuth();
+  const uid = user && !loading ? user.id : null;
   const wanted = [...new Set(keys)].sort();
-  const key = user && !loading && wanted.length ? `cardSummaries:${user.id}:${wanted.join(',')}` : null;
-  const { data, error } = useSWR(key, () => fetchCardSummaries(wanted), { keepPreviousData: true });
-  // A failed request (the current list's, not an earlier one) leaves each embed to read its own card.
-  if (!key || error) return null;
-  return data ? { status: 'ready', cards: data } : { status: 'loading' };
+  const wantedKey = wanted.join(',');
+  const [state, setState] = useState<CardSummariesState>(() => noSummaries(uid));
+  const known = state.uid === uid ? state : noSummaries(uid);
+  const inFlight = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (state.uid !== uid) {
+      inFlight.current = new Set();
+      setState(noSummaries(uid));
+      return;
+    }
+    if (!uid) return;
+    const todo = wanted.filter((k) => !state.asked.has(k) && !state.failed.has(k) && !inFlight.current.has(k));
+    if (!todo.length) return;
+    const flying = inFlight.current;
+    todo.forEach((k) => flying.add(k));
+    fetchCardSummaries(todo).then(
+      (list) =>
+        setState((prev) =>
+          prev.uid !== uid
+            ? prev
+            : {
+                ...prev,
+                cards: { cards: [...prev.cards.cards, ...list.cards], authors: { ...prev.cards.authors, ...list.authors } },
+                asked: new Set([...prev.asked, ...todo]),
+              },
+        ),
+      () => setState((prev) => (prev.uid !== uid ? prev : { ...prev, failed: new Set([...prev.failed, ...todo]) })),
+    ).finally(() => todo.forEach((k) => flying.delete(k)));
+    // `wantedKey` stands for `wanted`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, wantedKey, state]);
+
+  if (!uid || !wanted.length) return null;
+  if (!known.asked.size && !known.failed.size) return { status: 'loading' };
+  return { status: 'ready', cards: known.cards, asked: known.asked, failed: known.failed };
 }
 
 export interface ConversationsData {
@@ -799,37 +860,6 @@ export function useNotifications(max = 20): LiveState<Notification[]> {
   return useLive<Notification[]>(uid ? `notifications:live:${uid}:${max}` : null, (emit, fail) =>
     listenNotifications(uid!, emit, fail, max),
   );
-}
-
-export interface ThreadState {
-  messages: Message[];
-  /** False until the first snapshot arrives. */
-  ready: boolean;
-  error: Error | null;
-}
-
-/**
- * Realtime subscription to an open conversation's messages (oldest → newest),
- * scoped to the single thread the viewer has open. (The conversation list
- * and the header's badges listen too: {@link useConversations},
- * {@link useUnreadMessages}, {@link useNotifications}.)
- */
-export function useThread(pairId: string | undefined): ThreadState {
-  const { user, loading } = useAuth();
-  const [state, setState] = useState<ThreadState>({ messages: [], ready: false, error: null });
-
-  useEffect(() => {
-    if (!pairId || !user || loading) return;
-    setState({ messages: [], ready: false, error: null });
-    const unsubscribe = listenThread(
-      pairId,
-      (messages) => setState({ messages, ready: true, error: null }),
-      (error) => setState((prev) => ({ ...prev, ready: true, error })),
-    );
-    return unsubscribe;
-  }, [pairId, user, loading]);
-
-  return state;
 }
 
 /** The head of a user's outward-facing profile: who they are, and how the viewer stands with them. */

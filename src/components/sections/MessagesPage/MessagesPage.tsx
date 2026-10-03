@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
-import { useElementSize } from '@/lib/hooks/useElementSize';
 import { seedFromString } from '@/lib/design/prng';
 import { INK } from '@/lib/design/strokes';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useConversations } from '@/lib/data/hooks';
 import type { Conversation, User } from '@/lib/db/types';
+import { RowWash } from './RowWash';
 import { ThreadView } from './ThreadView';
 import styles from './MessagesPage.module.css';
 
@@ -119,35 +119,6 @@ export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
         )}
       </section>
     </div>
-  );
-}
-
-/**
- * The row's hover/selected wash — a wobbly curved fill (the markdown toolbar's
- * hand-drawn chip language) driven by the row's `--row-fill` variable, instead
- * of a flat rounded rectangle or a border.
- */
-function RowWash({ seed }: { seed: number }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const { w, h } = useElementSize(ref);
-  return (
-    <span ref={ref} className={styles.rowWash} aria-hidden>
-      {w > 0 && h > 0 && (
-        <HandDrawnBorder
-          w={w}
-          h={h}
-          R={h * 0.28}
-          seed={seed}
-          mag={2.4}
-          segmentsH={3}
-          segmentsV={1}
-          curve={1.3}
-          cornerJitter={2.4}
-          cornerOffset={h * 0.05}
-          fillColor="var(--row-fill)"
-        />
-      )}
-    </span>
   );
 }
 

@@ -1,0 +1,1043 @@
+/* ── The open thread: Messenger's layout in our hand ─────────────────
+   Bubbles are filled wobbles with no pen line, cut to their own outline
+   (clip-path: lib/design/bubble, the recipe the apps draw with). One person's
+   messages sent close together stack in runs — 2px apart, 12px between runs —
+   their face beside the last bubble of each of their runs. */
+
+/* The thread's body between its header and the composer: the messages, and
+   what floats over them (the way back down, the search's list). */
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.scroller {
+  /* The thread pane owns the viewport height, so the scroller simply takes
+     the leftover space between header and composer. The right content inset
+     lives here (not on the pane) so the scrollbar hugs the viewport edge. */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* A bubble's fill reaches a few px past its box (its wobble swings out): never a sideways scroll for it. */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 16px 14px 4px;
+}
+
+/* ── Rows ─────────────────────────────────────────────────────────── */
+
+.row {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+/* Inside a run the bubbles nearly touch; between runs the air is wide; a
+   label brings its own. */
+.row[data-gap='run'] {
+  margin-top: 2px;
+}
+
+.row[data-gap='runs'] {
+  margin-top: 12px;
+}
+
+/* The day, or the time after a pause: quiet, centred. */
+.label {
+  align-self: center;
+  padding: 14px 0 6px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+.line {
+  display: flex;
+  align-items: flex-end;
+}
+
+.row[data-own] .line {
+  justify-content: flex-end;
+}
+
+/* Their face's column: every one of their bubbles is indented by it, so the
+   column stays straight; the face itself stands only beside a run's last. */
+.face {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+}
+
+.faceLink {
+  display: flex;
+}
+
+/* At most 72% of the row (their face's column not counted). */
+.core {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  max-width: calc((100% - 36px) * 0.72);
+}
+
+.row[data-own] .core {
+  align-items: flex-end;
+  max-width: 72%;
+}
+
+/* The message itself — its quote and its bubble — which a long-press lifts. */
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: inherit;
+  max-width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A finger resting on a message asks for its menu, not for the text under it. */
+@media (pointer: coarse) {
+  .message {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
+/* Lifted into the menu's layer, its place stays empty under the scrim. */
+.row[data-lifted] .message {
+  visibility: hidden;
+}
+
+/* The bubble, with the tools beside it. */
+.slot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: inherit;
+  max-width: 100%;
+}
+
+/* A reply lies over the foot of the quote it answers. */
+.slot[data-over-quote] {
+  margin-top: -14px;
+}
+
+/* ── The bubble ───────────────────────────────────────────────────── */
+
+.bubble {
+  --bubble-fill: var(--bubble-theirs);
+  position: relative;
+  isolation: isolate;
+  max-width: 100%;
+  background: var(--bubble-fill);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.bubble[data-own] {
+  --bubble-fill: var(--bubble-mine);
+}
+
+/* Measured: its fill reaches past the box (where the wobble swings out) and
+   the outline cuts it — and everything inside, a picture edge to edge. */
+.bubble[data-shaped] {
+  background: none;
+}
+
+.bubble[data-shaped]::before,
+.quoteBubble[data-shaped]::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  z-index: -1;
+  background: var(--bubble-fill);
+}
+
+/* The wash a quote's click leaves on the original, and the mark of a search
+   hit the bubble can't show in its words (the link standing for its card). */
+.bubble::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  z-index: -1;
+  background: var(--color-terracotta);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bubble:not([data-shaped])::after {
+  inset: 0;
+  border-radius: inherit;
+}
+
+.bubble[data-flash]::after {
+  animation: bubbleFlash 900ms ease-out;
+}
+
+.bubble[data-hit-whole]::after {
+  opacity: 0.15;
+}
+
+@keyframes bubbleFlash {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble[data-flash]::after {
+    animation: none;
+    opacity: 0.15;
+  }
+}
+
+/* One bubble of a fixed width, carrying a link's preview or a shared card. */
+.bubble[data-width='preview'] {
+  width: 280px;
+}
+
+.bubble[data-width='card'] {
+  width: 300px;
+}
+
+/* A message that didn't go, dimmed (its「未送出」line under it). */
+.row[data-delivery='failed'] .bubble,
+.row[data-delivery='failed'] .quote {
+  opacity: 0.6;
+}
+
+.words {
+  padding: 9px 14px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* What follows the words inside the bubble brings its own air above it. */
+.words[data-followed] {
+  padding-bottom: 0;
+}
+
+.noteLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+  white-space: normal;
+}
+
+/* A link in a bubble: underlined, terracotta in theirs and a deeper
+   terracotta in your own (plain terracotta sinks into its wash). */
+.link {
+  color: var(--color-terracotta);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.bubble[data-own] .link {
+  color: color-mix(in oklch, var(--color-terracotta), black 25%);
+}
+
+/* A search's matches: the hit being looked at stronger than the others. */
+.mark {
+  padding: 0 2px;
+  margin: 0 -2px;
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--color-terracotta) 24%, transparent);
+  color: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.mark[data-strong] {
+  background: color-mix(in oklch, var(--color-terracotta) 50%, transparent);
+}
+
+/* ── The quote a reply lies over ──────────────────────────────────── */
+
+.quote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.quote[data-own] {
+  align-items: flex-end;
+}
+
+/* Who answered whom, inset from the bubble's outer edge. */
+.quoteCaption {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 0 0 4px 12px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quote[data-own] .quoteCaption {
+  padding: 0 12px 4px 0;
+}
+
+/* The quoted words: a quieter bubble of their own, two lines at most, its
+   foot deeper than its words need (the reply lies over it there). */
+.quoteBubble {
+  --bubble-fill: var(--bubble-quote);
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  isolation: isolate;
+  display: block;
+  max-width: 100%;
+  padding: 8px 13px 22px;
+  background: var(--bubble-fill);
+  cursor: pointer;
+}
+
+.quoteBubble[data-shaped] {
+  background: none;
+}
+
+.quoteBubble:focus-visible::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 2px var(--field-border-focus);
+}
+
+.quoteText {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* ── What a bubble carries: a link's preview, a shared card ───────── */
+
+.previewPart,
+.cardPart {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A picture edge to edge at 1.91:1 (the share-image ratio), a little wider
+   than the bubble so its wobbly edge, not the picture's, ends it. */
+.picture {
+  position: relative;
+  display: block;
+  margin: 0 -4px;
+  aspect-ratio: 1.91;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--color-text) 6%, transparent);
+}
+
+.picture[data-after-words] {
+  margin-top: 9px;
+}
+
+.picture img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.previewBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 14px;
+}
+
+.previewTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  transition: color 120ms ease;
+}
+
+.previewDescription {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.previewHost {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+.ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Under a pointer, the title takes the link colour of its bubble. */
+@media (hover: hover) {
+  .previewPart:hover .previewTitle,
+  .cardPart:hover .cardTitle {
+    color: var(--color-terracotta);
+  }
+
+  .bubble[data-own] .previewPart:hover .previewTitle,
+  .bubble[data-own] .cardPart:hover .cardTitle {
+    color: color-mix(in oklch, var(--color-terracotta), black 25%);
+  }
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+.cardByline {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cardAuthor {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardAuthor[data-anonymous] {
+  color: var(--color-text-muted);
+}
+
+.cardMeta {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A card with no cover: a band of its own colour, the wave faint on it. */
+.cardBand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 96px;
+  margin: 0 -4px;
+  overflow: hidden;
+  background: var(--band-fill);
+}
+
+.cardBandWave {
+  color: color-mix(in oklch, var(--band-ink) 32%, transparent);
+}
+
+.cardText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 0;
+}
+
+.cardTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  transition: color 120ms ease;
+}
+
+.cardExcerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The source line under a shared post: the wave and「共振」. */
+.cardSource {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+.cardSourceWave {
+  color: var(--color-terracotta);
+}
+
+.cardPart[aria-busy] .cardText {
+  gap: 8px;
+  padding-top: 12px;
+}
+
+/* ── Beside a bubble: its tools, its line ─────────────────────────── */
+
+/* Reply and「⋯」, on the side toward the middle of the thread, centred on the
+   bubble — shown on hover, on keyboard focus and while the menu is open;
+   never on a touch screen, which presses and holds instead. */
+.actions {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 4px);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease-out;
+}
+
+.actions[data-own] {
+  right: calc(100% + 4px);
+  left: auto;
+  flex-direction: row-reverse;
+}
+
+.row:hover .actions,
+.row:focus-within .actions,
+.actions[data-open] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .actions {
+    display: none;
+  }
+}
+
+/* Under a message of the viewer's own still on its way, or one that didn't go. */
+.delivery {
+  all: unset;
+  margin-top: 4px;
+  padding: 0 4px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+.delivery[data-failed] {
+  color: var(--color-terracotta);
+  cursor: pointer;
+}
+
+.delivery:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Around the messages ──────────────────────────────────────────── */
+
+/* Above the oldest message held: the next page being read, a read that
+   failed, or the start of the conversation. It keeps its height, so its
+   words coming and going never nudge the messages under it. */
+.older {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 64px;
+  padding: 6px 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* The small pill over the foot of the thread: back to the latest message, or
+   a word that something was copied. A terracotta-light wash, no pen line. */
+.pill {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: color-mix(in oklch, var(--color-terracotta), black 35%);
+  white-space: nowrap;
+  cursor: pointer;
+  transform: translateX(-50%);
+  animation: pillIn 160ms ease-out;
+}
+
+span.pill {
+  cursor: default;
+}
+
+.pillGlyph,
+.pillLabel {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes pillIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill {
+    animation: none;
+  }
+}
+
+.error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-terracotta);
+}
+
+/* ── The long-press menu ──────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  animation: overlayIn 150ms ease-out;
+}
+
+.overlay[data-leaving] {
+  opacity: 0;
+  transition: opacity 120ms ease-in;
+}
+
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The thread dims under an ink scrim (the whole window: no bright band). */
+.scrim {
+  all: unset;
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklch, var(--color-text) 30%, transparent);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The pressed message drawn again where it lay, a little larger. */
+.lifted {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  pointer-events: none;
+  animation: liftIn 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.lifted[data-own] {
+  align-items: flex-end;
+}
+
+@keyframes liftIn {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.03);
+  }
+}
+
+.overlayMenu {
+  position: fixed;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .lifted {
+    animation: none;
+  }
+}
+
+/* ── Search: the list of matches over the thread ──────────────────── */
+
+.results {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px 24px 4px;
+  background: var(--color-cream);
+}
+
+.resultsHint {
+  margin: 48px 40px 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.resultsCount {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  padding: 14px 12px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+.resultRow {
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 12px;
+  cursor: pointer;
+  --row-fill: transparent;
+}
+
+.resultRow:hover {
+  --row-fill: oklch(0% 0 0 / 0.045);
+}
+
+.resultRow:focus-visible {
+  --row-fill: color-mix(in oklch, var(--color-terracotta-light) 55%, transparent);
+}
+
+.resultRow > :not(span[aria-hidden]) {
+  position: relative;
+}
+
+.resultHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.resultWho {
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resultWho[data-mine] {
+  color: var(--color-terracotta);
+}
+
+.resultWhen {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+.resultSnippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.resultMark {
+  padding: 0 2px;
+  margin: 0 -2px;
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--color-terracotta) 24%, transparent);
+  color: inherit;
+  font-weight: 600;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* ── The composer ─────────────────────────────────────────────────── */
+
+/* Replying: a short wavy pen rule in terracotta, whom, and the words. */
+.replyBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 0 6px;
+}
+
+.replyRule {
+  display: flex;
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 6px;
+}
+
+.replyBarText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.replyBarWho {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+}
+
+.replyBarQuote {
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A note or a card riding the next message. */
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px 0 2px;
+}
+
+.attachChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 10px;
+  font-size: 12px;
+  color: var(--color-text);
+  background: color-mix(in oklch, var(--color-terracotta-light) 40%, transparent);
+  border-radius: 12px 14px 12px 14px;
+}
+
+.attachTitle {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.attachRemove:hover {
+  color: var(--color-terracotta);
+}
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 14px 0 0;
+}
+
+.composerField {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The field: one line at rest, growing with what is written (its height is
+   set from scrollHeight), scrolling past ~6 lines. The element+class
+   selector outranks the base `textarea.field` rule's min-height. */
+.composer textarea.composerInput {
+  min-height: 0;
+  max-height: 168px;
+  overflow-y: auto;
+  resize: none;
+  /* It still scrolls past its height, without a bar inside the hand-drawn border. */
+  scrollbar-width: none;
+}
+
+.composer textarea.composerInput::-webkit-scrollbar {
+  display: none;
+}
+
+/* The tools on either side sit on the field's first line as it grows. */
+.composer > :first-child {
+  margin-bottom: 6px;
+}
+
+/* Send: a wobbly terracotta disc, the plane in cream. */
+.send {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition:
+    opacity 140ms ease,
+    transform 120ms ease;
+}
+
+.send:not([data-enabled]) {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.send[data-enabled]:active {
+  transform: scale(0.95);
+}
+
+.send:focus-visible {
+  outline: none;
+}
+
+.sendFace {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  fill: var(--color-terracotta);
+}
+
+.send:focus-visible .sendFace {
+  stroke: var(--field-border-focus);
+  stroke-width: 2px;
+  paint-order: stroke;
+}
+
+.sendGlyph {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  transform: translate(1px, -1px);
+}
+
+/* ── Phones ───────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  /* The page's own 14px side padding supplies the inset on single-pane
+     phones — drop the per-row right insets so content isn't double-inset. */
+  .scroller {
+    /* Room for a bubble's wobble to swing out past its box (the scroller cuts what reaches further). */
+    padding-right: 4px;
+    padding-left: 0;
+  }
+
+  .results {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .composer,
+  .replyBar,
+  .attachments {
+    padding-right: 0;
+  }
+}

@@ -7,30 +7,6 @@
   pointer-events: none;
 }
 
-.bg {
-  position: absolute;
-  inset: 0;
-  background: color-mix(in oklch, var(--color-cream) 92%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: opacity 300ms ease;
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-
-.waveStroke {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  width: 100%;
-  pointer-events: none;
-  transition: opacity 300ms ease;
-  overflow: visible;
-}
-
 .row {
   position: relative;
   display: flex;
@@ -69,32 +45,6 @@
   border-radius: 10px;
 }
 
-/* Mobile takeover header (e.g. settings detail): back control + title, left
-   aligned, no space-between since there's nothing on the right. */
-.takeoverRow {
-  justify-content: flex-start;
-  gap: 10px;
-}
-
-.backBtn {
-  background: none;
-  border: none;
-  margin-left: -8px;
-  padding: 8px;
-  cursor: pointer;
-  color: var(--color-text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  pointer-events: auto;
-  transition: background 120ms ease;
-}
-
-.backBtn:hover {
-  background: oklch(0% 0 0 / 0.06);
-}
-
 .nav {
   display: flex;
   align-items: center;
@@ -122,27 +72,6 @@
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-/* Wider screens: a touch see-through over the page at rest, solid once it
-   scrolls. */
-.bg {
-  opacity: 0.82;
-}
-.bg[data-scrolled] {
-  opacity: 1;
-}
-
-/* Phones: fully opaque, no blur. The PWA paints the status-bar strip in the
-   solid theme color, and a translucent blurred header directly beneath it
-   reads as two mismatched bands — so the mobile header is plain cream. */
-@media (max-width: 720px) {
-  .bg {
-    background: var(--color-cream);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    opacity: 1;
-  }
 }
 
 /* Phone or wide is decided here, not after hydration: both are in the HTML,

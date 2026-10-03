@@ -7,8 +7,10 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { Icon, type IconName } from '@/components/atoms/Icon';
 import { RowInkWash, useRowInk } from '@/components/atoms/RowInk/RowInk';
@@ -48,8 +50,49 @@ export interface OrganicMenuProps {
    * (`triggerSize` is ignored).
    */
   bare?: boolean;
+  /** A quiet line under the rows (a message's full time), parted from them by one more divider. */
+  footer?: ReactNode;
+  /**
+   * The panel floats over the page (a portal, `position: fixed`) instead of
+   * hanging in the trigger's box — for a trigger inside something that
+   * scrolls or clips, like a message in a thread. It opens below the trigger,
+   * or above it when there is no room below, its `align` edge on the
+   * trigger's, and it closes when the page under it scrolls.
+   */
+  floating?: boolean;
+  /** For `floating`: which edges line up — the panel's right on the trigger's (`end`), or its left (`start`). */
+  align?: 'start' | 'end';
+  /** The trigger's open state changes (a host that keeps its trigger shown while the menu is open). */
+  onOpenChange?: (open: boolean) => void;
   className?: string;
 }
+
+/** The `--menu-*` colours a panel draws with: the theme's terracotta, or the accent `hue`. */
+function menuColors(hue: number | undefined): CSSProperties {
+  return (
+    hue === undefined
+      ? {
+          '--menu-border': 'var(--color-terracotta)',
+          '--menu-border-hover': 'color-mix(in oklch, var(--color-terracotta), black 25%)',
+          '--menu-cream': 'var(--color-cream)',
+          '--menu-divider': 'color-mix(in oklch, var(--color-terracotta) 40%, transparent)',
+        }
+      : {
+          '--menu-border': `oklch(52% 0.11 ${hue})`,
+          '--menu-border-hover': `oklch(38% 0.09 ${hue})`,
+          '--menu-cream': `oklch(98% 0.01 ${hue})`,
+          '--menu-divider': `oklch(55% 0.04 ${hue} / 0.4)`,
+        }
+  ) as CSSProperties;
+}
+
+/** A panel's height: its rows, and the footer line under them. */
+export function menuPanelHeight(rows: number, footer: boolean): number {
+  return rows * ROW_H + (footer ? FOOTER_H : 0);
+}
+
+/** Room kept between a floating panel and the window's edge. */
+const EDGE = 12;
 
 /**
  * The organic「⋯」dropdown, extracted from the card menu's language: a wobbly
@@ -68,9 +111,21 @@ export function OrganicMenu({
   triggerIcon = 'dots',
   triggerSize = 38,
   bare = false,
+  footer,
+  floating = false,
+  align = 'end',
+  onOpenChange,
   className,
 }: OrganicMenuProps) {
   const [open, setOpen] = useState(false);
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  useEffect(() => {
+    onOpenChangeRef.current?.(open);
+  }, [open]);
+  // A floating panel's place on the screen, from the trigger's as it opened.
+  const [placed, setPlaced] = useState<CSSProperties | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   // Escape puts away a bare trigger's tooltip until the pointer or focus
   // leaves (content shown on hover or focus has to be dismissible).
   const [tipDismissed, setTipDismissed] = useState(false);
@@ -81,33 +136,47 @@ export function OrganicMenu({
   useEffect(() => {
     if (!open) return;
     function onDoc(e: globalThis.MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     function onKey(e: globalThis.KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
     }
+    // A floating panel stays where it opened: whatever scrolls under it takes it away.
+    function onScroll(e: Event) {
+      if (!panelRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    const close = () => setOpen(false);
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
+    if (floating) {
+      document.addEventListener('scroll', onScroll, true);
+      window.addEventListener('resize', close);
+    }
     return () => {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
+      document.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', close);
     };
-  }, [open]);
+  }, [open, floating]);
 
-  const styleOverrides =
-    hue === undefined
-      ? ({
-          '--menu-border': 'var(--color-terracotta)',
-          '--menu-border-hover': 'color-mix(in oklch, var(--color-terracotta), black 25%)',
-          '--menu-cream': 'var(--color-cream)',
-          '--menu-divider': 'color-mix(in oklch, var(--color-terracotta) 40%, transparent)',
-        } as React.CSSProperties)
-      : ({
-          '--menu-border': `oklch(52% 0.11 ${hue})`,
-          '--menu-border-hover': `oklch(38% 0.09 ${hue})`,
-          '--menu-cream': `oklch(98% 0.01 ${hue})`,
-          '--menu-divider': `oklch(55% 0.04 ${hue} / 0.4)`,
-        } as React.CSSProperties);
+  const styleOverrides = menuColors(hue);
+
+  /** Where a floating panel goes: under the trigger when it fits, else over it; its `align` edge on the trigger's. */
+  function place(trigger: HTMLElement): CSSProperties {
+    const r = trigger.getBoundingClientRect();
+    const h = menuPanelHeight(items.length, footer != null);
+    const below = r.bottom + 8 + h <= window.innerHeight - EDGE || r.top - 8 - h < EDGE;
+    return {
+      ...(below ? { top: r.bottom + 8 } : { bottom: window.innerHeight - r.top + 8 }),
+      ...(align === 'end'
+        ? { right: Math.max(EDGE, window.innerWidth - r.right) }
+        : { left: Math.max(EDGE, r.left) }),
+      transformOrigin: `${below ? 'top' : 'bottom'} ${align === 'end' ? 'right' : 'left'}`,
+    };
+  }
 
   return (
     <div
@@ -130,6 +199,7 @@ export function OrganicMenu({
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          if (floating) setPlaced(place(e.currentTarget));
           setOpen((v) => {
             const next = !v;
             if (next) setPanelSeed(Math.floor(Math.random() * 10000));
@@ -163,18 +233,67 @@ export function OrganicMenu({
         </span>
       )}
 
-      {open && (
-        <MenuPanel
-          uid={uid}
-          seed={panelSeed}
-          items={items}
-          busy={busy}
-          onChoose={(key) => {
-            setOpen(false);
-            onChoose(key);
-          }}
-        />
-      )}
+      {open &&
+        (floating && placed ? (
+          createPortal(
+            <div className={styles.floating} style={{ ...styleOverrides, ...placed }}>
+              <MenuPanel
+                ref={panelRef}
+                uid={uid}
+                seed={panelSeed}
+                items={items}
+                busy={busy}
+                footer={footer}
+                placed
+                onChoose={(key) => {
+                  setOpen(false);
+                  onChoose(key);
+                }}
+              />
+            </div>,
+            document.body,
+          )
+        ) : (
+          <MenuPanel
+            ref={panelRef}
+            uid={uid}
+            seed={panelSeed}
+            items={items}
+            busy={busy}
+            footer={footer}
+            onChoose={(key) => {
+              setOpen(false);
+              onChoose(key);
+            }}
+          />
+        ))}
+    </div>
+  );
+}
+
+export interface OrganicMenuPanelProps {
+  items: OrganicMenuItem[];
+  onChoose: (key: string) => void;
+  seed: number;
+  busy?: boolean;
+  /** A quiet line under the rows, parted from them by one more divider. */
+  footer?: ReactNode;
+  hue?: number;
+  /** The corner it grows from (CSS `transform-origin`): the edge of what it belongs to. */
+  origin?: string;
+  className?: string;
+}
+
+/**
+ * The menu's panel on its own, for a host that places it — the thread's
+ * long-press menu, which hangs it under the message it lifted. The same
+ * wobbly card, wavy dividers and spreading row ink as the dropdown's.
+ */
+export function OrganicMenuPanel({ items, onChoose, seed, busy = false, footer, hue, origin, className }: OrganicMenuPanelProps) {
+  const uid = useId().replace(/:/g, '');
+  return (
+    <div className={className} style={{ ...menuColors(hue), ...(origin ? { transformOrigin: origin } : {}) }}>
+      <MenuPanel uid={uid} seed={seed} items={items} busy={busy} footer={footer} placed onChoose={onChoose} />
     </div>
   );
 }
@@ -194,18 +313,33 @@ function BareWash({ seed }: { seed: number }) {
 }
 
 const ROW_H = 42;
+/** The footer line is a little shorter than a row. */
+const FOOTER_H = 38;
 
 interface MenuPanelProps {
   uid: string;
   seed: number;
   items: OrganicMenuItem[];
   busy: boolean;
+  footer?: ReactNode;
+  /** Placed by its host (or a floating wrapper) rather than hung under the trigger. */
+  placed?: boolean;
   onChoose: (key: string) => void;
+  ref?: React.Ref<HTMLDivElement>;
 }
 
-function MenuPanel({ uid, seed, items, busy, onChoose }: MenuPanelProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const h = items.length * ROW_H;
+function MenuPanel({ uid, seed, items, busy, footer, placed = false, onChoose, ref: outerRef }: MenuPanelProps) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  // The panel's own ref (it measures itself) and the host's (whose outside-click test needs it).
+  const setRef = (el: HTMLDivElement | null) => {
+    ref.current = el;
+    if (typeof outerRef === 'function') outerRef(el);
+    else if (outerRef) (outerRef as React.RefObject<HTMLDivElement | null>).current = el;
+  };
+  const hasFooter = footer != null;
+  // The footer is one more band under the rows: a divider above it, and no ink in it.
+  const bands = items.length + (hasFooter ? 1 : 0);
+  const h = menuPanelHeight(items.length, hasFooter);
   const [w, setW] = useState(0);
 
   useLayoutEffect(() => {
@@ -231,23 +365,25 @@ function MenuPanel({ uid, seed, items, busy, onChoose }: MenuPanelProps) {
 
   const boundaries = useMemo<[number, number][][]>(() => {
     if (!w) return [];
-    return items.slice(1).map((_, i) => rowBoundary((i + 1) * ROW_H, w, seed + i * 31 + 7, 2, pad));
-  }, [w, items, seed, pad]);
+    return Array.from({ length: bands - 1 }, (_, i) => rowBoundary((i + 1) * ROW_H, w, seed + i * 31 + 7, 2, pad));
+  }, [w, bands, seed, pad]);
 
-  const ready = w > 0 && boundaries.length === items.length - 1;
+  const ready = w > 0 && boundaries.length === bands - 1;
   const dangerIndex = items.findIndex((it) => it.danger);
 
   // Pointer-driven only: the rows are plain buttons the keyboard tabs through,
   // so there is no active row to rest the ink on.
   const ink = useRowInk({ panelRef: ref, w, h });
-  const washes = items.map((_, i) =>
+  const washes: string[] = items.map((_, i) =>
     i === dangerIndex
       ? 'color-mix(in oklch, var(--color-yellow) 45%, var(--menu-cream))'
       : 'color-mix(in oklch, var(--menu-border-hover) 15%, transparent)',
   );
+  // The footer's band takes no ink.
+  if (hasFooter) washes.push('transparent');
 
   return (
-    <div ref={ref} className={styles.panel} style={{ height: `${h}px` }}>
+    <div ref={setRef} className={placed ? `${styles.panel} ${styles.placed}` : styles.panel} style={{ height: `${h}px` }}>
       {w > 0 && (
         <svg
           className={`${styles.border} res-shape-fade-in`}
@@ -266,7 +402,7 @@ function MenuPanel({ uid, seed, items, busy, onChoose }: MenuPanelProps) {
             {/* warning wash under the destructive row, before any hover */}
             {ready && dangerIndex >= 0 && (
               <path
-                d={rowRegion(dangerIndex, items.length, boundaries, w, h, pad)}
+                d={rowRegion(dangerIndex, bands, boundaries, w, h, pad)}
                 fill="color-mix(in oklch, var(--color-yellow) 25%, var(--menu-cream))"
               />
             )}
@@ -323,6 +459,7 @@ function MenuPanel({ uid, seed, items, busy, onChoose }: MenuPanelProps) {
             {it.label}
           </button>
         ))}
+        {hasFooter && <div className={styles.footer}>{footer}</div>}
       </div>
     </div>
   );

@@ -4,7 +4,6 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { Divider } from '@/components/atoms/Divider/Divider';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -49,7 +48,17 @@ export function InsertCardModal({ open, onClose, onPick, title, subtitle }: Inse
   const heading = title ?? t('title');
 
   return (
-    <Modal open={open} onClose={onClose} maxWidth={480} seed={53} padding="26px 24px 22px" ariaLabel={heading}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      maxWidth={480}
+      seed={53}
+      padding="26px 24px 22px"
+      ariaLabel={heading}
+      // A pick is the action; the way out lies at the foot.
+      closeButton
+      closeLabel={t('cancel')}
+    >
       <h3 className={styles.title}>{heading}</h3>
       <p className={styles.subtitle}>{subtitle ?? t('subtitle')}</p>
 
@@ -61,11 +70,6 @@ export function InsertCardModal({ open, onClose, onPick, title, subtitle }: Inse
         <CardRowList cards={cards} onPick={onPick} />
       )}
 
-      <div className={styles.actions}>
-        <OrganicButton variant="text" size="sm" onClick={onClose}>
-          {t('cancel')}
-        </OrganicButton>
-      </div>
     </Modal>
   );
 }

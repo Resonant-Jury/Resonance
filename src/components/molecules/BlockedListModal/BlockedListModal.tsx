@@ -45,7 +45,16 @@ export function BlockedListModal({ open, onClose }: BlockedListModalProps) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} maxWidth={440} seed={97} ariaLabel={t('title')}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      maxWidth={440}
+      seed={97}
+      ariaLabel={t('title')}
+      // A list with nothing to do at its foot: the close lies there.
+      closeButton
+      closeLabel={t('close')}
+    >
       <h3 className={styles.title}>{t('title')}</h3>
       <p className={styles.subtitle}>{t('subtitle')}</p>
       {data && data.length === 0 && <p className={styles.empty}>{t('empty')}</p>}
@@ -82,12 +91,6 @@ export function BlockedListModal({ open, onClose }: BlockedListModalProps) {
           ))}
         </ul>
       )}
-      <div className={styles.actions}>
-        {/* Close sits beside the modal's ✕, so it is plain text — not a second frame. */}
-        <OrganicButton variant="text" size="sm" onClick={onClose}>
-          {t('close')}
-        </OrganicButton>
-      </div>
     </Modal>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useImperativeHandle, useMemo, useState, type Ref } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -89,6 +89,24 @@ export interface CardEditorProps {
    * visible without scrolling to the bottom of the form.
    */
   onSaveStatusChange?: (label: string | null) => void;
+  /** What the page around it asks as it goes (the writer's back arrow). */
+  ref?: Ref<CardEditorHandle>;
+}
+
+/** What the writer's page asks of its editor before it leaves — the apps' WriteModel `hasWork` / `saveNow`. */
+export interface CardEditorHandle {
+  /**
+   * Whether going back leaves something written behind (it is kept; the
+   * writer is asked first): a new card or draft with words, a title, tags or
+   * a cover in it that is kept (it has a draft) or is about to be; a live
+   * card's revision, waiting in its buffer or typed and not saved yet. Words
+   * the first-card guide seeded are the starting point, not writing: nothing
+   * keeps them, so they count only once there is a draft. The apps'
+   * `holdsWork`, rule for rule.
+   */
+  hasWork(): boolean;
+  /** Writes what is on screen now, if it isn't yet — leaving doesn't wait out the debounce. */
+  saveNow(): Promise<void>;
 }
 
 // AI 寫作夥伴：暫時停用，未來會重新啟用
@@ -139,6 +157,7 @@ export function CardEditor({
   onSavedDraft,
   onStoryChange,
   onSaveStatusChange,
+  ref,
 }: CardEditorProps) {
   const t = useTranslations('write');
   const tCard = useTranslations('card');
@@ -337,14 +356,17 @@ export function CardEditor({
     return run;
   }
 
+  /** What is on screen differs from what was last written, and is worth writing (a blank new card isn't). */
+  function needsSave(): boolean {
+    const v = valuesRef.current;
+    return draftSnapshot(v) !== lastSavedRef.current && !(!draftIdRef.current && isEmptyDraft(v));
+  }
+
   // Kick a save if the current values differ from what was last written.
   // Failures stay silent (logged) — the state remains dirty, so the next
   // pause or the publish path retries.
   function autosaveNow() {
-    if (closedRef.current) return;
-    const v = valuesRef.current;
-    if (draftSnapshot(v) === lastSavedRef.current) return;
-    if (!draftIdRef.current && isEmptyDraft(v)) return;
+    if (closedRef.current || !needsSave()) return;
     void saveDraft().catch((err) => console.error('Autosave failed:', err));
   }
   const autosaveNowRef = useRef(autosaveNow);
@@ -486,10 +508,7 @@ export function CardEditor({
     setPending(true);
     setPublishError(null);
     try {
-      const v = valuesRef.current;
-      if (draftSnapshot(v) !== lastSavedRef.current && !(!draftIdRef.current && isEmptyDraft(v))) {
-        await saveDraft();
-      }
+      if (needsSave()) await saveDraft();
       closedRef.current = true;
       router.back();
     } catch (err) {
@@ -500,6 +519,18 @@ export function CardEditor({
       setPending(false);
     }
   }
+
+  useImperativeHandle(ref, () => ({
+    hasWork() {
+      const v = valuesRef.current;
+      const unsaved = draftSnapshot(v) !== lastSavedRef.current;
+      if (isPublished) return hasPendingEdit || unsaved;
+      return !isEmptyDraft(v) && (draftIdRef.current != null || unsaved);
+    },
+    async saveNow() {
+      if (!closedRef.current && needsSave()) await saveDraft();
+    },
+  }));
 
   const mediaBusy = uploading || generating;
   const canGenerate = story.trim().length > 0 && !mediaBusy;

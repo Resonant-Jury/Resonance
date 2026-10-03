@@ -162,3 +162,43 @@ describe('bare trigger', () => {
     expect(screen.getByRole('button', { name: 'Manage' }).nextElementSibling).toBeNull();
   });
 });
+
+describe('floating panel', () => {
+  // A trigger inside something that scrolls (a message in a thread): the panel floats over the page instead.
+  function triggerAt(rect: Partial<DOMRect>) {
+    const trigger = screen.getByRole('button', { name: 'More' });
+    trigger.getBoundingClientRect = () => ({ top: 0, bottom: 0, left: 0, right: 0, width: 36, height: 36, x: 0, y: 0, toJSON: () => ({}), ...rect }) as DOMRect;
+    return trigger;
+  }
+
+  it('hangs under the trigger, outside its box, with a quiet footer line under the rows', async () => {
+    const onChoose = vi.fn();
+    const { container } = render(
+      <OrganicMenu items={ITEMS} onChoose={onChoose} label="More" bare floating align="start" footer="March 1, 10:00 AM" />,
+    );
+    await userEvent.click(triggerAt({ top: 100, bottom: 136, left: 300, right: 336 }));
+
+    const panel = screen.getByRole('menu').closest('[style*="top"]') as HTMLElement;
+    expect(container.contains(panel)).toBe(false);
+    expect(panel.style.top).toBe('144px');
+    expect(panel.style.left).toBe('300px');
+    expect(screen.getByText('March 1, 10:00 AM')).toBeInTheDocument();
+    // Three rows of 42 and the footer's 38.
+    expect(screen.getByRole('menu').parentElement).toHaveStyle({ height: `${3 * 42 + 38}px` });
+
+    // A click inside the floating panel is a choice, not an outside click.
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Share' }));
+    expect(onChoose).toHaveBeenCalledWith('share');
+  });
+
+  it('opens over the trigger when there is no room under it, and goes away when the page scrolls', async () => {
+    render(<OrganicMenu items={ITEMS} onChoose={vi.fn()} label="More" bare floating />);
+    await userEvent.click(triggerAt({ top: window.innerHeight - 40, bottom: window.innerHeight - 4, left: 300, right: 336 }));
+    const panel = screen.getByRole('menu').closest('[style*="bottom"]') as HTMLElement;
+    expect(panel.style.bottom).toBe('48px');
+    expect(panel.style.right).toBe(`${window.innerWidth - 336}px`);
+
+    fireEvent.scroll(document.body);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+});

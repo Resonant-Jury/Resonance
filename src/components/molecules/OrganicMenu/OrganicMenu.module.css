@@ -155,6 +155,22 @@
   }
 }
 
+/* A panel its host (or the floating wrapper) places: no hanging under the
+   trigger; it grows from the corner the wrapper names. */
+.placed {
+  position: relative;
+  top: auto;
+  right: auto;
+  transform-origin: inherit;
+}
+
+/* The floating panel's place over the page (OrganicMenu's `floating`): fixed
+   where the trigger was as it opened, over the app's header. */
+.floating {
+  position: fixed;
+  z-index: 120;
+}
+
 .border {
   position: absolute;
   inset: 0;
@@ -199,6 +215,20 @@
 }
 .option[data-active] {
   color: var(--menu-border-hover);
+}
+
+/* The quiet line under the rows (a message's full time). No ink, no pointer. */
+.footer {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 8px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  cursor: default;
 }
 
 .optionIcon {
