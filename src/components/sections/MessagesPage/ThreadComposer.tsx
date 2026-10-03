@@ -125,10 +125,14 @@ export function ThreadComposer({ inputRef, otherHandle, replyingTo, replyHandle,
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              // The Enter that commits a word being composed (Zhuyin, Pinyin) isn't a send: Safari hands it
+              // over after the composition ended, known only by its key code.
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                 e.preventDefault();
                 submit();
               } else if (e.key === 'Escape' && replyingTo) {
+                // Only the reply is put away (not a search open over the thread).
+                e.preventDefault();
                 onCancelReply();
               }
             }}

@@ -362,11 +362,13 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   }, [noteFound, thread.messages]);
 
   // Escape leaves the search wherever the focus is (after a click on a match it isn't in the field) — unless
-  // something over the thread (a message's menu) is the one to close.
+  // something over the thread (a message's menu, a dialog: the link's confirm, the card picker) is the one to
+  // close, whichever of the two hears the key first.
   useEffect(() => {
     if (!searchOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || pressed || document.querySelector('[role="menu"]')) return;
+      if (e.key !== 'Escape' || e.defaultPrevented || pressed) return;
+      if (document.querySelector('[role="menu"], [aria-modal="true"]')) return;
       closeSearch();
     };
     document.addEventListener('keydown', onKey);
@@ -453,7 +455,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 aria-label={t('menuSearch')}
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                     e.preventDefault();
                     // Enter looks at the newest match, then steps back through the older ones (Shift: forward).
                     if (listShown || hitIndex == null) pickHit(0);

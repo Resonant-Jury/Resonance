@@ -514,6 +514,38 @@ describe('Messenger’s thread, drawn by hand', () => {
     expect(document.querySelector('mark')).toBeNull();
   });
 
+  it('keeps the search when Escape closes a dialog over it', async () => {
+    server.messages = [text('m1', 'coffee at http://192.168.0.5/menu', { sentAt: at(9, 0) })];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+    await screen.findByText(/^coffee at/);
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Search messages' }));
+    await user.type(screen.getByRole('textbox', { name: 'Search messages' }), 'coffee');
+    await user.click(within(await screen.findByRole('region', { name: 'Search messages' })).getAllByRole('button')[0]);
+
+    await user.click(screen.getByRole('link', { name: 'http://192.168.0.5/menu' }));
+    expect(await screen.findByText('Open this link?')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByText('Open this link?')).not.toBeInTheDocument());
+    expect(screen.getByRole('textbox', { name: 'Search messages' })).toHaveValue('coffee');
+    expect(screen.getByText('1 of 1')).toBeInTheDocument();
+  });
+
+  // Safari hands over the Enter that commits a word being composed (Zhuyin, Pinyin) after the composition
+  // ended, known only by its key code: it commits the word, it doesn't send.
+  it('doesn’t send on the Enter that commits a composed word', async () => {
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+    const field = await screen.findByRole('textbox', { name: 'Conversation with alice' });
+    fireEvent.change(field, { target: { value: '你好' } });
+    fireEvent.keyDown(field, { key: 'Enter', keyCode: 229 });
+    expect(sendMessage).not.toHaveBeenCalled();
+    fireEvent.keyDown(field, { key: 'Enter', keyCode: 13 });
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith('alice', '你好', expect.anything()));
+  });
+
   it('keeps a message that didn’t go, dimmed, with its retry under it and its delete in its menu', async () => {
     server.messages = [text('m1', 'hi', { sentAt: at(9, 0) })];
     vi.mocked(callApi).mockResolvedValue({ cards: [] });
