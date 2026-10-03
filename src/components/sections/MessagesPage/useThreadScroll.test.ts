@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { centerRow } from './useThreadScroll';
+import { renderHook } from '@testing-library/react';
+import { centerRow, useThreadScroll } from './useThreadScroll';
 
 /** A scroller `height` tall over `content` of rows, and a row `rowTop` down the content, 40 tall. */
 function thread({ height = 600, content = 20_000, at = 19_400, rowTop }: { height?: number; content?: number; at?: number; rowTop: number }) {
@@ -67,3 +68,55 @@ describe('centerRow', () => {
     await expect(centerRow(t.scroller, t.row)).resolves.toBeUndefined();
   });
 });
+
+describe('where the browser doesn’t anchor scrolling by itself (Safari)', () => {
+  /** Rows 100 tall, the third of them `grow`s; the scroller well up a long thread. */
+  function rows() {
+    const scroller = document.createElement('div');
+    const heights = [100, 100, 100, 100, 100, 100];
+    const els = heights.map((_, i) => {
+      const row = document.createElement('div');
+      row.dataset.messageKey = `m${i}`;
+      scroller.appendChild(row);
+      return row;
+    });
+    let top = 250;
+    const topOf = (i: number) => heights.slice(0, i).reduce((a, b) => a + b, 0);
+    Object.defineProperties(scroller, {
+      clientHeight: { value: 200 },
+      scrollHeight: { get: () => heights.reduce((a, b) => a + b, 0) + 5000 },
+      scrollTop: { get: () => top, set: (v: number) => (top = v) },
+    });
+    scroller.getBoundingClientRect = () => ({ top: 0, bottom: 200 }) as DOMRect;
+    els.forEach((row, i) => {
+      row.getBoundingClientRect = () => ({ top: topOf(i) - top, bottom: topOf(i) + heights[i] - top }) as DOMRect;
+    });
+    return { scroller, heights, top: () => top };
+  }
+
+  it('keeps the row the reader is at in place when one above it changes height', () => {
+    const observed: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          observed.push(cb);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal('CSS', { supports: () => false });
+    const t = rows();
+    renderHook(() => useThreadScroll({ current: t.scroller }, { firstKey: 'm0', lastKey: 'm5', lastIsOwn: false }));
+    // The reader scrolls to the third row (its top half off the window).
+    t.scroller.scrollTop = 250;
+    t.scroller.dispatchEvent(new Event('scroll'));
+    // A shared card's stand-in above becomes the card, 60 shorter.
+    t.heights[1] = 40;
+    for (const cb of observed) cb([], {} as ResizeObserver);
+    expect(t.top()).toBe(190);
+    vi.unstubAllGlobals();
+  });
+});
+

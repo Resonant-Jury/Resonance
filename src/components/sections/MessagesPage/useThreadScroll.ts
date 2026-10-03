@@ -36,6 +36,31 @@ const rowOf = (scroller: HTMLElement, key: string) =>
 const offsetIn = (scroller: HTMLElement, row: HTMLElement) =>
   row.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
 
+/**
+ * Whether the browser keeps what is on screen in place by itself when content
+ * above it changes height (CSS scroll anchoring) — Safari doesn't.
+ */
+function anchorsByItself(): boolean {
+  return typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('overflow-anchor', 'auto');
+}
+
+/** The first row whose foot is below the top of the scroller's window (the rows are in order: a binary search). */
+function firstVisibleRow(scroller: HTMLElement): HTMLElement | null {
+  const rows = scroller.querySelectorAll<HTMLElement>('[data-message-key]');
+  const top = scroller.getBoundingClientRect().top;
+  let lo = 0;
+  let hi = rows.length - 1;
+  let found: HTMLElement | null = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (rows[mid].getBoundingClientRect().bottom > top) {
+      found = rows[mid];
+      hi = mid - 1;
+    } else lo = mid + 1;
+  }
+  return found;
+}
+
 /** The longest a glide is waited for (a browser without `scrollend` says nothing when it is over). */
 const SETTLE_MS = 700;
 
@@ -80,7 +105,9 @@ export function centerRow(scroller: HTMLElement, row: HTMLElement, behavior: Scr
  * - Older messages going in above leave what is on screen where it was: the
  *   row that was first is found again and the scroller moves by however far
  *   it went down. (Browsers that anchor scrolling on their own have already
- *   done it, and this then moves nothing.)
+ *   done it, and this then moves nothing.) A row above the reader changing
+ *   height later leaves it there too, where the browser doesn't anchor by
+ *   itself (Safari).
  * - A new message at the bottom is followed when it is the viewer's own or
  *   the reader was at the bottom already; otherwise `newBelow` says one came.
  * - Coming near the top asks for the next older page.
@@ -153,6 +180,22 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
 
   useEffect(() => {
     if (!scroller) return;
+    // Where the reader is, for a browser that doesn't anchor by itself: the first row on screen and how far
+    // it sits from the top of the window. A row above it that changes height afterwards (a shared card's
+    // stand-in becoming the card, a picture loading) would move everything under it; the row is put back.
+    const ownAnchor = !anchorsByItself();
+    let held: { key: string; offset: number } | null = null;
+    const holdPlace = () => {
+      if (!ownAnchor) return;
+      const row = firstVisibleRow(scroller);
+      held = row?.dataset.messageKey ? { key: row.dataset.messageKey, offset: offsetIn(scroller, row) } : null;
+    };
+    const keepPlace = () => {
+      if (!ownAnchor || atBottomRef.current || !held) return;
+      const row = rowOf(scroller, held.key);
+      const moved = row ? offsetIn(scroller, row) - held.offset : 0;
+      if (Math.abs(moved) >= 1) scroller.scrollTop += moved;
+    };
     const onScroll = () => {
       const below = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
       const bottom = below <= BOTTOM_SLACK;
@@ -163,6 +206,7 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
       }
       if (bottom) setNewBelow(false);
       if (scroller.scrollTop <= TOP_SLACK) onNearTop.current?.();
+      holdPlace();
     };
     // A reader at the bottom stays there when the window changes size, or the newest messages grow after
     // they were drawn: a shared card or a preview arriving, a hand-drawn shape measuring itself, a picture loading.
@@ -173,11 +217,27 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
     resized?.observe(scroller);
     const grown = typeof MutationObserver === 'undefined' ? null : new MutationObserver(keepBottom);
     grown?.observe(scroller, { childList: true, subtree: true });
+    // Every row's height, for the browser that doesn't anchor by itself (rows coming and going are followed).
+    const rowsResized = ownAnchor && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(keepPlace) : null;
+    const watched = new Set<Element>();
+    const watchRows = () => {
+      if (!rowsResized) return;
+      for (const row of scroller.querySelectorAll('[data-message-key]')) {
+        if (watched.has(row)) continue;
+        watched.add(row);
+        rowsResized.observe(row);
+      }
+    };
+    watchRows();
+    const rowsCame = rowsResized && typeof MutationObserver !== 'undefined' ? new MutationObserver(watchRows) : null;
+    rowsCame?.observe(scroller, { childList: true });
     scroller.addEventListener('scroll', onScroll, { passive: true });
     scroller.addEventListener('load', keepBottom, true);
     return () => {
       resized?.disconnect();
       grown?.disconnect();
+      rowsResized?.disconnect();
+      rowsCame?.disconnect();
       scroller.removeEventListener('scroll', onScroll);
       scroller.removeEventListener('load', keepBottom, true);
     };
