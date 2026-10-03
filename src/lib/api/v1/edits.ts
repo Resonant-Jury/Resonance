@@ -17,7 +17,6 @@ export interface ApplyEditResult {
   reaches: boolean;
 }
 
-
 /**
  * Apply your pending edit to a published card, when an editor (web or app)
  * saves changes: the working copy in `cards/{id}/edits/current` (which the
