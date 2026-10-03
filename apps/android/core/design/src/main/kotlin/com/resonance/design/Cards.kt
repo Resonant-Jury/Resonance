@@ -104,6 +104,8 @@ fun OrganicImage(
     grain: Float = 0f,
     radius: Double = 18.0,
     magFactor: Double = 0.05,
+    /** The picture couldn't be loaded (the placeholder stays); a caller may drop the frame altogether. */
+    onError: (() -> Unit)? = null,
     placeholder: @Composable () -> Unit,
 ) {
     BoxWithConstraints(modifier) {
@@ -115,7 +117,10 @@ fun OrganicImage(
                 .then(if (grain > 0f) Modifier.grainOverlay(grain) else Modifier),
         ) {
             placeholder()
-            if (url != null) AsyncImage(model = url, contentDescription = contentDescription, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (url != null) AsyncImage(
+                model = url, contentDescription = contentDescription, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                onError = onError?.let { report -> { _ -> report() } },
+            )
         }
     }
 }

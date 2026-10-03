@@ -38,6 +38,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -443,8 +445,10 @@ fun LinkPreviewCard(
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (imageUrl != null) {
-            OrganicImage(imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1.91f), grain = 0.03f) {
+        // A picture that won't load (gone, refused by the proxy) takes its frame with it: no empty grey box.
+        var imageFailed by remember(imageUrl) { mutableStateOf(false) }
+        if (imageUrl != null && !imageFailed) {
+            OrganicImage(imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1.91f), grain = 0.03f, onError = { imageFailed = true }) {
                 Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
             }
         }
