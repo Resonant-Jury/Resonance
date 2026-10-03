@@ -335,6 +335,7 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     let leading: Leading
     let trailing: Trailing
     private var back: (() -> Void)?
+    private var showsBack = true
     @Environment(\.dismiss) private var dismiss
 
     public init(_ title: String, backLabel: String, scrolled: Bool = false,
@@ -353,11 +354,20 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
         return bar
     }
 
+    /// A bar whose `leading` takes it over for a while (a thread's search field) leaves the arrow out.
+    public func backHidden(_ hidden: Bool) -> Self {
+        var bar = self
+        bar.showsBack = !hidden
+        return bar
+    }
+
     public var body: some View {
         HStack(spacing: 10) {
             // The arrow's own 8pt pad sits in the gutter (margin-left −8 on the web).
-            OrganicIconButton(.arrowRight, label: backLabel, size: 18, mirrored: true) { if let back { back() } else { dismiss() } }
-                .padding(.leading, -13)
+            if showsBack {
+                OrganicIconButton(.arrowRight, label: backLabel, size: 18, mirrored: true) { if let back { back() } else { dismiss() } }
+                    .padding(.leading, -13)
+            }
             if !title.isEmpty {
                 Text(title)
                     .font(AppFonts.heading(22))
