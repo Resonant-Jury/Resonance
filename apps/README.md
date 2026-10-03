@@ -256,3 +256,16 @@ Push: the server pushes every bell row through FCM (`src/lib/push`, on the "acti
 asks for the notification permission after the first note, message or publish (API 33+), registers its
 token with `PUT /api/v1/me/devices/{installationId}` (see "Both apps" for when) and unregisters on sign-out. Real delivery needs a build against production (not `--ez emulator true`)
 on a device with Google Play services.
+
+Chat: a thread keeps the newest 50 messages live and pages older ones in (`MessageHistory`, `ThreadModel.loadOlder()`;
+a search reads the whole conversation with `loadAll()`). Sending never holds the composer: `ThreadModel.send()` queues
+the message in the conversation's `Outbox` (kept by the session in `ChatOutboxes`, so a send outlives the screen), which
+sends in order, one at a time, each under its own client id (`POST /messages` with `clientId`, which the server makes the
+document's id — a retry after a lost answer finds the message instead of writing a second) and `replyTo`. A failure that
+will pass (offline, 5xx) stops the line; `retry(key)` sends the failed message after the ones before it. Links in a message
+are found by `Linkify` (the server's `firstLink` rules, `src/lib/links/url.ts`) and opened only through `LinkOpener`: a
+number instead of a name, a punycode host, a port or userinfo asks first, anything but http(s) opens nothing, and the page
+is a Custom Tab. The build registers the `chat-push` capability, so the server sends chat messages as data-only pushes and
+`PushCenter.showChatMessage` draws the conversation's notification itself (one `MessagingStyle` per pair id on the
+"messages" channel, silent while that thread is resumed). Debug builds fake one:
+`--es pushChatBody "…" --es pushChatConversation alice_bob --es pushChatId m1 --es pushFromUserId bob --es pushRoute /messages/bob`.
