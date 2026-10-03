@@ -206,6 +206,9 @@ class Session(
     private val auth: FirebaseAuth get() = AppFirebase.auth
     private val scope = MainScope()
 
+    /** Messages on their way, per conversation: they outlive the thread screen (see [ChatOutboxes]). */
+    val outboxes = ChatOutboxes(scope, messaging) { PushCenter.reachedOut() }
+
     /**
      * Whom the person has blocked: live once Firestore has said, until then as last read. Lists
      * drawn from what the app kept are filtered by it before they show, and again when it changes.
@@ -241,6 +244,7 @@ class Session(
             // Its listeners stop first; the next account's start once Firestore's copy of it is gone.
             notifications.stop()
             conversations.stop()
+            outboxes.clear()
             val forgetting = previous?.let(::forget)
             _keptBlocks.value = emptySet()
             meReadAt = 0L
@@ -448,12 +452,14 @@ class Session(
         val token = PushCenter.token
         val uid = uid
         if (_phase.value != Phase.SignedIn || uid == null || token == null || !PushCenter.canNotify) return
-        val wanted = PushRegistration(PushCenter.installationId, uid, token, Strings.language.tag, BuildConfig.VERSION_NAME)
+        val wanted = PushRegistration(
+            PushCenter.installationId, uid, token, Strings.language.tag, BuildConfig.VERSION_NAME, PushCenter.CAPABILITIES.joinToString(","),
+        )
         // Nor twice at once (a new token and a sign-in arrive together; both run on the main thread).
         if (PushRegistration.isFresh(PushCenter.lastRegistration, wanted, System.currentTimeMillis()) || pushSending == wanted) return
         pushSending = wanted
         try {
-            pushApi.register(wanted.installationId, token, Strings.language, wanted.version)
+            pushApi.register(wanted.installationId, token, Strings.language, wanted.version, PushCenter.CAPABILITIES)
             if (this.uid == uid) PushCenter.lastRegistration = wanted.encode(System.currentTimeMillis())
         } catch (e: CancellationException) {
             throw e

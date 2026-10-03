@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.resonance.app.ui.ResonanceRoot
+import com.resonance.kit.chat.ChatPush
 import kotlinx.coroutines.launch
 
 /**
@@ -130,6 +131,18 @@ class MainActivity : ComponentActivity() {
                 PushCenter.show(
                     this, it, intent.getStringExtra("pushBody"), intent.getStringExtra("pushRoute").orEmpty(), intent.getStringExtra("pushId"),
                     intent.getStringExtra("pushFromUserId"),
+                )
+            }
+            // A chat message as the push service would show it (`pushChatConversation` is the pair id; screen checks of its notification).
+            intent.getStringExtra("pushChatBody")?.let { body ->
+                val conversation = intent.getStringExtra("pushChatConversation").orEmpty()
+                PushCenter.showChatMessage(
+                    this,
+                    ChatPush(
+                        conversationId = conversation, messageId = intent.getStringExtra("pushChatId"), fromUserId = intent.getStringExtra("pushFromUserId"),
+                        title = intent.getStringExtra("pushChatTitle").orEmpty().ifEmpty { "bob" }, body = body,
+                        route = intent.getStringExtra("pushRoute").orEmpty(), sentAt = System.currentTimeMillis(),
+                    ),
                 )
             }
         }

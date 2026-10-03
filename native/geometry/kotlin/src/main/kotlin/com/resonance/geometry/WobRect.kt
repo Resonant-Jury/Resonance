@@ -11,12 +11,21 @@ sealed interface SegValue {
     data class Range(val lo: Int, val hi: Int) : SegValue
 }
 
+/**
+ * Each corner's own radius, clockwise from the top left (a bubble in a stack keeps its
+ * outer corners round and tucks the ones that face its neighbours). A corner's radius is
+ * what the rect's `R` is for all four when this isn't given; each is also jittered and
+ * capped the way `R` is. Kotlin only: the web and Swift ports draw one radius.
+ */
+data class CornerRadii(val topLeft: Double, val topRight: Double, val bottomRight: Double, val bottomLeft: Double)
+
 data class WobRectOptions(
     val curve: Double? = null,
     val cornerJitter: Double? = null,
     val cornerOffset: Double? = null,
     val segmentsH: SegValue? = null,
     val segmentsV: SegValue? = null,
+    val cornerRadii: CornerRadii? = null,
 )
 
 /**
@@ -42,11 +51,15 @@ fun wobRect(
     val segH = resolveSegs(o.segmentsH, 3)
     val segV = resolveSegs(o.segmentsV, 3)
 
-    val rVar = min(R * 0.07, max(0.0, min(W, H) / 2 - R) * 0.4) * cornerJitter
-    val rtl = R + (rnd.next() - 0.5) * 2 * rVar
-    val rtr = R + (rnd.next() - 0.5) * 2 * rVar
-    val rbr = R + (rnd.next() - 0.5) * 2 * rVar
-    val rbl = R + (rnd.next() - 0.5) * 2 * rVar
+    // The jitter follows each corner's own radius (all four are R unless the options say otherwise);
+    // the PRNG is consumed in the same order either way, so a rect with equal radii is unchanged.
+    val radii = o.cornerRadii
+    fun rVarOf(r: Double) = min(r * 0.07, max(0.0, min(W, H) / 2 - r) * 0.4) * cornerJitter
+    fun corner(r: Double) = r + (rnd.next() - 0.5) * 2 * rVarOf(r)
+    val rtl = corner(radii?.topLeft ?: R)
+    val rtr = corner(radii?.topRight ?: R)
+    val rbr = corner(radii?.bottomRight ?: R)
+    val rbl = corner(radii?.bottomLeft ?: R)
 
     val oCap = max(0.0, min(W, H) * 0.5 - maxOf(rtl, rtr, rbr, rbl)) * 0.6
     val oMag = min(cornerOffset, oCap)

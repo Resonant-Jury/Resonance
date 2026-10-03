@@ -268,6 +268,8 @@ fun OrganicInlineBar(
     title: String? = null,
     scrolled: Boolean = false,
     modifier: Modifier = Modifier,
+    /** Without the arrow, `leading` starts the bar (a thread's search field takes the arrow's place). */
+    showBack: Boolean = true,
     /** Beside the arrow when there is no title (the card page's author, once the byline has scrolled away). */
     leading: @Composable RowScope.() -> Unit = {},
     trailing: @Composable RowScope.() -> Unit = {},
@@ -284,7 +286,7 @@ fun OrganicInlineBar(
             .height(InlineBarHeight - 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        OrganicIconButton(IconName.ArrowRight, backLabel, mirrored = true, onClick = onBack)
+        if (showBack) OrganicIconButton(IconName.ArrowRight, backLabel, mirrored = true, onClick = onBack) else Spacer(Modifier.width(12.dp))
         if (title != null) {
             Spacer(Modifier.width(4.dp))
             BasicText(

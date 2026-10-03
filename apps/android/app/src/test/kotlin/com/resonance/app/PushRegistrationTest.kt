@@ -10,7 +10,7 @@ import org.junit.Test
  * a first run) always does.
  */
 class PushRegistrationTest {
-    private val sent = PushRegistration("install-1", "alice", "fcm-token", "zh-TW", "2.0.0")
+    private val sent = PushRegistration("install-1", "alice", "fcm-token", "zh-TW", "2.0.0", "chat-push")
     private val at = 1_000_000_000_000L
     private val kept = sent.encode(at)
 
@@ -33,7 +33,14 @@ class PushRegistrationTest {
             sent.copy(token = "fcm-token-2"),
             sent.copy(language = "en"),
             sent.copy(version = "2.0.1"),
+            // What the build does with a push is told to the server too, so a build that changes it says so.
+            sent.copy(capabilities = ""),
         ).forEach { changed -> assertFalse(changed.toString(), PushRegistration.isFresh(kept, changed, now)) }
+    }
+
+    @Test fun aRegistrationKeptBeforeCapabilitiesExistedIsSentAgain() {
+        val kept = listOf("install-1", "alice", "fcm-token", "zh-TW", "2.0.0", at.toString()).joinToString("\n")
+        assertFalse(PushRegistration.isFresh(kept, sent, at + 60_000))
     }
 
     @Test fun nothingKeptAlwaysSends() {

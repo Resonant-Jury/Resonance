@@ -154,6 +154,15 @@ sealed interface Route : NavKey {
 enum class Tab { Feed, Messages, Write, Notifications, CardBox }
 
 /**
+ * The tab a tapped push opens when it has no page of its own: the conversations for the one
+ * notification that stands for all of them (`/messages`), else the notifications.
+ */
+internal fun pushedTab(route: String): Tab {
+    val parts = route.substringBefore('?').split('/').filter { it.isNotEmpty() }.let { if (it.firstOrNull() in setOf("en", "zh-TW")) it.drop(1) else it }
+    return if (parts == listOf("messages")) Tab.Messages else Tab.Notifications
+}
+
+/**
  * Opens a conversation from outside the screens (a push, a link) on the Messages stack. When
  * that conversation is already on top — a push for the thread being read — it stays as it is
  * instead of being stacked a second time; a note to quote takes its place.
@@ -272,7 +281,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         opened.notificationId?.let { session.notifications.markRead(it) }
         // A push names the sender by pen name, and by uid when it carries `fromUserId`.
         val route = pushedRoute(Route.fromPath(opened.route), opened.fromUserId) { session.notifications.sender(opened.notificationId) }
-        if (route != null) open(route) else tab = Tab.Notifications
+        if (route != null) open(route) else tab = pushedTab(opened.route)
     }
 
     val notifications by session.notifications.items.collectAsStateWithLifecycle()

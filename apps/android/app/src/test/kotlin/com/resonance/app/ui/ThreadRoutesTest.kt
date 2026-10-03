@@ -72,4 +72,11 @@ class ThreadRoutesTest {
         openThread(stack, Route.Thread("alice"))
         assertEquals(Route.Thread("alice"), stack.last())
     }
+
+    @Test fun theGroupsSummaryOpensTheConversationsAndAnythingElseTheNotifications() {
+        assertEquals(Tab.Messages, pushedTab("/messages"))
+        assertEquals(Tab.Messages, pushedTab("/zh-TW/messages/"))
+        assertEquals(Tab.Notifications, pushedTab(""))
+        assertEquals(Tab.Notifications, pushedTab("/settings"))
+    }
 }

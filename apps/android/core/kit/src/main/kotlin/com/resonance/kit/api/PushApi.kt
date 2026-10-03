@@ -17,10 +17,23 @@ class PushApi(private val api: DefaultApi) {
         DefaultApi(configuration.apiUrl, apiClient(http, configuration)),
     )
 
-    suspend fun register(installationId: String, token: String, language: Strings.Language, appVersion: String?) = call {
+    /**
+     * [capabilities] say what this build does with a push beyond showing it — `chat-push`: it draws a
+     * conversation's messages itself, so the server sends those as data, not as a notification.
+     */
+    suspend fun register(
+        installationId: String,
+        token: String,
+        language: Strings.Language,
+        appVersion: String?,
+        capabilities: List<String>? = null,
+    ) = call {
         api.registerDevice(
             installationId,
-            RegisterDeviceRequest(token = token, platform = RegisterDeviceRequest.Platform.android, locale = language.tag, appVersion = appVersion),
+            RegisterDeviceRequest(
+                token = token, platform = RegisterDeviceRequest.Platform.android, locale = language.tag, appVersion = appVersion,
+                capabilities = capabilities,
+            ),
         )
     }
 

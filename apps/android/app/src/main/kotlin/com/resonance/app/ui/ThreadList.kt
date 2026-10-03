@@ -1,0 +1,543 @@
+package com.resonance.app.ui
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import com.resonance.design.AppFonts
+import com.resonance.design.ButtonVariant
+import com.resonance.design.EmbedStoryCard
+import com.resonance.design.LinkPreviewCard
+import com.resonance.design.MessageBubble
+import com.resonance.design.OrganicButton
+import com.resonance.design.OrganicIcon
+import com.resonance.design.QuoteBubble
+import com.resonance.design.ReplyCaption
+import com.resonance.design.SketchLoader
+import com.resonance.design.WobRectShape
+import com.resonance.design.fade
+import com.resonance.design.generated.IconName
+import com.resonance.design.generated.Tokens
+import com.resonance.design.plainClickable
+import com.resonance.design.seedFromId
+import com.resonance.kit.chat.ChatMessage
+import com.resonance.kit.chat.Delivery
+import com.resonance.kit.chat.Linkify
+import com.resonance.kit.chat.ThreadRow
+import com.resonance.kit.l10n.L10n
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
+import kotlinx.coroutines.launch
+
+/**
+ * The thread's list: the messages newest at the bottom, stacked in runs the way Messenger stacks
+ * them, with the day and time labels, the quotes of replies, the preview cards of links, the lines
+ * under messages that are on their way or didn't go, and — at the top — older messages as they are
+ * read in. A reversed list: the bottom is where it starts, and what is read in above never moves
+ * what is on screen.
+ */
+
+/** Everything a row of the thread needs from the screen around it. */
+internal class ThreadContext(
+    val model: ThreadModel,
+    /** At most 72% of the screen's width (iOS's own number). */
+    val rowMax: Dp,
+    val opener: LinkOpener,
+    val open: (Route) -> Unit,
+    /** The matches of the search being looked at, by message id; none when not looking. */
+    val highlights: Map<String, List<IntRange>>,
+    /** The message id of the hit being looked at. */
+    val currentHit: String?,
+    val flash: Flash,
+    val scroll: ThreadScroll,
+    val onMenu: (MessageMenu) -> Unit,
+    val onReply: (ChatMessage) -> Unit,
+    /** The quote of a reply was tapped: the id of the message it quotes. */
+    val onQuote: (String) -> Unit,
+)
+
+/** The message the thread just jumped to from a reply's quote pulses once. */
+internal class Flash {
+    var key by mutableStateOf<String?>(null)
+        private set
+    var token by mutableIntStateOf(0)
+        private set
+
+    fun pulse(key: String) {
+        this.key = key
+        token++
+    }
+}
+
+/** A message pressed and held: the row, where its bubble is on the screen, and the link under the finger. */
+internal class MessageMenu(val row: ThreadRow, val bounds: Rect, val link: String?)
+
+/** Scrolls the thread to a message. */
+internal class ThreadScroll(val list: LazyListState, private val rows: () -> List<ThreadRow>, private val topInset: () -> Int) {
+    /** Where each message on screen is (by id and by key), for the ones the list has composed. */
+    private val cores = HashMap<String, () -> LayoutCoordinates?>()
+    /** The list's own box, to know the middle of what the person can see. */
+    var area: LayoutCoordinates? = null
+
+    fun register(message: ChatMessage, where: () -> LayoutCoordinates?) {
+        cores[message.id] = where
+        cores[message.key] = where
+    }
+
+    fun forget(message: ChatMessage) {
+        cores.remove(message.id)
+        cores.remove(message.key)
+    }
+
+    /** The index of a message in the reversed list, by id or key. */
+    fun indexOf(id: String): Int = rows().asReversed().indexOfFirst { it.message.id == id || it.message.key == id }
+
+    /**
+     * Brings the message to the middle of what the person can see (between the bar and the composer);
+     * false when the thread doesn't hold it. A message just read in reaches the list a frame or two
+     * later, so this waits for it.
+     */
+    suspend fun reveal(id: String): Boolean {
+        val index = withTimeoutOrNull(1500) { snapshotFlow { indexOf(id) }.first { it >= 0 } } ?: return false
+        withFrameNanos { }
+        // To the bottom edge, where it is composed; then its bubble is moved to the middle.
+        list.scrollToItem(index)
+        withFrameNanos { }
+        val core = cores[id]?.invoke()?.takeIf { it.isAttached }
+        val box = area?.takeIf { it.isAttached }
+        if (core != null && box != null) {
+            val bounds = core.boundsInRoot()
+            val seen = box.boundsInRoot()
+            val middle = (seen.top + topInset() + seen.bottom) / 2f
+            val move = middle - (bounds.top + bounds.bottom) / 2f
+            if (abs(move) > 1f) list.scrollBy(move)
+        }
+        return true
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun MessageList(
+    rows: List<ThreadRow>,
+    ctx: ThreadContext,
+    list: LazyListState,
+    top: Dp,
+    modifier: Modifier = Modifier,
+    /** The floating pill (new messages, back to the latest) is for the list alone, not under search results. */
+    pillVisible: Boolean = true,
+) {
+    val model = ctx.model
+    val newestFirst = remember(rows) { rows.asReversed() }
+    val quiet = when {
+        // Not "no messages yet" when they couldn't be read.
+        model.threadReady && model.messages.isEmpty() -> if (model.listenFailed) L10n.Native.loadError else L10n.Messages.noMessagesYet
+        else -> null
+    }
+    val density = LocalDensity.current
+    val near = with(density) { 120.dp.toPx() }
+    val atBottom by remember(list, near) { derivedStateOf { list.firstVisibleItemIndex == 0 && list.firstVisibleItemScrollOffset <= near } }
+    val farUp by remember(list) { derivedStateOf { list.firstVisibleItemIndex >= FAR_UP_ITEMS } }
+    // Read in the composition that sees the new message, before the list has moved to keep its place.
+    val wasAtBottom = atBottom
+    val newest = rows.lastOrNull()?.message
+    var unseen by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(newest?.key) {
+        newest ?: return@LaunchedEffect
+        when {
+            // What you send always brings you to the bottom; so does anything that arrives while you are there.
+            model.isMine(newest) || wasAtBottom -> list.animateScrollToItem(0)
+            else -> unseen++
+        }
+    }
+    LaunchedEffect(atBottom) { if (atBottom) unseen = 0 }
+    // Scrolled up to within a few messages of the oldest held: the next page of older ones is read.
+    LaunchedEffect(model, list) {
+        snapshotFlow { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }.collect { last ->
+            if (last >= 0 && last >= list.layoutInfo.totalItemsCount - OLDER_AHEAD) model.loadOlder()
+        }
+    }
+    Box(modifier.onGloballyPositioned { ctx.scroll.area = it }) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = list,
+            reverseLayout = true,
+            contentPadding = PaddingValues(top = top + 4.dp, bottom = 10.dp, start = 16.dp, end = 16.dp),
+        ) {
+            // The key a row had while it was sending is the one its document comes under, so it doesn't jump.
+            itemsIndexed(newestFirst, key = { _, r -> r.message.key }) { _, row ->
+                // Between runs the air is wide; inside one the bubbles nearly touch. A label brings its own.
+                val gap = when {
+                    row.joinsAbove -> RUN_GAP
+                    row.dayLabel || row.timeLabel -> 4.dp
+                    else -> BETWEEN_RUNS
+                }
+                Column(Modifier.padding(top = gap)) {
+                    if (row.dayLabel) Label(dayLabel(row.message.sentAt))
+                    else if (row.timeLabel) Label(timeLabel(row.message.sentAt))
+                    MessageItem(row, ctx)
+                }
+            }
+            if (quiet != null) item(key = "quiet") { QuietNote(quiet) }
+            else if (model.threadReady && rows.isNotEmpty()) item(key = "older") { OlderRow(model) }
+        }
+        AnimatedVisibility(
+            visible = pillVisible && (unseen > 0 || farUp) && !atBottom,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
+            enter = fadeIn(tween(160)) + scaleIn(tween(160), initialScale = 0.9f),
+            exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.9f),
+        ) {
+            JumpPill(if (unseen > 0) L10n.Messages.newMessages else L10n.Messages.jumpToLatest) {
+                unseen = 0
+                scope.launch { list.animateScrollToItem(0) }
+            }
+        }
+    }
+}
+
+/** How far up the thread is scrolled (in messages) before "latest messages" offers the way back down. */
+private const val FAR_UP_ITEMS = 6
+
+/** How close to the oldest message held the list comes before the next page is read. */
+private const val OLDER_AHEAD = 6
+
+private val RUN_GAP = 3.dp
+private val BETWEEN_RUNS = 13.dp
+
+/** A day or time label between messages. */
+@Composable
+private fun Label(text: String) {
+    BasicText(
+        text,
+        style = AppFonts.body(11f, lineHeight = 1.3f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp),
+    )
+}
+
+@Composable
+private fun QuietNote(text: String) {
+    BasicText(text, style = AppFonts.body(13f, lineHeight = 1.3f, color = Tokens.TextMuted), modifier = Modifier.fillMaxWidth().padding(top = 14.dp))
+}
+
+/** Above the oldest message: the next page being read, a read that failed, or the start of the conversation. */
+@Composable
+private fun OlderRow(model: ThreadModel) {
+    Column(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val note = AppFonts.body(12f, lineHeight = 1.4f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center)
+        when {
+            model.loadingOlder -> {
+                SketchLoader(22.dp)
+                BasicText(L10n.Messages.loadingOlder, style = note)
+            }
+            model.olderError -> {
+                BasicText(L10n.Messages.loadOlderError, style = note)
+                OrganicButton(L10n.Native.retry, variant = ButtonVariant.TextAccent, small = true) { model.loadOlder() }
+            }
+            !model.hasOlder -> BasicText(L10n.Messages.beginning, style = note)
+        }
+    }
+}
+
+/** The small pill over the composer: the way back to the latest message. */
+@Composable
+private fun JumpPill(text: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .drawWithCache {
+                val o = WobRectShape(18.0, 41.0, mag = 1.2).createOutline(size, layoutDirection, this)
+                onDrawBehind {
+                    drawOutline(o, Tokens.Cream)
+                    drawOutline(o, Tokens.TerracottaLight, alpha = 0.9f)
+                }
+            }
+            .plainClickable(role = Role.Button, onClickLabel = text, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OrganicIcon(IconName.ChevronDown, size = 14.dp, color = Tokens.TerracottaInk)
+            BasicText(text, style = AppFonts.body(12.5f, 600, lineHeight = 1.3f, color = Tokens.TerracottaInk))
+        }
+    }
+}
+
+// One message
+
+/**
+ * One message on its side of the thread: the quote it answers over it, a shared card and the bubble,
+ * the preview of its link under them, and a line if it is still on its way or didn't go. Dragged
+ * toward the middle it asks to be replied to.
+ */
+@Composable
+private fun MessageItem(row: ThreadRow, ctx: ThreadContext) {
+    val message = row.message
+    val mine = ctx.model.isMine(message)
+    SwipeToReply(enabled = message.canReply, mine = mine, onReply = { ctx.onReply(message) }) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+            Column(
+                Modifier.widthIn(max = ctx.rowMax),
+                horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                val quote = message.replyTo
+                if (quote != null) ReplyQuoteView(message, mine, ctx)
+                MessageCore(row, ctx, interactive = true, modifier = if (quote != null) Modifier.overlapAbove(6.dp) else Modifier)
+                message.preview?.let { p ->
+                    LinkPreviewCard(
+                        p.title, p.description, Linkify.displayHost(p.url) ?: p.url, p.imageUrl,
+                        seed = seedFromId(message.key, 13),
+                    ) { ctx.opener.tap(p.url) }
+                }
+                DeliveryLine(message, ctx.model)
+            }
+        }
+    }
+}
+
+/** The caption over a reply and the ghost of the message it quotes; tapping it goes to the original. */
+@Composable
+private fun ReplyQuoteView(message: ChatMessage, mine: Boolean, ctx: ThreadContext) {
+    val quote = message.replyTo ?: return
+    val model = ctx.model
+    val handle = model.other?.handle.orEmpty()
+    val quotedMine = quote.senderId == model.me
+    val caption = when {
+        mine && quotedMine -> L10n.Messages.youRepliedToYourself
+        mine -> L10n.Messages.youRepliedTo(handle)
+        quotedMine -> L10n.Messages.repliedToYou(handle)
+        else -> L10n.Messages.repliedToThemselves(handle)
+    }
+    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        ReplyCaption(caption, Modifier.padding(horizontal = 4.dp))
+        QuoteBubble(
+            quote.text.ifEmpty { L10n.Messages.replyCard },
+            mine = mine,
+            seed = seedFromId(quote.id, 19),
+            onClick = { ctx.onQuote(quote.id) },
+        )
+    }
+}
+
+/** The bubble (and a shared card with it) — what a long-press lifts. Drawn again, without gestures, by the menu. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun MessageCore(row: ThreadRow, ctx: ThreadContext, interactive: Boolean, modifier: Modifier = Modifier) {
+    val message = row.message
+    val model = ctx.model
+    val mine = model.isMine(message)
+    val haptic = LocalHapticFeedback.current
+    var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val links = remember(message.text) { Linkify.find(message.text) }
+    val ranges = remember(links) { links.map { it.range } }
+    val card = message.cardRef?.let { model.cards[it] }
+    val hasBubble = message.text.isNotEmpty() || message.noteRef != null
+    if (card == null && !hasBubble) return
+    val flash = ctx.flash
+    val pulse = remember(message.key) { Animatable(0f) }
+    LaunchedEffect(flash.token) {
+        if (interactive && flash.token > 0 && flash.key == message.key) {
+            pulse.snapTo(0f)
+            pulse.animateTo(1f, tween(140))
+            pulse.animateTo(0f, tween(760))
+        }
+    }
+    if (interactive) DisposableEffect(message.id, message.key) {
+        ctx.scroll.register(message) { coords }
+        onDispose { ctx.scroll.forget(message) }
+    }
+    val press: (String?) -> Unit = { link ->
+        coords?.takeIf { it.isAttached }?.let {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            ctx.onMenu(MessageMenu(row, it.boundsInRoot(), link))
+        }
+    }
+    Column(
+        modifier
+            .then(if (message.delivery == Delivery.Failed) Modifier.fade(0.6f) else Modifier)
+            .onGloballyPositioned { coords = it },
+        horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (card != null) {
+            EmbedStoryCard(
+                title = card.title,
+                author = if (card.anonymous) null else card.author?.handle,
+                imageUrl = card.imageUrl,
+                hue = card.accentHue,
+                seed = seedFromId(card.id, start = 11),
+                modifier = Modifier.widthIn(max = 320.dp).then(
+                    if (interactive) Modifier.combinedClickable(
+                        interactionSource = null, indication = null, role = Role.Button,
+                        onClick = { ctx.open(Route.Card(card.routeKey, card)) },
+                        onLongClick = { press(null) },
+                    ) else Modifier,
+                ),
+            )
+        }
+        if (hasBubble) {
+            MessageBubble(
+                message.text, mine, seedFromId(message.key),
+                quoteLabel = if (message.noteRef == null) null else L10n.Messages.quotedNote,
+                run = row.position,
+                links = ranges,
+                highlights = ctx.highlights[message.id].orEmpty(),
+                highlightStrong = message.id == ctx.currentHit,
+                flash = { pulse.value },
+                onLinkTap = if (interactive) { i -> links.getOrNull(i)?.let { ctx.opener.tap(it.url) } } else null,
+                onLongPress = if (interactive) { i -> press(i?.let { links.getOrNull(it)?.url }) } else null,
+            )
+        }
+    }
+}
+
+/** The line under a message on its way or one that didn't go (its bubble above is dimmed). */
+@Composable
+private fun DeliveryLine(message: ChatMessage, model: ThreadModel) {
+    when (message.delivery) {
+        Delivery.Failed -> BasicText(
+            L10n.Messages.sendFailed,
+            style = AppFonts.body(11.5f, lineHeight = 1.3f, color = Tokens.Terracotta),
+            modifier = Modifier.padding(horizontal = 4.dp).plainClickable(role = Role.Button, onClickLabel = L10n.Messages.retry) { model.retry(message.key) },
+        )
+        Delivery.Sending -> {
+            // Most sends are over before anyone looks; the line is for the ones that take a moment.
+            val slow by produceState(false, message.key) {
+                delay(SLOW_SEND_MILLIS)
+                value = true
+            }
+            if (slow) BasicText(
+                L10n.Messages.sending,
+                style = AppFonts.body(11.5f, lineHeight = 1.3f, color = Tokens.TextMuted),
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+        else -> Unit
+    }
+}
+
+private const val SLOW_SEND_MILLIS = 1000L
+
+/** The row sits `by` closer to what is above it: the bubble that answers lies over the foot of the quote. */
+private fun Modifier.overlapAbove(by: Dp): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val up = by.roundToPx()
+    layout(placeable.width, (placeable.height - up).coerceAtLeast(0)) { placeable.place(0, -up) }
+}
+
+// Swipe to reply
+
+/**
+ * Drag a message toward the middle of the screen (theirs to the right, yours to the left) and the
+ * reply glyph grows in behind it; past [SWIPE_REPLY_DP] a tick says it will take, and letting go
+ * replies. It always springs back. A horizontal drag only, so scrolling the thread is not fought.
+ */
+@Composable
+private fun SwipeToReply(enabled: Boolean, mine: Boolean, onReply: () -> Unit, content: @Composable () -> Unit) {
+    val density = LocalDensity.current
+    val threshold = with(density) { SWIPE_REPLY_DP.dp.toPx() }
+    val farthest = threshold * 2.4f
+    var pulled by remember { mutableFloatStateOf(0f) }
+    var ticked by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    val state = rememberDraggableState { delta ->
+        pulled = (pulled + if (mine) -delta else delta).coerceIn(0f, farthest)
+        val past = pulled >= threshold
+        if (past != ticked) {
+            ticked = past
+            if (past) haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+        }
+    }
+    // Past the threshold the message gives, but with resistance.
+    val shown = if (pulled <= threshold) pulled else threshold + (pulled - threshold) * 0.3f
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .draggable(
+                state, Orientation.Horizontal, enabled = enabled,
+                onDragStopped = {
+                    val replied = pulled >= threshold
+                    ticked = false
+                    if (replied) onReply()
+                    animate(pulled, 0f, animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)) { v, _ -> pulled = v }
+                },
+            ),
+    ) {
+        if (pulled > 0f) {
+            val progress = (pulled / threshold).coerceIn(0f, 1f)
+            Box(
+                Modifier
+                    .align(if (mine) Alignment.CenterEnd else Alignment.CenterStart)
+                    .padding(horizontal = 6.dp)
+                    .graphicsLayer { alpha = progress; scaleX = 0.6f + 0.4f * progress; scaleY = scaleX }
+                    .semantics { contentDescription = L10n.Messages.reply },
+            ) { OrganicIcon(IconName.Reply, size = 20.dp, color = if (progress >= 1f) Tokens.Terracotta else Tokens.TextMuted) }
+        }
+        Box(Modifier.offset { IntOffset((if (mine) -shown else shown).toInt(), 0) }) { content() }
+    }
+}
+
+/** How far a message is dragged before letting go replies. */
+private const val SWIPE_REPLY_DP = 56

@@ -410,7 +410,42 @@ private class BelowTrailingEdge(private val gap: Int, private val inset: Int) : 
 }
 
 @Composable
-private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuColors, onChoose: (OrganicMenuItem) -> Unit) {
+private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuColors, onChoose: (OrganicMenuItem) -> Unit) =
+    MenuPanel(items, seed, colors, null, TransformOrigin(1f, 0f), onChoose)
+
+/**
+ * The panel of an [OrganicMenu] on its own, for a menu that opens somewhere other than under a ⋯
+ * (the long-press menu of a message): the same hand-drawn card, wavy dividers and ink, with an
+ * optional quiet [footer] line under the rows (no ink, no action), and `origin` the edge it
+ * scales in from. [onChoose] gets the row pressed.
+ */
+@Composable
+fun OrganicMenuPanel(
+    items: List<OrganicMenuItem>,
+    seed: Double,
+    modifier: Modifier = Modifier,
+    footer: String? = null,
+    origin: TransformOrigin = TransformOrigin(1f, 0f),
+    hue: Double? = null,
+    onChoose: (OrganicMenuItem) -> Unit,
+) {
+    val colors = remember(hue) { MenuColors(hue) }
+    MenuPanel(items, seed, colors, footer, origin, onChoose, modifier)
+}
+
+/** A menu panel's footer line is a little shorter than a row. */
+private const val MenuFooterHeight = 38.0
+
+@Composable
+private fun MenuPanel(
+    items: List<OrganicMenuItem>,
+    seed: Double,
+    colors: MenuColors,
+    footer: String?,
+    origin: TransformOrigin,
+    onChoose: (OrganicMenuItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) { appear.animateTo(1f, tween(180, easing = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f))) }
     // The row being pressed, and its ink spreading from the finger (every control's press, [InkSpread]).
@@ -421,7 +456,7 @@ private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuCo
     val padPx = with(LocalDensity.current) { 8.dp.toPx() }
     val danger = items.indexOfFirst { it.destructive }
     Column(
-        Modifier
+        modifier
             .graphicsLayer {
                 val v = appear.value
                 // Faded per drawing, not through an offscreen layer: a layer is cut at the panel's box,
@@ -430,8 +465,9 @@ private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuCo
                 alpha = v
                 scaleX = 0.94f + 0.06f * v
                 scaleY = scaleX
-                translationY = -4.dp.toPx() * (1 - v)
-                transformOrigin = TransformOrigin(1f, 0f)
+                // It settles toward the edge it grew from.
+                translationY = (if (origin.pivotFractionY >= 0.5f) 4.dp.toPx() else -4.dp.toPx()) * (1 - v)
+                transformOrigin = origin
             }
             .widthIn(min = 180.dp)
             .width(IntrinsicSize.Max)
@@ -442,9 +478,11 @@ private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuCo
                 val outline = wobRect(w, h, 16.0, seed + 100, autoMag(w, h), WobRectOptions(
                     curve = autoCurve(w, h), segmentsH = SegValue.Count(autoSegments(w).toDouble()), segmentsV = SegValue.Count(autoSegments(h).toDouble()),
                 )).toPath(density)
-                val boundaries = (1 until items.size).map { i -> rowBoundary(i * MenuRowHeight, w, seed + (i - 1) * 31 + 7, 2.0, pad) }
+                // A footer is one more band under the rows: a divider above it, and no ink in it.
+                val bands = items.size + if (footer != null) 1 else 0
+                val boundaries = (1 until bands).map { i -> rowBoundary(i * MenuRowHeight, w, seed + (i - 1) * 31 + 7, 2.0, pad) }
                 val dividers = boundaries.map { dividerPath(it).toPath(density) }
-                val regions = items.indices.map { rowRegion(it, items.size, boundaries, w, h, pad).toPath(density) }
+                val regions = items.indices.map { rowRegion(it, bands, boundaries, w, h, pad).toPath(density) }
                 val light = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round)
                 val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 onDrawBehind {
@@ -486,6 +524,11 @@ private fun MenuPanel(items: List<OrganicMenuItem>, seed: Double, colors: MenuCo
             ) {
                 OrganicIcon(item.icon, size = 17.dp, color = ink, strokeWidth = Tokens.Ink.value)
                 BasicText(item.title, maxLines = 1, style = AppFonts.body(14f, lineHeight = 1.3f, color = if (down) colors.borderHover else Tokens.Text))
+            }
+        }
+        if (footer != null) {
+            Box(Modifier.fillMaxWidth().height(MenuFooterHeight.dp).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+                BasicText(footer, maxLines = 1, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted))
             }
         }
     }
