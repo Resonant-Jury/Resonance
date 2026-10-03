@@ -5,6 +5,7 @@ import { CardIdParam } from '@/lib/api/v1/schemas';
 import { revalidateLocalized } from '@/lib/api/revalidate';
 import { getAdminDb } from '@/lib/db/firestore/admin';
 import { indexCard } from '@/lib/recommend/indexCard';
+import { unfurlCardLinks } from '@/lib/links/cardLinks';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -15,7 +16,9 @@ export const POST = withUser(async (user, _req, ctx: RouteContext<'key'>) => {
   const { stale, ...result } = await applyCardEdit(getAdminDb(), user.id, id);
   if (result.applied) {
     after(async () => {
-      // After "save changes": the cached pages, then the recommendation index.
+      // After "save changes": the story's link previews (new links fetched,
+      // removed ones dropped), the cached pages, then the recommendation index.
+      await unfurlCardLinks(getAdminDb(), id).catch((e) => console.error('[api/v1] unfurl', e));
       revalidateLocalized(stale);
       await indexCard(id).catch((e) => console.error('[api/v1] index', e));
     });

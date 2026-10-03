@@ -5,8 +5,12 @@
 // in Firestore, leaves only the named fields in `data()`), `limit`, `get`.
 // Store timestamps as firebase-admin `Timestamp`s so the real mappers convert
 // them. Every read path is recorded in `reads` (a query as
-// `name?field==value&…`), so a test can prove a document was never read.
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+// `name?field==value&…`), so a test can prove a document was never read, and
+// every write path in `writes`. `update` merges top-level fields (taking
+// `FieldValue.delete()`), and `runTransaction` runs its function once with a
+// transaction whose get/set/update/delete act at once (no isolation: a suite
+// that needs a conflict makes it happen inside a fake it passes in).
+import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 
 type Data = Record<string, unknown>;
 
@@ -14,6 +18,7 @@ export interface FakeAdminDb {
   db: Firestore;
   docs: Record<string, Data>;
   reads: string[];
+  writes: string[];
 }
 
 interface Filter {
@@ -43,6 +48,7 @@ const same = (a: unknown, b: unknown) => rank(a) === rank(b) && compare(a, b) ==
 
 export function fakeAdminDb(docs: Record<string, Data>): FakeAdminDb {
   const reads: string[] = [];
+  const writes: string[] = [];
   const snap = (path: string, fields?: string[]) => {
     const whole = docs[path];
     const data = whole && fields ? Object.fromEntries(fields.filter((f) => f in whole).map((f) => [f, whole[f]])) : whole;
@@ -60,9 +66,21 @@ export function fakeAdminDb(docs: Record<string, Data>): FakeAdminDb {
     },
     // A plain replace (FieldValue sentinels are stored as they are).
     set: async (data: Data) => {
+      writes.push(path);
       docs[path] = data;
     },
+    update: async (data: Data) => update(path, data),
   });
+  const update = (path: string, data: Data) => {
+    if (!docs[path]) throw Object.assign(new Error(`fakeAdminDb: no document to update at ${path}`), { code: 5 });
+    writes.push(path);
+    const next = { ...docs[path] };
+    for (const [field, value] of Object.entries(data)) {
+      if (value instanceof FieldValue && value.isEqual(FieldValue.delete())) delete next[field];
+      else next[field] = value;
+    }
+    docs[path] = next;
+  };
   interface Spec {
     filters: Filter[];
     order: { field: string; dir: 'asc' | 'desc' }[];
@@ -96,12 +114,24 @@ export function fakeAdminDb(docs: Record<string, Data>): FakeAdminDb {
       return { docs: hits, empty: hits.length === 0, size: hits.length };
     },
   });
+  type Ref = ReturnType<typeof docRef> & { path?: string };
+  const pathOf = (ref: Ref) => ref.path!;
   const db = {
-    doc: docRef,
+    doc: (path: string) => Object.assign(docRef(path), { path }),
+    runTransaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> =>
+      fn({
+        get: (ref: Ref) => ref.get(),
+        set: (ref: Ref, data: Data) => void ref.set(data),
+        update: (ref: Ref, data: Data) => update(pathOf(ref), data),
+        delete: (ref: Ref) => {
+          writes.push(pathOf(ref));
+          delete docs[pathOf(ref)];
+        },
+      }),
     collection: (name: string) => ({
-      doc: (id: string) => docRef(`${name}/${id}`),
+      doc: (id: string) => Object.assign(docRef(`${name}/${id}`), { path: `${name}/${id}` }),
       ...query(name, { filters: [], order: [], max: Infinity }),
     }),
   };
-  return { db: db as unknown as Firestore, docs, reads };
+  return { db: db as unknown as Firestore, docs, reads, writes };
 }

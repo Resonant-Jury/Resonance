@@ -18,6 +18,7 @@ import { ResonanceCards } from '@/components/molecules/CardDetail/ResonanceCards
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { StoryMarkdown } from '@/components/molecules/CardDetail/StoryMarkdown';
 import { CardEmbedSourceContext } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
+import { StoryLinkPreviewsContext } from '@/components/molecules/StoryLinkCard/StoryLinkPreviews';
 import { useSWRConfig } from 'swr';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -304,9 +305,11 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
             </div>
 
             <div ref={storyRef} style={{ marginBottom: 32 }}>
-              {/* Signed in, the embedded cards came with the lists. */}
+              {/* Signed in, the embedded cards came with the lists; the link previews come with the card. */}
               <CardEmbedSourceContext.Provider value={lists.embeds}>
-                <StoryMarkdown source={card.story} />
+                <StoryLinkPreviewsContext.Provider value={card.linkPreviews ?? null}>
+                  <StoryMarkdown source={card.story} />
+                </StoryLinkPreviewsContext.Provider>
               </CardEmbedSourceContext.Provider>
             </div>
 

@@ -617,6 +617,24 @@ describe('cards: what the author may write', () => {
       await assertFails(updateDoc(doc(as('bob'), 'cards', ID), { thoughtCore: 'not mine' }));
     });
 
+    it("keeps a card's link previews the server's: the author edits around them, never writes them", async () => {
+      const previews = { linkPreviews: [{ url: 'https://example.com/a', title: 'A' }], linkPreviewsFor: ['https://example.com/a'] };
+      await seed(async (db) => {
+        await updateDoc(doc(db, 'cards', ID), previews);
+      });
+      const db = as('alice');
+      const ref = doc(db, 'cards', ID);
+      // The editors' merge writes leave a server-only field alone, so they keep working on a card holding one.
+      await assertSucceeds(setDoc(ref, { thoughtCore: 'Edited', story: 'https://example.com/b', updatedAt: serverTimestamp() }, { merge: true }));
+      await assertSucceeds(getDoc(ref));
+      // But no client can forge, change or remove them.
+      await assertFails(updateDoc(ref, { linkPreviews: [{ url: 'https://evil.example/', title: 'Trust me', image: '/api/link-image?u=x&s=y' }] }));
+      await assertFails(updateDoc(ref, { linkPreviewsFor: [] }));
+      await assertFails(updateDoc(ref, { linkPreviews: deleteField() }));
+      await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', previews)));
+      await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', { linkPreviews: [] })));
+    });
+
     it('keeps the pending-edit buffer owner-only', async () => {
       await assertSucceeds(setDoc(doc(as('alice'), 'cards', ID, 'edits', 'current'), { thoughtCore: 'wip', updatedAt: serverTimestamp() }));
       await assertFails(getDoc(doc(as('bob'), 'cards', ID, 'edits', 'current')));

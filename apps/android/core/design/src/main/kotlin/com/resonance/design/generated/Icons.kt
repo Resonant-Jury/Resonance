@@ -226,8 +226,8 @@ enum class IconName(val key: String) {
                 IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 15f, 14.1f, 2f, 16.2f, 14f, 17.1f, 15f, 17.1f, 16.2f, 2f, 17.1f, 17.4f, 16.1f, 18.3f, 14.9f, 18.3f, 2f, 13.7f, 18.2f, 12.9f, 17.3f, 12.9f, 16.1f, 2f, 13f, 15f, 13.9f, 14.2f, 15f, 14.1f, 3f)),
             ))
             Send -> IconGlyph(24f, fillable = false, strokes = listOf(
-                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 3.6f, 10.7f, 2f, 8.9f, 8.4f, 14.6f, 5.9f, 20.4f, 3.6f, 2f, 18.6f, 9f, 16.2f, 14.8f, 13.5f, 20.4f, 2f, 12.4f, 18.1f, 11.4f, 15.8f, 10.4f, 13.5f, 2f, 8.2f, 12.5f, 5.9f, 11.6f, 3.3f, 10.6f)),
-                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 20.1f, 3.9f, 2f, 16.9f, 7f, 13.7f, 10.2f, 10.7f, 13.2f)),
+                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 3f, 11.6f, 2f, 7.9f, 8.7f, 15f, 5.9f, 20.2f, 3.8f, 2f, 18.3f, 9.1f, 16f, 15.5f, 13.1f, 21.3f, 2f, 11.6f, 18.5f, 10.8f, 16.2f, 9.9f, 14.3f, 2f, 7.7f, 13.8f, 4.8f, 12.6f, 2.3f, 11.4f)),
+                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 19.6f, 4.4f, 2f, 17.2f, 7.2f, 14.4f, 10f, 11.7f, 12.4f)),
             ))
             Reply -> IconGlyph(24f, fillable = false, strokes = listOf(
                 IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 19.7f, 18.7f, 2f, 19.9f, 14.7f, 18.4f, 11.5f, 14.7f, 10.5f, 2f, 12.4f, 9.9f, 9.6f, 9.9f, 5.6f, 10.1f)),

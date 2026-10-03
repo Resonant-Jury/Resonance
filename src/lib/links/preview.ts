@@ -1,4 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
+import type { LinkPreview } from '@/lib/db/types';
 import { createMemo } from './memo';
 import { parseOpenGraph } from './openGraph';
 import { imageProxyPath } from './imageProxy';
@@ -6,20 +7,16 @@ import { safeFetch as defaultFetch, SafeFetchError, type SafeFetchOptions, type 
 import { firstLink } from './url';
 
 /**
- * `conversations/{pair}/messages/{id}.preview`: the card under a message that
- * holds a link. Written by the server a moment AFTER the message (after the
- * response), so a client renders a message without it and again when it
- * arrives. Old messages, and links that said nothing, have none.
+ * What a link says about itself: `conversations/{pair}/messages/{id}.preview`
+ * (the card under a message that holds a link) and each of a card's
+ * `linkPreviews` (./cardLinks). Written by the server after the message or
+ * the publish (after the response), so a client renders the message or the
+ * story without it and again when it arrives. `url` is the normalized link
+ * as written (not where redirects led); `image` is a SITE-RELATIVE signed
+ * path ('/api/link-image?u=…&s=…') that clients resolve against their
+ * API/site origin.
  */
-export interface LinkPreview {
-  /** The link that was previewed: the normalized http(s) URL as written in the message (not where redirects led). */
-  url: string;
-  title: string;
-  description?: string;
-  siteName?: string;
-  /** A SITE-RELATIVE signed path ('/api/link-image?u=…&s=…'); clients resolve it against their API/site origin. */
-  image?: string;
-}
+export type { LinkPreview };
 
 /** Longest an unfurl may run, from the message to the written preview. */
 export const UNFURL_DEADLINE_MS = 8000;
@@ -32,7 +29,9 @@ export const REMEMBER_PREVIEW_MS = 10 * 60_000;
 export const REMEMBER_NO_PREVIEW_MS = 2 * 60_000;
 const REMEMBER_MAX = 200;
 
-type Fetch = (url: string, options: SafeFetchOptions) => Promise<SafeFetchResult>;
+/** The fetch an unfurl goes through (`safeFetch`; tests pass a fake). */
+export type PreviewFetch = (url: string, options: SafeFetchOptions) => Promise<SafeFetchResult>;
+type Fetch = PreviewFetch;
 
 /** What is remembered of links already fetched, by normalized URL (see `createMemo`). */
 export function createPreviewMemo(options: { max?: number; now?: () => number } = {}) {
@@ -43,6 +42,8 @@ export function createPreviewMemo(options: { max?: number; now?: () => number } 
     keep: (outcome) => (!outcome.ok ? 0 : outcome.value ? REMEMBER_PREVIEW_MS : REMEMBER_NO_PREVIEW_MS),
   });
 }
+
+export type PreviewMemo = ReturnType<typeof createPreviewMemo>;
 
 const sharedMemo = createPreviewMemo();
 
@@ -77,6 +78,18 @@ export async function fetchLinkPreview(link: string, options: { signal?: AbortSi
   };
 }
 
+/**
+ * `fetchLinkPreview` through what this instance remembers (`memo`, by default
+ * the one every unfurl shares — messages and stories alike), so a link is
+ * fetched from its site once however often, and by whomever, it is written.
+ */
+export function rememberedPreview(
+  link: string,
+  options: { signal?: AbortSignal; fetch?: Fetch; memo?: PreviewMemo } = {},
+): Promise<LinkPreview | null> {
+  return (options.memo ?? sharedMemo).get(link, () => fetchLinkPreview(link, { signal: options.signal, fetch: options.fetch }));
+}
+
 const DOC_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 /**
@@ -90,7 +103,7 @@ export async function unfurlMessage(
   db: Firestore,
   conversationId: string,
   messageId: string,
-  deps: { fetch?: Fetch; signal?: AbortSignal; memo?: ReturnType<typeof createPreviewMemo> } = {},
+  deps: { fetch?: Fetch; signal?: AbortSignal; memo?: PreviewMemo } = {},
 ): Promise<LinkPreview | null> {
   if (!DOC_ID.test(conversationId) || !DOC_ID.test(messageId)) return null;
   const ref = db.doc(`conversations/${conversationId}/messages/${messageId}`);
@@ -101,7 +114,7 @@ export async function unfurlMessage(
 
   const deadline = AbortSignal.timeout(UNFURL_DEADLINE_MS);
   const signal = deps.signal ? AbortSignal.any([deadline, deps.signal]) : deadline;
-  const preview = await (deps.memo ?? sharedMemo).get(link, () => fetchLinkPreview(link, { signal, fetch: deps.fetch }));
+  const preview = await rememberedPreview(link, { signal, fetch: deps.fetch, memo: deps.memo });
   if (!preview) return null;
   try {
     // `update` fails on a document that is gone: a message deleted meanwhile just goes without.

@@ -20,6 +20,12 @@ export const LIMITS = {
   publish: { max: 30, windowMs: DAY },
   /** Resonating with a card with one already written: rings the original author once per card. */
   resonate: { max: 60, windowMs: DAY },
+  /**
+   * Links in stories the server fetches for their previews (lib/links/cardLinks),
+   * charged per link not already stored, after publishing or saving an edit.
+   * Over it, the previews are skipped, never the publish.
+   */
+  unfurl: { max: 100, windowMs: DAY },
   /** A note rings its recipient's phone. */
   note: { max: 20, windowMs: HOUR },
   /** Messages (only the first of a conversation rings). */

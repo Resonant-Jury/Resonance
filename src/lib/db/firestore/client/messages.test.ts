@@ -216,7 +216,7 @@ describe('the listeners (thread, conversations)', () => {
     const messages = heardMessages(heard).reverse();
     expect(messages[0].replyTo).toEqual({ id: 'm0', senderId: 'aaa', text: 'hello', cardRef: 'walk' });
     expect(messages[0].preview).toMatchObject({ title: 'Example', siteName: 'Ex', image: '/api/link-image?u=a&s=b' });
-    expect(messages[1].preview).toMatchObject({ title: 'Example', image: undefined });
+    expect(messages[1].preview).toEqual({ url: 'https://example.com/', title: 'Example' });
     expect(messages[2].preview).toBeUndefined();
   });
 

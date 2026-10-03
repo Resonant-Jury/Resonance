@@ -1,6 +1,7 @@
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import type { Card } from '@/lib/db/types';
-import type { AuthorBody, FeedCardBody } from './schemas';
+import { linkPreviewsOf } from '@/lib/links/previewShape';
+import type { AuthorBody, FeedCardBody, LinkPreviewBody } from './schemas';
 import { summaryOf, type ListCard } from './summary';
 
 /**
@@ -23,6 +24,21 @@ type Visibility = FeedCardBody['visibility'];
  */
 export function visibilityOf(v: unknown): Visibility {
   return v === 'public' || v === 'connections' || v === 'private' ? v : 'private';
+}
+
+/**
+ * A card's stored link previews as the contract carries them: only the ones a
+ * reader may draw (an http(s) link with a title, a picture from our own
+ * link-image route only — lib/links/previewShape), absent fields as null.
+ */
+export function presentLinkPreviews(stored: unknown): LinkPreviewBody[] {
+  return linkPreviewsOf(stored).map((p) => ({
+    url: p.url,
+    title: p.title,
+    description: p.description ?? null,
+    siteName: p.siteName ?? null,
+    image: p.image ?? null,
+  }));
 }
 
 export function toAuthor(id: string, u: DocumentData): AuthorBody {

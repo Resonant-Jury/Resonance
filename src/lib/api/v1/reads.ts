@@ -6,7 +6,7 @@ import type { Card, RecommendationItem } from '@/lib/db/types';
 import { embeddedCardKeys } from './embeds';
 import { ApiFailure } from './http';
 import { pageEnd, pageQuery, type PageStart } from './paging';
-import { blockedByViewer, canView, connected, loadAuthors, toAuthor, toFeedCard, visibilityOf, visibleTo } from './present';
+import { blockedByViewer, canView, connected, loadAuthors, presentLinkPreviews, toAuthor, toFeedCard, visibilityOf, visibleTo } from './present';
 import { properlyPublished } from './service';
 import {
   CARD_KEYS_MAX,
@@ -234,6 +234,8 @@ export async function getCardDetail(
     ...(include.has('related') ? { related: { cards: relatedCards.slice(0, RELATED_LIMIT) } } : {}),
     ...(include.has('links') ? { links: { cards: linkCards } } : {}),
     ...(include.has('embeds') ? { embeds: { cards: embedCards } } : {}),
+    // Pages, never people: an anonymous card's previews name no one.
+    linkPreviews: presentLinkPreviews(card.linkPreviews),
   };
 }
 

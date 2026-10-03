@@ -175,6 +175,27 @@ export const RecommendedFeed = named(
   "Today's picks (a CardList, plus whether they are today's).",
 );
 
+export const LinkPreview = named(
+  z.object({
+    /** The link, normalized (an http(s) URL); match it to a standalone link in the story. */
+    url: z.string(),
+    title: z.string(),
+    description: z.string().nullable(),
+    siteName: z.string().nullable(),
+    /**
+     * The page's picture as a SITE-RELATIVE path ('/api/link-image?u=…&s=…'),
+     * served by this API's origin (resolve it against the base URL); null
+     * when the page had none.
+     */
+    image: z
+      .string()
+      .nullable()
+      .describe("A site-relative path ('/api/link-image?u=…&s=…'): resolve it against the API's origin. Null when the page had no picture."),
+  }),
+  'LinkPreview',
+  'What a link says about itself: the title, description, site name and picture of its page, as the server read it.',
+);
+
 export const CardDetail = named(
   z.object({
     card: FeedCard,
@@ -204,6 +225,20 @@ export const CardDetail = named(
      * slug or id; a link with no card here is drawn as a plain link.
      */
     embeds: CardList.optional(),
+    /**
+     * Previews of the links standing alone in the story, in reading order: a
+     * paragraph whose only content is one http(s) link (`[text](url)`,
+     * `<url>`, a reference link, or the bare address — see
+     * native/fixtures/story-link-cards.json). Draw such a paragraph as a link
+     * card when its normalized URL has a preview here, else as the plain
+     * link. Absent from older servers; at most 10.
+     */
+    linkPreviews: z
+      .array(LinkPreview)
+      .optional()
+      .describe(
+        'Previews of the links standing alone in the story, in reading order (at most 10). Draw such a paragraph as a link card when its normalized URL has a preview here, else as the plain link. Absent from older servers.',
+      ),
   }),
   'CardDetail',
 );
@@ -506,6 +541,7 @@ export type FeedPageBody = z.infer<typeof FeedPage>;
 export type RecommendedFeedBody = z.infer<typeof RecommendedFeed>;
 export type AuthorBody = z.infer<typeof Author>;
 export type CardDetailBody = z.infer<typeof CardDetail>;
+export type LinkPreviewBody = z.infer<typeof LinkPreview>;
 export type ProfileBody = z.infer<typeof Profile>;
 export type CardBoxTabName = z.infer<typeof CardBoxTab>;
 export type CardBoxBody = z.infer<typeof CardBox>;

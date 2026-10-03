@@ -9,6 +9,8 @@ import { rekeyAnonymousImages, type Storage } from '../../scripts/backfills/reke
 import { rehostImages } from '../../scripts/backfills/rehostImages';
 import { backfillNotes } from '../../scripts/backfills/notes';
 import { sendNote } from '@/lib/api/v1/conversations';
+import { backfillLinkPreviews } from '../../scripts/backfills/linkPreviews';
+import type { PreviewFetch } from '@/lib/links/preview';
 
 // The one-off backfills (scripts/backfill.ts) against the Firestore emulator:
 // what they change with --apply, and that a dry run changes nothing.
@@ -390,5 +392,80 @@ describe('notes', () => {
 
     expect(await backfillNotes(db, { apply: true, log: quiet })).toMatchObject({ threaded: 0, conversationsOpened: 0, skipped: { already: 5 } });
     expect(await world()).toEqual(after);
+  });
+});
+
+describe('link-previews', () => {
+  const stamp = Timestamp.fromDate(new Date('2026-09-01T08:00:00Z'));
+  const asked: string[] = [];
+  const fetchPages = (async (url: string) => {
+    asked.push(url);
+    return {
+      url,
+      status: 200,
+      contentType: 'text/html',
+      charset: 'utf-8',
+      body: Buffer.from(`<head><meta property="og:title" content="Page ${new URL(url).pathname}"></head>`),
+      truncated: false,
+    };
+  }) as unknown as PreviewFetch;
+  const published = (story: string, extra: Record<string, unknown> = {}) => ({
+    authorId: 'a',
+    story,
+    visibility: 'public',
+    publishedAt: stamp,
+    updatedAt: stamp,
+    excerptAt: stamp,
+    ...extra,
+  });
+
+  beforeEach(async () => {
+    asked.length = 0;
+    await Promise.all([
+      db.doc('cards/old').set(published('一段。\n\nhttps://example.com/old\n\n[第二篇](https://example.com/two)')),
+      // Done already: same links as its previews were made for (one of them said nothing).
+      db.doc('cards/done').set(
+        published('https://example.com/done\n\nhttps://example.com/quiet', {
+          linkPreviews: [{ url: 'https://example.com/done', title: 'Done' }],
+          linkPreviewsFor: ['https://example.com/done', 'https://example.com/quiet'],
+        }),
+      ),
+      // Its story changed outside publish/apply (an older app build): the gone link's preview goes.
+      db.doc('cards/moved').set(
+        published('https://example.com/new', {
+          linkPreviews: [{ url: 'https://example.com/gone', title: 'Gone' }],
+          linkPreviewsFor: ['https://example.com/gone'],
+        }),
+      ),
+      db.doc('cards/plain').set(published('沒有連結，只有 [行內的](https://example.com/inline)。')),
+      db.doc('cards/draft').set(published('https://example.com/draft', { publishedAt: null })),
+    ]);
+  });
+
+  it('counts the published cards whose previews are not for their links, and changes nothing without --apply', async () => {
+    const report = await backfillLinkPreviews(db, { apply: false, log: quiet, fetch: fetchPages });
+    expect(report).toEqual({ cards: 4, candidates: 2, links: 3, written: 0, previews: 0 });
+    expect(asked).toEqual([]);
+    expect(await data('cards/old')).not.toHaveProperty('linkPreviews');
+  });
+
+  it('unfurls them as a save would — no budget charged, no stamp moved — and is done after one run', async () => {
+    const report = await backfillLinkPreviews(db, { apply: true, log: quiet, fetch: fetchPages });
+    expect(report).toMatchObject({ candidates: 2, written: 2, previews: 3 });
+    expect(asked.sort()).toEqual(['https://example.com/new', 'https://example.com/old', 'https://example.com/two']);
+
+    const old = (await data('cards/old'))!;
+    expect(old.linkPreviews).toEqual([
+      { url: 'https://example.com/old', title: 'Page /old' },
+      { url: 'https://example.com/two', title: 'Page /two' },
+    ]);
+    expect((old.updatedAt as Timestamp).isEqual(stamp)).toBe(true);
+    expect((old.excerptAt as Timestamp).isEqual(stamp)).toBe(true);
+    expect((await data('cards/moved'))!.linkPreviews).toEqual([{ url: 'https://example.com/new', title: 'Page /new' }]);
+    expect(await data('cards/plain')).not.toHaveProperty('linkPreviews');
+    expect(await data('cards/draft')).not.toHaveProperty('linkPreviews');
+    expect(await data('rateLimits/a_unfurl')).toBeNull();
+
+    expect(await backfillLinkPreviews(db, { apply: true, log: quiet, fetch: fetchPages })).toMatchObject({ candidates: 0, written: 0 });
   });
 });

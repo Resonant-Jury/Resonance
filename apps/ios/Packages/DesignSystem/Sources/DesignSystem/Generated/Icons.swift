@@ -223,8 +223,8 @@ extension IconName {
             IconStroke(filled: false, width: 1, commands: [0, 15, 14.1, 2, 16.2, 14, 17.1, 15, 17.1, 16.2, 2, 17.1, 17.4, 16.1, 18.3, 14.9, 18.3, 2, 13.7, 18.2, 12.9, 17.3, 12.9, 16.1, 2, 13, 15, 13.9, 14.2, 15, 14.1, 3]),
         ])
         case .send: IconGlyph(viewBox: 24, fillable: false, strokes: [
-            IconStroke(filled: false, width: 1, commands: [0, 3.6, 10.7, 2, 8.9, 8.4, 14.6, 5.9, 20.4, 3.6, 2, 18.6, 9, 16.2, 14.8, 13.5, 20.4, 2, 12.4, 18.1, 11.4, 15.8, 10.4, 13.5, 2, 8.2, 12.5, 5.9, 11.6, 3.3, 10.6]),
-            IconStroke(filled: false, width: 1, commands: [0, 20.1, 3.9, 2, 16.9, 7, 13.7, 10.2, 10.7, 13.2]),
+            IconStroke(filled: false, width: 1, commands: [0, 3, 11.6, 2, 7.9, 8.7, 15, 5.9, 20.2, 3.8, 2, 18.3, 9.1, 16, 15.5, 13.1, 21.3, 2, 11.6, 18.5, 10.8, 16.2, 9.9, 14.3, 2, 7.7, 13.8, 4.8, 12.6, 2.3, 11.4]),
+            IconStroke(filled: false, width: 1, commands: [0, 19.6, 4.4, 2, 17.2, 7.2, 14.4, 10, 11.7, 12.4]),
         ])
         case .reply: IconGlyph(viewBox: 24, fillable: false, strokes: [
             IconStroke(filled: false, width: 1, commands: [0, 19.7, 18.7, 2, 19.9, 14.7, 18.4, 11.5, 14.7, 10.5, 2, 12.4, 9.9, 9.6, 9.9, 5.6, 10.1]),

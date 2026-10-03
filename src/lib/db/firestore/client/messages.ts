@@ -20,6 +20,7 @@ import { getClientDb } from './init';
 import { callApi } from './api';
 import { isAbsent } from './errors';
 import { listenLazily } from './listen';
+import { linkPreviewOf } from '@/lib/links/previewShape';
 
 /** Hard cap mirrored in the API's SendMessageRequest — keep the two in sync. */
 export const MESSAGE_MAX_LENGTH = 2000;
@@ -107,19 +108,7 @@ function mapReplyQuote(v: unknown): Message['replyTo'] {
  * from our own link-image route — nothing else is ever put in an `<img>`.
  */
 function mapPreview(v: unknown): Message['preview'] {
-  if (!v || typeof v !== 'object') return undefined;
-  const p = v as Record<string, unknown>;
-  const url = str(p.url);
-  const title = str(p.title);
-  if (!url || !title || !/^https?:\/\//i.test(url)) return undefined;
-  const image = str(p.image);
-  return {
-    url,
-    title,
-    description: str(p.description),
-    siteName: str(p.siteName),
-    image: image && image.startsWith('/api/link-image?') ? image : undefined,
-  };
+  return linkPreviewOf(v);
 }
 
 export interface MessageExtras {

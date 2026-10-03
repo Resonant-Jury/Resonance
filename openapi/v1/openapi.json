@@ -2158,6 +2158,38 @@
         ],
         "description": "Today's picks (a CardList, plus whether they are today's)."
       },
+      "LinkPreview": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "nullable": true,
+            "type": "string"
+          },
+          "siteName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "image": {
+            "nullable": true,
+            "description": "A site-relative path ('/api/link-image?u=…&s=…'): resolve it against the API's origin. Null when the page had no picture.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "title",
+          "description",
+          "siteName",
+          "image"
+        ],
+        "description": "What a link says about itself: the title, description, site name and picture of its page, as the server read it."
+      },
       "CardDetail": {
         "type": "object",
         "properties": {
@@ -2209,6 +2241,13 @@
           },
           "embeds": {
             "$ref": "#/components/schemas/CardList"
+          },
+          "linkPreviews": {
+            "description": "Previews of the links standing alone in the story, in reading order (at most 10). Draw such a paragraph as a link card when its normalized URL has a preview here, else as the plain link. Absent from older servers.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkPreview"
+            }
           }
         },
         "required": [
