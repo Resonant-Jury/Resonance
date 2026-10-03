@@ -4,8 +4,9 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import type { BatchResponse, MulticastMessage } from 'firebase-admin/messaging';
 import { sendMessage, sendNote } from '@/lib/api/v1/conversations';
 import { acceptInvite } from '@/lib/api/v1/invites';
+import { PUSH_BODY_CHARS, pushMessage } from '@/lib/push/chat';
 import { MAX_DEVICES, registerDevice, unregisterDevice } from '@/lib/push/devices';
-import { MULTICAST_MAX, pushNotification, type PushSender } from '@/lib/push/send';
+import { MESSAGES_CHANNEL, MULTICAST_MAX, pushNotification, type PushSender } from '@/lib/push/send';
 
 // Push against the Firestore emulator with a fake FCM: the device registry,
 // what a push says and where it leads, and that it rings once, never across a
@@ -75,6 +76,18 @@ describe('the device registry', () => {
     expect(await exists('devices/install-0001')).toBe(false);
   });
 
+  it('keeps what a build says it can do with a push, tidied: unique, well-formed, at most eight', async () => {
+    await registerDevice(db, 'alice', 'install-caps', { token: 't', platform: 'android', locale: 'en', capabilities: ['chat-push', 'chat-push', 'Not Valid', 'x'.repeat(33), 'future-thing'] });
+    expect((await db.doc('devices/install-caps').get()).get('capabilities')).toEqual(['chat-push', 'future-thing']);
+    await registerDevice(db, 'alice', 'install-many', { token: 't', platform: 'android', capabilities: Array.from({ length: 12 }, (_, i) => `cap-${i}`) });
+    expect((await db.doc('devices/install-many').get()).get('capabilities')).toHaveLength(8);
+    // An older build says nothing; a later registration without it clears what was there.
+    await registerDevice(db, 'alice', 'install-caps', { token: 't', platform: 'android', locale: 'en' });
+    expect((await db.doc('devices/install-caps').get()).get('capabilities')).toEqual([]);
+    await registerDevice(db, 'alice', 'install-null', { token: 't', platform: 'ios', capabilities: null });
+    expect((await db.doc('devices/install-null').get()).get('capabilities')).toEqual([]);
+  });
+
   it(`keeps an account's ${MAX_DEVICES} most recently registered installs, forgetting older ones`, async () => {
     for (let i = 0; i < MAX_DEVICES + 3; i++) {
       await registerDevice(db, 'alice', `install-${String(i).padStart(4, '0')}`, { token: `t${i}`, platform: 'android', locale: 'en' });
@@ -138,12 +151,14 @@ describe('pushNotification', () => {
   });
 
   it('forgets the devices FCM no longer knows', async () => {
-    await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
-    const { notificationId } = await sendMessage(db, 'alice', { to: 'bob', text: '嗨' });
+    // A message bell as an older server wrote it (it had no `pushedAt`): still pushed, once.
+    await db.doc('notifications/old-message').set({
+      userId: 'bob', type: 'message', payload: { fromUserId: 'alice', fromHandle: 'alice' }, readAt: null, createdAt: Timestamp.now(),
+    });
     const fcm = fakeFcm(['bob-zh']);
-    expect(await pushNotification(db, notificationId!, fcm.sender)).toEqual({ sent: 1, pruned: 1 });
+    expect(await pushNotification(db, 'old-message', fcm.sender)).toEqual({ sent: 1, pruned: 1 });
     expect(fcm.sent.find((m) => m.tokens[0] === 'bob-en')?.data).toEqual({
-      notificationId,
+      notificationId: 'old-message',
       type: 'message',
       route: `/messages/${encodeURIComponent('小明')}`,
       fromUserId: 'alice',
@@ -219,5 +234,200 @@ describe('an accepted legacy invite', () => {
     const fcm = fakeFcm();
     await pushNotification(db, 'link', fcm.sender);
     expect(fcm.sent[0].data).toEqual({ notificationId: 'link', type: 'card_link', route: '/card/walk' });
+  });
+});
+
+describe('pushMessage', () => {
+  /** Every token that was sent to, with the message it got. */
+  const deliveries = (sent: MulticastMessage[]) => Object.fromEntries(sent.flatMap((m) => m.tokens.map((t) => [t, m] as const)));
+  const route = `/messages/${encodeURIComponent('小明')}`;
+
+  beforeEach(async () => {
+    await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
+    // Bob has five installs: two of the new Android build (one per language), an older Android build, and two iPhones.
+    await registerDevice(db, 'bob', 'bob-pixel-zh', { token: 'pixel-zh', platform: 'android', locale: 'zh-TW', capabilities: ['chat-push'] });
+    await registerDevice(db, 'bob', 'bob-pixel-en', { token: 'pixel-en', platform: 'android', locale: 'en', capabilities: ['chat-push'] });
+    await registerDevice(db, 'bob', 'bob-old-android', { token: 'old-en', platform: 'android', locale: 'en' });
+    await registerDevice(db, 'bob', 'bob-iphone', { token: 'iphone-zh', platform: 'ios', locale: 'zh-TW' });
+    await registerDevice(db, 'bob', 'bob-ipad', { token: 'ipad-en', platform: 'ios', locale: 'en', capabilities: ['chat-push'] });
+  });
+
+  const send = (text: string, extra: Record<string, unknown> = {}) =>
+    sendMessage(db, 'alice', { to: 'bob', text, ...extra }).then((sent) => sent.push!);
+
+  it("gives a build that draws its own notification the message as data, and every other device a notification the system shows", async () => {
+    const push = await send('明天一起去散步嗎？');
+    const fcm = fakeFcm();
+    expect(await pushMessage(db, push, fcm.sender)).toEqual({ sent: 5, pruned: 0 });
+
+    const at = deliveries(fcm.sent);
+    expect(Object.keys(at).sort()).toEqual(['ipad-en', 'iphone-zh', 'old-en', 'pixel-en', 'pixel-zh']);
+    const sentAt = String((await db.doc(`conversations/alice_bob/messages/${push.messageId}`).get()).get('sentAt').toMillis());
+
+    // The new Android build: data only, high priority, no notification of its own, everything its notification needs.
+    for (const token of ['pixel-zh', 'pixel-en']) {
+      expect(at[token]).toEqual({
+        tokens: [token],
+        data: {
+          type: 'message',
+          conversationId: 'alice_bob',
+          messageId: push.messageId,
+          fromUserId: 'alice',
+          fromHandle: '小明',
+          title: '小明',
+          body: '明天一起去散步嗎？',
+          route,
+          sentAt,
+        },
+        android: { priority: 'high' },
+      });
+      expect(at[token].notification).toBeUndefined();
+    }
+
+    // Everyone else: the pen name and the words as the notification, a conversation replacing its own on Android and grouped on iOS.
+    for (const token of ['old-en', 'iphone-zh', 'ipad-en']) {
+      // (Devices that read the same words share a multicast: `tokens` is theirs together.)
+      const { tokens, ...rest } = at[token];
+      expect(tokens).toContain(token);
+      expect(rest).toEqual({
+        notification: { title: '小明', body: '明天一起去散步嗎？' },
+        data: { type: 'message', notificationId: '', route, fromUserId: 'alice', conversationId: 'alice_bob', messageId: push.messageId },
+        android: { priority: 'high', notification: { channelId: MESSAGES_CHANNEL, tag: 'alice_bob' } },
+        apns: { payload: { aps: { sound: 'default', threadId: 'alice_bob' } } },
+      });
+    }
+    expect(MESSAGES_CHANNEL).toBe('messages');
+  });
+
+  it('sends one multicast for each language and kind of device', async () => {
+    const fcm = fakeFcm();
+    await pushMessage(db, await send('hi'), fcm.sender);
+    const groups = fcm.sent.map((m) => [m.tokens.slice().sort().join('+'), m.notification ? 'notification' : 'data']).sort();
+    expect(groups).toEqual([
+      ['ipad-en+old-en', 'notification'],
+      ['iphone-zh', 'notification'],
+      ['pixel-en', 'data'],
+      ['pixel-zh', 'data'],
+    ]);
+  });
+
+  it('says "shared a card" in the device\'s own language for a message that is only a card', async () => {
+    const push = await send('', { cardRef: 'walk' });
+    const fcm = fakeFcm();
+    await pushMessage(db, push, fcm.sender);
+    const at = deliveries(fcm.sent);
+    expect(at['pixel-zh'].data?.body).toBe('分享了一張卡片');
+    expect(at['pixel-en'].data?.body).toBe('Shared a card');
+    expect(at['iphone-zh'].notification?.body).toBe('分享了一張卡片');
+    expect(at['old-en'].notification?.body).toBe('Shared a card');
+  });
+
+  it(`carries at most ${PUSH_BODY_CHARS} characters of the message, never cutting through an emoji`, async () => {
+    const fcm = fakeFcm();
+    await pushMessage(db, await send('🌧️'.repeat(150)), fcm.sender);
+    const body = deliveries(fcm.sent)['pixel-en'].data!.body;
+    expect(Array.from(body)).toHaveLength(PUSH_BODY_CHARS);
+    expect(body.endsWith('🌧') || body.endsWith('️')).toBe(true);
+
+    const trimmed = fakeFcm();
+    await pushMessage(db, await send('   spaces around   '), trimmed.sender);
+    expect(deliveries(trimmed.sent)['pixel-en'].data!.body).toBe('spaces around');
+  });
+
+  it("takes the words from the records: the sender's pen name as it is now, and the stored message", async () => {
+    const push = await send('the real words');
+    await db.doc('users/alice').set({ handle: 'renamed', handleLower: 'renamed' });
+    const fcm = fakeFcm();
+    await pushMessage(db, { ...push, from: 'alice' }, fcm.sender);
+    const at = deliveries(fcm.sent);
+    expect(at['pixel-en'].data).toMatchObject({ title: 'renamed', fromHandle: 'renamed', body: 'the real words', route: '/messages/renamed' });
+    expect(at['old-en'].notification).toEqual({ title: 'renamed', body: 'the real words' });
+  });
+
+  it('rings for every message of a conversation, and the first one only through here, never twice', async () => {
+    const first = await send('one');
+    // The first message also wrote a bell row; it is marked pushed, so the bell's own push has nothing to say.
+    const [bell] = (await db.collection('notifications').where('userId', '==', 'bob').get()).docs;
+    expect(bell.get('type')).toBe('message');
+    expect(bell.get('pushedAt')).toBeInstanceOf(Timestamp);
+    const fcm = fakeFcm();
+    expect(await pushNotification(db, bell.id, fcm.sender)).toBeNull();
+    expect(fcm.sent).toHaveLength(0);
+
+    await pushMessage(db, first, fcm.sender);
+    await pushMessage(db, await send('two'), fcm.sender);
+    await pushMessage(db, await send('three'), fcm.sender);
+    expect(fcm.sent.filter((m) => m.tokens.includes('iphone-zh')).map((m) => m.notification?.body)).toEqual(['one', 'two', 'three']);
+  });
+
+  it('stays silent across a block, in either direction, and for a connection the recipient muted', async () => {
+    const push = await send('hello');
+    const fcm = fakeFcm();
+
+    await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+    expect(await pushMessage(db, push, fcm.sender)).toBeNull();
+    await db.doc('users/bob/blocks/alice').delete();
+
+    await db.doc('users/alice/blocks/bob').set({ blockedUid: 'bob' });
+    expect(await pushMessage(db, push, fcm.sender)).toBeNull();
+    await db.doc('users/alice/blocks/bob').delete();
+
+    await db.doc('connections/alice_bob').update({ muted: [{ by: 'bob' }] });
+    expect(await pushMessage(db, push, fcm.sender)).toBeNull();
+    expect(fcm.sent).toHaveLength(0);
+  });
+
+  it("rings when only the sender muted the connection, or the mute is not one we know", async () => {
+    const push = await send('hello');
+    for (const muted of [[{ by: 'alice' }], [], true, null, [{ by: 7 }, 'bob', null]]) {
+      await db.doc('connections/alice_bob').update({ muted });
+      const fcm = fakeFcm();
+      expect(await pushMessage(db, push, fcm.sender), JSON.stringify(muted)).toMatchObject({ sent: 5 });
+    }
+  });
+
+  it("rings nothing for a message that isn't what the request says: another sender, a missing message, mismatched ids", async () => {
+    const push = await send('hello');
+    const fcm = fakeFcm();
+    await db.doc('users/carol/blocks/nobody').set({});
+    expect(await pushMessage(db, { ...push, from: 'carol', to: 'bob', conversationId: 'bob_carol' }, fcm.sender)).toBeNull();
+    // A real message, claimed to be from someone who did not send it.
+    await db.doc('conversations/bob_carol/messages/forged').set({ senderId: 'bob', text: 'x', sentAt: Timestamp.now() });
+    expect(await pushMessage(db, { conversationId: 'bob_carol', messageId: 'forged', from: 'carol', to: 'bob' }, fcm.sender)).toBeNull();
+    expect(await pushMessage(db, { ...push, messageId: 'nope' }, fcm.sender)).toBeNull();
+    expect(await pushMessage(db, { ...push, conversationId: 'alice_carol' }, fcm.sender)).toBeNull();
+    expect(await pushMessage(db, { ...push, to: 'alice' }, fcm.sender)).toBeNull();
+    expect(await pushMessage(db, { ...push, messageId: '../x' }, fcm.sender)).toBeNull();
+    expect(await pushMessage(db, { ...push, from: '', conversationId: '' }, fcm.sender)).toBeNull();
+    expect(fcm.sent).toHaveLength(0);
+  });
+
+  it('sends nothing, and needs no FCM, for someone with no devices', async () => {
+    await db.doc('connections/alice_carol').set({ userIds: ['alice', 'carol'], establishedAt: Timestamp.now() });
+    const { push } = await sendMessage(db, 'alice', { to: 'carol', text: 'hi' });
+    const fcm = fakeFcm();
+    expect(await pushMessage(db, push!, fcm.sender)).toEqual({ sent: 0, pruned: 0 });
+    expect(fcm.sent).toHaveLength(0);
+  });
+
+  it('forgets the devices FCM no longer knows, whichever kind of push they got', async () => {
+    const fcm = fakeFcm(['pixel-zh', 'iphone-zh']);
+    expect(await pushMessage(db, await send('hello'), fcm.sender)).toEqual({ sent: 3, pruned: 2 });
+    expect(await exists('devices/bob-pixel-zh')).toBe(false);
+    expect(await exists('devices/bob-iphone')).toBe(false);
+    expect(await exists('devices/bob-pixel-en')).toBe(true);
+    expect(await exists('devices/bob-old-android')).toBe(true);
+  });
+
+  it(`sends at most ${MULTICAST_MAX} tokens a call`, async () => {
+    const writer = db.bulkWriter();
+    for (let i = 0; i < MULTICAST_MAX + 2; i++) {
+      void writer.set(db.doc(`devices/many-${i}`), { userId: 'dave', token: `d${i}`, platform: 'android', locale: 'en', capabilities: ['chat-push'], updatedAt: Timestamp.now() });
+    }
+    await writer.close();
+    await db.doc('conversations/alice_dave/messages/m1').set({ senderId: 'alice', text: 'hi', sentAt: Timestamp.now() });
+    const fcm = fakeFcm();
+    expect(await pushMessage(db, { conversationId: 'alice_dave', messageId: 'm1', from: 'alice', to: 'dave' }, fcm.sender)).toEqual({ sent: MULTICAST_MAX + 2, pruned: 0 });
+    expect(fcm.sent.map((m) => m.tokens.length)).toEqual([MULTICAST_MAX, 2]);
   });
 });

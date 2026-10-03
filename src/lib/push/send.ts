@@ -1,4 +1,4 @@
-import { FieldValue, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
+import { FieldValue, type DocumentReference, type Firestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import type { BatchResponse, MulticastMessage } from 'firebase-admin/messaging';
 import { createTranslator } from 'next-intl';
 import en from '@/messages/en.json';
@@ -13,6 +13,8 @@ export interface PushSender {
 
 /** The Android channel the apps create for these (its id is part of the contract with them). */
 export const ANDROID_CHANNEL = 'activity';
+/** The channel a conversation's messages come in (the apps create it beside `activity`). */
+export const MESSAGES_CHANNEL = 'messages';
 
 const MESSAGES: Record<DeviceLocale, typeof en> = { en, 'zh-TW': zhTW };
 
@@ -83,6 +85,74 @@ export interface PushResult {
   pruned: number;
 }
 
+/** One registered install, as a push sees it. */
+export interface DeviceTarget {
+  token: string;
+  ref: DocumentReference;
+  locale: DeviceLocale;
+  platform: string;
+  /** What the build says it can do with a push (`registerDevice`'s `capabilities`). */
+  capabilities: string[];
+}
+
+/** The pushable installs among a user's `devices` documents (those with a token). */
+export function deviceTargets(docs: QueryDocumentSnapshot[]): DeviceTarget[] {
+  const targets: DeviceTarget[] = [];
+  for (const d of docs) {
+    const token = str(d.get('token'));
+    if (!token) continue;
+    const capabilities = d.get('capabilities');
+    targets.push({
+      token,
+      ref: d.ref,
+      locale: deviceLocale(d.get('locale')),
+      platform: str(d.get('platform')),
+      capabilities: Array.isArray(capabilities) ? capabilities.filter((c): c is string => typeof c === 'string') : [],
+    });
+  }
+  return targets;
+}
+
+/** The targets split by the language their app speaks, in the order each language first appears. */
+export function groupByLocale(targets: DeviceTarget[]): Map<DeviceLocale, DeviceTarget[]> {
+  const byLocale = new Map<DeviceLocale, DeviceTarget[]>();
+  for (const t of targets) byLocale.set(t.locale, [...(byLocale.get(t.locale) ?? []), t]);
+  return byLocale;
+}
+
+/**
+ * Send one message to many installs, FCM's limit of tokens a call at a time.
+ * `dead` are the installs whose token FCM will never deliver to again; pass
+ * them to `forgetDevices` once everything has been sent.
+ */
+export async function multicastTo(
+  sender: PushSender,
+  targets: DeviceTarget[],
+  build: (tokens: string[]) => MulticastMessage,
+): Promise<{ sent: number; dead: DocumentReference[] }> {
+  let sent = 0;
+  const dead: DocumentReference[] = [];
+  for (let start = 0; start < targets.length; start += MULTICAST_MAX) {
+    const batch = targets.slice(start, start + MULTICAST_MAX);
+    const res = await sender.sendEachForMulticast(build(batch.map((t) => t.token)));
+    sent += res.successCount;
+    res.responses.forEach((r, i) => {
+      if (!r.success && r.error && DEAD_TOKEN.has(r.error.code)) dead.push(batch[i].ref);
+    });
+  }
+  return { sent, dead };
+}
+
+/** Delete the device records of tokens FCM has given up on. */
+export async function forgetDevices(db: Firestore, dead: DocumentReference[]): Promise<void> {
+  // A batch holds 500 writes, as a multicast holds 500 tokens.
+  for (let start = 0; start < dead.length; start += MULTICAST_MAX) {
+    const batch = db.batch();
+    dead.slice(start, start + MULTICAST_MAX).forEach((r) => batch.delete(r));
+    await batch.commit();
+  }
+}
+
 /**
  * Push `notifications/{id}` to its recipient's devices, once. The bell row is
  * the record; this only rings the phone — so it never throws into a writer
@@ -133,44 +203,25 @@ export async function pushNotification(db: Firestore, id: string, sender: PushSe
   if (devices.empty) return { sent: 0, pruned: 0 };
 
   // One multicast per language, each device reading the push in the app's own UI language.
-  const byLocale = new Map<DeviceLocale, { token: string; ref: DocumentReference }[]>();
-  for (const d of devices.docs) {
-    const token = str(d.get('token'));
-    if (!token) continue;
-    const locale = deviceLocale(d.get('locale'));
-    byLocale.set(locale, [...(byLocale.get(locale) ?? []), { token, ref: d.ref }]);
-  }
-
   const route = pushRoute(type, payload);
   // The sender's uid beside the route, for a push that opens their thread: the
   // apps open a conversation by uid (a pen name can change before the tap).
   const data: Record<string, string> = { notificationId: id, type, route, ...(from && OPENS_THREAD.has(type) ? { fromUserId: from } : {}) };
   let sent = 0;
   const dead: DocumentReference[] = [];
-  for (const [locale, all] of byLocale) {
+  for (const [locale, targets] of groupByLocale(deviceTargets(devices.docs))) {
     const text = pushText(locale, type, payload);
     if (!text) continue;
-    // FCM takes at most MULTICAST_MAX tokens a call.
-    for (let start = 0; start < all.length; start += MULTICAST_MAX) {
-      const targets = all.slice(start, start + MULTICAST_MAX);
-      const res = await sender.sendEachForMulticast({
-        tokens: targets.map((t) => t.token),
-        notification: text,
-        data,
-        android: { notification: { channelId: ANDROID_CHANNEL, tag: id } },
-        apns: { payload: { aps: { sound: 'default', threadId: type } } },
-      });
-      sent += res.successCount;
-      res.responses.forEach((r, i) => {
-        if (!r.success && r.error && DEAD_TOKEN.has(r.error.code)) dead.push(targets[i].ref);
-      });
-    }
+    const result = await multicastTo(sender, targets, (tokens) => ({
+      tokens,
+      notification: text,
+      data,
+      android: { notification: { channelId: ANDROID_CHANNEL, tag: id } },
+      apns: { payload: { aps: { sound: 'default', threadId: type } } },
+    }));
+    sent += result.sent;
+    dead.push(...result.dead);
   }
-  // A batch holds 500 writes, as a multicast holds 500 tokens.
-  for (let start = 0; start < dead.length; start += MULTICAST_MAX) {
-    const batch = db.batch();
-    dead.slice(start, start + MULTICAST_MAX).forEach((r) => batch.delete(r));
-    await batch.commit();
-  }
+  await forgetDevices(db, dead);
   return { sent, pruned: dead.length };
 }

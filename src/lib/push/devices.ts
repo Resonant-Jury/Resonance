@@ -12,6 +12,8 @@ export interface DeviceRegistration {
   platform: 'ios' | 'android';
   locale?: string | null;
   appVersion?: string | null;
+  /** What the build does with a push beyond showing it (`chat-push`, see lib/push/chat); unknown values are kept. */
+  capabilities?: string[] | null;
 }
 
 /**
@@ -29,6 +31,7 @@ export async function registerDevice(db: Firestore, uid: string, installationId:
     platform: input.platform,
     locale: deviceLocale(input.locale),
     appVersion: input.appVersion ?? null,
+    capabilities: [...new Set(input.capabilities ?? [])].filter((c) => /^[a-z0-9-]{1,32}$/.test(c)).slice(0, 8),
     updatedAt: FieldValue.serverTimestamp(),
   });
   await forgetOldestDevices(db, uid);
