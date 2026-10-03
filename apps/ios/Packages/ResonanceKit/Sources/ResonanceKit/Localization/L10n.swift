@@ -729,6 +729,8 @@ public enum L10n {
             public static var update: String { Strings.shared.string("write.publishPanel.update") }
             /// Saving…
             public static var updating: String { Strings.shared.string("write.publishPanel.updating") }
+            /// An anonymous card is either public or only for you.
+            public static var anonymousVisibility: String { Strings.shared.string("write.publishPanel.anonymousVisibility") }
         }
         public enum FirstCard {
             /// Write your first card

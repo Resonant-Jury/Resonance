@@ -393,7 +393,8 @@
       "updateTitle": "更新這張卡片",
       "updateHint": "按下之後，讀者看到的就會是這個版本。發布時間不會改變。",
       "update": "儲存修改",
-      "updating": "儲存中⋯"
+      "updating": "儲存中⋯",
+      "anonymousVisibility": "匿名卡片只能公開，或設為只有自己看得到。"
     },
     "firstCard": {
       "title": "寫下你的第一張卡片",

@@ -393,7 +393,8 @@
       "updateTitle": "Update this card",
       "updateHint": "After this, readers see this version. The publish date stays as it was.",
       "update": "Save changes",
-      "updating": "Saving…"
+      "updating": "Saving…",
+      "anonymousVisibility": "An anonymous card is either public or only for you."
     },
     "firstCard": {
       "title": "Write your first card",

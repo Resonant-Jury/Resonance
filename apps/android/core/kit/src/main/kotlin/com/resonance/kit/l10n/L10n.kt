@@ -731,6 +731,8 @@ object L10n {
             val update: String get() = Strings.string("write.publishPanel.update")
             /** Saving… */
             val updating: String get() = Strings.string("write.publishPanel.updating")
+            /** An anonymous card is either public or only for you. */
+            val anonymousVisibility: String get() = Strings.string("write.publishPanel.anonymousVisibility")
         }
         object FirstCard {
             /** Write your first card */
