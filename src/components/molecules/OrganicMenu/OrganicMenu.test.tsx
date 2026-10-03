@@ -157,6 +157,24 @@ describe('bare trigger', () => {
     expect(tip).not.toHaveAttribute('data-dismissed');
   });
 
+  // A thread's header: the「⋯」closes the row the back arrow opens, in the same ink, at the top of the screen.
+  it('can wear full ink at rest and hang its tooltip under it', () => {
+    render(<OrganicMenu items={ITEMS} onChoose={vi.fn()} label="Conversation options" bare tone="ink" tip="below" />);
+    const trigger = screen.getByRole('button', { name: 'Conversation options' });
+    expect(trigger).toHaveAttribute('data-tone', 'ink');
+    expect(trigger.nextElementSibling).toHaveAttribute('data-side', 'below');
+    const css = readFileSync(join(process.cwd(), 'src/components/molecules/OrganicMenu/OrganicMenu.module.css'), 'utf8');
+    expect(css).toMatch(/\.bare\[data-tone='ink'\]\s*\{\s*color: var\(--color-text\)/);
+    expect(css).toMatch(/\.tip\[data-side='below'\]\s*\{\s*top: calc\(100% \+ 6px\)/);
+  });
+
+  it('is muted at rest with its tooltip over it unless asked otherwise', () => {
+    render(<OrganicMenu items={ITEMS} onChoose={vi.fn()} label="More" bare />);
+    const trigger = screen.getByRole('button', { name: 'More' });
+    expect(trigger).toHaveAttribute('data-tone', 'muted');
+    expect(trigger.nextElementSibling).toHaveAttribute('data-side', 'above');
+  });
+
   it('keeps the chip and no tooltip by default', () => {
     render(<OrganicMenu items={ITEMS} onChoose={vi.fn()} label="Manage" />);
     expect(screen.getByRole('button', { name: 'Manage' }).nextElementSibling).toBeNull();

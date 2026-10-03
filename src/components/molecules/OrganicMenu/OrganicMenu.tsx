@@ -50,6 +50,13 @@ export interface OrganicMenuProps {
    * (`triggerSize` is ignored).
    */
   bare?: boolean;
+  /**
+   * For `bare`: muted ink at rest (default), or full ink — a trigger leading
+   * or closing a bar's row beside the bar's back arrow, which is full ink.
+   */
+  tone?: 'muted' | 'ink';
+  /** For `bare`: where its tooltip hangs — over it (default), or under it at the top of a screen. */
+  tip?: 'above' | 'below';
   /** A quiet line under the rows (a message's full time), parted from them by one more divider. */
   footer?: ReactNode;
   /**
@@ -111,6 +118,8 @@ export function OrganicMenu({
   triggerIcon = 'dots',
   triggerSize = 38,
   bare = false,
+  tone = 'muted',
+  tip = 'above',
   footer,
   floating = false,
   align = 'end',
@@ -189,6 +198,7 @@ export function OrganicMenu({
         className={bare ? `${styles.trigger} ${styles.bare}` : styles.trigger}
         style={bare ? undefined : { width: triggerSize, height: triggerSize }}
         data-open={open || undefined}
+        data-tone={bare ? tone : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={`${uid}-menu`}
@@ -228,7 +238,7 @@ export function OrganicMenu({
         </span>
       </button>
       {bare && (
-        <span className={styles.tip} aria-hidden="true" data-dismissed={tipDismissed || undefined}>
+        <span className={styles.tip} aria-hidden="true" data-side={tip} data-dismissed={tipDismissed || undefined}>
           {label}
         </span>
       )}
