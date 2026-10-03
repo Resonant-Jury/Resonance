@@ -966,11 +966,11 @@ span.pill {
   margin-bottom: 6px;
 }
 
-/* Send: a wobbly terracotta disc, the plane in cream. */
+/* Send: a wobbly terracotta rounded rectangle, the plane in cream. */
 .send {
   position: relative;
   flex-shrink: 0;
-  width: 40px;
+  width: 48px;
   height: 40px;
   margin-bottom: 4px;
   padding: 0;
@@ -1016,7 +1016,6 @@ span.pill {
   justify-content: center;
   width: 100%;
   height: 100%;
-  transform: translate(1px, -1px);
 }
 
 /* ── Phones ───────────────────────────────────────────────────────── */

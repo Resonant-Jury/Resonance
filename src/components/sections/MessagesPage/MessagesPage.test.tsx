@@ -224,7 +224,7 @@ describe('MessagesPage thread', () => {
     fireEvent.change(screen.getByPlaceholderText('Write a message…'), {
       target: { value: 'a reply' },
     });
-    // The send disc wakes once there is something to send.
+    // The send button wakes once there is something to send.
     expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-enabled');
     await userEvent.setup({ pointerEventsCheck: 0 }).click(
       screen.getByRole('button', { name: 'Send' }),
