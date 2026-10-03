@@ -90,10 +90,14 @@ export function buildOpenApi(): Json {
         },
         post: {
           operationId: 'createProfile',
-          summary: 'Onboarding: create your profile (an existing one comes back unchanged)',
+          summary: 'Onboarding: create your profile (an existing one comes back unchanged, unless it has no pen name yet)',
+          description:
+            'A profile without a pen name — made before onboarding asked for one — takes the one sent (reserved, `409` when taken) ' +
+            'with the region and writing language sent, keeping the rest; it then comes back `200`. Reaching anyone ' +
+            '(a note, a message, a resonance that rings) takes a pen name.',
           requestBody: { required: true, ...json(ref('CreateProfileRequest')) },
           responses: {
-            '200': { description: 'Already had a profile', ...json(ref('Me')) },
+            '200': { description: 'Already had a profile (named now, if it had no pen name)', ...json(ref('Me')) },
             '201': { description: 'Created', ...json(ref('Me')) },
             ...errors(400, 401, 409),
           },
@@ -125,7 +129,10 @@ export function buildOpenApi(): Json {
           },
         ],
       }, [400, 401]),
-      '/feed': get('getFeed', 'Latest public cards, newest first (authors you blocked are left out)', 'FeedPage', { parameters: pageParams }, [400, 401]),
+      '/feed': get('getFeed', 'Latest public cards, newest first (named cards of people you blocked are left out)', 'FeedPage', {
+        description: 'Anonymous cards come without a byline, and a block never leaves one out: that would name its author.',
+        parameters: pageParams,
+      }, [400, 401]),
       '/feed/recommended': get('getRecommendedFeed', "Today's picks for you, each with the reason it was picked", 'RecommendedFeed', {
         description:
           'Answers at once from the latest picks. While today\'s are being prepared `status` is `stale` ' +
@@ -133,8 +140,9 @@ export function buildOpenApi(): Json {
       }, [401]),
       '/cards': get('getCards', 'Several cards at once, by slug or id, as list summaries (no story)', 'CardList', {
         description:
-          'In the order asked, each card once; cards you may not read, or by someone you blocked, and unknown keys are left out. ' +
-          'Anonymous cards come without a byline.',
+          'In the order asked, each card once; cards you may not read, named cards by someone you blocked, and unknown keys are ' +
+          'left out. Anonymous cards come without a byline, and a block never leaves one out (nor any list or feed): that would ' +
+          'name its author.',
         parameters: [
           {
             name: 'keys',
@@ -155,6 +163,11 @@ export function buildOpenApi(): Json {
         patch: {
           operationId: 'updateCard',
           summary: "Change your card's visibility and/or anonymity (only the fields sent)",
+          description:
+            'A published resonance made public under your name — published private, connections-only or anonymous, it reached ' +
+            "no one — reaches the original's author after the response, as publishing it so would have: you two connected " +
+            '(not when the original is anonymous), their bell rung — once per reader and card, whatever path rang it first; ' +
+            'never across a block, nor without a pen name. The answer never waits on it.',
           parameters: [pathParam('key', 'The card id')],
           requestBody: { required: true, ...json(ref('UpdateCardRequest')) },
           responses: { '200': { description: 'The card as your card box shows it', ...json(ref('FeedCard')) }, ...errors(400, 401, 404) },
@@ -174,7 +187,9 @@ export function buildOpenApi(): Json {
           description:
             'A card answers one card, and you answer a card with one of yours: `409 conflict` when the card already answers another, ' +
             'or another of your cards already answers this one. Asking again with the same card is `changed: false` and rings no one. ' +
-            'An anonymous card connects no one and rings no one; an anonymous original rings its author but connects no one.',
+            'An anonymous card connects no one and rings no one; an anonymous original rings its author but connects no one. ' +
+            'A block either way is `403 blocked` for a named original; an anonymous one is answered all the same, and the block ' +
+            'keeps it from reaching anyone. A card public under your name needs your pen name (`403 forbidden`).',
           parameters: [cardId],
           requestBody: { required: true, ...json(ref('ResonateRequest')) },
           responses: { '200': { description: 'OK', ...json(ref('ResonateResponse')) }, ...errors(400, 401, 403, 404, 409, 429) },
@@ -192,7 +207,12 @@ export function buildOpenApi(): Json {
       '/cards/{key}/publish': {
         post: {
           operationId: 'publishCard',
-          summary: 'Publish your card: stamps it once, gives it its slug, and connects a resonance to its original',
+          summary: 'Publish your card: stamps it once, gives it its slug, and lets a resonance reach its original',
+          description:
+            "A resonance published public under your name reaches the original's author, the first time only: you two connected " +
+            '(not when the original is anonymous) and their bell rung — once per reader and card, whatever path rang it first; ' +
+            'never across a block, nor without a pen name. A private, connections-only or anonymous one reaches no one. Either ' +
+            'way the card is published: reaching out never fails it.',
           parameters: [pathParam('key', 'The card id')],
           responses: { '200': { description: 'OK', ...json(ref('PublishResponse')) }, ...errors(400, 401, 404) },
         },
@@ -201,6 +221,9 @@ export function buildOpenApi(): Json {
         post: {
           operationId: 'applyCardEdit',
           summary: 'Apply your pending edit (cards/{id}/edits/current) to your published card, and clear it',
+          description:
+            "An edit that makes a published resonance public under your name reaches the original's author after the response, " +
+            'as a PATCH doing so would (see updateCard).',
           parameters: [pathParam('key', 'The card id')],
           responses: { '200': { description: 'OK', ...json(ref('ApplyEditResponse')) }, ...errors(400, 401, 404) },
         },
@@ -235,6 +258,10 @@ export function buildOpenApi(): Json {
         post: {
           operationId: 'acceptInvite',
           summary: "Accept a legacy invite sent to you: connects you two and rings its sender's bell (accepting again changes nothing)",
+          description:
+            '`409 conflict` once it is no longer open: declined, withdrawn, or past its `expiresAt` (it is closed as `expired` then, ' +
+            'so inboxes should list only invites before their date). `403 forbidden` without a pen name; `403 blocked` across a ' +
+            'block either way.',
           parameters: [pathParam('id', 'The invite id')],
           responses: { '200': { description: 'OK', ...json(ref('AcceptInviteResponse')) }, ...errors(400, 401, 403, 404, 409) },
         },
@@ -247,7 +274,8 @@ export function buildOpenApi(): Json {
             '`cardRef` = the card). A note is a letter: it connects no one. Between two people not connected it waits in ' +
             'the conversation (`request: { from, cardId, at, count }`) until the author answers it with a message, which ' +
             'connects you (so does a note of theirs to you while yours waits); at most 3 wait unanswered, then 409 ' +
-            '`conflict` ("Wait for them to reply."). On an anonymous card: the bell only — no conversation, no connection',
+            '`conflict` ("Wait for them to reply."). On an anonymous card: the bell only — no conversation, no connection; ' +
+            'across a block it is answered 201 all the same and delivered to no one (a refusal would name its author)',
           requestBody: { required: true, ...json(ref('SendNoteRequest')) },
           responses: { '201': { description: 'Created', ...json(ref('SendNoteResponse')) }, ...errors(400, 401, 403, 404, 409) },
         },
@@ -258,6 +286,10 @@ export function buildOpenApi(): Json {
           summary:
             'Message someone you are connected with (opens the conversation; its first message rings their bell), or answer ' +
             "a note they left you while you weren't (`request.from` is them): that answer connects you",
+          description:
+            '`403 forbidden` when you are not connected (and no letter of theirs waits), or have no pen name yet ' +
+            '("Choose a pen name first.", asked before anything else); `403 blocked` across a block either way. `noteRef` names a ' +
+            'note they left you, on the card it names — anything else is `400` ("That is not a note they left you.").',
           requestBody: { required: true, ...json(ref('SendMessageRequest')) },
           responses: { '201': { description: 'Created', ...json(ref('SendMessageResponse')) }, ...errors(400, 401, 403, 404) },
         },
