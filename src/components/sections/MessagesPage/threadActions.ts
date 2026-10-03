@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, type MouseEvent } from 'react';
+import { createContext, useContext, type KeyboardEvent, type MouseEvent } from 'react';
 import type { OrganicMenuItem } from '@/components/molecules/OrganicMenu/OrganicMenu';
 import { canReply, type ChatMessage } from '@/lib/chat/message';
 import type { Carried } from '@/lib/chat/carried';
@@ -29,10 +29,10 @@ export interface ThreadActions {
   /**
    * Follows a link by the thread's rules: a card of ours opens here; an
    * address easy to mistake for another (an IP, a punycode name) asks first;
-   * anything else opens in a new tab. With the click's event, the browser's
-   * own following is stopped only when the thread takes over.
+   * anything else opens in a new tab. With the click's (or Enter's) event,
+   * the browser's own following is stopped only when the thread takes over.
    */
-  openLink(link: MessageLink, e?: MouseEvent<HTMLAnchorElement>): void;
+  openLink(link: MessageLink, e?: MouseEvent<HTMLAnchorElement> | KeyboardEvent<HTMLAnchorElement>): void;
   reply(message: ChatMessage): void;
   /** Goes to a quote's original, reading older pages for it first when it isn't held. */
   jumpTo(messageId: string): void;

@@ -314,6 +314,21 @@ describe('replies, links and link previews in a thread', () => {
     expect(open).toHaveBeenCalledWith('http://192.168.0.5/admin', '_blank', 'noopener,noreferrer');
     open.mockRestore();
   });
+
+  // A new tab asked for on purpose (a modifier, a middle click, the browser's own menu) asks first too: the
+  // link carries no address the browser could open by itself.
+  it('asks first however a link to an IP address is opened', async () => {
+    server.messages = [text('m1', 'try http://192.168.0.5/admin')];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+    const link = await screen.findByRole('link', { name: 'http://192.168.0.5/admin' });
+    expect(link).not.toHaveAttribute('href');
+    fireEvent.click(link, { ctrlKey: true });
+    expect(await screen.findByText('Open this link?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.keyDown(link, { key: 'Enter' });
+    expect(await screen.findByText('Open this link?')).toBeInTheDocument();
+  });
 });
 
 describe('Messenger’s thread, drawn by hand', () => {

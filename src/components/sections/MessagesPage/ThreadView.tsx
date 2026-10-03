@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import useSWR, { useSWRConfig } from 'swr';
 import { BareIconButton } from '@/components/atoms/BareIconButton/BareIconButton';
@@ -34,7 +34,7 @@ import {
   markConversationRead,
 } from '@/lib/db/firestore/client/messages';
 import { linkify } from '@/lib/links/linkify';
-import type { MessageLink } from './MessageBubble';
+import { messageLinkProps } from './MessageBubble';
 import { MessageRow } from './MessageRow';
 import { MessageMenuOverlay } from './MessageMenuOverlay';
 import { SearchResults } from './ThreadSearch';
@@ -300,16 +300,19 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     () => ({
       viewerId: user?.id ?? '',
       otherHandle: other?.handle ?? '',
-      openLink: (link: MessageLink, e?: MouseEvent<HTMLAnchorElement>) => {
+      openLink: (link, e) => {
+        // An address easy to mistake for another asks first, however it was opened.
+        if (link.suspicious) {
+          e?.preventDefault();
+          setLinkToConfirm({ url: link.url, host: link.host });
+          return;
+        }
         // A new tab asked for on purpose is the browser's to open.
-        if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0)) return;
+        if (e && 'button' in e && (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0)) return;
         const card = resonanceCardKey(link.url);
         if (card) {
           e?.preventDefault();
           live.current.router.push(`/card/${card}`);
-        } else if (link.suspicious) {
-          e?.preventDefault();
-          setLinkToConfirm({ url: link.url, host: link.host });
         } else if (!e) {
           window.open(link.url, '_blank', 'noopener,noreferrer');
         }
@@ -673,13 +676,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                         {mediaLinks.map((link, i) => (
                           <Fragment key={link.url}>
                             {i > 0 && <Divider seed={97 + i * 11} spacing={0} />}
-                            <a
-                              className={pageStyles.mediaLinkRow}
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer nofollow ugc"
-                              onClick={(e) => actions.openLink(link, e)}
-                            >
+                            <a className={pageStyles.mediaLinkRow} {...messageLinkProps(link, actions.openLink)}>
                               {link.text}
                             </a>
                           </Fragment>

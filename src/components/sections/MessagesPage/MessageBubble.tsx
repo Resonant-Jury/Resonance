@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { useMemo, useRef, type AnchorHTMLAttributes, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Icon } from '@/components/atoms/Icon';
 import { bubblePath, bubbleStandInRadius, seedFromId, type BubbleShapeOptions } from '@/lib/design/bubble';
 import { markedSegments, type MarkedPiece } from '@/lib/chat/marks';
@@ -14,6 +14,50 @@ export interface MessageLink {
   url: string;
   host: string;
   suspicious: boolean;
+}
+
+/** What a click on a link in a thread does (null: nothing — the long-press copy only shows it). */
+export type OnMessageLink = ((link: MessageLink, e: MouseEvent<HTMLAnchorElement> | KeyboardEvent<HTMLAnchorElement>) => void) | null;
+
+/**
+ * The anchor props of a link in a thread: a new tab without the referrer or
+ * an opener, the thread handling the click (a card of ours opens here) — or,
+ * for an address easy to mistake for another (an IP, a punycode name), no
+ * address the browser could open by itself: the thread asks first however
+ * the reader opens it, and a middle click, a modifier or the browser's own
+ * menu has nothing to open unasked. `undefined` for `onLink`: the browser's.
+ */
+export function messageLinkProps(link: MessageLink, onLink: OnMessageLink | undefined): AnchorHTMLAttributes<HTMLAnchorElement> & {
+  'data-link-url': string;
+} {
+  const shows = onLink !== null;
+  if (link.suspicious) {
+    return {
+      role: 'link',
+      tabIndex: shows ? 0 : -1,
+      'data-link-url': link.url,
+      onClick: (e) => {
+        e.preventDefault();
+        onLink?.(link, e);
+      },
+      onKeyDown: (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        onLink?.(link, e);
+      },
+    };
+  }
+  return {
+    href: link.url,
+    target: '_blank',
+    rel: 'noopener noreferrer nofollow ugc',
+    'data-link-url': link.url,
+    tabIndex: shows ? undefined : -1,
+    onClick: (e) => {
+      if (onLink === null) e.preventDefault();
+      else onLink?.(link, e);
+    },
+  };
 }
 
 /**
@@ -102,7 +146,7 @@ export interface BubbleWordsProps {
   /** Something follows the words inside the bubble (a preview, a card): it brings its own air above it. */
   followed?: boolean;
   /** A link was clicked; null when the bubble is only a picture of itself (the long-press copy). */
-  onLink?: ((link: MessageLink, e: MouseEvent<HTMLAnchorElement>) => void) | null;
+  onLink?: OnMessageLink;
 }
 
 const marks = (pieces: MarkedPiece[], strong: boolean) =>
@@ -119,9 +163,7 @@ const marks = (pieces: MarkedPiece[], strong: boolean) =>
 /**
  * A bubble's words, with their http(s) links made links. The anchors are
  * built only from addresses linkify accepted (the server's link rules), never
- * from the raw text, and open a new tab without the referrer or an opener —
- * unless the thread handles the click (a card of ours opens here; an address
- * easy to mistake for another asks first). A search's matches are marked.
+ * from the raw text ({@link messageLinkProps}). A search's matches are marked.
  */
 export function BubbleWords({ text, note, ranges, strong = false, followed = false, onLink }: BubbleWordsProps) {
   const segments = useMemo(() => markedSegments(text, ranges), [text, ranges]);
@@ -138,19 +180,7 @@ export function BubbleWords({ text, note, ranges, strong = false, followed = fal
           seg.type === 'text' ? (
             <span key={i}>{marks(seg.pieces, strong)}</span>
           ) : (
-            <a
-              key={i}
-              className={styles.link}
-              href={seg.url}
-              target="_blank"
-              rel="noopener noreferrer nofollow ugc"
-              data-link-url={seg.url}
-              tabIndex={onLink === null ? -1 : undefined}
-              onClick={(e) => {
-                if (onLink === null) e.preventDefault();
-                else onLink?.({ url: seg.url, host: seg.host, suspicious: seg.suspicious }, e);
-              }}
-            >
+            <a key={i} className={styles.link} {...messageLinkProps({ url: seg.url, host: seg.host, suspicious: seg.suspicious }, onLink)}>
               {marks(seg.pieces, strong)}
             </a>
           ),
