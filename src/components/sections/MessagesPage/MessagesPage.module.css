@@ -687,3 +687,90 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* --- older pages, messages on their way, the reply action --- */
+
+/* The row above the oldest message held: quiet while older pages are read,
+   the start of the conversation once there are none. It keeps its height, so
+   its words coming and going never nudge the messages under it. */
+.olderRow {
+  align-self: center;
+  min-height: 22px;
+  padding: 2px 0 6px;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.olderRetry {
+  all: unset;
+  cursor: pointer;
+  color: var(--color-terracotta);
+}
+
+.olderRetry:focus-visible,
+.deliveryNote button:focus-visible,
+.rowActions button:focus-visible {
+  outline: 2px solid var(--color-terracotta);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Under a message of the viewer's own still on its way, or one that failed. */
+.deliveryNote {
+  display: inline-flex;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.deliveryNote[data-failed] {
+  color: var(--color-terracotta);
+}
+
+.deliveryNote button {
+  all: unset;
+  cursor: pointer;
+}
+
+.bubbleRow[data-delivery='failed'] .bubbleWrap {
+  opacity: 0.6;
+}
+
+.bubbleRow {
+  align-items: center;
+  gap: 6px;
+}
+
+/* Beside a bubble on a pointer device: shown on hover and on keyboard focus. */
+.rowActions {
+  display: flex;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.bubbleRow[data-own] .rowActions {
+  order: -1;
+}
+
+.bubbleRow:hover .rowActions,
+.bubbleRow:focus-within .rowActions {
+  opacity: 1;
+}
+
+.rowActions button {
+  all: unset;
+  display: inline-flex;
+  padding: 5px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.rowActions button:hover {
+  color: var(--color-text);
+}
+
+@media (hover: none) {
+  .rowActions {
+    display: none;
+  }
+}
