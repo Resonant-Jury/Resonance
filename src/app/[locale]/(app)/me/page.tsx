@@ -4,8 +4,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
-import { Icon } from '@/components/atoms/Icon';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { BareIconButton } from '@/components/atoms/BareIconButton/BareIconButton';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { ProfileTabs, type TabKey } from '@/components/molecules/ProfileTabs/ProfileTabs';
 import { Link } from '@/i18n/navigation';
@@ -60,7 +59,7 @@ export default function MyCardBoxPage() {
         ) : (
           <HandDrawnAvatar initials="··" size={72} color="oklch(88% 0.08 55)" seed={0} />
         )}
-        {/* No min-width on phones — reserving 200px would push the edit chip
+        {/* No min-width on phones — reserving 200px would push the pen
             onto its own row instead of keeping it at the right edge. */}
         <div style={{ flex: 1, minWidth: isMobile ? 0 : 200 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -107,18 +106,9 @@ export default function MyCardBoxPage() {
             </p>
           )}
         </div>
-        {/* Phones swap the labeled button for a compact pen chip so the
-            identity row stays on one line (the pen is the app's own settings
-            glyph — see the header Subnavbar). */}
-        <Link href="/settings" style={{ textDecoration: 'none' }} title={t('editProfile')}>
-          {isMobile ? (
-            <OrganicButton variant="ghost" size="sm" style={{ padding: '9px 11px' }}>
-              <Icon name="pen" size={17} ariaLabel={t('editProfile')} />
-            </OrganicButton>
-          ) : (
-            <OrganicButton variant="ghost">{t('editProfile')}</OrganicButton>
-          )}
-        </Link>
+        {/* The identity row ends on the pen, the app's settings glyph (see the header Subnavbar): a bare
+            glyph on the page's paper, as in the apps, its name in its tooltip. */}
+        <BareIconButton href="/settings" icon="pen" label={t('editProfile')} iconSize={20} tone="ink" tipAlign="end" seed={11} />
       </header>
 
       <InvitesInbox />
