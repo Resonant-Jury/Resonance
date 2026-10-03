@@ -21,6 +21,28 @@ final class ThreadModel {
         let sentAt: Date
         let cardRef: String?
         let noteRef: MessagingAPI.NoteRef?
+        /// The message this one answers, as it read when the reply was sent.
+        var replyTo: ReplyQuote?
+        /// The first link's title and picture; the server writes it a moment after the message.
+        var preview: LinkPreview?
+    }
+
+    struct ReplyQuote: Equatable {
+        let id: String
+        let senderId: String
+        /// Up to 140 characters of the quoted words; empty when it was only a card.
+        let text: String
+        let cardRef: String?
+    }
+
+    struct LinkPreview: Equatable {
+        /// The http(s) address that was unfurled (checked again with `ChatLinks.parse` before it is shown).
+        let url: String
+        let title: String
+        let description: String?
+        let siteName: String?
+        /// A site-relative `/api/link-image?…` path; see `ChatLinks.previewImage`.
+        let image: String?
     }
 
     /// `failed`: who they are couldn't be asked (offline, a server error) — not
@@ -283,16 +305,12 @@ final class ThreadModel {
     }
 
     /// Cards shared here (in thread order, once each) and links written in messages.
-    var shared: (cards: [String], links: [URL]) {
-        var seenCards: [String] = [], seenLinks: [URL] = []
-        let pattern = try? NSRegularExpression(pattern: #"https?://[^\s)]+"#)
+    var shared: (cards: [String], links: [ChatLinks.Link]) {
+        var seenCards: [String] = [], seenLinks: [ChatLinks.Link] = []
         for m in messages {
             if let id = m.cardRef, !seenCards.contains(id) { seenCards.append(id) }
-            let range = NSRange(m.text.startIndex..., in: m.text)
-            for match in pattern?.matches(in: m.text, range: range) ?? [] {
-                if let r = Range(match.range, in: m.text), let url = URL(string: String(m.text[r])), !seenLinks.contains(url) {
-                    seenLinks.append(url)
-                }
+            for link in ChatLinks.links(in: m.text) where !seenLinks.contains(where: { $0.url == link.url }) {
+                seenLinks.append(link)
             }
         }
         return (seenCards, seenLinks)
@@ -306,8 +324,24 @@ final class ThreadModel {
             text: doc.get("text") as? String ?? "",
             sentAt: (doc.get("sentAt", serverTimestampBehavior: .estimate) as? Timestamp)?.dateValue() ?? Date(),
             cardRef: doc.get("cardRef") as? String,
-            noteRef: (note?["cardId"] as? String).flatMap { card in (note?["noteId"] as? String).map { .init(cardId: card, noteId: $0) } }
+            noteRef: (note?["cardId"] as? String).flatMap { card in (note?["noteId"] as? String).map { .init(cardId: card, noteId: $0) } },
+            replyTo: replyQuote(doc.get("replyTo") as? [String: Any]),
+            preview: linkPreview(doc.get("preview") as? [String: Any])
         )
+    }
+
+    nonisolated private static func replyQuote(_ data: [String: Any]?) -> ReplyQuote? {
+        guard let id = data?["id"] as? String, !id.isEmpty else { return nil }
+        return ReplyQuote(id: id, senderId: data?["senderId"] as? String ?? "", text: data?["text"] as? String ?? "",
+                          cardRef: (data?["cardRef"] as? String).flatMap { $0.isEmpty ? nil : $0 })
+    }
+
+    /// Only an http(s) address with a title counts; the screen checks the address again before drawing it.
+    nonisolated private static func linkPreview(_ data: [String: Any]?) -> LinkPreview? {
+        guard let url = data?["url"] as? String, let title = data?["title"] as? String, !title.isEmpty,
+              url.lowercased().hasPrefix("http://") || url.lowercased().hasPrefix("https://") else { return nil }
+        return LinkPreview(url: url, title: title, description: data?["description"] as? String,
+                           siteName: data?["siteName"] as? String, image: data?["image"] as? String)
     }
 }
 

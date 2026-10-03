@@ -11,8 +11,12 @@ public struct CSSTextView: UIViewRepresentable {
     let font: UIFont
     let lineHeight: CGFloat
     var onOpenURL: (URL) -> Void
+    /// Take the text's own width (a chat bubble shrink-wrapping its words) rather than all that's offered.
+    var fitsContent: Bool
 
-    public init(_ text: NSAttributedString, font: UIFont, lineHeight: CGFloat, onOpenURL: @escaping (URL) -> Void = { _ in }) {
+    public init(_ text: NSAttributedString, font: UIFont, lineHeight: CGFloat, fitsContent: Bool = false,
+                onOpenURL: @escaping (URL) -> Void = { _ in }) {
+        self.fitsContent = fitsContent
         self.text = text
         self.font = font
         self.lineHeight = lineHeight
@@ -61,7 +65,7 @@ public struct CSSTextView: UIViewRepresentable {
         }
         uiView.layoutManager.ensureLayout(for: container)
         let used = uiView.layoutManager.usedRect(for: container)
-        return CGSize(width: width, height: ceil(used.height))
+        return CGSize(width: fitsContent ? min(width, ceil(used.width)) : width, height: ceil(used.height))
     }
 
     public final class Coordinator: NSObject, UITextViewDelegate {
