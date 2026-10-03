@@ -235,10 +235,21 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
       // hear the zeroed counter on their own, nothing to read again.
       void markConversationRead(pairId).then(() => void mutateConvo());
     }
-    // Their answer to the viewer's letter connected the two: read again whether they are.
-    if (incoming && connected === false) void globalMutate(`connected:${pairId}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convo, user?.id, pairId, lastMessageId]);
+
+  // Between two people who aren't connected, a new message is an answer to a letter (theirs to the viewer's,
+  // or the viewer's own to theirs, which the thread may hear before the send's answer): it connected them, so
+  // whether they are is read again — and the conversation, whose letter is gone.
+  const seenLast = useRef(lastMessageId);
+  useEffect(() => {
+    const before = seenLast.current;
+    seenLast.current = lastMessageId;
+    if (!before || before === lastMessageId || connected !== false || !pairId) return;
+    void globalMutate(`connected:${pairId}`);
+    void mutateConvo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMessageId]);
 
   const scrollerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);

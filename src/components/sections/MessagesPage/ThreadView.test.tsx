@@ -676,6 +676,24 @@ describe('a letter: notes between two people who aren’t connected', () => {
     await waitFor(() => expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument());
   });
 
+  // The thread may hear the answer before the send does (the listener is quicker than the server's reply).
+  it('reads again whether they are connected when the answer arrives before the send says so', async () => {
+    vi.mocked(isConnected).mockResolvedValue(false);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'alice', cardId: 'c1', count: 1 } });
+    const note = { ...notes[0], senderId: 'alice' };
+    server.messages = [note];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    vi.mocked(sendMessage).mockReturnValue(new Promise(() => {}));
+    renderWithIntl(thread());
+    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+    const asked = vi.mocked(isConnected).mock.calls.length;
+    vi.mocked(isConnected).mockResolvedValue(true);
+    vi.mocked(getConversation).mockResolvedValue(conversation);
+    deliver([note, text('r1', 'Thank you for this.', { sentAt: new Date('2026-03-01T10:05:00Z') }, 'me')]);
+    await waitFor(() => expect(vi.mocked(isConnected).mock.calls.length).toBeGreaterThan(asked));
+    await waitFor(() => expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument());
+  });
+
   it('keeps the messages of a conversation that no longer connects them, with the way to their profile', async () => {
     vi.mocked(isConnected).mockResolvedValue(false);
     server.messages = [text('m1', 'from before')];
