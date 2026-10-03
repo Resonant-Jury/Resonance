@@ -40,6 +40,9 @@ export function MessageMenuOverlay({ pressed, own, fullTime, onClose }: MessageM
   const [leaving, setLeaving] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const closing = useRef(false);
+  // The finger that held the message lifts over the scrim, and a browser may call that a tap on it: only a
+  // press that began on the scrim (or the keyboard's Enter on it) puts the menu away.
+  const pressedScrim = useRef(false);
 
   const items = messageMenuItems(
     message,
@@ -108,7 +111,17 @@ export function MessageMenuOverlay({ pressed, own, fullTime, onClose }: MessageM
 
   return createPortal(
     <div className={styles.overlay} data-leaving={leaving || undefined} role="dialog" aria-modal="true" aria-label={tSafety('menuLabel')}>
-      <button type="button" className={styles.scrim} aria-label={tClose('close')} onClick={() => dismiss()} />
+      <button
+        type="button"
+        className={styles.scrim}
+        aria-label={tClose('close')}
+        onPointerDown={() => {
+          pressedScrim.current = true;
+        }}
+        onClick={(e) => {
+          if (pressedScrim.current || e.detail === 0) dismiss();
+        }}
+      />
       <div
         className={styles.lifted}
         data-own={own || undefined}

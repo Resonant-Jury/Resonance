@@ -417,6 +417,27 @@ describe('Messenger’s thread, drawn by hand', () => {
     expect(screen.getByText('Replying to alice')).toBeInTheDocument();
   });
 
+  it('keeps the menu when the finger that held the message lifts over the scrim, and puts it away on a tap there', async () => {
+    server.messages = [text('m1', 'hold me', { sentAt: at(10, 0) })];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const { container } = renderWithIntl(thread());
+    await screen.findByText('hold me');
+
+    const message = container.querySelector<HTMLElement>('[data-message-id="m1"] div[class*="message"]')!;
+    fireEvent.pointerDown(message, { pointerType: 'touch', button: 0, clientX: 40, clientY: 40 });
+    const menu = await screen.findByRole('dialog', {}, { timeout: 1500 });
+    const scrim = within(menu).getByRole('button', { name: 'Close' });
+    // The browser's tap for the lifting finger lands on the scrim, which had no press of its own.
+    fireEvent.pointerUp(message, { pointerType: 'touch', button: 0 });
+    fireEvent.click(scrim, { detail: 1 });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.pointerDown(scrim, { pointerType: 'touch', button: 0 });
+    fireEvent.click(scrim, { detail: 1 });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
   it('a mouse never long-presses (it has the tools beside the message)', async () => {
     server.messages = [text('m1', 'click me', { sentAt: at(10, 0) })];
     vi.mocked(callApi).mockResolvedValue({ cards: [] });
