@@ -9,7 +9,7 @@ import {
   serverTimestamp,
   setDoc,
 } from './sdk';
-import type { FeedCardBody } from '@/lib/api/v1/schemas';
+import type { FeedCardBody, ResonateResponseBody } from '@/lib/api/v1/schemas';
 import type { Card, CardMedia, Locale, NewCard, Visibility } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
@@ -142,4 +142,33 @@ export async function updateCardSettings(
 export async function deleteCard(id: string): Promise<void> {
   requireUid();
   await callApi<null>(`/api/v1/cards/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/**
+ * What resonating with a card answers (POST /api/v1/cards/{id}/resonances):
+ * your card as your card box shows it, now answering that card, and whether
+ * anything changed (false: it already answered it, no one was rung).
+ */
+export type ResonateResult = ResonateResponseBody;
+
+/**
+ * Make one of your published public cards a resonance of `targetId` through
+ * the server (the call the apps make): the rules never let the browser point
+ * a card written already at another. The server connects the two authors and
+ * rings the original's author as publishing a resonance does, and refuses
+ * with 409 (`ApiError.code === 'conflict'`) a card already answering another
+ * one, or a second card of yours for the same original.
+ */
+export async function resonateWith(targetId: string, cardId: string): Promise<ResonateResult> {
+  requireUid();
+  return callApi<ResonateResult>(`/api/v1/cards/${encodeURIComponent(targetId)}/resonances`, { method: 'POST', body: { cardId } });
+}
+
+/**
+ * Your card stops answering `targetId` and stays as a card of its own
+ * (DELETE /api/v1/cards/{id}/resonances/{cardId}); asking again is harmless.
+ */
+export async function unresonate(targetId: string, cardId: string): Promise<void> {
+  requireUid();
+  await callApi<null>(`/api/v1/cards/${encodeURIComponent(targetId)}/resonances/${encodeURIComponent(cardId)}`, { method: 'DELETE' });
 }

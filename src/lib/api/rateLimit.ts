@@ -18,6 +18,8 @@ export const LIMITS = {
   tags: { max: 60, windowMs: HOUR },
   /** Publishing: a slug LLM call, the index, maybe a bell. */
   publish: { max: 30, windowMs: DAY },
+  /** Resonating with a card with one already written: rings the original author once per card. */
+  resonate: { max: 60, windowMs: DAY },
   /** A note rings its recipient's phone. */
   note: { max: 20, windowMs: HOUR },
   /** Messages (only the first of a conversation rings). */

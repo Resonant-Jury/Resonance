@@ -1,8 +1,10 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { assignSlug } from '@/lib/ai/assignSlug';
 import { mapCard } from '@/lib/db/firestore/mapper';
+import { pairOf } from './conversations';
 import { ApiFailure } from './http';
 import { canView } from './present';
+import { reachOriginal } from './resonate';
 import { summaryFields } from './summary';
 
 /** How long publishing waits for the slug (an LLM call) before answering without it. */
@@ -96,10 +98,11 @@ export async function publishCard(
 }
 
 /**
- * Connect the two authors and ring the original's bell; the bell row's id, or
- * null when nothing rang. An anonymous original rings its author's bell but
- * connects no one: the resonator would find its author among their
- * connections (as a note to it connects no one either).
+ * Connect the two authors and ring the original's bell (reachOriginal, which
+ * resonating with a card already written shares); the bell row's id, or
+ * null when nothing rang. Best effort, never failing the publish: an
+ * original gone, the resonator's own, out of their sight or across a block
+ * reaches no one.
  */
 async function connectResonance(db: Firestore, uid: string, originalId: string): Promise<string | null> {
   const snap = await db.doc(`cards/${originalId}`).get();
@@ -107,26 +110,23 @@ async function connectResonance(db: Firestore, uid: string, originalId: string):
   const original = mapCard(snap.id, snap.data()!);
   const other = original.authorId;
   if (!other || other === uid || !(await canView(db, original, uid))) return null;
-  const [out, inn, me] = await Promise.all([
+  const [out, inn, me, connection] = await Promise.all([
     db.doc(`users/${uid}/blocks/${other}`).get(),
     db.doc(`users/${other}/blocks/${uid}`).get(),
     db.doc(`users/${uid}`).get(),
+    // Only an original with a byline connects the two (see reachOriginal).
+    original.anonymous === true ? null : db.doc(`connections/${pairOf(uid, other)}`).get(),
   ]);
   if (out.exists || inn.exists) return null;
 
-  const pair = uid < other ? `${uid}_${other}` : `${other}_${uid}`;
-  const connection = db.doc(`connections/${pair}`);
   const batch = db.batch();
-  if (original.anonymous !== true && !(await connection.get()).exists) {
-    batch.set(connection, { userIds: uid < other ? [uid, other] : [other, uid], establishedAt: FieldValue.serverTimestamp() });
-  }
   const bell = db.collection('notifications').doc();
-  batch.set(bell, {
-    userId: other,
-    type: 'resonance',
-    payload: { fromUserId: uid, fromHandle: String(me.get('handle') ?? ''), cardId: originalId },
-    readAt: null,
-    createdAt: FieldValue.serverTimestamp(),
+  reachOriginal(batch, db, {
+    from: uid,
+    fromHandle: String(me.get('handle') ?? ''),
+    original: { id: originalId, authorId: other, anonymous: original.anonymous === true },
+    connected: connection?.exists === true,
+    bell,
   });
   await batch.commit();
   return bell.id;
