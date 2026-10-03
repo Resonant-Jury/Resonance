@@ -284,6 +284,7 @@
    terracotta in your own (plain terracotta sinks into its wash). */
 .link {
   color: var(--color-terracotta);
+  cursor: pointer;
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
@@ -396,6 +397,7 @@
 .cardPart {
   display: block;
   color: inherit;
+  cursor: pointer;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
