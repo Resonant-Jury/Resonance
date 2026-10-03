@@ -2,7 +2,7 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { getAccountDeletion } from '@/lib/account/deletion';
 import { ApiFailure } from './http';
 import { pageEnd, pageQuery, type PageStart } from './paging';
-import { blockedByViewer, loadAuthors, toFeedCard } from './present';
+import { blockedByViewer, blockHides, loadAuthors, toFeedCard } from './present';
 import type { FeedPageBody, MeBody } from './schemas';
 import { LIST_FIELDS, listCard, withStories } from './summary';
 
@@ -50,9 +50,11 @@ export function properlyPublished(at: unknown, now = Date.now()): boolean {
 
 /**
  * Latest public cards, newest first — the web's latest-feed query, minus
- * authors the viewer blocked (`viewerId` null: a signed-out reader, who has
- * none). Anonymous cards come without their byline. Pages are cut on the
- * *raw* query so a page of blocked authors doesn't end the feed early.
+ * the named cards of people the viewer blocked (`viewerId` null: a signed-out
+ * reader, who has none). Anonymous cards come without their byline, and a
+ * block never takes one out (it would name its author, see blockHides).
+ * Pages are cut on the *raw* query so a page of blocked authors doesn't end
+ * the feed early.
  * Cards are read without their stories (LIST_FIELDS; see ./summary).
  */
 export async function getFeed(db: Firestore, viewerId: string | null, limit: number, start?: PageStart): Promise<FeedPageBody> {
@@ -65,7 +67,7 @@ export async function getFeed(db: Firestore, viewerId: string | null, limit: num
   const cards = snap.docs
     .filter((d) => properlyPublished(d.get('publishedAt')))
     .map((d) => listCard(d.id, d.data()))
-    .filter((c) => !blocked.has(c.authorId));
+    .filter((c) => !blockHides(c, blocked));
   const [authors] = await Promise.all([loadAuthors(db, cards), withStories(db, cards)]);
   return {
     cards: cards.map((c) => toFeedCard(c, authors.get(c.authorId))),

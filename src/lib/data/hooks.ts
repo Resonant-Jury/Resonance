@@ -112,7 +112,8 @@ export interface RecommendedFeed extends CardsWithAuthors {
  * The signed-in viewer's personalized「為你共振」feed. Fetches the funnel's
  * result (card ids + resonance reasons) from the server, then the cards
  * themselves in one request (GET /api/v1/cards?keys=: those the viewer may
- * read, minus authors they blocked, an anonymous one without its byline).
+ * read, minus the named cards of people they blocked, an anonymous one
+ * without its byline — and never left out for a block).
  * Gated on a signed-in viewer — the API requires auth, and an anonymous user
  * has no profile to match from.
  *
@@ -420,9 +421,10 @@ export type CardBoxShelfData = CardsWithAuthors;
 
 /**
  * One of the card box's shelves of other people's cards, from the server
- * (GET /api/v1/me/cards?tab=): those the viewer may read, minus authors they
- * blocked, an anonymous one without its byline — the rules won't read
- * someone else's anonymous card in the browser, nor any card link.
+ * (GET /api/v1/me/cards?tab=): those the viewer may read, minus the named
+ * cards of people they blocked, an anonymous one without its byline (a block
+ * never hides one) — the rules won't read someone else's anonymous card in
+ * the browser, nor any card link.
  */
 async function othersShelf(tab: Extract<CardBoxTabName, 'resonated' | 'linked' | 'bookmarks'>): Promise<CardsWithAuthors> {
   return summaryList(await callApi<CardListBody>(`/api/v1/me/cards?tab=${tab}`));
