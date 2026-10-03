@@ -226,6 +226,27 @@ describe('publishCard', () => {
       expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
     });
 
+    // Bells written before they had a fixed id (the old publish path, and the
+    // browser before it, under random ids) are the same record.
+    it("counts a bell rung before the bell had a fixed id: no second ring, no connection again", async () => {
+      await db.collection('notifications').add({
+        userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' }, readAt: null, createdAt: Timestamp.now(),
+      });
+      // Bob blocked and unblocked her since: the block ended the connection the old bell came with.
+      await draft('r1', { referenceCardId: 'orig' });
+      expect((await publishCard(db, 'alice', 'r1', slugBase)).notificationId).toBeNull();
+      expect((await notifications()).size).toBe(1);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+      // Someone else's old bell for the card, or Alice's for another card, stands for nothing.
+      await db.collection('notifications').get().then((s) => Promise.all(s.docs.map((d) => d.ref.delete())));
+      await db.collection('notifications').add({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'carol', cardId: 'orig' }, readAt: null });
+      await db.collection('notifications').add({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', cardId: 'other' }, readAt: null });
+      await db.collection('notifications').add({ userId: 'bob', type: 'note', payload: { fromUserId: 'alice', cardId: 'orig' }, readAt: null });
+      await draft('r2', { referenceCardId: 'orig' });
+      expect((await publishCard(db, 'alice', 'r2', slugBase)).notificationId).toBe('resonance_alice_orig');
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(true);
+    });
+
     // Best effort: a reach that throws (Firestore unavailable halfway through
     // its reads) is logged, and the card is published all the same.
     it('is published when its reach fails, which reaches no one', async () => {

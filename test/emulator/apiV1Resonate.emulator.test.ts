@@ -142,6 +142,14 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
     expect(await bells()).toHaveLength(1);
   });
 
+  it('counts a bell rung before bells had a fixed id as hers: no second ring, no connection again', async () => {
+    await db.collection('notifications').add({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' }, readAt: null });
+    const result = await resonateWith(db, 'alice', 'orig', 'mine');
+    expect(result).toMatchObject({ changed: true, notificationId: null });
+    expect(await bells()).toHaveLength(1);
+    expect(await connected()).toBe(false);
+  });
+
   it('is refused to a reader without a pen name, writing nothing (the bell would name no one)', async () => {
     for (const profile of [null, { handle: '  ' }, { initials: 'a' }]) {
       if (profile) await db.doc('users/alice').set(profile);

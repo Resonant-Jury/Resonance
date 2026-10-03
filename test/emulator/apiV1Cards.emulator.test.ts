@@ -180,6 +180,20 @@ describe('a published resonance made public under its writer\'s name (PATCH /car
     expect(await connected()).toBe(false);
   });
 
+  // The review's repro: published public and named before bells had a fixed
+  // id, it rang Bob under a random one; Bob's block ended the connection;
+  // hidden and shown again, it must neither ring nor connect them again.
+  it('counts a bell rung before the bell had a fixed id: hidden and shown again, it reaches no one', async () => {
+    await answer({ visibility: 'public' });
+    await db.collection('notifications').add({
+      userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', fromHandle: '小安', cardId: 'orig' }, readAt: null, createdAt: earlier,
+    });
+    await patch('answer', { visibility: 'private' });
+    expect((await patch('answer', { visibility: 'public' })).notificationId).toBeNull();
+    expect(await bells()).toHaveLength(1);
+    expect(await connected()).toBe(false);
+  });
+
   it("rings an anonymous original's author but connects no one: the connection would name them", async () => {
     await db.doc('cards/orig').update({ anonymous: true });
     await answer();

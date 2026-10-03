@@ -66,15 +66,36 @@ export interface ReachReads {
   connected: boolean;
   /** The two people's conversation (null when there is no one to reach): connecting them answers any letter waiting in it. */
   conversation: DocumentSnapshot | null;
-  /** This reader's one bell for that card (resonanceBellId): once it exists, they have reached its author. */
+  /** This reader's one bell for that card (resonanceBellId), where it is written. */
   bell: DocumentSnapshot;
+  /**
+   * They have reached that card's author before: the bell above exists, or —
+   * rung before it had a fixed id — a bell row of theirs for that card under
+   * a random one (legacyBell).
+   */
+  rang: boolean;
 }
+
+/**
+ * A resonance bell from before they had a fixed id (resonanceBellId): the old
+ * publish path, and older still the browser, wrote `type: 'resonance'` rows
+ * under random ids, with the same payload. Equality on four fields only, so
+ * Firestore merges its single-field indexes: no composite index.
+ */
+const legacyBell = (db: Firestore, from: string, author: string, originalId: string) =>
+  db.collection('notifications')
+    .where('userId', '==', author)
+    .where('type', '==', 'resonance')
+    .where('payload.fromUserId', '==', from)
+    .where('payload.cardId', '==', originalId)
+    .limit(1);
 
 /**
  * Read, in `tx` and before it writes anything, what a resonance from `from`
  * to the card `originalId` (a valid id) depends on: the original, the
  * resonator's profile and their bell for it, then — the author known — the
- * blocks both ways, the connection and the conversation.
+ * blocks both ways, the connection, the conversation and, while the bell
+ * isn't there, a legacy bell standing for it.
  */
 export async function readReach(tx: Transaction, db: Firestore, from: string, originalId: string): Promise<ReachReads> {
   const [snap, me, bell] = await Promise.all([
@@ -83,17 +104,27 @@ export async function readReach(tx: Transaction, db: Firestore, from: string, or
     tx.get(db.doc(`notifications/${resonanceBellId(from, originalId)}`)),
   ]);
   const original = snap.exists ? mapCard(snap.id, snap.data()!) : null;
-  const none: ReachReads = { from, originalId, original, me, bell, blockOut: false, blockIn: false, connected: false, conversation: null };
+  const none: ReachReads = {
+    from, originalId, original, me, bell, rang: bell.exists, blockOut: false, blockIn: false, connected: false, conversation: null,
+  };
   const other = original?.authorId;
   if (!docId(other) || other === from) return none;
   const pair = pairOf(from, other);
-  const [out, inn, connection, conversation] = await Promise.all([
+  const [out, inn, connection, conversation, legacy] = await Promise.all([
     tx.get(db.doc(`users/${from}/blocks/${other}`)),
     tx.get(db.doc(`users/${other}/blocks/${from}`)),
     tx.get(db.doc(`connections/${pair}`)),
     tx.get(db.doc(`conversations/${pair}`)),
+    bell.exists ? null : tx.get(legacyBell(db, from, other, originalId)),
   ]);
-  return { ...none, blockOut: out.exists, blockIn: inn.exists, connected: connection.exists, conversation };
+  return {
+    ...none,
+    rang: bell.exists || legacy?.empty === false,
+    blockOut: out.exists,
+    blockIn: inn.exists,
+    connected: connection.exists,
+    conversation,
+  };
 }
 
 /**
@@ -110,7 +141,8 @@ export async function readReach(tx: Transaction, db: Firestore, from: string, or
  * - they have never reached that card's author before: the bell
  *   `resonance_{uid}_{originalId}` is the record, written once — so a reader
  *   rings a card's author once whichever path fires, and a connection a
- *   block ended is never made again without a ring.
+ *   block ended is never made again without a ring. A bell rung before the
+ *   record had a fixed id counts too (ReachReads.rang).
  *
  * Then the original author's bell rings and the two are connected — unless
  * the original is anonymous (the connection would name its author to the
@@ -123,7 +155,7 @@ export function reachOriginal(tx: Transaction, db: Firestore, card: DocumentData
   const o = r.original;
   if (!reachable(card) || card.authorId !== r.from || card.referenceCardId !== r.originalId || !properlyPublished(card.publishedAt)) return null;
   if (!o || !docId(o.authorId) || o.authorId === r.from || !cardVisible(o, r.from, () => r.connected)) return null;
-  if (r.blockOut || r.blockIn || !hasPenName(r.me) || r.bell.exists) return null;
+  if (r.blockOut || r.blockIn || !hasPenName(r.me) || r.rang) return null;
   if (o.anonymous !== true && !r.connected) {
     tx.set(db.doc(`connections/${pairOf(r.from, o.authorId)}`), {
       userIds: [r.from, o.authorId].sort(),

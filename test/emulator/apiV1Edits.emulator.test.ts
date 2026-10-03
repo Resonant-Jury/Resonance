@@ -226,6 +226,14 @@ describe('applyCardEdit', () => {
       expect(await connected()).toBe(false);
     });
 
+    it('that a bell from before bells had a fixed id already stands for reaches no one again', async () => {
+      await db.collection('notifications').add({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', cardId: 'orig' }, readAt: null });
+      await buffer({ visibility: 'public' });
+      expect((await apply()).notificationId).toBeNull();
+      expect(await bells()).toHaveLength(1);
+      expect(await connected()).toBe(false);
+    });
+
     it('that keeps it out of sight, or anonymous, reaches no one', async () => {
       await buffer({ visibility: 'connections' });
       expect((await apply()).notificationId).toBeNull();
