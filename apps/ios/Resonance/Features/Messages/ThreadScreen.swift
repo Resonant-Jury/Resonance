@@ -75,16 +75,29 @@ struct ThreadScreen: View {
             }
             let model = ThreadModel(handle: handle, uid: uid, noteRef: note, session: session)
             #if DEBUG
-            // `-threadDraft "…"` fills the composer (screen checks; the simulator can't type into it).
+            // `-threadDraft "…"` fills the composer and `-threadSearch "…"` opens the search with that query
+            // (screen checks; the simulator can't type into either).
             if let draft = UserDefaults.standard.string(forKey: "threadDraft") { model.draft = draft }
+            if let search = UserDefaults.standard.string(forKey: "threadSearch") {
+                searching = true
+                query = search
+            }
             #endif
             self.model = model
+            model.setOnScreen(scenePhase == .active)
             await model.load()
         }
-        .onDisappear { model?.stop() }
+        // The conversation is read only while it is on show (its unread count, its pushes).
+        .onAppear { model?.setOnScreen(scenePhase == .active) }
+        .onDisappear {
+            model?.setOnScreen(false)
+            model?.stop()
+        }
         // Back in the foreground: listeners that failed listen again; a thread that couldn't find its person asks again.
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, let model else { return }
+            guard let model else { return }
+            model.setOnScreen(phase == .active)
+            guard phase == .active else { return }
             if model.phase == .failed { Task { await model.load() } } else { model.resume() }
         }
         // No conversation yet, then their first message arrives: it shows up in Messages, and here.
@@ -132,12 +145,13 @@ struct ThreadScreen: View {
                     .focused($searchFocused)
                     .frame(height: 38)
                 if !query.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Text(L10n.Messages.searchCount(count: model.filtered(query).count))
+                    Text(L10n.Messages.searchCount(count: model.searchHits.count))
                         .font(AppFonts.body(12)).foregroundStyle(Tokens.textMuted)
                 }
                 headerChip(.close, size: 16, label: L10n.Messages.searchClose) {
                     searching = false
                     query = ""
+                    model.endSearch()
                 }
             } else {
                 headerChip(.arrowRight, size: 16, label: L10n.Messages.back, mirrored: true) { dismiss() }
@@ -164,6 +178,12 @@ struct ThreadScreen: View {
         }
         .frame(minHeight: 38)
         .padding(.vertical, 10)
+        // The words typed are searched for a moment after the last key.
+        .task(id: searching ? query : nil) {
+            guard searching else { return }
+            try? await Task.sleep(for: .milliseconds(250))
+            if !Task.isCancelled { model.search(query) }
+        }
         .organicModal(isPresented: $showingMedia, seed: 53, maxWidth: 480, closeLabel: L10n.Messages.mediaTitle) {
             SharedMediaContent(model: model) { link in
                 showingMedia = false
@@ -260,25 +280,34 @@ struct ThreadScreen: View {
     // MARK: Messages
 
     private func messages(_ model: ThreadModel) -> some View {
-        let shown = model.filtered(searching ? query : "")
-            .filter { !(searching && !query.trimmingCharacters(in: .whitespaces).isEmpty && $0.text.isEmpty) }
+        let searched = searching && !query.trimmingCharacters(in: .whitespaces).isEmpty
+        let hits = Set(model.searchHits.map(\.messageId))
+        let shown = searched ? model.rows.filter { hits.contains($0.message.id) } : model.rows
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
                     if model.threadReady && model.messages.isEmpty {
                         // Not "no messages yet" when they couldn't be read.
                         quietNote(model.listenFailed ? L10n.Native.loadError : L10n.Messages.noMessagesYet)
-                    } else if searching, !query.trimmingCharacters(in: .whitespaces).isEmpty, shown.isEmpty {
-                        quietNote(L10n.Messages.searchCount(count: 0))
+                    } else if searched, shown.isEmpty {
+                        quietNote(model.searchLoading ? L10n.Messages.searchSearching : L10n.Messages.searchCount(count: 0))
                     }
-                    ForEach(Array(shown.enumerated()), id: \.element.id) { i, message in
-                        if i == 0 || !Calendar.current.isDate(shown[i - 1].sentAt, inSameDayAs: message.sentAt) {
-                            Text(Self.day(message.sentAt))
+                    if !searched, model.hasOlder || model.loadingOlder || model.olderError {
+                        // Scrolled up to the oldest message held: the page before it is read.
+                        Text(model.olderError ? L10n.Messages.loadOlderError : L10n.Messages.loadingOlder)
+                            .font(AppFonts.body(11.5)).foregroundStyle(Tokens.textMuted)
+                            .frame(maxWidth: .infinity)
+                            .onAppear { model.loadOlder() }
+                            .onTapGesture { model.loadOlder() }
+                    }
+                    ForEach(shown) { row in
+                        if row.dayLabel || searched {
+                            Text(Self.day(row.message.sentAt))
                                 .font(AppFonts.body(11)).foregroundStyle(Tokens.textMuted)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6).padding(.bottom, 2)
                         }
-                        row(message, model: model, jump: { id in jump(to: id, proxy: proxy, in: model) }).id(message.id)
+                        self.row(row.message, model: model, jump: { id in jump(to: id, proxy: proxy, in: model) }).id(row.id)
                     }
                 }
                 .padding(.vertical, 14)
@@ -289,18 +318,18 @@ struct ThreadScreen: View {
             // starts at the top like the web's (no bottom alignment).
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
-            .onChange(of: model.messages.count) {
-                if let last = model.messages.last { proxy.scrollTo(last.id, anchor: .bottom) }
+            .onChange(of: model.messages.last?.key) {
+                if let last = model.messages.last { proxy.scrollTo(last.key, anchor: .bottom) }
             }
         }
     }
 
-    /// A tap on a reply's quote: scroll to the original if it's among the loaded messages, and wash it for a moment.
+    /// A tap on a reply's quote: older pages are read until the original is held; then it is scrolled to and washed for a moment.
     private func jump(to id: String, proxy: ScrollViewProxy, in model: ThreadModel) {
-        guard model.messages.contains(where: { $0.id == id }) else { return }
-        withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
-        flashId = id
         Task {
+            guard await model.ensureLoaded(id), let key = model.message(id)?.key else { return }
+            withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(key, anchor: .center) }
+            flashId = key
             try? await Task.sleep(for: .milliseconds(150))
             withAnimation(.easeOut(duration: 0.9)) { flashId = nil }
         }
@@ -312,14 +341,14 @@ struct ThreadScreen: View {
     }
 
     /// One message: a shared card over the bubble, on your side or theirs, at most 72% wide.
-    private func row(_ message: ThreadModel.Message, model: ThreadModel, jump: @escaping (String) -> Void) -> some View {
-        let mine = message.senderId == model.me
+    private func row(_ message: ChatMessage, model: ThreadModel, jump: @escaping (String) -> Void) -> some View {
+        let mine = model.isMine(message)
         return HStack(spacing: 0) {
             if mine { Spacer(minLength: 0) }
             VStack(alignment: mine ? .trailing : .leading, spacing: 6) {
                 if let quote = message.replyTo, let viewer = model.me {
                     ReplyQuoteView(quote: quote, mine: mine, viewerId: viewer, otherHandle: model.displayHandle,
-                                   canJump: model.messages.contains { $0.id == quote.id }) { jump(quote.id) }
+                                   canJump: true) { jump(quote.id) }
                 }
                 if let id = message.cardRef, let card = model.card(id) {
                     Button { openRoute(.card(card.routeKey)) } label: {
@@ -331,25 +360,38 @@ struct ThreadScreen: View {
                     .buttonStyle(.plain)
                 }
                 if !message.text.isEmpty || message.noteRef != nil {
-                    MessageBubble(text: message.text, mine: mine, seed: seedFromId(message.id),
+                    MessageBubble(text: message.text, mine: mine, seed: seedFromId(message.key),
                                   quoteLabel: message.noteRef == nil ? nil : L10n.Messages.quotedNote,
                                   links: ChatLinks.links(in: message.text).map { MessageLinkRange(range: $0.range, url: $0.url) },
                                   onOpenURL: { openLink($0) })
                         .overlay {
                             // The wash of a bubble a tap on a quote scrolled to.
-                            MessageBubbleShape(seed: seedFromId(message.id))
+                            MessageBubbleShape(seed: seedFromId(message.key))
                                 .fill(Tokens.terracotta.opacity(0.22))
-                                .opacity(flashId == message.id ? 1 : 0)
+                                .opacity(flashId == message.key ? 1 : 0)
                                 .allowsHitTesting(false)
                         }
+                        .opacity(message.delivery == .failed ? 0.6 : 1)
                         .contextMenu {
                             Text(Self.full(message.sentAt))
+                            if message.canReply { Button(L10n.Messages.reply) { model.reply(to: message) } }
                             if !message.text.isEmpty { Button(L10n.Native.copy) { UIPasteboard.general.string = message.text } }
+                            if message.delivery == .failed {
+                                Button(L10n.Messages.retry) { model.retry(message.key) }
+                                Button(L10n.Messages.discardFailed, role: .destructive) { model.discard(message.key) }
+                            }
                         }
                         .zIndex(1)
                 }
                 if let preview = message.preview {
-                    LinkPreviewCard(preview: preview, origin: session.config.origin) { openLink($0) }
+                    LinkPreviewCard(preview: preview) { openLink($0) }
+                }
+                if message.delivery == .failed {
+                    // Not sent: a tap sends it again, under the same id.
+                    Button { model.retry(message.key) } label: {
+                        Text(L10n.Messages.sendFailed).font(AppFonts.body(11.5)).foregroundStyle(Tokens.terracotta)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .frame(maxWidth: UIScreen.main.bounds.width * 0.72, alignment: mine ? .trailing : .leading)
@@ -362,6 +404,20 @@ struct ThreadScreen: View {
     @ViewBuilder private func composer(_ model: ThreadModel) -> some View {
         @Bindable var model = model
         VStack(alignment: .leading, spacing: 0) {
+            if let quote = model.replyingTo {
+                HStack(spacing: 8) {
+                    Text(quote.senderId == model.me ? L10n.Messages.replyingToSelf : L10n.Messages.replyingTo(handle: model.displayHandle))
+                        .font(AppFonts.body(12, weight: .semibold)).foregroundStyle(Tokens.text)
+                    Text(quote.text.isEmpty ? L10n.Messages.replyCard : quote.text)
+                        .font(AppFonts.body(12)).foregroundStyle(Tokens.textMuted).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Button { model.cancelReply() } label: { OrganicIcon(.close, size: 13, color: Tokens.textMuted).padding(4) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(L10n.Messages.replyCancel)
+                }
+                .padding(.top, 10)
+                .padding(.horizontal, 2)
+            }
             if model.noteRef != nil || model.pendingCard != nil {
                 FlowRow(spacing: 8) {
                     if model.noteRef != nil {
@@ -396,7 +452,7 @@ struct ThreadScreen: View {
                 .onChange(of: model.draft) { _, new in
                     if new.utf16.count > 2000 { model.draft = String(new.utf16.prefix(2000)) ?? new }
                 }
-                OrganicButton(model.sending ? "…" : L10n.Messages.send, variant: .solid, size: .sm) { Task { await model.send() } }
+                OrganicButton(L10n.Messages.send, variant: .solid, size: .sm) { model.send() }
                     .fillingHeight()
                     .opacity(model.canSend ? 1 : 0.5)
                     .allowsHitTesting(model.canSend)
