@@ -1,5 +1,6 @@
 package com.resonance.app
 
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.resonance.kit.chat.ChatPush
@@ -20,7 +21,12 @@ class ResonancePushService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         if (message.data["type"] == ChatPush.TYPE) {
-            ChatPush.from(message.data, message.notification?.title, message.notification?.body)?.let { PushCenter.showChatMessage(this, it) }
+            // Only for the account signed in now. A push can wake a process the app never started, where
+            // AppFirebase isn't set up yet: the default app (FCM's own) holds the same persisted sign-in.
+            val me = runCatching { FirebaseAuth.getInstance().currentUser?.uid }.getOrNull()
+            ChatPush.from(message.data, message.notification?.title, message.notification?.body)
+                ?.takeIf { it.isFor(me) }
+                ?.let { PushCenter.showChatMessage(this, it) }
             return
         }
         val title = message.notification?.title ?: return

@@ -342,11 +342,14 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
     }
 
     /** Opening a thread reads it: the unread count says whether it needs resetting; the push for it, if any, goes. */
-    private fun markReadIfNeeded() {
+    fun markReadIfNeeded() {
         val pair = pairId ?: return
         val me = me ?: return
-        // Only while the screen is on show: a message that arrives behind the lock screen is not read yet.
-        if (PushCenter.viewingConversation == pair) PushCenter.cancelConversation(pair)
+        // Only while the screen is on show: a message that arrives behind the lock screen (or with the app in
+        // the background, the listeners still live) is not read yet — its notification and its unread count
+        // stay until the thread is resumed, which calls this again.
+        if (PushCenter.viewingConversation != pair) return
+        PushCenter.cancelConversation(pair)
         if (unreadForMe <= 0) return
         AppFirebase.db.collection("conversations").document(pair).update("unread.$me", 0)
     }
@@ -358,7 +361,10 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         hasOlder = history.hasOlder
         rebuild()
         loadCards()
-        if (searchQuery.isNotBlank()) runSearch()
+        if (searchQuery.isNotBlank()) {
+            loadAll()
+            runSearch()
+        }
     }
 
     /** History and what is on its way, as one list; a message on its way whose document has arrived is dropped from the outbox. */
@@ -428,8 +434,10 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
                 if (!fetchOlder(ALL_PAGE)) break
             }
             searchCapped = history.hasOlder && history.size >= cap
-            // A read that failed is asked again by the next search.
-            if (olderError) allRequested = false
+            // Done only once it reached the beginning or the cap: a read that failed, or one that found no
+            // window to page back from yet (a restored search before the first snapshot), is asked again
+            // as the history changes or by the next search.
+            allRequested = !olderError && (!history.hasOlder || searchCapped) && history.size > 0
         }
     }
 

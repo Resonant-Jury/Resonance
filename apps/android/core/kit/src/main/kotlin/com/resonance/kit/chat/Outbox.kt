@@ -76,9 +76,15 @@ class Outbox(
 
     private var worker: Job? = null
 
-    /** Queues [message] (its status is set to Queued) and starts sending if no send is under way. */
+    /**
+     * Queues [message] (its status is set to Queued) and starts sending if no send is under way.
+     * Messages that failed with the line (offline, a server hiccup — not refused on their own account)
+     * go back in the queue ahead of it: writing again is the moment to try, and a new message must
+     * never reach the other person before the ones written earlier.
+     */
     fun enqueue(message: Outgoing) {
-        _entries.value += message.copy(status = Status.Queued, serverId = null, refused = false)
+        _entries.value = _entries.value.map { if (it.status == Status.Failed && !it.refused) it.copy(status = Status.Queued) else it } +
+            message.copy(status = Status.Queued, serverId = null, refused = false)
         wake()
     }
 

@@ -112,6 +112,8 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     if (pair != null) {
         LifecycleResumeEffect(pair) {
             PushCenter.viewing(pair)
+            // What arrived while it was covered or in the background is read now.
+            model.markReadIfNeeded()
             onPauseOrDispose { PushCenter.stoppedViewing(pair) }
         }
     }

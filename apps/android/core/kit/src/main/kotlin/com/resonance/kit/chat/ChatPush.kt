@@ -11,6 +11,8 @@ data class ChatPush(
     val conversationId: String,
     val messageId: String?,
     val fromUserId: String?,
+    /** Whom it was sent to (the server names them; an older server didn't — then the conversation's pair stands in). */
+    val toUserId: String?,
     val title: String,
     val body: String,
     /** A site path, `/messages/{handle}`. */
@@ -18,6 +20,18 @@ data class ChatPush(
     /** When the message was sent, epoch milliseconds. */
     val sentAt: Long,
 ) {
+    /**
+     * Whether this push may be drawn for [signedIn]: the account it was sent to must be the one
+     * signed in. A sign-out whose unregister never reached the server leaves the install
+     * registered to the old account for a while — its messages must not show on the lock screen
+     * of a signed-out phone, or of whoever signed in next.
+     */
+    fun isFor(signedIn: String?): Boolean {
+        if (signedIn.isNullOrEmpty()) return false
+        toUserId?.let { return it == signedIn }
+        return conversationId.split("_").let { it.size == 2 && signedIn in it }
+    }
+
     companion object {
         const val TYPE = "message"
 
@@ -34,6 +48,7 @@ data class ChatPush(
                 conversationId = conversationId,
                 messageId = data["messageId"]?.takeIf { it.isNotBlank() },
                 fromUserId = data["fromUserId"]?.takeIf { it.isNotBlank() },
+                toUserId = data["toUserId"]?.takeIf { it.isNotBlank() },
                 title = title,
                 body = data["body"] ?: fallbackBody.orEmpty(),
                 route = data["route"].orEmpty(),

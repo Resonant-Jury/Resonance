@@ -140,6 +140,7 @@ class MainActivity : ComponentActivity() {
                     this,
                     ChatPush(
                         conversationId = conversation, messageId = intent.getStringExtra("pushChatId"), fromUserId = intent.getStringExtra("pushFromUserId"),
+                        toUserId = null,
                         title = intent.getStringExtra("pushChatTitle").orEmpty().ifEmpty { "bob" }, body = body,
                         route = intent.getStringExtra("pushRoute").orEmpty(), sentAt = System.currentTimeMillis(),
                     ),

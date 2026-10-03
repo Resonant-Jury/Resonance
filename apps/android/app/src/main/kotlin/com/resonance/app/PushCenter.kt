@@ -157,7 +157,8 @@ object PushCenter {
     }
 
     fun open(route: String, notificationId: String?, fromUserId: String? = null) {
-        _opened.value = Opened(route, notificationId, fromUserId?.takeIf { it.isNotEmpty() })
+        // An empty id (a message push has no bell row; older servers sent "") names no notification to mark read.
+        _opened.value = Opened(route, notificationId?.takeIf { it.isNotEmpty() }, fromUserId?.takeIf { it.isNotEmpty() })
     }
 
     /** The tabs took the tap. */

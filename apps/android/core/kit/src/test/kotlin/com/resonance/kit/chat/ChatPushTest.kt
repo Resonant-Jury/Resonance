@@ -12,7 +12,20 @@ class ChatPushTest {
     )
 
     @Test fun readsTheKeysTheServerSends() {
-        assertEquals(ChatPush("alice_bob", "m1", "bob", "bob", "hello", "/messages/bob", 1_790_000_000_000), ChatPush.from(data))
+        assertEquals(ChatPush("alice_bob", "m1", "bob", null, "bob", "hello", "/messages/bob", 1_790_000_000_000), ChatPush.from(data))
+        assertEquals("alice", ChatPush.from(data + ("toUserId" to "alice"))!!.toUserId)
+    }
+
+    @Test fun drawnOnlyForTheAccountItWasSentTo() {
+        val toAlice = ChatPush.from(data + ("toUserId" to "alice"))!!
+        assertEquals(true, toAlice.isFor("alice"))
+        assertEquals(false, toAlice.isFor("bob")) // signed in as someone else since
+        assertEquals(false, toAlice.isFor(null)) // signed out
+        // An older server names no recipient: one of the conversation's two people must be signed in.
+        val unnamed = ChatPush.from(data)!!
+        assertEquals(true, unnamed.isFor("alice"))
+        assertEquals(false, unnamed.isFor("carol"))
+        assertEquals(false, unnamed.isFor("alice_bob"))
     }
 
     @Test fun anotherTypeOrNoConversationIsNoChatPush() {

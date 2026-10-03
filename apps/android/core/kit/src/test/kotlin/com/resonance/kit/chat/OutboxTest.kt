@@ -102,10 +102,10 @@ class OutboxTest {
         // The second never tried to overtake the first.
         assertEquals(listOf("id-a"), tries)
 
-        // Another written while offline waits behind them and fails the same way.
+        // Another written while offline puts the stopped line back first: the first is tried again, never the new one ahead of it.
         box.enqueue(out("c"))
         box.until { list -> list.size == 3 && list.all { it.status == Status.Failed } }
-        assertEquals(listOf("id-a", "id-c"), tries)
+        assertEquals(listOf("id-a", "id-a"), tries)
 
         offline = false
         tries.clear()
@@ -114,6 +114,27 @@ class OutboxTest {
         // Back in the order they were written, with the ids they were written under.
         assertEquals(listOf("id-a", "id-b", "id-c"), tries)
         assertEquals(listOf("doc-id-a", "doc-id-b", "doc-id-c"), box.entries.value.map { it.serverId })
+        box.clear()
+    }
+
+    @Test fun writingAgainAfterAFailureSendsTheStoppedLineFirst() = runBlocking {
+        var offline = true
+        val tries = mutableListOf<String>()
+        val box = Outbox(this, { m ->
+            tries += m.clientId
+            if (offline) throw IOException("offline")
+            "doc-${m.clientId}"
+        })
+        box.enqueue(out("a"))
+        box.enqueue(out("b"))
+        box.until { list -> list.all { it.status == Status.Failed } }
+
+        // Back online, the person simply writes on: what they wrote earlier reaches the other person first.
+        offline = false
+        tries.clear()
+        box.enqueue(out("c"))
+        box.until { list -> list.size == 3 && list.all { it.status == Status.Sent } }
+        assertEquals(listOf("id-a", "id-b", "id-c"), tries)
         box.clear()
     }
 
