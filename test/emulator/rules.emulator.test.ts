@@ -209,8 +209,41 @@ describe('a block refuses contact in both directions', () => {
         });
         await assertFails(setDoc(doc(collection(as(d.actor), 'cards')), draft(d.actor, { referenceCardId: 'orig' })));
       });
+
+      // The writer keeps their own block list: a draft refused only across a
+      // block would tell them who wrote the card. Answering one reaches no one
+      // (the server's reach reads the blocks).
+      it('can answer an anonymous card all the same, as anyone may', async () => {
+        await seed(async (db) => {
+          await setDoc(doc(db, 'cards', 'masked'), publishedCard(d.target, { anonymous: true }));
+          await setDoc(doc(db, 'cards', 'maskedConn'), publishedCard(d.target, { anonymous: true, visibility: 'connections' }));
+        });
+        await assertSucceeds(setDoc(doc(collection(as(d.actor), 'cards')), draft(d.actor, { referenceCardId: 'masked' })));
+        await assertSucceeds(setDoc(doc(collection(as(d.actor), 'cards')), draft(d.actor, { referenceCardId: 'masked', anonymous: true })));
+        // Visibility still holds: a connections-only card needs the connection (a block ended it).
+        await assertFails(setDoc(doc(collection(as(d.actor), 'cards')), draft(d.actor, { referenceCardId: 'maskedConn' })));
+      });
     });
   }
+
+  it("answers a stranger's anonymous card the same with or without a block", async () => {
+    await seedProfiles();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'cards', 'masked'), publishedCard('bob', { anonymous: true }));
+      await setDoc(doc(db, 'cards', 'named'), publishedCard('bob'));
+    });
+    // Carol blocks one guess after another; the anonymous card answers alike for each.
+    for (const guess of ['alice', 'bob']) {
+      await block('carol', guess);
+      await assertSucceeds(setDoc(doc(collection(as('carol'), 'cards')), draft('carol', { referenceCardId: 'masked' })));
+      await seed(async (db) => {
+        await deleteDoc(doc(db, 'users', 'carol', 'blocks', guess));
+      });
+    }
+    // A named card keeps every block behaviour.
+    await block('carol', 'bob');
+    await assertFails(setDoc(doc(collection(as('carol'), 'cards')), draft('carol', { referenceCardId: 'named' })));
+  });
 
   it('control: without a block the same contact is allowed', async () => {
     await seedProfiles();

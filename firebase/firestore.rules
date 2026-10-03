@@ -54,9 +54,9 @@ service cloud.firestore {
     // Either side has blocked the other (users/{uid}/blocks/{otherUid}). Every
     // way of reaching someone is refused across a block, in both directions —
     // the server re-checks it for what it writes (connections, messages,
-    // notes, bells); here it gates answering someone's card. get()/exists()
-    // here bypass read rules, so a user's private block list can still gate
-    // what others write.
+    // notes, bells); here it gates answering someone's named card (never an
+    // anonymous one: see originalReadable). get()/exists() here bypass read
+    // rules, so a user's private block list can still gate what others write.
     function blockedBetween(a, b) {
       return exists(/databases/$(database)/documents/users/$(a)/blocks/$(b))
         || exists(/databases/$(database)/documents/users/$(b)/blocks/$(a));
@@ -204,7 +204,7 @@ service cloud.firestore {
             && resource.data.anonymous == false);
       // A new draft: yours, unpublished, without a slug, stamped now, with
       // zeroed counters and an auto-generated id. A resonance must answer a
-      // card you can read, with no block either way.
+      // card you can read, with no block either way unless it is anonymous.
       allow create: if signedIn()
         && cardId.matches("^[A-Za-z0-9]{20}$")
         && request.resource.data.keys().hasOnly([
@@ -270,8 +270,14 @@ service cloud.firestore {
               && originalReadable(get(/databases/$(database)/documents/cards/$(d.referenceCardId)).data));
       }
 
+      // A block refuses answering a named card, either way. Never an
+      // anonymous one: the writer keeps their own block list, so a draft
+      // refused only across a block would tell them who wrote it. Answering
+      // one across a block reaches no one (the server's reach reads the
+      // blocks); the original's author never hears of it.
       function originalReadable(original) {
-        return cardOpen(original) && !blockedBetween(request.auth.uid, original.authorId);
+        return cardOpen(original)
+          && (original.get("anonymous", false) == true || !blockedBetween(request.auth.uid, original.authorId));
       }
 
       // --- pending edits (cards/{cardId}/edits/current) ---
