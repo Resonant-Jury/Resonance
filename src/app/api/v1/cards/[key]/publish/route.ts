@@ -7,10 +7,13 @@ import { ringAfter } from '@/lib/push/ring';
 import { spend } from '@/lib/api/rateLimit';
 import { indexCard } from '@/lib/recommend/indexCard';
 import { cardPagePaths, revalidateLocalized } from '@/lib/api/revalidate';
+import { unfurlCardLinks } from '@/lib/links/cardLinks';
 
 export const dynamic = 'force-dynamic';
 // The slug's LLM call is waited for 8 s at most (SLUG_WAIT_MS), then finished
-// after the response, followed by the recommendation index.
+// after the response beside the story's link previews (15 s at most,
+// STORY_UNFURL_DEADLINE_MS), followed by the page cache; the recommendation
+// index runs alongside.
 export const maxDuration = 60;
 
 /** POST /api/v1/cards/{id}/publish — publish your card (see publishCard). */
@@ -24,8 +27,12 @@ export const POST = withUser(async (user, _req, ctx: RouteContext<'key'>) => {
   after(() =>
     Promise.all([
       (async () => {
-        // A slug that came late (the answer said null) is written once this resolves.
-        const slug = result.slug ?? (pendingSlug ? await pendingSlug : null);
+        const [slug] = await Promise.all([
+          // A slug that came late (the answer said null) is written once this resolves.
+          result.slug ?? (pendingSlug ? pendingSlug : null),
+          unfurlCardLinks(db, id).catch((e) => console.error('[api/v1] unfurl', e)),
+        ]);
+        // After both, so the cached page is rendered with its slug and its link previews.
         revalidateLocalized(cardPagePaths({ id, slug }));
       })(),
       indexCard(id).catch((e) => console.error('[api/v1] index', e)),

@@ -3,6 +3,8 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { applyCardEdit } from '@/lib/api/v1/edits';
+import { unfurlCardLinks } from '@/lib/links/cardLinks';
+import { createPreviewMemo, type PreviewFetch } from '@/lib/links/preview';
 
 // Applying a published card's pending edit through the v1 API against the
 // Firestore emulator — what saving changes in an editor (web or app) does:
@@ -184,5 +186,61 @@ describe('applyCardEdit', () => {
     expect((await db.doc('cards/live/edits/current').get()).exists).toBe(true);
     await db.doc('cards/draft').set({ authorId: 'alice', thoughtCore: '草稿', story: '', visibility: 'public', publishedAt: null });
     expect((await failure(applyCardEdit(db, 'alice', 'draft'))).code).toBe('invalid_request');
+  });
+});
+
+// What the apply route runs after its response: the story's link previews follow the saved story.
+describe('applyCardEdit, then the link previews', () => {
+  const titled = (url: string) => ({
+    url,
+    status: 200,
+    contentType: 'text/html',
+    charset: 'utf-8',
+    body: Buffer.from(`<head><meta property="og:title" content="Page ${new URL(url).pathname}"></head>`),
+    truncated: false,
+  });
+
+  it('keeps the previews of links still there, fetches the new ones and drops the rest — without re-dating the card', async () => {
+    await db.doc('cards/live').update({
+      story: 'https://example.com/a\n\nhttps://example.com/b',
+      linkPreviews: [
+        { url: 'https://example.com/a', title: 'Stored A' },
+        { url: 'https://example.com/b', title: 'Stored B' },
+      ],
+      linkPreviewsFor: ['https://example.com/a', 'https://example.com/b'],
+    });
+    await buffer({ story: '換了一段。\n\n[第二篇](https://example.com/b)\n\n> https://example.com/c' });
+    await applyCardEdit(db, 'alice', 'live');
+    const saved = (await db.doc('cards/live').get()).data()!;
+
+    const asked: string[] = [];
+    const fetch = async (url: string) => (asked.push(url), titled(url));
+    const result = await unfurlCardLinks(db, 'live', { fetch: fetch as unknown as PreviewFetch, memo: createPreviewMemo() });
+    expect(result).toMatchObject({ links: 2, fetched: 1, previews: 2, written: true });
+    expect(asked).toEqual(['https://example.com/c']);
+
+    const card = (await db.doc('cards/live').get()).data()!;
+    expect(card.linkPreviews).toEqual([
+      { url: 'https://example.com/b', title: 'Stored B' },
+      { url: 'https://example.com/c', title: 'Page /c' },
+    ]);
+    expect(card.linkPreviewsFor).toEqual(['https://example.com/b', 'https://example.com/c']);
+    // A preview is not an edit: the stamps the save wrote stand.
+    expect((card.updatedAt as Timestamp).isEqual(saved.updatedAt)).toBe(true);
+    expect((card.excerptAt as Timestamp).isEqual(saved.excerptAt)).toBe(true);
+    expect((await db.doc('rateLimits/alice_unfurl').get()).get('used')).toBe(1);
+  });
+
+  it('removes them once the saved story has no standalone link left', async () => {
+    await db.doc('cards/live').update({
+      linkPreviews: [{ url: 'https://example.com/a', title: 'Stored A' }],
+      linkPreviewsFor: ['https://example.com/a'],
+    });
+    await buffer({ story: '只剩文字，和一個 [行內連結](https://example.com/a)。' });
+    await applyCardEdit(db, 'alice', 'live');
+    await unfurlCardLinks(db, 'live', { fetch: (async () => titled('https://example.com/a')) as unknown as PreviewFetch, memo: createPreviewMemo() });
+    const card = (await db.doc('cards/live').get()).data()!;
+    expect(card).not.toHaveProperty('linkPreviews');
+    expect(card).not.toHaveProperty('linkPreviewsFor');
   });
 });

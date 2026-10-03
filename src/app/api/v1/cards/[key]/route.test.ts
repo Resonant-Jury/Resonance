@@ -27,9 +27,16 @@ const applyCardEdit = vi.fn();
 vi.mock('@/lib/api/v1/edits', () => ({ applyCardEdit: (...a: unknown[]) => applyCardEdit(...a) }));
 const indexCard = vi.fn(async (_id: string) => ({ indexed: true }));
 vi.mock('@/lib/recommend/indexCard', () => ({ indexCard: (id: string) => indexCard(id) }));
+const unfurlCardLinks = vi.fn(async (_db: unknown, _id: string) => ({ written: true }));
+vi.mock('@/lib/links/cardLinks', () => ({ unfurlCardLinks: (db: unknown, id: string) => unfurlCardLinks(db, id) }));
+const publishCard = vi.fn();
+vi.mock('@/lib/api/v1/publish', () => ({ publishCard: (...a: unknown[]) => publishCard(...a) }));
+vi.mock('@/lib/api/rateLimit', () => ({ spend: async () => {} }));
+vi.mock('@/lib/push/ring', () => ({ ringAfter: () => {} }));
 
 const { GET, PATCH, DELETE } = await import('./route');
 const { POST: applyEdit } = await import('./edits/apply/route');
+const { POST: publish } = await import('./publish/route');
 
 const ctx = (key: string) => ({ params: Promise.resolve({ key }) });
 const settled = async () => {
@@ -41,6 +48,7 @@ const LOCALIZED = ['/en/card/c1', '/zh-TW/card/c1', '/en/card/a-walk', '/zh-TW/c
 
 beforeEach(() => {
   vi.clearAllMocks();
+  revalidatePath.mockReset();
   afterWork = [];
   getCurrentUser.mockResolvedValue({ id: 'alice' });
 });
@@ -114,10 +122,66 @@ describe('POST /api/v1/cards/{id}/edits/apply', () => {
     expect(indexCard).toHaveBeenCalledWith('c1');
   });
 
+  it("brings the story's link previews up to date before the pages are rendered again", async () => {
+    const order: string[] = [];
+    unfurlCardLinks.mockImplementationOnce(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      order.push('unfurl');
+      return { written: true };
+    });
+    revalidatePath.mockImplementation(() => void order.push('revalidate'));
+    indexCard.mockImplementationOnce(async () => (order.push('index'), { indexed: true }));
+    applyCardEdit.mockResolvedValue({ id: 'c1', slug: 'a-walk', applied: true, stale: STALE });
+    await apply();
+    await settled();
+    expect(unfurlCardLinks).toHaveBeenCalledWith({}, 'c1');
+    expect(order.indexOf('unfurl')).toBeLessThan(order.indexOf('revalidate'));
+    expect(order.at(-1)).toBe('index');
+  });
+
+  it('still revalidates when the previews fail', async () => {
+    vi.spyOn(console, 'error').mockImplementationOnce(() => {});
+    unfurlCardLinks.mockRejectedValueOnce(new Error('Firestore down'));
+    applyCardEdit.mockResolvedValue({ id: 'c1', slug: 'a-walk', applied: true, stale: STALE });
+    await apply();
+    expect(await settled()).toEqual(LOCALIZED);
+  });
+
   it('does nothing after a retry that applied nothing', async () => {
     applyCardEdit.mockResolvedValue({ id: 'c1', slug: 'a-walk', applied: false, stale: [] });
     await apply();
     expect(await settled()).toEqual([]);
     expect(indexCard).not.toHaveBeenCalled();
+    expect(unfurlCardLinks).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/v1/cards/{id}/publish', () => {
+  const post = () => publish(new Request('http://localhost/api/v1/cards/c1/publish', { method: 'POST' }), ctx('c1'));
+
+  it("renders the card's page again once both its late slug and its link previews are in", async () => {
+    let slugCame = false;
+    let previewsCame = false;
+    const pendingSlug = new Promise<string>((r) => setTimeout(() => ((slugCame = true), r('a-walk')), 15));
+    unfurlCardLinks.mockImplementationOnce(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+      previewsCame = true;
+      return { written: true };
+    });
+    revalidatePath.mockImplementation(() => expect([slugCame, previewsCame]).toEqual([true, true]));
+    publishCard.mockResolvedValue({ id: 'c1', slug: null, firstPublish: true, notificationId: null, pendingSlug });
+    const res = await post();
+    expect(await res.json()).toEqual({ id: 'c1', slug: null, firstPublish: true });
+    expect(await settled()).toEqual(['/en/card/c1', '/zh-TW/card/c1', '/en/card/a-walk', '/zh-TW/card/a-walk']);
+    expect(unfurlCardLinks).toHaveBeenCalledWith({}, 'c1');
+    expect(indexCard).toHaveBeenCalledWith('c1');
+  });
+
+  it('never fails or holds back the page for the previews', async () => {
+    vi.spyOn(console, 'error').mockImplementationOnce(() => {});
+    unfurlCardLinks.mockRejectedValueOnce(new Error('Firestore down'));
+    publishCard.mockResolvedValue({ id: 'c1', slug: 'a-walk', firstPublish: false, notificationId: null, pendingSlug: null });
+    expect((await post()).status).toBe(200);
+    expect(await settled()).toEqual(['/en/card/c1', '/zh-TW/card/c1', '/en/card/a-walk', '/zh-TW/card/a-walk']);
   });
 });

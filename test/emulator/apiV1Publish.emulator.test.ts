@@ -3,6 +3,9 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { publishCard } from '@/lib/api/v1/publish';
+import { unfurlCardLinks } from '@/lib/links/cardLinks';
+import { verifyImageSignature } from '@/lib/links/imageProxy';
+import { createPreviewMemo, type PreviewFetch } from '@/lib/links/preview';
 
 // Publishing through the v1 API against the Firestore emulator — what the web
 // editor's submit() does from the client (stamp once, slug, resonance
@@ -165,5 +168,47 @@ describe('publishCard', () => {
       await publishCard(db, 'alice', 'r1', slugBase);
       expect((await notifications()).size).toBe(0);
     });
+  });
+});
+
+// What the publish route runs after its response, beside the slug: the story's link previews.
+describe('publishCard, then the link previews', () => {
+  const PAGE = (url: string) => ({
+    url,
+    status: 200,
+    contentType: 'text/html',
+    charset: 'utf-8',
+    body: Buffer.from(
+      `<head><meta property="og:title" content="Page ${new URL(url).pathname}"><meta property="og:description" content="About it."><meta property="og:image" content="https://cdn.example.com/p.jpg"></head>`,
+    ),
+    truncated: false,
+  });
+  const fetchPages = (async (url: string) => PAGE(url)) as unknown as PreviewFetch;
+
+  it("gives the published card its standalone links' previews, signed pictures and all, and leaves its stamps", async () => {
+    await draft('c1', { story: '那天的雨。\n\nhttps://example.com/rain\n\n內文裡的 [連結](https://example.com/inline) 不算。\n\n<https://example.com/walk>' });
+    await publishCard(db, 'alice', 'c1', slugBase);
+    const published = (await db.doc('cards/c1').get()).data()!;
+    expect(published).not.toHaveProperty('linkPreviews');
+
+    expect(await unfurlCardLinks(db, 'c1', { fetch: fetchPages, memo: createPreviewMemo() })).toMatchObject({ links: 2, previews: 2, written: true });
+    const card = (await db.doc('cards/c1').get()).data()!;
+    expect(card.linkPreviewsFor).toEqual(['https://example.com/rain', 'https://example.com/walk']);
+    expect(card.linkPreviews).toMatchObject([
+      { url: 'https://example.com/rain', title: 'Page /rain', description: 'About it.' },
+      { url: 'https://example.com/walk', title: 'Page /walk', description: 'About it.' },
+    ]);
+    const image = new URL(card.linkPreviews[0].image, 'https://resonance.channel');
+    expect(image.pathname).toBe('/api/link-image');
+    expect(verifyImageSignature(image.searchParams.get('u')!, image.searchParams.get('s')!)).toBe(true);
+    expect((card.updatedAt as Timestamp).isEqual(published.updatedAt)).toBe(true);
+    expect((card.excerptAt as Timestamp).isEqual(published.excerptAt)).toBe(true);
+    expect((await db.doc('rateLimits/alice_unfurl').get()).get('used')).toBe(2);
+  });
+
+  it('leaves a draft without previews (they come with publishing)', async () => {
+    await draft('c1', { story: 'https://example.com/rain' });
+    expect(await unfurlCardLinks(db, 'c1', { fetch: fetchPages, memo: createPreviewMemo() })).toMatchObject({ written: false });
+    expect((await db.doc('cards/c1').get()).data()).not.toHaveProperty('linkPreviews');
   });
 });

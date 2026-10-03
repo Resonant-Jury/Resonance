@@ -61,6 +61,13 @@ export interface Card {
    * it never stands in for the card itself (a card page isn't seeded with it).
    */
   summary?: { readMinutes: number };
+  /**
+   * What the links standing alone in the story say about themselves, in
+   * reading order (server-only: written after publishing or saving an edit,
+   * lib/links/cardLinks). A reader draws a card for a standalone link whose
+   * URL is here, and the plain link otherwise.
+   */
+  linkPreviews?: LinkPreview[];
 }
 
 /**
@@ -273,8 +280,13 @@ export interface MessageReplyQuote {
   cardRef?: string;
 }
 
-export interface MessageLinkPreview {
-  /** The http(s) address that was unfurled. */
+/**
+ * What a link says about itself — a message's first link, a link standing
+ * alone in a story — as the server unfurled it (lib/links/preview). Readers
+ * take one only through `linkPreviewOf` (lib/links/previewShape).
+ */
+export interface LinkPreview {
+  /** The http(s) address that was unfurled, normalized (lib/links/url). */
   url: string;
   title: string;
   description?: string;
@@ -282,6 +294,9 @@ export interface MessageLinkPreview {
   /** A site-relative `/api/link-image?…` path, loaded from our own origin. */
   image?: string;
 }
+
+/** A message's link preview (the same shape as a story's). */
+export type MessageLinkPreview = LinkPreview;
 
 export interface Notification {
   id: string;

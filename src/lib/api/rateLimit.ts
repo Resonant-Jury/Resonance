@@ -18,6 +18,12 @@ export const LIMITS = {
   tags: { max: 60, windowMs: HOUR },
   /** Publishing: a slug LLM call, the index, maybe a bell. */
   publish: { max: 30, windowMs: DAY },
+  /**
+   * Links in stories the server fetches for their previews (lib/links/cardLinks),
+   * charged per link not already stored, after publishing or saving an edit.
+   * Over it, the previews are skipped, never the publish.
+   */
+  unfurl: { max: 100, windowMs: DAY },
   /** A note rings its recipient's phone. */
   note: { max: 20, windowMs: HOUR },
   /** Messages (only the first of a conversation rings). */
