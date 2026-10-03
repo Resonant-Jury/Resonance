@@ -1,158 +1,160 @@
 'use client';
 
-import { useRef, type ReactNode } from 'react';
-import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { useMemo, useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { Icon } from '@/components/atoms/Icon';
+import { bubblePath, bubbleStandInRadius, seedFromId, type BubbleShapeOptions } from '@/lib/design/bubble';
+import { markedSegments, type MarkedPiece } from '@/lib/chat/marks';
+import type { TextRange } from '@/lib/chat/search';
+import type { RunPosition } from '@/lib/chat/rows';
 import { useElementSize } from '@/lib/hooks/useElementSize';
-import { linkify } from '@/lib/links/linkify';
-import styles from './MessagesPage.module.css';
+import styles from './Thread.module.css';
 
-/** Deterministic per-message wobble seed from the Firestore doc id. */
-function seedFromId(id: string): number {
-  let h = 7;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
-  return Math.abs(h % 9973) + 1;
-}
-
-export interface MessageBubbleProps {
-  id: string;
-  text: string;
-  own: boolean;
-  /** Full timestamp, surfaced as a tooltip. */
-  title?: string;
-  /** A「回覆你的紙條」quote header rendered above the text (note-reply). */
-  quoteLabel?: ReactNode;
-  /**
-   * The faded quote of the message a reply answers: smaller, muted, two lines
-   * at most, and its links stay plain text.
-   */
-  ghost?: boolean;
-  /** Called instead of following a link whose host is easy to mistake (IP address, punycode). */
-  onConfirmLink?: (link: { url: string; host: string }) => void;
+/** A link in a message as the thread opens it: its normalized address, its host, and whether to ask first. */
+export interface MessageLink {
+  url: string;
+  host: string;
+  suspicious: boolean;
 }
 
 /**
- * The message's words with their http(s) links made tappable. The anchors are
- * built only from addresses `linkify` accepted (its rules match the server's
- * link previews), never from the raw text, and open a new tab without the
- * referrer or an opener.
+ * The wobbly outline an element of a bubble's family is cut to, once it is
+ * measured: the clip-path it wears (empty before then, when it stands in as a
+ * plain rounded box of the same corners).
  */
-function LinkedText({
-  text,
-  onConfirmLink,
-}: {
-  text: string;
-  onConfirmLink?: MessageBubbleProps['onConfirmLink'];
-}) {
-  return (
-    <>
-      {linkify(text).map((seg, i) =>
-        seg.type === 'text' ? (
-          seg.text
-        ) : (
-          <a
-            key={i}
-            className={styles.messageLink}
-            href={seg.url}
-            target="_blank"
-            rel="noopener noreferrer nofollow ugc"
-            onClick={(e) => {
-              if (!seg.suspicious || !onConfirmLink) return;
-              e.preventDefault();
-              onConfirmLink({ url: seg.url, host: seg.host });
-            }}
-          >
-            {seg.text}
-          </a>
-        ),
-      )}
-    </>
+export function useBubbleClip(ref: React.RefObject<HTMLElement | null>, seed: number, opts: BubbleShapeOptions, enabled = true): string {
+  const { w, h } = useElementSize(ref);
+  const { own, run, maxRadius } = opts;
+  return useMemo(
+    () => (enabled && w > 0 && h > 0 ? `path('${bubblePath(w, h, seed, { own, run, maxRadius })}')` : ''),
+    [enabled, w, h, seed, own, run, maxRadius],
   );
 }
 
-/**
- * One hand-drawn speech bubble. Measures itself (same pattern as the editor's
- * ToolButton) and wraps the text in a wobbly filled shape: the viewer's own
- * messages wash terracotta-light, the other voice sits on cream. An optional
- * quote header marks a message that replies to a note.
- */
-export function MessageBubble({ id, text, own, title, quoteLabel, ghost, onConfirmLink }: MessageBubbleProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const { w, h } = useElementSize(ref);
-  const seed = seedFromId(id);
-  // Turning points scale with each edge so a tall multi-line bubble gets more
-  // wobble along its sides and a wide one along its top/bottom — a fixed
-  // count reads mechanical at one aspect ratio and noisy at the other.
-  const segmentsH = Math.max(2, Math.min(6, Math.round(w / 80)));
-  const segmentsV = Math.max(1, Math.min(8, Math.round(h / 52)));
+export interface MessageBubbleProps {
+  /** The message's key: its wobble's seed (so it keeps its shape from sending to sent). */
+  seedKey: string;
+  own: boolean;
+  position?: RunPosition;
+  /** It carries a link's preview (280 px wide) or a shared card (300): one bubble of a fixed width. */
+  width?: 'preview' | 'card';
+  /** Its plain stand-in (a rounded box, nothing measured) — while the card it carries is read. */
+  plain?: boolean;
+  /** Washes terracotta for a moment: the message a reply's quote jumped to. */
+  flash?: boolean;
+  /** A search hit in words the bubble doesn't show (the link that stands for its card): the whole bubble is marked. */
+  hitWhole?: boolean;
+  /** It answers a quote, and lies over that quote's foot. */
+  overQuote?: boolean;
+  title?: string;
+  children: ReactNode;
+}
 
+/**
+ * One message's bubble — Messenger's flat bubble in our hand: a filled wobble
+ * with no pen line (the viewer's own on `--bubble-mine`, theirs on
+ * `--bubble-theirs`), cut to its own outline so a picture inside runs edge to
+ * edge and ends where the bubble does. In a run of one person's messages the
+ * corners facing its neighbours tuck, on the sender's side (lib/design/bubble
+ * — the recipe the apps draw with too). Until it is measured it stands in as
+ * a plain rounded box of the same fill and corners.
+ */
+export function MessageBubble({
+  seedKey,
+  own,
+  position = 'single',
+  width,
+  plain = false,
+  flash = false,
+  hitWhole = false,
+  overQuote = false,
+  title,
+  children,
+}: MessageBubbleProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const opts = { own, run: position };
+  const clip = useBubbleClip(ref, seedFromId(seedKey), opts, !plain);
+  const style: CSSProperties = clip ? { clipPath: clip } : { borderRadius: bubbleStandInRadius(opts) };
   return (
     <div
       ref={ref}
+      className={styles.bubble}
+      style={style}
       title={title}
-      style={{
-        position: 'relative',
-        // Width is capped by the parent .messageStack (72% of the row) — a
-        // percentage max-width here would resolve against the shrink-to-fit
-        // stack and collapse the bubble to its minimum content width.
-        padding: ghost ? '7px 14px' : '10px 16px',
-        fontFamily: 'var(--font-body)',
-        fontSize: ghost ? 13 : 14,
-        lineHeight: 1.65,
-        color: ghost ? 'var(--color-text-muted)' : 'var(--color-text)',
-        whiteSpace: 'pre-wrap',
-        overflowWrap: 'break-word',
-      }}
+      data-own={own || undefined}
+      data-width={width}
+      data-shaped={clip ? '' : undefined}
+      data-flash={flash || undefined}
+      data-hit-whole={hitWhole || undefined}
+      data-over-quote={overQuote || undefined}
     >
-      {w > 0 && h > 0 && (
-        <HandDrawnBorder
-          w={w}
-          h={h}
-          R={Math.min(16, h * 0.42)}
-          seed={seed}
-          mag={Math.min(2.6, h * 0.05)}
-          segmentsH={segmentsH}
-          segmentsV={segmentsV}
-          curve={1.3}
-          cornerJitter={1.6}
-          cornerOffset={Math.min(w, h) * 0.04}
-          fillColor={
-            ghost
-              ? 'color-mix(in oklch, var(--color-cream) 55%, transparent)'
-              : own
-              ? 'color-mix(in oklch, var(--color-terracotta-light) 62%, transparent)'
-              : 'var(--color-cream)'
-          }
-          strokeColor={
-            ghost
-              ? 'color-mix(in oklch, var(--field-border) 55%, transparent)'
-              : own
-                ? 'transparent'
-                : 'var(--field-border)'
-          }
-          strokeWidth={own && !ghost ? 0 : 1.1}
-        />
-      )}
-      {quoteLabel && (
-        <span
-          style={{
-            position: 'relative',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            marginBottom: 5,
-            fontSize: 12,
-            color: 'var(--color-text-muted)',
-            fontStyle: 'italic',
-          }}
-        >
+      {children}
+    </div>
+  );
+}
+
+export interface BubbleWordsProps {
+  text: string;
+  /** The italic line over a reply to a note (「回覆你的紙條」). */
+  note?: string;
+  /** Where a search matched (offsets into `text`); `strong` for the hit being looked at. */
+  ranges?: readonly TextRange[];
+  strong?: boolean;
+  /** Something follows the words inside the bubble (a preview, a card): it brings its own air above it. */
+  followed?: boolean;
+  /** A link was clicked; null when the bubble is only a picture of itself (the long-press copy). */
+  onLink?: ((link: MessageLink, e: MouseEvent<HTMLAnchorElement>) => void) | null;
+}
+
+const marks = (pieces: MarkedPiece[], strong: boolean) =>
+  pieces.map((p, i) =>
+    p.marked ? (
+      <mark key={i} className={styles.mark} data-strong={strong || undefined}>
+        {p.text}
+      </mark>
+    ) : (
+      p.text
+    ),
+  );
+
+/**
+ * A bubble's words, with their http(s) links made links. The anchors are
+ * built only from addresses linkify accepted (the server's link rules), never
+ * from the raw text, and open a new tab without the referrer or an opener —
+ * unless the thread handles the click (a card of ours opens here; an address
+ * easy to mistake for another asks first). A search's matches are marked.
+ */
+export function BubbleWords({ text, note, ranges, strong = false, followed = false, onLink }: BubbleWordsProps) {
+  const segments = useMemo(() => markedSegments(text, ranges), [text, ranges]);
+  return (
+    <div className={styles.words} data-followed={followed || undefined}>
+      {note && (
+        <span className={styles.noteLabel}>
           <Icon name="note" size={13} />
-          {quoteLabel}
+          {note}
         </span>
       )}
-      <span className={ghost ? styles.ghostText : undefined} style={{ position: 'relative', display: 'block' }}>
-        {ghost ? text : <LinkedText text={text} onConfirmLink={onConfirmLink} />}
-      </span>
+      {text &&
+        segments.map((seg, i) =>
+          seg.type === 'text' ? (
+            <span key={i}>{marks(seg.pieces, strong)}</span>
+          ) : (
+            <a
+              key={i}
+              className={styles.link}
+              href={seg.url}
+              target="_blank"
+              rel="noopener noreferrer nofollow ugc"
+              data-link-url={seg.url}
+              tabIndex={onLink === null ? -1 : undefined}
+              onClick={(e) => {
+                if (onLink === null) e.preventDefault();
+                else onLink?.({ url: seg.url, host: seg.host, suspicious: seg.suspicious }, e);
+              }}
+            >
+              {marks(seg.pieces, strong)}
+            </a>
+          ),
+        )}
     </div>
   );
 }

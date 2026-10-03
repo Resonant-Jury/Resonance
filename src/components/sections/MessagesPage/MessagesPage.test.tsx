@@ -102,10 +102,33 @@ vi.mock('@/components/molecules/MarkdownEditor/InsertCardModal', () => ({
       </button>
     ) : null,
 }));
-vi.mock('./MessageCardRef', () => ({
-  MessageCardRef: ({ cardId }: { cardId: string }) => (
-    <div data-testid="shared-card">{cardId}</div>
-  ),
+// A shared card is looked up by the thread (a card the viewer can't see resolves to an error).
+vi.mock('@/components/molecules/EmbedStoryCard/useCardEmbed', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/molecules/EmbedStoryCard/useCardEmbed')>()),
+  useCardEmbed: (href: string) =>
+    href === '/card/card-77'
+      ? {
+          status: 'ready',
+          card: {
+            id: 'card-77',
+            authorId: 'alice',
+            slug: 'a-walk-at-dawn',
+            thoughtCore: 'A walk at dawn',
+            story: 'The street was still asleep.',
+            tags: [],
+            originalLocale: 'en',
+            translations: {},
+            visibility: 'public',
+            publishedAt: new Date('2026-02-01'),
+            readCount: 0,
+            resonanceCount: 0,
+            inviteCount: 0,
+            anonymous: false,
+            summary: { readMinutes: 3 },
+          },
+          author: person('alice', 'alice'),
+        }
+      : { status: 'error' },
 }));
 
 function person(id: string, handle: string): User {
@@ -201,8 +224,8 @@ describe('MessagesPage thread', () => {
     fireEvent.change(screen.getByPlaceholderText('Write a message…'), {
       target: { value: 'a reply' },
     });
-    // The composer's Send is the thread's one verb: solid, no pen line.
-    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-variant', 'solid');
+    // The send disc wakes once there is something to send.
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-enabled');
     await userEvent.setup({ pointerEventsCheck: 0 }).click(
       screen.getByRole('button', { name: 'Send' }),
     );
@@ -312,7 +335,12 @@ describe('MessagesPage thread', () => {
     ];
     server.messages = messages;
     renderPage(<MessagesPage activeHandle="alice" />);
-    await waitFor(() => expect(screen.getByTestId('shared-card')).toHaveTextContent('card-77'));
+    // The card sits inside its bubble as a shared post: who wrote it, its title, the 共振 source line.
+    const card = await screen.findByRole('link', { name: /A walk at dawn/ });
+    expect(card).toHaveAttribute('href', '/card/a-walk-at-dawn');
+    expect(card).toHaveTextContent('alice');
+    expect(card).toHaveTextContent('Resonance · 3 min');
+    expect(card).toHaveTextContent('The street was still asleep.');
     expect(screen.getByText('In reply to your note')).toBeInTheDocument();
   });
 });

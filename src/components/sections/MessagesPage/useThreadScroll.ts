@@ -21,6 +21,8 @@ export interface ThreadScrollOptions {
 export interface ThreadScroll {
   /** The reader is at (or near) the newest message. */
   atBottom: boolean;
+  /** The reader is well up the thread (more than a window and a half above the newest message): the way back down is worth offering. */
+  farUp: boolean;
   /** A message came in below while the reader was further up (for a "new messages" pill). */
   newBelow: boolean;
   /** Scrolls to the newest message. */
@@ -61,6 +63,7 @@ export function centerRow(scroller: HTMLElement, row: HTMLElement, behavior: Scr
 export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: ThreadScrollOptions): ThreadScroll {
   const { firstKey, lastKey, lastIsOwn } = opts;
   const [atBottom, setAtBottom] = useState(true);
+  const [farUp, setFarUp] = useState(false);
   const [newBelow, setNewBelow] = useState(false);
   const atBottomRef = useRef(true);
   const drawn = useRef<{ firstKey?: string; lastKey?: string }>({});
@@ -126,7 +129,9 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
   useEffect(() => {
     if (!scroller) return;
     const onScroll = () => {
-      const bottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= BOTTOM_SLACK;
+      const below = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      const bottom = below <= BOTTOM_SLACK;
+      setFarUp(below > scroller.clientHeight * 1.5);
       if (bottom !== atBottomRef.current) {
         atBottomRef.current = bottom;
         setAtBottom(bottom);
@@ -153,5 +158,5 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
     };
   }, [scroller]);
 
-  return { atBottom, newBelow, toBottom };
+  return { atBottom, farUp, newBelow, toBottom };
 }

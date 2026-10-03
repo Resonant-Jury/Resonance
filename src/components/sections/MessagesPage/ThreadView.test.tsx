@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
-import { act, renderWithIntl, screen, waitFor } from '@/../test/render';
+import { act, fireEvent, renderWithIntl, screen, waitFor, within } from '@/../test/render';
 import type { FeedCardBody } from '@/lib/api/v1/schemas';
 import type { Conversation, Message, User } from '@/lib/db/types';
 
@@ -11,13 +11,14 @@ import type { Conversation, Message, User } from '@/lib/db/types';
 // (callApi), auth and navigation are the module boundary.
 const mockUseAuth = vi.fn();
 vi.mock('@/components/providers/AuthProvider', () => ({ useAuth: () => mockUseAuth() }));
+const mockPush = vi.fn();
 vi.mock('@/i18n/navigation', () => ({
-  Link: ({ href, children, className }: { href: string; children: ReactNode; className?: string }) => (
-    <a href={href} className={className}>
+  Link: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
+    <a href={href} {...rest}>
       {children}
     </a>
   ),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
 }));
 vi.mock('@/lib/db/firestore/client/api', () => ({ callApi: vi.fn(), ApiError: class extends Error {} }));
 vi.mock('@/lib/db/firestore/client/reads', () => ({
@@ -62,7 +63,7 @@ vi.mock('@/components/molecules/MarkdownEditor/InsertCardModal', () => ({ Insert
 
 import { callApi } from '@/lib/db/firestore/client/api';
 import { getCardById, getCardBySlugOrId, getUserByHandle, getUserById } from '@/lib/db/firestore/client/reads';
-import { getConversation } from '@/lib/db/firestore/client/messages';
+import { getConversation, sendMessage } from '@/lib/db/firestore/client/messages';
 import { forgetOutboxes } from '@/lib/data/thread';
 import { ThreadView } from './ThreadView';
 
@@ -307,5 +308,185 @@ describe('replies, links and link previews in a thread', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     expect(open).toHaveBeenCalledWith('http://192.168.0.5/admin', '_blank', 'noopener,noreferrer');
     open.mockRestore();
+  });
+});
+
+describe('Messenger’s thread, drawn by hand', () => {
+  const at = (h: number, m: number) => new Date(2026, 2, 1, h, m);
+
+  it('stacks one person’s messages into runs, their face beside the last of each of their runs', async () => {
+    server.messages = [
+      text('m1', 'Morning!', { sentAt: at(10, 0) }),
+      text('m2', 'Coffee later?', { sentAt: at(10, 1) }),
+      text('m3', 'Sure', { sentAt: at(10, 2) }, 'me'),
+      text('m4', 'See you at noon', { sentAt: at(10, 30) }),
+    ];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const { container } = renderWithIntl(thread());
+    await screen.findByText('See you at noon');
+
+    const row = (id: string) => container.querySelector<HTMLElement>(`[data-message-id="${id}"]`)!;
+    expect(['m1', 'm2', 'm3', 'm4'].map((id) => row(id).dataset.run)).toEqual(['first', 'last', 'single', 'single']);
+    // Inside a run the bubbles nearly touch; a pause of 15 minutes or more brings a time label.
+    expect(row('m2').dataset.gap).toBe('run');
+    expect(row('m3').dataset.gap).toBe('runs');
+    expect(row('m4').dataset.gap).toBe('label');
+    // Their face stands beside the last of each of their runs only; never beside your own.
+    const faces = (id: string) => row(id).querySelectorAll('a[href="/u/alice"]').length;
+    expect(['m1', 'm2', 'm3', 'm4'].map(faces)).toEqual([0, 1, 0, 1]);
+  });
+
+  it('carries a link’s preview inside the message’s own bubble', async () => {
+    server.messages = [
+      text('m1', 'look https://example.com/post', {
+        preview: { url: 'https://example.com/post', title: 'A post worth reading', image: '/api/link-image?u=abc&s=def' },
+      }),
+    ];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const { container } = renderWithIntl(thread());
+    const title = await screen.findByText('A post worth reading');
+    // One bubble: the words, then the picture and the title.
+    const bubble = container.querySelector('[data-message-id="m1"] [data-width="preview"]')!;
+    expect(bubble).toContainElement(title);
+    expect(bubble).toHaveTextContent('look https://example.com/post');
+    expect(bubble.querySelector('img')).toHaveAttribute('src', '/api/link-image?u=abc&s=def');
+  });
+
+  it('draws a Resonance card link as the card it leads to — and as a link again when the card can’t be seen', async () => {
+    server.messages = [
+      text('m1', 'https://resonance.channel/zh-TW/card/rain-walk', { sentAt: at(9, 0) }),
+      text('m2', 'and https://resonance.channel/card/hidden-one', {
+        sentAt: at(11, 0),
+        preview: { url: 'https://resonance.channel/card/hidden-one', title: 'A card you can’t see' },
+      }),
+    ];
+    vi.mocked(callApi).mockResolvedValue({ cards: [summary('c9', 'One walk after the rain', { slug: 'rain-walk', readMinutes: 3 })] });
+    const { container } = renderWithIntl(thread());
+
+    const card = await screen.findByRole('link', { name: /One walk after the rain/ });
+    expect(card).toHaveAttribute('href', '/card/rain-walk');
+    // A shared post: who wrote it, where it comes from and how long it reads, then the source line.
+    expect(card).toHaveTextContent('writer');
+    expect(card).toHaveTextContent('Resonance · 3 min');
+    // The link alone stood for the card: its address isn't said again.
+    expect(container.querySelector('[data-message-id="m1"]')).not.toHaveTextContent('https://resonance.channel');
+    // The card the viewer can't see falls back to the link and its preview.
+    expect(screen.getByText('A card you can’t see')).toBeInTheDocument();
+    expect(container.querySelector('[data-message-id="m2"] [data-width="preview"]')).toBeInTheDocument();
+  });
+
+  it('offers reply and「⋯」beside a message: copy it, and its link’s open and copy', async () => {
+    server.messages = [text('m1', 'read https://example.com/a', { sentAt: at(10, 0) })];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    // The clipboard user-event puts in place.
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText');
+    renderWithIntl(thread());
+    await screen.findByRole('link', { name: 'https://example.com/a' });
+
+    await user.click(screen.getByRole('button', { name: 'More options' }));
+    expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Copy', 'Open link', 'Copy link']);
+    await user.click(screen.getByRole('menuitem', { name: 'Copy link' }));
+    expect(writeText).toHaveBeenCalledWith('https://example.com/a');
+    expect(await screen.findByRole('status')).toHaveTextContent('Copied');
+
+    await user.click(screen.getByRole('button', { name: 'Reply' }));
+    expect(screen.getByText('Replying to alice')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Conversation with alice' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Cancel reply' }));
+    expect(screen.queryByText('Replying to alice')).not.toBeInTheDocument();
+  });
+
+  it('lifts a message pressed and held on a touch screen out of the thread, with its menu', async () => {
+    server.messages = [text('m1', 'hold me', { sentAt: at(10, 0) })];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    const { container } = renderWithIntl(thread());
+    await screen.findByText('hold me');
+
+    const message = container.querySelector<HTMLElement>('[data-message-id="m1"] div[class*="message"]')!;
+    fireEvent.pointerDown(message, { pointerType: 'touch', button: 0, clientX: 40, clientY: 40 });
+    const menu = await screen.findByRole('dialog', {}, { timeout: 1500 });
+    fireEvent.pointerUp(message, { pointerType: 'touch', button: 0 });
+    // Its place in the thread stays empty under the scrim while a copy is lifted.
+    expect(container.querySelector('[data-message-id="m1"]')).toHaveAttribute('data-lifted');
+    expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Reply', 'Copy']);
+
+    await user.click(within(menu).getByRole('menuitem', { name: 'Reply' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByText('Replying to alice')).toBeInTheDocument();
+  });
+
+  it('a mouse never long-presses (it has the tools beside the message)', async () => {
+    server.messages = [text('m1', 'click me', { sentAt: at(10, 0) })];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const { container } = renderWithIntl(thread());
+    await screen.findByText('click me');
+    const message = container.querySelector<HTMLElement>('[data-message-id="m1"] div[class*="message"]')!;
+    fireEvent.pointerDown(message, { pointerType: 'mouse', button: 0 });
+    await new Promise((r) => setTimeout(r, 600));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('searches like LINE: a list of the matches, then the thread at the one picked, stepping between them', async () => {
+    const scrollTo = vi.fn();
+    Element.prototype.scrollTo = scrollTo as unknown as Element['scrollTo'];
+    server.messages = [
+      text('m1', 'Coffee at nine?', { sentAt: at(9, 0) }),
+      text('m2', 'Tea for me', { sentAt: at(9, 30) }, 'me'),
+      text('m3', 'More coffee then', { sentAt: at(10, 0) }),
+    ];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+    await screen.findByText('More coffee then');
+
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Search messages' }));
+    expect(screen.getByText('Search the words in your messages')).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: 'Search messages' }), 'coffee');
+
+    const list = await screen.findByRole('region', { name: 'Search messages' });
+    expect(within(list).getByText('2 matches')).toBeInTheDocument();
+    const results = within(list).getAllByRole('button');
+    // Newest first, the match marked.
+    expect(results.map((r) => r.textContent)).toEqual([expect.stringContaining('More coffee then'), expect.stringContaining('Coffee at nine?')]);
+    expect(within(results[0]).getByText('coffee', { selector: 'mark' })).toBeInTheDocument();
+
+    await user.click(results[0]);
+    expect(screen.queryByRole('region', { name: 'Search messages' })).not.toBeInTheDocument();
+    expect(screen.getByText('1 of 2')).toBeInTheDocument();
+    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+    // The match being looked at is marked stronger than the others.
+    expect(document.querySelector('mark[data-strong]')).toHaveTextContent('coffee');
+
+    await user.click(screen.getByRole('button', { name: 'Earlier match' }));
+    expect(screen.getByText('2 of 2')).toBeInTheDocument();
+    expect(document.querySelector('mark[data-strong]')).toHaveTextContent('Coffee');
+    expect(screen.getByRole('button', { name: 'Earlier match' })).toBeDisabled();
+
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Close search' }));
+    expect(document.querySelector('mark')).toBeNull();
+  });
+
+  it('keeps a message that didn’t go, dimmed, with its retry under it and its delete in its menu', async () => {
+    server.messages = [text('m1', 'hi', { sentAt: at(9, 0) })];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    vi.mocked(sendMessage).mockRejectedValue(new TypeError('Failed to fetch'));
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+    await screen.findByText('hi');
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Conversation with alice' }), { target: { value: 'are you there' } });
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByRole('button', { name: 'Not sent · Tap to retry' })).toBeInTheDocument();
+
+    const own = screen.getByText('are you there').closest('[data-message-key]')!;
+    expect(own).toHaveAttribute('data-delivery', 'failed');
+    await user.click(within(own as HTMLElement).getByRole('button', { name: 'More options' }));
+    expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Copy', 'Retry', 'Delete']);
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(screen.queryByText('are you there')).not.toBeInTheDocument();
   });
 });
