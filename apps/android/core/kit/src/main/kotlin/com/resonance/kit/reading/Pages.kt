@@ -64,12 +64,14 @@ suspend fun ReadingApi.profilePage(handle: String, limit: Int = 12): ProfilePage
 }
 
 /**
- * Cards named by id where only their title and cover show (the cards shared in a conversation),
- * in one request: every id asked for is in the answer, as its card — or null when the reader
- * can't see it (gone, hidden, by someone blocked), which draws nothing.
+ * Cards named by id or slug where only their summary shows (the cards shared in a conversation,
+ * carried or linked to), in one request: every key asked for is in the answer, as its card — or
+ * null when the reader can't see it (gone, hidden, by someone blocked).
  */
-suspend fun ReadingApi.cardsById(ids: Collection<String>): Map<String, FeedCard?> {
-    if (ids.isEmpty()) return emptyMap()
-    val found = cards(ids).associateBy { it.id }
-    return ids.associateWith { found[it] }
+suspend fun ReadingApi.cardsByKey(keys: Collection<String>): Map<String, FeedCard?> {
+    if (keys.isEmpty()) return emptyMap()
+    val found = cards(keys)
+    val byId = found.associateBy { it.id }
+    val bySlug = found.filter { it.slug != null }.associateBy { it.slug }
+    return keys.associateWith { byId[it] ?: bySlug[it] }
 }

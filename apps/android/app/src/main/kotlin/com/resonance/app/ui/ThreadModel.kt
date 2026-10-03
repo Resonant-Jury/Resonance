@@ -3,6 +3,7 @@ package com.resonance.app.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
@@ -27,9 +28,11 @@ import com.resonance.kit.chat.MessageSearch
 import com.resonance.kit.chat.Outbox
 import com.resonance.kit.chat.ReplyQuote
 import com.resonance.kit.chat.SearchHit
+import com.resonance.kit.chat.SharedCard
+import com.resonance.kit.chat.SharedCards
 import com.resonance.kit.chat.ThreadMessages
 import com.resonance.kit.l10n.L10n
-import com.resonance.kit.reading.cardsById
+import com.resonance.kit.reading.cardsByKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -102,8 +105,14 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
     /** The listeners failed (not "no conversation"): what was read stays; they listen again on [resumeIfFailed]. */
     var listenFailed by mutableStateOf(false)
         private set
-    /** Shared cards, as the viewer may see them (a null value: not visible to them, or still being read — drawn as nothing). */
+    /**
+     * The cards messages share — carried, or linked to — as the viewer may see them, by the key they
+     * were asked for (an id or a slug): null when the viewer can't see it. A key not here yet is
+     * being read ([cardsLoading]), or its read failed and is asked again with the next snapshot.
+     */
     val cards = mutableStateMapOf<String, FeedCard?>()
+    /** The card keys being read. */
+    val cardsLoading = mutableStateSetOf<String>()
 
     // Paging
 
@@ -503,6 +512,8 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
     private fun onOutbox(entries: List<Outbox.Outgoing>) {
         // A message that failed shows on its own row, with its retry.
         rebuild()
+        // A card sent from here is drawn as the card while it is on its way.
+        loadCards()
         // The first message made the conversation: listen to it now.
         val pair = pairId
         if (pair != null && listeners.isEmpty() && entries.any { it.status == Outbox.Status.Sent }) listen(pair)
@@ -578,24 +589,40 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
     /** The messages that are mine, to tell mine from theirs. */
     fun isMine(message: ChatMessage): Boolean = message.senderId == me
 
+    /** A build on a local stack shares its own card links too (its API's host and port); production's are [SharedCards.HOSTS]. */
+    private val ownHost: String? = session.config.takeIf { it.usesEmulator }?.origin?.substringAfter("://")
+    /** What [sharedCard] found for each message, by its id and what can change about it (the preview arrives later). */
+    private val sharedMemo = HashMap<String, SharedCard?>()
+
+    /** The card [message] shares — the one it carries, or the card page its link leads to — if any. */
+    fun sharedCard(message: ChatMessage): SharedCard? {
+        val memo = "${message.id}|${message.cardRef}|${message.preview?.url}"
+        return if (sharedMemo.containsKey(memo)) sharedMemo[memo] else SharedCards.of(message, ownHost).also { sharedMemo[memo] = it }
+    }
+
+    /** A Resonance link (a card page of the site) opens in the app; the key it names, if it is one. */
+    fun cardKeyOf(url: String): String? = SharedCards.keyOf(url, ownHost)
+
     /**
-     * The cards shared in the messages, each read once: the ones not yet asked for go out
-     * together (GET /cards?keys=…) — a title, a cover and a byline are all a message shows.
-     * A failed read is forgotten, so the next snapshot asks again.
+     * The cards shared in the messages — carried, or linked to — each read once: the ones not yet
+     * asked for go out together (GET /cards?keys=…, ids and slugs alike); a card's summary is all a
+     * message shows. A failed read is forgotten, so the next snapshot asks again.
      */
     private fun loadCards() {
-        val wanted = messages.mapNotNull { it.cardRef }.distinct().filterNot(cards::containsKey)
+        val wanted = messages.mapNotNull { sharedCard(it)?.key }.distinct().filterNot { it in cards || it in cardsLoading }
         if (wanted.isEmpty()) return
-        wanted.forEach { cards[it] = null }
+        cardsLoading.addAll(wanted)
         scope.launch {
             try {
-                val read = session.reading.cardsById(wanted)
+                val read = session.reading.cardsByKey(wanted)
                 read.values.filterNotNull().forEach(session.cardCache::rememberPreview)
                 cards.putAll(read)
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
-                wanted.forEach(cards::remove)
+            } catch (_: Exception) {
+                // Nothing is kept: the next snapshot asks for them again.
+            } finally {
+                cardsLoading.removeAll(wanted.toSet())
             }
         }
     }
