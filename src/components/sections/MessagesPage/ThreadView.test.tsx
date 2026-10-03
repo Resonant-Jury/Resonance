@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
 import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
 import { act, fireEvent, renderWithIntl, screen, waitFor, within } from '@/../test/render';
@@ -63,7 +63,7 @@ vi.mock('@/components/molecules/MarkdownEditor/InsertCardModal', () => ({ Insert
 
 import { callApi } from '@/lib/db/firestore/client/api';
 import { getCardById, getCardBySlugOrId, getUserByHandle, getUserById, isConnected } from '@/lib/db/firestore/client/reads';
-import { getConversation, sendMessage } from '@/lib/db/firestore/client/messages';
+import { getConversation, getOlderMessages, sendMessage } from '@/lib/db/firestore/client/messages';
 import { forgetOutboxes } from '@/lib/data/thread';
 import { wobRect } from '@/lib/design/wobRect';
 import { ThreadView } from './ThreadView';
@@ -724,6 +724,72 @@ describe('around the thread', () => {
       'd',
       wobRect(48, 40, 12, 23, 1.0, { segmentsH: 1, segmentsV: 1, curve: 1.3, cornerJitter: 2.4, cornerOffset: 2 }),
     );
+  });
+});
+
+describe('a long conversation searched', () => {
+  const at = (n: number) => new Date(Date.UTC(2026, 2, 1, 8) + n * 60_000);
+  const long = Array.from({ length: 300 }, (_, i) =>
+    text(`m${String(i + 1).padStart(3, '0')}`, i === 99 ? 'a needle in the hay' : `message ${i + 1}`, { sentAt: at(i) }),
+  );
+  const rowCount = (container: HTMLElement) => container.querySelectorAll('[data-message-key]').length;
+
+  beforeEach(() => {
+    // The listener holds the newest 50; older pages answer from the rest.
+    server.messages = long.slice(-50);
+    vi.mocked(getOlderMessages).mockImplementation(async (_pair, before, max) => {
+      const end = long.findIndex((m) => m.id === before.id);
+      return long
+        .slice(Math.max(0, end - max), end)
+        .reverse()
+        .map((message) => ({ message, cursor: { seconds: 0, nanoseconds: 0, id: message.id } }));
+    });
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    Element.prototype.scrollTo = vi.fn() as unknown as Element['scrollTo'];
+  });
+  afterEach(() => vi.mocked(getOlderMessages).mockImplementation(async () => []));
+
+  it('reads the whole conversation for a search but draws only what the reader had, down to a match picked', async () => {
+    // The reader is well down the thread (jsdom's scroller would otherwise sit at its top, reading page after page).
+    const scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+    Object.defineProperty(Element.prototype, 'scrollTop', { configurable: true, get: () => 5000, set: () => {} });
+    onTestFinished(() => {
+      Object.defineProperty(Element.prototype, 'scrollTop', scrollTop);
+    });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    const { container } = renderWithIntl(thread());
+    await screen.findByText('message 300');
+    const before = rowCount(container);
+    expect(before).toBe(50);
+
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Search messages' }));
+    await user.type(screen.getByRole('textbox', { name: 'Search messages' }), 'needle');
+    const list = await screen.findByRole('region', { name: 'Search messages' });
+    await waitFor(() => expect(within(list).getByText('1 match')).toBeInTheDocument());
+    await waitFor(() => expect(within(list).queryByText('Searching earlier messages…')).toBeNull());
+    // Read for the search, not laid out.
+    expect(rowCount(container)).toBe(before);
+    expect(container.querySelector('[data-message-id="m100"]')).toBeNull();
+
+    await user.click(within(list).getAllByRole('button')[0]);
+    // Going to it draws down to it (with a few before it), not the whole conversation.
+    await waitFor(() => expect(container.querySelector('[data-message-id="m100"]')).toBeInTheDocument());
+    expect(rowCount(container)).toBe(300 - 89);
+  });
+
+  it('draws a page of a long list of matches, and more as it is scrolled', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+    await screen.findByText('message 300');
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Search messages' }));
+    await user.type(screen.getByRole('textbox', { name: 'Search messages' }), 'message');
+    const list = await screen.findByRole('region', { name: 'Search messages' });
+    await waitFor(() => expect(within(list).getByText('299 matches')).toBeInTheDocument());
+    expect(within(list).getAllByRole('button')).toHaveLength(60);
+    fireEvent.scroll(list);
+    expect(within(list).getAllByRole('button')).toHaveLength(120);
   });
 });
 

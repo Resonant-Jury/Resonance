@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useMemo } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
@@ -16,6 +16,9 @@ import styles from './Thread.module.css';
  * click on one puts the list away and takes the thread to that message with
  * the words marked, and the header then steps from match to match.
  */
+
+/** How many results are drawn at first, and how many more each time the list is scrolled near its end. */
+export const RESULTS_PAGE = 60;
 
 export interface SearchResultsProps {
   query: string;
@@ -39,6 +42,9 @@ export function SearchResults({ query, hits, messages, viewerId, otherHandle, lo
   const locale = useLocale();
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   const when = useMemo(() => resultTime(locale), [locale]);
+  // A common word matches thousands of messages: a page of rows is drawn, and more as the list is scrolled.
+  const [shown, setShown] = useState(RESULTS_PAGE);
+  useEffect(() => setShown(RESULTS_PAGE), [query]);
 
   if (!query.trim()) {
     return (
@@ -48,7 +54,15 @@ export function SearchResults({ query, hits, messages, viewerId, otherHandle, lo
     );
   }
   return (
-    <div className={styles.results} role="region" aria-label={t('menuSearch')}>
+    <div
+      className={styles.results}
+      role="region"
+      aria-label={t('menuSearch')}
+      onScroll={(e) => {
+        const list = e.currentTarget;
+        if (shown < hits.length && list.scrollHeight - list.scrollTop - list.clientHeight < 600) setShown((n) => n + RESULTS_PAGE);
+      }}
+    >
       <div className={styles.resultsCount} aria-live="polite">
         {/* The hits grow while older messages arrive: the count says what is known so far. */}
         {(hits.length > 0 || !loading) && <span>{t('searchCount', { count: hits.length })}</span>}
@@ -59,7 +73,7 @@ export function SearchResults({ query, hits, messages, viewerId, otherHandle, lo
           </>
         )}
       </div>
-      {hits.map((hit, i) => {
+      {hits.slice(0, shown).map((hit, i) => {
         const m = byId.get(hit.messageId);
         if (!m) return null;
         const mine = m.senderId === viewerId;

@@ -22,7 +22,7 @@ import { useElementSize } from '@/lib/hooks/useElementSize';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useCardSummaries, useMyBlockedIds } from '@/lib/data/hooks';
-import { useChatThread } from '@/lib/data/thread';
+import { OLDER_PAGE, useChatThread } from '@/lib/data/thread';
 import { resonanceCardKey, threadCardKeys } from '@/lib/chat/cardLink';
 import { threadRows } from '@/lib/chat/rows';
 import type { TextRange } from '@/lib/chat/search';
@@ -43,6 +43,9 @@ import { ThreadActionsContext, type PressedMessage, type ThreadActions } from '.
 import { centerRow, useThreadScroll } from './useThreadScroll';
 import pageStyles from './MessagesPage.module.css';
 import styles from './Thread.module.css';
+
+/** How many messages before one gone to are drawn with it (when a search read it, and the thread hadn't drawn it). */
+const JUMP_CONTEXT = 10;
 
 export interface ThreadViewProps {
   handle: string;
@@ -133,14 +136,34 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // left on is looked up with the thread's cards, so its quote rides the next message only when the card is
   // named — answering a note on an anonymous card with it would tell its writer whose card it was.
   const [olderNote, setOlderNote] = useState<{ noteId: string; cardId: string } | null>(null);
+
+  // The oldest message the thread draws, once a search has read further back than the reader had scrolled: what
+  // it read is held for the search (and for going to a match), not laid out — a long conversation's thousands
+  // of rows aren't drawn for a search. Scrolling up draws a page more of what is held before reading further
+  // back, and going to a message draws down to it. Null: every message held is drawn.
+  const [drawFrom, setDrawFrom] = useState<string | null>(null);
+  const drawnFrom = drawFrom == null ? 0 : Math.max(0, thread.messages.findIndex((m) => m.key === drawFrom));
+  const searchingAll = thread.search.query.trim().length > 0;
+  useEffect(() => {
+    if (searchingAll && drawnFrom === 0 && thread.messages.length) setDrawFrom(thread.messages[0].key);
+    // Only as a search starts reading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchingAll]);
+  useEffect(() => setDrawFrom(null), [pairId]);
+  const drawn = useMemo(() => (drawnFrom ? thread.messages.slice(drawnFrom) : thread.messages), [thread.messages, drawnFrom]);
+  /** Draws from the message at `index` of those held (the start of them all: no limit again). */
+  const drawDownTo = (index: number) => setDrawFrom(index <= 0 ? null : (thread.messages[index]?.key ?? null));
+
+  // The「卡片與連結」list (the header menu's).
+  const [mediaOpen, setMediaOpen] = useState(false);
   // The cards this thread is about — shared ones, and Resonance card links —
   // each looked up once, a few to a request, as messages come in or older
-  // ones are read: what the cards in the bubbles and the「卡片與連結」list
-  // look up. Held still between answers, so the rows reading it draw again
-  // only when a card arrives.
+  // ones are drawn: what the cards in the bubbles and the「卡片與連結」list
+  // (all of the thread's, while it is open) look up. Held still between
+  // answers, so the rows reading it draw again only when a card arrives.
   const cardKeys = useMemo(
-    () => [...threadCardKeys(thread.messages), ...(olderNote ? [olderNote.cardId] : [])],
-    [thread.messages, olderNote],
+    () => [...threadCardKeys(mediaOpen ? thread.messages : drawn), ...(olderNote ? [olderNote.cardId] : [])],
+    [thread.messages, drawn, mediaOpen, olderNote],
   );
   const summaries = useCardSummaries(cardKeys);
   const summariesReady = summaries?.status === 'ready' ? summaries : null;
@@ -155,9 +178,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     return card && !card.anonymous ? olderNote : undefined;
   }, [olderNote, summaries]);
   // Every card this thread is about — shared, or linked to (the bubbles' own detection) — each once.
-  const sharedCardKeys = useMemo(() => threadCardKeys(thread.messages), [thread.messages]);
-  // The「卡片與連結」list (the header menu's).
-  const [mediaOpen, setMediaOpen] = useState(false);
+  const sharedCardKeys = useMemo(() => (mediaOpen ? threadCardKeys(thread.messages) : []), [mediaOpen, thread.messages]);
   // Links written in messages, each once, for the same list — but a link to one of our cards, which is among
   // its cards. Worked out while the list is open only: it reads every word of the thread.
   const mediaLinks = useMemo(
@@ -224,17 +245,25 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // The「卡片與連結」modal's scroll area (hand-drawn rail replaces the native bar).
   const mediaScrollRef = useRef<HTMLDivElement>(null);
 
-  const rows = useMemo(() => threadRows(thread.messages), [thread.messages]);
-  const newest = thread.messages[thread.messages.length - 1];
+  const rows = useMemo(() => threadRows(drawn), [drawn]);
+  const newest = drawn[drawn.length - 1];
+  // On its way to a message (a quote's original, a match, a note): no older page is read meanwhile — one
+  // landing mid-glide would stop the glide short of it.
+  const jumping = useRef(false);
 
   // The newest message stays in view as messages come in (the viewer's own
   // always), older ones going in above leave the view where it was, and
-  // scrolling up near the top reads the next older page.
+  // scrolling up near the top draws a page more of what is held, else reads
+  // the next older page.
   const scroll = useThreadScroll(scrollerRef, {
-    firstKey: thread.messages[0]?.key,
+    firstKey: drawn[0]?.key,
     lastKey: newest?.key,
     lastIsOwn: !!newest && newest.senderId === user?.id,
-    onNearTop: thread.loadOlder,
+    onNearTop: () => {
+      if (jumping.current) return;
+      if (drawnFrom > 0) drawDownTo(drawnFrom - OLDER_PAGE);
+      else thread.loadOlder();
+    },
   });
 
   // Search runs over the whole conversation (older pages are read for it);
@@ -252,19 +281,29 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // once it has arrived — washed on the way, it would be over before it is seen).
   useEffect(() => {
     if (!jumpTarget) return;
+    // Held but not drawn (a search read it): the thread draws down to it, with a few before it, first.
+    const at = thread.messages.findIndex((m) => m.id === jumpTarget.id);
+    if (at >= 0 && at < drawnFrom) {
+      drawDownTo(at - JUMP_CONTEXT);
+      return;
+    }
     const scroller = scrollerRef.current;
     const row = scroller?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(jumpTarget.id)}"]`);
     if (!scroller || !row) return;
+    jumping.current = true;
     const arrived = centerRow(scroller, row);
     setJumpTarget(null);
-    if (!jumpTarget.flash) return;
     const id = jumpTarget.id;
+    const flash = jumpTarget.flash;
     void arrived.then(() => {
+      jumping.current = false;
+      if (!flash) return;
       // Off first, so a second jump to the same message washes it again.
       setFlashId(null);
       window.requestAnimationFrame(() => setFlashId(id));
       window.setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1000);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpTarget, rows]);
 
   // The thread's labels and times, worked out once per message rather than on every draw.
@@ -550,9 +589,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 {convo === null && !thread.ready && <p className={pageStyles.quietNote}>{t('noMessagesYet')}</p>}
                 {/* Older pages: read as the reader nears the top, said here while they come. The row
                     keeps its height, so its words coming and going never nudge the messages under it. */}
-                {thread.messages.length > 0 && (
+                {drawn.length > 0 && (
                   <div className={styles.older}>
-                    {thread.olderError ? (
+                    {drawnFrom > 0 ? null : thread.olderError ? (
                       <>
                         <span>{t('loadOlderError')}</span>
                         <OrganicButton variant="textAccent" size="sm" onClick={() => thread.loadOlder()}>
