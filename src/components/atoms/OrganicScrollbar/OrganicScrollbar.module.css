@@ -21,6 +21,13 @@
   display: none;
 }
 
+/* Phones and touch screens show no scrollbar, drawn or native (globals.css). */
+@media (max-width: 720px), (hover: none) and (pointer: coarse) {
+  .rail {
+    display: none;
+  }
+}
+
 .thumb {
   stroke: var(--color-terracotta-light);
   /* The "wet ink catching up" lag: the dash window chases the scroll. */

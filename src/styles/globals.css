@@ -39,6 +39,16 @@ textarea::placeholder {
 html.res-hide-scrollbar { scrollbar-width: none; }
 html.res-hide-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
 
+/* Phones and touch screens show no scrollbar anywhere (scrolling stays
+   native): the bars styled above would otherwise stand as classic 6px bars
+   in every pane (Chromium gives up its overlay bars for a styled one). The
+   !important outranks a component's own scrollbar rules. Desktop keeps its
+   bars. OrganicScrollbar's hand-drawn rail steps aside there too. */
+@media (max-width: 720px), (hover: none) and (pointer: coarse) {
+  * { scrollbar-width: none !important; }
+  *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+}
+
 /* ── Organic shape entrance ──────────────────────────────────────────
    Hand-drawn SVGs only mount once their host has been measured, so they
    appear after the surrounding chrome. A short fade keeps that arrival from
