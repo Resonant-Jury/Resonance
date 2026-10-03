@@ -232,19 +232,56 @@ public struct QuoteBubble: View {
     }
 }
 
-/// The reply glyph and a line of who answered whom, over the quote.
+/// The reply glyph and a line of who answered whom, over the quote — or, over a note, the note
+/// glyph and whose card it was left on (`icon`).
 public struct ReplyCaption: View {
     let text: String
+    let icon: IconName
 
-    public init(_ text: String) {
+    public init(_ text: String, icon: IconName = .reply) {
         self.text = text
+        self.icon = icon
     }
 
     public var body: some View {
         HStack(spacing: 5) {
-            OrganicIcon(.reply, size: 12, color: Tokens.textMuted)
+            OrganicIcon(icon, size: 12, color: Tokens.textMuted)
             Text(text).font(AppFonts.body(12)).foregroundStyle(Tokens.textMuted).lineLimit(1)
         }
+    }
+}
+
+/// The card a note was left on, over the note's words: Messenger's quote holding a shared card —
+/// ``SharedCardSection`` (or its skeleton, `plain`, while the card is read) on `bubbleQuote` at
+/// `width`, no outline, its foot `BubbleMetrics.replyOverlap` deeper than the card: the note's
+/// bubble lies over it there, as a reply lies over what it quotes. The card inside is what a tap
+/// opens; a hold is the message's menu.
+public struct CardQuote<Card: View>: View {
+    let seed: Double
+    let width: CGFloat
+    let plain: Bool
+    let card: Card
+
+    public init(seed: Double, width: CGFloat, plain: Bool = false, @ViewBuilder card: () -> Card) {
+        self.seed = seed
+        self.width = width
+        self.plain = plain
+        self.card = card()
+    }
+
+    public var body: some View {
+        // A stand-in is never a wobble drawn before its content is there.
+        let shape = plain
+            ? AnyShape(RoundedRectangle(cornerRadius: BubbleMetrics.quoteRadius, style: .continuous))
+            : AnyShape(MessageBubbleShape(seed: seed, maxRadius: BubbleMetrics.quoteRadius))
+        VStack(spacing: 0) {
+            card
+            Color.clear.frame(height: BubbleMetrics.replyOverlap)
+        }
+        .frame(width: width)
+        .background { shape.fill(Tokens.bubbleQuote) }
+        .clipShape(shape)
+        .contentShape(shape)
     }
 }
 

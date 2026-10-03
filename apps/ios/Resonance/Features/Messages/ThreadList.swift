@@ -370,8 +370,14 @@ struct MessageCore: View {
         let pulse = ctx.flash.level(of: message.key)
         // A search hit in words the bubble doesn't show (a card's link, standing for the card) washes the whole bubble.
         let wholeHit = words != message.text && message.id == ctx.currentHit
+        // A note carries its card above its words, not inside its bubble.
+        let note = message.isNote
         let core = VStack(alignment: mine ? .trailing : .leading, spacing: 0) {
-            if let quote = message.replyTo { QuotedReply(quote: quote, mine: mine, ctx: ctx, interactive: interactive) }
+            if note {
+                NotedCard(message: message, carried: carried, mine: mine, ctx: ctx, interactive: interactive)
+            } else if let quote = message.replyTo {
+                QuotedReply(quote: quote, mine: mine, ctx: ctx, interactive: interactive)
+            }
             MessageBubble(
                 text: words, mine: mine, seed: seedFromId(message.key),
                 quoteLabel: message.noteRef == nil ? nil : L10n.Messages.quotedNote,
@@ -380,15 +386,17 @@ struct MessageCore: View {
                 highlights: words == message.text ? ctx.highlights[message.id] ?? [] : [],
                 highlightStrong: message.id == ctx.currentHit,
                 flash: wholeHit ? max(pulse, 0.5) : pulse,
-                width: width(carried),
-                plain: carried.isCard && carried.card == nil,
-                carries: carried.carriesMore,
+                width: note ? nil : width(carried),
+                plain: !note && carried.isCard && carried.card == nil,
+                carries: !note && carried.carriesMore,
                 onLinkTap: interactive ? { ctx.openLink($0) } : nil
             ) {
-                CarriedPart(carried: carried, afterWords: !words.isEmpty || message.noteRef != nil, ctx: ctx, interactive: interactive)
+                if !note {
+                    CarriedPart(carried: carried, afterWords: !words.isEmpty || message.noteRef != nil, ctx: ctx, interactive: interactive)
+                }
             }
-            // The reply lies over the foot of what it quotes.
-            .padding(.top, message.replyTo == nil ? 0 : -BubbleMetrics.replyOverlap)
+            // A reply lies over the foot of what it quotes, a note over the foot of its card.
+            .padding(.top, message.replyTo == nil && !note ? 0 : -BubbleMetrics.replyOverlap)
         }
         .opacity(message.delivery == .failed ? 0.6 : 1)
         if interactive {
@@ -462,20 +470,63 @@ private struct CarriedPart: View {
                                imageURL: preview.imageURL, afterWords: afterWords,
                                onOpen: interactive ? { ctx.openLink(preview.url) } : nil)
         case let .card(card, _):
-            let author = card.anonymous ? nil : card.author?.value1
-            SharedCardSection(
-                byline: author.map {
-                    CardByline(name: $0.handle, initials: $0.initials, imageURL: $0.avatarUrl.flatMap(URL.init(string:)),
-                               color: $0.accent, avatarSeed: $0.avatarSeedValue)
-                } ?? .anonymous(L10n.Card.anonymousAuthor),
-                readTime: L10n.App.readMinutes(count: card.readMinutes),
-                title: card.title, excerpt: card.excerpt, imageURL: card.imageUrl.flatMap(URL.init(string:)),
-                accentHue: card.accentHue, source: L10n.Messages.cardSource,
-                onOpen: interactive ? { ctx.openRoute(.card(card.routeKey)) } : nil)
+            SharedCard(card: card, ctx: ctx, interactive: interactive)
         case .cardLoading:
             SharedCardSkeleton()
         case .words, .nothing:
             EmptyView()
+        }
+    }
+}
+
+/// A shared card as the thread draws it (Messenger's shared post): its author — or the anonymous
+/// mark —, cover, title, excerpt and the source line; a tap opens it.
+private struct SharedCard: View {
+    let card: FeedCard
+    let ctx: ThreadContext
+    let interactive: Bool
+
+    var body: some View {
+        let author = card.anonymous ? nil : card.author?.value1
+        SharedCardSection(
+            byline: author.map {
+                CardByline(name: $0.handle, initials: $0.initials, imageURL: $0.avatarUrl.flatMap(URL.init(string:)),
+                           color: $0.accent, avatarSeed: $0.avatarSeedValue)
+            } ?? .anonymous(L10n.Card.anonymousAuthor),
+            readTime: L10n.App.readMinutes(count: card.readMinutes),
+            title: card.title, excerpt: card.excerpt, imageURL: card.imageUrl.flatMap(URL.init(string:)),
+            accentHue: card.accentHue, source: L10n.Messages.cardSource,
+            onOpen: interactive ? { ctx.openRoute(.card(card.routeKey)) } : nil)
+    }
+}
+
+/// Over a note's words: whose card it was left on (the note glyph and "{handle} left a note on
+/// your card" / "You left a note on {handle}'s card", inset on the sender's side), then that card in
+/// a quote the note's bubble lies over — its skeleton while it is read, and, when the reader may
+/// not see it (any more), the plain quote of "a card", which leads nowhere.
+private struct NotedCard: View {
+    let message: ChatMessage
+    let carried: Carried<FeedCard>
+    let mine: Bool
+    let ctx: ThreadContext
+    let interactive: Bool
+
+    var body: some View {
+        let handle = ctx.model.displayHandle
+        let width = min(cardWidth, ctx.rowMax)
+        let seed = seedFromId(message.key, start: 19)
+        VStack(alignment: mine ? .trailing : .leading, spacing: 0) {
+            ReplyCaption(mine ? L10n.Messages.youLeftNote(handle: handle) : L10n.Messages.noteOnYourCard(handle: handle), icon: .note)
+                .padding(mine ? .trailing : .leading, 12)
+                .padding(.bottom, 4)
+            switch carried {
+            case let .card(card, _):
+                CardQuote(seed: seed, width: width) { SharedCard(card: card, ctx: ctx, interactive: interactive) }
+            case .cardLoading:
+                CardQuote(seed: seed, width: width, plain: true) { SharedCardSkeleton() }
+            case .words, .preview, .nothing:
+                QuoteBubble(text: L10n.Messages.replyCard, seed: seed)
+            }
         }
     }
 }

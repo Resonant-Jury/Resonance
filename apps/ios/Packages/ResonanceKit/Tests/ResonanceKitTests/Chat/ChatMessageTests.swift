@@ -27,6 +27,18 @@ import Testing
         #expect(read(["noteRef": ["cardId": "walk"]]).noteRef == nil)
     }
 
+    @Test func aNoteLeftOnACardIsMarkedAndAnyOtherKindIsAPlainMessage() {
+        let note = read(["senderId": "bob", "text": "我也是", "cardRef": "walk", "kind": "note"])
+        #expect(note.isNote)
+        #expect(note.cardRef == "walk" && note.noteRef == nil)
+        #expect(!read(["senderId": "bob", "text": "hi"]).isNote)
+        // A kind the server may add one day, or a note that lost its card, is drawn as words.
+        #expect(!read(["text": "hi", "cardRef": "walk", "kind": "poll"]).isNote)
+        #expect(!read(["text": "hi", "kind": "note"]).isNote)
+        #expect(!read(["text": "hi", "cardRef": "", "kind": "note"]).isNote)
+        #expect(!read(["text": "hi", "cardRef": "walk", "kind": 7]).isNote)
+    }
+
     @Test func aReplyKeepsTheQuoteTheServerSnapshotted() {
         let m = read(["senderId": "bob", "text": "agreed",
                       "replyTo": ["id": "m0", "senderId": "alice", "text": "shall we?", "cardRef": "walk"]])

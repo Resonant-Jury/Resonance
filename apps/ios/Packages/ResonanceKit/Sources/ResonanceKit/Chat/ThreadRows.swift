@@ -46,9 +46,9 @@ public struct ThreadRow: Identifiable, Equatable, Sendable {
 
 /// Lays the thread out in runs, the way Messenger stacks messages sent close together:
 /// consecutive messages from the same sender, less than `runGap` apart on the same day, with no
-/// label between them, are one run; a reply opens a run (it leads with the quote it answers) and a
-/// message that failed to send ends the run it is in (its "not sent" line sits under it). Pure;
-/// the twin of Android's `ThreadRows`.
+/// label between them, are one run; a reply opens a run (it leads with the quote it answers), so
+/// does a note (it leads with the card it was left on), and a message that failed to send ends the
+/// run it is in (its "not sent" line sits under it). Pure; the twin of Android's `ThreadRows`.
 public enum ThreadRows {
     /// Messages further apart than this don't stack.
     public static let runGap: TimeInterval = 3 * 60
@@ -66,8 +66,8 @@ public enum ThreadRows {
         let joins = messages.indices.map { i -> Bool in
             guard i > 0, !day[i], !time[i] else { return false }
             let m = messages[i], before = messages[i - 1]
-            // A reply opens with the quote it answers: it starts a run of its own.
-            return m.replyTo == nil && before.senderId == m.senderId && before.delivery != .failed
+            // A reply opens with the quote it answers, a note with its card: each starts a run of its own.
+            return m.replyTo == nil && !m.isNote && before.senderId == m.senderId && before.delivery != .failed
                 // A message still on its way carries this phone's clock: a few seconds off the server's doesn't unstack it.
                 && abs(m.sentAt.timeIntervalSince(before.sentAt)) < runGap
         }
