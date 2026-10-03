@@ -27,6 +27,11 @@ export interface ThreadScroll {
   newBelow: boolean;
   /** Scrolls to the newest message. */
   toBottom: (behavior?: ScrollBehavior) => void;
+  /**
+   * The reader is being taken up the thread (to a quote's original, a match, a note): what grows at the
+   * bottom meanwhile — a card arriving, a picture loading — no longer pulls them back down to it.
+   */
+  leaveBottom: () => void;
 }
 
 const rowOf = (scroller: HTMLElement, key: string) =>
@@ -118,6 +123,8 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
   const [farUp, setFarUp] = useState(false);
   const [newBelow, setNewBelow] = useState(false);
   const atBottomRef = useRef(true);
+  /** Until when the bottom doesn't pull the reader back (they are being taken up the thread). */
+  const leftUntil = useRef(0);
   const drawn = useRef<{ firstKey?: string; lastKey?: string }>({});
   // Where the row that was first stood before older rows went in above it — read while rendering, which is
   // the last moment before the new rows are in the page.
@@ -211,7 +218,7 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
     // A reader at the bottom stays there when the window changes size, or the newest messages grow after
     // they were drawn: a shared card or a preview arriving, a hand-drawn shape measuring itself, a picture loading.
     const keepBottom = () => {
-      if (atBottomRef.current) scroller.scrollTop = scroller.scrollHeight;
+      if (atBottomRef.current && performance.now() >= leftUntil.current) scroller.scrollTop = scroller.scrollHeight;
     };
     const resized = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(keepBottom);
     resized?.observe(scroller);
@@ -243,5 +250,11 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
     };
   }, [scroller]);
 
-  return { atBottom, farUp, newBelow, toBottom };
+  const leaveBottom = useCallback(() => {
+    atBottomRef.current = false;
+    // The glide starts at the bottom, its first steps still within reach of it: held off for its length.
+    leftUntil.current = performance.now() + SETTLE_MS + 300;
+  }, []);
+
+  return { atBottom, farUp, newBelow, toBottom, leaveBottom };
 }

@@ -302,6 +302,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     const row = scroller?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(jumpTarget.id)}"]`);
     if (!scroller || !row) return;
     jumping.current = true;
+    scroll.leaveBottom();
     const arrived = centerRow(scroller, row);
     setJumpTarget(null);
     const id = jumpTarget.id;

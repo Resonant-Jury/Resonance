@@ -120,3 +120,38 @@ describe('where the browser doesn’t anchor scrolling by itself (Safari)', () =
   });
 });
 
+describe('taken up the thread', () => {
+  // A glide to a note, a quote's original or a match starts at the bottom: a card arriving below meanwhile
+  // must not pull the reader back down to it.
+  it('lets go of the bottom while a jump glides away from it', () => {
+    const observed: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          observed.push(cb);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const scroller = document.createElement('div');
+    let top = 0;
+    Object.defineProperties(scroller, {
+      clientHeight: { value: 600 },
+      scrollHeight: { value: 3000 },
+      scrollTop: { get: () => top, set: (v: number) => (top = v) },
+    });
+    const { result } = renderHook(() => useThreadScroll({ current: scroller }, { firstKey: 'a', lastKey: 'z', lastIsOwn: false }));
+    // At the bottom, something below grows: the reader stays at the bottom.
+    for (const cb of observed) cb([], {} as ResizeObserver);
+    expect(top).toBe(3000);
+
+    result.current.leaveBottom();
+    top = 1200;
+    for (const cb of observed) cb([], {} as ResizeObserver);
+    expect(top).toBe(1200);
+    vi.unstubAllGlobals();
+  });
+});
+
