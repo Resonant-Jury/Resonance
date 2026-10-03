@@ -12,8 +12,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.Person
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
+import com.resonance.kit.chat.ChatPush
 import com.resonance.kit.l10n.L10n
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,10 +28,22 @@ import java.util.UUID
  * server writes every push from a bell row (the same copy, in the app's
  * language) with `data.route`, a site path the app opens. The twin of iOS's
  * PushCenter.
+ *
+ * Chat messages are the exception: a build that registers [CAPABILITIES] gets them as data-only
+ * pushes and draws the conversation's notification itself ([showChatMessage]) — one per
+ * conversation, a stack of its latest lines, which a thread on screen suppresses
+ * ([viewingConversation]) and clears when it opens.
  */
 object PushCenter {
     /** The channel the server names in every push (`android.notification.channelId`). */
     const val CHANNEL_ID = "activity"
+    /** The channel of chat messages (the server names it in the message pushes it sends as notifications, too). */
+    const val MESSAGES_CHANNEL_ID = "messages"
+    /**
+     * What this build does with a push beyond showing it, told to the server with the device:
+     * `chat-push` — it draws a conversation's messages itself, so the server sends those as data.
+     */
+    val CAPABILITIES: List<String> = listOf("chat-push")
     /** The keys of a push's `data` — also the extras of the intent that a tap on it starts the app with. */
     const val EXTRA_ROUTE = "route"
     const val EXTRA_NOTIFICATION_ID = "notificationId"
@@ -73,10 +87,15 @@ object PushCenter {
             prefs.getString(INSTALLATION_KEY, null) ?: UUID.randomUUID().toString().also { prefs.edit().putString(INSTALLATION_KEY, it).apply() }
         }
 
-    /** The "activity" channel, named in the app's language (created again when the language changes, which renames it). */
+    /**
+     * The "activity" and "messages" channels, named in the app's language (created again when the
+     * language changes, which renames them). Messages are the louder one: a person writing to you
+     * is worth a heads-up, a resonance can wait in the shade.
+     */
     fun createChannel() {
-        val channel = NotificationChannel(CHANNEL_ID, L10n.App.Nav.notifications, NotificationManager.IMPORTANCE_DEFAULT)
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, L10n.App.Nav.notifications, NotificationManager.IMPORTANCE_DEFAULT))
+        manager.createNotificationChannel(NotificationChannel(MESSAGES_CHANNEL_ID, L10n.App.Nav.messages, NotificationManager.IMPORTANCE_HIGH))
     }
 
     /** False while the person has switched the app's notifications off (or, on API 33+, not granted the permission yet). */
@@ -151,25 +170,109 @@ object PushCenter {
      * that arrive while it is closed): the same channel and glyph, and a tap starts the app with
      * the push's `route`, `notificationId` and `fromUserId` as extras, as it does for the system's own.
      */
-    fun notification(context: Context, title: String, body: String?, route: String, notificationId: String?, fromUserId: String? = null): Notification {
+    fun notification(context: Context, title: String, body: String?, route: String, notificationId: String?, fromUserId: String? = null): Notification =
+        NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
+            .setContentTitle(title)
+            .setContentText(body)
+            .setAutoCancel(true)
+            .setContentIntent(tapIntent(context, route, notificationId, fromUserId, notificationId))
+            .build()
+
+    /** What a tap on a notification starts: the app, with the push's keys as extras. */
+    private fun tapIntent(context: Context, route: String, notificationId: String?, fromUserId: String?, identity: String?): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(EXTRA_ROUTE, route)
             .putExtra(EXTRA_NOTIFICATION_ID, notificationId)
             .putExtra(EXTRA_FROM_USER_ID, fromUserId)
         // A request code per push: intents that differ only in their extras would otherwise be one PendingIntent.
-        val tap = PendingIntent.getActivity(
-            context, java.util.Objects.hash(notificationId, route), intent,
+        return PendingIntent.getActivity(
+            context, java.util.Objects.hash(identity, route), intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        return NotificationCompat.Builder(context, CHANNEL_ID)
+    }
+
+    // Chat
+
+    /**
+     * The conversation (its pair id, the notification's tag) that is open on screen right now: set
+     * while its thread is resumed and cleared when it pauses, so a message that arrives behind the
+     * lock screen or with the app in the background still rings. Read by the push service on
+     * another thread.
+     */
+    @Volatile var viewingConversation: String? = null
+        private set
+
+    /** The thread of [pairId] is on screen (or no thread is, with null). Opening it clears its notification: the messages in it are being read. */
+    fun viewing(pairId: String?) {
+        viewingConversation = pairId
+        if (pairId != null) cancelConversation(pairId)
+    }
+
+    /** The thread of [pairId] stopped being on screen — unless another has taken its place already. */
+    fun stoppedViewing(pairId: String) {
+        if (viewingConversation == pairId) viewingConversation = null
+    }
+
+    /** Takes a conversation's notification out of the shade (its messages were read, here or elsewhere). */
+    fun cancelConversation(pairId: String) {
+        if (::context.isInitialized) NotificationManagerCompat.from(context).cancel(pairId, CHAT_NOTIFICATION_ID)
+    }
+
+    /**
+     * A chat message's notification: the conversation's latest lines ([MAX_LINES]) in one
+     * `MessagingStyle` notification, tagged by the conversation so a new message replaces it (the
+     * lines already in the shade are read back from it, which holds across a process restart), in
+     * the "messages" channel and group. Nothing when the person switched notifications off, or is
+     * looking at that conversation, or this very message is already in the shade (FCM delivered it twice).
+     */
+    fun showChatMessage(context: Context, push: ChatPush) {
+        if (!canNotify || viewingConversation == push.conversationId) return
+        val manager = NotificationManagerCompat.from(context)
+        val shown = manager.activeNotifications
+            .firstOrNull { it.tag == push.conversationId && it.id == CHAT_NOTIFICATION_ID }
+            ?.notification?.let(NotificationCompat.MessagingStyle::extractMessagingStyleFromNotification)
+        val lines = shown?.messages.orEmpty()
+        if (push.messageId != null && lines.any { it.extras.getString(EXTRA_MESSAGE_ID) == push.messageId }) return
+
+        val sender = Person.Builder().setName(push.title).setKey(push.fromUserId ?: push.conversationId).build()
+        val style = NotificationCompat.MessagingStyle(Person.Builder().setName(L10n.Messages.you).build())
+        lines.takeLast(MAX_LINES - 1).forEach(style::addMessage)
+        style.addMessage(
+            NotificationCompat.MessagingStyle.Message(push.body, push.sentAt, sender).also { line ->
+                push.messageId?.let { line.extras.putString(EXTRA_MESSAGE_ID, it) }
+            },
+        )
+
+        val builder = NotificationCompat.Builder(context, MESSAGES_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.notification_accent))
-            .setContentTitle(title)
-            .setContentText(body)
+            .setStyle(style)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setGroup(MESSAGES_GROUP)
+            .setWhen(push.sentAt)
+            .setShowWhen(true)
             .setAutoCancel(true)
-            .setContentIntent(tap)
+            .setContentIntent(tapIntent(context, push.route, null, push.fromUserId, push.conversationId))
+        // canNotify covers the permission check the lint rule wants to see.
+        @Suppress("MissingPermission")
+        manager.notify(push.conversationId, CHAT_NOTIFICATION_ID, builder.build())
+        // One summary for the group, so several conversations stack under one heading; it never alerts itself.
+        val summary = NotificationCompat.Builder(context, MESSAGES_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
+            .setContentTitle(L10n.App.Nav.messages)
+            .setGroup(MESSAGES_GROUP)
+            .setGroupSummary(true)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .setAutoCancel(true)
+            .setContentIntent(tapIntent(context, MESSAGES_ROUTE, null, null, MESSAGES_GROUP))
             .build()
+        @Suppress("MissingPermission")
+        manager.notify(MESSAGES_GROUP, SUMMARY_NOTIFICATION_ID, summary)
     }
 
     /** Signed out: the account's pushes still in the shade go (their words are its messages and notes). */
@@ -185,6 +288,16 @@ object PushCenter {
         @Suppress("MissingPermission")
         manager.notify(notificationId, 0, notification(context, title, body, route, notificationId, fromUserId))
     }
+
+    /** A conversation's notification: its pair id is the tag, and this the id. */
+    private const val CHAT_NOTIFICATION_ID = 0
+    private const val SUMMARY_NOTIFICATION_ID = 1
+    private const val MESSAGES_GROUP = "messages"
+    private const val MESSAGES_ROUTE = "/messages"
+    /** The server's message id, kept on each line of a notification so a message delivered twice shows once. */
+    private const val EXTRA_MESSAGE_ID = "messageId"
+    /** How many of a conversation's latest lines its notification keeps. */
+    private const val MAX_LINES = 6
 
     private const val INSTALLATION_KEY = "installationId"
     private const val REGISTRATION_KEY = "registration"

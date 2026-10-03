@@ -2,17 +2,27 @@ package com.resonance.app
 
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.resonance.kit.chat.ChatPush
 
 /**
  * FCM's side of push (the twin of iOS's AppDelegate callbacks). A push that arrives while the app
  * is closed is shown by the system itself, from the message's `notification` and the "activity"
  * channel; one that arrives while it is open comes here, where the app posts the same notification.
+ *
+ * A chat message is different: this build tells the server it draws those itself (`chat-push`),
+ * so they arrive as data-only pushes — in every state of the app — and become the conversation's
+ * notification here ([PushCenter.showChatMessage]). A message that came with a notification
+ * payload all the same (an older path) takes the same road when the app is open.
  */
 class ResonancePushService : FirebaseMessagingService() {
     @Suppress("OVERRIDE_DEPRECATION") // the registration-token callback; onRegistered belongs to the manifest opt-in
     override fun onNewToken(token: String) = PushCenter.tokenChanged(token)
 
     override fun onMessageReceived(message: RemoteMessage) {
+        if (message.data["type"] == ChatPush.TYPE) {
+            ChatPush.from(message.data, message.notification?.title, message.notification?.body)?.let { PushCenter.showChatMessage(this, it) }
+            return
+        }
         val title = message.notification?.title ?: return
         PushCenter.show(
             this, title, message.notification?.body,

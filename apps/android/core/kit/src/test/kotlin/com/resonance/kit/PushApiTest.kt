@@ -6,6 +6,7 @@ import com.resonance.kit.api.PushApi
 import com.resonance.kit.l10n.Strings
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.mockwebserver.MockResponse
@@ -36,6 +37,13 @@ class PushApiTest {
         assertEquals("android", sent["platform"]!!.jsonPrimitive.content)
         assertEquals("zh-TW", sent["locale"]!!.jsonPrimitive.content)
         assertEquals("2.0.0", sent["appVersion"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun registersWhatThisBuildCanDoWithAPush() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(204))
+        api().register("3F2A-install", "fcm-token", Strings.Language.En, "2.0.0", capabilities = listOf("chat-push"))
+        val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals(listOf("chat-push"), sent["capabilities"]!!.jsonArray.map { it.jsonPrimitive.content })
     }
 
     @Test fun unregistersOnSignOutWithTheTokenItHolds() = runBlocking {
