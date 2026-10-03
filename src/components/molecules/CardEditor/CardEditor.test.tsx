@@ -8,8 +8,9 @@ import { CardEditor, type CardEditorHandle } from './CardEditor';
 
 const push = vi.fn();
 const back = vi.fn();
+const replace = vi.fn();
 vi.mock('@/i18n/navigation', () => ({
-  useRouter: () => ({ push, back }),
+  useRouter: () => ({ push, back, replace }),
 }));
 vi.mock('@/lib/db/firestore/client/cards', () => ({
   createCardDraft: vi.fn(),
@@ -352,9 +353,16 @@ describe('CardEditor', () => {
           expect.objectContaining({ thoughtCore: 'Enough for today' }),
         ),
       );
-      expect(back).toHaveBeenCalled();
+      // A writer opened in a tab of its own has nothing to go back to: the card box, where the draft now is.
+      expect(replace).toHaveBeenCalledWith('/me');
       // Leaving a draft is never publishing it.
       expect(publishCard).not.toHaveBeenCalled();
+
+      // Come from another page of the site, it goes back there.
+      window.history.pushState({}, '', window.location.href);
+      fireEvent.change(screen.getByLabelText('One-line title'), { target: { value: 'Enough for today, really' } });
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft and leave' }));
+      await waitFor(() => expect(back).toHaveBeenCalled());
     });
   });
 

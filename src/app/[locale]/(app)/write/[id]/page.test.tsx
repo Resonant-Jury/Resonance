@@ -23,10 +23,12 @@ vi.mock('@/lib/db/firestore/client/cardEdits', () => ({
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'card-1' }),
 }));
+const back = vi.fn();
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>
   ),
+  useRouter: () => ({ back, replace: vi.fn(), push: vi.fn() }),
 }));
 // The workspace drags in the editor + map; capture its props instead.
 const workspaceSpy = vi.fn();
@@ -155,6 +157,30 @@ describe('EditCardPage (client-fetched)', () => {
       expect(screen.getByText(en.card.notFound.title)).toBeInTheDocument(),
     );
     expect(screen.queryByTestId('write-workspace')).not.toBeInTheDocument();
+  });
+
+  // The app header steps aside for the writer: until there is a card to write in, the writer's own bar is
+  // the way out (as in the apps), loading, failed or not found.
+  it('stands the writer’s bar over the page while it loads, and when the card can’t be opened', async () => {
+    window.history.pushState({}, '', window.location.href);
+    mockUseAuth.mockReturnValue({ user: null, loading: true });
+    const { unmount } = renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: en.write.editTitle })).toBeInTheDocument();
+    screen.getByRole('button', { name: en.app.nav.back }).click();
+    expect(back).toHaveBeenCalledTimes(1);
+    unmount();
+
+    mockUseAuth.mockReturnValue({ user: { id: 'me' }, loading: false });
+    vi.mocked(getCardById).mockRejectedValueOnce(new Error('offline'));
+    const failed = renderPage();
+    await waitFor(() => expect(screen.getByText(en.native.loadError)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: en.app.nav.back })).toBeInTheDocument();
+    failed.unmount();
+
+    vi.mocked(getCardById).mockResolvedValue(card('someone-else'));
+    renderPage();
+    await waitFor(() => expect(screen.getByText(en.card.notFound.title)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: en.app.nav.back })).toBeInTheDocument();
   });
 
   // A failed read is no answer: as "no pending edit" the editor opened on the
