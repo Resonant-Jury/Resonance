@@ -17,8 +17,12 @@ import Testing
         #expect(texts("go to https://example.com!?") == ["https://example.com"])
     }
 
-    @Test func endsWhereChineseTextStarts() {
-        #expect(texts("看這個 https://example.com/x很好") == ["https://example.com/x"])
+    @Test func followsTheServersRulesAroundChineseText() {
+        // The host is ASCII, so Chinese straight after it ends the link; a path may hold CJK letters,
+        // and CJK punctuation ends it (url.ts `findLinks`).
+        #expect(texts("看這個https://example.com很好") == ["https://example.com"])
+        #expect(texts("https://zh.wikipedia.org/wiki/共振，很有趣") == ["https://zh.wikipedia.org/wiki/共振"])
+        #expect(texts("（https://example.com/a）") == ["https://example.com/a"])
         // Ranges count UTF-16 units, so they line up with an NSAttributedString.
         let link = ChatLinks.links(in: "看這個 https://example.com/x")[0]
         #expect(link.range == NSRange(location: 4, length: 21))

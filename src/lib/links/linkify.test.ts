@@ -21,9 +21,11 @@ describe('linkify', () => {
     expect(links('go to https://example.com!?')[0].text).toBe('https://example.com');
   });
 
-  it('ends a link where Chinese text starts', () => {
-    const [l] = links('https://example.com/p很好看');
-    expect(l.text).toBe('https://example.com/p');
+  it('follows the server rules around Chinese text', () => {
+    // The host is ASCII, so Chinese straight after it ends the link; a path may hold CJK
+    // letters, and CJK punctuation ends it (url.ts `findLinks`).
+    expect(links('看這個https://example.com很好')[0].text).toBe('https://example.com');
+    expect(links('https://zh.wikipedia.org/wiki/共振，很有趣')[0].text).toBe('https://zh.wikipedia.org/wiki/共振');
   });
 
   it('never links other schemes', () => {

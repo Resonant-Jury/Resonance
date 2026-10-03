@@ -1,13 +1,18 @@
 import Foundation
 
-/// The links in a chat message, for the thread to make tappable. The rules
-/// are the web's `src/lib/links/linkify.ts` and the server's link previews:
+/// The links in a chat message, for the thread to make tappable. Which words
+/// are a link follows the server's rules word for word (`findLinks` in
+/// src/lib/links/url.ts, which also picks the link a message is previewed
+/// for; the web's `linkify.ts` and Android's `Linkify` mirror it too):
 ///
 /// - A link starts at `http://`, `https://` or `www.` (read as `https://www.…`),
-///   not in the middle of a word or an address.
-/// - It runs to the next whitespace or the first non-ASCII character, so a link
-///   written straight before Chinese text ends where the text starts.
-/// - Trailing `.,;:!?'…` and a `)` with no `(` before it are not part of it.
+///   not straight after a letter, digit or one of `. - _ @ / % \`.
+/// - It ends at white space, a control character, one of `< > " ` \ ^`, CJK or
+///   full-width punctuation, curly quotes, the ellipsis, an arrow, symbol or
+///   emoji. The host is ASCII only (`https://example.com很棒` ends at `.com`);
+///   a path may hold CJK letters (`/wiki/中文`).
+/// - Trimmed from the end: `. , ; : ! ? ' " * ~`, and a `)`, `]` or `}` with no
+///   opener in the link.
 /// - Only http and https; no user name or password; no port but the default;
 ///   a host with a dot in it; at most 2048 characters. Anything else stays text.
 ///
@@ -40,29 +45,93 @@ public enum ChatLinks {
         }
     }
 
-    // A lookbehind keeps `foowww.x.com` and `me@www.x.com` from starting a link.
-    private static let candidate = try! NSRegularExpression(
-        pattern: #"(?<![A-Za-z0-9@./_-])(?:https?://|www\.)[[\x{21}-\x{7E}]&&[^<>"]]+"#,
-        options: [.caseInsensitive]
-    )
+    /// Characters that may not stand directly before a link's first letter.
+    private static let notBefore = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._@/%\\-".unicodeScalars)
+    /// Trailing punctuation that belongs to the sentence, not the link.
+    private static let trailing = Set(".,;:!?'\"*~".unicodeScalars)
+    private static let pairs: [Unicode.Scalar: Unicode.Scalar] = [")": "(", "]": "[", "}": "{"]
 
     /// Every link in `text`, in order.
     public static func links(in text: String) -> [Link] {
-        let whole = NSRange(text.startIndex..., in: text)
+        let scalars = Array(text.unicodeScalars)
+        // UTF-16 offset of each scalar, so ranges line up with an NSAttributedString.
+        var offsets = [Int](repeating: 0, count: scalars.count + 1)
+        for (i, c) in scalars.enumerated() { offsets[i + 1] = offsets[i] + c.utf16.count }
         var found: [Link] = []
-        let ns = text as NSString
-        for match in candidate.matches(in: text, range: whole) {
-            let raw = trimTrailing(ns.substring(with: match.range))
+        var i = 0
+        while i < scalars.count {
+            guard let schemeLength = schemeLength(scalars, at: i) else {
+                i += 1
+                continue
+            }
+            let end = linkEnd(scalars, start: i, schemeLength: schemeLength)
+            defer { i = max(end, i + schemeLength) } // a link inside another's query is not a second link
+            if i > 0, notBefore.contains(scalars[i - 1]) { continue }
+            var written = String.UnicodeScalarView()
+            written.append(contentsOf: scalars[i..<end])
+            let raw = String(written)
             guard let parsed = parse(raw) else { continue }
-            found.append(Link(range: NSRange(location: match.range.location, length: (raw as NSString).length),
+            found.append(Link(range: NSRange(location: offsets[i], length: offsets[end] - offsets[i]),
                               text: raw, url: parsed.url, host: parsed.host, suspicious: parsed.suspicious))
         }
         return found
     }
 
+    /// `http://`, `https://` or `www.` (any case) starting at `i`: its length.
+    private static func schemeLength(_ s: [Unicode.Scalar], at i: Int) -> Int? {
+        func matches(_ word: String) -> Bool {
+            let w = Array(word.unicodeScalars)
+            guard i + w.count <= s.count else { return false }
+            return (0..<w.count).allSatisfy { String(s[i + $0]).lowercased() == String(w[$0]) }
+        }
+        for word in ["https://", "http://", "www."] where matches(word) { return word.unicodeScalars.count }
+        return nil
+    }
+
+    /// Whether this code point ends a link (url.ts `endsLink`).
+    private static func endsLink(_ c: Unicode.Scalar) -> Bool {
+        let cp = c.value
+        if cp <= 0x20 || (0x7f...0x9f).contains(cp) { return true }
+        if [0x3c, 0x3e, 0x22, 0x60, 0x5c, 0x5e, 0xa0, 0xab, 0xbb, 0x1680, 0x2028, 0x2029, 0x2026, 0x202f, 0x205f, 0xfeff].contains(cp) { return true }
+        let ranges: [ClosedRange<UInt32>] = [0x2000...0x200f, 0x2018...0x201f, 0x2190...0x2bff, 0x3000...0x303f,
+                                              0xfe00...0xfe0f, 0xfe30...0xfe6f, 0xff00...0xffef, 0x1f000...0x1ffff]
+        return ranges.contains { $0.contains(cp) }
+    }
+
+    /// Where the link starting at `start` stops (url.ts `linkEnd`).
+    private static func linkEnd(_ s: [Unicode.Scalar], start: Int, schemeLength: Int) -> Int {
+        var i = start + schemeLength
+        var inHost = true
+        while i < s.count {
+            let c = s[i]
+            if endsLink(c) { break }
+            if inHost {
+                if c == "/" || c == "?" || c == "#" { inHost = false } else if c.value > 0x7f { break }
+            }
+            i += 1
+        }
+        while i - start > schemeLength {
+            let last = s[i - 1]
+            if trailing.contains(last) {
+                i -= 1
+                continue
+            }
+            if let opener = pairs[last] {
+                let slice = s[start..<i]
+                if slice.filter({ $0 == last }).count > slice.filter({ $0 == opener }).count {
+                    i -= 1
+                    continue
+                }
+            }
+            break
+        }
+        return i
+    }
+
     /// Normalizes one candidate; nil when it isn't a link we make tappable.
     public static func parse(_ raw: String) -> Parsed? {
-        guard raw.count <= maxLength else { return nil }
+        guard raw.utf16.count <= maxLength, !raw.contains("\\"),
+              !raw.unicodeScalars.contains(where: { $0.value <= 0x20 || (0x7f...0x9f).contains($0.value) }) else { return nil }
         let withScheme = raw.lowercased().hasPrefix("www.") ? "https://" + raw : raw
         // Taken apart by hand: Foundation turns a punycode host back into
         // Unicode, and what we show and judge must be the ASCII host.
@@ -95,20 +164,6 @@ public enum ChatLinks {
         let labels = host.split(separator: ".")
         if labels.count == 4, labels.allSatisfy({ !$0.isEmpty && $0.count <= 3 && $0.allSatisfy(\.isASCIIDigit) }) { return true }
         return labels.contains { $0.lowercased().hasPrefix("xn--") }
-    }
-
-    private static func trimTrailing(_ raw: String) -> String {
-        var s = Substring(raw)
-        while let last = s.last {
-            if ".,;:!?'…".contains(last) {
-                s.removeLast()
-            } else if last == ")", s.filter({ $0 == ")" }).count > s.filter({ $0 == "(" }).count {
-                s.removeLast()
-            } else {
-                break
-            }
-        }
-        return String(s)
     }
 
     /// A preview's picture path as the server writes it (`/api/link-image?…`),
