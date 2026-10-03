@@ -3,6 +3,8 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { NOTE_REQUEST_MAX, sendMessage, sendNote } from '@/lib/api/v1/conversations';
+import { acceptInvite } from '@/lib/api/v1/invites';
+import { resonateWith } from '@/lib/api/v1/resonate';
 import { SendMessageRequest } from '@/lib/api/v1/schemas';
 
 // Notes and messages through the v1 API against the Firestore emulator — what
@@ -409,6 +411,75 @@ describe('a letter: a note between two people not connected', () => {
     expect(crossing.push).toEqual({ conversationId: 'alice_bob', messageId: crossing.id, from: 'bob', to: 'alice' });
     expect((await db.doc(`conversations/alice_bob/messages/${crossing.id}`).get()).data()).toMatchObject({ senderId: 'bob', cardRef: 'dawn', kind: 'note' });
     expect((await db.doc(`notifications/${crossing.notificationId}`).get()).get('pushedAt')).toBeInstanceOf(Timestamp);
+  });
+
+  describe('its count, kept where deleting the thread cannot reach (letters/{writer}_{author})', () => {
+    const letter = async (from = 'alice', to = 'bob') => (await db.doc(`letters/${from}_${to}`).get()).data();
+    // What a client's delete does: the messages, then the conversation (either participant may).
+    const deleteThread = () => db.recursiveDelete(db.doc('conversations/alice_bob'));
+
+    it("counts the writer's unanswered notes, naming the latest one's card and time", async () => {
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'one' });
+      await sendNote(db, 'alice', { cardId: 'river', text: 'two' });
+      const counted = (await letter())!;
+      expect(Object.keys(counted).sort()).toEqual(['at', 'cardId', 'count', 'from', 'to']);
+      expect(counted).toMatchObject({ from: 'alice', to: 'bob', count: 2, cardId: 'river' });
+      expect(counted.at).toBeInstanceOf(Timestamp);
+      expect((await convo())!.request).toMatchObject({ from: 'alice', count: 2 });
+    });
+
+    for (const [who, what] of [['alice', 'withdraws it'], ['bob', 'declines it']] as const) {
+      it(`survives the thread's deletion — ${who} ${what}: three notes in all, then "Wait for them to reply."`, async () => {
+        await sendNote(db, 'alice', { cardId: 'walk', text: 'one' });
+        await sendNote(db, 'alice', { cardId: 'river', text: 'two' });
+        await deleteThread();
+        // The next note opens the thread again, the count going on.
+        await sendNote(db, 'alice', { cardId: 'walk', text: 'three' });
+        expect((await convo())!.request).toMatchObject({ from: 'alice', count: 3 });
+        await deleteThread();
+        const refused = await failure(sendNote(db, 'alice', { cardId: 'river', text: 'four' }));
+        expect([refused.code, refused.message]).toEqual(['conflict', 'Wait for them to reply.']);
+        expect(await convo()).toBeUndefined();
+        expect(await docs('notes')).toHaveLength(3);
+        expect(await docs('notifications')).toHaveLength(3);
+        expect(await letter()).toMatchObject({ count: 3 });
+      });
+
+      it(`can't be answered once ${who} ${what}: the reply connects no one`, async () => {
+        await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+        await deleteThread();
+        const refused = await failure(sendMessage(db, 'bob', { to: 'alice', text: 'hello' }));
+        expect([refused.code, refused.message]).toEqual(['forbidden', 'You can message people you are connected with.']);
+        expect(await connected()).toBe(false);
+        // A note of Bob's back is a letter of his own now, not an answer.
+        await sendNote(db, 'bob', { cardId: 'dawn', text: 'hello' });
+        expect(await connected()).toBe(false);
+        expect((await convo())!.request).toMatchObject({ from: 'bob', count: 1 });
+        expect(await letter()).toMatchObject({ count: 1 });
+      });
+    }
+
+    const paths: [string, () => Promise<unknown>][] = [
+      ['a reply', () => sendMessage(db, 'bob', { to: 'alice', text: 'hello' })],
+      ['a crossing note', () => sendNote(db, 'bob', { cardId: 'dawn', text: 'hello' })],
+      ['a resonance', () => resonateWith(db, 'bob', 'dawn', 'bobAnswer')],
+      ['a legacy invite', () => acceptInvite(db, 'bob', 'i1')],
+    ];
+    for (const [path, connect] of paths) {
+      it(`goes, both ways, when the two connect through ${path}`, async () => {
+        await Promise.all([
+          db.doc('cards/bobAnswer').set({ authorId: 'bob', thoughtCore: 'answer', story: 's', visibility: 'public', anonymous: false, publishedAt: Timestamp.now() }),
+          db.doc('invites/i1').set({ fromUserId: 'alice', toUserId: 'bob', status: 'pending', expiresAt: Timestamp.fromMillis(Date.now() + 86_400_000) }),
+          // An older count of Bob's to Alice, from a letter she declined.
+          db.doc('letters/bob_alice').set({ from: 'bob', to: 'alice', count: 2, cardId: 'dawn', at: Timestamp.now() }),
+        ]);
+        await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+        await connect();
+        expect(await connected()).toBe(true);
+        expect(await letter('alice', 'bob')).toBeUndefined();
+        expect(await letter('bob', 'alice')).toBeUndefined();
+      });
+    }
   });
 
   it('answers past the cap: crossing letters are a reply, never a fourth note', async () => {

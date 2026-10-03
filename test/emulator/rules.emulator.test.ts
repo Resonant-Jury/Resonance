@@ -376,22 +376,39 @@ describe("a letter's request is the server's (POST /api/v1/notes)", () => {
     await assertSucceeds(updateDoc(doc(as('bob'), 'conversations', PAIR), { 'unread.bob': 0 }));
   });
 
-  it('keeps letters until they are answered: their writer can delete neither the thread nor its messages, the one they were left for can', async () => {
-    const alice = as('alice');
-    await assertFails(deleteDoc(doc(alice, 'conversations', PAIR, 'messages', 'n1')));
-    await assertFails(deleteDoc(doc(alice, 'conversations', PAIR)));
-    const bob = as('bob');
-    await assertSucceeds(deleteDoc(doc(bob, 'conversations', PAIR, 'messages', 'n1')));
-    await assertSucceeds(deleteDoc(doc(bob, 'conversations', PAIR)));
+  // The count that holds a writer to three notes lives in letters/*, where a
+  // deleted thread can't reach it: so either may delete the thread again.
+  for (const [who, what] of [['alice', 'withdraws it'], ['bob', 'declines it']] as const) {
+    it(`lets either participant delete a thread holding a letter: ${who} ${what}, messages and all`, async () => {
+      const db = as(who);
+      await assertSucceeds(deleteDoc(doc(db, 'conversations', PAIR, 'messages', 'n1')));
+      await assertSucceeds(deleteDoc(doc(db, 'conversations', PAIR)));
+    });
+  }
+
+  it('keeps a thread from everyone else', async () => {
+    await assertFails(deleteDoc(doc(as('carol'), 'conversations', PAIR, 'messages', 'n1')));
+    await assertFails(deleteDoc(doc(as('carol'), 'conversations', PAIR)));
+  });
+});
+
+describe("letters/* (how many notes someone has left unanswered) are the server's alone", () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'letters', 'alice_bob'), { from: 'alice', to: 'bob', count: 3, cardId: 'c1', at: new Date() });
+    });
   });
 
-  it('lets the writer delete the thread once the letter is answered (the server clears it)', async () => {
-    await seed(async (db) => {
-      await updateDoc(doc(db, 'conversations', PAIR), { request: deleteField() });
-    });
-    const alice = as('alice');
-    await assertSucceeds(deleteDoc(doc(alice, 'conversations', PAIR, 'messages', 'n1')));
-    await assertSucceeds(deleteDoc(doc(alice, 'conversations', PAIR)));
+  it('no one reads, lists, resets, forges or deletes one — neither its writer nor the one it counts notes to', async () => {
+    for (const uid of ['alice', 'bob', 'carol']) {
+      const db = as(uid);
+      await assertFails(getDoc(doc(db, 'letters', 'alice_bob')));
+      await assertFails(getDocs(query(collection(db, 'letters'), where('from', '==', 'alice'))));
+      await assertFails(getDocs(query(collection(db, 'letters'), where('to', '==', uid))));
+      await assertFails(updateDoc(doc(db, 'letters', 'alice_bob'), { count: 0 }));
+      await assertFails(deleteDoc(doc(db, 'letters', 'alice_bob')));
+      await assertFails(setDoc(doc(db, 'letters', `${uid}_carol`), { from: uid, to: 'carol', count: 0 }));
+    }
   });
 });
 

@@ -1576,7 +1576,7 @@
     "/notes": {
       "post": {
         "operationId": "sendNote",
-        "summary": "Send a note to a card's author: rings them and lands in your conversation as a message (`kind: 'note'`, `cardRef` = the card). A note is a letter: it connects no one. Between two people not connected it waits in the conversation (`request: { from, cardId, at, count }`) until the author answers it with a message, which connects you (so does a note of theirs to you while yours waits); at most 3 wait unanswered, then 409 `conflict` (\"Wait for them to reply.\"). On an anonymous card: the bell only — no conversation, no connection; across a block it is answered 201 all the same and delivered to no one (a refusal would name its author)",
+        "summary": "Send a note to a card's author: rings them and lands in your conversation as a message (`kind: 'note'`, `cardRef` = the card). A note is a letter: it connects no one. Between two people not connected it waits in the conversation (`request: { from, cardId, at, count }`) until the author answers it with a message, which connects you (so does a note of theirs to you while yours waits); at most 3 unanswered in all, then 409 `conflict` (\"Wait for them to reply.\"). Either of you may delete the conversation: the writer withdraws the letter, the author declines it, and it can no longer be answered — but the count of 3 is kept apart and goes only when you two connect. On an anonymous card: the bell only — no conversation, no connection; across a block it is answered 201 all the same and delivered to no one (a refusal would name its author)",
         "requestBody": {
           "required": true,
           "content": {

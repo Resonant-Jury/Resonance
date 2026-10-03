@@ -2,7 +2,7 @@ import { FieldValue, type DocumentData, type DocumentSnapshot, type Firestore, t
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card } from '@/lib/db/types';
 import { cardPagePaths } from '@/lib/api/revalidate';
-import { hasPenName, holdsRequest, noPenName, pairOf } from './conversations';
+import { clearLetters, hasPenName, holdsRequest, noPenName, pairOf } from './conversations';
 import { ApiFailure } from './http';
 import { cardVisible, toFeedCard } from './present';
 import { visibleCardById } from './reads';
@@ -149,7 +149,8 @@ export async function readReach(tx: Transaction, db: Firestore, from: string, or
  * resonator) or they are already (a connection carries `muted`, its date:
  * never written over). Connecting them answers any letter waiting in their
  * conversation (`request`, see sendNote): it is deleted in the same
- * transaction. Answers the bell's id, or null when nothing reached.
+ * transaction, with both people's letters/* counts. Answers the bell's id,
+ * or null when nothing reached.
  */
 export function reachOriginal(tx: Transaction, db: Firestore, card: DocumentData, r: ReachReads): string | null {
   const o = r.original;
@@ -162,6 +163,7 @@ export function reachOriginal(tx: Transaction, db: Firestore, card: DocumentData
       establishedAt: FieldValue.serverTimestamp(),
     });
     if (holdsRequest(r.conversation)) tx.update(r.conversation!.ref, { request: FieldValue.delete() });
+    clearLetters(tx, db, r.from, o.authorId);
   }
   tx.set(r.bell.ref, {
     userId: o.authorId,

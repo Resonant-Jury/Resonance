@@ -366,12 +366,6 @@ service cloud.firestore {
       function isParticipant() {
         return signedIn() && request.auth.uid in resource.data.participants;
       }
-      // Letters `convo` holds from the signed-in user, still unanswered. They
-      // stay until answered: deleting the thread would also reset how many
-      // the writer may leave. The person they were left for may delete it.
-      function awaitingAnswer(convo) {
-        return convo.get("request", {}).get("from", "") == request.auth.uid;
-      }
       allow read: if isParticipant();
       allow create: if false;
       allow update: if isParticipant()
@@ -379,9 +373,12 @@ service cloud.firestore {
         && request.resource.data.unread.diff(resource.data.unread).affectedKeys().hasOnly([request.auth.uid])
         && request.resource.data.unread[request.auth.uid] == 0;
       // Either participant may delete the whole conversation (the client
-      // deletes the message docs first — Firestore doesn't cascade) — but
-      // not the writer of letters still waiting in it.
-      allow delete: if isParticipant() && !awaitingAnswer(resource.data);
+      // deletes the message docs first — Firestore doesn't cascade). A letter
+      // waiting in it goes with it: its writer withdraws it, the one it was
+      // left for declines it, and it can no longer be answered. How many
+      // notes its writer may still leave is kept apart (letters/*), so
+      // neither resets it.
+      allow delete: if isParticipant();
 
       match /messages/{messageId} {
         function parentConvo() {
@@ -390,11 +387,19 @@ service cloud.firestore {
         allow read: if signedIn() && request.auth.uid in parentConvo().participants;
         allow create, update: if false;
         // Deletable only as part of deleting the whole conversation — by
-        // either participant, not just the sender (and as the conversation:
-        // not by the writer of letters still waiting in it).
-        allow delete: if signedIn() && request.auth.uid in parentConvo().participants
-          && !awaitingAnswer(parentConvo());
+        // either participant, not just the sender.
+        allow delete: if signedIn() && request.auth.uid in parentConvo().participants;
       }
+    }
+
+    // --- letters (server-only) ---
+    // letters/{writer}_{recipient}: how many notes someone has left a person
+    // they aren't connected with, still unanswered (`{ from, to, count, at,
+    // cardId }`) — what holds them to three (POST /api/v1/notes). Kept out of
+    // the conversation so deleting it resets nothing; deleted by whatever
+    // connects the two, and with either account. Clients never see it.
+    match /letters/{letterId} {
+      allow read, write: if false;
     }
 
     // --- invites ---

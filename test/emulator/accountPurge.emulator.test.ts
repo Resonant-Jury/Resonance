@@ -80,6 +80,10 @@ async function seedWorld() {
     set('notes/n1', { fromUserId: 'alice', toUserId: 'bob', text: 'x' }),
     set('notes/n2', { fromUserId: 'bob', toUserId: 'alice', text: 'y' }),
     set('notes/n3', { fromUserId: 'bob', toUserId: 'carol', text: 'z' }),
+    // How many unanswered notes one left the other (server-only), either way.
+    set('letters/alice_bob', { from: 'alice', to: 'bob', count: 1 }),
+    set('letters/carol_alice', { from: 'carol', to: 'alice', count: 2 }),
+    set('letters/bob_carol', { from: 'bob', to: 'carol', count: 3 }),
 
     set('cardLinks/bob-card_alice-card', { sourceAuthorId: 'bob', targetAuthorId: 'alice' }),
     set('cardLinks/alice-card_bob-card', { sourceAuthorId: 'alice', targetAuthorId: 'bob' }),
@@ -157,6 +161,8 @@ describe('purgeAccount', () => {
       'resonances/alice-card_bob', // Bob's resonance record on Alice's deleted card
       'notes/n1',
       'notes/n2',
+      'letters/alice_bob',
+      'letters/carol_alice',
       'cardLinks/bob-card_alice-card',
       'cardLinks/alice-card_bob-card',
       'notifications/to-alice',
@@ -185,6 +191,7 @@ describe('purgeAccount', () => {
       'invites/i3',
       'resonances/bob-card_carol',
       'notes/n3',
+      'letters/bob_carol',
       'notifications/bob-own',
       'cardVectors/bob-card__insight',
       'reports/r2', // reports about the deleted user stay for moderation history

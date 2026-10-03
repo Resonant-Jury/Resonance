@@ -150,6 +150,9 @@ async function collectAccountData(db: Firestore, uid: string) {
     db.collection('resonances').where('userId', '==', uid),
     db.collection('notes').where('fromUserId', '==', uid),
     db.collection('notes').where('toUserId', '==', uid),
+    // How many unanswered notes one left the other, either way (lib/api/v1/conversations letterRef).
+    db.collection('letters').where('from', '==', uid),
+    db.collection('letters').where('to', '==', uid),
     db.collection('cardLinks').where('sourceAuthorId', '==', uid),
     db.collection('cardLinks').where('targetAuthorId', '==', uid),
     db.collection('notifications').where('userId', '==', uid),

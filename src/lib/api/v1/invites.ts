@@ -1,5 +1,5 @@
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
-import { hasPenName, holdsRequest, noPenName, pairOf } from './conversations';
+import { clearLetters, hasPenName, holdsRequest, noPenName, pairOf } from './conversations';
 import { ApiFailure } from './http';
 
 export interface AcceptedInvite {
@@ -17,7 +17,8 @@ export interface AcceptedInvite {
  * resonance or an answered note made it since) is kept as it is — and the
  * sender's bell rings "invite accepted", under the recipient's pen name as
  * it is now. Connecting them answers any letter waiting in their
- * conversation (`request`, see sendNote): it is deleted.
+ * conversation (`request`, see sendNote): it is deleted, with both people's
+ * letters/* counts.
  *
  * Only its recipient may accept it: anyone else's is not_found. A block
  * either way refuses it; one no longer pending (declined, withdrawn,
@@ -64,6 +65,7 @@ export async function acceptInvite(db: Firestore, uid: string, inviteId: string)
     if (!existing.exists) {
       tx.set(connection, { userIds: [uid, other].sort(), establishedAt: FieldValue.serverTimestamp(), inviteId });
       if (holdsRequest(conversation)) tx.update(conversation.ref, { request: FieldValue.delete() });
+      clearLetters(tx, db, uid, other);
     }
     const bell = db.collection('notifications').doc();
     tx.set(bell, {
