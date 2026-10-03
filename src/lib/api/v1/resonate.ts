@@ -157,6 +157,15 @@ export async function reachResonance(db: Firestore, uid: string, cardId: string)
   });
 }
 
+/**
+ * reachResonance as the paths around a card's own write take it: best effort
+ * — a failure is logged and reaches no one, and the write it follows stands
+ * (publishing, a PATCH, an applied edit never fail for it).
+ */
+export function tryReachResonance(db: Firestore, uid: string, cardId: string): Promise<string | null> {
+  return reachResonance(db, uid, cardId).catch((e) => (console.error('[api/v1] resonance', cardId, e), null));
+}
+
 export interface Resonated {
   /** The chosen card as its author's card box shows it (their byline kept when anonymous), now answering the target. */
   card: FeedCardBody;

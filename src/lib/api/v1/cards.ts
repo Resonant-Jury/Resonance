@@ -4,7 +4,7 @@ import { getVectorStore, type IVectorStore } from '@/lib/recommend/vectorStore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { ApiFailure } from './http';
 import { toFeedCard } from './present';
-import { becameReachable, reachResonance } from './resonate';
+import { becameReachable } from './resonate';
 import { summaryFields } from './summary';
 import type { FeedCardBody, UpdateCardInput } from './schemas';
 
@@ -25,8 +25,8 @@ export interface UpdatedCard {
   card: FeedCardBody;
   /** Card, profile and landing pages to revalidate; empty when nothing changed. */
   stale: string[];
-  /** The original's bell row, when the change let a resonance reach its author (for its push; never returned to the client). */
-  notificationId: string | null;
+  /** The change made a published resonance reachable: the route reaches its original after the response (tryReachResonance). */
+  reaches: boolean;
 }
 
 /**
@@ -40,9 +40,10 @@ export interface UpdatedCard {
  *
  * A published resonance made public under its writer's name — published
  * private, connections-only or anonymous, it reached no one — now reaches the
- * original's author as publishing it so would have (reachResonance, after
- * this transaction, best effort): the two connected, their bell rung, once
- * for each reader and card whatever path rings it.
+ * original's author as publishing it so would have (`reaches`: the route
+ * runs tryReachResonance after its response, so the answer never waits on
+ * it): the two connected, their bell rung, once for each reader and card
+ * whatever path rings it. The reach reads the card again, as it is then.
  */
 export async function updateCard(
   db: Firestore,
@@ -70,9 +71,6 @@ export async function updateCard(
     return { before: snap.data()!, data: { ...snap.data()!, ...patch }, changed, author: me.data() };
   });
   const card = mapCard(id, data);
-  const notificationId = changed && becameReachable(before, data)
-    ? await reachResonance(db, uid, id).catch((e) => (console.error('[api/v1] resonance', id, e), null))
-    : null;
   if (data.visibility !== before.visibility) {
     // The card has changed either way; the route answers it. A failure is
     // logged — the recommended feed still re-checks every card it shows.
@@ -83,7 +81,7 @@ export async function updateCard(
   return {
     card: toFeedCard(card, author, { deanonymize: true }),
     stale: changed ? [...cardPagePaths(card), ...profilePagePaths(author?.handle), ...landingPagePaths(before, data)] : [],
-    notificationId,
+    reaches: changed && becameReachable(before, data),
   };
 }
 

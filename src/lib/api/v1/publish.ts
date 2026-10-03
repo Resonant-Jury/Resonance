@@ -1,7 +1,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { assignSlug } from '@/lib/ai/assignSlug';
 import { ApiFailure } from './http';
-import { reachable, reachResonance } from './resonate';
+import { reachable, tryReachResonance } from './resonate';
 import { summaryFields } from './summary';
 
 /** How long publishing waits for the slug (an LLM call) before answering without it. */
@@ -86,7 +86,7 @@ export async function publishCard(
   const [slug, notificationId] = await Promise.all([
     within(slugP, opts.slugWaitMs ?? SLUG_WAIT_MS),
     // Best effort: a resonance that can't reach anyone is still published.
-    resonance ? reachResonance(db, uid, id).catch((e) => (console.error('[api/v1] resonance', e), null)) : null,
+    resonance ? tryReachResonance(db, uid, id) : null,
   ]);
   return {
     id,

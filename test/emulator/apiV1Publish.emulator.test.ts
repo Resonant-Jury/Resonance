@@ -3,7 +3,8 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { DocumentReference, getFirestore, Timestamp, Transaction, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { publishCard } from '@/lib/api/v1/publish';
-import { resonateWith, unresonate } from '@/lib/api/v1/resonate';
+import { resonateWith, tryReachResonance, unresonate } from '@/lib/api/v1/resonate';
+import { updateCard } from '@/lib/api/v1/cards';
 import { sendNote } from '@/lib/api/v1/conversations';
 
 // Publishing through the v1 API against the Firestore emulator — what the web
@@ -223,6 +224,39 @@ describe('publishCard', () => {
       expect(result.notificationId).toBeNull();
       expect((await notifications()).docs.map((d) => d.id)).toEqual(['resonance_alice_orig']);
       expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+    });
+
+    // Best effort: a reach that throws (Firestore unavailable halfway through
+    // its reads) is logged, and the card is published all the same.
+    it('is published when its reach fails, which reaches no one', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const txGet = Transaction.prototype.get;
+      vi.spyOn(Transaction.prototype, 'get').mockImplementation(async function (this: Transaction, ref: unknown) {
+        if (ref instanceof DocumentReference && ref.path === 'notifications/resonance_alice_orig') throw new Error('14 UNAVAILABLE');
+        return (txGet as (r: unknown) => Promise<unknown>).call(this, ref);
+      } as typeof Transaction.prototype.get);
+      await draft('r1', { referenceCardId: 'orig' });
+      const result = await publishCard(db, 'alice', 'r1', slugBase);
+      expect(result).toMatchObject({ id: 'r1', firstPublish: true, notificationId: null });
+      expect((await db.doc('cards/r1').get()).get('publishedAt')).toBeInstanceOf(Timestamp);
+      expect(error).toHaveBeenCalledWith('[api/v1] resonance', 'r1', expect.anything());
+      expect((await notifications()).size).toBe(0);
+    });
+
+    // Two of her cards reaching the same original at once — publishing one
+    // while another goes public — ring Bob once and connect them once.
+    it('rings and connects once when two paths reach the same original at the same time', async () => {
+      await draft('r1', { referenceCardId: 'orig' });
+      await db.doc('cards/r2').set({
+        authorId: 'alice', thoughtCore: '另一張', story: '', visibility: 'private', anonymous: false, referenceCardId: 'orig', publishedAt: Timestamp.now(),
+      });
+      const [published, patched] = await Promise.all([
+        publishCard(db, 'alice', 'r1', slugBase),
+        updateCard(db, 'alice', 'r2', { visibility: 'public' }, { setVisibility: async () => {} }).then(async (r) => (r.reaches ? tryReachResonance(db, 'alice', 'r2') : null)),
+      ]);
+      expect([published.notificationId, patched].filter(Boolean)).toEqual(['resonance_alice_orig']);
+      expect((await notifications()).docs.map((d) => d.id)).toEqual(['resonance_alice_orig']);
+      expect((await db.doc('connections/alice_bob').get()).get('userIds')).toEqual(['alice', 'bob']);
     });
 
     it('never leaves a connection across a block made while the resonance reaches out', async () => {
