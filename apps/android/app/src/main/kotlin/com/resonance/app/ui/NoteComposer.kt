@@ -22,8 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.resonance.app.PushCenter
@@ -31,6 +29,7 @@ import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.FieldLabel
+import com.resonance.design.ModalCloseButton
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicIcon
 import com.resonance.design.fieldHintStyle
@@ -75,13 +74,9 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OrganicIcon(IconName.Note, size = 18.dp, color = Tokens.Text)
             BasicText(L10n.Card.Note.sent, style = AppFonts.body(14f, lineHeight = 1.3f), modifier = Modifier.weight(1f))
-            Box(
-                Modifier
-                    .plainClickable(role = Role.Button, onClick = onClose)
-                    .padding(4.dp)
-                    .semantics { contentDescription = L10n.Card.Note.close },
-            ) { OrganicIcon(IconName.Close, size = 16.dp, color = Tokens.TextMuted) }
         }
+        // Said and done: the one way out, under the confirmation (a modal keeps no × in its corner).
+        ModalCloseButton(L10n.Card.Note.close, onClose)
         return
     }
 

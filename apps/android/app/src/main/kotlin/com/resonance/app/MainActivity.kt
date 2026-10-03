@@ -10,6 +10,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.resonance.app.ui.ResonanceRoot
 import com.resonance.kit.chat.ChatPush
@@ -35,6 +36,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // The launch's splash (the waves on the paper) before anything else draws; see [Launch].
+        val splash = installSplashScreen()
         // The app is drawn on paper in light and dark mode alike: dark system-bar icons always,
         // not the system's white ones on cream when the phone is in dark mode.
         enableEdgeToEdge(
@@ -55,6 +58,15 @@ class MainActivity : ComponentActivity() {
         AppFirebase.configure(this, config)
         val session = (application as ResonanceApp).session(config)
         this.session = session
+        // The splash stays until the first screen is the page itself (not the loader while the
+        // account restores, nor the wait for a profile this device hasn't seen), at most Launch.HOLD_MILLIS.
+        Launch.hold(this, splash, fresh = savedInstanceState == null) {
+            when (session.phase.value) {
+                Session.Phase.Restoring -> false
+                Session.Phase.SignedOut -> true
+                Session.Phase.SignedIn -> session.entry.value != Session.Entry.Waiting
+            }
+        }
         if (emulator) {
             val email = intent.getStringExtra("email")
             val password = intent.getStringExtra("password")

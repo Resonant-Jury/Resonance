@@ -1,6 +1,8 @@
 package com.resonance.app.ui
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -14,6 +16,7 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.resonance.app.Launch
 import com.resonance.app.Session
 import com.resonance.design.CappedTextScale
 import com.resonance.design.OrganicIndication
@@ -33,7 +36,8 @@ fun ResonanceRoot(session: Session, incomingRoute: MutableState<String?>) {
     // Every press is the hand-drawn ink spread, never Material's rectangular ripple (it spilt past round chips and bare glyphs).
     CompositionLocalProvider(LocalIndication provides OrganicIndication()) {
         val phase by session.phase.collectAsStateWithLifecycle()
-        Crossfade(phase, Modifier.fillMaxSize().cream(), label = "phase") { p ->
+        // Under the launch's splash the first screen simply is; a crossfade would show the loader leaving as it dissolves.
+        Crossfade(phase, Modifier.fillMaxSize().cream(), animationSpec = if (Launch.covering) snap() else tween(), label = "phase") { p ->
             when (p) {
                 Session.Phase.Restoring -> Loading()
                 Session.Phase.SignedOut -> SignInScreen(session)
@@ -53,7 +57,7 @@ fun ResonanceRoot(session: Session, incomingRoute: MutableState<String?>) {
 private fun SignedIn(session: Session, incomingRoute: MutableState<String?>) {
     val entry by session.entry.collectAsStateWithLifecycle()
     val account by session.signedInUid.collectAsStateWithLifecycle()
-    Crossfade(entry, Modifier.fillMaxSize().cream(), label = "entry") { e ->
+    Crossfade(entry, Modifier.fillMaxSize().cream(), animationSpec = if (Launch.covering) snap() else tween(), label = "entry") { e ->
         when (e) {
             Session.Entry.Waiting -> Loading()
             Session.Entry.Onboarding -> OnboardingScreen(session)

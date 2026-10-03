@@ -2,4 +2,6 @@
 <resources>
     <!-- Tokens.Terracotta (display-p3 0.7388 0.4228 0.2563) in sRGB: the waves glyph's tint on notifications. -->
     <color name="notification_accent">#C96736</color>
+    <!-- The paper (the color-cream token, tokens.css color-bg): the window under the first frame, and the launch's splash. -->
+    <color name="paper">#FAF2E9</color>
 </resources>

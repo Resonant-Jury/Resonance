@@ -39,10 +39,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.resonance.design.CappedTextScale
+import com.resonance.design.ModalScrim
 import com.resonance.design.OrganicMenuItem
 import com.resonance.design.OrganicMenuPanel
 import com.resonance.design.generated.IconName
-import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
 import com.resonance.kit.chat.Delivery
 import com.resonance.kit.l10n.L10n
@@ -108,6 +108,8 @@ internal fun MessageMenuOverlay(
     val dismiss: () -> Unit = {
         if (!leaving) {
             leaving = true
+            // The message settles back into its place as the scrim lifts, and the thread's own takes over.
+            scope.launch { lift.animateTo(1f, tween(120)) }
             scope.launch {
                 appear.animateTo(0f, tween(120))
                 onDismiss()
@@ -153,7 +155,8 @@ internal fun MessageMenuOverlay(
         Box(
             Modifier
                 .fillMaxSize()
-                .drawBehind { drawRect(Tokens.Text, alpha = 0.3f * appear.value) }
+                // The modals' scrim, over the bars too (the activity is edge to edge).
+                .drawBehind { drawRect(ModalScrim, alpha = appear.value) }
                 .plainClickable(onClick = dismiss),
         )
         CappedTextScale {

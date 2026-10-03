@@ -48,7 +48,7 @@ import com.resonance.design.CssText
 import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.Mixes
-import com.resonance.design.ModalActions
+import com.resonance.design.ModalCloseButton
 import com.resonance.design.ModalBody
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
@@ -460,7 +460,7 @@ private fun ColumnScope.BlockedListContent(session: Session, onClose: () -> Unit
             }
         }
     }
-    ModalActions { OrganicButton(L10n.Safety.BlockedList.close, variant = ButtonVariant.Text, small = true, onClick = onClose) }
+    ModalCloseButton(L10n.Safety.BlockedList.close, onClose)
 }
 
 /** Past the web header's 20px scroll threshold, when its pen line inks in fully. */

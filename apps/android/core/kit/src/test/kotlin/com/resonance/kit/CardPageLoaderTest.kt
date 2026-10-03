@@ -5,7 +5,7 @@ import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.ReadingApi
 import com.resonance.kit.reading.CardCache
 import com.resonance.kit.reading.CardPageLoader
-import com.resonance.kit.reading.cardsById
+import com.resonance.kit.reading.cardsByKey
 import com.resonance.kit.reading.embedFor
 import com.resonance.kit.reading.profilePage
 import com.resonance.kit.story.StoryBlock
@@ -145,7 +145,7 @@ class CardPageLoaderTest {
     @Test fun sharedCardsAreReadInOneRequestAndTheOnesNotShownAreNull() = runBlocking {
         // The server answers in the order asked, leaving out what the reader can't see.
         routes.on("/cards") { json(listJson("c2", "c1")) }
-        val cards = api.cardsById(listOf("c2", "gone", "c1"))
+        val cards = api.cardsByKey(listOf("c2", "gone", "c1"))
         assertEquals(listOf("/cards"), routes.requested)
         assertEquals("c2,gone,c1", routes.parameter("/cards", "keys"))
         assertEquals(listOf("c2", "gone", "c1"), cards.keys.toList())
@@ -154,12 +154,23 @@ class CardPageLoaderTest {
         assertTrue("gone" in cards)
     }
 
+    @Test fun aCardLinkedToBySlugIsFoundByItsSlug() = runBlocking {
+        // A link names its card by slug; the answer names cards by id (and carries their slugs).
+        routes.on("/cards") { json("""{"cards":[${cardJson("c1", "rich-story")},${cardJson("c2")}]}""") }
+        val cards = api.cardsByKey(listOf("rich-story", "c2", "no-such-slug"))
+        assertEquals("rich-story,c2,no-such-slug", routes.parameter("/cards", "keys"))
+        assertEquals("c1", cards["rich-story"]?.id)
+        assertEquals("c2", cards["c2"]?.id)
+        assertNull(cards["no-such-slug"])
+        assertEquals(listOf("rich-story", "c2", "no-such-slug"), cards.keys.toList())
+    }
+
     @Test fun moreThanThirtyCardsGoOutInRequestsOfThirtyAndNoneGoOutForNone() = runBlocking {
         routes.on("/cards") { json(listJson()) }
-        assertEquals(emptyMap(), api.cardsById(emptyList()))
+        assertEquals(emptyMap(), api.cardsByKey(emptyList()))
         assertEquals(emptyList(), routes.requested)
         val ids = (1..35).map { "c$it" }
-        assertEquals(ids, api.cardsById(ids + "c1").keys.toList())
+        assertEquals(ids, api.cardsByKey(ids + "c1").keys.toList())
         assertEquals(listOf(30, 5), routes.queries.map { q -> q.substringAfter("keys=").split("%2C", ",").size }.sortedDescending())
     }
 

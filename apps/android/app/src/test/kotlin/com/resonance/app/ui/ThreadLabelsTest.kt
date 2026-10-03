@@ -27,8 +27,8 @@ class ThreadLabelsTest {
 
     @Test fun theTimeOfDayInChinese() {
         Strings.language = Strings.Language.ZhTW
-        assertEquals("下午3:04", timeLabel(at(2026, 9, 29, 15, 4)))
-        assertEquals("上午9:30", timeLabel(at(2026, 9, 29, 9, 30)))
+        assertEquals("下午 3:04", timeLabel(at(2026, 9, 29, 15, 4)))
+        assertEquals("上午 9:30", timeLabel(at(2026, 9, 29, 9, 30)))
     }
 
     @Test fun theTimeOfDayInEnglish() {

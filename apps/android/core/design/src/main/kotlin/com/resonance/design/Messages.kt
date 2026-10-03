@@ -14,11 +14,18 @@ import android.text.style.ForegroundColorSpan
 import android.text.style.TypefaceSpan
 import android.text.style.UnderlineSpan
 import android.graphics.text.LineBreaker
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,20 +35,17 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.scale
@@ -49,15 +53,20 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -72,6 +81,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.CornerRadii
@@ -97,24 +107,28 @@ fun seedFromId(id: String, start: Int = 7): Double {
     return (abs(h % 9973) + 1).toDouble()
 }
 
+/** A bubble's full corner radius (a one-line bubble takes h·0.42 of it: nearly a pill). */
+private const val BUBBLE_RADIUS = 18.0
 /** The radius of a bubble's corner that faces its neighbour in a run (the others keep the full one). */
-private const val TUCKED_RADIUS = 5.0
+private const val TUCKED_RADIUS = 4.0
+/** The quoted message over a reply: one shape on its own, a little rounder-cornered than a bubble is tall. */
+private const val QUOTE_RADIUS = 16.0
 
 /**
- * MessageBubble's outline: its wobble follows its own size — radius
- * min(16, h·0.42), swing min(2.6, h·0.05), a turn per 80 across (2–6) and per
- * 52 down (1–8), bow 1.3, corner jitter 1.6, corners pulled in 4%.
+ * MessageBubble's outline — the same recipe on the web and iOS: its wobble follows its own size —
+ * radius min(18, h·0.42), swing min(2.6, h·0.05), a turn per 80 across (2–6) and per 52 down
+ * (1–8), bow 1.3, corner jitter 1.6, corners pulled in 4%.
  *
  * A bubble in a run of messages from one person (Messenger's stacking) tucks the corners that face
- * its neighbours, on the sender's side — the right for your own, the left for theirs: the first of a
- * run tucks its bottom one, a middle one both, the last its top one ([RunPosition]).
+ * its neighbours to a radius of 4, on the sender's side — the right for your own, the left for
+ * theirs: the first of a run tucks its bottom one, a middle one both, the last its top one
+ * ([RunPosition]). A bubble that carries a preview or a card is still one shape, and tucks the same.
  */
 class MessageBubbleShape(
     private val seed: Double,
     private val mine: Boolean = true,
     private val run: RunPosition = RunPosition.Single,
-    /** The ghost of a quoted message: a little rounder-edged and smaller, same family. */
-    private val maxRadius: Double = 16.0,
+    private val maxRadius: Double = BUBBLE_RADIUS,
 ) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val d = density.density
@@ -139,39 +153,51 @@ class MessageBubbleShape(
     }
 }
 
-/** A bubble's fill and line: your own on a terracotta-light wash, theirs on cream with a thin field line (1.1, the web's own number). */
-private fun Modifier.bubbleFace(shape: () -> MessageBubbleShape, mine: Boolean, flash: () -> Float, quiet: Boolean = false): Modifier = drawWithCache {
-    val o = shape().createOutline(size, layoutDirection, this)
-    val line = Stroke(1.1.dp.toPx(), join = StrokeJoin.Round)
-    onDrawBehind {
-        // Your own bubble is the wash over a cream ground of its own, so what lies under it (a quoted
-        // message it overlaps) never shows through.
-        if (quiet) {
-            drawOutline(o, Tokens.CreamDark, alpha = 0.55f)
-            drawOutline(o, Tokens.FieldBorder, alpha = 0.55f, style = line)
-        } else if (mine) {
-            drawOutline(o, Tokens.Cream)
-            drawOutline(o, Tokens.TerracottaLight, alpha = 0.62f)
-        } else {
-            drawOutline(o, Tokens.Cream)
-            drawOutline(o, Tokens.FieldBorder, style = line)
-        }
+/**
+ * The bubble's stand-in while what it carries is read (a shared card): a plain rounded box of the
+ * same footprint and corners — never a wobble measured before its content is there.
+ */
+private fun plainBubbleShape(mine: Boolean, run: RunPosition): Shape {
+    val r = BUBBLE_RADIUS.dp
+    val t = TUCKED_RADIUS.dp
+    val top = if (run.joinsAbove) t else r
+    val bottom = if (run.joinsBelow) t else r
+    return if (mine) RoundedCornerShape(r, top, bottom, r) else RoundedCornerShape(top, r, r, bottom)
+}
+
+/** A bubble's paper: your own a warm terracotta wash, theirs a deeper paper than the page — both opaque. */
+fun bubbleFill(mine: Boolean): Color = if (mine) Tokens.BubbleMine else Tokens.BubbleTheirs
+
+/**
+ * A bubble's face: its fill, with no pen line (Messenger's flat bubbles, in the paper's own
+ * colours), and everything it holds clipped to its wobbly outline — so a picture inside runs edge
+ * to edge and ends where the bubble does. [flash] (0…1, read while drawing) washes it terracotta:
+ * the message a reply's quote jumped to.
+ */
+fun Modifier.bubbleSurface(shape: Shape, fill: Color, flash: () -> Float = { 0f }): Modifier = drawWithCache {
+    val outline = shape.createOutline(size, layoutDirection, this)
+    val clip = Path().apply { addOutline(outline) }
+    onDrawWithContent {
+        drawOutline(outline, fill)
         val pulse = flash()
-        if (pulse > 0f) drawOutline(o, Tokens.Terracotta, alpha = 0.3f * pulse)
+        if (pulse > 0f) drawOutline(outline, Tokens.Terracotta, alpha = 0.3f * pulse)
+        clipPath(clip) { this@onDrawWithContent.drawContent() }
     }
 }
 
 /**
- * A message's bubble (MessageBubble.tsx): 14/1.65 text, padding 10×16, your
- * own on a terracotta-light wash, theirs on cream with a thin field line (1.1,
- * the web's own number). It hugs its words. A reply to a note wears a small
+ * A message's bubble (MessageBubble.tsx): 15/1.4 text, padding 9×14, your own on
+ * [Tokens.BubbleMine], theirs on [Tokens.BubbleTheirs], no outline. It hugs its words, unless it
+ * carries more ([attachment]: a link's preview, a shared card), which makes it one bubble of a
+ * fixed [width] — the words, then what it carries edge to edge. A reply to a note wears a small
  * italic header (`quoteLabel`).
  *
- * The words are drawn by [ChatText]: [links] (ranges of [text]) are terracotta and underlined and a
- * tap on one calls [onLinkTap] with its index; [highlights] are the matches of a search, washed (the
- * [highlightStrong] ones are the hit being looked at); [flash] (0…1, read while drawing) pulses the
- * whole bubble — the one a reply's quote jumped to. [onLongPress] gets the index of the link
- * pressed, if it was on one.
+ * The words are drawn by [ChatText]: [links] (ranges of [text]) are underlined, terracotta-deep in
+ * your own bubble and terracotta in theirs, and a tap on one calls [onLinkTap] with its index;
+ * [highlights] are the matches of a search, washed (the [highlightStrong] ones are the hit being
+ * looked at); [flash] pulses the whole bubble. [onLongPress] gets the index of the link pressed, if
+ * it was on one. [plain] draws the bubble's stand-in (a plain rounded box) while what it carries
+ * is still being read.
  */
 @Composable
 fun MessageBubble(
@@ -185,67 +211,89 @@ fun MessageBubble(
     highlights: List<IntRange> = emptyList(),
     highlightStrong: Boolean = false,
     flash: () -> Float = { 0f },
+    width: Dp? = null,
+    plain: Boolean = false,
     onLinkTap: ((Int) -> Unit)? = null,
     onLongPress: ((Int?) -> Unit)? = null,
+    attachment: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val longPress by rememberUpdatedState(onLongPress)
+    val fill = bubbleFill(mine)
     Column(
         modifier
-            .bubbleFace({ MessageBubbleShape(seed, mine, run) }, mine, flash)
+            .then(if (width != null) Modifier.width(width) else Modifier)
+            .then(
+                if (plain) Modifier.clip(plainBubbleShape(mine, run)).background(fill)
+                else Modifier.bubbleSurface(remember(seed, mine, run) { MessageBubbleShape(seed, mine, run) }, fill, flash),
+            )
             .then(
                 if (onLongPress != null) Modifier
                     .pointerInput(Unit) { detectTapGestures(onLongPress = { longPress?.invoke(null) }) }
                     // The press-and-hold is the message's whole menu: assistive tech reaches it as the long click.
                     .semantics { onLongClick { longPress?.invoke(null); true } }
                 else Modifier,
-            )
-            .padding(vertical = 10.dp, horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+            ),
     ) {
-        if (quoteLabel != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                OrganicIcon(IconName.Note, size = 13.dp, color = Tokens.TextMuted)
-                BasicText(quoteLabel, style = AppFonts.oblique(AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted)))
+        if (text.isNotEmpty() || quoteLabel != null) {
+            Column(
+                // What it carries brings its own air above it.
+                Modifier.padding(start = BubblePadX, end = BubblePadX, top = BubblePadY, bottom = if (attachment != null) 0.dp else BubblePadY),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (quoteLabel != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        OrganicIcon(IconName.Note, size = 13.dp, color = Tokens.TextMuted)
+                        BasicText(quoteLabel, style = AppFonts.oblique(AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted)))
+                    }
+                }
+                if (text.isNotEmpty()) ChatText(
+                    text,
+                    links = links,
+                    // The terracotta of a link would sink into your own bubble's wash.
+                    linkColor = if (mine) Tokens.TerracottaDeep else Tokens.Terracotta,
+                    highlights = highlights,
+                    highlightColor = highlightWash(highlightStrong),
+                    onTap = onLinkTap,
+                    onLongPress = onLongPress,
+                )
             }
         }
-        if (text.isNotEmpty()) ChatText(
-            text,
-            links = links,
-            // The terracotta of a link would sink into your own bubble's wash.
-            linkColor = if (mine) Tokens.TerracottaDeep else Tokens.Terracotta,
-            highlights = highlights,
-            highlightColor = highlightWash(highlightStrong),
-            onTap = onLinkTap,
-            onLongPress = onLongPress,
-        )
+        attachment?.invoke(this)
     }
 }
+
+private val BubblePadX = 14.dp
+private val BubblePadY = 9.dp
 
 /** The wash behind a search match: the hit being looked at stronger than the others in view. */
 fun highlightWash(strong: Boolean): Color = Tokens.Terracotta.copy(alpha = if (strong) 0.5f else 0.24f)
 
 /**
- * The message a reply answers, quoted above the reply as a ghost of its bubble: smaller, muted,
- * two lines at most, on a faint fill (Messenger's reply). [text] is the quote's own words.
+ * The message a reply answers, quoted over the reply (Messenger's): a muted bubble of its own on
+ * [Tokens.BubbleQuote], no outline, 13.5 text in two lines at most, hugging its words. Its foot is
+ * [REPLY_OVERLAP] deeper than its words need: the reply's bubble lies over it there.
  */
 @Composable
-fun QuoteBubble(text: String, mine: Boolean, seed: Double, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+fun QuoteBubble(text: String, seed: Double, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Box(
         modifier
-            .bubbleFace({ MessageBubbleShape(seed, mine, RunPosition.Single, maxRadius = 14.0) }, mine, { 0f }, quiet = true)
+            .bubbleSurface(remember(seed) { MessageBubbleShape(seed, maxRadius = QUOTE_RADIUS) }, Tokens.BubbleQuote)
             .then(if (onClick != null) Modifier.clickable(interactionSource = null, indication = null, role = Role.Button, onClick = onClick) else Modifier)
-            .padding(start = 14.dp, end = 14.dp, top = 7.dp, bottom = 9.dp),
+            .padding(start = 13.dp, end = 13.dp, top = 8.dp, bottom = 8.dp + REPLY_OVERLAP),
     ) {
-        ChatText(text, sizeSp = 13f, lineHeight = 1.5f, color = Tokens.TextMuted, maxLines = 2)
+        ChatText(text, sizeSp = 13.5f, lineHeight = 1.4f, color = Tokens.TextMuted, maxLines = 2)
     }
 }
+
+/** How far a reply's bubble lies over the foot of the message it quotes. */
+val REPLY_OVERLAP = 14.dp
 
 /** The reply glyph and a line of who answered whom, over the quote. */
 @Composable
 fun ReplyCaption(text: String, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         OrganicIcon(IconName.Reply, size = 12.dp, color = Tokens.TextMuted)
-        BasicText(text, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(11.5f, lineHeight = 1.3f, color = Tokens.TextMuted))
+        BasicText(text, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted))
     }
 }
 
@@ -261,9 +309,9 @@ fun ReplyCaption(text: String, modifier: Modifier = Modifier) {
 fun ChatText(
     text: String,
     modifier: Modifier = Modifier,
-    sizeSp: Float = 14f,
+    sizeSp: Float = 15f,
     weight: Int = 400,
-    lineHeight: Float = 1.65f,
+    lineHeight: Float = 1.4f,
     color: Color = Tokens.Text,
     links: List<IntRange> = emptyList(),
     linkColor: Color = Tokens.Terracotta,
@@ -409,59 +457,174 @@ private fun highlightRects(layout: StaticLayout, ranges: List<IntRange>, lift: F
     return out
 }
 
-// Link preview
+// What a bubble carries
+
+/** How much wider than the bubble a picture inside it is drawn on each side: past its wobbly edge's widest swing, so the clip, not the picture, ends it. */
+private val PictureBleed = 4.dp
+
+/** Wider than its box by [by] on each side, centred on it (the bubble's clip cuts it at the bubble's edge). */
+private fun Modifier.bleedSides(by: Dp): Modifier = layout { measurable, constraints ->
+    val extra = by.roundToPx()
+    val w = constraints.maxWidth
+    val placeable = measurable.measure(constraints.copy(minWidth = w + 2 * extra, maxWidth = w + 2 * extra))
+    layout(w, placeable.height) { placeable.place(-extra, 0) }
+}
+
+/** A picture edge to edge across a bubble at 1.91:1 (the share-image ratio); [onError] when it won't load. */
+@Composable
+private fun BubblePicture(url: String, onError: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(1.91f)
+            .bleedSides(PictureBleed)
+            .background(Tokens.Text.copy(alpha = 0.06f)),
+    ) {
+        AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(), onError = { onError() })
+    }
+}
+
+/** What a part of a bubble that leads somewhere does under the finger: a tap goes, a hold is the message's menu. */
+@OptIn(ExperimentalFoundationApi::class)
+private fun Modifier.bubblePart(label: String, onClick: (() -> Unit)?, onLongPress: (() -> Unit)?): Modifier =
+    if (onClick == null) this else combinedClickable(
+        interactionSource = null,
+        // The ink spreads from the finger over this part, and the bubble's own outline cuts it.
+        indication = OrganicIndication(shape = RectangleShape),
+        role = Role.Button,
+        onClickLabel = label,
+        onLongClick = onLongPress,
+        onClick = onClick,
+    )
 
 /**
- * The unfurled page under a message with a link (every chat app's): at most 280 wide, in the
- * embedded-card family's frame, the picture on top at 1.91:1 when there is one, then the title
- * (two lines), a description (two) and the host with the link glyph. A press inks it like a card.
- * [host] is the ASCII host the tap leads to, as the app would name it in its confirm.
+ * A link's unfurled page inside its message's bubble (Messenger's): after the words, the page's
+ * picture edge to edge at 1.91:1 — when it has one and it loads; one that won't takes its section
+ * with it — then the title (14.5/600, two lines), a description (12.5, two) and the host with the
+ * link glyph. [host] is the ASCII host the tap leads to, as the app would name it in its confirm.
+ * [afterWords]: the message's words are above it (the picture keeps a step from them; without
+ * them it starts at the bubble's top edge). A tap opens the link; a hold is the message's menu.
  */
 @Composable
-fun LinkPreviewCard(
+fun ColumnScope.LinkPreviewSection(
     title: String,
     description: String?,
     host: String,
     imageUrl: String?,
-    seed: Double,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
+    afterWords: Boolean,
+    onClick: (() -> Unit)?,
+    onLongPress: (() -> Unit)?,
 ) {
-    val source = remember { MutableInteractionSource() }
-    val pressed by source.collectIsPressedAsState()
-    Column(
-        modifier
-            .widthIn(max = 280.dp)
-            .scale(if (pressed) 0.985f else 1f)
-            .drawWithCache {
-                val o = WobRectShape(16.0, seed).createOutline(size, layoutDirection, this)
-                val s = Stroke(Tokens.Ink.toPx())
-                onDrawBehind {
-                    drawOutline(o, Tokens.CardBg)
-                    drawOutline(o, Tokens.FieldBorderHover, alpha = 0.6f, style = s)
-                }
-            }
-            .clickable(source, indication = null, role = Role.Button, onClick = onClick)
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // A picture that won't load (gone, refused by the proxy) takes its frame with it: no empty grey box.
-        var imageFailed by remember(imageUrl) { mutableStateOf(false) }
-        if (imageUrl != null && !imageFailed) {
-            OrganicImage(imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1.91f), grain = 0.03f, onError = { imageFailed = true }) {
-                Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
-            }
+    Column(Modifier.fillMaxWidth().bubblePart(title, onClick, onLongPress)) {
+        var pictureFailed by remember(imageUrl) { mutableStateOf(false) }
+        if (imageUrl != null && !pictureFailed) {
+            if (afterWords) Box(Modifier.height(BubblePadY))
+            BubblePicture(imageUrl) { pictureFailed = true }
         }
-        Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14f, 600, lineHeight = 1.35f))
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14.5f, 600, lineHeight = 1.35f))
             if (description != null) {
                 BasicText(description, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12.5f, lineHeight = 1.45f, color = Tokens.TextMuted))
             }
-            Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 OrganicIcon(IconName.Link, size = 12.dp, color = Tokens.TextMuted)
-                BasicText(host, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(11f, lineHeight = 1.3f, color = Tokens.TextMuted))
+                BasicText(host, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted))
             }
         }
+    }
+}
+
+/** Who wrote a shared card: their face and pen name — or, for a card posted anonymously, [anonymous]'s mark. */
+data class CardByline(
+    val name: String,
+    val initials: String,
+    val imageUrl: String?,
+    val color: Color,
+    val avatarSeed: Double,
+    val isAnonymous: Boolean = false,
+) {
+    companion object {
+        /** A card posted anonymously: the mark the card page shows (a dot on paper) beside [name] (匿名) — never the author. */
+        fun anonymous(name: String) = CardByline(name, "·", null, Tokens.CreamDark, 97.0, isAnonymous = true)
+    }
+}
+
+/**
+ * A Resonance card shared in a message, inside its bubble — Messenger's shared post, so it reads at
+ * a glance as a card of this site and what it is about: the author (avatar 32, pen name, and
+ * [source] · the read time under it), the cover edge to edge at 1.91:1 (or, without one, a band of
+ * the card's own colour with the wave mark), the title in the heading face (16 bold, three lines),
+ * the excerpt (two) and a source line — the wave and [source], like the "Facebook" under a shared
+ * post. A tap opens the card; a hold is the message's menu.
+ */
+@Composable
+fun ColumnScope.SharedCardSection(
+    byline: CardByline,
+    readTime: String,
+    title: String,
+    excerpt: String?,
+    imageUrl: String?,
+    accentHue: Double?,
+    source: String,
+    onClick: (() -> Unit)?,
+    onLongPress: (() -> Unit)?,
+) {
+    Column(Modifier.fillMaxWidth().bubblePart(title, onClick, onLongPress)) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HandDrawnAvatar(byline.initials, byline.imageUrl, byline.color, 32.dp, byline.avatarSeed)
+            Column(Modifier.weight(1f)) {
+                BasicText(
+                    byline.name, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = AppFonts.body(14f, 600, lineHeight = 1.3f, color = if (byline.isAnonymous) Tokens.TextMuted else Tokens.Text),
+                )
+                BasicText("$source · $readTime", maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.35f, color = Tokens.TextMuted))
+            }
+        }
+        var coverFailed by remember(imageUrl) { mutableStateOf(false) }
+        if (imageUrl != null && !coverFailed) {
+            BubblePicture(imageUrl) { coverFailed = true }
+        } else {
+            val palette = CardPalette(accentHue, 0)
+            Box(
+                Modifier.fillMaxWidth().height(96.dp).bleedSides(PictureBleed).background(palette.fill).grainOverlay(0.04f),
+                contentAlignment = Alignment.Center,
+            ) { OrganicIcon(IconName.Wave, size = 40.dp, color = palette.border.copy(alpha = 0.32f)) }
+        }
+        Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            BasicText(title, maxLines = 3, overflow = TextOverflow.Ellipsis, style = AppFonts.heading(16f, 700, lineHeight = 1.3f))
+            if (!excerpt.isNullOrBlank()) {
+                BasicText(excerpt, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(13f, lineHeight = 1.45f, color = Tokens.TextMuted))
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            OrganicIcon(IconName.Wave, size = 14.dp, color = Tokens.Terracotta)
+            BasicText(source, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted))
+        }
+    }
+}
+
+/** [SharedCardSection] while the card is read: its footprint in plain shimmering blocks (no wobble, nothing measured). */
+@Composable
+fun ColumnScope.SharedCardSkeleton() {
+    Column(Modifier.fillMaxWidth().semantics { contentDescription = "Loading" }) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Skeleton(height = 32.dp, circle = true)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Skeleton(Modifier.width(88.dp), height = 12.dp)
+                Skeleton(Modifier.width(64.dp), height = 10.dp)
+            }
+        }
+        Box(Modifier.fillMaxWidth().aspectRatio(1.91f).background(Tokens.Text.copy(alpha = 0.06f)))
+        Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Skeleton(Modifier.fillMaxWidth(0.85f), height = 15.dp)
+            Skeleton(Modifier.fillMaxWidth(0.6f), height = 15.dp)
+            Skeleton(Modifier.fillMaxWidth(0.9f), height = 11.dp)
+        }
+        Box(Modifier.padding(start = 12.dp, top = 12.dp, bottom = 14.dp)) { Skeleton(Modifier.width(56.dp), height = 11.dp) }
     }
 }
 

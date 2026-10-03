@@ -29,11 +29,9 @@ import com.resonance.api.apis.DefaultApi.TabGetCardBox
 import com.resonance.api.models.FeedCard
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
-import com.resonance.design.ButtonVariant
-import com.resonance.design.ModalActions
+import com.resonance.design.ModalCloseButton
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
-import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicImage
 import com.resonance.design.WavyDivider
 import com.resonance.design.generated.Tokens
@@ -95,7 +93,7 @@ fun CardPickerContent(session: Session, title: String, subtitle: String, onPick:
                 }
             }
         }
-        // iOS's picker sets the actions straight under the list (its rows carry their own 10).
-        ModalActions(topPadding = 0.dp) { OrganicButton(L10n.Write.Editor.CardModal.cancel, variant = ButtonVariant.Text, small = true, onClick = onCancel) }
+        // A list to pick from, its one way out centred under it (its rows carry their own 10).
+        ModalCloseButton(L10n.Write.Editor.CardModal.cancel, onCancel)
     }
 }

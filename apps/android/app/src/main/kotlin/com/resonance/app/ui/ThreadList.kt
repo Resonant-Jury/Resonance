@@ -11,7 +11,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -19,12 +18,14 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -64,15 +65,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
+import com.resonance.api.models.FeedCard
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
-import com.resonance.design.EmbedStoryCard
-import com.resonance.design.LinkPreviewCard
+import com.resonance.design.CardByline
+import com.resonance.design.HandDrawnAvatar
+import com.resonance.design.LinkPreviewSection
 import com.resonance.design.MessageBubble
+import com.resonance.design.OklchColor
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicIcon
 import com.resonance.design.QuoteBubble
+import com.resonance.design.REPLY_OVERLAP
 import com.resonance.design.ReplyCaption
+import com.resonance.design.SharedCardSection
+import com.resonance.design.SharedCardSkeleton
 import com.resonance.design.SketchLoader
 import com.resonance.design.WobRectShape
 import com.resonance.design.fade
@@ -82,19 +90,24 @@ import com.resonance.design.plainClickable
 import com.resonance.design.seedFromId
 import com.resonance.kit.chat.ChatMessage
 import com.resonance.kit.chat.Delivery
+import com.resonance.kit.chat.LinkPreview
 import com.resonance.kit.chat.Linkify
+import com.resonance.kit.chat.Carried
+import com.resonance.kit.chat.words
 import com.resonance.kit.chat.ThreadRow
 import com.resonance.kit.l10n.L10n
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
+import kotlin.math.max
 import kotlinx.coroutines.launch
 
 /**
  * The thread's list: the messages newest at the bottom, stacked in runs the way Messenger stacks
- * them, with the day and time labels, the quotes of replies, the preview cards of links, the lines
- * under messages that are on their way or didn't go, and — at the top — older messages as they are
+ * them — their face beside the last of each of their runs — with the day and time labels, the
+ * quotes replies lie over, links' previews and shared cards inside their bubbles, the lines under
+ * messages that are on their way or didn't go, and — at the top — older messages as they are
  * read in. A reversed list: the bottom is where it starts, and what is read in above never moves
  * what is on screen.
  */
@@ -102,7 +115,7 @@ import kotlinx.coroutines.launch
 /** Everything a row of the thread needs from the screen around it. */
 internal class ThreadContext(
     val model: ThreadModel,
-    /** At most 72% of the screen's width (iOS's own number). */
+    /** A bubble's widest: 72% of the row (their face's column not counted), as on the web and iOS. */
     val rowMax: Dp,
     val opener: LinkOpener,
     val open: (Route) -> Unit,
@@ -116,7 +129,15 @@ internal class ThreadContext(
     val onReply: (ChatMessage) -> Unit,
     /** The quote of a reply was tapped: the id of the message it quotes. */
     val onQuote: (String) -> Unit,
-)
+    /** The key of the message the long-press menu has lifted out of the thread: its place stays empty under the scrim. */
+    val lifted: String? = null,
+) {
+    /** A link in a message was tapped: a card of this site opens in the app, anything else by the link rules ([LinkOpener]). */
+    fun tapLink(url: String) {
+        val key = model.cardKeyOf(url)
+        if (key != null) open(Route.Card(key, model.cards[key])) else opener.tap(url)
+    }
+}
 
 /** The message the thread just jumped to from a reply's quote pulses once. */
 internal class Flash {
@@ -228,17 +249,19 @@ internal fun MessageList(
             contentPadding = PaddingValues(top = top + 4.dp, bottom = 10.dp, start = 16.dp, end = 16.dp),
         ) {
             // The key a row had while it was sending is the one its document comes under, so it doesn't jump.
-            itemsIndexed(newestFirst, key = { _, r -> r.message.key }) { _, row ->
+            itemsIndexed(newestFirst, key = { _, r -> r.message.key }) { i, row ->
                 // Between runs the air is wide; inside one the bubbles nearly touch. A label brings its own.
                 val gap = when {
+                    row.dayLabel || row.timeLabel -> 0.dp
                     row.joinsAbove -> RUN_GAP
-                    row.dayLabel || row.timeLabel -> 4.dp
                     else -> BETWEEN_RUNS
                 }
+                // A run still on its way says so once, under its newest message: the stack stays one stack.
+                val sendingBelow = row.position.joinsBelow && newestFirst.getOrNull(i - 1)?.message?.delivery == Delivery.Sending
                 Column(Modifier.padding(top = gap)) {
                     if (row.dayLabel) Label(dayLabel(row.message.sentAt))
                     else if (row.timeLabel) Label(timeLabel(row.message.sentAt))
-                    MessageItem(row, ctx)
+                    MessageItem(row, ctx, deliveryLine = !sendingBelow)
                 }
             }
             if (quiet != null) item(key = "quiet") { QuietNote(quiet) }
@@ -264,16 +287,20 @@ private const val FAR_UP_ITEMS = 6
 /** How close to the oldest message held the list comes before the next page is read. */
 private const val OLDER_AHEAD = 6
 
-private val RUN_GAP = 3.dp
-private val BETWEEN_RUNS = 13.dp
+private val RUN_GAP = 2.dp
+private val BETWEEN_RUNS = 12.dp
+
+/** Their face beside their messages: the column every one of their bubbles is indented by. */
+private val FACE = 28.dp
+private val FACE_GAP = 8.dp
 
 /** A day or time label between messages. */
 @Composable
 private fun Label(text: String) {
     BasicText(
         text,
-        style = AppFonts.body(11f, lineHeight = 1.3f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp),
+        style = AppFonts.body(11.5f, lineHeight = 1.3f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
+        modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 6.dp),
     )
 }
 
@@ -327,39 +354,57 @@ private fun JumpPill(text: String, onClick: () -> Unit) {
 // One message
 
 /**
- * One message on its side of the thread: the quote it answers over it, a shared card and the bubble,
- * the preview of its link under them, and a line if it is still on its way or didn't go. Dragged
- * toward the middle it asks to be replied to.
+ * One message on its side of the thread: on theirs, their face beside the last bubble of each run
+ * (and the column it stands in beside every one of theirs); the quote it answers over it, its
+ * bubble — carrying a link's preview or a shared card — and a line if it is still on its way or
+ * didn't go ([deliveryLine]: not when the next in its run is on its way too). Dragged toward the
+ * middle it asks to be replied to.
  */
 @Composable
-private fun MessageItem(row: ThreadRow, ctx: ThreadContext) {
+private fun MessageItem(row: ThreadRow, ctx: ThreadContext, deliveryLine: Boolean) {
     val message = row.message
-    val mine = ctx.model.isMine(message)
+    val model = ctx.model
+    // A card the viewer can't see, carried alone: nothing to draw (not even a face beside it).
+    if (model.carried(message) == Carried.Nothing) return
+    val mine = model.isMine(message)
     SwipeToReply(enabled = message.canReply, mine = mine, onReply = { ctx.onReply(message) }) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-            Column(
-                Modifier.widthIn(max = ctx.rowMax),
-                horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                val quote = message.replyTo
-                if (quote != null) ReplyQuoteView(message, mine, ctx)
-                MessageCore(row, ctx, interactive = true, modifier = if (quote != null) Modifier.overlapAbove(6.dp) else Modifier)
-                message.preview?.let { p ->
-                    LinkPreviewCard(
-                        p.title, p.description, Linkify.displayHost(p.url) ?: p.url, p.imageUrl,
-                        seed = seedFromId(message.key, 13),
-                    ) { ctx.opener.tap(p.url) }
-                }
-                DeliveryLine(message, ctx.model)
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            if (!mine) TheirFace(shown = !row.position.joinsBelow, ctx)
+            Column(Modifier.widthIn(max = ctx.rowMax), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                MessageCore(row, ctx, interactive = true)
+                if (deliveryLine) DeliveryLine(message, model)
             }
         }
     }
 }
 
-/** The caption over a reply and the ghost of the message it quotes; tapping it goes to the original. */
+/** Their face, bottom-aligned beside the last bubble of their run ([shown]); else the empty column. A tap goes to their page. */
 @Composable
-private fun ReplyQuoteView(message: ChatMessage, mine: Boolean, ctx: ThreadContext) {
+private fun TheirFace(shown: Boolean, ctx: ThreadContext) {
+    Box(Modifier.padding(end = FACE_GAP).size(FACE)) {
+        val other = ctx.model.other
+        if (shown && other != null) {
+            Box(Modifier.plainClickable(role = Role.Button, onClickLabel = L10n.Messages.viewProfile) { ctx.open(Route.Author(other.handle)) }) {
+                HandDrawnAvatar(other.initials, other.avatarUrl, OklchColor.parse(other.accentColor) ?: Tokens.TerracottaLight, FACE, seedOr(other.avatarSeed, 3.0))
+            }
+        }
+    }
+}
+
+/** What [message]'s bubble carries besides its words ([Carried.of], with what this thread has read of shared cards). */
+internal fun ThreadModel.carried(message: ChatMessage): Carried = Carried.of(message, sharedCard(message), cards, cardsLoading)
+
+/** A bubble carrying a link's preview is this wide (or the row's widest); one carrying a card, [CARD_WIDTH]. */
+private val PREVIEW_WIDTH = 280.dp
+private val CARD_WIDTH = 300.dp
+
+/** The caption over a reply and the message it quotes, which the reply's bubble lies over; tapping it goes to the original. */
+@Composable
+private fun ReplyQuoteView(message: ChatMessage, mine: Boolean, ctx: ThreadContext, interactive: Boolean) {
     val quote = message.replyTo ?: return
     val model = ctx.model
     val handle = model.other?.handle.orEmpty()
@@ -370,31 +415,33 @@ private fun ReplyQuoteView(message: ChatMessage, mine: Boolean, ctx: ThreadConte
         quotedMine -> L10n.Messages.repliedToYou(handle)
         else -> L10n.Messages.repliedToThemselves(handle)
     }
-    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        ReplyCaption(caption, Modifier.padding(horizontal = 4.dp))
+    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+        // Inset from the bubble's outer edge, on its side.
+        ReplyCaption(caption, Modifier.padding(start = if (mine) 0.dp else 12.dp, end = if (mine) 12.dp else 0.dp, bottom = 4.dp))
         QuoteBubble(
             quote.text.ifEmpty { L10n.Messages.replyCard },
-            mine = mine,
             seed = seedFromId(quote.id, 19),
-            onClick = { ctx.onQuote(quote.id) },
+            onClick = if (interactive) { { ctx.onQuote(quote.id) } } else null,
         )
     }
 }
 
-/** The bubble (and a shared card with it) — what a long-press lifts. Drawn again, without gestures, by the menu. */
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * The message itself — the quote it answers and its bubble with all it carries — which a long-press
+ * lifts: drawn again, without gestures, by the menu.
+ */
 @Composable
 internal fun MessageCore(row: ThreadRow, ctx: ThreadContext, interactive: Boolean, modifier: Modifier = Modifier) {
     val message = row.message
     val model = ctx.model
     val mine = model.isMine(message)
+    val carried = model.carried(message)
+    if (carried == Carried.Nothing) return
     val haptic = LocalHapticFeedback.current
     var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    val links = remember(message.text) { Linkify.find(message.text) }
+    val words = carried.words(message)
+    val links = remember(words) { Linkify.find(words) }
     val ranges = remember(links) { links.map { it.range } }
-    val card = message.cardRef?.let { model.cards[it] }
-    val hasBubble = message.text.isNotEmpty() || message.noteRef != null
-    if (card == null && !hasBubble) return
     val flash = ctx.flash
     val pulse = remember(message.key) { Animatable(0f) }
     LaunchedEffect(flash.token) {
@@ -417,40 +464,73 @@ internal fun MessageCore(row: ThreadRow, ctx: ThreadContext, interactive: Boolea
     Column(
         modifier
             .then(if (message.delivery == Delivery.Failed) Modifier.fade(0.6f) else Modifier)
+            // Lifted into the menu's layer, it isn't left behind under the scrim (a ghost a step off the copy).
+            .then(if (interactive && ctx.lifted == message.key) Modifier.graphicsLayer { alpha = 0f } else Modifier)
             .onGloballyPositioned { coords = it },
         horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (card != null) {
-            EmbedStoryCard(
-                title = card.title,
-                author = if (card.anonymous) null else card.author?.handle,
-                imageUrl = card.imageUrl,
-                hue = card.accentHue,
-                seed = seedFromId(card.id, start = 11),
-                modifier = Modifier.widthIn(max = 320.dp).then(
-                    if (interactive) Modifier.combinedClickable(
-                        interactionSource = null, indication = null, role = Role.Button,
-                        onClick = { ctx.open(Route.Card(card.routeKey, card)) },
-                        onLongClick = { press(null) },
-                    ) else Modifier,
-                ),
-            )
-        }
-        if (hasBubble) {
-            MessageBubble(
-                message.text, mine, seedFromId(message.key),
-                quoteLabel = if (message.noteRef == null) null else L10n.Messages.quotedNote,
-                run = row.position,
-                links = ranges,
-                highlights = ctx.highlights[message.id].orEmpty(),
-                highlightStrong = message.id == ctx.currentHit,
-                flash = { pulse.value },
-                onLinkTap = if (interactive) { i -> links.getOrNull(i)?.let { ctx.opener.tap(it.url) } } else null,
-                onLongPress = if (interactive) { i -> press(i?.let { links.getOrNull(it)?.url }) } else null,
-            )
-        }
+        if (message.replyTo != null) ReplyQuoteView(message, mine, ctx, interactive)
+        MessageBubble(
+            words, mine, seedFromId(message.key),
+            // The reply lies over the foot of what it quotes.
+            modifier = if (message.replyTo != null) Modifier.overlapAbove(REPLY_OVERLAP) else Modifier,
+            quoteLabel = if (message.noteRef == null) null else L10n.Messages.quotedNote,
+            run = row.position,
+            links = ranges,
+            highlights = if (words == message.text) ctx.highlights[message.id].orEmpty() else emptyList(),
+            highlightStrong = message.id == ctx.currentHit,
+            // A search hit in words the bubble doesn't show (a card's link, standing for the card) washes the whole bubble.
+            flash = if (words != message.text && message.id == ctx.currentHit) { { max(pulse.value, 0.5f) } } else { { pulse.value } },
+            width = when (carried) {
+                is Carried.Preview -> min(PREVIEW_WIDTH, ctx.rowMax)
+                is Carried.Card, is Carried.CardLoading -> min(CARD_WIDTH, ctx.rowMax)
+                else -> null
+            },
+            plain = carried is Carried.CardLoading,
+            onLinkTap = if (interactive) { i -> links.getOrNull(i)?.let { ctx.tapLink(it.url) } } else null,
+            onLongPress = if (interactive) { i -> press(i?.let { links.getOrNull(it)?.url }) } else null,
+            attachment = when (carried) {
+                is Carried.Preview -> { { PreviewPart(carried.preview, afterWords = words.isNotEmpty() || message.noteRef != null, ctx, interactive, press) } }
+                is Carried.Card -> { { CardPart(carried.card, ctx, interactive, press) } }
+                is Carried.CardLoading -> { { SharedCardSkeleton() } }
+                else -> null
+            },
+        )
     }
+}
+
+/** A link's preview inside its bubble: a tap opens the link (by the link rules), a hold is the menu with the link's own rows. */
+@Composable
+private fun ColumnScope.PreviewPart(
+    preview: LinkPreview,
+    afterWords: Boolean,
+    ctx: ThreadContext,
+    interactive: Boolean,
+    press: (String?) -> Unit,
+) {
+    LinkPreviewSection(
+        preview.title, preview.description, Linkify.displayHost(preview.url) ?: preview.url, preview.imageUrl, afterWords,
+        onClick = if (interactive) { { ctx.tapLink(preview.url) } } else null,
+        onLongPress = if (interactive) { { press(preview.url) } } else null,
+    )
+}
+
+/** A shared card inside its bubble: a tap opens its page in the app. */
+@Composable
+private fun ColumnScope.CardPart(card: FeedCard, ctx: ThreadContext, interactive: Boolean, press: (String?) -> Unit) {
+    val author = card.author?.takeIf { !card.anonymous }
+    SharedCardSection(
+        byline = if (author != null) CardByline(author.handle, author.initials, author.avatarUrl, author.accent(), author.avatarSeedValue())
+        else CardByline.anonymous(L10n.Card.anonymousAuthor),
+        readTime = L10n.App.readMinutes(card.readMinutes),
+        title = card.title,
+        excerpt = card.excerpt,
+        imageUrl = card.imageUrl,
+        accentHue = card.accentHue,
+        source = L10n.Messages.cardSource,
+        onClick = if (interactive) { { ctx.open(Route.Card(card.routeKey, card)) } } else null,
+        onLongPress = if (interactive) { { press(null) } } else null,
+    )
 }
 
 /** The line under a message on its way or one that didn't go (its bubble above is dimmed). */
@@ -460,7 +540,7 @@ private fun DeliveryLine(message: ChatMessage, model: ThreadModel) {
         Delivery.Failed -> BasicText(
             L10n.Messages.sendFailed,
             style = AppFonts.body(11.5f, lineHeight = 1.3f, color = Tokens.Terracotta),
-            modifier = Modifier.padding(horizontal = 4.dp).plainClickable(role = Role.Button, onClickLabel = L10n.Messages.retry) { model.retry(message.key) },
+            modifier = Modifier.padding(top = 4.dp).padding(horizontal = 4.dp).plainClickable(role = Role.Button, onClickLabel = L10n.Messages.retry) { model.retry(message.key) },
         )
         Delivery.Sending -> {
             // Most sends are over before anyone looks; the line is for the ones that take a moment.
@@ -471,7 +551,7 @@ private fun DeliveryLine(message: ChatMessage, model: ThreadModel) {
             if (slow) BasicText(
                 L10n.Messages.sending,
                 style = AppFonts.body(11.5f, lineHeight = 1.3f, color = Tokens.TextMuted),
-                modifier = Modifier.padding(horizontal = 4.dp),
+                modifier = Modifier.padding(top = 4.dp).padding(horizontal = 4.dp),
             )
         }
         else -> Unit

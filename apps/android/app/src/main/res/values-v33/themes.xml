@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- From Android 13: the waves on every launch, not only the launcher's — a tapped push or a site link too (otherwise a bare color). -->
+    <style name="Theme.Resonance.Starting" parent="Base.Theme.Resonance.Starting">
+        <item name="android:windowSplashScreenBehavior">icon_preferred</item>
+    </style>
+</resources>
