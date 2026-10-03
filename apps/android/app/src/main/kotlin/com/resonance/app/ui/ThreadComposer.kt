@@ -65,7 +65,7 @@ internal fun Composer(model: ThreadModel, handle: String, focus: FocusRequester,
             }
         }
         model.replyingTo?.let { ReplyBar(model, it) }
-        // Send is a disc a little shorter than the field: it stays at the foot of the field as that grows.
+        // Send is a little shorter than the field: it stays at the foot of the field as that grows.
         Row(
             Modifier.padding(top = 12.dp),
             verticalAlignment = Alignment.Bottom,

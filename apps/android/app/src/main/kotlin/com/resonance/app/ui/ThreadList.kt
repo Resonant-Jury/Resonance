@@ -70,6 +70,8 @@ import com.resonance.api.models.FeedCard
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.CardByline
+import com.resonance.design.ComposerFade
+import com.resonance.design.ComposerFadeHeight
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.LinkPreviewSection
 import com.resonance.design.MessageBubble
@@ -246,7 +248,8 @@ internal fun MessageList(
             Modifier.fillMaxSize(),
             state = list,
             reverseLayout = true,
-            contentPadding = PaddingValues(top = top + 4.dp, bottom = 10.dp, start = 16.dp, end = 16.dp),
+            // The latest message rests clear of the composer's soft edge; only what scrolls under it fades.
+            contentPadding = PaddingValues(top = top + 4.dp, bottom = 10.dp + ComposerFadeHeight, start = 16.dp, end = 16.dp),
         ) {
             // The key a row had while it was sending is the one its document comes under, so it doesn't jump.
             itemsIndexed(newestFirst, key = { _, r -> r.message.key }) { i, row ->
@@ -267,6 +270,9 @@ internal fun MessageList(
             if (quiet != null) item(key = "quiet") { QuietNote(quiet) }
             else if (model.threadReady && rows.isNotEmpty()) item(key = "older") { OlderRow(model) }
         }
+        // Where the thread meets the composer it dissolves into the paper instead of ending on a cut;
+        // the pill (and anything laid over the thread) stays above it.
+        ComposerFade(Modifier.align(Alignment.BottomCenter))
         AnimatedVisibility(
             visible = pillVisible && (unseen > 0 || farUp) && !atBottom,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),

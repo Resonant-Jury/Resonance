@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,6 +50,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
@@ -86,7 +86,6 @@ import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.CornerRadii
 import com.resonance.geometry.SegValue
-import com.resonance.geometry.WobCircleOptions
 import com.resonance.geometry.WobRectOptions
 import com.resonance.geometry.jsRound
 import com.resonance.kit.chat.RunPosition
@@ -631,19 +630,20 @@ fun ColumnScope.SharedCardSkeleton() {
 // Send
 
 /**
- * The composer's Send: a wobbly terracotta disc with the paper plane in cream. It is the verb of the
- * bar, so it is a solid face with the buttons' grain and no pen line of its own. Dimmed and deaf
- * until there is something to send — never held by a send in flight.
+ * The composer's Send: a wobbly terracotta rounded rectangle — the shape of the web's and iOS's
+ * (one seed, one turn a side) — with the paper plane in cream. It is the verb of the bar, so it is
+ * a solid face with the buttons' grain and no pen line of its own. Dimmed and deaf until there is
+ * something to send — never held by a send in flight.
  */
 @Composable
-fun OrganicSendButton(label: String, enabled: Boolean, modifier: Modifier = Modifier, size: Dp = 44.dp, onClick: () -> Unit) {
+fun OrganicSendButton(label: String, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val haptic = LocalHapticFeedback.current
-    val shape = remember { WobCircleShape(23.0, WobCircleOptions(segments = 8, mag = 0.9, cpJitter = 0.4)) }
+    val shape = remember { SendShape }
     Box(
         modifier
-            .size(size)
+            .size(width = SendWidth, height = SendHeight)
             .fade(if (enabled) 1f else 0.45f)
             .scale(if (pressed) 0.95f else 1f)
             .drawWithCache {
@@ -661,10 +661,49 @@ fun OrganicSendButton(label: String, enabled: Boolean, modifier: Modifier = Modi
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        // The plane's weight sits low and to the left of its box: a step right and up to read as centred.
-        OrganicIcon(IconName.Send, Modifier.offset(x = 1.dp, y = (-1).dp), size = 20.dp, color = Tokens.Cream)
+        // The plane is drawn optically centred in its own box: it sits in the middle as it is.
+        OrganicIcon(IconName.Send, size = 20.dp, color = Tokens.Cream)
     }
 }
+
+/** Send's size: a little wider than tall, beside a field one line high. */
+val SendWidth = 52.dp
+val SendHeight = 44.dp
+
+/** Send's outline: radius 13, seed 23, a 1.1 swing, one turn a side with the corners a little lopsided (the web's 48×40 wobRect, at the apps' size). */
+private val SendShape = WobRectShape(
+    13.0, 23.0, mag = 1.1,
+    options = WobRectOptions(curve = 1.3, cornerJitter = 2.4, cornerOffset = 2.2, segmentsH = SegValue.Count(1.0), segmentsV = SegValue.Count(1.0)),
+)
+
+/**
+ * The soft edge where a thread's messages meet its composer (or whatever stands at its foot): a
+ * band of the page's paper fading to nothing upward, laid over the messages so they dissolve into
+ * the composer instead of ending on a hard line — eased, so neither of its edges shows. Nothing
+ * under it is hidden from a finger or a screen reader. Light on a divider: the composer itself
+ * stays opaque on the same paper, so it reads as its edge, not as a shadow.
+ */
+@Composable
+fun ComposerFade(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(ComposerFadeHeight)
+            .clearAndSetSemantics { }
+            .drawBehind { drawRect(ComposerFadeBrush) },
+    )
+}
+
+/** How tall the composer's soft edge is (the thread's list keeps that much more room at its foot). */
+val ComposerFadeHeight = 12.dp
+
+/** The paper from the bottom (whole) to the top (gone), on an eased curve: 1, .75 at 35%, .3 at 70%, 0. */
+private val ComposerFadeBrush = Brush.verticalGradient(
+    0f to Tokens.Cream.copy(alpha = 0f),
+    0.3f to Tokens.Cream.copy(alpha = 0.3f),
+    0.65f to Tokens.Cream.copy(alpha = 0.75f),
+    1f to Tokens.Cream,
+)
 
 /** A reply's rule in the composer: a short vertical pen line in terracotta, wavy like the headers' edges. */
 @Composable
