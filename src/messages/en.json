@@ -268,7 +268,8 @@
     "searchNext": "Later match",
     "searchShowList": "Show all matches",
     "searchHint": "Search the words in your messages",
-    "you": "You"
+    "you": "You",
+    "cardSource": "Resonance"
   },
   "write": {
     "titleRequired": "Give it a one-line title first.",

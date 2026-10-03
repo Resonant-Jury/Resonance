@@ -28,6 +28,12 @@ object Tokens {
     val Text = Color(0.1752f, 0.13f, 0.0888f, 1f, ColorSpaces.DisplayP3)
     /** --color-text-muted · sRGB #786550 */
     val TextMuted = Color(0.4591f, 0.3997f, 0.324f, 1f, ColorSpaces.DisplayP3)
+    /** --bubble-mine · sRGB #fddbbd */
+    val BubbleMine = Color(0.9711f, 0.8626f, 0.756f, 1f, ColorSpaces.DisplayP3)
+    /** --bubble-theirs · sRGB #eae2d7 */
+    val BubbleTheirs = Color(0.9116f, 0.8855f, 0.847f, 1f, ColorSpaces.DisplayP3)
+    /** --bubble-quote · sRGB #dfd8d0 */
+    val BubbleQuote = Color(0.8683f, 0.8475f, 0.819f, 1f, ColorSpaces.DisplayP3)
     /** --field-border · sRGB #c5bcb0 */
     val FieldBorder = Color(0.7681f, 0.7392f, 0.695f, 1f, ColorSpaces.DisplayP3)
     /** --field-border-hover · sRGB #937b69 */

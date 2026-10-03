@@ -6,15 +6,30 @@ public enum SegValue: Sendable, Equatable {
     case range(Int, Int)
 }
 
+/// Each corner's own radius, clockwise from the top left (a bubble in a stack keeps its outer
+/// corners round and tucks the ones that face its neighbours). Each is jittered and capped the way
+/// `R` is; without it all four are `R`. The twin of the Kotlin `CornerRadii` and the web's `cornerRadii`.
+public struct CornerRadii: Sendable, Equatable {
+    public var topLeft: Double, topRight: Double, bottomRight: Double, bottomLeft: Double
+    public init(topLeft: Double, topRight: Double, bottomRight: Double, bottomLeft: Double) {
+        self.topLeft = topLeft
+        self.topRight = topRight
+        self.bottomRight = bottomRight
+        self.bottomLeft = bottomLeft
+    }
+}
+
 public struct WobRectOptions: Sendable {
     public var curve: Double?
     public var cornerJitter: Double?
     public var cornerOffset: Double?
     public var segmentsH: SegValue?
     public var segmentsV: SegValue?
+    public var cornerRadii: CornerRadii?
 
     public init(curve: Double? = nil, cornerJitter: Double? = nil, cornerOffset: Double? = nil,
-                segmentsH: SegValue? = nil, segmentsV: SegValue? = nil) {
+                segmentsH: SegValue? = nil, segmentsV: SegValue? = nil, cornerRadii: CornerRadii? = nil) {
+        self.cornerRadii = cornerRadii
         self.curve = curve
         self.cornerJitter = cornerJitter
         self.cornerOffset = cornerOffset
@@ -46,11 +61,14 @@ public func wobRect(_ W: Double, _ H: Double, _ R: Double, seed: Double, mag: Do
     let segH = resolveSegs(o.segmentsH, 3)
     let segV = resolveSegs(o.segmentsV, 3)
 
-    let rVar = min(R * 0.07, max(0, min(W, H) / 2 - R) * 0.4) * cornerJitter
-    let Rtl = R + (rnd.next() - 0.5) * 2 * rVar
-    let Rtr = R + (rnd.next() - 0.5) * 2 * rVar
-    let Rbr = R + (rnd.next() - 0.5) * 2 * rVar
-    let Rbl = R + (rnd.next() - 0.5) * 2 * rVar
+    // The jitter follows each corner's own radius (all four are R unless the options say otherwise);
+    // the PRNG is consumed in the same order either way, so a rect with equal radii is unchanged.
+    let radii = o.cornerRadii
+    func corner(_ r: Double) -> Double { r + (rnd.next() - 0.5) * 2 * (min(r * 0.07, max(0, min(W, H) / 2 - r) * 0.4) * cornerJitter) }
+    let Rtl = corner(radii?.topLeft ?? R)
+    let Rtr = corner(radii?.topRight ?? R)
+    let Rbr = corner(radii?.bottomRight ?? R)
+    let Rbl = corner(radii?.bottomLeft ?? R)
 
     let oCap = max(0, min(W, H) * 0.5 - max(Rtl, Rtr, Rbr, Rbl)) * 0.6
     let oMag = min(cornerOffset, oCap)

@@ -15,7 +15,7 @@ sealed interface SegValue {
  * Each corner's own radius, clockwise from the top left (a bubble in a stack keeps its
  * outer corners round and tucks the ones that face its neighbours). A corner's radius is
  * what the rect's `R` is for all four when this isn't given; each is also jittered and
- * capped the way `R` is. Kotlin only: the web and Swift ports draw one radius.
+ * capped the way `R` is. The web (`cornerRadii`) and Swift (`CornerRadii`) ports take the same.
  */
 data class CornerRadii(val topLeft: Double, val topRight: Double, val bottomRight: Double, val bottomLeft: Double)
 

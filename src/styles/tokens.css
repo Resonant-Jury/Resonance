@@ -29,6 +29,12 @@
 
   --color-text:             oklch(26%   0.03  60);
   --color-text-muted:       oklch(52%   0.04  70);
+  /* Chat bubbles (Messenger's look in our hand): every bubble is a filled wobble with no pen line —
+     your own the terracotta-light wash over cream (made opaque, so what a bubble overlaps never shows
+     through), theirs a deeper paper, and the message a reply quotes a quieter paper behind it. */
+  --bubble-mine:   oklch(91.2% 0.055 62.6);
+  --bubble-theirs: oklch(91.5% 0.017 74);
+  --bubble-quote:  oklch(88.5% 0.013 72);
 
   --grain-opacity: 0.10;
 

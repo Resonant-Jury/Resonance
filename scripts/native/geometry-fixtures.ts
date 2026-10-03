@@ -80,6 +80,17 @@ for (const [w, h, seed] of [[320, 420, 42], [680, 240, 7], [1080, 360, 11]] as c
 }
 addRect(96, 96, 96 * 0.4, 70, 96 * 0.022, { segmentsH: 2, segmentsV: 2, curve: 1.2 }); // HandDrawnAvatar (approx.)
 addRect(44, 44, 12, 21, 1.8, { segmentsH: 2, segmentsV: 2, curve: 1.3, cornerJitter: 1.4 }); // ThoughtMap handle
+// Chat bubbles in a run: the corners facing a neighbour tucked, on the sender's side (cornerRadii, clockwise from top left).
+for (const [w, h, radii, seed] of [
+  [180, 44, [16, 16, 4, 16], 183], // your own, first of a run
+  [240, 44, [16, 4, 4, 16], 512], // your own, middle
+  [120, 44, [16, 4, 16, 16], 77], // your own, last
+  [260, 96, [4, 16, 16, 4], 9001], // theirs, middle, two lines
+] as const) {
+  addRect(w, h, 16, seed, Math.min(2.6, h * 0.05), {
+    curve: 1.3, cornerJitter: 1.6, cornerOffset: Math.min(w, h) * 0.04, segmentsH: 3, segmentsV: 1, cornerRadii: [...radii],
+  });
+}
 
 // Seeded spread.
 for (let i = 0; i < 220; i++) {

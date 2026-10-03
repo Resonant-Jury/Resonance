@@ -494,6 +494,8 @@ public enum L10n {
         public static var searchHint: String { Strings.shared.string("messages.searchHint") }
         /// You
         public static var you: String { Strings.shared.string("messages.you") }
+        /// Resonance
+        public static var cardSource: String { Strings.shared.string("messages.cardSource") }
     }
     public enum Write {
         /// Give it a one-line title first.

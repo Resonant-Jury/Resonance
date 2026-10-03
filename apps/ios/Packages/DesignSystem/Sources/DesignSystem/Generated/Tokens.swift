@@ -24,6 +24,12 @@ public nonisolated enum Tokens {
     public static let text = Color(.displayP3, red: 0.1752, green: 0.13, blue: 0.0888, opacity: 1)
     /// --color-text-muted · sRGB #786550
     public static let textMuted = Color(.displayP3, red: 0.4591, green: 0.3997, blue: 0.324, opacity: 1)
+    /// --bubble-mine · sRGB #fddbbd
+    public static let bubbleMine = Color(.displayP3, red: 0.9711, green: 0.8626, blue: 0.756, opacity: 1)
+    /// --bubble-theirs · sRGB #eae2d7
+    public static let bubbleTheirs = Color(.displayP3, red: 0.9116, green: 0.8855, blue: 0.847, opacity: 1)
+    /// --bubble-quote · sRGB #dfd8d0
+    public static let bubbleQuote = Color(.displayP3, red: 0.8683, green: 0.8475, blue: 0.819, opacity: 1)
     /// --field-border · sRGB #c5bcb0
     public static let fieldBorder = Color(.displayP3, red: 0.7681, green: 0.7392, blue: 0.695, opacity: 1)
     /// --field-border-hover · sRGB #937b69

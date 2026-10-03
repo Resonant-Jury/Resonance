@@ -268,7 +268,8 @@
     "searchNext": "下一則",
     "searchShowList": "顯示所有結果",
     "searchHint": "輸入關鍵字，搜尋你們的訊息",
-    "you": "你"
+    "you": "你",
+    "cardSource": "共振"
   },
   "write": {
     "titleRequired": "先寫下一句話標題。",

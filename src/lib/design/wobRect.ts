@@ -8,6 +8,12 @@ export interface WobRectOpts {
   cornerOffset?: number;
   segmentsH?: SegValue;
   segmentsV?: SegValue;
+  /**
+   * Each corner's own radius, clockwise from the top left — a bubble in a stack keeps its outer
+   * corners round and tucks the ones facing its neighbours. Each is jittered and capped the way
+   * `R` is; without it all four are `R`. The twin of the Kotlin and Swift `cornerRadii`.
+   */
+  cornerRadii?: [number, number, number, number];
 }
 
 // Corners: bezier quarter-circles with slightly jittered radius.
@@ -39,11 +45,14 @@ export function wobRect(
   const segH = resolveSegs(opts?.segmentsH, 3);
   const segV = resolveSegs(opts?.segmentsV, 3);
 
-  const rVar = Math.min(R * 0.07, Math.max(0, Math.min(W, H) / 2 - R) * 0.4) * cornerJitter;
-  const Rtl = R + (rnd() - 0.5) * 2 * rVar;
-  const Rtr = R + (rnd() - 0.5) * 2 * rVar;
-  const Rbr = R + (rnd() - 0.5) * 2 * rVar;
-  const Rbl = R + (rnd() - 0.5) * 2 * rVar;
+  // The jitter follows each corner's own radius (all four are R unless the options say otherwise);
+  // the PRNG is consumed in the same order either way, so a rect with equal radii is unchanged.
+  const radii = opts?.cornerRadii;
+  const corner = (r: number) => r + (rnd() - 0.5) * 2 * (Math.min(r * 0.07, Math.max(0, Math.min(W, H) / 2 - r) * 0.4) * cornerJitter);
+  const Rtl = corner(radii?.[0] ?? R);
+  const Rtr = corner(radii?.[1] ?? R);
+  const Rbr = corner(radii?.[2] ?? R);
+  const Rbl = corner(radii?.[3] ?? R);
 
   const oCap = Math.max(0, Math.min(W, H) * 0.5 - Math.max(Rtl, Rtr, Rbr, Rbl)) * 0.6;
   const oMag = Math.min(cornerOffset, oCap);

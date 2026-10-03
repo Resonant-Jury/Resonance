@@ -496,6 +496,8 @@ object L10n {
         val searchHint: String get() = Strings.string("messages.searchHint")
         /** You */
         val you: String get() = Strings.string("messages.you")
+        /** Resonance */
+        val cardSource: String get() = Strings.string("messages.cardSource")
     }
     object Write {
         /** Give it a one-line title first. */

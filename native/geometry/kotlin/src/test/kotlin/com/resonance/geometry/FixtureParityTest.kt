@@ -129,6 +129,7 @@ class FixtureParityTest {
                 cornerOffset = o?.get("cornerOffset").optNum,
                 segmentsH = segValue(o?.get("segmentsH")),
                 segmentsV = segValue(o?.get("segmentsV")),
+                cornerRadii = (o?.get("cornerRadii") as? JsonArray)?.map { it.num }?.let { (tl, tr, br, bl) -> CornerRadii(tl, tr, br, bl) },
             )
             val native = wobRect(a[0].num, a[1].num, a[2].num, a[3].num, a[4].optNum, options)
             expectSame(native, out.jsonPrimitive.content, "wobRect #$i", worst)

@@ -120,7 +120,10 @@ struct FixtureParityTests {
                 cornerJitter: optNum(o?["cornerJitter"]),
                 cornerOffset: optNum(o?["cornerOffset"]),
                 segmentsH: segValue(o?["segmentsH"]),
-                segmentsV: segValue(o?["segmentsV"])
+                segmentsV: segValue(o?["segmentsV"]),
+                cornerRadii: (o?["cornerRadii"] as? [Any]).map { r in
+                    CornerRadii(topLeft: num(r[0]), topRight: num(r[1]), bottomRight: num(r[2]), bottomLeft: num(r[3]))
+                }
             )
             let native = wobRect(num(c.args[0]), num(c.args[1]), num(c.args[2]), seed: num(c.args[3]),
                                  mag: optNum(c.args[4]), options: options)
