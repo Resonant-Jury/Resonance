@@ -101,7 +101,6 @@ struct FeedScreen: View {
                     Task { await model.loadMore() }
                 }
             }
-            OrganicButton(L10n.Home.writeResponse) { writer.open() }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 64)

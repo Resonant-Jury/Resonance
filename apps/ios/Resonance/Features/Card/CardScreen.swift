@@ -67,15 +67,6 @@ struct CardScreen: View {
                 }
             }
         }
-        // The web's pen sits on the card page too: bottom right, 20 in.
-        .overlay(alignment: .bottomTrailing) {
-            if let detail = model?.detail {
-                // On your own card the pen edits it (FloatingWriteButton's editsOwnCard), then comes back here.
-                FloatingWriteButton(label: detail.isOwner ? L10n.App.Nav.editThisCard : L10n.App.Nav.write) {
-                    if detail.isOwner { writer.edit(detail.card.id, showsCard: false) } else { writer.open() }
-                }
-            }
-        }
         .toolbar(.hidden, for: .navigationBar)
         .task {
             if model == nil {
@@ -99,7 +90,6 @@ struct CardScreen: View {
 
     private func page(_ model: CardModel, _ detail: CardDetail) -> some View {
         let card = detail.card
-        let hue = card.accentHue ?? 55
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 head(card, anonymous: detail.anonymous)
@@ -139,8 +129,8 @@ struct CardScreen: View {
             if !model.related.isEmpty {
                 section(L10n.Card.related, headingGap: 56) { StoryCardList(cards: model.related) }
             }
-            // Room for the pen.
-            Color.clear.frame(height: 96)
+            // The page's own air under its last section (editing your card is in its ⋯).
+            Color.clear.frame(height: 40)
         }
     }
 

@@ -15,7 +15,7 @@ enum AppTab: Hashable, CaseIterable {
         }
     }
 
-    /// The web's glyphs for the same places (Subnavbar, NotificationBell, FloatingWriteButton).
+    /// The web's glyphs for the same places (Subnavbar, NotificationBell, the header's write entry).
     var icon: IconName {
         switch self {
         case .feed: .sparkle

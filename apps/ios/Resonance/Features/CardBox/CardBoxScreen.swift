@@ -63,8 +63,8 @@ struct CardBoxScreen: View {
                     Text(me.bio ?? L10n.Me.bioEmpty).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
                 }
                 Spacer(minLength: 0)
-                // The phone's settings entry: the pen (the app's settings glyph) in a small ghost chip.
-                OrganicButton(icon: .pen, label: L10n.Me.editProfile) { openRoute(.settings) }
+                // The phone's settings entry: the pen (the app's settings glyph), bare — a glyph beside the name, not a chip.
+                OrganicIconButton(.pen, label: L10n.Me.editProfile, size: 20) { openRoute(.settings) }
             }
         } else if case .failed = session.profile {
             OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
