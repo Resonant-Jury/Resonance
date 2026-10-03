@@ -61,6 +61,49 @@ function restoreThemeColor() {
 }
 
 /**
+ * While `active`, the browser's own bars take the scrim's colour, as under a
+ * modal — for anything else that dims the whole window with the same scrim
+ * (`color-mix(in oklch, var(--color-text) 24%, transparent)`): the thread's
+ * long-press menu.
+ */
+export function useDimmedChrome(active: boolean): void {
+  useEffect(() => {
+    if (!active) return;
+    dimThemeColor();
+    return restoreThemeColor;
+  }, [active]);
+}
+
+/** What Tab can reach inside a dialog. */
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Tab and Shift+Tab walk round the dialog instead of out of it into the page
+ * under the backdrop (which a click can't reach either): past the last
+ * control to the first, before the first to the last.
+ */
+function keepFocusIn(panel: HTMLElement | null, e: KeyboardEvent) {
+  if (!panel) return;
+  const stops = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => !el.closest('[hidden], [aria-hidden="true"]'));
+  if (!stops.length) {
+    e.preventDefault();
+    panel.focus({ preventScroll: true });
+    return;
+  }
+  const first = stops[0];
+  const last = stops[stops.length - 1];
+  const at = document.activeElement;
+  const inside = at instanceof Node && panel.contains(at);
+  if (e.shiftKey && (!inside || at === first || at === panel)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (!inside || at === last)) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+/**
  * The hand-drawn dialog. It has no ✕: every way on lies in its own buttons,
  * and a click on the backdrop or Escape closes it (as in the apps). A screen
  * reader still finds a close button inside it — hidden until keyboard focus
@@ -98,7 +141,14 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') {
+        if (!onClose) return;
+        // This dialog is what Escape closes — nothing under it (a search open over a thread) closes with it.
+        e.preventDefault();
+        onClose();
+      } else if (e.key === 'Tab') {
+        keepFocusIn(ref.current, e);
+      }
     };
     document.addEventListener('keydown', onKey);
     const prevOverflow = document.body.style.overflow;
@@ -109,11 +159,7 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  useEffect(() => {
-    if (!open) return;
-    dimThemeColor();
-    return restoreThemeColor;
-  }, [open]);
+  useDimmedChrome(open);
 
   // Focus goes into the dialog when it opens (unless a field in it took it
   // already), so a screen reader is in it and Tab starts there; it goes back

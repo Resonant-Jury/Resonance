@@ -146,6 +146,47 @@ describe('Modal', () => {
     expect(opener).toHaveFocus();
   });
 
+  // The page under the backdrop can't be clicked, nor reached by Tab: focus walks round the dialog.
+  it('keeps Tab and Shift+Tab inside the dialog', async () => {
+    render(
+      <>
+        <button>Behind</button>
+        <Modal open onClose={vi.fn()} ariaLabel="Confirm">
+          <button>Cancel</button>
+          <button>Delete</button>
+        </Modal>
+      </>,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Confirm' });
+    expect(dialog).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveFocus();
+    await userEvent.tab();
+    // The close kept for screen readers is the last stop, then round to the first again.
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Behind' })).not.toHaveFocus();
+  });
+
+  // What Escape closes is this dialog alone: a listener under it (a search over a thread) is told so.
+  it('claims the Escape that closes it', async () => {
+    const heard = vi.fn((e: KeyboardEvent) => e.defaultPrevented);
+    render(
+      <Modal open onClose={vi.fn()}>
+        <p>Body</p>
+      </Modal>,
+    );
+    document.addEventListener('keydown', heard);
+    await userEvent.keyboard('{Escape}');
+    document.removeEventListener('keydown', heard);
+    expect(heard).toHaveReturnedWith(true);
+  });
+
   // The browser paints its own bars in the theme colour: they dim with the
   // page while a modal is open, and come back after.
   it('dims the theme colour while open', () => {
