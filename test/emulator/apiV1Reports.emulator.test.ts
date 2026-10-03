@@ -3,6 +3,7 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { createReport, MESSAGE_CONTEXT } from '@/lib/api/v1/safety';
+import { sendNote } from '@/lib/api/v1/conversations';
 import { CreateReportRequest } from '@/lib/api/v1/schemas';
 
 // POST /api/v1/reports against the Firestore emulator: a person or a message
@@ -94,6 +95,19 @@ describe('createReport: a message', () => {
     const context = evidence.context as { id: string }[];
     expect(context).toHaveLength(MESSAGE_CONTEXT);
     expect(context.at(-1)!.id).toBe('m24');
+  });
+
+  it('reports a note left in the thread, keeping what it was (kind) and the card it was left on', async () => {
+    await db.doc('cards/walk').set({ authorId: 'alice', thoughtCore: 'A walk', story: 's', visibility: 'public', anonymous: false, publishedAt: at(30) });
+    const note = await sendNote(db, 'bob', { cardId: 'walk', text: '你寫的我都看了，我知道你住哪' });
+    // The card's author reports the note from the thread's message menu: the message is the note's own id.
+    const id = await createReport(db, 'alice', { targetType: 'message', targetId: note.id, conversationId: PAIR, reason: 'harassment' });
+    expect(await data(`reports/${id}`)).toMatchObject({ targetType: 'message', targetId: note.id, targetUserId: 'bob', contextId: PAIR });
+    const evidence = (await data(`reportEvidence/${id}`))!;
+    expect(evidence.message).toMatchObject({ id: note.id, senderId: 'bob', text: '你寫的我都看了，我知道你住哪', cardRef: 'walk', kind: 'note' });
+    expect(evidence.message).not.toHaveProperty('noteRef');
+    // The messages before it, as for any message.
+    expect((evidence.context as unknown[]).length).toBe(MESSAGE_CONTEXT);
   });
 
   it("is not_found outside the reporter's own conversations, and refuses their own message", async () => {

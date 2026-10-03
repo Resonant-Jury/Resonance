@@ -3,7 +3,7 @@ import type { MulticastMessage } from 'firebase-admin/messaging';
 import { createTranslator } from 'next-intl';
 import en from '@/messages/en.json';
 import zhTW from '@/messages/zh-TW.json';
-import { cut, pairOf } from '@/lib/api/v1/conversations';
+import { NOTE_MESSAGE_KIND, cut, pairOf } from '@/lib/api/v1/conversations';
 import type { DeviceLocale } from './devices';
 import {
   MESSAGES_CHANNEL,
@@ -74,6 +74,9 @@ function epochMillis(value: unknown): number {
  *   conversation's earlier one (`tag`), iOS groups them (`threadId`).
  * - The title is the sender's pen name as it is now; the body is the
  *   message's text (140 code points), or "Shared a card" when it has none.
+ * - A note carried into the thread (sendNote) rings here too, like any
+ *   message, its data marked `kind: 'note'` (only a kind the server knows;
+ *   apps ignore one they don't).
  */
 export async function pushMessage(db: Firestore, push: MessagePush, sender: PushSender): Promise<PushResult | null> {
   const { conversationId, messageId, from, to } = push;
@@ -97,6 +100,7 @@ export async function pushMessage(db: Firestore, push: MessagePush, sender: Push
   const words = cut(str(message.get('text')).trim(), PUSH_BODY_CHARS);
   const route = pushRoute('message', { fromHandle: handle });
   const sentAt = String(epochMillis(message.get('sentAt')));
+  const kind: Record<string, string> = message.get('kind') === NOTE_MESSAGE_KIND ? { kind: NOTE_MESSAGE_KIND } : {};
 
   let sent = 0;
   const dead: DocumentReference[] = [];
@@ -118,7 +122,7 @@ export async function pushMessage(db: Firestore, push: MessagePush, sender: Push
         tokens,
         // `toUserId`: the app draws it only while that account is the one signed in (a sign-out whose unregister never
         // reached us leaves the install registered to them for a while).
-        data: { type: 'message', conversationId, messageId, fromUserId: from, toUserId: to, fromHandle: handle, title, body, route, sentAt },
+        data: { type: 'message', conversationId, messageId, fromUserId: from, toUserId: to, fromHandle: handle, title, body, route, sentAt, ...kind },
         android: { priority: 'high' },
       }));
     }
@@ -128,7 +132,7 @@ export async function pushMessage(db: Firestore, push: MessagePush, sender: Push
         notification: { title, body },
         // No `notificationId`: no bell row stands behind a message, and an empty one made older Android builds
         // mark `notifications/` itself read on the tap (an invalid path, a crash). They open the route without it.
-        data: { type: 'message', route, fromUserId: from, conversationId, messageId },
+        data: { type: 'message', route, fromUserId: from, conversationId, messageId, ...kind },
         android: { priority: 'high', notification: { channelId: MESSAGES_CHANNEL, tag: conversationId } },
         apns: { payload: { aps: { sound: 'default', threadId: conversationId } } },
       }));

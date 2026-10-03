@@ -94,6 +94,30 @@ describe('OrganicButton variants', () => {
   });
 });
 
+// A dialog's verb before there is anything to act on (the resonate picker's
+// 共振 until a card is chosen): it can't be pressed and doesn't answer a hover.
+describe('disabled', () => {
+  it('takes no click and grows no hover ink', async () => {
+    const onClick = vi.fn();
+    render(
+      <OrganicButton variant="solid" disabled onClick={onClick}>
+        Resonate
+      </OrganicButton>,
+    );
+    const btn = screen.getByRole('button', { name: 'Resonate' });
+    expect(btn).toBeDisabled();
+    await userEvent.click(btn);
+    expect(onClick).not.toHaveBeenCalled();
+    fireEvent.mouseEnter(btn, { clientX: 10, clientY: 10 });
+    const disc = btn.querySelector('[data-brush-wash] > *') as HTMLElement;
+    expect(Number(disc.style.transform.match(/scale\(([^)]+)\)/)?.[1])).toBe(0);
+  });
+
+  it('is pressable by default', () => {
+    expect(renderVariant('solid')).toBeEnabled();
+  });
+});
+
 // A sheet's provider buttons span its width: the face is drawn across all of
 // it — the size it measures — and the label stays in the middle.
 describe('block', () => {

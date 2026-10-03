@@ -307,6 +307,25 @@ export const ApplyEditResponse = named(
   'ApplyEditResponse',
 );
 
+export const ResonateRequest = named(
+  z.object({
+    /** One of your published, public cards that answers no other card yet (its id). */
+    cardId: DocId,
+  }),
+  'ResonateRequest',
+  'Make a card you have already written a resonance of this one.',
+);
+
+export const ResonateResponse = named(
+  z.object({
+    /** Your card as your card box shows it, now answering this one (`referenceCardId`). */
+    card: FeedCard,
+    /** False when it already answered this card: nothing was written, no one was rung. */
+    changed: z.boolean(),
+  }),
+  'ResonateResponse',
+);
+
 /** The web's limits (client/notes.ts, client/messages.ts; mirrored in firestore.rules). */
 export const NOTE_TEXT_MAX = 2000;
 export const MESSAGE_TEXT_MAX = 2000;
@@ -495,6 +514,7 @@ export type UpdateProfileInput = z.infer<typeof UpdateProfileRequest>;
 export type ReportCardInput = z.infer<typeof ReportCardRequest>;
 export type CreateReportInput = z.infer<typeof CreateReportRequest>;
 export type UpdateCardInput = z.infer<typeof UpdateCardRequest>;
+export type ResonateResponseBody = z.infer<typeof ResonateResponse>;
 export type CardListBody = z.infer<typeof CardList>;
 export type CardInclude = (typeof CARD_INCLUDES)[number];
 export type ProfileInclude = (typeof PROFILE_INCLUDES)[number];

@@ -154,6 +154,8 @@ export async function createReport(db: Firestore, reporterId: string, input: Cre
     sentAt: iso(m.sentAt),
     ...(typeof m.cardRef === 'string' ? { cardRef: m.cardRef } : {}),
     ...(m.noteRef && typeof m.noteRef === 'object' ? { noteRef: m.noteRef } : {}),
+    // A note carried into the thread (`kind: 'note'`, its card in cardRef): what the reported words were left on.
+    ...(typeof m.kind === 'string' ? { kind: m.kind } : {}),
   });
   const sent = await db.doc(`users/${sender}`).get();
   return file(

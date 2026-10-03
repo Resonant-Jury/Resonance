@@ -282,7 +282,9 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
               </h1>
               {isOwner && (
                 <CardActionsMenu
-                  card={{ id: card.id, visibility: card.visibility }}
+                  card={{ id: card.id, visibility: card.visibility, slug: card.slug, referenceCardId: card.referenceCardId }}
+                  // The card it resonates with heads the resonance list, when the viewer may read it.
+                  referenceTitle={resonances.cards.find((c) => c.id === card.referenceCardId)?.thoughtCore}
                   seed={hue + 3}
                   bare
                   // Re-read this card so the visibility chip/state reflects the change.
@@ -321,6 +323,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
             <ReadAfterArea
               cardId={card.id}
               cardTitle={card.thoughtCore}
+              referenceCardId={card.referenceCardId}
               author={{
                 id: author.id,
                 handle: author.handle,

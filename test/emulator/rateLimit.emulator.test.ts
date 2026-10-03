@@ -57,6 +57,15 @@ describe('spend', () => {
     await spend(db, 'alice', 'uploadBytes', 10, T0 + 2);
   });
 
+  it('gives resonating with a written card 60 a day: a reader picking cards, never a script ringing everyone', async () => {
+    expect(LIMITS.resonate).toEqual({ max: 60, windowMs: 24 * 60 * 60 * 1000 });
+    for (let i = 0; i < 60; i++) await spend(db, 'erin', 'resonate', 1, T0 + i);
+    expect((await refusal(spend(db, 'erin', 'resonate', 1, T0 + 60))).code).toBe('rate_limited');
+    // Publishing a written resonance keeps its own budget.
+    await spend(db, 'erin', 'publish', 1, T0 + 61);
+    await spend(db, 'erin', 'resonate', 1, T0 + LIMITS.resonate.windowMs);
+  });
+
   it('never lets concurrent requests overspend', async () => {
     const { max } = LIMITS.illustration;
     const results = await Promise.allSettled(Array.from({ length: max + 5 }, () => spend(db, 'carol', 'illustration', 1, T0)));

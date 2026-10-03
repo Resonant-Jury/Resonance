@@ -304,9 +304,39 @@ public enum L10n {
             /// You have no published cards to link yet.
             public static var noCards: String { Strings.shared.string("card.linkModal.noCards") }
         }
+        public enum LinkPreview {
+            /// Open link: {host}
+            public static func `open`(host: String) -> String { Strings.shared.format("card.linkPreview.open", ["host": host]) }
+        }
         public enum ResonatorsModal {
             /// Resonated with this card
             public static var title: String { Strings.shared.string("card.resonatorsModal.title") }
+        }
+        public enum ResonatePicker {
+            /// Resonate with this card
+            public static var title: String { Strings.shared.string("card.resonatePicker.title") }
+            /// Write a new card, or pick one you've written about something similar.
+            public static var subtitle: String { Strings.shared.string("card.resonatePicker.subtitle") }
+            /// Write a new card
+            public static var writeNew: String { Strings.shared.string("card.resonatePicker.writeNew") }
+            /// Start from this card and put your own experience into words.
+            public static var writeNewHint: String { Strings.shared.string("card.resonatePicker.writeNewHint") }
+            /// Or pick one you've written
+            public static var pickHeading: String { Strings.shared.string("card.resonatePicker.pickHeading") }
+            /// You have no public cards yet — write your first one above.
+            public static var empty: String { Strings.shared.string("card.resonatePicker.empty") }
+            /// Cards already resonating with another card aren't listed.
+            public static var hiddenNote: String { Strings.shared.string("card.resonatePicker.hiddenNote") }
+            /// Resonate
+            public static var confirm: String { Strings.shared.string("card.resonatePicker.confirm") }
+            /// Cancel
+            public static var cancel: String { Strings.shared.string("card.resonatePicker.cancel") }
+            /// Couldn't resonate — please try again.
+            public static var failed: String { Strings.shared.string("card.resonatePicker.failed") }
+            /// This card already resonates with another card.
+            public static var alreadyAnswering: String { Strings.shared.string("card.resonatePicker.alreadyAnswering") }
+            /// Anonymous
+            public static var anonymous: String { Strings.shared.string("card.resonatePicker.anonymous") }
         }
         /// Translate to
         public static var translateTo: String { Strings.shared.string("card.translateTo") }
@@ -384,6 +414,10 @@ public enum L10n {
         public static var replyToNote: String { Strings.shared.string("messages.replyToNote") }
         /// In reply to your note
         public static var quotedNote: String { Strings.shared.string("messages.quotedNote") }
+        /// {handle} left a note on your card
+        public static func noteOnYourCard(handle: String) -> String { Strings.shared.format("messages.noteOnYourCard", ["handle": handle]) }
+        /// You left a note on {handle}'s card
+        public static func youLeftNote(handle: String) -> String { Strings.shared.format("messages.youLeftNote", ["handle": handle]) }
         /// Attach a card
         public static var attachCard: String { Strings.shared.string("messages.attachCard") }
         /// Remove card
@@ -803,6 +837,14 @@ public enum L10n {
             public static var deleteConfirm: String { Strings.shared.string("me.actions.deleteConfirm") }
             /// Keep it
             public static var deleteCancel: String { Strings.shared.string("me.actions.deleteCancel") }
+            /// Stop resonating
+            public static var unresonate: String { Strings.shared.string("me.actions.unresonate") }
+            /// Stop resonating with \"{title}\"?
+            public static func unresonateConfirmTitle(title: String) -> String { Strings.shared.format("me.actions.unresonateConfirmTitle", ["title": title]) }
+            /// Your card stays; it just won't be listed with that card.
+            public static var unresonateConfirmBody: String { Strings.shared.string("me.actions.unresonateConfirmBody") }
+            /// Stop resonating
+            public static var unresonateConfirm: String { Strings.shared.string("me.actions.unresonateConfirm") }
         }
         /// Anonymous
         public static var anonymousBadge: String { Strings.shared.string("me.anonymousBadge") }

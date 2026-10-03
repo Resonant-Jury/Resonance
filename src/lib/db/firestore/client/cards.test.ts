@@ -21,7 +21,8 @@ vi.mock('firebase/firestore/lite', () => ({
 }));
 
 import { getDoc, setDoc } from 'firebase/firestore/lite';
-import { publishCard, updateCardDraft } from './cards';
+import { publishCard, resonateWith, unresonate, updateCardDraft } from './cards';
+import { ApiError } from './api';
 
 function snapshot(publishedAt: unknown) {
   return {
@@ -82,5 +83,67 @@ describe('updateCardDraft', () => {
     vi.mocked(getDoc).mockResolvedValue(snapshot(null));
     await updateCardDraft('card-1', { thoughtCore: 'x' });
     expect(vi.mocked(setDoc).mock.calls[0][1]).not.toHaveProperty('media');
+  });
+});
+
+describe('resonateWith / unresonate', () => {
+  // The rules never let the browser point a written card at another
+  // (referenceCardId is set once, when a draft is made): both go through the
+  // server, the same calls the apps make. (What the server checks is pinned
+  // in test/emulator/apiV1Resonate.)
+  it('points your card at the one you read through the API, with the ID token', async () => {
+    const answer = { card: { id: 'mine', referenceCardId: 'orig' }, changed: true };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(answer), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(resonateWith('orig', 'mine')).resolves.toEqual(answer);
+      const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe('/api/v1/cards/orig/resonances');
+      expect(init.method).toBe('POST');
+      expect(JSON.parse(String(init.body))).toEqual({ cardId: 'mine' });
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer id-token');
+      expect(setDoc).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("surfaces a conflict as the API's code, for the picker's own message", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ error: { code: 'conflict', message: 'This card already resonates with another card.' } }), { status: 409 }),
+    ));
+    try {
+      const e = await resonateWith('orig', 'mine').catch((err: unknown) => err);
+      expect(e).toBeInstanceOf(ApiError);
+      expect(e).toMatchObject({ status: 409, code: 'conflict' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('takes it back with a DELETE naming both cards (204, no body)', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(unresonate('orig', 'mine')).resolves.toBeUndefined();
+      const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe('/api/v1/cards/orig/resonances/mine');
+      expect(init.method).toBe('DELETE');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('asks nothing of the server when nobody is signed in', async () => {
+    mockAuth.currentUser = null;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(resonateWith('orig', 'mine')).rejects.toThrow('Not signed in');
+      await expect(unresonate('orig', 'mine')).rejects.toThrow('Not signed in');
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

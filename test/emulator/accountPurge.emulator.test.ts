@@ -9,6 +9,7 @@ import {
   scheduleAccountDeletion,
 } from '@/lib/account/deletion';
 import { exportAccountData, exportAccountJson } from '@/lib/account/export';
+import { sendNote } from '@/lib/api/v1/conversations';
 
 // Account purge against the real Firestore emulator. Alice is deleted; Bob is
 // connected to her, resonated with her card, and messaged her. Everything that
@@ -204,6 +205,23 @@ describe('purgeAccount', () => {
     // Older keys carry the uid; newer ones are found by their records.
     expect(deleteStoragePrefix).toHaveBeenCalledWith('image/alice/');
     expect(deleteStorageObject.mock.calls).toEqual([['image/2026-10/a1.webp']]);
+  });
+
+  it('removes a note carried into the thread, with the note itself and its bell, whichever of the two is deleted', async () => {
+    for (const [sender, deleted] of [['alice', 'alice'], ['bob', 'alice']] as const) {
+      await seedWorld();
+      const author = sender === 'alice' ? 'bob' : 'alice';
+      await db.doc(`cards/${author}-card`).update({ publishedAt: new Date(), anonymous: false });
+      const note = await sendNote(db, sender, { cardId: `${author}-card`, text: 'a note in our thread' });
+      expect(await exists(`conversations/alice_bob/messages/${note.id}`)).toBe(true);
+
+      await purgeAccount({ db, deleteAuthUser: vi.fn(async () => {}) }, deleted);
+      expect(await exists(`conversations/alice_bob/messages/${note.id}`)).toBe(false);
+      expect(await exists('conversations/alice_bob')).toBe(false);
+      expect(await exists(`notes/${note.id}`)).toBe(false);
+      expect(await exists(`notifications/${note.notificationId}`)).toBe(false);
+      await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
+    }
   });
 
   it('still deletes the account when storage cleanup fails', async () => {

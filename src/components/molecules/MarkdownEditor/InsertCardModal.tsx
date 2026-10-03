@@ -1,11 +1,9 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
-import { Divider } from '@/components/atoms/Divider/Divider';
-import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
-import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
+import { CardPickList } from '@/components/molecules/CardPicker/CardPickList';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { getCardsByAuthor } from '@/lib/db/firestore/client/reads';
 import type { Card } from '@/lib/db/types';
@@ -67,51 +65,9 @@ export function InsertCardModal({ open, onClose, onPick, title, subtitle }: Inse
       ) : cards.length === 0 ? (
         <p className={styles.muted}>{t('empty')}</p>
       ) : (
-        <CardRowList cards={cards} onPick={onPick} />
+        <CardPickList cards={cards} onPick={onPick} />
       )}
 
     </Modal>
-  );
-}
-
-/**
- * The scrollable pick list: rows part with a wavy pen rule (the notification
- * modal's language) — no boxed hover region; hover speaks through the ink.
- */
-function CardRowList({ cards, onPick }: { cards: Card[]; onPick: (card: Card) => void }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  return (
-    <div className={styles.listArea}>
-      <div ref={scrollRef} className={styles.scroll}>
-        <ul className={styles.list}>
-          {cards.map((c, i) => (
-            <Fragment key={c.id}>
-              {i > 0 && (
-                <li aria-hidden>
-                  <Divider seed={67 + i * 31} spacing={0} />
-                </li>
-              )}
-              <li>
-                <button type="button" className={styles.cardRow} onClick={() => onPick(c)}>
-                  <span className={styles.thumb}>
-                    <OrganicImage src={c.media?.url} alt={c.thoughtCore} seed={i * 7 + 3} ratio={1}>
-                      {!c.media?.url && (
-                        <span
-                          className={styles.thumbFallback}
-                          style={{ background: `oklch(90% 0.06 ${c.accentHue ?? 55})` }}
-                        />
-                      )}
-                    </OrganicImage>
-                  </span>
-                  <span className={styles.cardTitle}>{c.thoughtCore}</span>
-                </button>
-              </li>
-            </Fragment>
-          ))}
-        </ul>
-      </div>
-      <OrganicScrollbar targetRef={scrollRef} seed={61} />
-    </div>
   );
 }

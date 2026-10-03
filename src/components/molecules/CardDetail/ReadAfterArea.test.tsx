@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderWithIntl, screen, fireEvent, userEvent } from '@/../test/render';
+import { renderWithIntl, screen, fireEvent, userEvent, waitFor } from '@/../test/render';
 import { ReadAfterArea } from './ReadAfterArea';
 
 // Boundary mocks: auth, navigation, data hooks, write modules, hints. The
@@ -18,6 +18,11 @@ const mockUseMyResonance = vi.fn();
 vi.mock('@/lib/data/hooks', () => ({
   useMyProfile: () => ({ data: { id: 'viewer', handle: 'viewer-handle' } }),
   useMyResonance: () => mockUseMyResonance(),
+  // The resonate picker's list: the viewer's published shelf.
+  useMyCardBox: (shelf: string | null) => ({
+    data: shelf ? { cards: [{ id: 'mine-1', thoughtCore: 'A card of mine', visibility: 'public', publishedAt: new Date() }], authors: {} } : undefined,
+    mutate: vi.fn(),
+  }),
 }));
 vi.mock('@/lib/db/firestore/client/notes', () => ({
   sendNote: vi.fn(),
@@ -83,10 +88,44 @@ describe('ReadAfterArea', () => {
     expect(screen.queryByPlaceholderText('Something you want to tell the author…')).not.toBeInTheDocument();
   });
 
-  it('navigates to the write page on clicking Resonate', async () => {
+  it('opens the resonate picker on Resonate: write a new card, or pick one already written', async () => {
+    renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user().click(screen.getAllByRole('button', { name: /Resonate/ })[0]);
+
+    expect(await screen.findByRole('dialog', { name: 'Resonate with this card' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'A card of mine' })).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+
+    // The first row is the writer, as the button used to be.
+    await user().click(screen.getByRole('button', { name: /Write a new card/ }));
+    expect(mockPush).toHaveBeenCalledWith('/write?referenceCardId=c1');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('sends signed-out visitors to /signin instead of opening the picker', async () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
     renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
     await user().click(screen.getAllByRole('button', { name: /Resonate/ })[0]);
-    expect(mockPush).toHaveBeenCalledWith('/write?referenceCardId=c1');
+    expect(mockPush).toHaveBeenCalledWith('/signin');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('says a published resonance is done, and opens it', async () => {
+    mockUseMyResonance.mockReturnValue({
+      data: { id: 'mine-9', slug: 'my-answer', publishedAt: new Date(), anonymous: false, authorId: 'viewer' },
+    });
+    renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
+    await user().click(screen.getAllByRole('button', { name: /Resonated/ })[0]);
+    expect(mockPush).toHaveBeenCalledWith('/card/my-answer');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('takes a resonance still in draft back to the writer', async () => {
+    mockUseMyResonance.mockReturnValue({ data: { id: 'draft-9', publishedAt: null } });
+    renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
+    await user().click(screen.getAllByRole('button', { name: /Edit/ })[0]);
+    expect(mockPush).toHaveBeenCalledWith('/write/draft-9');
   });
 
   it('upgrades a long note by navigating to the write page with the text in searchParams', async () => {

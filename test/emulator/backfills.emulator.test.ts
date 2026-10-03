@@ -7,6 +7,8 @@ import { cleanUpEdits } from '../../scripts/backfills/orphanEdits';
 import { setStorageHost } from '../../scripts/backfills/storageHost';
 import { rekeyAnonymousImages, type Storage } from '../../scripts/backfills/rekeyImages';
 import { rehostImages } from '../../scripts/backfills/rehostImages';
+import { backfillNotes } from '../../scripts/backfills/notes';
+import { sendNote } from '@/lib/api/v1/conversations';
 
 // The one-off backfills (scripts/backfill.ts) against the Firestore emulator:
 // what they change with --apply, and that a dry run changes nothing.
@@ -259,5 +261,134 @@ describe('rekey-images', () => {
     expect(deleted.sort()).toEqual(['image/bob/2026-05/cover.webp', 'image/bob/2026-05/inline.webp']);
     await rekeyAnonymousImages(db, storage, { apply: true, deleteOld: true, publicBase: BASE, log: quiet });
     expect(deleted).toHaveLength(2);
+  });
+});
+
+describe('notes', () => {
+  // Minutes after a fixed moment: the notes' own dates.
+  const t = (minutes: number) => Timestamp.fromMillis(Date.parse('2026-08-01T00:00:00Z') + minutes * 60_000);
+  const published = t(-1000);
+  const card = (id: string, authorId: string, extra: Record<string, unknown> = {}) =>
+    db.doc(`cards/${id}`).set({ authorId, thoughtCore: id, story: 's', visibility: 'public', anonymous: false, publishedAt: published, ...extra });
+  const note = (id: string, from: string, to: string, cardId: string, text: string, createdAt: Timestamp | null) =>
+    db.doc(`notes/${id}`).set({ fromUserId: from, toUserId: to, cardId, text, readAt: null, ...(createdAt ? { createdAt } : {}) });
+  const connect = (a: string, b: string) => db.doc(`connections/${[a, b].sort().join('_')}`).set({ userIds: [a, b].sort(), establishedAt: published });
+
+  beforeEach(async () => {
+    await Promise.all(['alice', 'bob', 'carol', 'erin', 'frank', 'gina'].map((u) => db.doc(`users/${u}`).set({ handle: u, handleLower: u })));
+    await Promise.all([
+      card('walk', 'bob'),
+      card('masked', 'bob', { anonymous: true }),
+      card('draft', 'bob', { publishedAt: null }),
+      card('erin-card', 'erin'),
+      card('frank-card', 'frank'),
+      card('gina-card', 'gina'),
+      connect('alice', 'bob'),
+      connect('alice', 'erin'),
+      connect('alice', 'frank'),
+      connect('alice', 'gina'),
+      connect('bob', 'ghost'),
+      db.doc('users/erin/blocks/alice').set({ blockedUid: 'alice' }),
+      // Alice and Frank talk already, and more recently than her old note; Gina's last word is older than Alice's note.
+      db.doc('conversations/alice_frank').set({
+        participants: ['alice', 'frank'], createdAt: t(-500), updatedAt: t(50),
+        lastMessage: { text: 'see you', senderId: 'frank', sentAt: t(50) }, unread: { alice: 3, frank: 1 },
+      }),
+      db.doc('conversations/alice_gina').set({
+        participants: ['alice', 'gina'], createdAt: t(-500), updatedAt: t(-400),
+        lastMessage: { text: 'hello', senderId: 'gina', sentAt: t(-400) }, unread: { alice: 0, gina: 2 },
+      }),
+    ]);
+    await Promise.all([
+      // Into a new conversation between Alice and Bob, oldest first (written out of order).
+      note('n2', 'alice', 'bob', 'walk', 'second, and newest', t(30)),
+      note('n1', 'alice', 'bob', 'walk', 'first '.repeat(40), t(10)),
+      note('nf', 'alice', 'frank', 'frank-card', 'older than their talk', t(20)),
+      note('ng', 'alice', 'gina', 'gina-card', 'newer than their talk', t(40)),
+      // Left out, one reason each.
+      note('anon', 'alice', 'bob', 'masked', 'on an anonymous card', t(1)),
+      note('unpublished', 'alice', 'bob', 'draft', 'on a draft', t(2)),
+      note('nocard', 'alice', 'bob', 'deleted-card', 'on a card since deleted', t(3)),
+      note('stray', 'alice', 'carol', 'walk', "carol isn't walk's author", t(4)),
+      note('ghosted', 'ghost', 'bob', 'walk', 'from an account since deleted', t(5)),
+      note('blocked', 'alice', 'erin', 'erin-card', 'across a block', t(6)),
+      note('stranger', 'carol', 'bob', 'walk', 'never connected', t(7)),
+      note('undated', 'alice', 'bob', 'walk', 'no date', null),
+    ]);
+  });
+
+  async function world() {
+    const convos = (await db.collection('conversations').get()).docs.map((d) => [d.id, d.data()] as const);
+    const messages = (await db.collectionGroup('messages').get()).docs.map((d) => [d.ref.path, d.data()] as const);
+    return { conversations: Object.fromEntries(convos), messages: Object.fromEntries(messages) };
+  }
+
+  it('reports what it would carry into threads, and why each other note stays out, writing nothing', async () => {
+    const before = await world();
+    const report = await backfillNotes(db, { apply: false, log: quiet });
+    expect(report).toEqual({
+      notes: 12,
+      threaded: 4,
+      conversationsOpened: 1,
+      skipped: { already: 0, malformed: 1, cardGone: 2, anonymous: 1, notTheAuthor: 1, userGone: 1, blocked: 1, notConnected: 1 },
+    });
+    expect(await world()).toEqual(before);
+  });
+
+  it("writes each note as the message sendNote writes now, dated by the note, never counting it unread", async () => {
+    await backfillNotes(db, { apply: true, log: quiet });
+
+    // A conversation opened for Alice and Bob: dated by its first note, its preview the newest, nothing unread.
+    expect(await data('conversations/alice_bob')).toEqual({
+      participants: ['alice', 'bob'],
+      createdAt: t(10),
+      updatedAt: t(30),
+      lastMessage: { text: 'second, and newest', senderId: 'alice', sentAt: t(30) },
+      unread: { alice: 0, bob: 0 },
+    });
+    expect(await data('conversations/alice_bob/messages/n1')).toEqual({ senderId: 'alice', text: 'first '.repeat(40), sentAt: t(10), cardRef: 'walk', kind: 'note' });
+    expect(await data('conversations/alice_bob/messages/n2')).toEqual({ senderId: 'alice', text: 'second, and newest', sentAt: t(30), cardRef: 'walk', kind: 'note' });
+
+    // A conversation that moved on since: the note is in it, its preview and date stay.
+    expect(await data('conversations/alice_frank')).toEqual({
+      participants: ['alice', 'frank'], createdAt: t(-500), updatedAt: t(50),
+      lastMessage: { text: 'see you', senderId: 'frank', sentAt: t(50) }, unread: { alice: 3, frank: 1 },
+    });
+    expect(await data('conversations/alice_frank/messages/nf')).toMatchObject({ senderId: 'alice', sentAt: t(20), kind: 'note', cardRef: 'frank-card' });
+
+    // One whose last word is older than the note: it moves forward to the note — unread untouched.
+    expect(await data('conversations/alice_gina')).toEqual({
+      participants: ['alice', 'gina'], createdAt: t(-500), updatedAt: t(40),
+      lastMessage: { text: 'newer than their talk', senderId: 'alice', sentAt: t(40) }, unread: { alice: 0, gina: 2 },
+    });
+
+    // Nothing for the notes left out: no message, no conversation.
+    const { conversations, messages } = await world();
+    expect(Object.keys(conversations).sort()).toEqual(['alice_bob', 'alice_frank', 'alice_gina']);
+    expect(Object.keys(messages).sort()).toEqual([
+      'conversations/alice_bob/messages/n1',
+      'conversations/alice_bob/messages/n2',
+      'conversations/alice_frank/messages/nf',
+      'conversations/alice_gina/messages/ng',
+    ]);
+  });
+
+  it('cuts an opened conversation\'s preview by characters, as sendNote does', async () => {
+    await db.doc('notes/n2').delete();
+    await backfillNotes(db, { apply: true, log: quiet });
+    expect((await data('conversations/alice_bob'))!.lastMessage.text).toBe('first '.repeat(20));
+  });
+
+  it('is idempotent: a second run writes nothing, and leaves a note sent since the change as the server wrote it', async () => {
+    const live = await sendNote(db, 'alice', { cardId: 'walk', text: 'sent through the server' });
+    const first = await backfillNotes(db, { apply: true, log: quiet });
+    expect(first).toMatchObject({ notes: 13, threaded: 4, skipped: { already: 1 } });
+    const after = await world();
+    // The server's message kept its own date and count; the backfill's notes are older, so the preview stays the live one.
+    expect(after.conversations.alice_bob).toMatchObject({ lastMessage: { text: 'sent through the server' }, unread: { alice: 0, bob: 1 } });
+    expect(after.messages[`conversations/alice_bob/messages/${live.id}`]).toMatchObject({ text: 'sent through the server', kind: 'note' });
+
+    expect(await backfillNotes(db, { apply: true, log: quiet })).toMatchObject({ threaded: 0, conversationsOpened: 0, skipped: { already: 5 } });
+    expect(await world()).toEqual(after);
   });
 });

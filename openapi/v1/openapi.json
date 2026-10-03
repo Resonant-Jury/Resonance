@@ -735,6 +735,165 @@
             }
           }
         }
+      },
+      "post": {
+        "operationId": "resonateWithCard",
+        "summary": "Make one of your published public cards a resonance of this one (connects you and rings its author, as publishing one does)",
+        "description": "A card answers one card, and you answer a card with one of yours: `409 conflict` when the card already answers another, or another of your cards already answers this one. Asking again with the same card is `changed: false` and rings no one. An anonymous card connects no one and rings no one; an anonymous original rings its author but connects no one.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The card id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResonateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResonateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cards/{key}/resonances/{cardId}": {
+      "delete": {
+        "operationId": "unresonateCard",
+        "summary": "Your card stops answering this one and stays as a card of its own (204 whether or not it still did)",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The card id it answers",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cardId",
+            "in": "path",
+            "required": true,
+            "description": "Your card id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "It no longer answers this card"
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/cards/{key}/related": {
@@ -1411,7 +1570,7 @@
     "/notes": {
       "post": {
         "operationId": "sendNote",
-        "summary": "Send a note to a card's author: rings their bell and connects you (not for an anonymous card)",
+        "summary": "Send a note to a card's author: rings their bell and connects you; it also lands in your conversation as a message (`kind: 'note'`, `cardRef` = the card). On an anonymous card: the bell only — no connection, no conversation",
         "requestBody": {
           "required": true,
           "content": {
@@ -2226,6 +2385,34 @@
           "id",
           "slug",
           "applied"
+        ]
+      },
+      "ResonateRequest": {
+        "type": "object",
+        "properties": {
+          "cardId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,128}$"
+          }
+        },
+        "required": [
+          "cardId"
+        ],
+        "description": "Make a card you have already written a resonance of this one."
+      },
+      "ResonateResponse": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/FeedCard"
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "card",
+          "changed"
         ]
       },
       "SendNoteRequest": {

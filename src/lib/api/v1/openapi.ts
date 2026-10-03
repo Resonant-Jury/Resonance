@@ -166,7 +166,28 @@ export function buildOpenApi(): Json {
           responses: { '204': { description: 'Deleted' }, ...errors(400, 401, 404) },
         },
       },
-      '/cards/{key}/resonances': get('getCardResonances', 'Public cards written in response to this one', 'CardList', { parameters: [cardId] }),
+      '/cards/{key}/resonances': {
+        ...get('getCardResonances', 'Public cards written in response to this one', 'CardList', { parameters: [cardId] }),
+        post: {
+          operationId: 'resonateWithCard',
+          summary: 'Make one of your published public cards a resonance of this one (connects you and rings its author, as publishing one does)',
+          description:
+            'A card answers one card, and you answer a card with one of yours: `409 conflict` when the card already answers another, ' +
+            'or another of your cards already answers this one. Asking again with the same card is `changed: false` and rings no one. ' +
+            'An anonymous card connects no one and rings no one; an anonymous original rings its author but connects no one.',
+          parameters: [cardId],
+          requestBody: { required: true, ...json(ref('ResonateRequest')) },
+          responses: { '200': { description: 'OK', ...json(ref('ResonateResponse')) }, ...errors(400, 401, 403, 404, 409, 429) },
+        },
+      },
+      '/cards/{key}/resonances/{cardId}': {
+        delete: {
+          operationId: 'unresonateCard',
+          summary: 'Your card stops answering this one and stays as a card of its own (204 whether or not it still did)',
+          parameters: [pathParam('key', 'The card id it answers'), pathParam('cardId', 'Your card id')],
+          responses: { '204': { description: 'It no longer answers this card' }, ...errors(400, 401, 404) },
+        },
+      },
       '/cards/{key}/related': get('getRelatedCards', 'A few recent cards sharing its tags', 'CardList', { parameters: [cardId] }),
       '/cards/{key}/publish': {
         post: {
@@ -221,7 +242,9 @@ export function buildOpenApi(): Json {
       '/notes': {
         post: {
           operationId: 'sendNote',
-          summary: "Send a note to a card's author: rings their bell and connects you (not for an anonymous card)",
+          summary:
+            "Send a note to a card's author: rings their bell and connects you; it also lands in your conversation as a message " +
+            "(`kind: 'note'`, `cardRef` = the card). On an anonymous card: the bell only — no connection, no conversation",
           requestBody: { required: true, ...json(ref('SendNoteRequest')) },
           responses: { '201': { description: 'Created', ...json(ref('SendNoteResponse')) }, ...errors(400, 401, 403, 404) },
         },

@@ -8,12 +8,21 @@
   color: var(--color-text);
   margin: 0 0 10px;
 }
+.confirmTitle[data-pending] {
+  visibility: hidden;
+}
 .confirmBody {
   font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.6;
   color: var(--color-text-muted);
   margin: 0 0 24px;
+}
+.confirmError {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-danger, oklch(58% 0.16 25));
+  margin: -12px 0 16px;
 }
 .confirmActions {
   display: flex;

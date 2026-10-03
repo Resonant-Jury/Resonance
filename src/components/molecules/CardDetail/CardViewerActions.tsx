@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import useSWR from 'swr';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -8,14 +10,20 @@ import { BookmarkButton } from '@/components/atoms/BookmarkButton/BookmarkButton
 import { SegmentedActionBar, type SegmentSpec } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { useMyResonance } from '@/lib/data/hooks';
+import { useMyProfile, useMyResonance } from '@/lib/data/hooks';
+import { usePrefillCard } from '@/lib/data/cardPrefill';
 import { isBookmarked, toggleBookmark } from '@/lib/db/firestore/client/bookmarks';
 import styles from './CardViewerActions.module.css';
+
+// Loaded on the first 共振: most readers never open it.
+const ResonatePicker = dynamic(() => import('./ResonatePicker').then((m) => m.ResonatePicker));
 
 export interface CardViewerActionsProps {
   cardId: string;
   /** The original card's title — used to prefill the resonance card's title. */
   cardTitle: string;
+  /** The card this one itself resonates with: never offered in the picker. */
+  referenceCardId?: string;
   author: { id: string; handle: string; initials: string; accentColor: string };
   /**
    * The original card's extracted core insight — powers the AI opener above
@@ -43,6 +51,7 @@ export interface CardViewerActionsProps {
  */
 export function CardViewerActions({
   cardId,
+  referenceCardId,
   author,
   onOpenNote,
 }: CardViewerActionsProps) {
@@ -52,6 +61,9 @@ export function CardViewerActions({
   const router = useRouter();
   const { user, loading } = useAuth();
   const { data: mine } = useMyResonance(cardId);
+  const { data: me } = useMyProfile();
+  const prefill = usePrefillCard();
+  const [picking, setPicking] = useState(false);
 
   // Bookmark status sync for SegmentedActionBar segment
   const { data: activeBookmark, mutate: mutateBookmark } = useSWR(
@@ -64,20 +76,31 @@ export function CardViewerActions({
   if (user && user.id === author.id) return null;
 
   const hasResonance = !!mine;
+  // A published resonance is done: the button says so and opens it. A draft
+  // is still being written: 修改 takes it back to the writer.
+  const resonated = !!mine?.publishedAt;
   // SWR reports `undefined` while the viewer's resonance card is still loading;
   // wait so we don't accidentally start a second one.
   const loadingMine = !!user && mine === undefined;
+  const label = resonated ? t('resonated') : hasResonance ? t('modify') : t('resonate');
+  const glyph = resonated ? 'check' : hasResonance ? 'pen' : 'wave';
 
   function onTrigger() {
     if (!user) {
       router.push('/signin');
       return;
     }
-    if (hasResonance && mine) {
-      router.push(`/write/${mine.id}`);
-    } else {
-      router.push(`/write?referenceCardId=${cardId}`);
+    if (mine) {
+      if (mine.publishedAt) {
+        prefill(mine, me ?? undefined);
+        router.push(`/card/${mine.slug ?? mine.id}`);
+      } else {
+        router.push(`/write/${mine.id}`);
+      }
+      return;
     }
+    // Write a new card, or pick one already written.
+    setPicking(true);
   }
 
   function handleBookmarkClick() {
@@ -96,8 +119,8 @@ export function CardViewerActions({
   const segments: SegmentSpec[] = [
     {
       key: 'resonate',
-      icon: <Icon name={hasResonance ? 'pen' : 'wave'} size={16} />,
-      label: hasResonance ? t('modify') : t('resonate'),
+      icon: <Icon name={glyph} size={16} />,
+      label,
       fill: 'var(--color-terracotta)',
       textColor: 'var(--color-cream)',
       hoverOverlay: 'oklch(0% 0 0 / 0.14)',
@@ -139,8 +162,8 @@ export function CardViewerActions({
       <div className={styles.mobileOnly}>
         <div style={{ opacity: loadingMine ? 0.6 : 1, pointerEvents: loadingMine ? 'none' : 'auto' }}>
           <OrganicButton variant={hasResonance ? 'outline' : 'primary'} onClick={onTrigger}>
-            <Icon name={hasResonance ? 'pen' : 'wave'} size={16} style={{ marginTop: 1 }} />
-            {hasResonance ? t('modify') : t('resonate')}
+            <Icon name={glyph} size={16} style={{ marginTop: 1 }} />
+            {label}
           </OrganicButton>
         </div>
         <div className={styles.mobileActionsRow}>
@@ -155,6 +178,15 @@ export function CardViewerActions({
           <BookmarkButton cardId={cardId} />
         </div>
       </div>
+
+      {picking && (
+        <ResonatePicker
+          open
+          onClose={() => setPicking(false)}
+          targetId={cardId}
+          targetReferenceId={referenceCardId}
+        />
+      )}
     </div>
   );
 }

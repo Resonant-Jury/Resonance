@@ -306,9 +306,39 @@ object L10n {
             /** You have no published cards to link yet. */
             val noCards: String get() = Strings.string("card.linkModal.noCards")
         }
+        object LinkPreview {
+            /** Open link: {host} */
+            fun open(host: String): String = Strings.format("card.linkPreview.open", mapOf("host" to host))
+        }
         object ResonatorsModal {
             /** Resonated with this card */
             val title: String get() = Strings.string("card.resonatorsModal.title")
+        }
+        object ResonatePicker {
+            /** Resonate with this card */
+            val title: String get() = Strings.string("card.resonatePicker.title")
+            /** Write a new card, or pick one you've written about something similar. */
+            val subtitle: String get() = Strings.string("card.resonatePicker.subtitle")
+            /** Write a new card */
+            val writeNew: String get() = Strings.string("card.resonatePicker.writeNew")
+            /** Start from this card and put your own experience into words. */
+            val writeNewHint: String get() = Strings.string("card.resonatePicker.writeNewHint")
+            /** Or pick one you've written */
+            val pickHeading: String get() = Strings.string("card.resonatePicker.pickHeading")
+            /** You have no public cards yet — write your first one above. */
+            val empty: String get() = Strings.string("card.resonatePicker.empty")
+            /** Cards already resonating with another card aren't listed. */
+            val hiddenNote: String get() = Strings.string("card.resonatePicker.hiddenNote")
+            /** Resonate */
+            val confirm: String get() = Strings.string("card.resonatePicker.confirm")
+            /** Cancel */
+            val cancel: String get() = Strings.string("card.resonatePicker.cancel")
+            /** Couldn't resonate — please try again. */
+            val failed: String get() = Strings.string("card.resonatePicker.failed")
+            /** This card already resonates with another card. */
+            val alreadyAnswering: String get() = Strings.string("card.resonatePicker.alreadyAnswering")
+            /** Anonymous */
+            val anonymous: String get() = Strings.string("card.resonatePicker.anonymous")
         }
         /** Translate to */
         val translateTo: String get() = Strings.string("card.translateTo")
@@ -386,6 +416,10 @@ object L10n {
         val replyToNote: String get() = Strings.string("messages.replyToNote")
         /** In reply to your note */
         val quotedNote: String get() = Strings.string("messages.quotedNote")
+        /** {handle} left a note on your card */
+        fun noteOnYourCard(handle: String): String = Strings.format("messages.noteOnYourCard", mapOf("handle" to handle))
+        /** You left a note on {handle}'s card */
+        fun youLeftNote(handle: String): String = Strings.format("messages.youLeftNote", mapOf("handle" to handle))
         /** Attach a card */
         val attachCard: String get() = Strings.string("messages.attachCard")
         /** Remove card */
@@ -805,6 +839,14 @@ object L10n {
             val deleteConfirm: String get() = Strings.string("me.actions.deleteConfirm")
             /** Keep it */
             val deleteCancel: String get() = Strings.string("me.actions.deleteCancel")
+            /** Stop resonating */
+            val unresonate: String get() = Strings.string("me.actions.unresonate")
+            /** Stop resonating with \"{title}\"? */
+            fun unresonateConfirmTitle(title: String): String = Strings.format("me.actions.unresonateConfirmTitle", mapOf("title" to title))
+            /** Your card stays; it just won't be listed with that card. */
+            val unresonateConfirmBody: String get() = Strings.string("me.actions.unresonateConfirmBody")
+            /** Stop resonating */
+            val unresonateConfirm: String get() = Strings.string("me.actions.unresonateConfirm")
         }
         /** Anonymous */
         val anonymousBadge: String get() = Strings.string("me.anonymousBadge")
