@@ -269,3 +269,16 @@ is a Custom Tab. The build registers the `chat-push` capability, so the server s
 `PushCenter.showChatMessage` draws the conversation's notification itself (one `MessagingStyle` per pair id on the
 "messages" channel, silent while that thread is resumed). Debug builds fake one:
 `--es pushChatBody "…" --es pushChatConversation alice_bob --es pushChatId m1 --es pushFromUserId bob --es pushRoute /messages/bob`.
+
+The thread screen (`ThreadScreen`, `ThreadList`, `ThreadActions`, `ThreadSearch`, `ThreadComposer`) draws that model.
+The bar is an `OrganicInlineBar` over the list (cream stops on the pen line, content scrolls up under it; half ink
+until messages are under it). `ThreadRows` lays the messages out in runs — same sender, under 3 minutes apart, same
+day, no label between — and `MessageBubbleShape` tucks the corners that face a neighbour (`CornerRadii`, an Android-only
+option of `wobRect`); a day label leads a day, a time label a message 15 minutes after the one before it. A reply shows
+its quote as a ghost bubble under a caption and opens a run; tapping the quote reads older pages until the original is
+held (`ThreadModel.ensureLoaded`) and brings it to the middle with a pulse. A long-press lifts the message out of the
+dimmed thread with an `OrganicMenuPanel` under it (Reply, Copy, the link under the finger, Retry/Delete for a failed
+one, and the full time); a drag toward the middle replies. Search lists the matches over the thread
+(`SearchResults`, the snippet cut by `SearchSnippet`); choosing one takes the thread to that message with the words
+marked, and the bar steps through the matches. Words are drawn by `ChatText` (CSS line boxes with spans: links,
+highlights), so a bubble keeps the web's metrics.
