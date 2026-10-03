@@ -97,11 +97,18 @@ export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name fi
  * it was), and connects, opens or answers nothing: it rings through its bell
  * row, as before. Whether it is anonymous is read in the note's transaction,
  * beside the blocks: a byline taken off a moment before still keeps it out.
+ *
+ * A block never answers for an anonymous card (the sender keeps their own
+ * block list, and a refusal would name the author): across one, a note on an
+ * anonymous card is answered as if delivered and delivers nothing. It is kept
+ * as its writer's words — in their export like any note they wrote — but
+ * addressed to no one (`toUserId: null`): no bell, no push, readable by no
+ * client. The pen name is asked first, so its refusal says nothing either.
  */
 export interface SentNote {
   id: string;
-  /** The author's bell row, for its push (never returned to the client). */
-  notificationId: string;
+  /** The author's bell row, for its push (never returned to the client); null when nothing rings (withheld across a block). */
+  notificationId: string | null;
   /** What `pushMessage` needs, when the note went into the thread — null on an anonymous card (its bell row rings). */
   push: MessagePush | null;
 }
@@ -129,11 +136,25 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
     if (!current || current.authorId !== author || !current.publishedAt || !cardVisible(current, uid, () => connected.exists)) {
       throw new ApiFailure('not_found', 'No such card.');
     }
-    // One answer for both directions: the sender must not learn they were blocked.
-    if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot send a note to this person.');
+    // Before the blocks: whether they stand must change no answer about an anonymous card.
     if (!hasPenName(me)) throw noPenName();
     // Its byline as of this transaction: made anonymous a moment ago, it still keeps the note out of the thread.
     const threaded = current.anonymous !== true;
+    if (blockOut.exists || blockIn.exists) {
+      // One answer for both directions: the sender must not learn they were blocked.
+      if (threaded) throw new ApiFailure('blocked', 'You cannot send a note to this person.');
+      // An anonymous card: answered as delivered, delivering nothing (see SentNote).
+      const withheld = db.collection('notes').doc();
+      tx.set(withheld, {
+        cardId: card.id,
+        fromUserId: uid,
+        toUserId: null,
+        text: input.text,
+        readAt: null,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return { id: withheld.id, notificationId: null, push: null };
+    }
     // Not connected, on a named card: a letter, waiting for its answer.
     const letter = threaded && !connected.exists;
     const request = openRequest(convo);
@@ -226,7 +247,8 @@ const RESERVED_ID = /^__.*__$/;
  * + sendMessage (+ the first message's bell) in one transaction. The rules'
  * conditions are re-checked — a connection, no block either way, a
  * non-empty message unless it carries a card (one you can read). A reply to
- * a note carries its noteRef so the thread shows what it answers.
+ * a note carries its noteRef so the thread shows what it answers: a note the
+ * recipient left the sender, nothing else.
  *
  * Or answer a letter: with no connection, a message is allowed only to
  * someone whose notes to you wait in your conversation (`request.from` is
@@ -250,7 +272,7 @@ const RESERVED_ID = /^__.*__$/;
  * is the one that buzzes, never two.
  *
  * The sender needs a pen name (hasPenName): the thread, its bell and every
- * push name them.
+ * push name them. It is asked before the blocks, as everywhere.
  */
 export async function sendMessage(
   db: Firestore,
@@ -293,16 +315,18 @@ export async function sendMessage(
       if (existing.get('senderId') !== uid) throw new ApiFailure('invalid_request', 'Not a valid client id.');
       return { conversationId: pair, id: message.id, notificationId: null, duplicate: true, push: null };
     }
-    if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot message this person.');
     if (!hasPenName(me)) throw noPenName();
+    if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot message this person.');
     // Answering their letter: this reply is what connects the two of you.
     const answers = !connection.exists && openRequest(convo)?.from === other;
     // Connected first (a resonance, or an answered note, connects you); a block also ends the connection.
     if (!connection.exists && !answers) throw new ApiFailure('forbidden', 'You can message people you are connected with.');
-    // A quoted note must be one between the two of you.
+    // A message answers a note they left you, on the card it names — nothing
+    // else, one answer for all of it: a note of your own on an anonymous card
+    // would otherwise tell you, by which error came back, whether they wrote it.
     if (note && (!note.exists || note.get('cardId') !== input.noteRef!.cardId
-      || ![uid, other].includes(note.get('fromUserId')) || ![uid, other].includes(note.get('toUserId')))) {
-      throw new ApiFailure('invalid_request', 'That note is not between you two.');
+      || note.get('fromUserId') !== other || note.get('toUserId') !== uid)) {
+      throw new ApiFailure('invalid_request', 'That is not a note they left you.');
     }
     // A reply answers a message of this conversation (the path alone keeps it from being anyone else's).
     if (replied && !replied.exists) throw new ApiFailure('invalid_request', 'No such message to reply to.');

@@ -120,7 +120,7 @@ describe('pushNotification', () => {
     const { id, notificationId, push } = await sendNote(db, 'alice', { cardId: 'masked', text: '雨後的散步' });
     expect(push).toBeNull();
     const fcm = fakeFcm();
-    expect(await pushNotification(db, notificationId, fcm.sender)).toEqual({ sent: 2, pruned: 0 });
+    expect(await pushNotification(db, notificationId!, fcm.sender)).toEqual({ sent: 2, pruned: 0 });
 
     const byToken = Object.fromEntries(fcm.sent.map((m) => [m.tokens.join(), m]));
     expect(Object.keys(byToken).sort()).toEqual(['bob-en', 'bob-zh']);
@@ -140,7 +140,7 @@ describe('pushNotification', () => {
   it('rings once, however often it is asked', async () => {
     const { notificationId } = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
     const fcm = fakeFcm();
-    const results = await Promise.all([1, 2, 3].map(() => pushNotification(db, notificationId, fcm.sender)));
+    const results = await Promise.all([1, 2, 3].map(() => pushNotification(db, notificationId!, fcm.sender)));
     expect(results.filter(Boolean)).toHaveLength(1);
     expect(fcm.sent).toHaveLength(2); // one multicast per language, once
   });
@@ -149,7 +149,7 @@ describe('pushNotification', () => {
     const { notificationId } = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
     await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
     const fcm = fakeFcm();
-    expect(await pushNotification(db, notificationId, fcm.sender)).toBeNull();
+    expect(await pushNotification(db, notificationId!, fcm.sender)).toBeNull();
 
     await db.doc('notifications/read').set({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'carol', fromHandle: 'carol', cardId: 'walk' }, readAt: Timestamp.now() });
     expect(await pushNotification(db, 'read', fcm.sender)).toBeNull();
@@ -413,7 +413,7 @@ describe('pushMessage', () => {
     it("rings through here, once — its bell row says nothing more — with the note's words and its kind", async () => {
       const sent = await sendNote(db, 'alice', { cardId: 'walk', text: '謝謝你寫下這段散步' });
       const fcm = fakeFcm();
-      expect(await pushNotification(db, sent.notificationId, fcm.sender)).toBeNull();
+      expect(await pushNotification(db, sent.notificationId!, fcm.sender)).toBeNull();
       expect(fcm.sent).toHaveLength(0);
 
       expect(await pushMessage(db, sent.push!, fcm.sender)).toEqual({ sent: 5, pruned: 0 });
@@ -447,7 +447,7 @@ describe('pushMessage', () => {
       const sent = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi' });
       const fcm = fakeFcm();
       expect(await pushMessage(db, sent.push!, fcm.sender)).toBeNull();
-      expect(await pushNotification(db, sent.notificationId, fcm.sender)).toBeNull();
+      expect(await pushNotification(db, sent.notificationId!, fcm.sender)).toBeNull();
       expect(fcm.sent).toHaveLength(0);
     });
 
@@ -463,7 +463,7 @@ describe('pushMessage', () => {
       const sent = await sendNote(db, 'alice', { cardId: 'masked', text: '匿名卡片的紙條' });
       expect(sent.push).toBeNull();
       const fcm = fakeFcm();
-      expect(await pushNotification(db, sent.notificationId, fcm.sender)).toEqual({ sent: 5, pruned: 0 });
+      expect(await pushNotification(db, sent.notificationId!, fcm.sender)).toEqual({ sent: 5, pruned: 0 });
       const at = deliveries(fcm.sent);
       expect(at['pixel-en'].notification).toEqual({ title: '小明 sent you a little note', body: '「匿名卡片的紙條」' });
       expect(at['pixel-en'].android?.notification?.channelId).toBe('activity');

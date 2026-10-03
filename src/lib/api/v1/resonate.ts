@@ -177,8 +177,9 @@ const notFound = () => new ApiFailure('not_found', 'No such card.');
  * transaction as the pointing (reachOriginal): the authors connected (not
  * across anonymity), the original author's bell rung once. What
  * firestore.rules would ask of a resonance written in the browser is asked
- * here: a card you can read that isn't yours, no block either way. And what
- * reaching anyone asks: a pen name.
+ * here: a card you can read that isn't yours, no block either way — unless it
+ * is anonymous, which a block never answers for (it reaches no one then). And
+ * what reaching anyone asks: a pen name, when your card is public under it.
  *
  * A card answers one card, and a reader answers a card with one of theirs
  * (the card page's 共振 / 修改 button stands on it): a card already
@@ -205,15 +206,21 @@ export async function resonateWith(db: Firestore, uid: string, targetId: string,
     // Someone else's card is as absent as a missing one.
     if (!chosen.exists || chosen.get('authorId') !== uid) throw notFound();
     if (!targetNow || targetNow.authorId !== target.authorId || !cardVisible(targetNow, uid, () => reach.connected)) throw notFound();
-    // An anonymous card by someone they blocked isn't there for them (as on its page, reads.ts getCardDetail).
-    if (reach.blockOut && targetNow.anonymous === true) throw notFound();
-    // One answer for both directions: they must not learn which of them blocked whom.
-    if (reach.blockOut || reach.blockIn) throw new ApiFailure('blocked', 'You cannot resonate with this card.');
-    if (!hasPenName(reach.me)) throw noPenName();
+    const answered: DocumentData = { ...chosen.data()!, referenceCardId: targetId };
+    // A pen name for what reaches someone (a public card under their name
+    // rings the original's author), asked before the blocks, as everywhere: an
+    // anonymous card reaches no one and needs none.
+    if (reachable(answered) && !hasPenName(reach.me)) throw noPenName();
+    // A block refuses a named card — one answer for both directions: they must
+    // not learn which of them blocked whom. Never an anonymous one: a refusal
+    // would name its author. It is answered all the same, and reaches no one
+    // (reachOriginal reads the blocks).
+    if ((reach.blockOut || reach.blockIn) && targetNow.anonymous !== true) {
+      throw new ApiFailure('blocked', 'You cannot resonate with this card.');
+    }
     if (!properlyPublished(chosen.get('publishedAt'))) throw new ApiFailure('invalid_request', 'Only a published card can resonate.');
     if (chosen.get('visibility') !== 'public') throw new ApiFailure('invalid_request', 'Only a public card can resonate.');
 
-    const answered: DocumentData = { ...chosen.data()!, referenceCardId: targetId };
     const result = (changed: boolean, notificationId: string | null): Resonated => ({
       card: toFeedCard(mapCard(cardId, answered), reach.me.data(), { deanonymize: true }),
       changed,

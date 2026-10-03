@@ -136,6 +136,9 @@ describe('acceptInvite (POST /invites/{id}/accept)', () => {
     await db.doc('users/dana').set({ initials: 'D' });
     expect((await failure(acceptInvite(db, 'dana', 'i2'))).code).toBe('forbidden');
     expect(await data('connections/bob_dana')).toBeUndefined();
+    // Asked before the blocks, as on every path that reaches someone.
+    await db.doc('users/bob/blocks/dana').set({ blockedUid: 'dana' });
+    expect((await failure(acceptInvite(db, 'dana', 'i2'))).message).toBe('Choose a pen name first.');
   });
 
   it('refuses one past its date as a conflict, and closes it as expired so the inbox stops offering it', async () => {

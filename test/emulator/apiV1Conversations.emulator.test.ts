@@ -233,6 +233,76 @@ describe('sendNote', () => {
     expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
   });
 
+  it('asks for the pen name before the blocks, so a refusal says nothing of who blocked whom', async () => {
+    await db.doc('users/alice').set({ handle: '' });
+    for (const [blocker, blocked] of [['alice', 'bob'], ['bob', 'alice']]) {
+      await db.doc(`users/${blocker}/blocks/${blocked}`).set({ blockedUid: blocked });
+      for (const cardId of ['walk', 'masked']) {
+        expect((await failure(sendNote(db, 'alice', { cardId, text: 'hi' }))).message).toBe('Choose a pen name first.');
+      }
+      await db.doc(`users/${blocker}/blocks/${blocked}`).delete();
+    }
+    expect(await docs('notes')).toHaveLength(0);
+  });
+
+  describe('an anonymous card across a block', () => {
+    // A block never answers for an anonymous card: the sender keeps their own
+    // block list, and a refusal would name the author.
+    it('is answered as delivered, and delivers nothing: no bell, no push, the note addressed to no one', async () => {
+      for (const [blocker, blocked] of [['alice', 'bob'], ['bob', 'alice']]) {
+        await db.doc(`users/${blocker}/blocks/${blocked}`).set({ blockedUid: blocked });
+        const sent = await sendNote(db, 'alice', { cardId: 'masked', text: 'about your anonymous card' });
+        expect(sent).toEqual({ id: expect.stringMatching(/^[A-Za-z0-9]{20}$/), notificationId: null, push: null });
+        const note = (await db.doc(`notes/${sent.id}`).get()).data()!;
+        expect(note).toMatchObject({ cardId: 'masked', fromUserId: 'alice', toUserId: null, text: 'about your anonymous card', readAt: null });
+        expect(note.createdAt).toBeInstanceOf(Timestamp);
+        await db.doc(`users/${blocker}/blocks/${blocked}`).delete();
+      }
+      expect(await docs('notifications')).toHaveLength(0);
+      expect(await docs('conversations')).toHaveLength(0);
+      expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+    });
+
+    it('looks to the sender like a note that was delivered: the same answer, the same record of it', async () => {
+      const delivered = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
+      await db.doc('users/alice/blocks/bob').set({ blockedUid: 'bob' });
+      const withheld = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
+      expect(Object.keys(withheld).sort()).toEqual(Object.keys(delivered).sort());
+      // All the sender ever sees of a note is its id (the route answers `{ id }`) and their export.
+      const { exportAccountData } = await import('@/lib/account/export');
+      const rows = (await exportAccountData(db, 'alice')).notesSent.map(({ id: _id, createdAt: _at, ...row }) => row);
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toEqual(rows[1]);
+    });
+
+    it('still refuses a named card, with one answer for both directions', async () => {
+      for (const [blocker, blocked] of [['alice', 'bob'], ['bob', 'alice']]) {
+        await db.doc(`users/${blocker}/blocks/${blocked}`).set({ blockedUid: blocked });
+        const refused = await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'hi' }));
+        expect([refused.code, refused.message]).toEqual(['blocked', 'You cannot send a note to this person.']);
+        await db.doc(`users/${blocker}/blocks/${blocked}`).delete();
+      }
+      expect(await docs('notes')).toHaveLength(0);
+    });
+  });
+
+  // The card read before the transaction can change before it runs: the
+  // transaction's own read of it decides.
+  it('is not_found when the card is deleted or hidden between its first read and the transaction, writing nothing', async () => {
+    const run = db.runTransaction.bind(db);
+    for (const change of [() => db.doc('cards/walk').delete(), () => db.doc('cards/walk').update({ visibility: 'private' })]) {
+      await db.doc('cards/walk').set({ authorId: 'bob', thoughtCore: 'title walk', story: 's', visibility: 'public', anonymous: false, publishedAt: Timestamp.now() });
+      vi.spyOn(db, 'runTransaction').mockImplementationOnce(async (fn, opts) => {
+        await change();
+        return run(fn, opts);
+      });
+      expect((await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'hi' }))).code).toBe('not_found');
+    }
+    expect(await docs('notes')).toHaveLength(0);
+    expect(await docs('notifications')).toHaveLength(0);
+    expect(await docs('conversations')).toHaveLength(0);
+  });
+
   it("takes the card's id (the contract's cardId): a slug names no card here", async () => {
     await db.doc('cards/walk').set({ slug: 'a-rainy-walk' }, { merge: true });
     expect((await failure(sendNote(db, 'alice', { cardId: 'a-rainy-walk', text: 'hi' }))).code).toBe('not_found');
@@ -481,6 +551,48 @@ describe('sendMessage', () => {
     }
     expect((await db.doc('conversations/alice_bob').get()).exists).toBe(false);
     expect(await docs('notifications')).toHaveLength(0);
+  });
+
+  it('asks for the pen name before the blocks', async () => {
+    await db.doc('users/alice').set({ handle: '' });
+    await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+    expect((await failure(sendMessage(db, 'alice', { to: 'bob', text: 'hi' }))).message).toBe('Choose a pen name first.');
+  });
+
+  describe('noteRef', () => {
+    // A message answers a note the recipient left the sender, on the card it
+    // names — anything else is one and the same refusal, so a note of your own
+    // on an anonymous card can't ask, by which error comes back, who wrote it.
+    it('answers only a note the recipient left the sender, on the card it names', async () => {
+      const { id: theirs } = await sendNote(db, 'alice', { cardId: 'walk', text: 'from alice to bob' });
+      expect((await sendMessage(db, 'bob', { to: 'alice', text: 'thanks', noteRef: { cardId: 'walk', noteId: theirs } })).duplicate).toBe(false);
+      const refusals = [
+        // Your own note to them, quoted back.
+        () => sendMessage(db, 'alice', { to: 'bob', text: 'x', noteRef: { cardId: 'walk', noteId: theirs } }),
+        // Their note to you, on another card than it names.
+        () => sendMessage(db, 'bob', { to: 'alice', text: 'x', noteRef: { cardId: 'masked', noteId: theirs } }),
+        // A note that isn't there.
+        () => sendMessage(db, 'bob', { to: 'alice', text: 'x', noteRef: { cardId: 'walk', noteId: 'nope' } }),
+      ];
+      for (const refused of refusals) {
+        const e = await failure(refused());
+        expect([e.code, e.message]).toEqual(['invalid_request', 'That is not a note they left you.']);
+      }
+    });
+
+    it("answers a note of your own on an anonymous card with one refusal, whoever wrote the card", async () => {
+      // Alice is connected with Bob (who wrote `masked`) and with Carol (who didn't).
+      await db.doc('connections/alice_carol').set({ userIds: ['alice', 'carol'], establishedAt: Timestamp.now() });
+      const { id } = await sendNote(db, 'alice', { cardId: 'masked', text: 'whose is this?' });
+      const answers = [];
+      for (const to of ['bob', 'carol']) {
+        const e = await failure(sendMessage(db, 'alice', { to, text: 'x', noteRef: { cardId: 'masked', noteId: id }, replyTo: 'nope' }));
+        answers.push([e.code, e.message]);
+      }
+      expect(answers[0]).toEqual(answers[1]);
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(0);
+      expect(await docs('conversations/alice_carol/messages')).toHaveLength(0);
+    });
   });
 
   it('hands back what the chat push needs, for a message that was just written', async () => {

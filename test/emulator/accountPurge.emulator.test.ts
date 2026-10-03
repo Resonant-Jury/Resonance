@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
-import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import {
   DELETION_GRACE_DAYS,
   getAccountDeletion,
@@ -375,6 +375,21 @@ describe('exportAccountData', () => {
     // Plain JSON — no Firestore Timestamp objects survive.
     expect(typeof data.bookmarks[0].createdAt).toBe('string');
     expect(data.messagesSent[0]).toEqual({ conversationId: 'alice_bob', id: 'm1', senderId: 'alice', text: 'hi' });
+  });
+
+  // Whom a note reached is not the writer's to keep: on an anonymous card it
+  // is the author no one may know, and a note withheld across a block (sent to
+  // an anonymous card's author either of them blocked) reached no one — the
+  // two must look alike, or the export would tell who wrote the card.
+  it("keeps each note as its writer's words and card, never whom it reached or whether they read it", async () => {
+    const at = Timestamp.fromDate(new Date('2026-09-30T00:00:00Z'));
+    await db.doc('notes/delivered').set({ cardId: 'anon', fromUserId: 'alice', toUserId: 'bob', text: 'hello', readAt: at, createdAt: at });
+    await db.doc('notes/withheld').set({ cardId: 'anon', fromUserId: 'alice', toUserId: null, text: 'hello', readAt: null, createdAt: at });
+    const { notesSent } = await exportAccountData(db, 'alice');
+    const { id: _a, ...delivered } = notesSent.find((n) => n.id === 'delivered')!;
+    const { id: _b, ...withheld } = notesSent.find((n) => n.id === 'withheld')!;
+    expect(delivered).toEqual({ cardId: 'anon', fromUserId: 'alice', text: 'hello', createdAt: '2026-09-30T00:00:00.000Z' });
+    expect(withheld).toEqual(delivered);
   });
 
   // The backup was built whole in memory and sent as one indented JSON body:

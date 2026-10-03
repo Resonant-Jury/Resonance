@@ -55,9 +55,10 @@ export async function acceptInvite(db: Firestore, uid: string, inviteId: string)
       tx.get(connection),
       tx.get(db.doc(`conversations/${pair}`)),
     ]);
+    // The pen name before the blocks, as on every path that reaches someone.
+    if (!hasPenName(me)) throw noPenName();
     // One answer for both directions: the recipient must not learn they were blocked.
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot connect with this person.');
-    if (!hasPenName(me)) throw noPenName();
 
     tx.update(ref, { status: 'accepted' });
     if (!existing.exists) {
