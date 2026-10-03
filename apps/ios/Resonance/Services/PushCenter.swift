@@ -8,6 +8,12 @@ import UserNotifications
 /// Push notifications: permission, this install's FCM token, and the pushes
 /// the person taps. The server writes every push from a bell row (the same
 /// copy, in the app's language) with `data.route`, a site path the app opens.
+///
+/// Chat messages are pushed one by one (`type: "message"`), grouped by the
+/// system under their conversation (`threadId`, its pair id). The conversation
+/// on screen (`viewingConversation`) gets no banner while the app is open, and
+/// opening it takes its pushes out of Notification Center: its messages are
+/// being read.
 @Observable
 final class PushCenter {
     static let shared = PushCenter()
@@ -24,6 +30,12 @@ final class PushCenter {
 
     var opened: Opened?
     private(set) var token: String?
+    /// The account signed in (the session sets it): a chat push for anyone else stays quiet.
+    @ObservationIgnored var signedIn: String?
+    /// The conversation (its pair id) whose thread is on screen right now, with the app in the
+    /// foreground: set while the thread is visible and cleared when it isn't, so a message that
+    /// arrives behind another page or with the app in the background still rings.
+    @ObservationIgnored private(set) var viewingConversation: String?
     /// Called with each new FCM token (the session registers it under whoever is signed in).
     @ObservationIgnored var onToken: ((String) -> Void)?
 
@@ -97,6 +109,42 @@ final class PushCenter {
         opened = Opened(route: route, notificationId: notificationId, fromUserId: fromUserId)
     }
 
+    // MARK: Chat
+
+    /// The thread of `pairId` is on screen (or none is, with nil). Opening it clears its pushes:
+    /// the messages in them are being read.
+    func viewing(_ pairId: String?) {
+        viewingConversation = pairId
+        if let pairId { Self.removeDelivered(conversation: pairId) }
+    }
+
+    /// The thread of `pairId` stopped being on screen — unless another has taken its place already.
+    func stoppedViewing(_ pairId: String) {
+        if viewingConversation == pairId { viewingConversation = nil }
+    }
+
+    /// How a push that arrives while the app is open shows: a chat message of the conversation on
+    /// screen (it is in the thread already), or one sent to another account, not at all; anything
+    /// else as a banner, as it would with the app closed (the bell's row arrives at the same moment anyway).
+    func presentation(for info: [AnyHashable: Any]) -> UNNotificationPresentationOptions {
+        guard let chat = ChatPush(userInfo: info) else { return [.banner, .list, .sound] }
+        return chat.showsWhileOpen(viewing: viewingConversation, signedIn: signedIn) ? [.banner, .list, .sound] : []
+    }
+
+    /// Takes a conversation's pushes out of Notification Center (grouped under its pair id; an
+    /// older server's push names it in its data instead).
+    nonisolated static func removeDelivered(conversation pairId: String) {
+        UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
+            let ids = delivered.filter { isOf(conversation: pairId, $0.request.content) }.map(\.request.identifier)
+            if !ids.isEmpty { UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ids) }
+        }
+    }
+
+    /// Whether a delivered push belongs to the conversation `pairId`.
+    nonisolated static func isOf(conversation pairId: String, _ content: UNNotificationContent) -> Bool {
+        content.threadIdentifier == pairId || ChatPush(userInfo: content.userInfo)?.conversationId == pairId
+    }
+
     /// A tapped push's data (FCM's `data`, at the top of the payload).
     func open(userInfo info: [AnyHashable: Any]) {
         let sender = (info["fromUserId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
@@ -125,9 +173,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         PushCenter.shared.tokenChanged(fcmToken)
     }
 
-    /// In the foreground a push still shows: the bell's row arrives at the same moment anyway.
+    /// In the foreground a push still shows (`PushCenter.presentation`), except a message of the conversation on screen.
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        PushCenter.shared.presentation(for: notification.request.content.userInfo)
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
