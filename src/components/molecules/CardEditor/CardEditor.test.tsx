@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createRef } from 'react';
 import { act } from '@testing-library/react';
 import { renderWithIntl, screen, fireEvent, waitFor, userEvent } from '@/../test/render';
 import en from '@/messages/en.json';
-import { CardEditor } from './CardEditor';
+import { CardEditor, type CardEditorHandle } from './CardEditor';
 
 const push = vi.fn();
 const back = vi.fn();
@@ -531,6 +532,77 @@ describe('CardEditor', () => {
       expect(
         screen.queryByRole('button', { name: 'Discard changes' }),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  // The writer's back arrow asks before leaving written work (the apps'
+  // holdsWork, rule for rule) and saves it first rather than leaving it to
+  // the debounce.
+  describe('what leaving would leave behind', () => {
+    it('holds nothing while a new card is blank, and work once something is written', async () => {
+      const editor = createRef<CardEditorHandle>();
+      renderWithIntl(<CardEditor locale="en" ref={editor} />);
+      expect(editor.current!.hasWork()).toBe(false);
+
+      fireEvent.change(screen.getByLabelText('One-line title'), { target: { value: 'Half a thought' } });
+      expect(editor.current!.hasWork()).toBe(true);
+      // Kept now, and still asked about: it is a draft with words in it.
+      await act(() => editor.current!.saveNow());
+      expect(editor.current!.hasWork()).toBe(true);
+    });
+
+    // The first-card guide's question is the starting point, not writing:
+    // nothing keeps it until the writer adds to it.
+    it('does not count words the first-card guide seeded', async () => {
+      const editor = createRef<CardEditorHandle>();
+      renderWithIntl(<CardEditor locale="en" ref={editor} initial={{ story: '> What changed?\n\n' }} />);
+      expect(editor.current!.hasWork()).toBe(false);
+
+      fireEvent.change(screen.getByLabelText('Story'), { target: { value: '> What changed?\n\nThe light did.' } });
+      expect(editor.current!.hasWork()).toBe(true);
+      await act(() => editor.current!.saveNow());
+    });
+
+    it('holds a kept draft with words in it, even untouched — but not an empty one', () => {
+      const kept = createRef<CardEditorHandle>();
+      const { unmount } = renderWithIntl(
+        <CardEditor locale="en" ref={kept} initial={{ id: 'draft-9', thoughtCore: 'Kept for later' }} />,
+      );
+      expect(kept.current!.hasWork()).toBe(true);
+      unmount();
+
+      const empty = createRef<CardEditorHandle>();
+      renderWithIntl(<CardEditor locale="en" ref={empty} initial={{ id: 'draft-9' }} />);
+      expect(empty.current!.hasWork()).toBe(false);
+    });
+
+    it('holds a live card\'s revision, buffered or typed, and nothing when it is untouched', () => {
+      const untouched = createRef<CardEditorHandle>();
+      const { unmount } = renderWithIntl(<CardEditor locale="en" ref={untouched} initial={livePost} />);
+      expect(untouched.current!.hasWork()).toBe(false);
+      fireEvent.change(screen.getByLabelText('Story'), { target: { value: 'A second look.' } });
+      expect(untouched.current!.hasWork()).toBe(true);
+      unmount();
+
+      const buffered = createRef<CardEditorHandle>();
+      renderWithIntl(<CardEditor locale="en" ref={buffered} initial={{ ...livePost, hasPendingEdit: true }} />);
+      expect(buffered.current!.hasWork()).toBe(true);
+    });
+
+    it('writes what is not saved yet when asked, and nothing when it is', async () => {
+      const editor = createRef<CardEditorHandle>();
+      renderWithIntl(<CardEditor locale="en" ref={editor} />);
+      await act(() => editor.current!.saveNow());
+      expect(createCardDraft).not.toHaveBeenCalled();
+
+      fireEvent.change(screen.getByLabelText('One-line title'), { target: { value: 'Before I go' } });
+      await act(() => editor.current!.saveNow());
+      expect(createCardDraft).toHaveBeenCalledTimes(1);
+      expect(createCardDraft).toHaveBeenCalledWith(expect.objectContaining({ thoughtCore: 'Before I go' }));
+
+      await act(() => editor.current!.saveNow());
+      expect(createCardDraft).toHaveBeenCalledTimes(1);
+      expect(updateCardDraft).not.toHaveBeenCalled();
     });
   });
 });
