@@ -1,0 +1,146 @@
+.listArea {
+  position: relative;
+  margin: 0 0 18px;
+}
+
+.scroll {
+  max-height: 50vh;
+  overflow-y: auto;
+  /* the hand-drawn rail replaces the native bar */
+  scrollbar-width: none;
+  /* keep rows clear of the rail */
+  padding-right: 18px;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.list {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cardRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 160ms ease;
+}
+
+/* No boxed hover wash — rows are divider-separated (notification modal
+   language); hover answers through the title ink instead (under a pointer
+   only: a tap must not leave a row looking chosen). */
+@media (hover: hover) {
+  .cardRow:hover:not(:disabled) .cardTitle {
+    color: var(--color-terracotta);
+  }
+}
+
+.cardRow[data-chosen] .cardTitle {
+  color: var(--color-terracotta);
+}
+
+.cardRow:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: -2px;
+  border-radius: 10px;
+}
+
+/* A request on its way: the rows rest, the chosen one stays as it was. */
+.cardRow:disabled {
+  cursor: default;
+}
+
+.cardRow:disabled:not([data-chosen]) {
+  opacity: 0.5;
+}
+
+.thumb {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.thumbFallback {
+  position: absolute;
+  inset: 0;
+}
+
+/* The chosen row's mark: its own cover washed in the accent (clipped to the
+   thumb's wobbly outline by OrganicImage), a cream tick on it. */
+.thumbChosen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklch, var(--color-terracotta) 82%, transparent);
+  animation: chosenIn 180ms ease-out;
+}
+
+@keyframes chosenIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumbChosen {
+    animation: none;
+  }
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.cardTitle {
+  max-width: 100%;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  transition: color 120ms ease;
+}
+
+.marker {
+  display: inline-flex;
+}
+
+.empty {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 10px 6px 4px;
+}
+
+.footnote {
+  margin: 10px 6px 2px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}

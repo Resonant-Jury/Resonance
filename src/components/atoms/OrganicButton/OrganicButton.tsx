@@ -75,11 +75,13 @@ export interface OrganicButtonProps {
   /** Fill the container's width: the face is drawn at that width, the label stays centred. */
   block?: boolean;
   onClick?: (e: MouseEvent<HTMLButtonElement>) => void;
+  /** Not pressable yet (a dialog's verb before there is anything to act on): faded, no hover ink. */
+  disabled?: boolean;
   style?: CSSProperties & { fillColor?: string };
   className?: string;
 }
 
-export function OrganicButton({ children, variant = 'primary', size = 'md', block = false, onClick, style = {}, className }: OrganicButtonProps) {
+export function OrganicButton({ children, variant = 'primary', size = 'md', block = false, onClick, disabled = false, style = {}, className }: OrganicButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const ref = useRef<HTMLButtonElement>(null);
@@ -124,6 +126,7 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', bloc
     <button
       ref={ref}
       onClick={onClick}
+      disabled={disabled}
       onMouseEnter={(e) => { recordPointer(e); setHovered(true); }}
       onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
       className={`${styles.btn}${size === 'sm' ? ` ${styles.sm}` : ''}${block ? ` ${styles.block}` : ''} res-shape-stand-in ${className || ''}`}
@@ -150,7 +153,7 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', bloc
       <BrushWash
         w={w} h={h} d={overlayPath}
         color={v.hoverOverlay || 'oklch(0% 0 0 / 0.12)'}
-        x={pos.x} y={pos.y} on={hovered} duration={340} overshoot={4}
+        x={pos.x} y={pos.y} on={hovered && !disabled} duration={340} overshoot={4}
       />
       {v.stroke && (
         <HandDrawnBorder

@@ -31,6 +31,12 @@
   border-radius: 16px;
 }
 
+/* Not pressable yet: the face stays, faded, and the pointer says so. */
+.btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .label {
   position: relative;
   z-index: 1;
