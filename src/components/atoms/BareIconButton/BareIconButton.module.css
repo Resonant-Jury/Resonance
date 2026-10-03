@@ -29,7 +29,8 @@
   }
 }
 .button:hover:not(:disabled),
-.button:focus-visible {
+.button:focus-visible,
+.button[data-tone='ink'] {
   color: var(--color-text);
 }
 .button:focus-visible {

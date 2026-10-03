@@ -15,6 +15,10 @@ export interface BareIconButtonProps {
   iconSize?: number;
   /** Turns the glyph (a chevron pointing up is `chevron-down` at 180). */
   rotate?: number;
+  /** Mirrors the glyph (back is `arrow-right` mirrored, as the hand drew it). */
+  mirror?: boolean;
+  /** Muted ink at rest (a bar's small tools), or full ink (a bar's back arrow, which leads the row). */
+  tone?: 'muted' | 'ink';
   disabled?: boolean;
   /** Where the tooltip hangs: over the button (default), under it, or nowhere. */
   tip?: 'above' | 'below' | false;
@@ -37,6 +41,8 @@ export function BareIconButton({
   onClick,
   iconSize = 20,
   rotate,
+  mirror = false,
+  tone = 'muted',
   disabled = false,
   tip = 'above',
   tipAlign = 'center',
@@ -46,11 +52,13 @@ export function BareIconButton({
   // Escape puts the tooltip away until the pointer or focus leaves (content shown on hover or focus has to be dismissible).
   const [tipDismissed, setTipDismissed] = useState(false);
   const disc = useMemo(() => wobCircle(50, 50, 46, seed, { segments: 8, mag: 2.2, cpJitter: 0.4 }), [seed]);
+  const turn = [mirror && 'scaleX(-1)', rotate && `rotate(${rotate}deg)`].filter(Boolean).join(' ');
   return (
     <span className={[styles.root, className].filter(Boolean).join(' ')}>
       <button
         type="button"
         className={styles.button}
+        data-tone={tone}
         aria-label={label}
         disabled={disabled}
         onClick={onClick}
@@ -61,7 +69,7 @@ export function BareIconButton({
         <svg className={styles.wash} viewBox="0 0 100 100" aria-hidden="true">
           <path d={disc} />
         </svg>
-        <span className={styles.glyph} style={rotate ? { transform: `rotate(${rotate}deg)` } : undefined}>
+        <span className={styles.glyph} style={turn ? { transform: turn } : undefined}>
           <Icon name={icon} size={iconSize} strokeWidth={INK} />
         </span>
       </button>

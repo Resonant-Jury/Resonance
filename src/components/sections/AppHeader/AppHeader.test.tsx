@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { renderWithIntl, screen } from '@/../test/render';
+import { useEffect } from 'react';
+import { renderWithIntl, screen, userEvent } from '@/../test/render';
+import { AppChromeProvider, useAppChrome } from '@/components/providers/AppChrome';
 import { AppHeader } from './AppHeader';
 
 // Navigation + auth boundaries the account controls reach into. The signed-out
@@ -61,5 +63,30 @@ describe('AppHeader account slot', () => {
 
     expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull();
     expect(screen.queryByTestId('notification-bell')).toBeNull();
+  });
+});
+
+describe('AppHeader taken over by a page', () => {
+  // A phone's settings detail: the bar the writer stands over its workspace
+  // too — the back arrow and that screen's title, nothing else.
+  it('shows only the back arrow and the screen’s title', async () => {
+    const onBack = vi.fn();
+    function Claim() {
+      const { setMobileHeader } = useAppChrome();
+      useEffect(() => setMobileHeader({ title: 'Profile', onBack }), [setMobileHeader]);
+      return null;
+    }
+    renderWithIntl(
+      <AppChromeProvider>
+        <AppHeader user={user} signedIn authReady />
+        <Claim />
+      </AppChromeProvider>,
+    );
+
+    expect(await screen.findByText('Profile')).toBeInTheDocument();
+    expect(screen.queryByTestId('notification-bell')).toBeNull();
+    expect(screen.queryByText('Resonance')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 });

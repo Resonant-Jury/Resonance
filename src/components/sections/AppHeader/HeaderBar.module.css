@@ -1,0 +1,50 @@
+/* Fixed over the page like the app header; only its row takes the pointer,
+   so what shows under the wavy edge stays clickable. */
+.bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: var(--page-pad-x);
+  padding-right: var(--page-pad-x);
+  pointer-events: auto;
+}
+
+/* The arrow's glyph lands on the page margin, the title's left edge where
+   the page's text would be; translateY optically centres it against the
+   serif title, whose ink sits a hair below its line-box centre. */
+.back {
+  margin-left: -9px;
+  transform: translateY(1px);
+}
+@media (pointer: coarse) {
+  .back {
+    margin-left: -13px;
+  }
+  .row {
+    gap: 4px;
+  }
+}
+
+.title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

@@ -1,49 +1,20 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { HamburgerIcon } from '@/components/atoms/HamburgerIcon/HamburgerIcon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { Icon } from '@/components/atoms/Icon';
 import { useAppChrome } from '@/components/providers/AppChrome';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
-import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
-import { INK } from '@/lib/design/strokes';
 import { Link, usePathname } from '@/i18n/navigation';
 import { NotificationBell } from './NotificationBell';
 import { MessagesEntry } from './MessagesEntry';
 import { AppMobileNavModal } from './AppMobileNavModal';
 import { Subnavbar } from './Subnavbar';
+import { HeaderBar } from './HeaderBar';
+import { HeaderChrome, HEADER_BODY_H, HEADER_TOTAL_H } from './HeaderChrome';
 import styles from './AppHeader.module.css';
-
-const HEADER_BODY_H = 68;
-const HEADER_WAVE_H = 14;
-const HEADER_TOTAL_H = HEADER_BODY_H + HEADER_WAVE_H;
-// Y of the wavy bottom stroke — the visible bottom edge of the header chrome.
-// Centering content within 0…HEADER_STROKE_Y puts it on the visible bar's
-// midpoint (rather than the top HEADER_BODY_H, which reads a couple px high).
-const HEADER_STROKE_Y = HEADER_BODY_H + HEADER_WAVE_H * 0.35;
-
-function buildHeaderPaths(seed: number) {
-  const W = 1440;
-  const baseY = HEADER_STROKE_Y;
-  const amp = 1.4;
-  const steps = 12;
-  const pts = wavyPoints(W, baseY, amp, seed, steps);
-  const strokeD = pointsToBezier(pts);
-  const f = (n: number) => +n.toFixed(2);
-  const last = pts[pts.length - 1];
-  let maskD = `M 0,0 L ${W},0 L ${f(last[0])},${f(last[1])}`;
-  for (let i = pts.length - 2; i >= 0; i--) {
-    const [x0, y0] = pts[i + 1];
-    const [x1, y1] = pts[i];
-    const midX = (x0 + x1) / 2;
-    maskD += ` C ${f(midX)},${f(y0)} ${f(midX)},${f(y1)} ${f(x1)},${f(y1)}`;
-  }
-  maskD += ' Z';
-  return { maskD, strokeD, W };
-}
 
 export interface AppHeaderProps {
   user: {
@@ -87,46 +58,6 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
     if (!isMobile) setMenuOpen(false);
   }, [isMobile]);
 
-  const { maskD, strokeD, W } = useMemo(() => buildHeaderPaths(211), []);
-  const maskUrl = useMemo(() => {
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${W} ${HEADER_TOTAL_H}' preserveAspectRatio='none'><path d='${maskD}' fill='white'/></svg>`;
-    return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
-  }, [maskD, W]);
-
-  // Shared wavy backdrop + bottom stroke — reused by the normal header and the
-  // mobile takeover so they read as the exact same chrome.
-  const chromeBg = (
-    <>
-      <div
-        aria-hidden="true"
-        className={styles.bg}
-        // Phones keep the header fully opaque (the module CSS: the PWA wants
-        // a solid band there); wider, it firms up once the page scrolls.
-        data-scrolled={scrolled || undefined}
-        style={{
-          WebkitMaskImage: maskUrl,
-          maskImage: maskUrl,
-        }}
-      />
-      <svg
-        aria-hidden="true"
-        viewBox={`0 0 ${W} ${HEADER_TOTAL_H}`}
-        preserveAspectRatio="none"
-        className={styles.waveStroke}
-        style={{ height: HEADER_TOTAL_H, opacity: scrolled ? 1 : 0.5 }}
-      >
-        <path
-          d={strokeD}
-          fill="none"
-          stroke="var(--field-border-hover)"
-          strokeWidth={INK}
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-    </>
-  );
-
   // Phones open the menu from here; wider screens have the sign-in button or
   // the account dropdown instead (the module CSS hides it there).
   const menuButton = (
@@ -144,26 +75,7 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
   // A page (e.g. a settings detail screen) can claim the header on phones: just
   // a back control + the current screen's title, no brand or account controls.
   if (mobileHeader) {
-    return (
-      <header className={styles.header} style={{ height: HEADER_TOTAL_H }}>
-        {chromeBg}
-        <div className={`${styles.row} ${styles.takeoverRow}`} style={{ height: HEADER_STROKE_Y }}>
-          <button
-            type="button"
-            className={styles.backBtn}
-            aria-label={tNav('back')}
-            onClick={mobileHeader.onBack}
-          >
-            {/* translateY optically centres the arrow against the serif title,
-                whose ink sits a hair below its line-box centre. */}
-            <span style={{ display: 'inline-flex', transform: 'scaleX(-1) translateY(1px)' }}>
-              <Icon name="arrow-right" size={18} />
-            </span>
-          </button>
-          <span className={styles.brand}>{mobileHeader.title}</span>
-        </div>
-      </header>
-    );
+    return <HeaderBar title={mobileHeader.title} backLabel={tNav('back')} onBack={mobileHeader.onBack} scrolled={scrolled} />;
   }
 
   return (
@@ -171,7 +83,7 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
     // header steps aside (the module CSS, 900px — MessagesPage's breakpoint)
     // and the thread's own header (back + person) takes over.
     <header className={styles.header} style={{ height: HEADER_TOTAL_H }} data-on-thread={onThread || undefined}>
-      {chromeBg}
+      <HeaderChrome scrolled={scrolled} />
 
       <div className={styles.row} style={{ height: HEADER_BODY_H }}>
         <Link href="/home" className={styles.logo}>
@@ -218,4 +130,3 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
   );
 }
 
-export { HEADER_TOTAL_H };

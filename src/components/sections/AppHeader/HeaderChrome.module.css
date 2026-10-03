@@ -1,0 +1,41 @@
+/* The header's paper, masked to stop on its wavy pen line. Wider screens: a
+   touch see-through over the page at rest, solid once it scrolls. */
+.bg {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklch, var(--color-cream) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity: 0.82;
+  transition: opacity 300ms ease;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+.bg[data-scrolled] {
+  opacity: 1;
+}
+
+.waveStroke {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+  overflow: visible;
+}
+
+/* Phones: fully opaque, no blur. The PWA paints the status-bar strip in the
+   solid theme color, and a translucent blurred header directly beneath it
+   reads as two mismatched bands — so the mobile header is plain cream. */
+@media (max-width: 720px) {
+  .bg {
+    background: var(--color-cream);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    opacity: 1;
+  }
+}
