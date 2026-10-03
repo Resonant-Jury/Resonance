@@ -338,6 +338,33 @@ describe('sending', () => {
   });
 });
 
+describe('another account signing in', () => {
+  // Another tab signs out and in as someone else under a thread still sending: the next message in line was
+  // the first account's, and stays theirs.
+  it('never sends what one account queued as the next, and shows it none of it', async () => {
+    server.all = conversation(2);
+    let answer!: () => void;
+    vi.mocked(sendMessage).mockImplementationOnce(async (_to, _text, extras) => {
+      await new Promise<void>((r) => (answer = r));
+      return { conversationId: 'bob_me', id: extras!.clientId! };
+    });
+    const first = open();
+    hearNewest();
+    act(() => {
+      first.result.current.send({ text: 'one' });
+      first.result.current.send({ text: 'two' });
+    });
+    expect(vi.mocked(sendMessage).mock.calls[0][2]).toMatchObject({ as: 'me' });
+
+    mockUseAuth.mockReturnValue({ user: { id: 'carol' }, loading: false });
+    const next = open({ pairId: 'bob_carol', to: 'bob' });
+    await act(async () => answer());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(next.result.current.messages.map((m) => m.text)).not.toContain('two');
+  });
+});
+
 describe('replying', () => {
   it('answers a delivered message, sending its id and drawing its quote, then lets go of it', async () => {
     server.all = [msg(1, { text: 'a'.repeat(200) }), msg(2)];

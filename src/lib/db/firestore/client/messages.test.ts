@@ -123,6 +123,12 @@ describe('sendMessage', () => {
     await expect(sendMessage('aaa', '   ', { cardRef: 'card-1' })).resolves.toBeTruthy();
   });
 
+  it('sends only as the account that wrote it', async () => {
+    await expect(sendMessage('aaa', 'hi', { as: 'someone-else' })).rejects.toThrow('Signed in as someone else');
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(sendMessage('aaa', 'hi', { as: 'bbb' })).resolves.toBeTruthy();
+  });
+
   it("surfaces the server's refusal (not connected, blocked)", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ error: { code: 'forbidden', message: 'You can message people you are connected with.' } }), { status: 403 }),
