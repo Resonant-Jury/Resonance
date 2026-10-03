@@ -36,16 +36,41 @@ const rowOf = (scroller: HTMLElement, key: string) =>
 const offsetIn = (scroller: HTMLElement, row: HTMLElement) =>
   row.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
 
+/** The longest a glide is waited for (a browser without `scrollend` says nothing when it is over). */
+const SETTLE_MS = 700;
+
 /**
  * Scrolls the thread so that `row` sits in the middle of it — the scroller
  * alone, where `scrollIntoView` would move the page around it too (the
- * headers with it).
+ * headers with it). A long way (a quote's original pages back, a search hit
+ * far up) is covered at once but for the last window, which glides: a glide
+ * over the whole way is slow and drags everything between past the eye.
+ * Resolves when the scroller has come to rest there, so what marks the row
+ * (a quote's wash) is seen arriving, not spent on the way.
  */
-export function centerRow(scroller: HTMLElement, row: HTMLElement, behavior: ScrollBehavior = 'smooth'): void {
-  const top =
+export function centerRow(scroller: HTMLElement, row: HTMLElement, behavior: ScrollBehavior = 'smooth'): Promise<void> {
+  const wanted =
     scroller.scrollTop + offsetIn(scroller, row) - Math.max(0, (scroller.clientHeight - row.offsetHeight) / 2);
+  const top = Math.max(0, Math.min(wanted, scroller.scrollHeight - scroller.clientHeight));
+  const way = top - scroller.scrollTop;
+  const glides = behavior === 'smooth' && Math.abs(way) >= 2;
+  if (glides && Math.abs(way) > scroller.clientHeight * 1.5) scroller.scrollTop = top - Math.sign(way) * scroller.clientHeight;
   if (typeof scroller.scrollTo === 'function') scroller.scrollTo({ top, behavior });
   else scroller.scrollTop = top;
+  if (!glides) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      window.clearTimeout(timer);
+      scroller.removeEventListener('scrollend', ended);
+      resolve();
+    };
+    // The jump most of the way ends too (later, on its own): only an end at the row is the glide's.
+    const ended = () => {
+      if (Math.abs(scroller.scrollTop - top) < 2) done();
+    };
+    const timer = window.setTimeout(done, SETTLE_MS);
+    scroller.addEventListener('scrollend', ended);
+  });
 }
 
 /**

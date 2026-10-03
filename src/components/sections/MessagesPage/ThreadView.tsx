@@ -217,18 +217,23 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   );
   const currentHit = searching && hitIndex != null ? hits[hitIndex]?.messageId : undefined;
 
-  // A message, once it is drawn: centre it in the thread (and wash it for a moment, for a quote's original).
+  // A message, once it is drawn: centre it in the thread (and, for a quote's original, wash it for a moment
+  // once it has arrived — washed on the way, it would be over before it is seen).
   useEffect(() => {
     if (!jumpTarget) return;
     const scroller = scrollerRef.current;
     const row = scroller?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(jumpTarget.id)}"]`);
     if (!scroller || !row) return;
-    centerRow(scroller, row);
+    const arrived = centerRow(scroller, row);
     setJumpTarget(null);
     if (!jumpTarget.flash) return;
     const id = jumpTarget.id;
-    setFlashId(id);
-    window.setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1000);
+    void arrived.then(() => {
+      // Off first, so a second jump to the same message washes it again.
+      setFlashId(null);
+      window.requestAnimationFrame(() => setFlashId(id));
+      window.setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1000);
+    });
   }, [jumpTarget, rows]);
 
   // The thread's labels and times, worked out once per message rather than on every draw.
