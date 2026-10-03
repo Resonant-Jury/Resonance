@@ -746,12 +746,13 @@ span.pill {
   }
 }
 
-/* The thread dims under an ink scrim (the whole window: no bright band). */
+/* The thread dims under an ink scrim (the whole window: no bright band) —
+   the modals' scrim, whose colour the browser's bars take meanwhile. */
 .scrim {
   all: unset;
   position: absolute;
   inset: 0;
-  background: color-mix(in oklch, var(--color-text) 30%, transparent);
+  background: color-mix(in oklch, var(--color-text) 24%, transparent);
   -webkit-tap-highlight-color: transparent;
 }
 

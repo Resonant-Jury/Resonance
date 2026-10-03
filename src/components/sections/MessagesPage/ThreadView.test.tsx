@@ -418,8 +418,10 @@ describe('Messenger’s thread, drawn by hand', () => {
     expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Reply', 'Copy']);
 
     await user.click(within(menu).getByRole('menuitem', { name: 'Reply' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // Done in the tap itself (iOS raises the keyboard only for a focus a tap gave), then the menu goes.
     expect(screen.getByText('Replying to alice')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Conversation with alice' })).toHaveFocus();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('keeps the menu when the finger that held the message lifts over the scrim, and puts it away on a tap there', async () => {
