@@ -4,10 +4,25 @@ import SwiftUI
 /// Signed out → sign-in; signed in → the tabs, or first the pen-name step
 /// when the account has no profile yet. While Firebase restores a previous
 /// session (or a new sign-in waits for its profile), the paper and a loader
-/// (no flash of the sign-in screen, or of the tabs before onboarding).
+/// (no flash of the sign-in screen, or of the tabs before onboarding). A cold
+/// launch opens under the launch cover, which hands off to the first of these.
 struct RootView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.scenePhase) private var scenePhase
+    @State private var launchCovering = true
+
+    /// The first screen is the page itself: not the loader while the account restores, nor the
+    /// wait for a profile this device hasn't seen.
+    private var launchReady: Bool {
+        switch session.phase {
+        case .restoring: false
+        case .signedOut: true
+        case .signedIn: session.landing != .pending
+        }
+    }
+
+    /// Under the launch cover the first screen simply is; a crossfade would show the loader leaving as it dissolves.
+    private var phaseChange: Animation? { launchCovering ? nil : .easeInOut(duration: 0.25) }
 
     var body: some View {
         ZStack {
@@ -36,9 +51,10 @@ struct RootView: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: session.phase)
-        .animation(.easeInOut(duration: 0.25), value: session.landing)
+        .animation(phaseChange, value: session.phase)
+        .animation(phaseChange, value: session.landing)
         .tint(Tokens.terracotta)
+        .launchCover(ready: launchReady, covering: $launchCovering)
         // Back in the foreground after a while, the screens ask again behind what they
         // show (`cameBack`). Otherwise a profile that failed to load is asked for again
         // (a new account that was offline at first still reaches onboarding).

@@ -95,8 +95,11 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleLocalizations: [en, zh-Hant]
+        # The paper and the icon's waves, centred; LaunchCover.swift draws the same and hands off to
+        # the first screen. Cream in dark mode too (the asset's dark variant), as the app always is.
         UILaunchScreen:
           UIColorName: LaunchBackground
+          UIImageName: LaunchMark
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
