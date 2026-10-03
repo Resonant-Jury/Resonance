@@ -47,6 +47,15 @@ export interface ListenedDoc {
   data: DocumentData;
 }
 
+/** About one answer of a listener. */
+export interface ListenedMeta {
+  /**
+   * The answer came from the SDK's own memory, not from the server (offline,
+   * or before the server has answered): it may be only part of the truth.
+   */
+  fromCache: boolean;
+}
+
 /** A `where` clause, as the rules require of a list (the viewer's own documents). */
 export interface ListenFilter {
   field: string;
@@ -62,7 +71,7 @@ export function listenNewest(
   path: [string, ...string[]],
   field: string,
   max: number,
-  onDocs: (docs: ListenedDoc[]) => void,
+  onDocs: (docs: ListenedDoc[], meta: ListenedMeta) => void,
   onError: (err: Error) => void,
   filters: ListenFilter[] = [],
 ): () => void {
@@ -75,7 +84,7 @@ export function listenNewest(
   );
   return onSnapshot(
     q,
-    (snap) => onDocs(snap.docs.map((d) => ({ id: d.id, data: d.data() }))),
+    (snap) => onDocs(snap.docs.map((d) => ({ id: d.id, data: d.data() })), { fromCache: snap.metadata.fromCache }),
     (err) => onError(err),
   );
 }

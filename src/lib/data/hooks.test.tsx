@@ -1051,6 +1051,44 @@ describe('useCardSummaries', () => {
     expect(ready.cards.cards[0]).toMatchObject({ authorId: '', anonymous: true, summary: { readMinutes: 1 } });
   });
 
+  it('asks only for the cards not asked for yet as the list grows, and names what its answer covers', async () => {
+    let fail = false;
+    vi.mocked(callApi).mockImplementation(async (path: string) => {
+      if (fail) throw new Error('offline');
+      return { cards: new URL(path, 'http://x').searchParams.get('keys')!.split(',').filter((k) => k !== 'gone').map(summary) };
+    });
+    const { result, rerender } = renderHook(({ keys }) => useCardSummaries(keys), {
+      wrapper,
+      initialProps: { keys: ['c2', 'c1', 'gone'] },
+    });
+    await waitFor(() => expect(result.current?.status).toBe('ready'));
+    expect(callApi).toHaveBeenCalledWith('/api/v1/cards?keys=c1,c2,gone');
+    type Ready = { status: 'ready'; cards: { cards: Card[] }; asked: ReadonlySet<string>; failed: ReadonlySet<string> };
+    let ready = result.current as Ready;
+    // A card the viewer can't read was asked for, and isn't there: missing, not on its way.
+    expect([...ready.asked].sort()).toEqual(['c1', 'c2', 'gone']);
+    expect(ready.cards.cards.map((c) => c.id)).toEqual(['c1', 'c2']);
+
+    // An older page brings another card in: only it goes out, and the others stay meanwhile.
+    vi.mocked(callApi).mockClear();
+    rerender({ keys: ['c3', 'c2', 'c1', 'gone'] });
+    expect((result.current as Ready).cards.cards.map((c) => c.id)).toEqual(['c1', 'c2']);
+    expect((result.current as Ready).asked.has('c3')).toBe(false);
+    await waitFor(() => expect((result.current as Ready).asked.has('c3')).toBe(true));
+    expect(callApi).toHaveBeenCalledTimes(1);
+    expect(callApi).toHaveBeenCalledWith('/api/v1/cards?keys=c3');
+
+    // A request that fails names its cards as failed (their embeds read them by themselves), once.
+    fail = true;
+    vi.mocked(callApi).mockClear();
+    rerender({ keys: ['c4', 'c3', 'c2', 'c1', 'gone'] });
+    await waitFor(() => expect((result.current as Ready).failed.has('c4')).toBe(true));
+    rerender({ keys: ['c4', 'c3', 'c2', 'c1', 'gone'] });
+    expect(callApi).toHaveBeenCalledTimes(1);
+    ready = result.current as Ready;
+    expect(ready.cards.cards.map((c) => c.id)).toEqual(['c1', 'c2', 'c3']);
+  });
+
   it('asks for nothing with nothing shared, or no one signed in', async () => {
     expect(renderHook(() => useCardSummaries([]), { wrapper }).result.current).toBeNull();
     mockUseAuth.mockReturnValue({ user: null, loading: false });

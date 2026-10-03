@@ -13,19 +13,27 @@ vi.mock('@/lib/auth/firebase/client', () => ({
 }));
 
 const batch = { set: vi.fn(), update: vi.fn(), commit: vi.fn() };
+// Query pieces come back as plain descriptions, so a test can read the query a read was made with.
 vi.mock('firebase/firestore/lite', () => ({
-  collection: vi.fn(),
+  collection: vi.fn((_db: unknown, ...path: string[]) => ({ collection: path.join('/') })),
   doc: vi.fn((_db: unknown, ...path: string[]) => ({ id: 'new-doc', path: path.join('/') })),
+  documentId: vi.fn(() => '__name__'),
   getDoc: vi.fn(),
   getDocs: vi.fn(),
   increment: vi.fn((n: number) => ({ __increment: n })),
-  limit: vi.fn(),
+  limit: vi.fn((n: number) => ({ limit: n })),
   onSnapshot: vi.fn(),
-  orderBy: vi.fn(),
-  query: vi.fn(),
+  orderBy: vi.fn((field: string, dir: string) => ({ orderBy: [field, dir] })),
+  query: vi.fn((ref: unknown, ...parts: unknown[]) => ({ ref, parts })),
   serverTimestamp: vi.fn(() => ({ __serverTimestamp: true })),
   setDoc: vi.fn(),
-  Timestamp: class {},
+  startAfter: vi.fn((...values: unknown[]) => ({ startAfter: values })),
+  Timestamp: class {
+    constructor(
+      readonly seconds: number,
+      readonly nanoseconds: number,
+    ) {}
+  },
   updateDoc: vi.fn(),
   where: vi.fn(),
   writeBatch: vi.fn(() => batch),
@@ -34,18 +42,21 @@ vi.mock('firebase/firestore/lite', () => ({
 // The open thread's listener (the full SDK, loaded on demand).
 type Listened = { id: string; data: Record<string, unknown> };
 const listener = vi.hoisted(() => ({
-  onDocs: null as ((docs: Listened[]) => void) | null,
+  onDocs: null as ((docs: Listened[], meta?: { fromCache: boolean }) => void) | null,
   stop: vi.fn(),
   listenNewest: vi.fn(),
 }));
 vi.mock('./realtime', () => ({ listenNewest: listener.listenNewest }));
 
+import { getDocs } from 'firebase/firestore/lite';
 import {
   conversationId,
+  getOlderMessages,
   listenConversations,
   listenThread,
   otherParticipant,
   sendMessage,
+  type ThreadWindow,
 } from './messages';
 
 const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
@@ -79,7 +90,7 @@ describe('sendMessage', () => {
     expect(url).toBe('/api/v1/messages');
     expect(init?.method).toBe('POST');
     expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer id-token');
-    expect(sent()).toEqual({ to: 'aaa', text: 'hello there', cardRef: null, noteRef: null });
+    expect(sent()).toEqual({ to: 'aaa', text: 'hello there', cardRef: null, noteRef: null, replyTo: null, clientId: null });
     expect(batch.commit).not.toHaveBeenCalled();
   });
 
@@ -91,7 +102,19 @@ describe('sendMessage', () => {
 
   it('attaches a shared card and a note reply', async () => {
     await sendMessage('aaa', '', { cardRef: 'card-1', noteRef: { cardId: 'card-9', noteId: 'note-9' } });
-    expect(sent()).toEqual({ to: 'aaa', text: '', cardRef: 'card-1', noteRef: { cardId: 'card-9', noteId: 'note-9' } });
+    expect(sent()).toEqual({
+      to: 'aaa',
+      text: '',
+      cardRef: 'card-1',
+      noteRef: { cardId: 'card-9', noteId: 'note-9' },
+      replyTo: null,
+      clientId: null,
+    });
+  });
+
+  it('names the message it answers and the id it was written under', async () => {
+    await sendMessage('aaa', 'yes', { replyTo: 'm7', clientId: 'Abcdefghij0123456789' });
+    expect(sent()).toMatchObject({ text: 'yes', replyTo: 'm7', clientId: 'Abcdefghij0123456789' });
   });
 
   it('allows an empty body only when a card is attached', async () => {
@@ -109,32 +132,50 @@ describe('sendMessage', () => {
 
 describe('the listeners (thread, conversations)', () => {
   /** A Timestamp as the full SDK hands it over: not Lite's class, the same shape. */
-  const fullSdkTimestamp = (iso: string) => ({ seconds: Date.parse(iso) / 1000, nanoseconds: 0, toDate: () => new Date(iso) });
+  const fullSdkTimestamp = (iso: string, nanoseconds = 0) => ({
+    seconds: Date.parse(iso) / 1000,
+    nanoseconds,
+    toDate: () => new Date(Date.parse(iso) + Math.floor(nanoseconds / 1e6)),
+  });
+  /** The messages of the window the listener reported, as heard (newest first). */
+  const heardMessages = (heard: ReturnType<typeof vi.fn>, call = 0) =>
+    (heard.mock.calls[call][0] as ThreadWindow).entries.map((e) => e.message);
 
   beforeEach(() => {
     listener.listenNewest.mockImplementation(
-      (_path: string[], _field: string, _max: number, onDocs: (docs: Listened[]) => void) => {
-        listener.onDocs = onDocs;
+      (_path: string[], _field: string, _max: number, onDocs: (docs: Listened[], meta?: { fromCache: boolean }) => void) => {
+        // An answer from the server unless a test says otherwise.
+        listener.onDocs = (docs, meta = { fromCache: false }) => onDocs(docs, meta);
         return listener.stop;
       },
     );
   });
 
-  it("hears a thread's newest messages, oldest first, at the times they were sent", async () => {
+  it("hears a thread's newest messages at the times they were sent, each with where the page before it starts", async () => {
     const heard = vi.fn();
     listenThread('aaa_bbb', heard);
     await vi.waitFor(() => expect(listener.listenNewest).toHaveBeenCalled());
     expect(listener.listenNewest.mock.calls[0].slice(0, 3)).toEqual([['conversations', 'aaa_bbb', 'messages'], 'sentAt', 50]);
 
-    listener.onDocs!([
-      { id: 'm2', data: { senderId: 'aaa', text: 'and you?', sentAt: fullSdkTimestamp('2026-09-01T08:05:00Z') } },
-      { id: 'm1', data: { senderId: 'bbb', text: 'hello', sentAt: fullSdkTimestamp('2026-09-01T08:00:00Z'), cardRef: 'walk' } },
-    ]);
-    const [messages] = heard.mock.calls[0];
-    expect(messages.map((m: { id: string }) => m.id)).toEqual(['m1', 'm2']);
-    expect(messages[0]).toMatchObject({ senderId: 'bbb', text: 'hello', cardRef: 'walk' });
-    expect(messages[0].sentAt.toISOString()).toBe('2026-09-01T08:00:00.000Z');
-    expect(messages[1].sentAt.toISOString()).toBe('2026-09-01T08:05:00.000Z');
+    listener.onDocs!(
+      [
+        { id: 'm2', data: { senderId: 'aaa', text: 'and you?', sentAt: fullSdkTimestamp('2026-09-01T08:05:00Z', 123_456_789) } },
+        { id: 'm1', data: { senderId: 'bbb', text: 'hello', sentAt: fullSdkTimestamp('2026-09-01T08:00:00Z'), cardRef: 'walk' } },
+      ],
+      { fromCache: false },
+    );
+    const window = heard.mock.calls[0][0] as ThreadWindow;
+    expect(window.fromCache).toBe(false);
+    const messages = heardMessages(heard);
+    expect(messages.map((m) => m.id)).toEqual(['m2', 'm1']);
+    expect(messages[1]).toMatchObject({ senderId: 'bbb', text: 'hello', cardRef: 'walk' });
+    expect(messages[1].sentAt.toISOString()).toBe('2026-09-01T08:00:00.000Z');
+    expect(messages[0].sentAt.toISOString()).toBe('2026-09-01T08:05:00.123Z');
+    // The cursor keeps the send time to the nanosecond, as Firestore orders by it.
+    expect(window.entries[0].cursor).toEqual({ seconds: Date.parse('2026-09-01T08:05:00Z') / 1000, nanoseconds: 123_456_789, id: 'm2' });
+
+    listener.onDocs!([], { fromCache: true });
+    expect((heard.mock.calls[1][0] as ThreadWindow).fromCache).toBe(true);
   });
 
   it('carries a reply quote and a link preview, and drops a preview that is not safe to show', async () => {
@@ -172,7 +213,7 @@ describe('the listeners (thread, conversations)', () => {
         },
       },
     ]);
-    const [messages] = heard.mock.calls[0];
+    const messages = heardMessages(heard).reverse();
     expect(messages[0].replyTo).toEqual({ id: 'm0', senderId: 'aaa', text: 'hello', cardRef: 'walk' });
     expect(messages[0].preview).toMatchObject({ title: 'Example', siteName: 'Ex', image: '/api/link-image?u=a&s=b' });
     expect(messages[1].preview).toMatchObject({ title: 'Example', image: undefined });
@@ -203,6 +244,34 @@ describe('the listeners (thread, conversations)', () => {
     const [conversations] = heard.mock.calls[0];
     expect(conversations[0]).toMatchObject({ id: 'aaa_bbb', unread: { bbb: 2 }, lastMessage: { text: 'and you?' } });
     expect(conversations[0].updatedAt.toISOString()).toBe('2026-09-01T08:05:00.000Z');
+  });
+
+  it('reads the page before a message by its send time to the nanosecond and its id, newest first', async () => {
+    vi.mocked(getDocs).mockResolvedValueOnce({
+      docs: [
+        { id: 'm9', data: () => ({ senderId: 'aaa', text: 'older', sentAt: fullSdkTimestamp('2026-08-31T10:00:00Z', 5) }) },
+        { id: 'm8', data: () => ({ senderId: 'bbb', text: 'oldest', sentAt: fullSdkTimestamp('2026-08-31T09:00:00Z') }) },
+      ],
+    } as never);
+    const page = await getOlderMessages('aaa_bbb', { seconds: 1_788_000_000, nanoseconds: 42, id: 'm10' }, 100);
+
+    const q = vi.mocked(getDocs).mock.calls[0][0] as unknown as { ref: unknown; parts: unknown[] };
+    expect(q.ref).toEqual({ collection: 'conversations/aaa_bbb/messages' });
+    expect(q.parts).toEqual([
+      { orderBy: ['sentAt', 'desc'] },
+      { orderBy: ['__name__', 'desc'] },
+      { startAfter: [{ seconds: 1_788_000_000, nanoseconds: 42 }, 'm10'] },
+      { limit: 100 },
+    ]);
+    expect(page.map((e) => [e.message.id, e.message.text, e.cursor.nanoseconds])).toEqual([
+      ['m9', 'older', 5],
+      ['m8', 'oldest', 0],
+    ]);
+  });
+
+  it('throws a page read that failed (it is not the beginning of the conversation)', async () => {
+    vi.mocked(getDocs).mockRejectedValueOnce(Object.assign(new Error('offline'), { code: 'unavailable' }));
+    await expect(getOlderMessages('aaa_bbb', { seconds: 1, nanoseconds: 0, id: 'm1' }, 50)).rejects.toThrow('offline');
   });
 
   it('stops the listener, and never starts one when stopped before it loaded', async () => {

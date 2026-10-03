@@ -1,6 +1,19 @@
 'use client';
 
-import { collection, doc, getDoc, getDocs, updateDoc, writeBatch } from './sdk';
+import {
+  Timestamp,
+  collection,
+  doc,
+  documentId,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  startAfter,
+  updateDoc,
+  writeBatch,
+} from './sdk';
 import type { Conversation, Message } from '@/lib/db/types';
 import { getFirebaseClientAuth } from '@/lib/auth/firebase/client';
 import { getClientDb } from './init';
@@ -110,10 +123,18 @@ function mapPreview(v: unknown): Message['preview'] {
 }
 
 export interface MessageExtras {
-  /** A shared card (renders as an EmbedStoryCard in the thread). */
+  /** A shared card (the thread draws it as the card's own bubble). */
   cardRef?: string;
   /** The 紙條 this message replies to (quote header in the thread). */
   noteRef?: { cardId: string; noteId: string };
+  /** The message this one answers (its id, in the same conversation): the server keeps a quote of it on the reply. */
+  replyTo?: string;
+  /**
+   * The id this message was given before it was sent (lib/chat/outbox's
+   * `newClientId`): the server makes it the document's id, so sending it
+   * again after a lost answer finds the message instead of writing it twice.
+   */
+  clientId?: string;
 }
 
 /**
@@ -121,10 +142,11 @@ export interface MessageExtras {
  * (POST /api/v1/messages — the call the apps make). One transaction opens the
  * conversation on the first message, writes the message, the list preview (a
  * bodyless card share borrows the card's title) and the recipient's unread
- * counter, and rings their bell for the first message only; it re-checks the
- * connection, blocks, and that an attached card is one you can read. The
- * rules refuse all of this from the browser. Text is optional only when a
- * card is attached.
+ * counter, and rings their bell for the first message only (every message
+ * pushes to their phones); it re-checks the connection, blocks, that an
+ * attached card is one you can read and that a message answered is one of
+ * this conversation. The rules refuse all of this from the browser. Text is
+ * optional only when a card is attached. Resolves to the message's id.
  */
 export async function sendMessage(
   toUserId: string,
@@ -137,7 +159,14 @@ export async function sendMessage(
   if (trimmed.length > MESSAGE_MAX_LENGTH) throw new Error('Message too long');
   return callApi('/api/v1/messages', {
     method: 'POST',
-    body: { to: toUserId, text: trimmed, cardRef: extras.cardRef ?? null, noteRef: extras.noteRef ?? null },
+    body: {
+      to: toUserId,
+      text: trimmed,
+      cardRef: extras.cardRef ?? null,
+      noteRef: extras.noteRef ?? null,
+      replyTo: extras.replyTo ?? null,
+      clientId: extras.clientId ?? null,
+    },
   });
 }
 
@@ -161,14 +190,61 @@ export async function getConversation(pairId: string): Promise<Conversation | nu
 }
 
 /**
- * Subscribe to the newest messages of an open thread (oldest → newest, capped
- * at `max`) — scoped to the one thread the viewer is looking at.
+ * Where the page of messages before a message starts: its send time (to the
+ * microsecond, as Firestore orders them) and its id (which orders messages
+ * sent in the same instant). Plain numbers, so the full SDK's listener can
+ * hand one to a Lite read.
+ */
+export interface MessageCursor {
+  seconds: number;
+  nanoseconds: number;
+  id: string;
+}
+
+/** A message with the cursor that starts the page before it. */
+export interface ThreadEntry {
+  message: Message;
+  cursor: MessageCursor;
+}
+
+/** One answer of an open thread's listener: its newest messages, newest first. */
+export interface ThreadWindow {
+  entries: ThreadEntry[];
+  /** From the listener's memory rather than the server: may be only part of the newest messages. */
+  fromCache: boolean;
+}
+
+/** The newest messages an open thread listens to; older ones are read a page at a time. */
+export const THREAD_WINDOW = 50;
+
+/** A send time to the microsecond, from either SDK's Timestamp (by shape) or, failing that, a Date. */
+function cursorOf(id: string, data: Record<string, unknown>, sentAt: Date): MessageCursor {
+  const ts = data.sentAt as { seconds?: unknown; nanoseconds?: unknown } | null | undefined;
+  if (ts && typeof ts.seconds === 'number' && typeof ts.nanoseconds === 'number') {
+    return { seconds: ts.seconds, nanoseconds: ts.nanoseconds, id };
+  }
+  const ms = sentAt.getTime();
+  return { seconds: Math.floor(ms / 1000), nanoseconds: (((ms % 1000) + 1000) % 1000) * 1e6, id };
+}
+
+function entryOf(id: string, data: Record<string, unknown>): ThreadEntry {
+  const message = mapMessage(id, data);
+  return { message, cursor: cursorOf(id, data, message.sentAt) };
+}
+
+/**
+ * Subscribe to the newest {@link THREAD_WINDOW} messages of an open thread
+ * (newest first, each with its cursor) — scoped to the one thread the viewer
+ * is looking at. A message that slides out of the window is not "gone": the
+ * thread keeps what it has (lib/chat/history). A refusal (the conversation
+ * was deleted, or isn't there yet) reaches `onError` with its
+ * `permission-denied` code.
  */
 export function listenThread(
   pairId: string,
-  onMessages: (messages: Message[]) => void,
+  onWindow: (window: ThreadWindow) => void,
   onError?: (err: Error) => void,
-  max = 50,
+  max = THREAD_WINDOW,
 ): () => void {
   return listenLazily(
     ({ listenNewest }) =>
@@ -176,11 +252,29 @@ export function listenThread(
         ['conversations', pairId, 'messages'],
         'sentAt',
         max,
-        (docs) => onMessages(docs.map((d) => mapMessage(d.id, d.data)).reverse()),
+        (docs, meta) => onWindow({ entries: docs.map((d) => entryOf(d.id, d.data)), fromCache: meta.fromCache }),
         (err) => onError?.(err),
       ),
     onError,
   );
+}
+
+/**
+ * The (at most `max`) messages sent before `before`, newest first — one
+ * page further back than the thread holds. Read once through Lite (only the
+ * newest messages are listened to); a failed read throws.
+ */
+export async function getOlderMessages(pairId: string, before: MessageCursor, max: number): Promise<ThreadEntry[]> {
+  const snap = await getDocs(
+    query(
+      collection(getClientDb(), 'conversations', pairId, 'messages'),
+      orderBy('sentAt', 'desc'),
+      orderBy(documentId(), 'desc'),
+      startAfter(new Timestamp(before.seconds, before.nanoseconds), before.id),
+      limit(max),
+    ),
+  );
+  return snap.docs.map((d) => entryOf(d.id, d.data()));
 }
 
 /**

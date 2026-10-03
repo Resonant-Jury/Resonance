@@ -31,7 +31,8 @@ export const CardEmbedSourceContext = createContext<CardEmbedSource | null>(null
 /** An embed from the page's source: matched on the card's slug or id; none there is a card the viewer can't read. */
 function fromSource(source: CardEmbedSource, key: string | null): CardEmbedData {
   if (!key) return { status: 'error' };
-  if (source.status === 'loading') return { status: 'loading' };
+  // Not covered by the answer yet: on its way, not missing.
+  if (source.status === 'loading' || (source.asked && !source.asked.has(key))) return { status: 'loading' };
   const card = source.cards.cards.find((c) => c.slug === key || c.id === key);
   if (!card) return { status: 'error' };
   return { status: 'ready', card, author: card.anonymous ? null : (source.cards.authors[card.authorId] ?? null) };
@@ -52,8 +53,10 @@ function fromSource(source: CardEmbedSource, key: string | null): CardEmbedData 
 export function useCardEmbed(href: string): CardEmbedData {
   const key = cardKeyFromHref(href);
   const source = useContext(CardEmbedSourceContext);
-  const read = useReadCardEmbed(source ? null : key);
-  return source ? fromSource(source, key) : read;
+  // A card the source failed to bring is read here instead.
+  const fromPage = source && !(source.status === 'ready' && key && source.failed?.has(key)) ? source : null;
+  const read = useReadCardEmbed(fromPage ? null : key);
+  return fromPage ? fromSource(fromPage, key) : read;
 }
 
 function useReadCardEmbed(key: string | null): CardEmbedData {
