@@ -304,6 +304,10 @@ public enum L10n {
             /// You have no published cards to link yet.
             public static var noCards: String { Strings.shared.string("card.linkModal.noCards") }
         }
+        public enum LinkPreview {
+            /// Open link: {host}
+            public static func `open`(host: String) -> String { Strings.shared.format("card.linkPreview.open", ["host": host]) }
+        }
         public enum ResonatorsModal {
             /// Resonated with this card
             public static var title: String { Strings.shared.string("card.resonatorsModal.title") }

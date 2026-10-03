@@ -306,6 +306,10 @@ object L10n {
             /** You have no published cards to link yet. */
             val noCards: String get() = Strings.string("card.linkModal.noCards")
         }
+        object LinkPreview {
+            /** Open link: {host} */
+            fun open(host: String): String = Strings.format("card.linkPreview.open", mapOf("host" to host))
+        }
         object ResonatorsModal {
             /** Resonated with this card */
             val title: String get() = Strings.string("card.resonatorsModal.title")

@@ -127,6 +127,31 @@ describe('card page server render', () => {
     );
   });
 
+  it("renders the story's previewed links as their cards in the HTML, and hands over only previews a reader may draw", async () => {
+    fake.docs['cards/pub1'] = card({
+      story: 'The kettle ticks.\n\nhttps://example.com/tea\n\nThen [a note](https://example.com/inline) in a sentence.',
+      linkPreviews: [
+        { url: 'https://example.com/tea', title: 'How to brew tea slowly', description: 'Patience, mostly.', image: '/api/link-image?u=a&s=b' },
+        { url: 'https://example.com/inline', title: 'An inline link', image: 'https://tracker.example/p.gif' },
+        { url: 'javascript:alert(1)', title: 'Never' },
+      ],
+      linkPreviewsFor: ['https://example.com/tea'],
+    });
+    const { html, seed, payload } = await renderPage('a-quiet-morning');
+    expect(seed?.view?.card.linkPreviews).toEqual([
+      { url: 'https://example.com/tea', title: 'How to brew tea slowly', description: 'Patience, mostly.', image: '/api/link-image?u=a&s=b' },
+      { url: 'https://example.com/inline', title: 'An inline link' },
+    ]);
+    expect(payload).not.toContain('javascript:');
+    expect(payload).not.toContain('tracker.example');
+    expect(payload).not.toContain('linkPreviewsFor');
+    // The standalone link is its card already in the server's HTML; the inline one stays a link in its sentence.
+    expect(html).toContain('How to brew tea slowly');
+    expect(html).toContain('aria-label="Open link: example.com"');
+    expect(html).not.toContain('An inline link');
+    expect(html).toContain('>a note</a>');
+  });
+
   it('hands over a whitelist, not documents: nothing a profile or card keeps privately', async () => {
     const { payload } = await renderPage('a-quiet-morning');
     expect(payload).not.toContain('hash-of-a-phone');

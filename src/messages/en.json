@@ -170,6 +170,9 @@
       "linked": "Linked!",
       "noCards": "You have no published cards to link yet."
     },
+    "linkPreview": {
+      "open": "Open link: {host}"
+    },
     "resonatorsModal": {
       "title": "Resonated with this card"
     },

@@ -1,0 +1,101 @@
+/* A standalone link in a story as its page's card: picture, title,
+   description, host — in the story column, at most a comfortable reading
+   width, inside a lightly inked hand-drawn card (the fill, the hover wash and
+   the pen line are absolutely placed layers under the content). */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 520px;
+  box-sizing: border-box;
+  padding: 10px 10px 14px;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--color-terracotta-light);
+  outline-offset: 3px;
+  border-radius: var(--radius-md);
+}
+
+.picture {
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.text {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 8px 0;
+}
+
+.title {
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.description {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.host {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+.host > :first-child {
+  flex-shrink: 0;
+}
+
+.hostName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The host turns to the link colour when the card is pointed at. */
+.card:hover .hostName,
+.card:focus-visible .hostName {
+  color: var(--color-terracotta);
+}

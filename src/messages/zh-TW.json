@@ -170,6 +170,9 @@
       "linked": "已建立連結！",
       "noCards": "你還沒有已發布的卡片可以連結。"
     },
+    "linkPreview": {
+      "open": "開啟連結：{host}"
+    },
     "resonatorsModal": {
       "title": "與這張卡片共振的人"
     },
