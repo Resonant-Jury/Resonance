@@ -159,9 +159,14 @@ class DraftService(private val uid: String) {
 
     // Reads of your own cards
 
+    /** Your card answering another: its id, the key its page goes by (slug or id), and whether it is published yet. */
+    data class Resonance(val id: String, val routeKey: String, val published: Boolean)
+
     /** getMyResonanceCard: your card (draft or published) answering this one, if any. Throws when the lookup fails. */
-    suspend fun myResonance(cardId: String): String? =
-        cards.whereEqualTo("authorId", uid).whereEqualTo("referenceCardId", cardId).limit(1).get().await().documents.firstOrNull()?.id
+    suspend fun myResonance(cardId: String): Resonance? =
+        cards.whereEqualTo("authorId", uid).whereEqualTo("referenceCardId", cardId).limit(1).get().await().documents.firstOrNull()?.let { doc ->
+            Resonance(doc.id, doc.getString("slug")?.takeIf { it.isNotEmpty() } ?: doc.id, doc.get("publishedAt") != null)
+        }
 
     /**
      * hasAnyOwnCards: whether you have written anything at all (drafts count).

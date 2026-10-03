@@ -230,7 +230,7 @@ private fun LazyListScope.managedCards(session: Session, cards: List<FeedCard>, 
                 // The chip 14 in from the card's corner (the card's box sits 20 in from the screen);
                 // the trigger's 44dp hit box reaches 3 past the 38dp chip.
                 Box(Modifier.align(Alignment.TopEnd).padding(top = 14.dp - 3.dp, end = 34.dp - 3.dp)) {
-                    CardActionsMenu(session, card.id, card.visibility.value, open, seed = hue, hue = hue)
+                    CardActionsMenu(session, card.id, card.visibility.value, open, seed = hue, hue = hue, referenceCardId = card.referenceCardId)
                 }
             }
             if (card.anonymous) {

@@ -245,9 +245,10 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
                             }
                             if (!d.isOwner) CardViewerActions(
-                                session, card.id,
-                                onResonate = { open(Route.Write(referenceCardId = card.id)) },
+                                session, card.id, card.referenceCardId,
+                                onWriteNew = { open(Route.Write(referenceCardId = card.id)) },
                                 onModify = { mine -> open(Route.Write(cardId = mine)) },
+                                onOpenMine = { key -> open(Route.Card(key)) },
                                 onUpgradeNote = { words -> open(Route.Write(referenceCardId = card.id, story = words)) },
                                 modifier = Modifier.padding(bottom = 40.dp),
                             )
@@ -292,7 +293,10 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
             // The ⋯ lives in the bar, as phone apps keep a page's actions: the owner's, or the reader's safety menu.
             if (d.isOwner) {
                 // Its own page is underneath the writer, so the card isn't opened again on the way out.
-                CardActionsMenu(session, card.id, card.visibility.value, open, seed = hue + 3, showsCard = false, onDeleted = popToRoot, trigger = MenuTrigger.Bare)
+                CardActionsMenu(
+                    session, card.id, card.visibility.value, open, seed = hue + 3, showsCard = false, onDeleted = popToRoot, trigger = MenuTrigger.Bare,
+                    referenceCardId = card.referenceCardId, referenceTitle = d.referenceCard?.title,
+                )
             } else {
                 // An anonymous card hides its author: the menu only reports it (the server knows who wrote it).
                 val authorId = if (d.anonymous) null else card.author?.id

@@ -106,6 +106,8 @@ fun OrganicImage(
     magFactor: Double = 0.05,
     /** The picture couldn't be loaded (the placeholder stays); a caller may drop the frame altogether. */
     onError: (() -> Unit)? = null,
+    /** Laid over the picture, inside the same clip (a picked card's wash and tick). */
+    overlay: (@Composable () -> Unit)? = null,
     placeholder: @Composable () -> Unit,
 ) {
     BoxWithConstraints(modifier) {
@@ -121,6 +123,7 @@ fun OrganicImage(
                 model = url, contentDescription = contentDescription, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
                 onError = onError?.let { report -> { _ -> report() } },
             )
+            overlay?.invoke()
         }
     }
 }
