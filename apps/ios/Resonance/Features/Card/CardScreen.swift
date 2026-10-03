@@ -15,6 +15,8 @@ struct CardScreen: View {
     @State private var scrolled = false
     /// The byline has scrolled under the bar, which then names the author.
     @State private var bylineGone = false
+    /// A link card's page on an IP address or a punycode name waits here for the reader's yes.
+    @State private var linkToConfirm: ChatLinks.Parsed?
 
     var body: some View {
         ScrollView {
@@ -69,10 +71,17 @@ struct CardScreen: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .organicConfirm(isPresented: Binding(get: { linkToConfirm != nil }, set: { if !$0 { linkToConfirm = nil } }),
+                        title: L10n.Messages.linkConfirmTitle, message: L10n.Messages.linkConfirmBody(host: linkToConfirm?.host ?? ""),
+                        cancelLabel: L10n.Messages.linkConfirmCancel, confirmLabel: L10n.Messages.linkConfirmOpen,
+                        closeLabel: L10n.Messages.linkConfirmCancel, seed: 61) {
+            if let link = linkToConfirm { InAppBrowser.open(link.url) }
+            linkToConfirm = nil
+        }
         .task {
             if model == nil {
                 let previews = session.cardPreviews
-                let model = CardModel(key: key, api: session.reading, placeholder: previews.card(for: key))
+                let model = CardModel(key: key, api: session.reading, origin: session.config.origin, placeholder: previews.card(for: key))
                 model.onLoaded = { previews.remember($0) }
                 model.onNotFound = { previews.forget($0) }
                 self.model = model
@@ -96,6 +105,13 @@ struct CardScreen: View {
                 head(card, anonymous: detail.anonymous)
                 StoryMarkdownView(blocks: model.blocks, onOpenURL: open) { href, title in
                     CardEmbedView(href: href, title: title, card: model.embed(for: href))
+                } linkCard: { href, text in
+                    model.linkPreview(href: href, text: text).map { preview in
+                        StoryLinkCard(title: preview.title, description: preview.description,
+                                      host: preview.link.host.replacingOccurrences(of: "www.", with: "", options: .anchored),
+                                      imageURL: preview.imageURL, seed: Double(seedFromString(preview.url.absoluteString)),
+                                      openLabel: L10n.Card.LinkPreview.open(host: preview.link.host)) { openPreview(preview) }
+                    }
                 }
                 .padding(.bottom, 32)
                 if !card.tags.isEmpty {
@@ -223,6 +239,12 @@ struct CardScreen: View {
         }
         .padding(.top, 32)
         .padding(.bottom, 16)
+    }
+
+    /// A link's card opens the page as a link in a message does: in the in-app browser — after
+    /// asking, when it is an IP address or a punycode name.
+    private func openPreview(_ preview: LinkPreview) {
+        if preview.link.suspicious { linkToConfirm = preview.link } else { InAppBrowser.open(preview.url) }
     }
 
     /// Links in the story lead where their scheme says (`StoryLink`): a page

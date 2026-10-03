@@ -1,4 +1,5 @@
 import DesignSystem
+import Foundation
 import Observation
 import ResonanceKit
 
@@ -24,6 +25,8 @@ final class CardModel {
     private(set) var links: [FeedCard] = []
     /// The cards the story embeds that the reader may see, as the server summarised them.
     private(set) var embeds: [FeedCard] = []
+    /// The pages of the story's standalone links, as the server read them, by their links' keys.
+    private(set) var linkPreviews: [String: LinkPreview] = [:]
 
     let key: String
     /// Called with each card the server returns whole (the card, its embeds:
@@ -32,16 +35,20 @@ final class CardModel {
     /// Called when the server says the card isn't here (for this reader).
     @ObservationIgnored var onNotFound: (String) -> Void = { _ in }
     private let fetch: @Sendable (String) async throws -> CardDetail
+    /// The API's origin: a preview's picture is a path of it.
+    private let origin: URL
     private var isLoading = false
 
-    init(key: String, placeholder: FeedCard? = nil, fetch: @escaping @Sendable (String) async throws -> CardDetail) {
+    init(key: String, placeholder: FeedCard? = nil, origin: URL = URL(string: "https://resonance.channel")!,
+         fetch: @escaping @Sendable (String) async throws -> CardDetail) {
         self.key = key
         self.placeholder = placeholder
+        self.origin = origin
         self.fetch = fetch
     }
 
-    convenience init(key: String, api: ReadingAPI, placeholder: FeedCard? = nil) {
-        self.init(key: key, placeholder: placeholder) { try await api.card($0, include: ReadingAPI.CardInclude.page) }
+    convenience init(key: String, api: ReadingAPI, origin: URL, placeholder: FeedCard? = nil) {
+        self.init(key: key, placeholder: placeholder, origin: origin) { try await api.card($0, include: ReadingAPI.CardInclude.page) }
     }
 
     /// The source card (if this one responds to another) and the responses,
@@ -59,6 +66,12 @@ final class CardModel {
         return embeds.first { $0.slug == key || $0.id == key }
     }
 
+    /// The page of a link standing alone in the story (`StoryBlock.soleLink`), when the server read
+    /// one for it; nil leaves the paragraph as it is written.
+    func linkPreview(href: String?, text: String) -> LinkPreview? {
+        StoryLinks.key(href: href, text: text).flatMap { linkPreviews[$0] }
+    }
+
     func load() async {
         guard !isLoading else { return }
         isLoading = true
@@ -71,6 +84,7 @@ final class CardModel {
             related = detail.related?.cards ?? []
             links = detail.links?.cards ?? []
             embeds = detail.embeds?.cards ?? []
+            linkPreviews = StoryLinks.previews(detail.linkPreviews, origin: origin)
             placeholder = nil
             phase = .loaded
             onLoaded(detail.card)

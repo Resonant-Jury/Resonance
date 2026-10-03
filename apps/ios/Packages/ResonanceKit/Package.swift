@@ -37,6 +37,7 @@ let package = Package(
         // A story's Markdown as the reader's blocks (no UI, so it tests on the Mac).
         .target(name: "StoryFormat", dependencies: [.product(name: "Markdown", package: "swift-markdown")]),
         .testTarget(name: "ResonanceKitTests", dependencies: ["ResonanceKit"]),
-        .testTarget(name: "StoryFormatTests", dependencies: ["StoryFormat"]),
+        // The story-link fixture is read with the link rules the reader keys previews by (ResonanceKit's).
+        .testTarget(name: "StoryFormatTests", dependencies: ["StoryFormat", "ResonanceKit"]),
     ]
 )

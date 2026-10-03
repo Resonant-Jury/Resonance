@@ -5,13 +5,21 @@ import Markdown
 /// A story's Markdown, as the reader lays it out — the blocks the web's
 /// StoryMarkdown (react-markdown + remark-gfm) produces, with its paragraph
 /// rules: a paragraph holding only a card link is an embedded card, only a
-/// photo is an image block, only the blank marker (U+00A0) is extra space.
+/// photo is an image block, only a web link may be that page's preview card,
+/// only the blank marker (U+00A0) is extra space.
 public nonisolated indirect enum StoryBlock: Hashable, Sendable {
     case heading(level: Int, [InlineRun])
     case paragraph([InlineRun])
     case blank
     case image(url: String, alt: String)
     case cardEmbed(href: String, title: String)
+    /// A paragraph that may be one web link standing alone (src/lib/links/storyLinks.ts):
+    /// `[words](https://…)`, `<https://…>` or a reference link with no picture inside (`href` is
+    /// its address), or a bare address with nothing round it (`href` nil — CommonMark leaves it
+    /// text; `text` is the address as written). Whether it is one, and which page it names, is the
+    /// link rules' to say (`StoryLinkKey` in ResonanceKit): the reader draws the page's preview
+    /// card when the story has one for it, and otherwise `runs`, the paragraph as it always was.
+    case soleLink(href: String?, text: String, runs: [InlineRun])
     case quote([StoryBlock])
     case list(ordered: Bool, start: Int, items: [[StoryBlock]])
     case rule
@@ -82,6 +90,12 @@ public nonisolated enum StoryParser {
             if let image = meaningful[0] as? Markdown.Image, let src = image.source {
                 return .image(url: src, alt: image.plainText)
             }
+            if let link = meaningful[0] as? Link, let href = link.destination, isWeb(href), !holdsImage(link) {
+                return .soleLink(href: href, text: link.plainText, runs: inlines(p))
+            }
+        }
+        if let bare = bareAddress(p) {
+            return .soleLink(href: nil, text: bare, runs: inlines(p))
         }
         let runs = inlines(p)
         let text = runs.map(\.text).joined()
@@ -89,6 +103,35 @@ public nonisolated enum StoryParser {
             return .blank
         }
         return .paragraph(runs)
+    }
+
+    /// An http(s) address (any case): the only links a paragraph of its own can be a page's card for.
+    static func isWeb(_ href: String) -> Bool {
+        let lower = href.lowercased()
+        return lower.hasPrefix("http://") || lower.hasPrefix("https://")
+    }
+
+    /// `[![picture](…)](url)` is a linked picture, not a link.
+    static func holdsImage(_ node: Markup) -> Bool {
+        node.children.contains { $0 is Markdown.Image || holdsImage($0) }
+    }
+
+    /// The paragraph's words when they are plain text alone (no marks, links or breaks of their own;
+    /// CommonMark may hand one run over in pieces) and, trimmed, one unbroken word that starts like
+    /// a web address — a candidate for a bare link (the link rules decide).
+    static func bareAddress(_ p: Paragraph) -> String? {
+        var words = ""
+        for child in p.children {
+            switch child {
+            case let t as Text: words += t.string
+            case is SoftBreak: words += "\n"
+            default: return nil
+            }
+        }
+        let trimmed = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) }) else { return nil }
+        let lower = trimmed.lowercased()
+        return lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("www.") ? trimmed : nil
     }
 
     static func inlines(_ node: Markup, bold: Bool = false, italic: Bool = false, strike: Bool = false, link: String? = nil) -> [InlineRun] {
@@ -145,7 +188,7 @@ public nonisolated enum ProseMetrics {
         case .blank: return (0, 0)
         case .image: return (22, 22)
         case .rule: return (28, 28)
-        case .paragraph, .cardEmbed, .quote, .list, .code: return (0, 1.1 * em)
+        case .paragraph, .cardEmbed, .soleLink, .quote, .list, .code: return (0, 1.1 * em)
         }
     }
 
