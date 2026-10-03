@@ -75,7 +75,7 @@ describe('fetchLinkPreview', () => {
     expect(await fetchLinkPreview('https://example.com/', { fetch: async () => pageOf('') })).toBeNull();
   });
 
-  it('is nothing — and says why, but not where — for a page it may not or cannot fetch', async () => {
+  it('is nothing — and says why, but not where (not even the host) — for a page it may not or cannot fetch', async () => {
     for (const reason of ['blocked', 'timeout', 'dns', 'status', 'content_type', 'too_large', 'redirects', 'network'] as const) {
       const fetch = vi.fn<Fetch>(async () => {
         throw new SafeFetchError(reason);
@@ -84,7 +84,8 @@ describe('fetchLinkPreview', () => {
     }
     expect(warn).toHaveBeenCalledTimes(8);
     const logged = JSON.stringify(warn.mock.calls);
-    expect(logged).toContain('private-looking.example');
+    expect(logged).toContain('content_type');
+    expect(logged).not.toContain('private-looking.example');
     expect(logged).not.toContain('/secret/path');
     expect(logged).not.toContain('token=abc');
   });

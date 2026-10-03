@@ -3,7 +3,7 @@ import { isIP } from 'node:net';
 import sharp from 'sharp';
 import { isInternalHostName, isPublicAddress } from './ip';
 import { createMemo } from './memo';
-import { IMAGE_MAX_BYTES, safeFetch as defaultFetch, type SafeFetchOptions, type SafeFetchResult } from './safeFetch';
+import { IMAGE_MAX_BYTES, safeFetch as defaultFetch, SafeFetchError, type SafeFetchOptions, type SafeFetchResult } from './safeFetch';
 import { LINK_MAX_LENGTH, normalizeLink } from './url';
 
 /**
@@ -234,8 +234,10 @@ export async function serveLinkImage(request: URL, deps: ServeDeps = {}): Promis
       // Come back in a moment; unlike a 404, not for a CDN or an app to remember.
       return new Response(null, { status: 503, headers: { 'Retry-After': '5', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
     }
-    // The reason stays in the log (never the URL: it came from a private conversation).
-    console.warn('[link-image]', e instanceof Error ? `${e.name}: ${e.message}` : 'failed');
+    // The reason stays in the log, never the URL: it came from a private conversation. A fetch failure's
+    // message can hold the host or its address (a socket or certificate error), so only its reason is kept.
+    const why = e instanceof SafeFetchError ? `${e.name}: ${e.reason}` : e instanceof Error ? `${e.name}: ${e.message}` : 'failed';
+    console.warn('[link-image]', why);
     return notFound();
   }
 }

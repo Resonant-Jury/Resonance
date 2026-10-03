@@ -54,7 +54,7 @@ export async function fetchLinkPreview(link: string, options: { signal?: AbortSi
   } catch (e) {
     if (e instanceof SafeFetchError) {
       // Why, but not where: the address came out of someone's private conversation.
-      console.warn('[unfurl]', e.reason, new URL(link).hostname);
+      console.warn('[unfurl]', e.reason);
       return null;
     }
     throw e;

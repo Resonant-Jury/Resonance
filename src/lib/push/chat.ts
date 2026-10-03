@@ -116,7 +116,9 @@ export async function pushMessage(db: Firestore, push: MessagePush, sender: Push
     if (own.length) {
       await send(own, (tokens) => ({
         tokens,
-        data: { type: 'message', conversationId, messageId, fromUserId: from, fromHandle: handle, title, body, route, sentAt },
+        // `toUserId`: the app draws it only while that account is the one signed in (a sign-out whose unregister never
+        // reached us leaves the install registered to them for a while).
+        data: { type: 'message', conversationId, messageId, fromUserId: from, toUserId: to, fromHandle: handle, title, body, route, sentAt },
         android: { priority: 'high' },
       }));
     }
@@ -124,8 +126,9 @@ export async function pushMessage(db: Firestore, push: MessagePush, sender: Push
       await send(system, (tokens) => ({
         tokens,
         notification: { title, body },
-        // `notificationId` is empty: no bell row stands behind a message (older builds read the key).
-        data: { type: 'message', notificationId: '', route, fromUserId: from, conversationId, messageId },
+        // No `notificationId`: no bell row stands behind a message, and an empty one made older Android builds
+        // mark `notifications/` itself read on the tap (an invalid path, a crash). They open the route without it.
+        data: { type: 'message', route, fromUserId: from, conversationId, messageId },
         android: { priority: 'high', notification: { channelId: MESSAGES_CHANNEL, tag: conversationId } },
         apns: { payload: { aps: { sound: 'default', threadId: conversationId } } },
       }));

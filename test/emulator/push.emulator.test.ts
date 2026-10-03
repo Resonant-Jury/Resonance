@@ -273,6 +273,7 @@ describe('pushMessage', () => {
           conversationId: 'alice_bob',
           messageId: push.messageId,
           fromUserId: 'alice',
+          toUserId: 'bob',
           fromHandle: '小明',
           title: '小明',
           body: '明天一起去散步嗎？',
@@ -291,7 +292,7 @@ describe('pushMessage', () => {
       expect(tokens).toContain(token);
       expect(rest).toEqual({
         notification: { title: '小明', body: '明天一起去散步嗎？' },
-        data: { type: 'message', notificationId: '', route, fromUserId: 'alice', conversationId: 'alice_bob', messageId: push.messageId },
+        data: { type: 'message', route, fromUserId: 'alice', conversationId: 'alice_bob', messageId: push.messageId },
         android: { priority: 'high', notification: { channelId: MESSAGES_CHANNEL, tag: 'alice_bob' } },
         apns: { payload: { aps: { sound: 'default', threadId: 'alice_bob' } } },
       });
