@@ -444,7 +444,10 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 <OrganicMenu
                   label={t('moreMenu')}
                   seed={seedFromString(convo.id)}
-                  triggerSize={34}
+                  // A glyph on the header's paper, in the back arrow's ink, its name hanging under it.
+                  bare
+                  tone="ink"
+                  tip="below"
                   busy={deleting}
                   items={[
                     { key: 'search', icon: 'search', label: t('menuSearch') },
