@@ -4,6 +4,8 @@ import com.resonance.api.apis.DefaultApi
 import com.resonance.api.models.ApplyEditResponse
 import com.resonance.api.models.FeedCard
 import com.resonance.api.models.PublishResponse
+import com.resonance.api.models.ResonateRequest
+import com.resonance.api.models.ResonateResponse
 import com.resonance.api.models.UpdateCardRequest
 import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
@@ -64,6 +66,25 @@ class WritingApi(private val configuration: ApiConfiguration, http: OkHttpClient
         } catch (e: ApiFailure) {
             if (!e.isNotFound) throw e
         }
+    }
+
+    /**
+     * Makes one of your published public cards ([cardId]) a resonance of the card [targetId] — the
+     * picker's "pick one you've written" (POST /api/v1/cards/{targetId}/resonances). Answers your
+     * card as your card box shows it, and whether anything changed (`false`: it already answered
+     * this card, and no one was rung again). A card already answering another card — or another
+     * of yours already answering this one — is `conflict`.
+     */
+    suspend fun resonate(targetId: String, cardId: String): ResonateResponse =
+        call { api.resonateWithCard(targetId, ResonateRequest(cardId = cardId)) }
+
+    /**
+     * Your card [cardId] stops answering [targetId] and stays a card of its own (DELETE
+     * /api/v1/cards/{targetId}/resonances/{cardId}); asking again when it no longer does is no
+     * failure.
+     */
+    suspend fun unresonate(targetId: String, cardId: String) {
+        call { api.unresonateCard(targetId, cardId) }
     }
 
     @Serializable private data class TagsBody(val thoughtCore: String, val story: String, val tags: List<String>)

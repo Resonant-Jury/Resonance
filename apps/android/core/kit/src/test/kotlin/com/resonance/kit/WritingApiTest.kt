@@ -87,6 +87,35 @@ class WritingApiTest {
         assertEquals(1, server.requestCount)
     }
 
+    @Test fun resonatesWithOneOfYourCardsThroughTheContract() = runBlocking {
+        server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("""{"card":${cardJson("mine", "my-walk", authorId = "alice")},"changed":true}"""))
+        val result = api().resonate("theirs", "mine")
+        assertEquals("mine", result.card.id)
+        assertEquals(true, result.changed)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/v1/cards/theirs/resonances", request.path)
+        assertEquals("Bearer stale-token", request.getHeader("Authorization"))
+        assertEquals("mine", Json.parseToJsonElement(request.body.readUtf8()).jsonObject["cardId"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun aCardAlreadyAnsweringAnotherIsAConflict() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(409).setHeader("Content-Type", "application/json")
+                .setBody("""{"error":{"code":"conflict","message":"That card already answers another card."}}"""),
+        )
+        assertTrue(assertFailsWith<ApiFailure> { api().resonate("theirs", "mine") }.isConflict)
+    }
+
+    @Test fun stopsResonatingThroughTheContract() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(204))
+        api().unresonate("theirs", "mine")
+        val request = server.takeRequest()
+        assertEquals("DELETE", request.method)
+        assertEquals("/api/v1/cards/theirs/resonances/mine", request.path)
+        assertEquals("Bearer stale-token", request.getHeader("Authorization"))
+    }
+
     @Test fun deletesACardThroughTheContract() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(204))
         api().deleteCard("c1")
