@@ -438,6 +438,18 @@ describe('a letter: a note between two people not connected', () => {
       expect(await docs('conversations/alice_bob/messages')).toHaveLength(NOTE_REQUEST_MAX);
     });
 
+    it("never lets the author's answer say they wrote one: replying to its note answers the letter, without the note", async () => {
+      // Alice's letter on Bob's named card, then a note on an anonymous card (Bob's).
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+      const { id: onMasked } = await sendNote(db, 'alice', { cardId: 'masked', text: 'whose is this?' });
+      // Bob taps that note's bell and replies: the client attaches it.
+      const reply = await sendMessage(db, 'bob', { to: 'alice', text: 'hello', noteRef: { cardId: 'masked', noteId: onMasked } });
+      expect(await connected()).toBe(true);
+      const stored = (await db.doc(`conversations/alice_bob/messages/${reply.id}`).get()).data()!;
+      expect(stored).toMatchObject({ senderId: 'bob', text: 'hello' });
+      expect(stored).not.toHaveProperty('noteRef');
+    });
+
     it("doesn't answer a letter either: a note on the writer's anonymous card connects no one and leaves it waiting", async () => {
       await sendNote(db, 'alice', { cardId: 'walk', text: "alice's letter" });
       const before = await convo();
@@ -592,6 +604,30 @@ describe('sendMessage', () => {
       expect(answers[0]).toEqual(answers[1]);
       expect(await docs('conversations/alice_bob/messages')).toHaveLength(0);
       expect(await docs('conversations/alice_carol/messages')).toHaveLength(0);
+    });
+
+    it("sends a reply to a note on your anonymous card without saying which card: the message goes, its noteRef left out", async () => {
+      const { id: onMasked } = await sendNote(db, 'alice', { cardId: 'masked', text: 'about your anonymous card' });
+      const { id: onWalk } = await sendNote(db, 'alice', { cardId: 'walk', text: 'about your walk' });
+      // Bob answers both from the bell, as every client does: the note attached.
+      const masked = await sendMessage(db, 'bob', { to: 'alice', text: 'thank you', noteRef: { cardId: 'masked', noteId: onMasked } });
+      const walk = await sendMessage(db, 'bob', { to: 'alice', text: 'thanks', noteRef: { cardId: 'walk', noteId: onWalk } });
+      const stored = (await db.doc(`conversations/alice_bob/messages/${masked.id}`).get()).data()!;
+      expect(stored).toMatchObject({ senderId: 'bob', text: 'thank you' });
+      expect(stored).not.toHaveProperty('noteRef');
+      expect((await db.doc(`conversations/alice_bob/messages/${walk.id}`).get()).get('noteRef')).toEqual({ cardId: 'walk', noteId: onWalk });
+      // Nothing of the masked note anywhere Alice reads.
+      expect(JSON.stringify(await docs('conversations/alice_bob/messages'))).not.toContain(onMasked);
+    });
+
+    it('leaves out the noteRef of a card made anonymous since, or gone (it may have been one)', async () => {
+      const { id: before } = await sendNote(db, 'alice', { cardId: 'walk', text: 'on a named card' });
+      await db.doc('cards/walk').update({ anonymous: true });
+      const madeAnonymous = await sendMessage(db, 'bob', { to: 'alice', text: 'x', noteRef: { cardId: 'walk', noteId: before } });
+      expect((await db.doc(`conversations/alice_bob/messages/${madeAnonymous.id}`).get()).get('noteRef')).toBeUndefined();
+      await db.doc('cards/walk').delete();
+      const gone = await sendMessage(db, 'bob', { to: 'alice', text: 'y', noteRef: { cardId: 'walk', noteId: before } });
+      expect((await db.doc(`conversations/alice_bob/messages/${gone.id}`).get()).get('noteRef')).toBeUndefined();
     });
   });
 

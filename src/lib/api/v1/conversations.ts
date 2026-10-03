@@ -248,7 +248,10 @@ const RESERVED_ID = /^__.*__$/;
  * conditions are re-checked — a connection, no block either way, a
  * non-empty message unless it carries a card (one you can read). A reply to
  * a note carries its noteRef so the thread shows what it answers: a note the
- * recipient left the sender, nothing else.
+ * recipient left the sender, nothing else. Only one left on a card under the
+ * sender's name keeps it: a reply to a note on their anonymous card (or on a
+ * card since deleted) is sent without it, quietly — the thread is the other
+ * person's to read, and the note's card would tell them whose card it was.
  *
  * Or answer a letter: with no connection, a message is allowed only to
  * someone whose notes to you wait in your conversation (`request.from` is
@@ -300,13 +303,14 @@ export async function sendMessage(
   const message = input.clientId ? messages.doc(input.clientId) : messages.doc();
 
   return db.runTransaction(async (tx) => {
-    const [me, blockOut, blockIn, connection, convo, note, existing, replied] = await Promise.all([
+    const [me, blockOut, blockIn, connection, convo, note, noteCard, existing, replied] = await Promise.all([
       tx.get(db.doc(`users/${uid}`)),
       tx.get(db.doc(`users/${uid}/blocks/${other}`)),
       tx.get(db.doc(`users/${other}/blocks/${uid}`)),
       tx.get(db.doc(`connections/${pair}`)),
       tx.get(conversation),
       input.noteRef ? tx.get(db.doc(`notes/${input.noteRef.noteId}`)) : Promise.resolve(null),
+      input.noteRef ? tx.get(db.doc(`cards/${input.noteRef.cardId}`)) : Promise.resolve(null),
       input.clientId ? tx.get(message) : Promise.resolve(null),
       input.replyTo ? tx.get(messages.doc(input.replyTo)) : Promise.resolve(null),
     ]);
@@ -328,6 +332,11 @@ export async function sendMessage(
       || note.get('fromUserId') !== other || note.get('toUserId') !== uid)) {
       throw new ApiFailure('invalid_request', 'That is not a note they left you.');
     }
+    // A note they left you on a card under your name: the message says which.
+    // One left on your anonymous card (or a card gone, which may have been
+    // one) is answered all the same, without saying so: the message is theirs
+    // to read too, and would tell them whose card it was.
+    const noteRef = note && noteCard?.exists && noteCard.get('anonymous') !== true ? input.noteRef! : null;
     // A reply answers a message of this conversation (the path alone keeps it from being anyone else's).
     if (replied && !replied.exists) throw new ApiFailure('invalid_request', 'No such message to reply to.');
 
@@ -351,7 +360,7 @@ export async function sendMessage(
       text: input.text,
       sentAt: FieldValue.serverTimestamp(),
       ...(card ? { cardRef: card.id } : {}),
-      ...(input.noteRef ? { noteRef: { cardId: input.noteRef.cardId, noteId: input.noteRef.noteId } } : {}),
+      ...(noteRef ? { noteRef: { cardId: noteRef.cardId, noteId: noteRef.noteId } } : {}),
       ...(quoted ? { replyTo: quoted } : {}),
     });
     // The list's preview: the text, or the attached card's title when there is none.
