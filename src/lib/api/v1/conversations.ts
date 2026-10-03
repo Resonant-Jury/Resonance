@@ -21,6 +21,21 @@ export const REPLY_QUOTE_CHARS = 140;
 export const NOTE_MESSAGE_KIND = 'note';
 
 /**
+ * Whether a profile has a pen name — what reaching anyone takes: a note, a
+ * message, a resonance's connection and bell, accepting an invite. Whatever
+ * reaches someone shows them who it is from (the bell, the thread, the push
+ * all carry the name), and an account that never chose one has no page they
+ * could block or report it from.
+ */
+export function hasPenName(me: DocumentSnapshot | null | undefined): boolean {
+  const handle = me?.exists ? me.get('handle') : null;
+  return typeof handle === 'string' && handle.trim().length > 0;
+}
+
+/** The refusal for someone without a pen name (see hasPenName). */
+export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name first.');
+
+/**
  * Send a note (小紙條) to a card's author: what the web's sendNote() does from
  * the client (client/notes.ts), with the author taken from the card — so the
  * app never needs to know who wrote an anonymous one — and with the rules'
@@ -66,7 +81,7 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
     ]);
     // One answer for both directions: the sender must not learn they were blocked.
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot send a note to this person.');
-    if (!me.exists) throw new ApiFailure('forbidden', 'Choose a pen name first.');
+    if (!hasPenName(me)) throw noPenName();
 
     const note = db.collection('notes').doc();
     tx.set(note, {
@@ -163,6 +178,9 @@ const RESERVED_ID = /^__.*__$/;
  * The first message of a conversation still writes its bell row, but already
  * marked pushed: the chat push (`pushMessage`, which rings for every message)
  * is the one that buzzes, never two.
+ *
+ * The sender needs a pen name (hasPenName): the thread, its bell and every
+ * push name them.
  */
 export async function sendMessage(
   db: Firestore,
@@ -206,6 +224,7 @@ export async function sendMessage(
       return { conversationId: pair, id: message.id, notificationId: null, duplicate: true, push: null };
     }
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot message this person.');
+    if (!hasPenName(me)) throw noPenName();
     // Connected first (a resonance or a note connects you); a block also ends the connection.
     if (!connection.exists) throw new ApiFailure('forbidden', 'You can message people you are connected with.');
     // A quoted note must be one between the two of you.

@@ -115,5 +115,8 @@ describe('acceptInvite (POST /invites/{id}/accept)', () => {
   it('needs a pen name first (the bell names its sender)', async () => {
     await db.doc('invites/i2').set({ fromUserId: 'bob', toUserId: 'dana', status: 'pending' });
     expect((await failure(acceptInvite(db, 'dana', 'i2'))).code).toBe('forbidden');
+    await db.doc('users/dana').set({ initials: 'D' });
+    expect((await failure(acceptInvite(db, 'dana', 'i2'))).code).toBe('forbidden');
+    expect(await data('connections/bob_dana')).toBeUndefined();
   });
 });

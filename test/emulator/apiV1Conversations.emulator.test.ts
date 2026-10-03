@@ -196,6 +196,19 @@ describe('sendNote', () => {
     expect(await docs('notifications')).toHaveLength(0);
   });
 
+  it('needs a pen name first, writing nothing', async () => {
+    for (const profile of [null, { handle: '' }, { initials: 'a' }]) {
+      if (profile) await db.doc('users/alice').set(profile);
+      else await db.doc('users/alice').delete();
+      const refused = await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'hi' }));
+      expect(refused.code).toBe('forbidden');
+      expect(refused.message).toBe('Choose a pen name first.');
+    }
+    expect(await docs('notes')).toHaveLength(0);
+    expect(await docs('notifications')).toHaveLength(0);
+    expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
+  });
+
   it("takes the card's id (the contract's cardId): a slug names no card here", async () => {
     await db.doc('cards/walk').set({ slug: 'a-rainy-walk' }, { merge: true });
     expect((await failure(sendNote(db, 'alice', { cardId: 'a-rainy-walk', text: 'hi' }))).code).toBe('not_found');
@@ -250,6 +263,18 @@ describe('sendMessage', () => {
     expect((await failure(sendMessage(db, 'alice', { to: 'bob', text: 'hi' }))).code).toBe('blocked');
     expect((await db.doc('conversations/alice_bob').get()).exists).toBe(false);
   });
+  it('needs a pen name first, even between two people already connected: the thread and every push name the sender', async () => {
+    for (const profile of [null, { handle: ' ' }, { initials: 'a' }]) {
+      if (profile) await db.doc('users/alice').set(profile);
+      else await db.doc('users/alice').delete();
+      const refused = await failure(sendMessage(db, 'alice', { to: 'bob', text: 'hi' }));
+      expect(refused.code).toBe('forbidden');
+      expect(refused.message).toBe('Choose a pen name first.');
+    }
+    expect((await db.doc('conversations/alice_bob').get()).exists).toBe(false);
+    expect(await docs('notifications')).toHaveLength(0);
+  });
+
   it('hands back what the chat push needs, for a message that was just written', async () => {
     const sent = await sendMessage(db, 'alice', { to: 'bob', text: 'hi' });
     expect(sent).toMatchObject({

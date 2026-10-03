@@ -1,7 +1,6 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import { hasPenName, noPenName, pairOf } from './conversations';
 import { ApiFailure } from './http';
-
-const pairOf = (a: string, b: string) => (a < b ? `${a}_${b}` : `${b}_${a}`);
 
 export interface AcceptedInvite {
   /** connections/{id}: the two user ids, sorted, joined by "_". */
@@ -45,7 +44,7 @@ export async function acceptInvite(db: Firestore, uid: string, inviteId: string)
     ]);
     // One answer for both directions: the recipient must not learn they were blocked.
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot connect with this person.');
-    if (!me.exists) throw new ApiFailure('forbidden', 'Choose a pen name first.');
+    if (!hasPenName(me)) throw noPenName();
 
     tx.update(ref, { status: 'accepted' });
     if (!existing.exists) {
