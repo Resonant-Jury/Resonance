@@ -1,7 +1,9 @@
 /* The unified workspace owns the whole viewport: map pane left, editor pane
    right, a draggable wavy rail between. No app header lives above it — zeroing
    the header token lets every embedded surface (map toolbar, sticky editor
-   toolbar, card panel padding) sit correctly without special cases. */
+   toolbar, card panel padding) sit correctly without special cases. The
+   writer's own bar sets it back to the header's height (WorkspaceShell), so
+   the same surfaces keep clear of the bar instead. */
 .shell {
   position: fixed;
   inset: 0;
@@ -15,6 +17,12 @@
   background: var(--color-cream);
 }
 
+/* Under the writer's bar the first line sits closer to its pen line than a
+   page's title does to an empty top: the bar already says where you are. */
+.shell[data-bar] {
+  --editor-pad-top: clamp(20px, 3vh, 28px);
+}
+
 .mapPane {
   position: relative;
   flex: 1 1 auto;
@@ -23,8 +31,8 @@
 
 /* When a document (the resonance original) replaces the map, restore some
    header clearance for its subtree so the floating Back button doesn't sit
-   on the panel's author line. */
-.mapPaneDoc {
+   on the panel's author line (the writer's bar already gives it the bar's). */
+.shell:not([data-bar]) .mapPaneDoc {
   --app-header-h: 44px;
 }
 
@@ -102,7 +110,21 @@
   flex: none;
   width: calc(var(--editor-frac, 0.5) * 100%);
   min-width: 0;
-  border-left: 1px solid var(--field-border);
+}
+
+/* The boundary: a hair of line on the pane's own edge, just outside it so
+   nothing the pane holds can paint over it. Under the writer's bar it starts
+   on the bar's pen line (tucked a little under its paper, which the wave
+   swings across) rather than showing through the paper above it. */
+.editorPane::before {
+  content: '';
+  position: absolute;
+  top: max(0px, calc(var(--bar-line, 0px) - 2px));
+  bottom: 0;
+  left: -1px;
+  width: 1px;
+  background: var(--field-border);
+  pointer-events: none;
 }
 
 .paneScroll {
@@ -115,7 +137,26 @@
   width: 100%;
   max-width: var(--page-max-w-narrow);
   margin: 0 auto;
-  padding: var(--editor-pad-top) var(--page-pad-x) var(--page-pad-bottom);
+  padding: calc(var(--app-header-h) + var(--editor-pad-top)) var(--page-pad-x) var(--page-pad-bottom);
+}
+
+/* The draft's save state, where the page title's subtitle was: the bar has
+   the title now (the apps' writer: "the save state stays here"). */
+.saveStatus {
+  margin: 0 0 clamp(20px, 3vw, 28px);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* Under the writer's bar each thing the pane can show (the draft, a card
+   opened from the map) scrolls on its own: going back to the draft finds it
+   where it was left. */
+.paneLayer {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
 }
 
 /* Close (✕) pinned to the pane's top-right, above its scrolling content. A
@@ -160,7 +201,10 @@
     width: auto;
     z-index: 12;
     background: var(--color-cream);
-    border-left: none;
+  }
+
+  .editorPane::before {
+    display: none;
   }
 
   /* Single pane: the desktop nudges (+8px down to sit on the wider layout's

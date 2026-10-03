@@ -23,8 +23,10 @@ import styles from './WriteWorkspace.module.css';
  * primary action becomes 儲存修改) hangs off `publishedAt` + that buffer, and
  * the editor reads `initial` exactly once — so the pane waits for it rather
  * than mounting an editor that would write straight through to readers.
+ *
+ * `titled={false}` leaves the title to the host's bar (the writer's).
  */
-export function OpenedCardPane({ card }: { card: Card }) {
+export function OpenedCardPane({ card, titled = true }: { card: Card; titled?: boolean }) {
   const t = useTranslations('write');
   const locale = useLocale() as Locale;
   const { user } = useAuth();
@@ -58,7 +60,7 @@ export function OpenedCardPane({ card }: { card: Card }) {
   const values = pending ?? card;
   return (
     <div className={styles.editorCol}>
-      <PageTitle>{card.publishedAt ? t('editPublishedTitle') : t('editTitle')}</PageTitle>
+      {titled && <PageTitle>{card.publishedAt ? t('editPublishedTitle') : t('editTitle')}</PageTitle>}
       <CardEditor
         key={card.id}
         locale={locale}

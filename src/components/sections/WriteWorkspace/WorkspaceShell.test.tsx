@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { renderWithIntl, screen, userEvent } from '@/../test/render';
 import { mockElementSize, penLines } from '@/../test/organic';
 
@@ -82,5 +82,39 @@ describe('WorkspaceShell', () => {
 
     await userEvent.click(leave);
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the chrome around the panes', () => {
+  beforeEach(() => mockBack.mockClear());
+
+  // The thought-map page: the pane a card opened into closes on its ✕.
+  it('closes the pane on its ✕ when there is no bar', async () => {
+    const onClose = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open onClose={onClose}>
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // The writer: one bar over both panes, as on the apps' writer page — its
+  // back arrow and title, in place of the Leave over the map and the ✕.
+  it('stands the writer’s bar over both panes instead of the floating controls', async () => {
+    const onBack = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open bar={{ title: 'New card', onBack }}>
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'New card' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Leave' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Close editor' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(mockBack).not.toHaveBeenCalled();
   });
 });

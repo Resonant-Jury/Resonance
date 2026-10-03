@@ -6,11 +6,14 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type UIEvent,
 } from 'react';
 import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { ThoughtMapBoard } from '@/components/molecules/ThoughtMap/ThoughtMapBoard';
+import { HeaderBar } from '@/components/sections/AppHeader/HeaderBar';
+import { HEADER_STROKE_Y, HEADER_TOTAL_H } from '@/components/sections/AppHeader/HeaderChrome';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { useRouter } from '@/i18n/navigation';
@@ -26,11 +29,19 @@ const MAX_EDITOR_FRAC = 0.5;
 export interface WorkspaceShellProps {
   /** Whether the right (editor) pane is open; closed = full-bleed map. */
   open: boolean;
-  onClose: () => void;
+  /** The pane's ✕ (the thought-map page; the writer's bar has the way back instead). */
+  onClose?: () => void;
   /** Host override for the map's「開啟卡片」. */
   onOpenCard?: (card: Card) => void;
   /** Replaces the map entirely (resonance writing shows the original card). */
   leftOverride?: ReactNode;
+  /**
+   * The writer's bar, as on the apps' writer page: the back arrow and the
+   * title of what the pane shows, in the app header's likeness across both
+   * panes, what scrolls passing under its pen line. It takes the place of
+   * the Leave floating over the map and of the pane's ✕.
+   */
+  bar?: { title: ReactNode; onBack: () => void };
   children: ReactNode;
 }
 
@@ -38,17 +49,20 @@ export interface WorkspaceShellProps {
  * The unified full-viewport workspace: thought map fixed on the left, the
  * draft pane on the right. The boundary is the pane's own straight edge; a
  * small grip riding on it is the resize handle (editor capped at 1:1). No app
- * header here; a single Back control sits over the map instead.
+ * header here: the writer stands its own bar over both panes (`bar`); the
+ * thought-map page has a single Back control over the map instead.
  */
 export function WorkspaceShell({
   open,
   onClose,
   onOpenCard,
   leftOverride,
+  bar,
   children,
 }: WorkspaceShellProps) {
   const t = useTranslations('write');
   const tMap = useTranslations('me.thoughtMap');
+  const tNav = useTranslations('app.nav');
   const isMobile = useIsMobile(640);
   const router = useRouter();
   // Below the desktop split (the module CSS's 1200px) the open pane covers
@@ -82,12 +96,33 @@ export function WorkspaceShell({
     draggingRef.current = false;
   };
 
+  // The bar's pen line inks in whole while anything under it has scrolled
+  // (the draft, or the original card beside it).
+  const scrolledUnder = useRef(new Set<Element>());
+  const [scrolled, setScrolled] = useState(false);
+  const onScrollCapture = (e: UIEvent<HTMLDivElement>) => {
+    const el = e.target as Element;
+    if (el.scrollTop > 20) scrolledUnder.current.add(el);
+    else scrolledUnder.current.delete(el);
+    setScrolled([...scrolledUnder.current].some((x) => x.isConnected));
+  };
+
   return (
     <div
       ref={shellRef}
       className={styles.shell}
-      style={{ '--editor-frac': editorFrac } as CSSProperties}
+      data-bar={bar ? '' : undefined}
+      onScrollCapture={bar ? onScrollCapture : undefined}
+      style={
+        {
+          '--editor-frac': editorFrac,
+          // Under the bar everything keeps clear of it as of the app header,
+          // and the boundary between the panes starts on its pen line.
+          ...(bar && { '--app-header-h': `${HEADER_TOTAL_H}px`, '--bar-line': `${HEADER_STROKE_Y}px` }),
+        } as CSSProperties
+      }
     >
+      {bar && <HeaderBar title={bar.title} backLabel={tNav('back')} onBack={bar.onBack} scrolled={scrolled} heading />}
       <div className={leftOverride ? `${styles.mapPane} ${styles.mapPaneDoc}` : styles.mapPane}>
         {leftOverride ??
           (mapShown.current && (
@@ -98,19 +133,21 @@ export function WorkspaceShell({
               paneOpen={open}
             />
           ))}
-        <div className={styles.back}>
-          {/* Floats over the map: paper to read on, no pen line of its own. */}
-          <OrganicButton variant="paper" size="sm" onClick={() => router.back()}>
-            <span className={styles.backIcon}>
-              <Icon
-                name="arrow-right"
-                size={15}
-                ariaLabel={isMobile ? leaveLabel : undefined}
-              />
-            </span>
-            {!isMobile && leaveLabel}
-          </OrganicButton>
-        </div>
+        {!bar && (
+          <div className={styles.back}>
+            {/* Floats over the map: paper to read on, no pen line of its own. */}
+            <OrganicButton variant="paper" size="sm" onClick={() => router.back()}>
+              <span className={styles.backIcon}>
+                <Icon
+                  name="arrow-right"
+                  size={15}
+                  ariaLabel={isMobile ? leaveLabel : undefined}
+                />
+              </span>
+              {!isMobile && leaveLabel}
+            </OrganicButton>
+          </div>
+        )}
       </div>
 
       {open && (
@@ -135,15 +172,17 @@ export function WorkspaceShell({
 
           <section className={styles.editorPane}>
             <div className={styles.paneScroll}>{children}</div>
-            <button
-              type="button"
-              className={styles.paneClose}
-              aria-label={t('closeEditor')}
-              title={t('closeEditor')}
-              onClick={onClose}
-            >
-              <Icon name="close" size={17} />
-            </button>
+            {!bar && onClose && (
+              <button
+                type="button"
+                className={styles.paneClose}
+                aria-label={t('closeEditor')}
+                title={t('closeEditor')}
+                onClick={onClose}
+              >
+                <Icon name="close" size={17} />
+              </button>
+            )}
           </section>
         </>
       )}
