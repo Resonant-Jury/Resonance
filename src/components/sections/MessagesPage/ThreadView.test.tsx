@@ -166,7 +166,7 @@ describe('cards shared in a thread', () => {
       authorId: 'alice',
       slug: `${key}-slug`,
       thoughtCore: `Card ${key}, read by itself`,
-      story: 'story',
+      story: '## By the river\n\nWalking **slowly** home, [the long way](https://example.com).',
       tags: [],
       originalLocale: 'en',
       translations: {},
@@ -181,6 +181,9 @@ describe('cards shared in a thread', () => {
 
     expect(await screen.findByText('Card c2, read by itself')).toBeInTheDocument();
     expect(getCardBySlugOrId).toHaveBeenCalledWith('c2');
+    // Read in full, its story is Markdown: the bubble shows its words, and its read time all the same.
+    expect(screen.getByText('By the river Walking slowly home, the long way.')).toBeInTheDocument();
+    expect(screen.getAllByText('Resonance · 1 min')).toHaveLength(2);
     // The card that came through stays as it was, without a read of its own.
     expect(screen.getByText('A walk at dawn')).toBeInTheDocument();
     expect(getCardBySlugOrId).not.toHaveBeenCalledWith('c1');

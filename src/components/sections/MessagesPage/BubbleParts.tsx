@@ -10,6 +10,8 @@ import { CARD_BORDERS, CARD_FILLS } from '@/components/molecules/StoryCard/Story
 import { cardHueIndex, nearestCardHue } from '@/lib/design/dominantHue';
 import { STORY_GRAIN } from '@/lib/design/grain';
 import { Link } from '@/i18n/navigation';
+import { plainExcerpt } from '@/lib/adapters/story';
+import { readMinutes } from '@/lib/readTime';
 import type { Card, MessageLinkPreview, User } from '@/lib/db/types';
 import type { MessageLink } from './MessageBubble';
 import styles from './Thread.module.css';
@@ -106,9 +108,11 @@ export function SharedCardPart({ card, author, interactive }: SharedCardPartProp
   const byline = card.anonymous ? null : author;
   const palette = paletteOf(card.accentHue);
   const cover = card.media?.url && !coverFailed ? card.media.url : null;
-  const minutes = card.summary?.readMinutes;
-  const meta = minutes != null ? `${t('cardSource')} · ${tApp('readMinutes', { count: minutes })}` : t('cardSource');
-  const excerpt = card.story.replace(/\s+/g, ' ').trim();
+  // A summary's story is its plain excerpt and brings the whole story's read time along; a card read in full
+  // (its summary didn't come) has its Markdown, to be read as words.
+  const minutes = card.summary?.readMinutes ?? readMinutes(card.story);
+  const meta = `${t('cardSource')} · ${tApp('readMinutes', { count: minutes })}`;
+  const excerpt = card.summary ? card.story.replace(/\s+/g, ' ').trim() : plainExcerpt(card.story, 200);
 
   return (
     <Link
