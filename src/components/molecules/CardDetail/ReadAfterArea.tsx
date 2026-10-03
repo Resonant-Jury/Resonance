@@ -11,6 +11,8 @@ import { useRouter } from '@/i18n/navigation';
 export interface ReadAfterAreaProps {
   cardId: string;
   cardTitle: string;
+  /** The card this one resonates with, if any (the picker never offers it). */
+  referenceCardId?: string;
   author: { id: string; handle: string; initials: string; accentColor: string };
   coreInsight?: string;
 }
@@ -25,7 +27,7 @@ export interface ReadAfterAreaProps {
  * Also the junction for the up/downgrade paths: note ↔ resonance drafts move
  * in both directions, so choosing the wrong door costs nothing.
  */
-export function ReadAfterArea({ cardId, cardTitle, author }: ReadAfterAreaProps) {
+export function ReadAfterArea({ cardId, cardTitle, referenceCardId, author }: ReadAfterAreaProps) {
   const t = useTranslations('card.note');
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -90,6 +92,7 @@ export function ReadAfterArea({ cardId, cardTitle, author }: ReadAfterAreaProps)
       <CardViewerActions
         cardId={cardId}
         cardTitle={cardTitle}
+        referenceCardId={referenceCardId}
         author={author}
         onOpenNote={() => openNote()}
       />

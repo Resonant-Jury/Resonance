@@ -1,0 +1,142 @@
+.title {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  margin: 0 0 12px;
+}
+
+/* ── Row 0: write a new card ─────────────────────────────────────────
+   Shaped like a card row (thumb + words) so it reads as the first choice,
+   its thumb a blank tile with the pen: a card not written yet. */
+.writeNew {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+@media (hover: hover) {
+  .writeNew:hover:not(:disabled) .writeTitle,
+  .writeNew:hover:not(:disabled) .writeArrow {
+    color: var(--color-terracotta);
+  }
+
+  .writeNew:hover:not(:disabled) .writeArrow {
+    transform: translateX(2px);
+  }
+}
+
+.writeNew:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: -2px;
+  border-radius: 10px;
+}
+
+.writeNew:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.writeTile {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.writeTile > svg {
+  position: absolute;
+  inset: 0;
+}
+
+.writeGlyph {
+  position: absolute;
+  inset: 0;
+}
+
+.writeText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.writeTitle {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  transition: color 120ms ease;
+}
+
+.writeHint {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.writeArrow {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition:
+    color 120ms ease,
+    transform 160ms ease;
+}
+
+.pickHeading {
+  margin: 4px 6px 2px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+
+/* ── While the shelf is read: the rows' footprint in plain CSS ─────── */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  /* a row's 48px thumb + its 10px above and below, as the rows will stand */
+  gap: 20px;
+  padding-bottom: 6px;
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.readFailed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.error {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-danger, oklch(58% 0.16 25));
+  margin: -6px 0 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
