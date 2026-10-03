@@ -6,8 +6,8 @@ const getCurrentUser = vi.fn();
 vi.mock('@/lib/auth', () => ({ getCurrentUser: (...a: unknown[]) => getCurrentUser(...a) }));
 const sendMessage = vi.fn();
 vi.mock('@/lib/api/v1/conversations', async (orig) => ({ ...(await orig()), sendMessage: (...a: unknown[]) => sendMessage(...a) }));
-const ringAfter = vi.fn();
-vi.mock('@/lib/push/ring', () => ({ ringAfter: (...a: unknown[]) => ringAfter(...a) }));
+const afterMessageSent = vi.fn();
+vi.mock('@/lib/api/v1/afterMessage', () => ({ afterMessageSent: (...a: unknown[]) => afterMessageSent(...a) }));
 vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => ({}) }));
 const spend = vi.fn();
 vi.mock('@/lib/api/rateLimit', () => ({ spend: (...a: unknown[]) => spend(...a) }));
@@ -33,13 +33,20 @@ describe('OpenAPI document', () => {
 });
 
 describe('POST /api/v1/messages (every write route shares these)', () => {
+  const SENT = {
+    conversationId: 'alice_bob',
+    id: 'm1',
+    notificationId: null,
+    duplicate: false,
+    push: { conversationId: 'alice_bob', messageId: 'm1', from: 'alice', to: 'bob' },
+  };
   const post = (body: unknown) =>
     POST(new Request('http://localhost/api/v1/messages', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body) }));
 
   beforeEach(() => {
     getCurrentUser.mockReset().mockResolvedValue({ id: 'alice' });
-    sendMessage.mockReset().mockResolvedValue({ conversationId: 'alice_bob', id: 'm1', notificationId: 'n1' });
-    ringAfter.mockReset();
+    sendMessage.mockReset().mockResolvedValue(SENT);
+    afterMessageSent.mockReset();
     spend.mockReset().mockResolvedValue(undefined);
   });
 
@@ -81,16 +88,46 @@ describe('POST /api/v1/messages (every write route shares these)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('sends the trimmed text, answers 201 without internals, and rings the bell row after', async () => {
+  it('sends the trimmed text, answers 201 without internals, and rings and unfurls after', async () => {
     const res = await post({ to: 'bob', text: '  hi  ', extra: 'ignored' });
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ conversationId: 'alice_bob', id: 'm1' });
     expect(sendMessage).toHaveBeenCalledWith({}, 'alice', { to: 'bob', text: 'hi' });
-    expect(ringAfter).toHaveBeenCalledWith({}, 'n1');
+    expect(afterMessageSent).toHaveBeenCalledWith({}, SENT);
+  });
+
+  it('passes the message it answers and the sender\'s own id on to the service', async () => {
+    const res = await post({ to: 'bob', text: 'hi', replyTo: 'm0', clientId: 'client-0123456789abcdef' });
+    expect(res.status).toBe(201);
+    expect(sendMessage).toHaveBeenCalledWith({}, 'alice', { to: 'bob', text: 'hi', replyTo: 'm0', clientId: 'client-0123456789abcdef' });
+  });
+
+  it('answers a message sent again exactly as the first time, and leaves the after-work to the service\'s own flag', async () => {
+    const duplicate = { ...SENT, duplicate: true, push: null };
+    sendMessage.mockResolvedValue(duplicate);
+    const res = await post({ to: 'bob', text: 'hi', clientId: 'client-0123456789abcdef' });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ conversationId: 'alice_bob', id: 'm1' });
+    expect(afterMessageSent).toHaveBeenCalledWith({}, duplicate);
+  });
+
+  it('refuses a reply or client id that is not well-formed, before sending anything', async () => {
+    for (const extra of [{ replyTo: '../x' }, { replyTo: 'a/b' }, { clientId: 'short' }, { clientId: 'has spaces in it 0123456789' }, { clientId: 'x'.repeat(65) }]) {
+      const res = await post({ to: 'bob', text: 'hi', ...extra });
+      expect(res.status, JSON.stringify(extra)).toBe(400);
+    }
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(afterMessageSent).not.toHaveBeenCalled();
+  });
+
+  it('does not ring or unfurl anything for a message that was not sent', async () => {
+    sendMessage.mockRejectedValue(new ApiFailure('blocked', 'You cannot message this person.'));
+    expect((await post({ to: 'bob', text: 'hi' })).status).toBe(403);
+    expect(afterMessageSent).not.toHaveBeenCalled();
   });
 
   it('treats an explicit null on an optional field as absent (Kotlin clients send it)', async () => {
-    const res = await post({ to: 'bob', text: 'hi', cardRef: null, noteRef: null });
+    const res = await post({ to: 'bob', text: 'hi', cardRef: null, noteRef: null, replyTo: null, clientId: null });
     expect(res.status).toBe(201);
   });
 
@@ -113,7 +150,7 @@ describe('POST /api/v1/messages (every write route shares these)', () => {
 describe('Server-Timing (every route shares this)', () => {
   beforeEach(() => {
     getCurrentUser.mockReset().mockResolvedValue({ id: 'alice' });
-    sendMessage.mockReset().mockResolvedValue({ conversationId: 'alice_bob', id: 'm1', notificationId: null });
+    sendMessage.mockReset().mockResolvedValue({ conversationId: 'alice_bob', id: 'm1', notificationId: null, duplicate: false, push: null });
     spend.mockReset().mockResolvedValue(undefined);
   });
 
