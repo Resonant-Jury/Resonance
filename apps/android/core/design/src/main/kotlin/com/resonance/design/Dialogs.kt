@@ -1,5 +1,9 @@
 package com.resonance.design
 
+import android.os.Build
+import android.view.View
+import android.view.WindowInsetsController
+import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -16,46 +20,54 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -65,6 +77,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
@@ -82,51 +95,84 @@ import com.resonance.geometry.rowRegion
 import com.resonance.geometry.wobCircle
 import com.resonance.geometry.wobRect
 import com.resonance.kit.l10n.L10n
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-/** Modal.tsx's backdrop: warm, dim (oklch(20% 0.04 60 / 0.42)). */
-private val Backdrop = OklchColor.parse("oklch(20% 0.04 60 / 0.42)") ?: Color.Black.copy(alpha = 0.42f)
+/**
+ * What a modal (and a message's long-press menu) lays over the screen: the warm ink of
+ * Modal.tsx's backdrop (oklch(20% 0.04 60)), but lighter than its 0.42 — over the cream
+ * page that read muddy, the paper gone grey rather than set back.
+ */
+val ModalScrim: Color = OklchColor.parse("oklch(20% 0.04 60 / 0.28)") ?: Color.Black.copy(alpha = 0.28f)
 
 /**
  * The web's Modal: a wobbly card — radius 26, the wobble 2.5% of its short
  * side, three or four turns across and five or six down, corners drifting 5 —
- * with grain, on the warm backdrop, and the hand-drawn × in its top corner.
- * Tapping outside or the × dismisses (unless `onDismiss` is null, like the
- * web's busy state).
+ * with grain, over the [ModalScrim]. The scrim covers the whole screen, the
+ * status and navigation bars too: the dialog's window is edge to edge and
+ * dims nothing itself, so no band of another brightness is left at either end.
+ *
+ * There is no ×: a modal's ways out are the buttons at its foot (one with
+ * nothing else there ends in a [ModalCloseButton]), a tap on the scrim, and
+ * Back — none of them while `onDismiss` is null (the web's busy state). For
+ * TalkBack the scrim is a button named `closeLabel`, read after the card,
+ * and the card carries the same dismiss action.
  */
 @Composable
 fun OrganicModal(
     onDismiss: (() -> Unit)?,
     title: String,
     seed: Double = 17.0,
+    /** What the scrim says it does (the modal's own cancel or close words). */
     closeLabel: String = L10n.Safety.Report.close,
     /** The card's widest (Modal's `maxWidth`): 460 unless a small dialog asks for less. */
     maxWidth: Dp = 460.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Dialog(onDismissRequest = { onDismiss?.invoke() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(
+        onDismissRequest = { onDismiss?.invoke() },
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        EdgeToEdgeDialogWindow()
         // A dialog is a window of its own: its density starts again from the system's whole text scale.
         CappedTextScale {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Backdrop)
-                .plainClickable { onDismiss?.invoke() }
-                // Rises above the keyboard (a note or a report being typed), the card scrolling if it has to.
-                .imePadding()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(Modifier.widthIn(max = maxWidth).fillMaxWidth()) {
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(ModalScrim)
+                    .then(
+                        if (onDismiss == null) Modifier
+                        else Modifier
+                            .plainClickable(role = Role.Button, onClickLabel = closeLabel, onClick = onDismiss)
+                            .semantics {
+                                contentDescription = closeLabel
+                                // After the card's own content, not before it.
+                                traversalIndex = 1f
+                            },
+                    ),
+            )
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    // Clear of the bars and the cutout, and above the keyboard (a note or a report being typed), the card scrolling if it has to.
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Column(
                     Modifier
+                        .widthIn(max = maxWidth)
                         .fillMaxWidth()
-                        .plainClickable {}
-                        .semantics { paneTitle = title }
+                        // A tap on the card stays on it: only the scrim around it closes the modal.
+                        .pointerInput(Unit) {}
+                        .semantics {
+                            paneTitle = title
+                            if (onDismiss != null) dismiss(closeLabel) { onDismiss(); true }
+                        }
                         .drawWithCache {
                             val w = size.width / density
                             val h = size.height / density
@@ -147,22 +193,56 @@ fun OrganicModal(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     content = content,
                 )
-                // Modal.module.css .closeBtn: 34 square, 22 from the top, 18 from the end, the text color at 0.55.
-                if (onDismiss != null) Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 22.dp, end = 18.dp)
-                        .size(34.dp)
-                        .clickable(role = Role.Button, onClickLabel = closeLabel, onClick = onDismiss)
-                        .semantics { contentDescription = closeLabel },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    // The web draws its × with INK in an 18-unit box; the glyph's box is 24.
-                    OrganicIcon(IconName.Close, size = 18.dp, color = Tokens.Text.copy(alpha = 0.55f), strokeWidth = Tokens.Ink.value * 24f / 18f)
-                }
             }
         }
         }
+    }
+}
+
+/**
+ * A modal's window, made like the activity's: edge to edge (its content laid out under the bars,
+ * [DialogProperties.decorFitsSystemWindows] off), dimming nothing behind it — the modal draws its
+ * own scrim, over the whole screen — and the bars clear, with dark glyphs, as on the paper below.
+ * A window of its own would otherwise get the platform's dim, which reaches the bars while the
+ * modal's scrim stopped short of them: a grey band at the top and the bottom.
+ */
+@Composable
+private fun EdgeToEdgeDialogWindow() {
+    val view = LocalView.current
+    DisposableEffect(view) {
+        (view.parent as? DialogWindowProvider)?.window?.let { window ->
+            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            @Suppress("DEPRECATION")
+            run {
+                // Ignored from Android 15 on, where every edge-to-edge window's bars are clear.
+                window.statusBarColor = android.graphics.Color.TRANSPARENT
+                window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            }
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                window.insetsController?.setSystemBarsAppearance(light, light)
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or
+                    View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            }
+        }
+        onDispose {}
+    }
+}
+
+/**
+ * The way out of a modal with nothing else at its foot (a list to look through,
+ * a note just sent): its close words as a quiet text button, centred under the
+ * content. Where there is a choice (cancel and a verb) the two sit at the
+ * bottom right instead, in [ModalActions].
+ */
+@Composable
+fun ModalCloseButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.Center) {
+        OrganicButton(label, variant = ButtonVariant.Text, small = true, onClick = onClick)
     }
 }
 

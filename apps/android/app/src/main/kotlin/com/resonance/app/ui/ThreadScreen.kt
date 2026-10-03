@@ -54,6 +54,7 @@ import com.resonance.design.CssText
 import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.MenuTrigger
+import com.resonance.design.ModalCloseButton
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicConfirmDialog
@@ -269,8 +270,8 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     LaunchedEffect(searching) { if (searching) runCatching { searchFocus.requestFocus() } }
 
     val other = model.other
-    if (showingMedia) OrganicModal({ showingMedia = false }, L10n.Messages.mediaTitle, seed = 53.0, maxWidth = 480.dp, closeLabel = L10n.Messages.mediaTitle) {
-        SharedMediaContent(model, links) { route ->
+    if (showingMedia) OrganicModal({ showingMedia = false }, L10n.Messages.mediaTitle, seed = 53.0, maxWidth = 480.dp) {
+        SharedMediaContent(model, links, onClose = { showingMedia = false }) { route ->
             showingMedia = false
             open(route)
         }
@@ -475,7 +476,7 @@ internal fun fullTime(date: Date): String {
 
 /** "Cards & links": everything shared in the loaded messages. */
 @Composable
-private fun SharedMediaContent(model: ThreadModel, opener: LinkOpener, open: (Route) -> Unit) {
+private fun SharedMediaContent(model: ThreadModel, opener: LinkOpener, onClose: () -> Unit, open: (Route) -> Unit) {
     val (cardIds, links) = model.shared
     val cards = cardIds.mapNotNull { model.cards[it] }
     Column(Modifier.fillMaxWidth()) {
@@ -527,6 +528,8 @@ private fun SharedMediaContent(model: ThreadModel, opener: LinkOpener, open: (Ro
                 }
             }
         }
+        // Nothing to choose here, only to look through: the way out is under the list.
+        ModalCloseButton(L10n.Safety.Report.close, onClose, Modifier.padding(top = 14.dp))
     }
 }
 
