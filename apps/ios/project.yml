@@ -8,6 +8,9 @@ options:
     iOS: "18.0"
   createIntermediateGroups: true
   developmentLanguage: en
+  # The story editor (native/editor/dist/editor.html) is build output the repo does not keep; without
+  # it the spec's source entry below would stop generation with an opaque "missing source" error.
+  preGenCommand: 'test -s ../../native/editor/dist/editor.html || { echo "error: native/editor/dist/editor.html is missing or empty: the story editor would not load. Run npm run native:editor (or npm run apps:generate) in the repository root first." >&2; exit 1; }'
 packages:
   DesignSystem:
     path: Packages/DesignSystem

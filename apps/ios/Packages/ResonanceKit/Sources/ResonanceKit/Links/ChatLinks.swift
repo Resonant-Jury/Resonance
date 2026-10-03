@@ -150,12 +150,39 @@ public enum ChatLinks {
             // `:443` on https (or `:80` on http) is the default; any other port is odd.
             guard port.isEmpty || port == (scheme == "https" ? "443" : "80") else { return nil }
         }
-        guard !host.isEmpty, host.hasPrefix("[") || host.contains(".") else { return nil }
-        guard host.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "-._[]:".contains($0)) }) else { return nil }
+        guard validHost(host) else { return nil }
         let tail = rest.isEmpty || !rest.hasPrefix("/") ? "/" + rest : String(rest)
         let normalized = "\(scheme)://\(host)\(tail)"
         guard normalized.count <= maxLength, let url = URL(string: normalized), url.scheme == scheme else { return nil }
         return Parsed(url: url, host: host, suspicious: isSuspicious(host: host))
+    }
+
+    /// A host name as the server's rules take it (Android's `validHost`): two or more labels of
+    /// `a–z 0–9 - _`, none empty, over 63 or edged with `-`; no IPv6 literal. A last label that is a
+    /// number makes the whole host an address — browsers read `127.1` and `0x7f.1` as 127.0.0.1 — so
+    /// then only a plain dotted quad is kept (and it is `suspicious`).
+    static func validHost(_ host: String) -> Bool {
+        guard !host.isEmpty, host.count <= 253 else { return false }
+        let labels = host.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        guard labels.count >= 2 else { return false }
+        for label in labels {
+            guard !label.isEmpty, label.count <= 63, !label.hasPrefix("-"), !label.hasSuffix("-"),
+                  label.allSatisfy({ ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "-" || $0 == "_" }) else { return false }
+        }
+        if let last = labels.last, isNumber(last) { return isDottedQuad(labels) }
+        return true
+    }
+
+    private static func isNumber(_ label: String) -> Bool {
+        guard !label.isEmpty else { return false }
+        if label.allSatisfy(\.isASCIIDigit) { return true }
+        return label.hasPrefix("0x") && label.dropFirst(2).allSatisfy { $0.isHexDigit && $0.isASCII }
+    }
+
+    private static func isDottedQuad(_ labels: [String]) -> Bool {
+        labels.count == 4 && labels.allSatisfy { l in
+            (1...3).contains(l.count) && l.allSatisfy(\.isASCIIDigit) && (l == "0" || !l.hasPrefix("0")) && (Int(l) ?? 256) <= 255
+        }
     }
 
     /// An IP-literal or punycode host: valid, but not a name a reader can vouch for.

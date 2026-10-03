@@ -43,6 +43,15 @@ import Testing
         #expect(texts("me@www.example.com").isEmpty)
     }
 
+    @Test func refusesAddressesWrittenToHideThatTheyAreAddresses() {
+        // Browsers read these as 127.0.0.1, 1.2.0.3 and so on: not links at all, as on Android and the server.
+        for written in ["http://127.1/", "http://0x7f.1/", "http://0x7f.0.0.1/", "http://0177.0.0.1/", "http://1.2.3/",
+                        "http://[::1]/", "http://[::1]:8080/", "https://example..com/", "https://.example.com/", "https://-bad.example.com/"] {
+            #expect(texts(written).isEmpty, "\(written)")
+        }
+        #expect(ChatLinks.links(in: "http://10.0.0.1/")[0].suspicious)
+    }
+
     @Test func flagsIPAddressesAndPunycodeAsSuspicious() {
         #expect(ChatLinks.links(in: "http://192.168.0.1/admin")[0].suspicious)
         #expect(ChatLinks.links(in: "https://xn--pple-43d.com/")[0].suspicious)
