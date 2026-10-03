@@ -28,10 +28,18 @@
     height: 44px;
   }
 }
-.button:hover:not(:disabled),
+/* Hover only where there is a pointer to hover with: a touch screen keeps
+   :hover on whatever was tapped last (the back arrow under the dialog it
+   opened), so there the ink answers the press alone. */
+.button:active:not(:disabled),
 .button:focus-visible,
 .button[data-tone='ink'] {
   color: var(--color-text);
+}
+@media (hover: hover) {
+  .button:hover:not(:disabled) {
+    color: var(--color-text);
+  }
 }
 .button:focus-visible {
   outline: none;
@@ -59,11 +67,16 @@
     transform 160ms cubic-bezier(0.2, 0.8, 0.3, 1),
     opacity 160ms ease;
 }
-.button:hover:not(:disabled) .wash,
 .button:active:not(:disabled) .wash,
 .button:focus-visible .wash {
   transform: scale(1);
   opacity: 1;
+}
+@media (hover: hover) {
+  .button:hover:not(:disabled) .wash {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 .button:focus-visible .wash {
   stroke: var(--field-border-focus, var(--color-terracotta));
