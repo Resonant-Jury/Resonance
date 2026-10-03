@@ -1,6 +1,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import type { AuthUser } from '@/lib/auth/types';
 import { handleKey, handleRef, handleTakenByOther, reservable, reserveHandle } from '@/lib/db/firestore/handles';
+import { hasPenName } from './conversations';
 import { ApiFailure } from './http';
 import { getMe } from './service';
 import type { CreateProfileInput, MeBody, UpdateProfileInput } from './schemas';
@@ -20,13 +21,36 @@ export async function handleAvailable(db: Firestore, uid: string, handle: string
  * Onboarding (the web's signup profile step, createCurrentUserProfile): the
  * same fields and defaults. Idempotent — an account that already has a
  * profile gets it back unchanged, so a retried request is harmless.
+ *
+ * Except a profile without a pen name (one made before onboarding asked for
+ * one): it takes the name chosen now, reserved in the same transaction, with
+ * the region and writing language just chosen — and keeps everything else.
+ * Reaching anyone takes a pen name (hasPenName), so the web sends such a
+ * profile back here to choose one. `named` says the profile has a new name.
  */
-export async function createProfile(db: Firestore, user: AuthUser, input: CreateProfileInput): Promise<{ me: MeBody; created: boolean }> {
+export async function createProfile(
+  db: Firestore,
+  user: AuthUser,
+  input: CreateProfileInput,
+): Promise<{ me: MeBody; created: boolean; named: boolean }> {
   const ref = db.doc(`users/${user.id}`);
-  const created = await db.runTransaction(async (tx) => {
+  const outcome = await db.runTransaction(async (tx): Promise<'kept' | 'named' | 'created'> => {
     const [existing, isTaken] = await Promise.all([tx.get(ref), handleTakenByOther(db, user.id, input.handle, tx)]);
-    if (existing.exists) return false;
+    if (existing.exists && hasPenName(existing)) return 'kept';
     if (isTaken) throw taken();
+    if (existing.exists) {
+      const initials = existing.get('initials');
+      tx.update(ref, {
+        handle: input.handle,
+        handleLower: handleKey(input.handle),
+        handleChangedAt: FieldValue.serverTimestamp(),
+        region: input.region,
+        primaryLocale: input.primaryLocale,
+        ...(typeof initials === 'string' && initials.trim() ? {} : { initials: input.handle.slice(0, 2).toUpperCase() }),
+      });
+      reserveHandle(db, tx, user.id, input.handle);
+      return 'named';
+    }
     const avatarSeed = String(Math.abs([...user.id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0)));
     tx.set(ref, {
       handle: input.handle,
@@ -45,9 +69,9 @@ export async function createProfile(db: Firestore, user: AuthUser, input: Create
       handleChangedAt: FieldValue.serverTimestamp(),
     });
     reserveHandle(db, tx, user.id, input.handle);
-    return true;
+    return 'created';
   });
-  return { me: await getMe(db, user.id), created };
+  return { me: await getMe(db, user.id), created: outcome === 'created', named: outcome !== 'kept' };
 }
 
 /**

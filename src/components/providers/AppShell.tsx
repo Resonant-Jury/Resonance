@@ -31,7 +31,9 @@ function isPublicPath(pathname: string): boolean {
  * Client shell for the authenticated (app) area. Replaces the former
  * admin-SDK auth check in the server layout: middleware already gates on the
  * session-cookie's presence, so here we only resolve the viewer client-side
- * and route to /signin (no auth) or /signup (authed but no profile yet).
+ * and route to /signin (no auth) or /signup (authed but no profile yet, or
+ * one without a pen name: reaching anyone takes one, and onboarding names
+ * such a profile — POST /api/v1/me, createProfile).
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user: authUser, loading, sessionReady } = useAuth();
@@ -46,8 +48,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (!isPublicPath(pathname)) router.replace(`/signin${nextQuery(pathname)}`);
       return;
     }
-    // Authenticated but no profile document yet → finish onboarding.
-    if (!profileLoading && profile === null) {
+    // Authenticated but no profile document yet, or one that never got a pen name → finish onboarding.
+    if (!profileLoading && (profile === null || (profile && !profile.handle.trim()))) {
       router.replace('/signup');
     }
   }, [loading, authUser, profileLoading, profile, pathname, router]);
