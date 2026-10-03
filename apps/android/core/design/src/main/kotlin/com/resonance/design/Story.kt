@@ -64,6 +64,7 @@ import coil3.compose.AsyncImage
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.penWave
 import com.resonance.geometry.wavyVertical
+import com.resonance.kit.chat.LinkPreview
 import com.resonance.kit.story.InlineRun
 import com.resonance.kit.story.ProseMetrics
 import com.resonance.kit.story.StoryBlock
@@ -245,16 +246,42 @@ fun RichCssText(runs: List<InlineRun>, style: ProseStyle, onOpenUrl: (String) ->
 }
 
 /**
+ * The cards a story's standalone links are drawn as: the previews the card page brought, by the
+ * key a paragraph names them by ([StoryBlock.SoleLink]); [host] names a link's real host as the
+ * card shows it, [label] what a screen reader says a card does, and [open] takes a pressed card
+ * to its link.
+ */
+class StoryLinkCards(
+    val previews: Map<String, LinkPreview>,
+    val host: (LinkPreview) -> String,
+    val label: (host: String) -> String,
+    val open: (LinkPreview) -> Unit,
+)
+
+/**
  * A story, laid out like the web reader's `.prose`: 17sp DM Sans on a 1.8
  * line box, Playfair headings, the curved quote rail, photos in organic
- * clips, card links as embedded cards, blank-line markers as air; vertical
+ * clips, card links as embedded cards, a link standing alone as its page's
+ * card when [links] has a preview for it, blank-line markers as air; vertical
  * rhythm from CSS margins, collapsing between blocks. The twin of iOS's
  * StoryMarkdownView.
  */
 @Composable
-fun StoryMarkdown(blocks: List<StoryBlock>, onOpenUrl: (String) -> Unit, embed: @Composable (href: String, title: String) -> Unit) {
-    BlockColumn(blocks, ProseStyle.Body, onOpenUrl, embed)
+fun StoryMarkdown(
+    blocks: List<StoryBlock>,
+    onOpenUrl: (String) -> Unit,
+    links: StoryLinkCards? = null,
+    embed: @Composable (href: String, title: String) -> Unit,
+) {
+    BlockColumn(blocks, ProseStyle.Body, Story(onOpenUrl, links, embed))
 }
+
+/** What every block of one story is drawn with: its taps, its link cards and its card embeds. */
+private class Story(
+    val onOpenUrl: (String) -> Unit,
+    val links: StoryLinkCards?,
+    val embed: @Composable (String, String) -> Unit,
+)
 
 /**
  * The reader's 1em in dp: 17 at the system's normal text size, more when the
@@ -265,26 +292,38 @@ fun StoryMarkdown(blocks: List<StoryBlock>, onOpenUrl: (String) -> Unit, embed: 
 private fun readerEm(): Dp = with(LocalDensity.current) { cssFontPx(ProseMetrics.EM).toDp() }
 
 @Composable
-private fun BlockColumn(blocks: List<StoryBlock>, style: ProseStyle, onOpenUrl: (String) -> Unit, embed: @Composable (String, String) -> Unit) {
+private fun BlockColumn(blocks: List<StoryBlock>, style: ProseStyle, story: Story) {
     val gaps = remember(blocks) { ProseMetrics.gaps(blocks) }
     val grown = readerEm().value / ProseMetrics.EM
     Column(Modifier.fillMaxWidth()) {
         blocks.forEachIndexed { i, block ->
             if (gaps[i] > 0) Spacer(Modifier.height((gaps[i] * grown).dp))
-            Block(block, style, onOpenUrl, embed)
+            Block(block, style, story)
         }
     }
 }
 
 @Composable
-private fun Block(block: StoryBlock, style: ProseStyle, onOpenUrl: (String) -> Unit, embed: @Composable (String, String) -> Unit) {
+private fun Block(block: StoryBlock, style: ProseStyle, story: Story) {
     val em = readerEm()
+    val onOpenUrl = story.onOpenUrl
     when (block) {
         is StoryBlock.Paragraph -> RichCssText(block.runs, style, onOpenUrl)
         is StoryBlock.Heading -> RichCssText(block.runs, if (block.level <= 2) ProseStyle.H2 else ProseStyle.H3, onOpenUrl, Modifier.semantics { heading() })
         StoryBlock.Blank -> Spacer(Modifier.height(em * 1.6f).clearAndSetSemantics { })
         is StoryBlock.Image -> StoryImage(block.url, block.alt)
-        is StoryBlock.CardEmbed -> embed(block.href, block.title)
+        is StoryBlock.CardEmbed -> story.embed(block.href, block.title)
+        // The page's card when the server made one for this link; otherwise the paragraph as written.
+        is StoryBlock.SoleLink -> {
+            val links = story.links
+            val preview = links?.previews?.get(block.key)
+            if (links != null && preview != null) {
+                val host = links.host(preview)
+                StoryLinkCard(preview, host, links.label(host), onOpen = { links.open(preview) })
+            } else {
+                RichCssText(block.runs, style, onOpenUrl)
+            }
+        }
         // The rail is drawn behind the quote's own box (its height is the
         // content's), not a sibling sized by intrinsics — the story text is
         // built on BoxWithConstraints, which cannot answer intrinsic queries.
@@ -303,14 +342,14 @@ private fun Block(block: StoryBlock, style: ProseStyle, onOpenUrl: (String) -> U
                     drawPath(path, Tokens.TerracottaLight, style = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round))
                 }
                 .padding(start = QuoteRailWidth + em),
-        ) { BlockColumn(block.children, style.quoted, onOpenUrl, embed) }
+        ) { BlockColumn(block.children, style.quoted, story) }
         is StoryBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(em * 0.3f)) {
             block.items.forEachIndexed { i, item ->
                 Row {
                     Box(Modifier.width(em * 1.5f)) {
                         RichCssText(listOf(InlineRun(if (block.ordered) "${block.start + i}." else "•")), style, onOpenUrl, Modifier.clearAndSetSemantics { })
                     }
-                    Box(Modifier.weight(1f)) { BlockColumn(item, style, onOpenUrl, embed) }
+                    Box(Modifier.weight(1f)) { BlockColumn(item, style, story) }
                 }
             }
         }

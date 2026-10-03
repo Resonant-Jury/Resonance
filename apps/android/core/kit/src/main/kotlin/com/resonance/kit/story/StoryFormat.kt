@@ -31,8 +31,9 @@ import org.commonmark.parser.Parser
  * A story's Markdown as the reader lays it out — the blocks the web's
  * StoryMarkdown (react-markdown + remark-gfm) produces, with its paragraph
  * rules: a paragraph holding only a card link is an embedded card, only a
- * photo is an image block, only the blank marker (U+00A0) is extra space.
- * The twin of iOS's StoryFormat.
+ * photo is an image block, only a link of the web is a standalone link (drawn
+ * as its page's card when the card page brought a preview for it), only the
+ * blank marker (U+00A0) is extra space. The twin of iOS's StoryFormat.
  */
 sealed interface StoryBlock {
     data class Heading(val level: Int, val runs: List<InlineRun>) : StoryBlock
@@ -40,6 +41,11 @@ sealed interface StoryBlock {
     data object Blank : StoryBlock
     data class Image(val url: String, val alt: String) : StoryBlock
     data class CardEmbed(val href: String, val title: String) : StoryBlock
+    /**
+     * A paragraph that is one link of the web and nothing else ([StoryLinks]): [key] is the address
+     * its preview is found by; [runs] are the paragraph as written, drawn when there is no preview.
+     */
+    data class SoleLink(val key: String, val runs: List<InlineRun>) : StoryBlock
     data class Quote(val children: List<StoryBlock>) : StoryBlock
     data class ListBlock(val ordered: Boolean, val start: Int, val items: List<List<StoryBlock>>) : StoryBlock
     data object Rule : StoryBlock
@@ -82,12 +88,17 @@ object StoryParser {
     /** The web's `p` override (StoryMarkdown.tsx). */
     private fun paragraph(p: Paragraph): StoryBlock {
         val meaningful = children(p).filterNot { it is Text && it.literal.isBlank() }
-        if (meaningful.size == 1) {
-            val only = meaningful[0]
-            if (only is Link && only.destination.startsWith("/card/")) return StoryBlock.CardEmbed(only.destination, plain(only))
-            if (only is Image) return StoryBlock.Image(only.destination, plain(only))
-        }
+        val only = meaningful.singleOrNull()
+        if (only is Link && only.destination.startsWith("/card/")) return StoryBlock.CardEmbed(only.destination, plain(only))
+        if (only is Image) return StoryBlock.Image(only.destination, plain(only))
         val runs = inlines(p)
+        val linkKey = when (only) {
+            // A linked picture is a picture, not a link of its own.
+            is Link -> only.destination.takeIf { !holdsImage(only) }?.let(StoryLinks::keyOf)
+            is Text -> StoryLinks.bareKey(only.literal)
+            else -> null
+        }
+        if (linkKey != null) return StoryBlock.SoleLink(linkKey, runs)
         val text = runs.joinToString("") { it.text }
         if (text.isNotEmpty() && text.all { it == ' ' || it.isWhitespace() }) return StoryBlock.Blank
         return StoryBlock.Paragraph(runs)
@@ -116,6 +127,8 @@ object StoryParser {
     }
 
     private fun plain(node: Node): String = inlines(node).joinToString("") { it.text }
+
+    private fun holdsImage(node: Node): Boolean = node is Image || children(node).any(::holdsImage)
 
     private fun tableText(table: TableBlock): String {
         val rows = ArrayList<String>()

@@ -66,6 +66,7 @@ import com.resonance.design.OrganicInlineBar
 import com.resonance.design.MenuTrigger
 import com.resonance.design.OrganicMenuChip
 import com.resonance.design.inlineBarTop
+import com.resonance.design.StoryLinkCards
 import com.resonance.design.StoryMarkdown
 import com.resonance.design.StorySkeleton
 import com.resonance.design.TagPill
@@ -75,12 +76,14 @@ import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.api.ApiFailure
+import com.resonance.kit.chat.Linkify
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.FeedLoader
 import com.resonance.kit.reading.cardKeyOf
 import com.resonance.kit.reading.embedFor
 import com.resonance.kit.story.StoryBlock
 import com.resonance.kit.story.StoryLink
+import com.resonance.kit.story.StoryLinks
 import com.resonance.kit.story.StoryParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -108,6 +111,9 @@ class CardPageModel(private val session: Session, private val key: String, previ
     var linked by mutableStateOf(cached?.links.orEmpty())
         private set
     var embeds by mutableStateOf(cached?.embeds.orEmpty())
+        private set
+    /** The previews of the story's standalone links, by the key a paragraph names them by ([StoryLinks]). */
+    var linkPreviews by mutableStateOf(cached?.let { StoryLinks.previews(it.detail.linkPreviews, session.config.origin) }.orEmpty())
         private set
     private var readFor: Int? = null
     private var readAt = 0L
@@ -140,6 +146,7 @@ class CardPageModel(private val session: Session, private val key: String, previ
             // Cards others linked to this one are shown to its author only (useLinkedToCard).
             linked = page.links
             embeds = page.embeds
+            linkPreviews = StoryLinks.previews(d.linkPreviews, session.config.origin)
             phase = "loaded"
         } catch (e: CancellationException) {
             throw e
@@ -190,6 +197,16 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val linked = model.linked
     val embeds = model.embeds
     val context = LocalContext.current
+    // A link card leaves by the same door as a link in a conversation: the in-app browser, asking first where the address isn't what it seems.
+    val links = rememberLinkOpener()
+    val linkCards = remember(model.linkPreviews, links) {
+        StoryLinkCards(
+            model.linkPreviews,
+            host = { (Linkify.displayHost(it.url) ?: it.url).removePrefix("www.") },
+            label = L10n.Card.LinkPreview::open,
+            open = { links.tap(it.url) },
+        )
+    }
     val list = rememberLazyListState()
     // This card or a resonance to it edited, published or re-shelved from the writer or the ⋯, or a
     // block: read it again (another card's change leaves it as it is); so is a page read long ago.
@@ -223,7 +240,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                     item {
                         Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
                             ArticleHead(card, d.anonymous) { open(Route.Author(it)) }
-                            StoryMarkdown(blocks, openUrl) { href, title -> CardEmbed(embeds.embedFor(href), href, title, open) }
+                            StoryMarkdown(blocks, openUrl, linkCards) { href, title -> CardEmbed(embeds.embedFor(href), href, title, open) }
                             FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
                             }
@@ -284,6 +301,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
         }
     }
     }
+    LinkDialogs(links)
 }
 
 /**
