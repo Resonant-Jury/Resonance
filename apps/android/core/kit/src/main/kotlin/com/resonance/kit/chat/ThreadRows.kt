@@ -43,8 +43,9 @@ data class ThreadRow(
 /**
  * Lays the thread out in runs, the way Messenger stacks messages sent close together: consecutive
  * messages from the same sender, less than [RUN_GAP_MILLIS] apart on the same day, with no label
- * between them, are one run; a reply opens a run (it leads with the quote it answers) and a message that
- * failed to send ends the run it is in (its "not sent" line sits under it). Used on the main thread; pure.
+ * between them, are one run; a reply opens a run (it leads with the quote it answers), so does a note
+ * (it leads with the card it was left on), and a message that failed to send ends the run it is in
+ * (its "not sent" line sits under it). Used on the main thread; pure.
  */
 object ThreadRows {
     /** Messages further apart than this don't stack. */
@@ -64,8 +65,8 @@ object ThreadRows {
             val m = messages[i]
             val before = messages.getOrNull(i - 1)
             before != null && !day[i] && !time[i] &&
-                // A reply opens with the quote it answers: it starts a run of its own.
-                m.replyTo == null &&
+                // A reply opens with the quote it answers, a note with the card it was left on: each starts a run of its own.
+                m.replyTo == null && !m.isNote &&
                 before.senderId == m.senderId && before.delivery != Delivery.Failed &&
                 // A message still on its way carries this phone's clock: a few seconds off the server's doesn't unstack it.
                 abs(m.sentAt.time - before.sentAt.time) < RUN_GAP_MILLIS

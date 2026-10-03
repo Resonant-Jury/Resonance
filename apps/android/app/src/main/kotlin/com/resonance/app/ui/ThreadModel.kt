@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
@@ -39,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -70,7 +72,7 @@ import java.util.Date
  *
  * Used on the main thread, like every Compose state it holds.
  */
-class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?, private val session: Session) {
+class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, private val session: Session) {
     /** A card waiting to go with the next message: what the chip shows and what is sent. */
     data class Attachment(val id: String, val title: String)
 
@@ -91,6 +93,15 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         private set
     var conversationExists by mutableStateOf(false)
         private set
+    /**
+     * Who left a note in this conversation that waits for its answer (the conversation's
+     * `request.from`, written by the server): a note doesn't connect two people, the card's author
+     * answering it does. Null when none waits.
+     */
+    var requestFrom by mutableStateOf<String?>(null)
+        private set
+    /** What the thread's foot shows: the composer, or why there is none ([ThreadFoot]). */
+    internal val foot: ThreadFoot get() = ThreadFoot.of(connected, isBlocked, requestFrom, me, otherId)
 
     /**
      * The conversation as the thread draws it, oldest first: every message held ([history]), then
@@ -130,7 +141,11 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
 
     var draft by mutableStateOf("")
     var pendingCard by mutableStateOf<Attachment?>(null)
-    var noteRef by mutableStateOf(noteRef)
+    /** The note the next message answers, as a chip (an older note the thread doesn't hold; see [landOnNote]). */
+    var noteRef by mutableStateOf<MessagingApi.Note?>(null)
+    /** The note a link to it (`?note=`) opened the thread at, until [landOnNote] has found where it lands. */
+    internal var routeNote: MessagingApi.Note? = note
+        private set
     /** The message the next one answers (set by [reply], cleared by sending and [cancelReply]). */
     var replyingTo by mutableStateOf<ReplyQuote?>(null)
         private set
@@ -286,6 +301,7 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
                 conversationExists = true
                 refusals = 0
                 unreadForMe = ((doc.get("unread") as? Map<*, *>)?.get(me ?: "") as? Number)?.toInt() ?: 0
+                noteRequest((doc.get("request") as? Map<*, *>)?.get("from") as? String)
                 markReadIfNeeded()
             },
             ref.collection("messages").orderBy("sentAt", Query.Direction.DESCENDING).limit(MessageHistory.LIVE_LIMIT.toLong())
@@ -319,6 +335,7 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
             return
         }
         conversationExists = false
+        requestFrom = null
         resetHistory()
         threadReady = true
         if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED && pair in session.conversations.ids.value && refusals++ < 3) {
@@ -517,6 +534,27 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         // The first message made the conversation: listen to it now.
         val pair = pairId
         if (pair != null && listeners.isEmpty() && entries.any { it.status == Outbox.Status.Sent }) listen(pair)
+        // An answer to their note connected you: whether you may write is asked again.
+        if (foot == ThreadFoot.Answer && entries.any { it.status == Outbox.Status.Sent }) reaskConnection()
+    }
+
+    /**
+     * The conversation says who left a note waiting, if anyone. A note of theirs that stops
+     * waiting was answered (most likely by you, just now): until the profile says so, the composer
+     * stays — "not known" rather than "not connected".
+     */
+    private fun noteRequest(from: String?) {
+        val answered = requestFrom != null && from == null && connected == false
+        requestFrom = from
+        if (answered) reaskConnection()
+    }
+
+    private var reasking: Job? = null
+
+    private fun reaskConnection() {
+        if (reasking?.isActive == true) return
+        if (connected == false && !isBlocked) connected = null
+        reasking = scope.launch { refreshConnection() }
     }
 
     /**
@@ -584,6 +622,29 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
     /** The reply the composer held before the screen was covered (see [threadSaver]). */
     internal fun restoreReply(quote: ReplyQuote) {
         replyingTo = quote
+    }
+
+    /**
+     * Where the note a link opened the thread at lands ([NoteLanding]): its own message — read in from
+     * older pages if need be, a few at most — which the screen jumps to and answers; otherwise the
+     * chip, unless its card is anonymous (or can't be read). Once per note; null when there was none
+     * or it has landed already.
+     */
+    internal suspend fun landOnNote(): NoteLanding? {
+        val note = routeNote ?: return null
+        snapshotFlow { threadReady }.first { it }
+        val found = if (ensureLoaded(note.noteId, maxPages = NOTE_PAGES)) find(note.noteId) else null
+        val card = if (found != null) null else try {
+            cards[note.cardId] ?: session.reading.cardsByKey(listOf(note.cardId))[note.cardId]
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        val landing = NoteLanding.of(found, card)
+        routeNote = null
+        if (landing == NoteLanding.Chip) noteRef = note
+        return landing
     }
 
     /** The messages that are mine, to tell mine from theirs. */
@@ -686,14 +747,17 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         }
     }
 
-    /** Cards shared here (in thread order, once each) and links written in messages. */
+    /**
+     * Cards shared here (in thread order, once each) — carried, or linked to, as the bubbles find
+     * them ([sharedCard]) — and the other links written in messages.
+     */
     val shared: Pair<List<String>, List<String>>
         get() {
             val seenCards = LinkedHashSet<String>()
             val seenLinks = LinkedHashSet<String>()
             for (m in messages) {
-                m.cardRef?.let { seenCards.add(it) }
-                Linkify.find(m.text).forEach { seenLinks.add(it.url) }
+                sharedCard(m)?.let { seenCards.add(it.key) }
+                Linkify.find(m.text).forEach { if (cardKeyOf(it.url) == null) seenLinks.add(it.url) }
             }
             return seenCards.toList() to seenLinks.toList()
         }
@@ -716,6 +780,8 @@ class ThreadModel(val handle: String, uid: String?, noteRef: MessagingApi.Note?,
         const val LOAD_ALL_CAP = 5000
         /** Above this many messages a search runs off the main thread. */
         const val SEARCH_OFF_MAIN = 400
+        /** How many pages of older messages a link to a note reads in looking for it. */
+        const val NOTE_PAGES = 5
     }
 }
 
@@ -732,12 +798,15 @@ internal fun threadSaver(handle: String, uid: String?, session: Session): Saver<
         listOf(
             m.draft, m.noteRef?.cardId.orEmpty(), m.noteRef?.noteId.orEmpty(), m.pendingCard?.id.orEmpty(), m.pendingCard?.title.orEmpty(),
             reply?.id.orEmpty(), reply?.senderId.orEmpty(), reply?.text.orEmpty(), reply?.cardRef.orEmpty(),
+            // A note the link opened at that hadn't landed yet lands when the thread comes back.
+            m.routeNote?.cardId.orEmpty(), m.routeNote?.noteId.orEmpty(),
         )
     },
     restore = { v ->
-        val note = if (v[1].isNotEmpty() && v[2].isNotEmpty()) MessagingApi.Note(v[1], v[2]) else null
-        ThreadModel(handle, uid, note, session).also { m ->
+        fun note(card: Int, id: Int) = if (v.size > id && v[card].isNotEmpty() && v[id].isNotEmpty()) MessagingApi.Note(v[card], v[id]) else null
+        ThreadModel(handle, uid, note(9, 10), session).also { m ->
             m.draft = v[0]
+            m.noteRef = note(1, 2)
             if (v[3].isNotEmpty()) m.pendingCard = ThreadModel.Attachment(v[3], v[4])
             if (v.size >= 9 && v[5].isNotEmpty()) m.restoreReply(ReplyQuote(v[5], v[6], v[7], v[8].ifEmpty { null }))
         }

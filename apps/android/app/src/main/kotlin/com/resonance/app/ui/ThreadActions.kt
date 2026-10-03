@@ -66,7 +66,8 @@ internal fun messageMenuItems(
 ): List<OrganicMenuItem> {
     val message = menu.row.message
     return buildList {
-        if (message.canReply) add(OrganicMenuItem(L10n.Messages.reply, IconName.Reply) { reply() })
+        // A reply needs a composer to go in: not while you can't write here.
+        if (message.canReply && model.foot.composes) add(OrganicMenuItem(L10n.Messages.reply, IconName.Reply) { reply() })
         if (message.text.isNotEmpty()) add(OrganicMenuItem(L10n.Native.copy, IconName.Copy) { copyText(context, message.text) })
         menu.link?.let { url ->
             add(OrganicMenuItem(L10n.Messages.openLink, IconName.Link) { opener.tap(url) })

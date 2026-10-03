@@ -73,6 +73,16 @@ class ThreadRowsTest {
         assertEquals(listOf(RunPosition.Single, RunPosition.First, RunPosition.Last), r.map { it.position })
     }
 
+    @Test fun aNoteOpensARunOfItsOwnLikeAReply() {
+        // The note leads with the card it was left on, so the message before it doesn't stack onto it.
+        val r = rows(
+            msg("a", "bob", at(1, 9, 0)),
+            msg("n", "bob", at(1, 9, 0, 20)).copy(cardRef = "walk", isNote = true),
+            msg("c", "bob", at(1, 9, 0, 40)),
+        )
+        assertEquals(listOf(RunPosition.Single, RunPosition.First, RunPosition.Last), r.map { it.position })
+    }
+
     @Test fun aSendingMessageStacksUnderTheOneBeforeItEvenWithAClockABitBehind() {
         val r = rows(msg("a", "alice", at(1, 9, 0, 10)), msg("b", "alice", at(1, 9, 0, 5), Delivery.Sending))
         assertEquals(listOf(RunPosition.First, RunPosition.Last), r.map { it.position })

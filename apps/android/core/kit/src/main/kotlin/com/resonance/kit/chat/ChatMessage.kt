@@ -64,6 +64,13 @@ data class ChatMessage(
     val preview: LinkPreview? = null,
     val delivery: Delivery = Delivery.Delivered,
     val key: String = id,
+    /**
+     * A note left on a card of the recipient's (`kind: 'note'`, written by the server into the
+     * thread): [cardRef] is the card it was left on, drawn above the note's words as what they
+     * answer — not inside the bubble as a card shared. A kind this build doesn't know is an
+     * ordinary message.
+     */
+    val isNote: Boolean = false,
 ) {
     /** Still on its way, or failed: nothing is known of it by the server (yet). */
     val isPending: Boolean get() = delivery != Delivery.Delivered
@@ -90,6 +97,7 @@ data class ChatMessage(
                 noteRef = if (noteCard != null && noteId != null) MessagingApi.Note(noteCard, noteId) else null,
                 replyTo = quote(fields["replyTo"] as? Map<*, *>),
                 preview = preview(fields["preview"] as? Map<*, *>, origin),
+                isNote = fields["kind"] == "note",
             )
         }
 

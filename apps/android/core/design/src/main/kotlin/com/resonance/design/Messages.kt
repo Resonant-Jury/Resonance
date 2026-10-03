@@ -212,18 +212,20 @@ fun MessageBubble(
     flash: () -> Float = { 0f },
     width: Dp? = null,
     plain: Boolean = false,
+    /** Another paper than the sender's ([Tokens.BubbleQuote]: the card a note answers, quoted over it). */
+    fill: Color? = null,
     onLinkTap: ((Int) -> Unit)? = null,
     onLongPress: ((Int?) -> Unit)? = null,
     attachment: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val longPress by rememberUpdatedState(onLongPress)
-    val fill = bubbleFill(mine)
+    val paper = fill ?: bubbleFill(mine)
     Column(
         modifier
             .then(if (width != null) Modifier.width(width) else Modifier)
             .then(
-                if (plain) Modifier.clip(plainBubbleShape(mine, run)).background(fill)
-                else Modifier.bubbleSurface(remember(seed, mine, run) { MessageBubbleShape(seed, mine, run) }, fill, flash),
+                if (plain) Modifier.clip(plainBubbleShape(mine, run)).background(paper)
+                else Modifier.bubbleSurface(remember(seed, mine, run) { MessageBubbleShape(seed, mine, run) }, paper, flash),
             )
             .then(
                 if (onLongPress != null) Modifier
@@ -287,11 +289,11 @@ fun QuoteBubble(text: String, seed: Double, modifier: Modifier = Modifier, onCli
 /** How far a reply's bubble lies over the foot of the message it quotes. */
 val REPLY_OVERLAP = 14.dp
 
-/** The reply glyph and a line of who answered whom, over the quote. */
+/** A glyph and a line of who answered whom, over the quote: the reply glyph, or the note's ([icon]) over the card a note was left on. */
 @Composable
-fun ReplyCaption(text: String, modifier: Modifier = Modifier) {
+fun ReplyCaption(text: String, modifier: Modifier = Modifier, icon: IconName = IconName.Reply) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        OrganicIcon(IconName.Reply, size = 12.dp, color = Tokens.TextMuted)
+        OrganicIcon(icon, size = 12.dp, color = Tokens.TextMuted)
         BasicText(text, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted))
     }
 }
