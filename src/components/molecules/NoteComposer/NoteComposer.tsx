@@ -75,24 +75,16 @@ export function NoteComposer({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Icon name="note" size={18} />
           <span style={{ fontSize: 14, color: 'var(--color-text)' }}>{t('sent')}</span>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={t('close')}
-              style={{
-                marginLeft: 'auto',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--color-text-muted)',
-                padding: 4,
-              }}
-            >
-              <Icon name="close" size={16} />
-            </button>
-          )}
         </div>
+        {/* Nothing is left to do but leave: the close at the foot, quiet and
+            centred (no ✕ — the modal around it has none either). */}
+        {onClose && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14, marginBottom: -8 }}>
+            <OrganicButton variant="text" size="sm" onClick={onClose}>
+              {t('close')}
+            </OrganicButton>
+          </div>
+        )}
       </Panel>
     );
   }

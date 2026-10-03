@@ -1,3 +1,6 @@
+/* The page dims under a light ink scrim — enough to set the dialog apart, not
+   so much that the cream turns grey. Modal.tsx's DIMMED_THEME_COLOR is this
+   over the cream: change them together. */
 .backdrop {
   position: fixed;
   inset: 0;
@@ -6,11 +9,12 @@
   align-items: center;
   justify-content: center;
   padding: clamp(12px, 3vw, 32px);
-  background: oklch(20% 0.04 60 / 0.42);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: color-mix(in oklch, var(--color-text) 24%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   animation: resModalFadeIn 220ms ease;
   overflow-y: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .dialog {
@@ -21,29 +25,56 @@
   animation: resModalPopIn 280ms cubic-bezier(.2, .9, .3, 1.05);
 }
 
-.closeBtn {
-  position: absolute;
-  top: 22px;
-  right: 18px;
-  width: 34px;
-  height: 34px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: var(--color-text);
-  opacity: 0.55;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 3;
-  transition: opacity 150ms;
-}
-
-.closeBtn:hover {
-  opacity: 1;
+/* It takes focus as a whole when it opens; that is not a keyboard target. */
+.dialog:focus {
+  outline: none;
 }
 
 .content {
   position: relative;
   z-index: 2;
+}
+
+/* `closeButton`: the only thing at the foot, so in the middle of it. */
+.closeRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+  margin-bottom: -8px;
+}
+
+/* The close a screen reader finds (there is no ✕). Out of sight until the
+   keyboard reaches it — then a quiet word in the corner, ringed in the focus
+   colour, so a sighted keyboard user sees where they are. */
+.hiddenClose {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.hiddenClose:focus-visible {
+  z-index: 3;
+  top: 16px;
+  right: 18px;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 4px 10px;
+  overflow: visible;
+  clip: auto;
+  border-radius: 12px;
+  background: var(--color-card-bg);
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 1px;
 }

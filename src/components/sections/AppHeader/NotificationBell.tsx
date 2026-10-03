@@ -108,6 +108,8 @@ export function NotificationBell() {
         seed={29}
         padding="24px 22px 22px"
         ariaLabel="Notifications"
+        // A list with nothing to do at its foot: the close lies there.
+        closeButton
       >
         <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, marginBottom: 14 }}>
           {tNav('notifications')}

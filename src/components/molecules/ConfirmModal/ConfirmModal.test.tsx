@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { ComponentProps } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, userEvent, within } from '@/../test/render';
+import { renderWithIntl as render, screen, userEvent, within } from '@/../test/render';
 import { mockElementSize, penLines } from '@/../test/organic';
 import { ConfirmModal } from './ConfirmModal';
 

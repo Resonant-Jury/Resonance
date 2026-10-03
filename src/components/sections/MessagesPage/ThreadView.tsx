@@ -569,6 +569,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               seed={53}
               maxWidth={480}
               ariaLabel={t('mediaTitle')}
+              // A list with nothing to do at its foot: the close lies there.
+              closeButton
             >
               <h3 className={pageStyles.mediaTitle}>{t('mediaTitle')}</h3>
               <p className={pageStyles.mediaSubtitle}>{t('mediaSubtitle')}</p>
