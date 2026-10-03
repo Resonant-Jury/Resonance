@@ -57,7 +57,6 @@ import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.CardDetailSkeleton
 import com.resonance.design.CssText
-import com.resonance.design.FloatingWriteButton
 import com.resonance.design.EmbedStoryCard
 import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
@@ -282,13 +281,6 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                 val authorId = if (d.anonymous) null else card.author?.id
                 SafetyMenu(session, SafetyService.Target.Card(card.id, authorId), if (authorId == null) null else card.author?.handle, seed = hue + 3, trigger = MenuTrigger.Bare)
             }
-        }
-    }
-    // The web's pen sits on the card page too: bottom right, 20 in.
-    // On your own card the pen edits it (FloatingWriteButton's editsOwnCard), then comes back here.
-    detail?.let { d ->
-        FloatingWriteButton(if (d.isOwner) L10n.App.Nav.editThisCard else L10n.App.Nav.write, Modifier.align(Alignment.BottomEnd)) {
-            open(if (d.isOwner) Route.Write(cardId = d.card.id, showsCard = false) else Route.Write())
         }
     }
     }

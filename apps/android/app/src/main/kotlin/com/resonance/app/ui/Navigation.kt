@@ -324,7 +324,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         ) {
             OrganicTabBar(
                 listOf(
-                    // The web's glyphs for the same places (Subnavbar, NotificationBell, FloatingWriteButton).
+                    // The web's glyphs for the same places (Subnavbar, NotificationBell, the header's pen).
                     OrganicTabItem(Tab.Feed, L10n.Native.tabFeed, IconName.Sparkle),
                     OrganicTabItem(Tab.Messages, L10n.App.Nav.messages, IconName.Chat, badge = conversations.unreadTotal),
                     OrganicTabItem(Tab.Write, L10n.App.Nav.write, IconName.Pen, isAction = true),
@@ -333,7 +333,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                 ),
                 selection = tab,
                 onSelect = { picked ->
-                    // The pen opens the writer over the current tab, like the web's floating pen.
+                    // The pen opens the writer over the current tab, like the web header's pen.
                     if (picked == Tab.Write) {
                         stack.add(Route.Write())
                         return@OrganicTabBar

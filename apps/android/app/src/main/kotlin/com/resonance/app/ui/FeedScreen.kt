@@ -113,7 +113,6 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
                                     feed.loadMore()
                                 }
                             }
-                            OrganicButton(L10n.Home.writeResponse) { open(Route.Write()) }
                         }
                     }
                 }
