@@ -227,14 +227,9 @@
 .option[data-active] {
   color: var(--menu-border-hover);
 }
+/* The keyboard's row wears the ink (see MenuPanel), not a box. */
 .option:focus {
   outline: none;
-}
-.option:focus-visible {
-  color: var(--menu-border-hover);
-  outline: 2px solid var(--field-border-focus);
-  outline-offset: -3px;
-  border-radius: 12px;
 }
 
 /* The quiet line under the rows (a message's full time). No ink, no pointer. */

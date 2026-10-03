@@ -410,6 +410,7 @@ function MenuPanel({ uid, seed, items, busy, footer, placed = false, autoFocus =
   }, []);
   /** The arrows walk the rows (round from the last to the first), Home and End go to either end. */
   const onListKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    byKeys.current = true;
     const all = rows();
     const at = all.indexOf(document.activeElement as HTMLButtonElement);
     const to =
@@ -433,9 +434,13 @@ function MenuPanel({ uid, seed, items, busy, footer, placed = false, autoFocus =
   const ready = w > 0 && boundaries.length === bands - 1;
   const dangerIndex = items.findIndex((it) => it.danger);
 
-  // Pointer-driven only: the rows are plain buttons the keyboard tabs through,
-  // so there is no active row to rest the ink on.
-  const ink = useRowInk({ panelRef: ref, w, h });
+  // The pointer's row takes the ink, and so does the keyboard's (a row focused from the keyboard: the arrows,
+  // Tab), growing from its centre — the same wash, never a box around it.
+  const [keyRow, setKeyRow] = useState<number | null>(null);
+  const inkRows = useMemo(() => items.map((_, i) => ({ top: i * ROW_H, height: ROW_H })), [items]);
+  const ink = useRowInk({ panelRef: ref, rows: inkRows, w, h, activeIndex: keyRow });
+  // Whether the focus is the keyboard's to show: it opened the menu, or a key moved it since a pointer last did.
+  const byKeys = useRef(autoFocus === 'row');
   const washes: string[] = items.map((_, i) =>
     i === dangerIndex
       ? 'color-mix(in oklch, var(--color-yellow) 45%, var(--menu-cream))'
@@ -503,7 +508,15 @@ function MenuPanel({ uid, seed, items, busy, footer, placed = false, autoFocus =
           />
         </svg>
       )}
-      <div id={`${uid}-menu`} ref={listRef} role="menu" tabIndex={-1} className={styles.list} onKeyDown={onListKey}>
+      <div
+        id={`${uid}-menu`}
+        ref={listRef}
+        role="menu"
+        tabIndex={-1}
+        className={styles.list}
+        onKeyDown={onListKey}
+        onPointerDown={() => (byKeys.current = false)}
+      >
         {items.map((it, i) => (
           <button
             key={it.key}
@@ -512,7 +525,9 @@ function MenuPanel({ uid, seed, items, busy, footer, placed = false, autoFocus =
             className={styles.option}
             data-active={ink.index === i || undefined}
             disabled={busy}
-            {...ink.rowProps(i)}
+            {...ink.rowProps(i, () => setKeyRow(null))}
+            onFocus={() => setKeyRow(byKeys.current ? i : null)}
+            onBlur={() => setKeyRow((cur) => (cur === i ? null : cur))}
             onClick={() => onChoose(it.key)}
           >
             <span className={styles.optionIcon}>

@@ -193,6 +193,9 @@ describe('from the keyboard', () => {
     expect(rows[0]).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}');
     expect(rows[1]).toHaveFocus();
+    // The keyboard's row wears the row ink, as the pointer's does.
+    expect(rows[1]).toHaveAttribute('data-active');
+    expect(rows[0]).not.toHaveAttribute('data-active');
     await userEvent.keyboard('{ArrowUp}{ArrowUp}');
     expect(rows[2]).toHaveFocus();
     await userEvent.keyboard('{Home}');
