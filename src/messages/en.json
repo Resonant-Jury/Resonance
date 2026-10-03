@@ -514,7 +514,9 @@
     "accept": "Accept",
     "decline": "Decline",
     "expiresAt": "respond by {date}",
-    "emptyMessage": "(No message)"
+    "emptyMessage": "(No message)",
+    "closed": "This invite has closed — it can't be accepted any more.",
+    "error": "That didn't go through. Try again."
   },
   "auth": {
     "signInTitle": "Welcome back",

@@ -954,6 +954,10 @@ public enum L10n {
         public static func expiresAt(date: String) -> String { Strings.shared.format("inviteInbox.expiresAt", ["date": date]) }
         /// (No message)
         public static var emptyMessage: String { Strings.shared.string("inviteInbox.emptyMessage") }
+        /// This invite has closed — it can't be accepted any more.
+        public static var closed: String { Strings.shared.string("inviteInbox.closed") }
+        /// That didn't go through. Try again.
+        public static var error: String { Strings.shared.string("inviteInbox.error") }
     }
     public enum Auth {
         /// Welcome back

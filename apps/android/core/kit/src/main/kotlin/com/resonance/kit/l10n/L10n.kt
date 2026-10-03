@@ -956,6 +956,10 @@ object L10n {
         fun expiresAt(date: String): String = Strings.format("inviteInbox.expiresAt", mapOf("date" to date))
         /** (No message) */
         val emptyMessage: String get() = Strings.string("inviteInbox.emptyMessage")
+        /** This invite has closed — it can't be accepted any more. */
+        val closed: String get() = Strings.string("inviteInbox.closed")
+        /** That didn't go through. Try again. */
+        val error: String get() = Strings.string("inviteInbox.error")
     }
     object Auth {
         /** Welcome back */

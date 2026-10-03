@@ -10,6 +10,16 @@ const mockAuth = {
 };
 vi.mock('@/lib/auth/firebase/client', () => ({ getFirebaseClientAuth: vi.fn(() => mockAuth) }));
 
+// The Lite SDK's Timestamp, as far as the inbox reads it.
+const { FakeTimestamp } = vi.hoisted(() => ({
+  FakeTimestamp: class {
+    constructor(readonly ms: number) {}
+    toDate() {
+      return new Date(this.ms);
+    }
+  },
+}));
+
 let invite: Record<string, unknown> = {};
 const tx = {
   get: vi.fn(async () => ({ exists: () => true, data: () => invite })),
@@ -23,11 +33,12 @@ vi.mock('firebase/firestore/lite', () => ({
   orderBy: vi.fn(),
   query: vi.fn(),
   runTransaction: vi.fn(async (_db: unknown, fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
-  Timestamp: class {},
+  Timestamp: FakeTimestamp,
   where: vi.fn(),
 }));
 
-import { acceptInvite, declineInvite } from './invites';
+import { getDocs } from 'firebase/firestore/lite';
+import { acceptInvite, declineInvite, listIncomingPendingInvites } from './invites';
 
 const writes = () => [
   ...tx.set.mock.calls.map(([ref, data]) => ({ op: 'set', path: (ref as { path?: string }).path, data })),
@@ -82,5 +93,36 @@ describe('declineInvite', () => {
     invite = { fromUserId: 'bob', toUserId: 'alice', status: 'withdrawn' };
     await expect(declineInvite('i1')).rejects.toThrow('Invite no longer pending');
     expect(writes()).toEqual([]);
+  });
+});
+
+describe('listIncomingPendingInvites', () => {
+  const at = (iso: string) => new FakeTimestamp(Date.parse(iso));
+  const row = (id: string, data: Record<string, unknown>) => ({
+    id,
+    data: () => ({ fromUserId: 'bob', toUserId: 'alice', message: id, status: 'pending', createdAt: at('2026-09-29T10:00:00Z'), ...data }),
+  });
+
+  // An invite past its "respond by" date is still `pending` until someone
+  // taps Accept (the server then refuses it and closes it as expired): the
+  // inbox must not offer a button that can only fail.
+  it('offers only the pending invites still before their "respond by" date', async () => {
+    vi.mocked(getDocs).mockResolvedValueOnce({
+      docs: [
+        row('open', { expiresAt: at('2026-10-07T00:00:00Z') }),
+        row('expired', { expiresAt: at('2026-10-03T00:00:00Z') }),
+        row('undated', {}),
+        row('this-moment', { expiresAt: at('2026-10-04T12:00:00Z') }),
+      ],
+    } as never);
+    const listed = await listIncomingPendingInvites(new Date('2026-10-04T12:00:00Z'));
+    expect(listed.map((i) => i.id)).toEqual(['open']);
+    expect(listed[0]).toMatchObject({ fromUserId: 'bob', status: 'pending', expiresAt: new Date('2026-10-07T00:00:00Z') });
+  });
+
+  it('asks for nothing signed out', async () => {
+    mockAuth.currentUser = null;
+    expect(await listIncomingPendingInvites()).toEqual([]);
+    expect(getDocs).not.toHaveBeenCalled();
   });
 });

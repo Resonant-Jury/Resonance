@@ -4,12 +4,16 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { ApiError } from '@/lib/db/firestore/client/api';
 import {
   acceptInvite,
   declineInvite,
   listIncomingPendingInvites,
 } from '@/lib/db/firestore/client/invites';
 import type { Invite } from '@/lib/db/types';
+
+/** The server's "no longer open" (declined, withdrawn, or past its date): the invite is gone for good. */
+const isClosed = (err: unknown) => err instanceof ApiError && err.status === 409;
 
 export function InvitesInbox() {
   const t = useTranslations('inviteInbox');
@@ -25,12 +29,12 @@ export function InvitesInbox() {
     try {
       const next = await listIncomingPendingInvites();
       setItems(next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch {
+      setError(t('error'));
     } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [t]);
 
   // Once Firebase Auth has restored the viewer (on a fresh load it hasn't yet
   // at mount, and the query would find no one's invites).
@@ -46,7 +50,9 @@ export function InvitesInbox() {
         await acceptInvite(invite.id);
         setItems((prev) => prev.filter((i) => i.id !== invite.id));
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        // Closed since the list was read (its date passed, or it was withdrawn): it goes, and says why.
+        if (isClosed(err)) setItems((prev) => prev.filter((i) => i.id !== invite.id));
+        setError(t(isClosed(err) ? 'closed' : 'error'));
       } finally {
         setPendingId(null);
       }
@@ -60,8 +66,8 @@ export function InvitesInbox() {
       try {
         await declineInvite(invite.id);
         setItems((prev) => prev.filter((i) => i.id !== invite.id));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+      } catch {
+        setError(t('error'));
       } finally {
         setPendingId(null);
       }
@@ -69,7 +75,8 @@ export function InvitesInbox() {
   }
 
   if (!loaded) return null;
-  if (items.length === 0) return null;
+  // The last invite gone as closed still says why, until the next visit.
+  if (items.length === 0 && !error) return null;
 
   return (
     <section
@@ -80,69 +87,73 @@ export function InvitesInbox() {
         background: 'oklch(95% 0.04 75 / 0.6)',
       }}
     >
-      <h2
-        style={{
-          fontFamily: 'var(--font-heading)',
-          fontSize: 20,
-          fontWeight: 700,
-          marginBottom: 12,
-          color: 'var(--color-text)',
-        }}
-      >
-        {t('title', { count: items.length })}
-      </h2>
-      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {items.map((invite) => (
-          <li
-            key={invite.id}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 12,
-              background: 'oklch(98% 0.01 75)',
-              border: '1px solid oklch(86% 0.02 75)',
-            }}
-          >
-            <div
+      {items.length > 0 && (
+        <h2
+          style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: 20,
+            fontWeight: 700,
+            marginBottom: 12,
+            color: 'var(--color-text)',
+          }}
+        >
+          {t('title', { count: items.length })}
+        </h2>
+      )}
+      {items.length > 0 && (
+        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {items.map((invite) => (
+            <li
+              key={invite.id}
               style={{
-                fontSize: 14,
-                color: 'var(--color-text)',
-                marginBottom: 10,
-                whiteSpace: 'pre-wrap',
+                padding: '12px 14px',
+                borderRadius: 12,
+                background: 'oklch(98% 0.01 75)',
+                border: '1px solid oklch(86% 0.02 75)',
               }}
             >
-              {invite.message || t('emptyMessage')}
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'center',
-                flexWrap: 'wrap',
-              }}
-            >
-              <OrganicButton
-                variant="solid"
-                onClick={() => accept(invite)}
+              <div
+                style={{
+                  fontSize: 14,
+                  color: 'var(--color-text)',
+                  marginBottom: 10,
+                  whiteSpace: 'pre-wrap',
+                }}
               >
-                {pendingId === invite.id ? '…' : t('accept')}
-              </OrganicButton>
-              <OrganicButton
-                variant="text"
-                onClick={() => decline(invite)}
+                {invite.message || t('emptyMessage')}
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                }}
               >
-                {pendingId === invite.id ? '…' : t('decline')}
-              </OrganicButton>
-              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                {t('expiresAt', {
-                  date: invite.expiresAt.toLocaleDateString(),
-                })}
-              </span>
-            </div>
-          </li>
-        ))}
-      </ul>
+                <OrganicButton
+                  variant="solid"
+                  onClick={() => accept(invite)}
+                >
+                  {pendingId === invite.id ? '…' : t('accept')}
+                </OrganicButton>
+                <OrganicButton
+                  variant="text"
+                  onClick={() => decline(invite)}
+                >
+                  {pendingId === invite.id ? '…' : t('decline')}
+                </OrganicButton>
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  {t('expiresAt', {
+                    date: invite.expiresAt.toLocaleDateString(),
+                  })}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
       {error && (
-        <p style={{ marginTop: 10, fontSize: 12, color: 'var(--color-terracotta)' }}>{error}</p>
+        <p role="status" style={{ marginTop: items.length > 0 ? 10 : 0, fontSize: 12, color: 'var(--color-terracotta)' }}>{error}</p>
       )}
     </section>
   );

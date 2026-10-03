@@ -17,6 +17,7 @@ vi.mock('@/lib/db/firestore/client/invites', () => ({
   declineInvite: (id: string) => declineInvite(id),
 }));
 
+import { ApiError } from '@/lib/db/firestore/client/api';
 import { InvitesInbox } from './InvitesInbox';
 
 const invite = (id: string, message: string) => ({
@@ -57,5 +58,42 @@ describe('InvitesInbox', () => {
     expect(declineInvite).toHaveBeenCalledWith('i1');
     expect(acceptInvite).not.toHaveBeenCalled();
     expect(screen.getByText('Hello again')).toBeInTheDocument();
+  });
+
+  // The server refuses an invite closed since the list was read (past its
+  // date, withdrawn) with a 409 in English: the row goes, and the reader is
+  // told why in their own language.
+  it('drops an invite the server says is closed, saying so in the reader\'s words — not the server\'s', async () => {
+    acceptInvite.mockRejectedValueOnce(new ApiError(409, 'conflict', 'This invite has expired.'));
+    Object.assign(auth, { user: { id: 'alice' }, loading: false });
+    renderWithIntl(<InvitesInbox />);
+    await screen.findByText('Loved your walk card');
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0]);
+    await waitFor(() => expect(screen.queryByText('Loved your walk card')).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent("This invite has closed — it can't be accepted any more.");
+    expect(screen.queryByText('This invite has expired.')).not.toBeInTheDocument();
+    expect(screen.getByText('Hello again')).toBeInTheDocument();
+  });
+
+  it('still says why when the last invite turns out closed', async () => {
+    listIncomingPendingInvites.mockResolvedValue([invite('i1', 'Loved your walk card')]);
+    acceptInvite.mockRejectedValueOnce(new ApiError(409, 'conflict', 'This invite is no longer open.'));
+    Object.assign(auth, { user: { id: 'alice' }, loading: false });
+    renderWithIntl(<InvitesInbox />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+    expect(await screen.findByRole('status')).toHaveTextContent("This invite has closed — it can't be accepted any more.");
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the invite on any other failure, with a plain "try again"', async () => {
+    acceptInvite.mockRejectedValueOnce(new ApiError(500, 'internal', 'Something broke.'));
+    Object.assign(auth, { user: { id: 'alice' }, loading: false });
+    renderWithIntl(<InvitesInbox />);
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Accept' }))[0]);
+    expect(await screen.findByRole('status')).toHaveTextContent("That didn't go through. Try again.");
+    expect(screen.getByText('Loved your walk card')).toBeInTheDocument();
+    expect(screen.queryByText('Something broke.')).not.toBeInTheDocument();
   });
 });
