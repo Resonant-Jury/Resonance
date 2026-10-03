@@ -20,6 +20,16 @@ enum Launch {
     static let iconExit: TimeInterval = 0.2
     /// How far the waves grow as they go.
     static let iconGrowth: CGFloat = 1.12
+
+    /// The first screen is the page itself, for the cover to dissolve into: not the loader while
+    /// the account restores, nor the wait for a profile this device hasn't seen.
+    static func ready(_ phase: SessionStore.Phase, _ landing: SessionStore.Landing) -> Bool {
+        switch phase {
+        case .restoring: false
+        case .signedOut: true
+        case .signedIn: landing != .pending
+        }
+    }
 }
 
 extension View {

@@ -11,15 +11,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var launchCovering = true
 
-    /// The first screen is the page itself: not the loader while the account restores, nor the
-    /// wait for a profile this device hasn't seen.
-    private var launchReady: Bool {
-        switch session.phase {
-        case .restoring: false
-        case .signedOut: true
-        case .signedIn: session.landing != .pending
-        }
-    }
+    private var launchReady: Bool { Launch.ready(session.phase, session.landing) }
 
     /// Under the launch cover the first screen simply is; a crossfade would show the loader leaving as it dissolves.
     private var phaseChange: Animation? { launchCovering ? nil : .easeInOut(duration: 0.25) }
