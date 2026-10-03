@@ -67,6 +67,16 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // Anonymous and shown to its author's connections only — what no card may
+    // become: whether a reader could open it would turn on whether they are
+    // connected to its author, and blocking someone ends the connection, so
+    // the card vanishing as they blocked someone would name its author. An
+    // anonymous card is public or private (the server holds publishing, a
+    // PATCH and an applied edit to the same: lib/db/firestore/cardContent).
+    function anonymousForConnections(d) {
+      return d.get("anonymous", false) == true && d.get("visibility", "") == "connections";
+    }
+
     // A string field that is absent, or no longer than `max`.
     function optionalString(data, key, max) {
       return !(key in data) || (data[key] is string && data[key].size() <= max);
@@ -222,15 +232,19 @@ service cloud.firestore {
         && optionalString(request.resource.data, "originalLocale", 10)
         && (!("translations" in request.resource.data) || request.resource.data.translations.size() == 0)
         && validCardContent(request.resource.data, request.resource.data.keys())
+        && !anonymousForConnections(request.resource.data)
         && answersReadableCard(request.resource.data);
       // The author edits the content. Unpublishing, re-dating, re-slugging,
-      // re-attributing or re-pointing a card are not client writes.
+      // re-attributing or re-pointing a card are not client writes. Its byline
+      // and visibility never change into anonymous-for-connections; a card
+      // already that way (from before) stays editable in everything else.
       allow update: if signedIn()
         && resource.data.authorId == request.auth.uid
         && changedKeys().hasOnly([
           "thoughtCore", "story", "tags", "visibility", "anonymous", "media", "accentHue", "updatedAt"
         ])
-        && validCardContent(request.resource.data, changedKeys());
+        && validCardContent(request.resource.data, changedKeys())
+        && (!anonymousForConnections(request.resource.data) || !changedKeys().hasAny(["anonymous", "visibility"]));
       // Authors may delete any of their cards (drafts and published alike) —
       // the card box has a delete action. Dangling references (cardLinks,
       // resonance referenceCardId) degrade gracefully: readers resolve the
@@ -289,11 +303,22 @@ service cloud.firestore {
       // may carry its author's uid, which lets the account purge find one
       // whose card is gone, and lets its author still delete it then.
       match /edits/{editId} {
+        function card() {
+          return get(/databases/$(database)/documents/cards/$(cardId)).data;
+        }
         function ownsCard() {
-          return get(/databases/$(database)/documents/cards/$(cardId)).data.authorId == request.auth.uid;
+          return card().authorId == request.auth.uid;
+        }
+        // What applying the edit leaves the card as (editedAudience in
+        // lib/db/firestore/cardContent): the edit's byline, its visibility or
+        // the card's.
+        function leavesAnonymousForConnections(e) {
+          return e.get("anonymous", false) == true && e.get("visibility", card().get("visibility", "")) == "connections";
         }
         allow read: if signedIn() && ownsCard();
-        // A whole working copy, replaced each time (never merged).
+        // A whole working copy, replaced each time (never merged). It may keep
+        // a card anonymous and for connections only that already is (an older
+        // card stays editable), never make one so.
         allow create, update: if signedIn()
           && editId == "current"
           && ownsCard()
@@ -301,7 +326,8 @@ service cloud.firestore {
             "thoughtCore", "story", "tags", "visibility", "anonymous", "media", "accentHue", "updatedAt", "authorId"
           ])
           && request.resource.data.get("authorId", request.auth.uid) == request.auth.uid
-          && validCardContent(request.resource.data, request.resource.data.keys());
+          && validCardContent(request.resource.data, request.resource.data.keys())
+          && (!leavesAnonymousForConnections(request.resource.data) || anonymousForConnections(card()));
         allow delete: if signedIn()
           && (resource.data.get("authorId", "") == request.auth.uid || ownsCard());
       }

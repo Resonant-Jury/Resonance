@@ -1,5 +1,6 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { assignSlug } from '@/lib/ai/assignSlug';
+import { ANONYMOUS_VISIBILITY_MESSAGE, anonymousForConnections } from '@/lib/db/firestore/cardContent';
 import { ApiFailure } from './http';
 import { reachable, tryReachResonance } from './resonate';
 import { summaryFields } from './summary';
@@ -43,6 +44,10 @@ function within<T>(p: Promise<T>, ms: number): Promise<T | typeof LATE> {
  * the connection. A resonator without a pen name reaches no one either; the
  * card is published all the same.
  *
+ * An anonymous card is public or private: one set to be anonymous and for
+ * connections only is refused (`invalid_request`, see
+ * anonymousForConnections), and nothing is written.
+ *
  * The slug and the resonance are made side by side. The slug is waited for
  * `slugWaitMs` at most: past that the answer says `slug: null` (the id is a
  * working URL) and the slug is written when it comes (`pendingSlug`).
@@ -64,6 +69,8 @@ export async function publishCard(
     if (!snap.exists || snap.get('authorId') !== uid) throw new ApiFailure('not_found', 'No such card.');
     if (!String(snap.get('thoughtCore') ?? '').trim()) throw new ApiFailure('invalid_request', 'A card needs a title before it is published.');
     const firstPublish = snap.get('publishedAt') == null;
+    // Never newly published anonymous and for connections only (a card published so before is left as it is).
+    if (firstPublish && anonymousForConnections(snap.data()!)) throw new ApiFailure('invalid_request', ANONYMOUS_VISIBILITY_MESSAGE);
     tx.set(
       ref,
       {

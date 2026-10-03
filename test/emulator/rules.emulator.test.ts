@@ -755,6 +755,63 @@ describe('cards: what the author may write', () => {
       await assertFails(setDoc(doc(as('alice'), 'cards', ID, 'edits', 'other'), working));
     });
 
+    // An anonymous card is public or private: one for connections only would
+    // vanish for a reader who blocked its author (blocking ends the
+    // connection), naming them.
+    describe('anonymous and for connections only', () => {
+      const OLD = 'oooooooooooooooooooo';
+      beforeEach(async () => {
+        await seed(async (db) => {
+          await setDoc(doc(db, 'cards', 'anonPub'), publishedCard('alice', { anonymous: true }));
+          await setDoc(doc(db, 'cards', 'namedConn'), publishedCard('alice', { visibility: 'connections' }));
+          // From before the rule: left as it is.
+          await setDoc(doc(db, 'cards', OLD), publishedCard('alice', { anonymous: true, visibility: 'connections' }));
+        });
+      });
+
+      it('is no new draft', async () => {
+        const db = as('alice');
+        await assertFails(setDoc(doc(collection(db, 'cards')), draft('alice', { anonymous: true, visibility: 'connections' })));
+        await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice', { anonymous: true, visibility: 'public' })));
+        await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice', { anonymous: true, visibility: 'private' })));
+        await assertSucceeds(setDoc(doc(collection(db, 'cards')), draft('alice', { anonymous: false, visibility: 'connections' })));
+      });
+
+      it('is what no update makes a card — by its byline, its visibility or both', async () => {
+        const db = as('alice');
+        await assertFails(updateDoc(doc(db, 'cards', 'anonPub'), { visibility: 'connections', updatedAt: serverTimestamp() }));
+        await assertFails(updateDoc(doc(db, 'cards', 'namedConn'), { anonymous: true, updatedAt: serverTimestamp() }));
+        await assertFails(updateDoc(doc(db, 'cards', ID), { anonymous: true, visibility: 'connections', updatedAt: serverTimestamp() }));
+        // The other way round, and anything else, as before.
+        await assertSucceeds(updateDoc(doc(db, 'cards', 'anonPub'), { visibility: 'private', updatedAt: serverTimestamp() }));
+        await assertSucceeds(updateDoc(doc(db, 'cards', 'namedConn'), { story: 'more', updatedAt: serverTimestamp() }));
+      });
+
+      it('keeps an older card that already is editable in everything else, and lets it out either way', async () => {
+        const db = as('alice');
+        const old = doc(db, 'cards', OLD);
+        await assertSucceeds(setDoc(old, { thoughtCore: 'Edited', story: 'Edited', updatedAt: serverTimestamp() }, { merge: true }));
+        // The editors write the two fields back as they are: no change.
+        await assertSucceeds(setDoc(old, { visibility: 'connections', anonymous: true, story: 'Again', updatedAt: serverTimestamp() }, { merge: true }));
+        await assertSucceeds(updateDoc(old, { visibility: 'public', updatedAt: serverTimestamp() }));
+        await assertFails(updateDoc(old, { visibility: 'connections', updatedAt: serverTimestamp() }));
+      });
+
+      it("is no pending edit's outcome — unless the card already is, and the edit keeps it", async () => {
+        const db = as('alice');
+        const edit = (id: string) => doc(db, 'cards', id, 'edits', 'current');
+        const copy = { thoughtCore: 'Revised', story: 'Still writing', tags: ['a'], updatedAt: serverTimestamp() };
+        await assertFails(setDoc(edit('anonPub'), { ...copy, visibility: 'connections', anonymous: true }));
+        await assertFails(setDoc(edit('namedConn'), { ...copy, visibility: 'connections', anonymous: true }));
+        // No visibility in the copy: applying it keeps the card's (connections).
+        await assertFails(setDoc(edit('namedConn'), { ...copy, anonymous: true }));
+        await assertSucceeds(setDoc(edit('namedConn'), { ...copy, visibility: 'connections', anonymous: false }));
+        await assertSucceeds(setDoc(edit('anonPub'), { ...copy, visibility: 'private', anonymous: true }));
+        await assertSucceeds(setDoc(edit(OLD), { ...copy, visibility: 'connections', anonymous: true }));
+        await assertSucceeds(setDoc(edit(OLD), { ...copy, anonymous: true }));
+      });
+    });
+
     it("lets its author clear a working copy whose card is gone, when it names them", async () => {
       await seed(async (db) => {
         await setDoc(doc(db, 'cards', 'gone', 'edits', 'current'), { thoughtCore: 'orphan', authorId: 'alice' });

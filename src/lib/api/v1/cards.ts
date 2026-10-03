@@ -1,4 +1,5 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import { ANONYMOUS_VISIBILITY_MESSAGE, anonymousForConnections, editedAudience } from '@/lib/db/firestore/cardContent';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import { getVectorStore, type IVectorStore } from '@/lib/recommend/vectorStore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
@@ -31,7 +32,10 @@ export interface UpdatedCard {
 
 /**
  * Change your card's visibility and/or anonymity (only the fields sent).
- * Someone else's card is as absent as a missing one. A pending edit
+ * Someone else's card is as absent as a missing one. An anonymous card is
+ * public or private: a change that would leave it anonymous and for
+ * connections only is refused (`invalid_request`, anonymousForConnections) —
+ * one already that way changes nothing until either is sent. A pending edit
  * (edits/current) carries the same two fields: it takes the change too, or
  * applying it later would quietly undo it. The recommendation vectors keep
  * their own copy of the visibility (the candidate pool's filter): a new one
@@ -61,14 +65,23 @@ export async function updateCard(
     if (input.visibility != null && input.visibility !== snap.get('visibility')) patch.visibility = input.visibility;
     if (input.anonymous != null && input.anonymous !== (snap.get('anonymous') === true)) patch.anonymous = input.anonymous;
     const changed = Object.keys(patch).length > 0;
+    const after = { ...snap.data()!, ...patch };
+    // Never into anonymous and for connections only; a card already that way keeps it until changed.
+    if (changed && anonymousForConnections(after)) throw new ApiFailure('invalid_request', ANONYMOUS_VISIBILITY_MESSAGE);
     if (changed) {
       // A published card's story is as read here: its list summary is restated
       // with the new updatedAt (./summary). A draft gets one when it is published.
       const summary = snap.get('publishedAt') != null ? summaryFields(snap.get('story')) : {};
       tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp(), ...summary });
-      if (edit.exists) tx.update(editRef, patch);
+      // The pending edit takes the change — and the card's other half of it,
+      // where the change alone would leave the edit anonymous and for
+      // connections only (applying that would be refused).
+      if (edit.exists) {
+        const both = { visibility: after.visibility, anonymous: after.anonymous === true };
+        tx.update(editRef, anonymousForConnections(editedAudience({ ...edit.data(), ...patch }, after)) ? both : patch);
+      }
     }
-    return { before: snap.data()!, data: { ...snap.data()!, ...patch }, changed, author: me.data() };
+    return { before: snap.data()!, data: after, changed, author: me.data() };
   });
   const card = mapCard(id, data);
   if (data.visibility !== before.visibility) {

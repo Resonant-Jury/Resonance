@@ -167,7 +167,9 @@ export function buildOpenApi(): Json {
             'A published resonance made public under your name — published private, connections-only or anonymous, it reached ' +
             "no one — reaches the original's author after the response, as publishing it so would have: you two connected " +
             '(not when the original is anonymous), their bell rung — once per reader and card, whatever path rang it first; ' +
-            'never across a block, nor without a pen name. The answer never waits on it.',
+            'never across a block, nor without a pen name. The answer never waits on it. An anonymous card is public or ' +
+            'private: a change that would leave it anonymous and for connections only is `400 invalid_request` ("An anonymous ' +
+            'card is public or private."); a card already that way stays so until either field changes.',
           parameters: [pathParam('key', 'The card id')],
           requestBody: { required: true, ...json(ref('UpdateCardRequest')) },
           responses: { '200': { description: 'The card as your card box shows it', ...json(ref('FeedCard')) }, ...errors(400, 401, 404) },
@@ -212,7 +214,8 @@ export function buildOpenApi(): Json {
             "A resonance published public under your name reaches the original's author, the first time only: you two connected " +
             '(not when the original is anonymous) and their bell rung — once per reader and card, whatever path rang it first; ' +
             'never across a block, nor without a pen name. A private, connections-only or anonymous one reaches no one. Either ' +
-            'way the card is published: reaching out never fails it.',
+            'way the card is published: reaching out never fails it. An anonymous card is public or private: a draft set to be ' +
+            'anonymous and for connections only is `400 invalid_request` ("An anonymous card is public or private.") and stays a draft.',
           parameters: [pathParam('key', 'The card id')],
           responses: { '200': { description: 'OK', ...json(ref('PublishResponse')) }, ...errors(400, 401, 404) },
         },
@@ -223,7 +226,9 @@ export function buildOpenApi(): Json {
           summary: 'Apply your pending edit (cards/{id}/edits/current) to your published card, and clear it',
           description:
             "An edit that makes a published resonance public under your name reaches the original's author after the response, " +
-            'as a PATCH doing so would (see updateCard).',
+            'as a PATCH doing so would (see updateCard). An edit that would leave the card anonymous and for connections only is ' +
+            '`400 invalid_request` ("An anonymous card is public or private."), the card and the edit left as they were — unless ' +
+            'the card already is so and the edit keeps both.',
           parameters: [pathParam('key', 'The card id')],
           responses: { '200': { description: 'OK', ...json(ref('ApplyEditResponse')) }, ...errors(400, 401, 404) },
         },

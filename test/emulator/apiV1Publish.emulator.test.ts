@@ -107,6 +107,21 @@ describe('publishCard', () => {
     expect((await db.doc('cards/anon').get()).get('anonymous')).toBe(true);
   });
 
+  it('refuses a card set to be anonymous and for connections only, publishing nothing: an anonymous card is public or private', async () => {
+    await draft('c1', { anonymous: true, visibility: 'connections' });
+    const e = await failure(publishCard(db, 'alice', 'c1', slugBase));
+    expect([e.code, e.message]).toEqual(['invalid_request', 'An anonymous card is public or private.']);
+    expect((await db.doc('cards/c1').get()).data()).toMatchObject({ publishedAt: null });
+    expect((await db.doc('cards/c1').get()).get('slug')).toBeUndefined();
+    for (const visibility of ['public', 'private']) {
+      await draft(`anon-${visibility}`, { anonymous: true, visibility });
+      expect((await publishCard(db, 'alice', `anon-${visibility}`, slugBase)).firstPublish).toBe(true);
+    }
+    // One published so before the rule is left as it is: publishing it again changes nothing.
+    await db.doc('cards/old').set({ authorId: 'alice', thoughtCore: '舊', story: '...', visibility: 'connections', anonymous: true, publishedAt: Timestamp.now() });
+    expect((await publishCard(db, 'alice', 'old', slugBase)).firstPublish).toBe(false);
+  });
+
   it("is not_found for someone else's card, and refuses an untitled one", async () => {
     await draft('c1');
     expect((await failure(publishCard(db, 'bob', 'c1', slugBase))).code).toBe('not_found');

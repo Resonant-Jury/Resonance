@@ -4,8 +4,9 @@
  * or mismatched pen names, self-granted badges, card links pointing at the
  * wrong author, bells pinned to the future — and content past the limits the
  * rules now hold writes to (an older card past them can't be edited through
- * those fields until trimmed). It changes nothing — it lists what to look
- * at, and each finding says what fixing it means.
+ * those fields until trimmed), and cards (or pending edits) anonymous and for
+ * connections only, which nothing may make a card now. It changes nothing —
+ * it lists what to look at, and each finding says what fixing it means.
  *
  *   npx tsx scripts/integrity.ts               production (credentials from .env)
  *   npx tsx scripts/integrity.ts --emulator    the local emulators
@@ -15,6 +16,7 @@
 import 'dotenv/config';
 import { emulatorEnv, EMULATOR_PROJECT_ID } from './emulator-env.mjs';
 import { formerPublicBases, publicBases, storageKeyOf } from '../src/lib/storage/publicUrl';
+import { anonymousForConnections, editedAudience } from '../src/lib/db/firestore/cardContent';
 
 const useEmulator = process.argv.includes('--emulator');
 /** A publish date or bell this far ahead of now can only have been written by hand. */
@@ -64,6 +66,7 @@ async function main() {
   const foreignCover: string[] = [];
   const ownedKeyAnonymous: string[] = [];
   const coverOnFormerHost: string[] = [];
+  const anonymousConnections: string[] = [];
   // Our storage: R2_PUBLIC_BASE, and the hosts it was served from before (R2_FORMER_PUBLIC_BASES).
   const storageBases = publicBases();
   const formerBases = formerPublicBases();
@@ -92,6 +95,7 @@ async function main() {
     if (at != null && !(at instanceof Timestamp)) badDate.push(d.id);
     else if (at instanceof Timestamp && at.toMillis() > now + FUTURE_SLACK_MS) futureDate.push(d.id);
     if (typeof d.get('anonymous') !== 'boolean') noAnonymous.push(d.id);
+    if (anonymousForConnections(d.data())) anonymousConnections.push(d.id);
     if (!/^[A-Za-z0-9]{20}$/.test(d.id)) oddId.push(d.id);
     const slug = d.get('slug');
     if (typeof slug === 'string' && slug) bySlug.set(slug, [...(bySlug.get(slug) ?? []), d.id]);
@@ -106,6 +110,20 @@ async function main() {
   add('cards: a cover not on our storage (R2_PUBLIC_BASE, or a former base)', 'look at it: a picture elsewhere is fetched by every reader', foreignCover);
   add('cards: a cover still on a former storage host (R2_FORMER_PUBLIC_BASES)', 'npx tsx scripts/backfill.ts rehost-images --apply', coverOnFormerHost);
   add("cards: anonymous, with a cover whose key names its author", 'npx tsx scripts/backfill.ts rekey-images --apply', ownedKeyAnonymous);
+  // No card becomes one now (the rules, publish, PATCH, an applied edit); these are from before, and are left as they are.
+  add('cards: anonymous and for connections only (a block would show who wrote it)',
+    'ask its author to make it public or private, or to take the byline back; never change it for them', anonymousConnections);
+
+  // --- pending edits ---
+  // What applying each would leave its card as (editedAudience, as lib/api/v1/edits applies it); applying one so is refused.
+  const edits = await db.collectionGroup('edits').select('visibility', 'anonymous').get();
+  const editsAnonymousConnections = edits.docs.flatMap((d) => {
+    const owner = card.get(d.ref.parent.parent?.id ?? '');
+    if (!owner || !anonymousForConnections(editedAudience(d.data(), owner.data()))) return [];
+    return [anonymousForConnections(owner.data()) ? `${d.ref.path} (its card already is: it applies)` : `${d.ref.path} (applying it is refused)`];
+  });
+  add('pending edits: would leave their card anonymous and for connections only',
+    'its author picks public or private in the editor before saving; never change it for them', editsAnonymousConnections);
   console.log(`(the longest story: ${longestStory} UTF-16 units; the rules take 200000)`);
 
   // --- users ---

@@ -1,6 +1,6 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
-import { cardContentProblem } from '@/lib/db/firestore/cardContent';
+import { ANONYMOUS_VISIBILITY_MESSAGE, anonymousForConnections, cardContentProblem, editedAudience } from '@/lib/db/firestore/cardContent';
 import { ApiFailure } from './http';
 import { becameReachable } from './resonate';
 import { summaryFields } from './summary';
@@ -17,7 +17,6 @@ export interface ApplyEditResult {
   reaches: boolean;
 }
 
-const VISIBILITIES = new Set(['public', 'connections', 'private']);
 
 /**
  * Apply your pending edit to a published card, when an editor (web or app)
@@ -36,7 +35,10 @@ const VISIBILITIES = new Set(['public', 'connections', 'private']);
  *
  * The buffer carries the card's visibility and byline too: a resonance it
  * makes public under its writer's name reaches the original's author as a
- * PATCH doing so would (`reaches`, see updateCard).
+ * PATCH doing so would (`reaches`, see updateCard). An edit that would leave
+ * the card anonymous and for connections only is refused, as a PATCH is
+ * (anonymousForConnections) — unless the card is that way already and the
+ * edit keeps both as they are, so an older card stays editable.
  */
 export async function applyCardEdit(db: Firestore, uid: string, id: string): Promise<ApplyEditResult> {
   const ref = db.doc(`cards/${id}`);
@@ -69,11 +71,13 @@ export async function applyCardEdit(db: Firestore, uid: string, id: string): Pro
       ...content,
       // What lists show of the new story, so they needn't read it (./summary).
       ...summaryFields(story),
-      visibility: VISIBILITIES.has(e.visibility) ? e.visibility : snap.get('visibility'),
-      anonymous: e.anonymous === true,
+      ...editedAudience(e, snap.data()!),
       media: content.media ?? FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     };
+    // Never into anonymous and for connections only; a card already that way stays editable in everything else.
+    const moved = fields.visibility !== snap.get('visibility') || fields.anonymous !== (snap.get('anonymous') === true);
+    if (moved && anonymousForConnections(fields)) throw new ApiFailure('invalid_request', ANONYMOUS_VISIBILITY_MESSAGE);
     tx.set(ref, fields, { merge: true });
     tx.delete(editRef);
     // Its page under both names, its author's profile (which lists it — unless
