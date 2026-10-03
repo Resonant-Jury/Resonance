@@ -66,4 +66,56 @@ import Testing
         #expect(ChatLinks.previewImage("//evil.test/api/link-image?u=a", origin: origin) == nil)
         #expect(ChatLinks.previewImage(nil, origin: origin) == nil)
     }
+
+    // The cases below mirror Android's LinkifyTest where its rules are the server's.
+
+    @Test func anEmojiAnArrowOrACurlyQuoteEndsTheLink() {
+        for written in ["https://example.com/a🙂", "https://example.com/a→b", "\u{201C}https://example.com/a\u{201D}",
+                        "\u{AB}https://example.com/a\u{BB}", "https://example.com/a\u{2026}"] {
+            #expect(ChatLinks.links(in: written).map(\.url.absoluteString) == ["https://example.com/a"], "\(written)")
+        }
+    }
+
+    @Test func aLinkDoesntStartAfterAPathOrAnAddressCharacter() {
+        #expect(texts("foo/https://example.com and a_https://example.com and a%https://example.com and a\\https://example.com").isEmpty)
+        #expect(texts("-https://example.com and .www.example.com").isEmpty)
+        #expect(ChatLinks.links(in: "see:https://example.com").map(\.url.absoluteString) == ["https://example.com/"])
+    }
+
+    @Test func anUnbalancedClosingBraceIsNotPartOfTheLinkAndBracesAreEscaped() {
+        #expect(ChatLinks.links(in: "{https://example.com/a}").map(\.url.absoluteString) == ["https://example.com/a"])
+        #expect(ChatLinks.links(in: "https://example.com/{id}").map(\.url.absoluteString) == ["https://example.com/%7Bid%7D"])
+    }
+
+    @Test func invisibleAndDirectionControlsEndTheLink() {
+        // A zero-width space or a right-to-left override can't hide the rest of a lookalike inside a link.
+        #expect(ChatLinks.links(in: "https://example.com\u{200B}.evil.com").map(\.url.absoluteString) == ["https://example.com/"])
+        #expect(texts("https://exa\u{202E}mple.com").isEmpty)
+    }
+
+    @Test func anEmptyPathBecomesASlashAndAQueryOrFragmentKeepsIt() {
+        #expect(ChatLinks.links(in: "https://example.com").map(\.url.absoluteString) == ["https://example.com/"])
+        #expect(ChatLinks.links(in: "https://example.com?a=1").map(\.url.absoluteString) == ["https://example.com/?a=1"])
+        #expect(ChatLinks.links(in: "https://example.com#top").map(\.url.absoluteString) == ["https://example.com/#top"])
+    }
+
+    @Test func aBackslashEndsTheLink() {
+        // Browsers read a backslash as a slash: `https://evil.com\@good.com` leads to evil.com.
+        #expect(ChatLinks.links(in: "https://evil.com\\@good.com").map(\.host) == ["evil.com"])
+        #expect(ChatLinks.parse("https://evil.com\\@good.com") == nil)
+    }
+
+    @Test func everyLinkOfAMessageIsFoundInOrder() {
+        let text = "a https://one.example.com/x, b www.two.example.com. c http://three.example.org/(y)"
+        #expect(ChatLinks.links(in: text).map(\.url.absoluteString)
+            == ["https://one.example.com/x", "https://www.two.example.com/", "http://three.example.org/(y)"])
+        #expect(ChatLinks.links(in: "nothing to see").isEmpty)
+    }
+
+    @Test func aSchemeOrHostInTheWrongCaseIsStillAnOrdinaryLink() {
+        let link = ChatLinks.parse("HTTPS://EXAMPLE.COM")
+        #expect(link?.url.absoluteString == "https://example.com/")
+        #expect(link?.host == "example.com")
+        #expect(link?.suspicious == false)
+    }
 }
