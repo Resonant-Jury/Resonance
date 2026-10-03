@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,6 +41,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -59,6 +62,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.resonance.design.generated.Tokens
+import com.resonance.geometry.penWave
 import com.resonance.geometry.wavyVertical
 import com.resonance.kit.story.InlineRun
 import com.resonance.kit.story.ProseMetrics
@@ -99,13 +103,66 @@ private class TypefaceWeightSpan(private val typeface: Typeface) : MetricAffecti
     override fun updateMeasureState(tp: TextPaint) { tp.typeface = typeface }
 }
 
-/** A link in running text: terracotta, underlined; taps are resolved by [RichCssText]. */
+/**
+ * A link in running text: terracotta, with no straight underline — [RichCssText]
+ * draws the pen's wave under each line the link covers — and taps resolved there.
+ */
 class LinkSpan(val url: String, private val color: Int) : CharacterStyle() {
     override fun updateDrawState(tp: TextPaint) {
         tp.color = color
-        tp.isUnderlineText = true
     }
 }
+
+/** One line's share of a link: where its stroke runs, in layout pixels. */
+data class LinkFragment(val left: Float, val right: Float, val baseline: Float)
+
+/**
+ * The line fragments of the text range [start, end): one per line it touches
+ * (a link that wraps gets a stroke under each part). [lineOf], [lineStart] and
+ * [lineVisibleEnd] (the line's end without its trailing space), [xStart],
+ * [xEnd] (told the line, since an offset on a line break sits on two) and [baselineOf] are a text Layout's own answers, so this stays testable
+ * without a Layout.
+ */
+fun linkFragments(
+    start: Int,
+    end: Int,
+    lineOf: (Int) -> Int,
+    lineStart: (Int) -> Int,
+    lineVisibleEnd: (Int) -> Int,
+    xStart: (Int) -> Float,
+    xEnd: (line: Int, offset: Int) -> Float,
+    baselineOf: (Int) -> Float,
+): List<LinkFragment> {
+    if (end <= start) return emptyList()
+    return (lineOf(start)..lineOf(end - 1)).mapNotNull { line ->
+        val a = max(start, lineStart(line))
+        val b = min(end, lineVisibleEnd(line))
+        if (b <= a) return@mapNotNull null
+        val left = xStart(a)
+        val right = xEnd(line, b)
+        if (right <= left) null else LinkFragment(min(left, right), max(left, right), baselineOf(line))
+    }
+}
+
+/** A link's strokes, ready to draw: its url (for the press state), wave paths and where they sit. */
+private class LinkStroke(val url: String, val x: Float, val y: Float, val wave: androidx.compose.ui.graphics.Path)
+
+private fun linkStrokes(layout: Layout, spanned: Spanned, sizePx: Float, density: Float): List<LinkStroke> =
+    spanned.getSpans(0, spanned.length, LinkSpan::class.java).flatMap { span ->
+        val frags = linkFragments(
+            spanned.getSpanStart(span), spanned.getSpanEnd(span),
+            layout::getLineForOffset, layout::getLineStart, layout::getLineVisibleEnd,
+            { layout.getPrimaryHorizontal(it) },
+            { line, o -> if (o == layout.getLineEnd(line)) layout.getLineRight(line) else layout.getPrimaryHorizontal(o) },
+            { layout.getLineBaseline(it).toFloat() },
+        )
+        frags.mapIndexed { i, f ->
+            // Seeded by the link, and by the fragment so a wrapped link's parts don't repeat.
+            val wave = penWave(((f.right - f.left) / density).toDouble(), (seedFromString(span.url) + i).toDouble()).toPath(density)
+            // Under the letters, not under the line box: 0.2em below the baseline, like OrganicLink.
+            LinkStroke(span.url, f.left, f.baseline + sizePx * 0.2f, wave)
+        }
+    }
 
 private fun buildRichLayout(runs: List<InlineRun>, style: ProseStyle, widthPx: Int, density: Density): Pair<StaticLayout, Spanned> {
     val base = AppFonts.typeface(style.family, style.weight)
@@ -153,19 +210,36 @@ fun RichCssText(runs: List<InlineRun>, style: ProseStyle, onOpenUrl: (String) ->
         val widthPx = constraints.maxWidth
         val (layout, spanned) = remember(runs, style, widthPx, density, scaled.fontScale) { buildRichLayout(runs, style, widthPx, scaled) }
         val plain = remember(runs) { runs.joinToString("") { it.text } }
+        val sizePx = scaled.cssFontPx(style.size)
+        val strokes = remember(layout, spanned, sizePx, density) { linkStrokes(layout, spanned, sizePx, density) }
+        var pressedUrl by remember { mutableStateOf<String?>(null) }
         Box(
             Modifier
                 .width(Dp(layout.width / density))
                 .height(Dp(layout.height / density))
                 .semantics { this.text = AnnotatedString(plain) }
                 .pointerInput(layout) {
-                    detectTapGestures { p ->
+                    fun linkAt(p: androidx.compose.ui.geometry.Offset): LinkSpan? {
                         val line = layout.getLineForVertical(p.y.roundToInt())
                         val offset = layout.getOffsetForHorizontal(line, p.x)
-                        spanned.getSpans(offset, offset, LinkSpan::class.java).firstOrNull()?.let { onOpenUrl(it.url) }
+                        return spanned.getSpans(offset, offset, LinkSpan::class.java).firstOrNull()
                     }
+                    detectTapGestures(
+                        onPress = { p ->
+                            // The pen presses harder while the finger is down: the web's hover.
+                            pressedUrl = linkAt(p)?.url
+                            tryAwaitRelease()
+                            pressedUrl = null
+                        },
+                    ) { p -> linkAt(p)?.let { onOpenUrl(it.url) } }
                 }
-                .drawBehind { drawIntoCanvas { layout.draw(it.nativeCanvas) } },
+                .drawBehind {
+                    drawIntoCanvas { layout.draw(it.nativeCanvas) }
+                    val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    strokes.forEach { s ->
+                        translate(s.x, s.y) { drawPath(s.wave, Tokens.Terracotta, alpha = if (s.url == pressedUrl) 1f else 0.7f, style = pen) }
+                    }
+                },
         )
     }
 }
