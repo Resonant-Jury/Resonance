@@ -83,6 +83,106 @@ describe('sendNote', () => {
     expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
   });
 
+  describe('in the thread', () => {
+    it("opens the two people's conversation with the note as a message on the author's card, ringing once through the chat push", async () => {
+      const sent = await sendNote(db, 'alice', { cardId: 'walk', text: '謝謝你寫下這段' });
+      const convo = (await db.doc('conversations/alice_bob').get()).data()!;
+      expect(convo).toMatchObject({
+        participants: ['alice', 'bob'],
+        lastMessage: { text: '謝謝你寫下這段', senderId: 'alice' },
+        unread: { alice: 0, bob: 1 },
+      });
+      expect(convo.createdAt).toBeInstanceOf(Timestamp);
+      expect(convo.updatedAt).toBeInstanceOf(Timestamp);
+      // The message is the note's own id: the note and its message name each other, and `?note=` finds it.
+      const message = (await db.doc(`conversations/alice_bob/messages/${sent.id}`).get()).data()!;
+      const { sentAt, ...rest } = message;
+      expect(rest).toEqual({ senderId: 'alice', text: '謝謝你寫下這段', cardRef: 'walk', kind: 'note' });
+      expect(sentAt).toBeInstanceOf(Timestamp);
+      // No noteRef: on a message that means "answers a note" (older builds would label it so).
+      expect(message).not.toHaveProperty('noteRef');
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(1);
+
+      // The note's bell row lists it, already pushed; no "new conversation" bell beside it.
+      const bells = await docs('notifications');
+      expect(bells).toHaveLength(1);
+      expect(bells[0]).toMatchObject({ userId: 'bob', type: 'note', readAt: null, payload: { noteId: sent.id, cardId: 'walk' } });
+      expect((bells[0] as { pushedAt?: unknown }).pushedAt).toBeInstanceOf(Timestamp);
+      expect(sent.push).toEqual({ conversationId: 'alice_bob', messageId: sent.id, from: 'alice', to: 'bob' });
+      expect(sent.notificationId).toBe(bells[0].id);
+    });
+
+    it('cuts the conversation\'s preview of a long note by characters, keeping the whole note in the message', async () => {
+      const text = '🌧️'.repeat(150);
+      const { id } = await sendNote(db, 'alice', { cardId: 'walk', text });
+      expect(Array.from((await db.doc('conversations/alice_bob').get()).get('lastMessage.text'))).toHaveLength(120);
+      expect((await db.doc(`conversations/alice_bob/messages/${id}`).get()).get('text')).toBe(text);
+    });
+
+    it('joins a conversation already going: its date kept, one more unread for the author, the note its newest message', async () => {
+      await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
+      const began = await sendMessage(db, 'bob', { to: 'alice', text: '你好' });
+      const createdAt = (await db.doc('conversations/alice_bob').get()).get('createdAt') as Timestamp;
+      await sendMessage(db, 'bob', { to: 'alice', text: '在嗎' });
+      await sendMessage(db, 'alice', { to: 'bob', text: '在' });
+      const { id } = await sendNote(db, 'alice', { cardId: 'walk', text: '這張我好喜歡' });
+      const convo = (await db.doc('conversations/alice_bob').get()).data()!;
+      expect((convo.createdAt as Timestamp).isEqual(createdAt)).toBe(true);
+      expect(convo.unread).toEqual({ alice: 2, bob: 2 });
+      expect(convo.lastMessage).toMatchObject({ text: '這張我好喜歡', senderId: 'alice' });
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(4);
+      expect((await db.doc(`conversations/alice_bob/messages/${id}`).get()).get('kind')).toBe('note');
+      // One bell for the conversation's first message (bob's), one for the note.
+      expect((await docs('notifications')).map((b) => (b as { type?: string }).type).sort()).toEqual(['message', 'note']);
+      expect(began.conversationId).toBe('alice_bob');
+    });
+
+    it('keeps a note on an anonymous card out of every thread, even between two people already connected', async () => {
+      await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
+      await sendMessage(db, 'alice', { to: 'bob', text: 'hi' });
+      const before = (await db.doc('conversations/alice_bob').get()).data()!;
+      const sent = await sendNote(db, 'alice', { cardId: 'masked', text: 'about your anonymous card' });
+      expect(sent.push).toBeNull();
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(1);
+      expect((await db.doc('conversations/alice_bob').get()).data()).toEqual(before);
+      // Its bell row rings it, as before.
+      const bell = (await db.doc(`notifications/${sent.notificationId}`).get()).data()!;
+      expect(bell).toMatchObject({ userId: 'bob', type: 'note', payload: { noteId: sent.id } });
+      expect(bell).not.toHaveProperty('pushedAt');
+    });
+
+    it('opens no conversation for a note on an anonymous card between strangers', async () => {
+      const sent = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
+      expect(sent.push).toBeNull();
+      expect((await db.doc('conversations/alice_bob').get()).exists).toBe(false);
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(0);
+    });
+
+    it('writes no conversation across a block', async () => {
+      await db.doc('users/alice/blocks/bob').set({ blockedUid: 'bob' });
+      expect((await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'hi' }))).code).toBe('blocked');
+      expect(await docs('conversations')).toHaveLength(0);
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(0);
+    });
+
+    it('can be answered like any message: the reply quotes the note and its card', async () => {
+      const { id } = await sendNote(db, 'alice', { cardId: 'walk', text: '雨後的散步真好' });
+      const reply = await sendMessage(db, 'bob', { to: 'alice', text: '謝謝你的紙條', replyTo: id });
+      expect((await db.doc(`conversations/alice_bob/messages/${reply.id}`).get()).get('replyTo')).toEqual({
+        id, senderId: 'alice', text: '雨後的散步真好', cardRef: 'walk',
+      });
+    });
+
+    it("can't be overwritten through a clientId: refused from the author, a duplicate from its sender", async () => {
+      const { id } = await sendNote(db, 'alice', { cardId: 'walk', text: 'the note' });
+      expect((await failure(sendMessage(db, 'bob', { to: 'alice', text: 'overwrite', clientId: id }))).code).toBe('invalid_request');
+      const again = await sendMessage(db, 'alice', { to: 'bob', text: 'overwrite', clientId: id });
+      expect(again).toMatchObject({ id, duplicate: true, push: null });
+      expect((await db.doc(`conversations/alice_bob/messages/${id}`).get()).data()).toMatchObject({ senderId: 'alice', text: 'the note', kind: 'note' });
+      expect((await db.doc('conversations/alice_bob').get()).get('unread')).toEqual({ alice: 0, bob: 1 });
+    });
+  });
+
   it('refuses your own card, one you cannot read, a draft, and anyone across a block', async () => {
     expect((await failure(sendNote(db, 'bob', { cardId: 'walk', text: 'hi' }))).code).toBe('invalid_request');
     expect((await failure(sendNote(db, 'alice', { cardId: 'secret', text: 'hi' }))).code).toBe('not_found');
@@ -129,9 +229,10 @@ describe('sendMessage', () => {
 
   it("carries a card (previewed by its title when there's no text) and a note it answers", async () => {
     const { id: noteId } = await sendNote(db, 'alice', { cardId: 'walk', text: 'a note' });
-    await sendMessage(db, 'bob', { to: 'alice', text: '', cardRef: 'walk', noteRef: { cardId: 'walk', noteId } });
-    const [message] = await docs('conversations/alice_bob/messages');
+    const sent = await sendMessage(db, 'bob', { to: 'alice', text: '', cardRef: 'walk', noteRef: { cardId: 'walk', noteId } });
+    const message = (await db.doc(`conversations/alice_bob/messages/${sent.id}`).get()).data();
     expect(message).toMatchObject({ senderId: 'bob', text: '', cardRef: 'walk', noteRef: { cardId: 'walk', noteId } });
+    expect(message).not.toHaveProperty('kind');
     expect((await db.doc('conversations/alice_bob').get()).get('lastMessage.text')).toBe('title walk');
   });
 

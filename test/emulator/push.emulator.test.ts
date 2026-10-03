@@ -38,6 +38,11 @@ beforeEach(async () => {
       authorId: 'bob', thoughtCore: 'A walk', story: 's', visibility: 'public', anonymous: false,
       publishedAt: Timestamp.fromDate(new Date('2026-09-01T08:00:00Z')),
     }),
+    // A note on an anonymous card stays out of the thread: its bell row is what rings.
+    db.doc('cards/masked').set({
+      authorId: 'bob', thoughtCore: 'Unsigned', story: 's', visibility: 'public', anonymous: true,
+      publishedAt: Timestamp.fromDate(new Date('2026-09-01T08:00:00Z')),
+    }),
   ]);
 });
 
@@ -111,8 +116,9 @@ describe('pushNotification', () => {
     await registerDevice(db, 'carol', 'carol-phone', { token: 'carol', platform: 'android', locale: 'en' });
   });
 
-  it("pushes a note to the author's devices, each in its app's language, opening the reply", async () => {
-    const { id, notificationId } = await sendNote(db, 'alice', { cardId: 'walk', text: '雨後的散步' });
+  it("pushes a note on an anonymous card to the author's devices, each in its app's language, opening the reply", async () => {
+    const { id, notificationId, push } = await sendNote(db, 'alice', { cardId: 'masked', text: '雨後的散步' });
+    expect(push).toBeNull();
     const fcm = fakeFcm();
     expect(await pushNotification(db, notificationId, fcm.sender)).toEqual({ sent: 2, pruned: 0 });
 
@@ -123,7 +129,7 @@ describe('pushNotification', () => {
     expect(byToken['bob-en'].data).toEqual({
       notificationId,
       type: 'note',
-      route: `/messages/${encodeURIComponent('小明')}?note=${id}&card=walk`,
+      route: `/messages/${encodeURIComponent('小明')}?note=${id}&card=masked`,
       // The apps open the thread by uid (the pen name in the route may have changed by the tap).
       fromUserId: 'alice',
     });
@@ -132,7 +138,7 @@ describe('pushNotification', () => {
   });
 
   it('rings once, however often it is asked', async () => {
-    const { notificationId } = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi' });
+    const { notificationId } = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
     const fcm = fakeFcm();
     const results = await Promise.all([1, 2, 3].map(() => pushNotification(db, notificationId, fcm.sender)));
     expect(results.filter(Boolean)).toHaveLength(1);
@@ -140,7 +146,7 @@ describe('pushNotification', () => {
   });
 
   it("stays silent when a block went up after the bell rang, and for a row that's already read", async () => {
-    const { notificationId } = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi' });
+    const { notificationId } = await sendNote(db, 'alice', { cardId: 'masked', text: 'hi' });
     await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
     const fcm = fakeFcm();
     expect(await pushNotification(db, notificationId, fcm.sender)).toBeNull();
@@ -401,6 +407,67 @@ describe('pushMessage', () => {
     expect(await pushMessage(db, { ...push, messageId: '../x' }, fcm.sender)).toBeNull();
     expect(await pushMessage(db, { ...push, from: '', conversationId: '' }, fcm.sender)).toBeNull();
     expect(fcm.sent).toHaveLength(0);
+  });
+
+  describe('a note in the thread', () => {
+    it("rings through here, once — its bell row says nothing more — with the note's words and its kind", async () => {
+      const sent = await sendNote(db, 'alice', { cardId: 'walk', text: '謝謝你寫下這段散步' });
+      const fcm = fakeFcm();
+      expect(await pushNotification(db, sent.notificationId, fcm.sender)).toBeNull();
+      expect(fcm.sent).toHaveLength(0);
+
+      expect(await pushMessage(db, sent.push!, fcm.sender)).toEqual({ sent: 5, pruned: 0 });
+      const at = deliveries(fcm.sent);
+      const sentAt = String((await db.doc(`conversations/alice_bob/messages/${sent.id}`).get()).get('sentAt').toMillis());
+      expect(at['pixel-en'].data).toEqual({
+        type: 'message',
+        conversationId: 'alice_bob',
+        messageId: sent.id,
+        fromUserId: 'alice',
+        toUserId: 'bob',
+        fromHandle: '小明',
+        title: '小明',
+        body: '謝謝你寫下這段散步',
+        route,
+        sentAt,
+        kind: 'note',
+      });
+      const { tokens, ...rest } = at['iphone-zh'];
+      expect(tokens).toEqual(['iphone-zh']);
+      expect(rest).toEqual({
+        notification: { title: '小明', body: '謝謝你寫下這段散步' },
+        data: { type: 'message', route, fromUserId: 'alice', conversationId: 'alice_bob', messageId: sent.id, kind: 'note' },
+        android: { priority: 'high', notification: { channelId: MESSAGES_CHANNEL, tag: 'alice_bob' } },
+        apns: { payload: { aps: { sound: 'default', threadId: 'alice_bob' } } },
+      });
+    });
+
+    it('stays silent for a connection the author muted, as every message does', async () => {
+      await db.doc('connections/alice_bob').update({ muted: [{ by: 'bob' }] });
+      const sent = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi' });
+      const fcm = fakeFcm();
+      expect(await pushMessage(db, sent.push!, fcm.sender)).toBeNull();
+      expect(await pushNotification(db, sent.notificationId, fcm.sender)).toBeNull();
+      expect(fcm.sent).toHaveLength(0);
+    });
+
+    it('marks only a kind it knows: a plain message carries none', async () => {
+      const fcm = fakeFcm();
+      await pushMessage(db, await send('plain'), fcm.sender);
+      await db.doc('conversations/alice_bob/messages/odd').set({ senderId: 'alice', text: 'x', sentAt: Timestamp.now(), kind: 'something-new' });
+      await pushMessage(db, { conversationId: 'alice_bob', messageId: 'odd', from: 'alice', to: 'bob' }, fcm.sender);
+      expect(fcm.sent.every((m) => !('kind' in (m.data ?? {})))).toBe(true);
+    });
+
+    it('leaves a note on an anonymous card to its bell row: the activity push, opening the reply', async () => {
+      const sent = await sendNote(db, 'alice', { cardId: 'masked', text: '匿名卡片的紙條' });
+      expect(sent.push).toBeNull();
+      const fcm = fakeFcm();
+      expect(await pushNotification(db, sent.notificationId, fcm.sender)).toEqual({ sent: 5, pruned: 0 });
+      const at = deliveries(fcm.sent);
+      expect(at['pixel-en'].notification).toEqual({ title: '小明 sent you a little note', body: '「匿名卡片的紙條」' });
+      expect(at['pixel-en'].android?.notification?.channelId).toBe('activity');
+    });
   });
 
   it('sends nothing, and needs no FCM, for someone with no devices', async () => {

@@ -1,4 +1,5 @@
 import { FieldValue, type DocumentSnapshot, type Firestore } from 'firebase-admin/firestore';
+import type { MessagePush } from '@/lib/push/chat';
 import { ApiFailure } from './http';
 import { visibleCardById } from './reads';
 
@@ -16,6 +17,9 @@ export const cut = (text: string, n: number) => Array.from(text).slice(0, n).joi
 /** How much of the message it answers a reply quotes (code points). */
 export const REPLY_QUOTE_CHARS = 140;
 
+/** What a message is, beyond words and a card: `note` — a note (小紙條) left on the recipient's card, carried into the thread. */
+export const NOTE_MESSAGE_KIND = 'note';
+
 /**
  * Send a note (小紙條) to a card's author: what the web's sendNote() does from
  * the client (client/notes.ts), with the author taken from the card — so the
@@ -24,11 +28,22 @@ export const REPLY_QUOTE_CHARS = 140;
  * either way. The note rings the author's bell and connects the two, so the
  * author can answer in Messages; an anonymous card connects no one (the
  * connection would name its author, as a resonance to it doesn't either).
+ *
+ * A note on a named card also lands in the two people's conversation (opened
+ * if need be) as a message of its own — `conversations/{pair}/messages/{noteId}`
+ * = `{ senderId, text, sentAt, cardRef: cardId, kind: 'note' }` — so both see
+ * it in their thread, the author answers it like any message, and it counts
+ * as unread there. Its bell row is then written already pushed: the chat push
+ * is the one buzz. A note on an anonymous card stays out of every thread,
+ * even between two people already connected: the conversation would tell the
+ * sender whose card it was. It rings through its bell row, as before.
  */
 export interface SentNote {
   id: string;
   /** The author's bell row, for its push (never returned to the client). */
   notificationId: string;
+  /** What `pushMessage` needs, when the note went into the thread — null on an anonymous card (its bell row rings). */
+  push: MessagePush | null;
 }
 
 export async function sendNote(db: Firestore, uid: string, input: { cardId: string; text: string }): Promise<SentNote> {
@@ -36,14 +51,18 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
   if (!card.publishedAt) throw new ApiFailure('not_found', 'No such card.');
   const author = card.authorId;
   if (author === uid) throw new ApiFailure('invalid_request', 'You cannot send a note to yourself.');
-  const connection = db.doc(`connections/${pairOf(uid, author)}`);
+  const pair = pairOf(uid, author);
+  const connection = db.doc(`connections/${pair}`);
+  const conversation = db.doc(`conversations/${pair}`);
+  const threaded = !card.anonymous;
 
   return db.runTransaction(async (tx) => {
-    const [me, blockOut, blockIn, connected] = await Promise.all([
+    const [me, blockOut, blockIn, connected, convo] = await Promise.all([
       tx.get(db.doc(`users/${uid}`)),
       tx.get(db.doc(`users/${uid}/blocks/${author}`)),
       tx.get(db.doc(`users/${author}/blocks/${uid}`)),
       tx.get(connection),
+      threaded ? tx.get(conversation) : Promise.resolve(null),
     ]);
     // One answer for both directions: the sender must not learn they were blocked.
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot send a note to this person.');
@@ -70,13 +89,40 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
         preview: cut(input.text, NOTE_PREVIEW_CHARS),
       },
       readAt: null,
+      // In the thread, the chat push rings it (pushedAt marks the row's own push done).
+      ...(threaded ? { pushedAt: FieldValue.serverTimestamp() } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
     // Never over an existing connection: that would drop what it carries (muted, its date).
-    if (!connected.exists && !card.anonymous) {
+    if (!connected.exists && threaded) {
       tx.set(connection, { userIds: [uid, author].sort(), establishedAt: FieldValue.serverTimestamp() });
     }
-    return { id: note.id, notificationId: bell.id };
+    if (!threaded) return { id: note.id, notificationId: bell.id, push: null };
+
+    if (!convo?.exists) {
+      tx.set(conversation, {
+        participants: [uid, author].sort(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        lastMessage: null,
+        unread: { [uid]: 0, [author]: 0 },
+      });
+    }
+    // The note's own id: one note, one message (and `?note=` finds it). No
+    // `noteRef` — on a message that means "answers a note".
+    tx.set(conversation.collection('messages').doc(note.id), {
+      senderId: uid,
+      text: input.text,
+      sentAt: FieldValue.serverTimestamp(),
+      cardRef: card.id,
+      kind: NOTE_MESSAGE_KIND,
+    });
+    tx.set(conversation, {
+      lastMessage: { text: cut(input.text, LAST_MESSAGE_PREVIEW), senderId: uid, sentAt: FieldValue.serverTimestamp() },
+      updatedAt: FieldValue.serverTimestamp(),
+      unread: { [author]: FieldValue.increment(1) },
+    }, { merge: true });
+    return { id: note.id, notificationId: bell.id, push: { conversationId: pair, messageId: note.id, from: uid, to: author } };
   });
 }
 
@@ -91,7 +137,7 @@ export interface SentMessage {
    */
   duplicate: boolean;
   /** What `pushMessage` needs to ring the recipient — null for a duplicate. */
-  push: { conversationId: string; messageId: string; from: string; to: string } | null;
+  push: MessagePush | null;
 }
 
 /** Firestore reserves ids shaped `__name__`; a `clientId` is the document's id. */

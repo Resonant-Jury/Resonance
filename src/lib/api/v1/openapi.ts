@@ -221,7 +221,9 @@ export function buildOpenApi(): Json {
       '/notes': {
         post: {
           operationId: 'sendNote',
-          summary: "Send a note to a card's author: rings their bell and connects you (not for an anonymous card)",
+          summary:
+            "Send a note to a card's author: rings their bell and connects you; it also lands in your conversation as a message " +
+            "(`kind: 'note'`, `cardRef` = the card). On an anonymous card: the bell only — no connection, no conversation",
           requestBody: { required: true, ...json(ref('SendNoteRequest')) },
           responses: { '201': { description: 'Created', ...json(ref('SendNoteResponse')) }, ...errors(400, 401, 403, 404) },
         },

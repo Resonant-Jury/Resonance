@@ -21,7 +21,7 @@ vi.mock('@/lib/push/chat', () => ({ pushMessage: (...args: unknown[]) => pushMes
 const unfurlMessage = vi.fn();
 vi.mock('@/lib/links/preview', () => ({ unfurlMessage: (...args: unknown[]) => unfurlMessage(...args) }));
 
-import { afterMessageSent } from './afterMessage';
+import { afterMessageSent, afterNoteSent } from './afterMessage';
 
 const db = {} as Firestore;
 const push = { conversationId: 'alice_bob', messageId: 'm1', from: 'alice', to: 'bob' };
@@ -107,5 +107,28 @@ describe('afterMessageSent', () => {
     expect(later).toHaveLength(0);
     expect(pushMessage).not.toHaveBeenCalled();
     expect(unfurlMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('afterNoteSent', () => {
+  it("rings the card's author through the chat push, and unfurls nothing: a note is words for its author", async () => {
+    afterNoteSent(db, push);
+    await settle();
+    expect(pushMessage).toHaveBeenCalledWith(db, push, messaging);
+    expect(unfurlMessage).not.toHaveBeenCalled();
+  });
+
+  it('never throws into the response, logging a failed push', async () => {
+    pushMessage.mockRejectedValue(new Error('fcm down'));
+    expect(() => afterNoteSent(db, push)).not.toThrow();
+    await settle();
+    expect(error.mock.calls.some((c) => c.join(' ').startsWith('[push]') && c.join(' ').includes('fcm down'))).toBe(true);
+  });
+
+  it('does nothing for a note that stayed out of the thread (its bell row rings instead)', async () => {
+    afterNoteSent(db, null);
+    await settle();
+    expect(later).toHaveLength(0);
+    expect(pushMessage).not.toHaveBeenCalled();
   });
 });
