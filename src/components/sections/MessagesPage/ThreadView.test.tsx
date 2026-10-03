@@ -465,8 +465,9 @@ describe('Messenger’s thread, drawn by hand', () => {
     expect(document.querySelector('mark[data-strong]')).toHaveTextContent('Coffee');
     expect(screen.getByRole('button', { name: 'Earlier match' })).toBeDisabled();
 
+    // Escape leaves the search wherever the focus is, and takes the marks with it.
     await user.keyboard('{Escape}');
-    await user.click(screen.getByRole('button', { name: 'Close search' }));
+    expect(screen.queryByRole('textbox', { name: 'Search messages' })).not.toBeInTheDocument();
     expect(document.querySelector('mark')).toBeNull();
   });
 

@@ -298,6 +298,18 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     [user?.id, other?.handle],
   );
 
+  // Escape leaves the search wherever the focus is (after a click on a match it isn't in the field) — unless
+  // something over the thread (a message's menu) is the one to close.
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || pressed || document.querySelector('[role="menu"]')) return;
+      closeSearch();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
+
   function closeSearch() {
     setSearchOpen(false);
     setHitIndex(null);
@@ -339,7 +351,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const profileHref = `/u/${other.handle}` as const;
   const replyHandle = thread.replyingTo?.senderId === user?.id ? null : other.handle;
   // The way back to the latest message — not under the search's list, which covers the thread.
-  const showPill = !(searchOpen && listShown) && (scroll.newBelow || (scroll.farUp && !scroll.atBottom));
+  // (A word that something was copied takes its place for a moment.)
+  const showPill = !copied && !(searchOpen && listShown) && (scroll.newBelow || (scroll.farUp && !scroll.atBottom));
 
   return (
     <CardEmbedSourceContext.Provider value={sharedCards}>
@@ -368,8 +381,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 aria-label={t('menuSearch')}
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Escape') closeSearch();
-                  else if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     // Enter looks at the newest match, then steps back through the older ones (Shift: forward).
                     if (listShown || hitIndex == null) pickHit(0);
