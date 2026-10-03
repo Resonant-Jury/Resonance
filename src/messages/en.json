@@ -170,8 +170,25 @@
       "linked": "Linked!",
       "noCards": "You have no published cards to link yet."
     },
+    "linkPreview": {
+      "open": "Open link: {host}"
+    },
     "resonatorsModal": {
       "title": "Resonated with this card"
+    },
+    "resonatePicker": {
+      "title": "Resonate with this card",
+      "subtitle": "Write a new card, or pick one you've written about something similar.",
+      "writeNew": "Write a new card",
+      "writeNewHint": "Start from this card and put your own experience into words.",
+      "pickHeading": "Or pick one you've written",
+      "empty": "You have no public cards yet — write your first one above.",
+      "hiddenNote": "Cards already resonating with another card aren't listed.",
+      "confirm": "Resonate",
+      "cancel": "Cancel",
+      "failed": "Couldn't resonate — please try again.",
+      "alreadyAnswering": "This card already resonates with another card.",
+      "anonymous": "Anonymous"
     },
     "translateTo": "Translate to",
     "showOriginal": "Show original",
@@ -214,6 +231,8 @@
     "startChat": "Start chatting",
     "replyToNote": "Reply",
     "quotedNote": "In reply to your note",
+    "noteOnYourCard": "{handle} left a note on your card",
+    "youLeftNote": "You left a note on {handle}'s card",
     "attachCard": "Attach a card",
     "removeCard": "Remove card",
     "cardShared": "Shared a card",
@@ -433,7 +452,11 @@
       "deleteConfirmTitle": "Delete this card?",
       "deleteConfirmBody": "This cannot be undone — the story and its resonance links will be gone.",
       "deleteConfirm": "Delete card",
-      "deleteCancel": "Keep it"
+      "deleteCancel": "Keep it",
+      "unresonate": "Stop resonating",
+      "unresonateConfirmTitle": "Stop resonating with \"{title}\"?",
+      "unresonateConfirmBody": "Your card stays; it just won't be listed with that card.",
+      "unresonateConfirm": "Stop resonating"
     },
     "anonymousBadge": "Anonymous",
     "emptyPublishedCta": "Write a story",

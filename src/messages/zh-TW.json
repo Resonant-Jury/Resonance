@@ -170,8 +170,25 @@
       "linked": "已建立連結！",
       "noCards": "你還沒有已發布的卡片可以連結。"
     },
+    "linkPreview": {
+      "open": "開啟連結：{host}"
+    },
     "resonatorsModal": {
       "title": "與這張卡片共振的人"
+    },
+    "resonatePicker": {
+      "title": "與這張卡片共振",
+      "subtitle": "寫一張新卡片回應，或選一張你寫過、有類似經驗的卡片。",
+      "writeNew": "寫一張新卡片",
+      "writeNewHint": "從這篇出發，寫下你的經驗。",
+      "pickHeading": "或選一張你寫過的卡片",
+      "empty": "你還沒有公開發表的卡片，從上面寫第一張吧。",
+      "hiddenNote": "已與其他卡片共振的卡片不會列在這裡。",
+      "confirm": "共振",
+      "cancel": "取消",
+      "failed": "共振沒有成功，請再試一次。",
+      "alreadyAnswering": "這張卡片已經與其他卡片共振了。",
+      "anonymous": "匿名"
     },
     "translateTo": "翻譯成",
     "showOriginal": "顯示原文",
@@ -214,6 +231,8 @@
     "startChat": "開始聊天",
     "replyToNote": "回覆",
     "quotedNote": "回覆你的紙條",
+    "noteOnYourCard": "{handle} 用小紙條回覆了你的卡片",
+    "youLeftNote": "你用小紙條回覆了 {handle} 的卡片",
     "attachCard": "附上一張卡片",
     "removeCard": "移除卡片",
     "cardShared": "分享了一張卡片",
@@ -433,7 +452,11 @@
       "deleteConfirmTitle": "刪除這張卡片？",
       "deleteConfirmBody": "刪除後無法復原，卡片的故事與共振連結都會消失。",
       "deleteConfirm": "刪除卡片",
-      "deleteCancel": "先留著"
+      "deleteCancel": "先留著",
+      "unresonate": "取消共振",
+      "unresonateConfirmTitle": "不再與〈{title}〉共振？",
+      "unresonateConfirmBody": "卡片會留著，只是不再列在那篇的共振裡。",
+      "unresonateConfirm": "取消共振"
     },
     "anonymousBadge": "匿名發布",
     "emptyPublishedCta": "寫下一個故事",
