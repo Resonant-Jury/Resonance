@@ -1657,7 +1657,7 @@
       "post": {
         "operationId": "sendMessage",
         "summary": "Message someone you are connected with (opens the conversation; its first message rings their bell), or answer a note they left you while you weren't (`request.from` is them): that answer connects you",
-        "description": "`403 forbidden` when you are not connected (and no letter of theirs waits), or have no pen name yet (\"Choose a pen name first.\", asked before anything else); `403 blocked` across a block either way. `noteRef` names a note they left you, on the card it names — anything else is `400` (\"That is not a note they left you.\").",
+        "description": "Checked in this order: the contract (`400`); your message budget (`429`); the request itself (`400`: messaging yourself, no text and no card, a `clientId` or `replyTo` Firestore keeps for itself); `cardRef` (`404` for a card you can't read); a `clientId` already used — yours answers `201` as it was first sent, someone else's is `400`; your pen name (`403 forbidden`, \"Choose a pen name first.\"); a block either way (`403 blocked`); the connection (`403 forbidden`, \"You can message people you are connected with.\", unless a letter of theirs waits in your conversation — then your answer connects you); `noteRef`, a note they left you on the card it names (else `400`, \"That is not a note they left you.\"); `replyTo`, a message of this conversation (else `400`). A reply to a note left on your anonymous card (or on a card since deleted) is sent without its `noteRef`, saying nothing of the card.",
         "requestBody": {
           "required": true,
           "content": {

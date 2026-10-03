@@ -173,6 +173,22 @@ async function main() {
   // --- notifications ---
   const future = await db.collection('notifications').where('createdAt', '>', Timestamp.fromMillis(now + FUTURE_SLACK_MS)).get();
   add('notifications: createdAt in the future (pinned to the top of a bell)', 'delete the row', future.docs.map((d) => d.id));
+  // For a day (5998ec4 → 90d9728) the browser rang a "like" with the very row a
+  // resonance rings — nothing tells the two apart. A reader who liked a card
+  // then and has answered it since counts as having rung its author: their
+  // answer rang no one and connected no one (lib/api/v1/resonate.ts legacyBell).
+  const likeDays = await db
+    .collection('notifications')
+    .where('createdAt', '>=', Timestamp.fromDate(new Date('2026-06-04T00:00:00+08:00')))
+    .where('createdAt', '<', Timestamp.fromDate(new Date('2026-06-06T00:00:00+08:00')))
+    .select('type', 'payload.fromUserId', 'payload.cardId')
+    .get();
+  const answers = new Set(cards.docs.filter((d) => typeof d.get('referenceCardId') === 'string').map((d) => `${d.get('authorId')}>${d.get('referenceCardId')}`));
+  add("notifications: a resonance bell from the day likes rang the same row, its reader having answered that card since (their answer reached no one)",
+    'look at each: if it was a like, their answer never rang the author — deleting the row lets it ring (and connect) the next time it reaches out: made public again, or picked again',
+    likeDays.docs
+      .filter((d) => d.get('type') === 'resonance' && answers.has(`${d.get('payload.fromUserId')}>${d.get('payload.cardId')}`))
+      .map((d) => d.id));
 
   console.log(`${projectId}: ${cards.size} cards, ${users.size} users, ${links.size} card links\n`);
   for (const f of findings) {
