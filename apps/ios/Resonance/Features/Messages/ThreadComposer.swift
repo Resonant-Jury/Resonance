@@ -26,7 +26,7 @@ struct ThreadComposer: View {
                 .padding(.horizontal, 2)
             }
             if let quote = model.replyingTo { ReplyBar(model: model, quote: quote) }
-            // Send is a disc a little shorter than the field: it stays at the foot of the field as that grows.
+            // Send is a little shorter than the field: it stays at the foot of the field as that grows.
             HStack(alignment: .bottom, spacing: 8) {
                 Button(action: onPickCard) {
                     OrganicIcon(.cards, size: 18, color: Tokens.textMuted)

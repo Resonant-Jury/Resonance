@@ -611,19 +611,22 @@ public struct SharedCardSkeleton: View {
 
 // MARK: - Composer
 
-/// The composer's Send: a wobbly terracotta disc with the paper plane in cream. It is the verb of
-/// the bar, so it is a solid face with the buttons' grain and no pen line of its own. Dimmed and
-/// deaf until there is something to send — never held by a send in flight.
+/// The composer's Send: a wobbly terracotta rounded rectangle — one lopsided turn a side and
+/// drifting corners, on one seed on every platform — with the paper plane in cream. It is the verb
+/// of the bar, so it is a solid face with the buttons' grain and no pen line of its own. Dimmed
+/// and deaf until there is something to send — never held by a send in flight.
 public struct OrganicSendButton: View {
     let label: String
     let enabled: Bool
-    var size: CGFloat
+    var width: CGFloat
+    var height: CGFloat
     let action: () -> Void
 
-    public init(label: String, enabled: Bool, size: CGFloat = 44, action: @escaping () -> Void) {
+    public init(label: String, enabled: Bool, width: CGFloat = 52, height: CGFloat = 44, action: @escaping () -> Void) {
         self.label = label
         self.enabled = enabled
-        self.size = size
+        self.width = width
+        self.height = height
         self.action = action
     }
 
@@ -632,7 +635,7 @@ public struct OrganicSendButton: View {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             action()
         } label: {
-            SendFace(size: size)
+            SendFace(width: width, height: height)
         }
         .buttonStyle(SendPressStyle())
         .disabled(!enabled)
@@ -643,15 +646,17 @@ public struct OrganicSendButton: View {
 }
 
 private struct SendFace: View {
-    let size: CGFloat
+    let width: CGFloat
+    let height: CGFloat
     @Environment(\.sendPressed) private var pressed
 
     var body: some View {
-        let shape = WobCircleShape(seed: 23, options: WobCircleOptions(segments: 8, mag: 0.9, cpJitter: 0.4))
-        // The plane's weight sits low and to the left of its box: a step right and up to read as centred.
+        // The web's 48×40 wobRect(…, 12, 23, 1.0, …) at the apps' size: the same seed, so the same hand.
+        let shape = WobRectShape(radius: 13, seed: 23, mag: 1.1, options: WobRectOptions(
+            curve: 1.3, cornerJitter: 2.4, cornerOffset: 2.2, segmentsH: .count(1), segmentsV: .count(1)))
+        // The plane is drawn optically centred in its own box: it sits in the middle as it is.
         OrganicIcon(.send, size: 20, color: Tokens.cream)
-            .offset(x: 1, y: -1)
-            .frame(width: size, height: size)
+            .frame(width: width, height: height)
             .background {
                 shape.fill(Tokens.terracotta)
                 GrainLayer(shape: shape, mode: .tile, opacity: 0.38, tile: "grain-button")

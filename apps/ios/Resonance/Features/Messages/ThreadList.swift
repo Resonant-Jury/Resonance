@@ -73,6 +73,8 @@ struct MessageMenu {
 private let farUpScreens: CGFloat = 1.5
 /// How close to the oldest message held the list comes (in messages) before the next page is read.
 private let olderAhead = 6
+/// How tall the fade is where the thread meets its foot (the composer, the reply bar over it, a line in its place).
+private let edgeFade: CGFloat = 12
 private let runGap: CGFloat = 2
 private let betweenRuns: CGFloat = 12
 /// Their face beside their messages: the column every one of their bubbles is indented by.
@@ -134,9 +136,10 @@ struct MessageList: View {
             .upsideDown()
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
-            // Upside down, the list's bottom margin is the room under the bar, its top the air over the composer.
+            // Upside down, the list's bottom margin is the room under the bar, its top the air over the
+            // composer — with the fade's height besides, so the newest message rests clear of it.
             .contentMargins(.bottom, topMargin + 4, for: .scrollContent)
-            .contentMargins(.top, 10, for: .scrollContent)
+            .contentMargins(.top, 10 + edgeFade, for: .scrollContent)
             .onScrollGeometryChange(for: ListPlace.self) { geo in
                 // The container is what lies between the insets: upside down, the air over the
                 // composer below it and the bar (with the status bar) above it.
@@ -160,6 +163,8 @@ struct MessageList: View {
                     unseen += 1
                 }
             }
+            // Over the messages, under the pill: what scrolls down to the foot dissolves into the paper.
+            FootEdge()
             if pillVisible && (unseen > 0 || farUp) && !atBottom {
                 ThreadPill(icon: .chevronDown, text: unseen > 0 ? L10n.Messages.newMessages : L10n.Messages.jumpToLatest) {
                     unseen = 0
@@ -187,6 +192,24 @@ extension MessageList {
             try? await Task.sleep(for: .milliseconds(80))
             position.scrollTo(edge: .top)
         }
+    }
+}
+
+/// The thread's edge over its foot: no rule (it would be busy) but a narrow band of the paper fading
+/// up into the messages, eased so neither of its own edges shows — the foot dissolving upward, not a
+/// shadow. It catches no touch; the pill, the search results and the long-press layer lie over it.
+private struct FootEdge: View {
+    var body: some View {
+        LinearGradient(stops: [
+            .init(color: Tokens.cream, location: 0),
+            .init(color: Tokens.cream.opacity(0.75), location: 0.35),
+            .init(color: Tokens.cream.opacity(0.3), location: 0.7),
+            .init(color: Tokens.cream.opacity(0), location: 1),
+        ], startPoint: .bottom, endPoint: .top)
+        .frame(height: edgeFade)
+        .frame(maxWidth: .infinity)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
