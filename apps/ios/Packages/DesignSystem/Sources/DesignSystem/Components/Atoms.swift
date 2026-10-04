@@ -292,14 +292,18 @@ public struct OrganicToggle: View {
 }
 
 /// SketchLoader: six dashes travelling nose-to-tail around the two-lap wobLoop,
-/// each one ink-lighter than the one ahead — the pen never lifts.
+/// each one ink-lighter than the one ahead — the pen never lifts. With a
+/// `progress` the pen is at rest instead, the loop traced that far (0…1) in
+/// the reduced-motion loader's ink: a pull to refresh draws it with the finger.
 public struct SketchLoader: View {
     var size: CGFloat
     var color: Color
+    var progress: Double?
 
-    public init(size: CGFloat = 64, color: Color = Tokens.terracotta) {
+    public init(size: CGFloat = 64, color: Color = Tokens.terracotta, progress: Double? = nil) {
         self.size = size
         self.color = color
+        self.progress = progress
     }
     private let links: [Double] = [0.12, 0.19, 0.28, 0.4, 0.55, 0.95]
     private let seg = 0.12
@@ -311,7 +315,10 @@ public struct SketchLoader: View {
         let path = wobLoop(c, c, Double(size) * 0.34, Double(size) * 0.27, seed: 7,
                            options: WobLoopOptions(segments: 9, mag: Double(size) * 0.03, cpJitter: 0.7)).path()
         Group {
-            if reduceMotion {
+            if let progress {
+                path.trimmedPath(from: 0, to: min(max(progress, 0), 1))
+                    .stroke(color.opacity(0.7), style: StrokeStyle(lineWidth: size * 0.036, lineCap: .round, lineJoin: .round))
+            } else if reduceMotion {
                 // The web's reduced-motion loader: the pen at rest, the whole
                 // two-lap loop drawn once as a calm double ring.
                 path.stroke(color.opacity(0.7), style: StrokeStyle(lineWidth: size * 0.036, lineCap: .round, lineJoin: .round))
