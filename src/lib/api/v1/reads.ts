@@ -303,10 +303,22 @@ async function userByHandle(db: Firestore, handle: string) {
 const DEFAULT_PAGE = 12;
 const EMPTY_PAGE: FeedPageBody = { cards: [], nextCursor: null, nextPageToken: null };
 
-/** An author's public cards, newest first (drafts sort last), read without their stories. */
+/**
+ * An author's published public cards under their name, newest first, read
+ * without their stories — the web's profile query (getPublicCardsByAuthor).
+ * The query itself leaves anonymous cards out, never a filter after it: a
+ * page ends at the last document the query gave (pageEnd), so a page token,
+ * a cursor or a count taken over anonymous cards would name one as theirs.
+ */
 const profileCards = (db: Firestore, authorId: string, start?: PageStart) =>
   pageQuery(
-    db.collection('cards').where('authorId', '==', authorId).where('visibility', '==', 'public').select(...LIST_FIELDS),
+    db
+      .collection('cards')
+      .where('authorId', '==', authorId)
+      .where('visibility', '==', 'public')
+      .where('anonymous', '==', false)
+      .where('publishedAt', '!=', null)
+      .select(...LIST_FIELDS),
     start,
   );
 
@@ -339,7 +351,8 @@ export async function getProfile(
     include.has('links') ? cardsLinkingToAuthor(db, user.id, viewerId) : [],
   ]);
   const blocked = !isSelf && !!blocks?.has(user.id);
-  const cardCount = published.docs.filter((d) => d.get('publishedAt') && d.get('anonymous') !== true).length;
+  // Over the same query as the page: named cards only, so the count says nothing of anonymous ones.
+  const cardCount = published.docs.filter((d) => properlyPublished(d.get('publishedAt'))).length;
   const u = user.data();
   const joined = u.joinedAt instanceof Timestamp ? u.joinedAt.toDate() : new Date(0);
   const [cards, links] = await Promise.all([
@@ -359,7 +372,11 @@ export async function getProfile(
   };
 }
 
-/** A page of a profile's cards from its query's documents (`limit` asked): public, attributed, properly published. */
+/**
+ * A page of a profile's cards from its query's documents (`limit` asked):
+ * public, attributed (the query's own filter, see profileCards), properly
+ * published. The anonymous filter here only backs the query up.
+ */
 async function profilePage(db: Firestore, docs: QueryDocumentSnapshot[], author: DocumentData, limit: number): Promise<FeedPageBody> {
   const cards = docs
     .filter((d) => properlyPublished(d.get('publishedAt')))

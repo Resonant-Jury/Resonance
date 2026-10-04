@@ -247,3 +247,29 @@ describe('a named card keeps every block behaviour', () => {
     }
   });
 });
+
+// Review: an anonymous card shown to connections only (none is made any more,
+// older ones remain) opened for a reader connected to its author and closed
+// when they weren't — and blocking ends a connection, so it vanished for
+// whoever blocked its author. It is its author's alone now, connected or not.
+describe('an older anonymous card for connections only', () => {
+  beforeEach(async () => {
+    await card('maskedCircle', 'bob', 0, { anonymous: true, visibility: 'connections' });
+  });
+
+  it('answers the same whether the reader is connected to its author or not: as if it were private', async () => {
+    const probe = async () => [
+      (await failure(getCardDetail(db, 'alice', 'maskedCircle'))).code,
+      ids(await getCardsByKeys(db, 'alice', ['maskedCircle'])),
+      (await failure(sendNote(db, 'alice', { cardId: 'maskedCircle', text: 'hi' }))).code,
+      (await failure(resonateWith(db, 'alice', 'maskedCircle', 'aliceCard'))).code,
+    ];
+    const connected = await probe();
+    await db.doc('connections/alice_bob').delete();
+    expect(await probe()).toEqual(connected);
+    expect(connected).toEqual(['not_found', [], 'not_found', 'not_found']);
+    // Its author still reads it.
+    expect((await getCardDetail(db, 'bob', 'maskedCircle')).card.id).toBe('maskedCircle');
+    expect(await db.collection('notes').get()).toHaveProperty('size', 0);
+  });
+});

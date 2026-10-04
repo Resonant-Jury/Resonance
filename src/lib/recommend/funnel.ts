@@ -3,7 +3,7 @@ import type { RecommendationItem } from '@/lib/db/types';
 import { getOrBuildProfile } from './profile';
 import { buildRerankMessages, parseRerankScores, type RerankCandidate } from './rerank';
 import { buildSelectMessages, parseSelection, type SelectCandidate, type Selection } from './select';
-import { getEngagedAuthorIds } from './signals';
+import { getEngagedAuthorIds, namedCardIds } from './signals';
 import { getVectorStore } from './vectorStore';
 import type { NearestHit, VectorChannel } from './vectorStore/types';
 
@@ -30,7 +30,7 @@ export const MIN_LLM_WINDOW_MS = 1_500;
  */
 const RERANK_MAX_TOKENS = 4_000;
 
-/** Light additive boost for cards whose author the reader has resonated with. */
+/** Light additive boost for named cards whose author the reader has resonated with (never an anonymous card). */
 const RESONANCE_AUTHOR_BOOST = 0.15;
 /**
  * Fraction of ANN reach spent on the `situation` channel (same lived
@@ -155,7 +155,17 @@ export async function recommendFeed(uid: string, opts: FunnelOptions = {}): Prom
   const candidates = [...dedup.values()].sort((a, b) => a.distance - b.distance).slice(0, ANN_CANDIDATES);
   if (candidates.length === 0) return { items: [], partial: false };
   const engagedAuthors = await engagedP;
-  const boost = (c: Candidate) => (engagedAuthors.has(c.authorId) ? RESONANCE_AUTHOR_BOOST : 0);
+  // The vector records carry every card's author, an anonymous one's too:
+  // only a card under its author's name may be lifted for who wrote it, read
+  // as it is now (losing the read only loses the boost).
+  const byEngaged = candidates.filter((c) => engagedAuthors.has(c.authorId)).map((c) => c.cardId);
+  const named = byEngaged.length
+    ? await namedCardIds(byEngaged).catch((e) => {
+        console.warn('[recommend] named candidates', e);
+        return new Set<string>();
+      })
+    : new Set<string>();
+  const boost = (c: Candidate) => (engagedAuthors.has(c.authorId) && named.has(c.cardId) ? RESONANCE_AUTHOR_BOOST : 0);
 
   // 2. Cheap batch rerank + the resonance-author quality signal.
   const rerankInput: RerankCandidate[] = candidates.map((c) => ({

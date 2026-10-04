@@ -19,6 +19,9 @@
  *       notes left before notes went into the thread → a `kind: 'note'` message in the two people's
  *       conversation (never on an anonymous card; no unread counted; opens a missing conversation,
  *       which may be one its people had deleted — production runs are the owner's call)
+ *   npx tsx scripts/backfill.ts anonymous-bells [--apply] [--emulator]
+ *       bells of a note or resonance on an anonymous card say so (`payload.anonymous`), as new ones do:
+ *       they open the card, never a thread with whoever wrote the note or resonance
  *   npx tsx scripts/backfill.ts link-previews [--apply] [--emulator]
  *       published cards get the previews of their stories' standalone links (fetches the pages;
  *       --apply against production needs LINK_PREVIEW_SECRET or FIREBASE_PRIVATE_KEY — the deployment's —
@@ -103,6 +106,11 @@ async function main() {
       await backfillNotes(db, { apply });
       return;
     }
+    case 'anonymous-bells': {
+      const { backfillAnonymousBells } = await import('./backfills/anonymousBells');
+      await backfillAnonymousBells(db, { apply });
+      return;
+    }
     case 'link-previews': {
       // The pictures' paths are signed by this process: with a key the deployment doesn't have, they 404.
       const source = process.env.LINK_PREVIEW_SECRET?.trim()
@@ -119,7 +127,7 @@ async function main() {
       return;
     }
     default:
-      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images | notes | link-previews)`);
+      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images | notes | anonymous-bells | link-previews)`);
   }
 }
 

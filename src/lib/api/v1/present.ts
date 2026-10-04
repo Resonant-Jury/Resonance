@@ -124,20 +124,23 @@ export async function connected(db: Firestore, a: string, b: string): Promise<bo
 }
 
 /**
- * firestore.rules `cardVisible` once the viewer's connection to the author is
- * known — `isConnected` is only asked for a published connections card. A
- * transaction that read the connection itself asks this (canView reads it).
+ * firestore.rules `cardOpen` once the viewer's connection to the author is
+ * known — `isConnected` is only asked for a published, named connections
+ * card. A transaction that read the connection itself asks this (canView
+ * reads it). An anonymous card for connections only (none is made any more:
+ * an anonymous card is public or private) is its author's alone: whether a
+ * reader could open it would turn on being connected to its author.
  */
 export function cardVisible(card: Card, viewerId: string, isConnected: (authorId: string) => boolean): boolean {
   if (card.authorId === viewerId) return true;
   // A draft is its author's alone, whatever visibility it will be published with.
   if (!card.publishedAt) return false;
   if (card.visibility === 'public') return true;
-  return card.visibility === 'connections' && isConnected(card.authorId);
+  return card.visibility === 'connections' && card.anonymous !== true && isConnected(card.authorId);
 }
 
 const needsConnection = (card: Card, viewerId: string) =>
-  card.authorId !== viewerId && !!card.publishedAt && card.visibility === 'connections';
+  card.authorId !== viewerId && !!card.publishedAt && card.visibility === 'connections' && card.anonymous !== true;
 
 /** firestore.rules `cardVisible`, for the Admin SDK (which bypasses rules). */
 export async function canView(db: Firestore, card: Card, viewerId: string): Promise<boolean> {

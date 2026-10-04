@@ -51,3 +51,34 @@ export function cardContentProblem(
   }
   return null;
 }
+
+/**
+ * Whether a card (or a pending edit, as applying it would leave the card) is
+ * anonymous and shown to its author's connections only — which no card may
+ * become. Whether a reader may open such a card would turn on whether they
+ * are connected to its author, and blocking someone ends the connection: the
+ * card vanishing as a reader blocked someone would tell them who wrote it.
+ * So an anonymous card is public or private. firestore.rules hold the client
+ * to the same (`anonymousForConnections`); a card already that way is left as
+ * it is, editable in everything else (scripts/integrity.ts lists them).
+ */
+export function anonymousForConnections(c: { anonymous?: unknown; visibility?: unknown }): boolean {
+  return c.anonymous === true && c.visibility === 'connections';
+}
+
+/** The refusal for a change that would make a card anonymous and for connections only. */
+export const ANONYMOUS_VISIBILITY_MESSAGE = 'An anonymous card is public or private.';
+
+const VISIBILITIES: readonly unknown[] = ['public', 'connections', 'private'];
+
+/**
+ * The visibility and byline a pending edit (cards/{id}/edits/current) leaves
+ * its card with when applied: the edit's own — its visibility only when it is
+ * one of the three, else the card's (lib/api/v1/edits).
+ */
+export function editedAudience(
+  edit: { visibility?: unknown; anonymous?: unknown },
+  card: { visibility?: unknown },
+): { visibility: unknown; anonymous: boolean } {
+  return { visibility: VISIBILITIES.includes(edit.visibility) ? edit.visibility : card.visibility, anonymous: edit.anonymous === true };
+}

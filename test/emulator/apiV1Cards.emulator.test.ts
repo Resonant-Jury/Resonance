@@ -109,8 +109,43 @@ describe('updateCard (PATCH /cards/{id})', () => {
 
   it('carries the change into a pending edit, so applying it later cannot undo it', async () => {
     await db.doc('cards/live/edits/current').set({ thoughtCore: '改', story: '改過', visibility: 'public', anonymous: false });
-    await updateCard(db, 'alice', 'live', { visibility: 'connections', anonymous: true });
-    expect((await db.doc('cards/live/edits/current').get()).data()).toMatchObject({ story: '改過', visibility: 'connections', anonymous: true });
+    await updateCard(db, 'alice', 'live', { visibility: 'private', anonymous: true });
+    expect((await db.doc('cards/live/edits/current').get()).data()).toMatchObject({ story: '改過', visibility: 'private', anonymous: true });
+  });
+
+  describe('an anonymous card is public or private', () => {
+    const ANSWER = ['invalid_request', 'An anonymous card is public or private.'];
+
+    it('refuses making one for connections only, or one for connections only anonymous, changing nothing', async () => {
+      const refusals: [Record<string, unknown>, { visibility?: 'public' | 'connections' | 'private'; anonymous?: boolean }][] = [
+        [{ anonymous: true }, { visibility: 'connections' }],
+        [{ visibility: 'connections' }, { anonymous: true }],
+        [{}, { visibility: 'connections', anonymous: true }],
+      ];
+      for (const [start, input] of refusals) {
+        await db.doc('cards/live').update({ visibility: 'public', anonymous: false, updatedAt: earlier, ...start });
+        const before = await card();
+        const e = await failure(updateCard(db, 'alice', 'live', input));
+        expect([e.code, e.message], JSON.stringify(input)).toEqual(ANSWER);
+        expect(await card()).toEqual(before);
+      }
+    });
+
+    it('leaves a card already anonymous and for connections only as it is until either is sent, and lets it out either way', async () => {
+      await db.doc('cards/live').update({ visibility: 'connections', anonymous: true });
+      expect((await updateCard(db, 'alice', 'live', { visibility: 'connections', anonymous: true })).stale).toEqual([]);
+      expect(await updateCard(db, 'alice', 'live', { visibility: 'public' })).toMatchObject({ card: { visibility: 'public', anonymous: true } });
+      await db.doc('cards/live').update({ visibility: 'connections', anonymous: true });
+      expect(await updateCard(db, 'alice', 'live', { anonymous: false })).toMatchObject({ card: { visibility: 'connections', anonymous: false } });
+    });
+
+    it("never leaves a pending edit so either: one the change alone would make so takes the card's other half too", async () => {
+      // The editor holds a byline taken off, not yet saved; the card goes connections-only.
+      await db.doc('cards/live/edits/current').set({ thoughtCore: '改', story: '改過', visibility: 'public', anonymous: true });
+      await updateCard(db, 'alice', 'live', { visibility: 'connections' });
+      expect((await card())).toMatchObject({ visibility: 'connections', anonymous: false });
+      expect((await db.doc('cards/live/edits/current').get()).data()).toMatchObject({ story: '改過', visibility: 'connections', anonymous: false });
+    });
   });
 
   it("is not_found for someone else's card or a missing one, and changes nothing", async () => {
@@ -336,6 +371,24 @@ describe('deleteCard (DELETE /cards/{id})', () => {
     expect((await db.doc('cardVectors/live__insight').get()).exists).toBe(false);
     expect((await db.doc('cardVectors/other__insight').get()).exists).toBe(true);
     expect((await failure(getCardDetail(db, 'alice', 'a-quiet-night'))).code).toBe('not_found');
+  });
+
+  // Review: left behind, the notes on a deleted anonymous card stayed in their
+  // writers' backups until its author's account was purged — the day they
+  // vanished would point at whose profile went that day.
+  it('removes the notes left on it, delivered or withheld, with the card — and no one else\'s', async () => {
+    const { sendNote } = await import('@/lib/api/v1/conversations');
+    await db.doc('users/carol').set({ handle: 'carol', handleLower: 'carol' });
+    await db.doc('cards/live').update({ anonymous: true });
+    await db.doc('cards/bobs').set({ authorId: 'bob', thoughtCore: 'b', story: 's', visibility: 'public', anonymous: false, publishedAt: published });
+    const delivered = await sendNote(db, 'carol', { cardId: 'live', text: 'hi' });
+    await db.doc('users/carol/blocks/alice').set({ blockedUid: 'alice' });
+    const withheld = await sendNote(db, 'carol', { cardId: 'live', text: 'hi again' });
+    const elsewhere = await sendNote(db, 'carol', { cardId: 'bobs', text: 'to bob' });
+    await deleteCard(db, 'alice', 'live', new FirestoreVectorStore(db));
+    expect((await db.doc(`notes/${delivered.id}`).get()).exists).toBe(false);
+    expect((await db.doc(`notes/${withheld.id}`).get()).exists).toBe(false);
+    expect((await db.doc(`notes/${elsewhere.id}`).get()).exists).toBe(true);
   });
 
   it("names only the id page of a card without a slug (a draft)", async () => {

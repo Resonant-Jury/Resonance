@@ -45,13 +45,23 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '');
 const cutText = (text: string, n: number) => Array.from(text).slice(0, n).join('');
 
 /**
+ * A note or resonance on an anonymous card (`payload.anonymous`): it opens the
+ * card, never a thread with whoever wrote it — opening that thread zeroes
+ * their unread count in it, which they can watch, and its reply would answer
+ * the anonymous card under its author's name.
+ */
+const onAnonymousCard = (type: string, payload: Payload) => (type === 'note' || type === 'resonance') && payload.anonymous === true;
+
+/**
  * Where tapping the push leads: a site path both apps already open (the web
- * bell's hrefs). A note opens the thread with it quoted; types with no page
- * of their own leave it empty and the app shows its notifications.
+ * bell's hrefs). A note opens the thread with it quoted — or, on an anonymous
+ * card, the card; types with no page of their own leave it empty and the app
+ * shows its notifications.
  */
 export function pushRoute(type: string, payload: Payload): string {
   const handle = str(payload.fromHandle);
   const thread = handle ? `/messages/${encodeURIComponent(handle)}` : '';
+  if (onAnonymousCard(type, payload)) return str(payload.cardId) ? `/card/${encodeURIComponent(str(payload.cardId))}` : '';
   switch (type) {
     case 'note': {
       const [note, card] = [str(payload.noteId), str(payload.cardId)];
@@ -206,7 +216,8 @@ export async function pushNotification(db: Firestore, id: string, sender: PushSe
   const route = pushRoute(type, payload);
   // The sender's uid beside the route, for a push that opens their thread: the
   // apps open a conversation by uid (a pen name can change before the tap).
-  const data: Record<string, string> = { notificationId: id, type, route, ...(from && OPENS_THREAD.has(type) ? { fromUserId: from } : {}) };
+  const opensThread = from && OPENS_THREAD.has(type) && !onAnonymousCard(type, payload);
+  const data: Record<string, string> = { notificationId: id, type, route, ...(opensThread ? { fromUserId: from } : {}) };
   let sent = 0;
   const dead: DocumentReference[] = [];
   for (const [locale, targets] of groupByLocale(deviceTargets(devices.docs))) {

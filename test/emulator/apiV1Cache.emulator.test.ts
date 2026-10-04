@@ -61,6 +61,8 @@ beforeEach(async () => {
       story: `the story of ${id}`,
       tags: ['日常'],
       visibility: 'public',
+      // Publishing always writes a boolean: a profile lists named cards by it.
+      anonymous: false,
       publishedAt: minutesAgo(m),
       resonanceCount: 0,
     });

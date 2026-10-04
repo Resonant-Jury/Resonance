@@ -191,6 +191,40 @@ describe('applyCardEdit', () => {
     expect((await failure(applyCardEdit(db, 'alice', 'draft'))).code).toBe('invalid_request');
   });
 
+  describe('an anonymous card is public or private', () => {
+    const ANSWER = ['invalid_request', 'An anonymous card is public or private.'];
+
+    it('refuses a revision that would make the card anonymous and for connections only, leaving both documents', async () => {
+      const cases: [Record<string, unknown>, Record<string, unknown>, string[]][] = [
+        // A connections-only card the revision takes the byline off.
+        [{ visibility: 'connections' }, { visibility: 'connections', anonymous: true }, []],
+        // An older buffer without a visibility: applying it keeps the card's.
+        [{ visibility: 'connections' }, { anonymous: true }, ['visibility']],
+        // An anonymous public card the revision makes connections-only.
+        [{ anonymous: true }, { visibility: 'connections', anonymous: true }, []],
+      ];
+      for (const [cardFields, edit, omit] of cases) {
+        await db.doc('cards/live').update({ visibility: 'public', anonymous: false, ...cardFields });
+        await buffer(edit, omit);
+        const before = (await db.doc('cards/live').get()).data();
+        const e = await failure(applyCardEdit(db, 'alice', 'live'));
+        expect([e.code, e.message], JSON.stringify(edit)).toEqual(ANSWER);
+        expect((await db.doc('cards/live').get()).data()).toEqual(before);
+        expect((await db.doc('cards/live/edits/current').get()).exists).toBe(true);
+      }
+    });
+
+    it('applies a revision to a card already anonymous and for connections only that keeps both as they are', async () => {
+      await db.doc('cards/live').update({ visibility: 'connections', anonymous: true });
+      await buffer({ visibility: 'connections', anonymous: true, story: '只改了故事' });
+      await expect(applyCardEdit(db, 'alice', 'live')).resolves.toMatchObject({ applied: true });
+      expect((await db.doc('cards/live').get()).data()).toMatchObject({ story: '只改了故事', visibility: 'connections', anonymous: true });
+      // And one that lets it out.
+      await buffer({ visibility: 'private', anonymous: true });
+      await expect(applyCardEdit(db, 'alice', 'live')).resolves.toMatchObject({ applied: true });
+    });
+  });
+
   describe('of a resonance', () => {
     const bells = async () => (await db.collection('notifications').get()).docs.map((d) => d.id);
     const connected = async () => (await db.doc('connections/alice_bob').get()).exists;

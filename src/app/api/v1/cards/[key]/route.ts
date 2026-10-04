@@ -41,7 +41,7 @@ export const PATCH = withUser(async (user, req, ctx: RouteContext<'key'>) => {
   return NextResponse.json(card);
 });
 
-/** DELETE /api/v1/cards/{id} — delete your card, draft or published (see deleteCard). */
+/** DELETE /api/v1/cards/{id} — delete your card, draft or published; a resonance takes back the connection it made (see deleteCard). */
 export const DELETE = withUser(async (user, _req, ctx: RouteContext<'key'>) => {
   const id = parse(CardIdParam, await routeParam(ctx, 'key'));
   const { stale } = await deleteCard(getAdminDb(), user.id, id);

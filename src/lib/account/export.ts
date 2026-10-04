@@ -65,23 +65,29 @@ async function* array(...sources: AsyncIterable<DocumentData[]>[]): AsyncGenerat
   yield ']';
 }
 
-async function* rows(q: Query, extra: Record<string, unknown> = {}, omit: readonly string[] = []): AsyncGenerator<DocumentData[]> {
-  for await (const docs of pages(q)) {
+async function* rows(q: Query, extra: Record<string, unknown> = {}): AsyncGenerator<DocumentData[]> {
+  for await (const docs of pages(q)) yield docs.map((d) => ({ ...extra, ...row(d) }));
+}
+
+/**
+ * What a note of yours keeps in your export: your words, the card you left
+ * them on and when — never whom they reached, nor whether they were read.
+ * Every note alike, so no difference between two of them says anything: a
+ * note on an anonymous card names its author, one withheld across a block
+ * reached no one (`withheldFor` names whom it was withheld from), and a card
+ * named now may have been anonymous then.
+ */
+const NOTE_OMIT = ['toUserId', 'readAt', 'withheldFor'] as const;
+
+async function* noteRows(db: Firestore, uid: string): AsyncGenerator<DocumentData[]> {
+  for await (const docs of pages(db.collection('notes').where('fromUserId', '==', uid))) {
     yield docs.map((d) => {
-      const r: DocumentData = { ...extra, ...row(d) };
-      for (const key of omit) delete r[key];
+      const r: DocumentData = row(d);
+      for (const key of NOTE_OMIT) delete r[key];
       return r;
     });
   }
 }
-
-/**
- * What a note of yours keeps in your export: your words and the card you left
- * them on — not whom they reached (the author of an anonymous card is no one's
- * to know, and a note withheld across a block reached no one) nor whether
- * they were read.
- */
-const NOTE_OMIT = ['toUserId', 'readAt'] as const;
 
 /**
  * The export, as JSON text in pieces (an AccountExport once joined). The
@@ -106,7 +112,7 @@ export async function* exportAccountJson(db: Firestore, uid: string, now = new D
   yield ',"groups":';
   yield* array(rows(map.collection('groups')));
   yield '},"notesSent":';
-  yield* array(rows(db.collection('notes').where('fromUserId', '==', uid), {}, NOTE_OMIT));
+  yield* array(noteRows(db, uid));
 
   yield ',"messagesSent":';
   const conversations = await db.collection('conversations').where('participants', 'array-contains', uid).select().get();

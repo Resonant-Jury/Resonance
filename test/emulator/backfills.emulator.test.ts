@@ -10,6 +10,7 @@ import { rehostImages } from '../../scripts/backfills/rehostImages';
 import { backfillNotes } from '../../scripts/backfills/notes';
 import { sendNote } from '@/lib/api/v1/conversations';
 import { backfillLinkPreviews } from '../../scripts/backfills/linkPreviews';
+import { backfillAnonymousBells } from '../../scripts/backfills/anonymousBells';
 import type { PreviewFetch } from '@/lib/links/preview';
 
 // The one-off backfills (scripts/backfill.ts) against the Firestore emulator:
@@ -54,6 +55,33 @@ describe('anonymous', () => {
     expect((await data('cards/odd'))!.anonymous).toBe(false);
     expect((await data('cards/anon'))!.anonymous).toBe(true);
     expect(await backfillAnonymous(db, { apply: true, log: quiet })).toMatchObject({ missing: 0 });
+  });
+});
+
+describe('anonymous-bells', () => {
+  // Review: a bell for a note on an anonymous card opened the writer's
+  // thread, zeroing the author's unread count there as the writer watched.
+  it('marks the note and resonance bells of anonymous cards, and nothing else', async () => {
+    const at = joined('2026-09-01T00:00:00Z');
+    await Promise.all([
+      db.doc('cards/masked').set({ authorId: 'bob', anonymous: true }),
+      db.doc('cards/named').set({ authorId: 'bob', anonymous: false }),
+      db.doc('notifications/note-masked').set({ userId: 'bob', type: 'note', payload: { fromUserId: 'alice', cardId: 'masked', noteId: 'n1' }, readAt: null, createdAt: at }),
+      db.doc('notifications/res-masked').set({ userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', cardId: 'masked' }, readAt: at, createdAt: at }),
+      db.doc('notifications/note-named').set({ userId: 'bob', type: 'note', payload: { fromUserId: 'alice', cardId: 'named', noteId: 'n2' }, readAt: null, createdAt: at }),
+      db.doc('notifications/note-gone').set({ userId: 'bob', type: 'note', payload: { fromUserId: 'alice', cardId: 'gone' }, readAt: null, createdAt: at }),
+      db.doc('notifications/link-masked').set({ userId: 'bob', type: 'card_link', payload: { fromUserId: 'alice', cardId: 'masked' }, readAt: null, createdAt: at }),
+    ]);
+    expect(await backfillAnonymousBells(db, { apply: false, log: quiet })).toMatchObject({ scanned: 4, missing: 2, marked: 0 });
+    expect((await data('notifications/note-masked'))!.payload).not.toHaveProperty('anonymous');
+
+    expect(await backfillAnonymousBells(db, { apply: true, log: quiet })).toMatchObject({ marked: 2 });
+    expect(await data('notifications/note-masked')).toEqual({
+      userId: 'bob', type: 'note', payload: { fromUserId: 'alice', cardId: 'masked', noteId: 'n1', anonymous: true }, readAt: null, createdAt: at,
+    });
+    expect((await data('notifications/res-masked'))!.payload).toMatchObject({ anonymous: true });
+    for (const id of ['note-named', 'note-gone', 'link-masked']) expect((await data(`notifications/${id}`))!.payload, id).not.toHaveProperty('anonymous');
+    expect(await backfillAnonymousBells(db, { apply: true, log: quiet })).toMatchObject({ missing: 0 });
   });
 });
 

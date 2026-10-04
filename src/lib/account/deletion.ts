@@ -108,6 +108,15 @@ export interface PurgeReport {
  * first, and the user's own roots — the profile among them — deleted last, so
  * a purge cut short still finds the pen name (its page to revalidate) next
  * time. Only ids and the fields the pages need are read.
+ *
+ * Some records are found through one of the user's cards: other readers'
+ * legacy resonance records (which name only the card), and every note left on
+ * it. Each goes just before its card (`byCard`), so a purge cut short never
+ * leaves one behind whose card is gone. Notes left on a card deleted earlier
+ * are found by whom they were for: `toUserId`, or `withheldFor` for one
+ * withheld across a block (left on an anonymous card, delivered to no one) —
+ * so the withheld ones go with the delivered: one outliving the card's author
+ * would tell its writer that a block stood between them and whoever wrote it.
  */
 async function collectAccountData(db: Firestore, uid: string) {
   const roots: DocumentReference[] = [
@@ -142,6 +151,12 @@ async function collectAccountData(db: Firestore, uid: string) {
     db.collection('resonances').where('userId', '==', uid),
     db.collection('notes').where('fromUserId', '==', uid),
     db.collection('notes').where('toUserId', '==', uid),
+    db.collection('notes').where('withheldFor', '==', uid),
+    // How many unanswered notes one left the other, either way (lib/api/v1/conversations letterRef).
+    db.collection('letters').where('from', '==', uid),
+    db.collection('letters').where('to', '==', uid),
+    // Why they are connected with someone (lib/api/v1/origins).
+    db.collection('connectionOrigins').where('userIds', 'array-contains', uid),
     db.collection('cardLinks').where('sourceAuthorId', '==', uid),
     db.collection('cardLinks').where('targetAuthorId', '==', uid),
     db.collection('notifications').where('userId', '==', uid),
@@ -159,13 +174,24 @@ async function collectAccountData(db: Firestore, uid: string) {
     // straight from the client; the ones that carry their author are found here.
     db.collectionGroup('edits').where('authorId', '==', uid),
   ];
-  // Other readers' resonance records on the deleted cards.
+  // Records found through one of the cards (see above): other readers'
+  // resonance records on them, and every note left on them.
   const cardIds = cards.docs.map((d) => d.id);
+  const cardQueries: Query[] = [];
   for (let i = 0; i < cardIds.length; i += IN_CHUNK) {
-    queries.push(db.collection('resonances').where('cardId', 'in', cardIds.slice(i, i + IN_CHUNK)));
+    const chunk = cardIds.slice(i, i + IN_CHUNK);
+    cardQueries.push(db.collection('resonances').where('cardId', 'in', chunk), db.collection('notes').where('cardId', 'in', chunk));
   }
 
-  const snaps = await Promise.all(queries.map((q) => q.select().get()));
+  const [snaps, cardSnaps] = await Promise.all([
+    Promise.all(queries.map((q) => q.select().get())),
+    Promise.all(cardQueries.map((q) => q.select('cardId').get())),
+  ]);
+  const byCard = new Map<string, DocumentReference[]>();
+  for (const d of cardSnaps.flatMap((s) => s.docs)) {
+    const path = `cards/${d.get('cardId')}`;
+    byCard.set(path, [...(byCard.get(path) ?? []), d.ref]);
+  }
   const treePaths = new Set([...trees, ...roots].map((r) => r.path));
   // A record inside a tree (a card's pending edit) goes with the tree.
   const inTree = (path: string) => {
@@ -173,13 +199,26 @@ async function collectAccountData(db: Firestore, uid: string) {
     for (let i = 2; i <= parts.length; i += 2) if (treePaths.has(parts.slice(0, i).join('/'))) return true;
     return false;
   };
+  const first = new Set([...byCard.values()].flat().map((r) => r.path));
   const singles = new Map<string, DocumentReference>();
   for (const snap of snaps) {
     for (const d of snap.docs) {
-      if (!inTree(d.ref.path)) singles.set(d.ref.path, d.ref);
+      if (!inTree(d.ref.path) && !first.has(d.ref.path)) singles.set(d.ref.path, d.ref);
     }
   }
-  return { trees, roots, singles: [...singles.values()], pages };
+  return { trees, roots, singles: [...singles.values()], byCard, pages };
+}
+
+/** A batch's limit on writes. */
+const BATCH_MAX = 500;
+
+/** Delete `refs` in batches (a card's few records, before the card). */
+async function deleteAll(db: Firestore, refs: DocumentReference[]) {
+  for (let i = 0; i < refs.length; i += BATCH_MAX) {
+    const batch = db.batch();
+    for (const ref of refs.slice(i, i + BATCH_MAX)) batch.delete(ref);
+    await batch.commit();
+  }
 }
 
 /**
@@ -220,12 +259,18 @@ export interface PurgeOptions {
 export async function purgeAccountData(db: Firestore, uid: string, opts: PurgeOptions = {}): Promise<PurgeReport> {
   const clock = opts.clock ?? Date.now;
   const late = () => opts.deadline !== undefined && clock() >= opts.deadline;
-  const { trees, roots, singles, pages } = await collectAccountData(db, uid);
+  const { trees, roots, singles, byCard, pages } = await collectAccountData(db, uid);
   const writer = opts.writer ?? db.bulkWriter();
   let failed = 0;
   let complete = false;
+  // A card's own records first (collectAccountData), then the card with what is under it.
+  const deleteTree = async (ref: DocumentReference) => {
+    const records = byCard.get(ref.path);
+    if (records?.length) await deleteAll(db, records);
+    await db.recursiveDelete(ref, writer);
+  };
   try {
-    const first = await pool(trees, TREE_CONCURRENCY, (ref) => db.recursiveDelete(ref, writer), late);
+    const first = await pool(trees, TREE_CONCURRENCY, deleteTree, late);
     failed += first.errors.length;
     if (!first.notStarted.length && !late()) {
       const writes = singles.map((ref) => writer.delete(ref).catch(() => void failed++));
@@ -243,7 +288,8 @@ export async function purgeAccountData(db: Firestore, uid: string, opts: PurgeOp
     else await writer.close();
   }
   if (failed) throw new Error(`Account purge of ${uid}: ${failed} delete(s) failed`);
-  return { trees: trees.length + roots.length, documents: singles.length, pages, complete };
+  const records = [...byCard.values()].reduce((n, refs) => n + refs.length, 0);
+  return { trees: trees.length + roots.length, documents: singles.length + records, pages, complete };
 }
 
 export interface PurgeDeps {

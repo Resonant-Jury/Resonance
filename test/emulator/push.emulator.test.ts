@@ -116,8 +116,10 @@ describe('pushNotification', () => {
     await registerDevice(db, 'carol', 'carol-phone', { token: 'carol', platform: 'android', locale: 'en' });
   });
 
-  it("pushes a note on an anonymous card to the author's devices, each in its app's language, opening the reply", async () => {
-    const { id, notificationId, push } = await sendNote(db, 'alice', { cardId: 'masked', text: '雨後的散步' });
+  // Opening the writer's thread would zero the author's unread count there —
+  // which the writer can watch — and invite a reply under the author's name.
+  it("pushes a note on an anonymous card to the author's devices, each in its app's language, opening the card — never the writer's thread", async () => {
+    const { notificationId, push } = await sendNote(db, 'alice', { cardId: 'masked', text: '雨後的散步' });
     expect(push).toBeNull();
     const fcm = fakeFcm();
     expect(await pushNotification(db, notificationId!, fcm.sender)).toEqual({ sent: 2, pruned: 0 });
@@ -126,15 +128,31 @@ describe('pushNotification', () => {
     expect(Object.keys(byToken).sort()).toEqual(['bob-en', 'bob-zh']);
     expect(byToken['bob-zh'].notification).toEqual({ title: '小明 寄來一張小紙條', body: '「雨後的散步」' });
     expect(byToken['bob-en'].notification).toEqual({ title: '小明 sent you a little note', body: '「雨後的散步」' });
-    expect(byToken['bob-en'].data).toEqual({
-      notificationId,
-      type: 'note',
-      route: `/messages/${encodeURIComponent('小明')}?note=${id}&card=masked`,
-      // The apps open the thread by uid (the pen name in the route may have changed by the tap).
-      fromUserId: 'alice',
-    });
+    // No sender's uid either: nothing here opens a conversation with her.
+    expect(byToken['bob-en'].data).toEqual({ notificationId, type: 'note', route: '/card/masked' });
     expect(byToken['bob-en'].android?.notification?.channelId).toBe('activity');
     expect((await db.doc(`notifications/${notificationId}`).get()).get('pushedAt')).toBeInstanceOf(Timestamp);
+  });
+
+  it('opens the card for a resonance on an anonymous card too; a named one opens the thread as before', async () => {
+    await db.doc('cards/aliceAnswer').set({
+      authorId: 'alice', thoughtCore: 'An answer', story: 's', visibility: 'public', anonymous: false,
+      publishedAt: Timestamp.fromDate(new Date('2026-09-02T08:00:00Z')),
+    });
+    const { resonateWith } = await import('@/lib/api/v1/resonate');
+    const { notificationId } = await resonateWith(db, 'alice', 'masked', 'aliceAnswer');
+    const fcm = fakeFcm();
+    await pushNotification(db, notificationId!, fcm.sender);
+    expect(fcm.sent.find((m) => m.tokens[0] === 'bob-en')!.data).toEqual({ notificationId, type: 'resonance', route: '/card/masked' });
+
+    await db.doc('notifications/named').set({
+      userId: 'bob', type: 'resonance', payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'walk' }, readAt: null, createdAt: Timestamp.now(),
+    });
+    const named = fakeFcm();
+    await pushNotification(db, 'named', named.sender);
+    expect(named.sent.find((m) => m.tokens[0] === 'bob-en')!.data).toEqual({
+      notificationId: 'named', type: 'resonance', route: `/messages/${encodeURIComponent('小明')}`, fromUserId: 'alice',
+    });
   });
 
   it('rings once, however often it is asked', async () => {

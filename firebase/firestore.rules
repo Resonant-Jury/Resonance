@@ -30,14 +30,18 @@ service cloud.firestore {
     // A card is its author's; anyone else sees it once it is published, and
     // then only as its visibility allows. (Drafts start as "public": that is
     // the choice they will be published with, not permission to read them.)
-    // This is what answering a card asks — an anonymous card included.
+    // This is what answering a card asks — an anonymous card included. An
+    // anonymous card shown to connections only (none is made any more, see
+    // anonymousForConnections) is its author's alone: whether a reader could
+    // answer it would turn on being connected to its author.
     function cardOpen(data) {
       return (signedIn() && data.authorId == request.auth.uid)
         || (
           data.publishedAt != null
           && (
             data.visibility == "public"
-            || (signedIn() && data.visibility == "connections" && connectedTo(data.authorId))
+            || (signedIn() && data.visibility == "connections"
+                && data.get("anonymous", false) != true && connectedTo(data.authorId))
           )
         );
     }
@@ -65,6 +69,26 @@ service cloud.firestore {
     // The fields an update changes (only meaningful on update).
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Anonymous and shown to its author's connections only — what no card may
+    // become: whether a reader could open it would turn on whether they are
+    // connected to its author, and blocking someone ends the connection, so
+    // the card vanishing as they blocked someone would name its author. An
+    // anonymous card is public or private (the server holds publishing, a
+    // PATCH and an applied edit to the same: lib/db/firestore/cardContent),
+    // and one already so is read as private (cardOpen, and the server's
+    // cardVisible).
+    function anonymousForConnections(d) {
+      return d.get("anonymous", false) == true && d.get("visibility", "") == "connections";
+    }
+
+    // A published resonance: it may be a reason two people are connected
+    // (connectionOrigins), so hiding it — which takes that back — is the
+    // server's (PATCH /api/v1/cards/{id}, edits/apply), as deleting any
+    // published card is.
+    function publishedResonance(d) {
+      return d.get("publishedAt", null) != null && d.get("referenceCardId", null) is string;
     }
 
     // A string field that is absent, or no longer than `max`.
@@ -222,21 +246,32 @@ service cloud.firestore {
         && optionalString(request.resource.data, "originalLocale", 10)
         && (!("translations" in request.resource.data) || request.resource.data.translations.size() == 0)
         && validCardContent(request.resource.data, request.resource.data.keys())
+        && !anonymousForConnections(request.resource.data)
         && answersReadableCard(request.resource.data);
       // The author edits the content. Unpublishing, re-dating, re-slugging,
-      // re-attributing or re-pointing a card are not client writes.
+      // re-attributing or re-pointing a card are not client writes. Its byline
+      // and visibility never change into anonymous-for-connections; a card
+      // already that way (from before) stays editable in everything else. A
+      // published resonance's byline and visibility change through the server,
+      // which takes back what hiding it ends (publishedResonance).
       allow update: if signedIn()
         && resource.data.authorId == request.auth.uid
         && changedKeys().hasOnly([
           "thoughtCore", "story", "tags", "visibility", "anonymous", "media", "accentHue", "updatedAt"
         ])
-        && validCardContent(request.resource.data, changedKeys());
-      // Authors may delete any of their cards (drafts and published alike) —
-      // the card box has a delete action. Dangling references (cardLinks,
-      // resonance referenceCardId) degrade gracefully: readers resolve the
-      // missing card to null and drop it.
+        && validCardContent(request.resource.data, changedKeys())
+        && (!anonymousForConnections(request.resource.data) || !changedKeys().hasAny(["anonymous", "visibility"]))
+        && (!publishedResonance(resource.data) || !changedKeys().hasAny(["anonymous", "visibility"]));
+      // Authors may delete their drafts. A published card is deleted by the
+      // server (DELETE /api/v1/cards/{id}, as the web and both apps do), with
+      // what only it reaches: the resonance it takes back, and the notes left
+      // on it — a client delete would leave those in their writers' backups
+      // until the author's account goes, and their going then would say whose
+      // card it was. Dangling references (cardLinks, resonance referenceCardId)
+      // degrade gracefully: readers resolve the missing card to null and drop it.
       allow delete: if signedIn()
-        && resource.data.authorId == request.auth.uid;
+        && resource.data.authorId == request.auth.uid
+        && resource.data.get("publishedAt", null) == null;
 
       // The content fields named in `keys` (all of them on create, the
       // changed ones on update — so an older card stays editable). The same
@@ -289,11 +324,22 @@ service cloud.firestore {
       // may carry its author's uid, which lets the account purge find one
       // whose card is gone, and lets its author still delete it then.
       match /edits/{editId} {
+        function card() {
+          return get(/databases/$(database)/documents/cards/$(cardId)).data;
+        }
         function ownsCard() {
-          return get(/databases/$(database)/documents/cards/$(cardId)).data.authorId == request.auth.uid;
+          return card().authorId == request.auth.uid;
+        }
+        // What applying the edit leaves the card as (editedAudience in
+        // lib/db/firestore/cardContent): the edit's byline, its visibility or
+        // the card's.
+        function leavesAnonymousForConnections(e) {
+          return e.get("anonymous", false) == true && e.get("visibility", card().get("visibility", "")) == "connections";
         }
         allow read: if signedIn() && ownsCard();
-        // A whole working copy, replaced each time (never merged).
+        // A whole working copy, replaced each time (never merged). It may keep
+        // a card anonymous and for connections only that already is (an older
+        // card stays editable), never make one so.
         allow create, update: if signedIn()
           && editId == "current"
           && ownsCard()
@@ -301,7 +347,8 @@ service cloud.firestore {
             "thoughtCore", "story", "tags", "visibility", "anonymous", "media", "accentHue", "updatedAt", "authorId"
           ])
           && request.resource.data.get("authorId", request.auth.uid) == request.auth.uid
-          && validCardContent(request.resource.data, request.resource.data.keys());
+          && validCardContent(request.resource.data, request.resource.data.keys())
+          && (!leavesAnonymousForConnections(request.resource.data) || anonymousForConnections(card()));
         allow delete: if signedIn()
           && (resource.data.get("authorId", "") == request.auth.uid || ownsCard());
       }
@@ -312,7 +359,9 @@ service cloud.firestore {
     // it: a resonance reaching its original, a card's author answering a
     // note (a note alone is a letter: it connects no one), or answering a
     // legacy invite (/api/v1), each re-checking blocks. No client creates one.
-    // The doc id is deterministic: min(uidA, uidB) + "_" + max(...).
+    // What made it is kept apart (connectionOrigins), never here: the people
+    // in it read this document. The doc id is deterministic:
+    // min(uidA, uidB) + "_" + max(...).
     match /connections/{connectionId} {
       // The doc id is the sorted pair `uid1_uid2`, so either person may ask for
       // their own pair whether or not it exists (blocking checks it before
@@ -335,16 +384,12 @@ service cloud.firestore {
     // connection and blocks. A participant may only zero their own unread.
     // A note between two people not connected opens it too, with `request`
     // (`{ from, cardId, at, count }`): letters waiting for an answer, which
-    // only the server writes or clears (POST /api/v1/notes).
+    // only the server writes or clears (POST /api/v1/notes) — cleared by the
+    // recipient's answer, left as it is by anything else (a client ignores it
+    // while the two are connected).
     match /conversations/{conversationId} {
       function isParticipant() {
         return signedIn() && request.auth.uid in resource.data.participants;
-      }
-      // Letters `convo` holds from the signed-in user, still unanswered. They
-      // stay until answered: deleting the thread would also reset how many
-      // the writer may leave. The person they were left for may delete it.
-      function awaitingAnswer(convo) {
-        return convo.get("request", {}).get("from", "") == request.auth.uid;
       }
       allow read: if isParticipant();
       allow create: if false;
@@ -353,9 +398,12 @@ service cloud.firestore {
         && request.resource.data.unread.diff(resource.data.unread).affectedKeys().hasOnly([request.auth.uid])
         && request.resource.data.unread[request.auth.uid] == 0;
       // Either participant may delete the whole conversation (the client
-      // deletes the message docs first — Firestore doesn't cascade) — but
-      // not the writer of letters still waiting in it.
-      allow delete: if isParticipant() && !awaitingAnswer(resource.data);
+      // deletes the message docs first — Firestore doesn't cascade). A letter
+      // waiting in it goes with it: its writer withdraws it, the one it was
+      // left for declines it, and it can no longer be answered. How many
+      // notes its writer may still leave is kept apart (letters/*), so
+      // neither resets it.
+      allow delete: if isParticipant();
 
       match /messages/{messageId} {
         function parentConvo() {
@@ -364,11 +412,31 @@ service cloud.firestore {
         allow read: if signedIn() && request.auth.uid in parentConvo().participants;
         allow create, update: if false;
         // Deletable only as part of deleting the whole conversation — by
-        // either participant, not just the sender (and as the conversation:
-        // not by the writer of letters still waiting in it).
-        allow delete: if signedIn() && request.auth.uid in parentConvo().participants
-          && !awaitingAnswer(parentConvo());
+        // either participant, not just the sender.
+        allow delete: if signedIn() && request.auth.uid in parentConvo().participants;
       }
+    }
+
+    // --- connection origins (server-only) ---
+    // connectionOrigins/{pair}: why two people are connected — each standing
+    // resonance that reached (which card of whose), its original's author's
+    // answer to one, an answered letter, an invite. What lets taking a
+    // resonance back end the connection it alone stands for. It names which
+    // card a resonance was, and a resonance may be made anonymous later, so
+    // clients never see it (lib/api/v1/origins). Purged with either account.
+    match /connectionOrigins/{pairId} {
+      allow read, write: if false;
+    }
+
+    // --- letters (server-only) ---
+    // letters/{writer}_{recipient}: how many notes someone has left a person
+    // they aren't connected with, still unanswered (`{ from, to, count, at,
+    // cardId }`) — what holds them to three (POST /api/v1/notes). Kept out of
+    // the conversation so deleting it resets nothing; deleted when the letter
+    // is answered (its recipient's message or note, an accepted invite), and
+    // with either account. Clients never see it.
+    match /letters/{letterId} {
+      allow read, write: if false;
     }
 
     // --- invites ---
@@ -415,7 +483,9 @@ service cloud.firestore {
     // on their uid, which this per-doc condition enforces for every result).
     // Sent by the server (POST /api/v1/notes), which finds the author from
     // the card — so the document names an anonymous card's author too, and
-    // its sender (who has their own words) never reads it back.
+    // its sender (who has their own words) never reads it back. One withheld
+    // across a block is addressed to no one (`toUserId: null`) and names
+    // whom it was withheld from (`withheldFor`): readable by no client.
     match /notes/{noteId} {
       allow read: if signedIn() && resource.data.toUserId == request.auth.uid;
       allow create: if false;
