@@ -278,7 +278,7 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
         menu?.let { m ->
             MessageMenuOverlay(
                 m, ctx,
-                items = remember(m) { messageMenuItems(m, model, links, context, reply = { reply(m.row.message) }) },
+                items = remember(m) { messageMenuItems(m, model, links, context, open, reply = { reply(m.row.message) }) },
                 footer = fullTime(m.row.message.sentAt),
                 onDismiss = { menu = null },
             )
@@ -556,7 +556,7 @@ private fun SharedMediaContent(model: ThreadModel, opener: LinkOpener, onClose: 
                         style = AppFonts.body(13.5f, lineHeight = 1.3f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .plainClickable(role = Role.Button) { opener.tap(url) }
+                            .plainClickable(role = Role.Button) { model.openLink(url, opener, open) }
                             .padding(vertical = 10.dp, horizontal = 4.dp),
                     )
                 }

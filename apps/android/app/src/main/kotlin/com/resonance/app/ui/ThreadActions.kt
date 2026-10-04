@@ -62,6 +62,7 @@ internal fun messageMenuItems(
     model: ThreadModel,
     opener: LinkOpener,
     context: Context,
+    open: (Route) -> Unit,
     reply: () -> Unit,
 ): List<OrganicMenuItem> {
     val message = menu.row.message
@@ -70,7 +71,8 @@ internal fun messageMenuItems(
         if (message.canReply && model.foot.composes) add(OrganicMenuItem(L10n.Messages.reply, IconName.Reply) { reply() })
         if (message.text.isNotEmpty()) add(OrganicMenuItem(L10n.Native.copy, IconName.Copy) { copyText(context, message.text) })
         menu.link?.let { url ->
-            add(OrganicMenuItem(L10n.Messages.openLink, IconName.Link) { opener.tap(url) })
+            // A card of the site opens in the app, as a tap on the bubble does.
+            add(OrganicMenuItem(L10n.Messages.openLink, IconName.Link) { model.openLink(url, opener, open) })
             add(OrganicMenuItem(L10n.Messages.copyLink, IconName.Copy) { copyText(context, url) })
         }
         if (message.delivery == Delivery.Failed) {

@@ -136,11 +136,18 @@ internal class ThreadContext(
     /** The key of the message the long-press menu has lifted out of the thread: its place stays empty under the scrim. */
     val lifted: String? = null,
 ) {
-    /** A link in a message was tapped: a card of this site opens in the app, anything else by the link rules ([LinkOpener]). */
-    fun tapLink(url: String) {
-        val key = model.cardKeyOf(url)
-        if (key != null) open(Route.Card(key, model.cards[key])) else opener.tap(url)
-    }
+    /** A link in a message was tapped ([openLink]). */
+    fun tapLink(url: String) = model.openLink(url, opener, open)
+}
+
+/**
+ * Where a link in the thread leads, however it was reached — tapped in a bubble, its preview, the
+ * long-press menu's Open link, Cards & links: a card of this site opens in the app ([open]), as the
+ * signed-in reader sees it; anything else by the link rules ([LinkOpener]).
+ */
+internal fun ThreadModel.openLink(url: String, opener: LinkOpener, open: (Route) -> Unit) {
+    val key = cardKeyOf(url)
+    if (key != null) open(Route.Card(key, cards[key])) else opener.tap(url)
 }
 
 /** The message the thread just jumped to from a reply's quote pulses once. */
