@@ -101,6 +101,8 @@ describe('lists', () => {
       story: `The story of ${id}.`,
       tags: ['雨'],
       visibility: 'public',
+      // Every published card has a boolean byline (a profile lists its named cards by it).
+      anonymous: false,
       publishedAt: minutesAgo(m),
       updatedAt: minutesAgo(m),
       ...STORED,
@@ -149,6 +151,10 @@ describe('lists', () => {
   it('show the stored summary — every one of them, without the story', async () => {
     const cards = await everyList();
     expect(cards.length).toBeGreaterThan(15);
+    // Bob's profile among them, both ways it is read (his three public cards each).
+    const profile = await getProfileCards(db, 'alice', 'bob', 10);
+    expect(profile.cards.map((c) => c.id)).toEqual(['reply', 'linker', 'marked']);
+    expect((await getProfile(db, 'alice', 'bob', { include: new Set(['cards'] as const) })).cards!.cards).toHaveLength(3);
     for (const c of cards) expect({ id: c.id, excerpt: c.excerpt, readMinutes: c.readMinutes }).toEqual({ id: c.id, ...STORED });
   });
 
