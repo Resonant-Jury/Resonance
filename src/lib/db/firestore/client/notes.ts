@@ -43,13 +43,18 @@ function mapNote(id: string, data: Record<string, unknown>): Note {
  * isn't yours, and that no block stands between you. A refusal throws an
  * ApiError: `conflict` (409) when the writer has left as many notes as a
  * letter holds and waits for the author's answer.
+ *
+ * `clientId` (newClientId(), made once per send attempt and passed again on
+ * every retry of the same text) makes the send retry-safe: a note whose
+ * answer was lost is found, not left twice.
  */
-export async function sendNote(input: { cardId: string; text: string }): Promise<string> {
+export async function sendNote(input: { cardId: string; text: string; clientId?: string }): Promise<string> {
   requireUid();
   const text = input.text.trim();
   if (!text) throw new Error('Note is empty');
   if (text.length > NOTE_MAX_LENGTH) throw new Error('Note too long');
-  const { id } = await callApi<{ id: string }>('/api/v1/notes', { method: 'POST', body: { cardId: input.cardId, text } });
+  const body = { cardId: input.cardId, text, ...(input.clientId ? { clientId: input.clientId } : {}) };
+  const { id } = await callApi<{ id: string }>('/api/v1/notes', { method: 'POST', body });
   return id;
 }
 

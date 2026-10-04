@@ -42,6 +42,7 @@ describe('NoteComposer', () => {
       expect(sendNote).toHaveBeenCalledWith({
         cardId: 'c1',
         text: 'Your story stayed with me all day.',
+        clientId: expect.stringMatching(/^[A-Za-z0-9_-]{16,64}$/),
       }),
     );
     // Confirmation replaces the form.
@@ -76,6 +77,32 @@ describe('NoteComposer', () => {
     await user().click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByText("Couldn't send — please try again.")).toBeInTheDocument();
     expect(screen.queryByText('You cannot send a note to this person.')).not.toBeInTheDocument();
+  });
+
+  // A send whose answer was lost may still have left the note: sent again,
+  // the server must be able to tell it is the same one (its clientId).
+  it('retries the same words under the same clientId, and gives other words one of their own', async () => {
+    vi.mocked(sendNote).mockRejectedValueOnce(new TypeError('Failed to fetch')).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    renderWithIntl(<NoteComposer cardId="c1" />);
+    const box = screen.getByPlaceholderText('Something you want to tell the author…');
+    const clientIdOf = (call: number) => vi.mocked(sendNote).mock.calls[call][0].clientId;
+
+    fireEvent.change(box, { target: { value: 'First words' } });
+    await user().click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText("Couldn't send — please try again.")).toBeInTheDocument();
+    // Trailing space trimmed away: still the same words, still the same note.
+    fireEvent.change(box, { target: { value: 'First words ' } });
+    await user().click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(sendNote).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Couldn't send — please try again.")).toBeInTheDocument();
+    expect(clientIdOf(1)).toBe(clientIdOf(0));
+
+    fireEvent.change(box, { target: { value: 'Second thoughts' } });
+    await user().click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText('Your note is on its way.')).toBeInTheDocument();
+    expect(sendNote).toHaveBeenCalledTimes(3);
+    expect(clientIdOf(2)).toMatch(/^[A-Za-z0-9_-]{16,64}$/);
+    expect(clientIdOf(2)).not.toBe(clientIdOf(0));
   });
 
   it('does not send an empty note', async () => {

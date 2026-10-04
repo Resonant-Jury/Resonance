@@ -30,6 +30,12 @@ describe('sendNote', () => {
     expect(init.headers.Authorization).toBe('Bearer id-token');
   });
 
+  it('sends the clientId it is given, for the server to find a note whose answer was lost', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ id: 'client-0123456789abcdef' }), { status: 201 }));
+    await expect(sendNote({ cardId: 'c1', text: 'hi', clientId: 'client-0123456789abcdef' })).resolves.toBe('client-0123456789abcdef');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ cardId: 'c1', text: 'hi', clientId: 'client-0123456789abcdef' });
+  });
+
   it('says a letter is full as a conflict, for the composer to ask the writer to wait', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ error: { code: 'conflict', message: 'Wait for them to reply.' } }), { status: 409 }),
