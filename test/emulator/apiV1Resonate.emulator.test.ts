@@ -276,6 +276,17 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
       expect(await connected()).toBe(true);
     });
 
+    it("keeps them connected once its recipient answers it, the resonator answering: the letter alone stands", async () => {
+      // Bob's letter to Alice, then her resonance connects them; her answer is to his letter, not to any resonance.
+      await sendNote(db, 'bob', { cardId: 'mine2', text: 'a letter' });
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      await sendMessage(db, 'alice', { to: 'bob', text: 'thank you for your note' });
+      expect(await request()).toBeUndefined();
+      await unresonate(db, 'alice', 'orig', 'mine');
+      expect(await connected()).toBe(true);
+      expect(Object.keys((await db.doc('connectionOrigins/alice_bob').get()).get('reasons'))).toEqual(['letter']);
+    });
+
     it('stays waiting when the resonance connects no one: an anonymous original, or an anonymous card picked', async () => {
       await sendNote(db, 'alice', { cardId: 'orig', text: 'a letter' });
       const before = await request();
@@ -424,7 +435,6 @@ describe('unresonate (DELETE /cards/{id}/resonances/{cardId})', () => {
         userIds: ['alice', 'bob'],
         reasons: { resonance_alice_mine: { kind: 'resonance', by: 'alice', cardId: 'mine', originalId: 'orig' } },
         resonanceCards: ['mine'],
-        wrote: {},
       });
     });
 
@@ -463,11 +473,12 @@ describe('unresonate (DELETE /cards/{id}/resonances/{cardId})', () => {
     it("never once the original's author has written to her — kept even when the thread is deleted since", async () => {
       await resonateWith(db, 'alice', 'orig', 'mine');
       await sendMessage(db, 'bob', { to: 'alice', text: 'thank you for this' });
+      // His answer is a reason of its own, kept for good where neither reads it.
+      expect((await origins())?.reasons.answered_alice).toMatchObject({ kind: 'answered', by: 'bob', to: 'alice' });
       await db.recursiveDelete(db.doc('conversations/alice_bob'));
       await unresonate(db, 'alice', 'orig', 'mine');
       expect(await connected()).toBe(true);
-      expect(await reasons()).toEqual([]);
-      expect((await origins())?.wrote).toHaveProperty('bob');
+      expect(await reasons()).toEqual(['answered_alice']);
     });
 
     it("never when a note of his in their thread came after: a note is his words too", async () => {
@@ -475,6 +486,72 @@ describe('unresonate (DELETE /cards/{id}/resonances/{cardId})', () => {
       await sendNote(db, 'bob', { cardId: 'mine2', text: 'your card moved me' });
       await unresonate(db, 'alice', 'orig', 'mine');
       expect(await connected()).toBe(true);
+      expect(await reasons()).toEqual(['answered_alice']);
+    });
+
+    // A note on her anonymous card stays out of their thread: it answers nothing (it would say whose card it is).
+    it('but a note of his on an anonymous card of hers answers nothing', async () => {
+      await resonateWith(db, 'alice', 'orig', 'mine');
+      await sendNote(db, 'bob', { cardId: 'mineMasked', text: 'whoever you are' });
+      expect(await reasons()).toEqual(['resonance_alice_mine']);
+      await unresonate(db, 'alice', 'orig', 'mine');
+      expect(await connected()).toBe(false);
+    });
+
+    // An answer is to a resonance standing when it is written: words before it answer nothing.
+    describe('words written before a resonance never answer it', () => {
+      it("hers, before his resonance: his take-back after hers ends the connection", async () => {
+        await card('bobAnswer', 'bob');
+        await resonateWith(db, 'alice', 'orig', 'mine');
+        // Her words to him, while only her own resonance stands: they answer nothing.
+        await sendMessage(db, 'alice', { to: 'bob', text: 'hi' });
+        await resonateWith(db, 'bob', 'mine', 'bobAnswer');
+        expect(await reasons()).toEqual(['resonance_alice_mine', 'resonance_bob_bobAnswer']);
+        await unresonate(db, 'alice', 'orig', 'mine');
+        expect(await connected()).toBe(true);
+        await unresonate(db, 'bob', 'mine', 'bobAnswer');
+        expect(await connected()).toBe(false);
+        expect(await origins()).toBeUndefined();
+      });
+
+      it("his, before her resonance: her take-back after his ends the connection", async () => {
+        await card('bobAnswer', 'bob');
+        await resonateWith(db, 'bob', 'mine', 'bobAnswer');
+        await sendMessage(db, 'bob', { to: 'alice', text: 'hi' });
+        await resonateWith(db, 'alice', 'orig', 'mine');
+        expect(await reasons()).toEqual(['resonance_alice_mine', 'resonance_bob_bobAnswer']);
+        await unresonate(db, 'bob', 'mine', 'bobAnswer');
+        expect(await connected()).toBe(true);
+        await unresonate(db, 'alice', 'orig', 'mine');
+        expect(await connected()).toBe(false);
+      });
+    });
+
+    describe("an answer stands for good: the connection outlives every later take-back", () => {
+      it('his answer to her resonance, then a resonance of his taken back', async () => {
+        await card('bobAnswer', 'bob');
+        await resonateWith(db, 'alice', 'orig', 'mine');
+        await sendMessage(db, 'bob', { to: 'alice', text: 'thank you' });
+        await unresonate(db, 'alice', 'orig', 'mine');
+        expect(await connected()).toBe(true);
+        // Later he answers a card of hers, and takes that back: his answer to hers still stands.
+        await resonateWith(db, 'bob', 'mine', 'bobAnswer');
+        await unresonate(db, 'bob', 'mine', 'bobAnswer');
+        expect(await connected()).toBe(true);
+        expect(await reasons()).toEqual(['answered_alice']);
+      });
+
+      it('her answer to his resonance, then a resonance of hers taken back', async () => {
+        await card('bobAnswer', 'bob');
+        await resonateWith(db, 'bob', 'mine', 'bobAnswer');
+        await sendMessage(db, 'alice', { to: 'bob', text: 'thank you' });
+        await unresonate(db, 'bob', 'mine', 'bobAnswer');
+        expect(await connected()).toBe(true);
+        await resonateWith(db, 'alice', 'orig', 'mine');
+        await unresonate(db, 'alice', 'orig', 'mine');
+        expect(await connected()).toBe(true);
+        expect(await reasons()).toEqual(['answered_bob']);
+      });
     });
 
     it('keeps them connected while another resonance stands — hers, or his', async () => {
@@ -510,10 +587,10 @@ describe('unresonate (DELETE /cards/{id}/resonances/{cardId})', () => {
       await unresonate(db, 'alice', 'orig', 'mine');
       expect(await connected()).toBe(true);
       expect(await reasons()).toEqual(['legacy']);
-      // A message first keeps only who wrote, no reason: the connection is older than reasons all the same.
+      // A message there answers nothing (no resonance stands on record): it keeps nothing either.
       await db.recursiveDelete(db.collection('connectionOrigins'));
-      await sendMessage(db, 'alice', { to: 'bob', text: 'hi' });
-      expect(await reasons()).toEqual([]);
+      await sendMessage(db, 'bob', { to: 'alice', text: 'hi' });
+      expect(await origins()).toBeUndefined();
       await card('orig2', 'bob');
       await resonateWith(db, 'alice', 'orig2', 'mine2');
       expect(await reasons()).toEqual(['legacy', 'resonance_alice_mine2']);
@@ -529,7 +606,9 @@ describe('unresonate (DELETE /cards/{id}/resonances/{cardId})', () => {
       await db.doc('connections/alice_bob').delete();
       await resonateWith(db, 'alice', 'orig2', 'mine2');
       expect(await connected()).toBe(true);
-      expect(await origins()).toMatchObject({ reasons: { resonance_alice_mine2: { kind: 'resonance' } }, resonanceCards: ['mine2'], wrote: {} });
+      expect(await origins()).toMatchObject({ reasons: { resonance_alice_mine2: { kind: 'resonance' } }, resonanceCards: ['mine2'] });
+      // His answer to the earlier connection's resonance is not this one's.
+      expect(await reasons()).toEqual(['resonance_alice_mine2']);
       await unresonate(db, 'alice', 'orig2', 'mine2');
       expect(await connected()).toBe(false);
     });
@@ -564,7 +643,7 @@ describe('unresonate (DELETE /cards/{id}/resonances/{cardId})', () => {
         await sendMessage(db, 'bob', { to: 'alice', text: 'thank you' });
         await updateCard(db, 'alice', 'mine', { anonymous: true }, { setVisibility: async () => {} });
         expect(await connected()).toBe(true);
-        expect(await reasons()).toEqual([]);
+        expect(await reasons()).toEqual(['answered_alice']);
         expect((await read('mine')).anonymous).toBe(true);
       });
 

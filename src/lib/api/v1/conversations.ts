@@ -2,7 +2,7 @@ import { FieldValue, type DocumentSnapshot, type Firestore, type Transaction } f
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { MessagePush } from '@/lib/push/chat';
 import { ApiFailure } from './http';
-import { addReason, connect, letterReason, noteWrote, originsRef } from './origins';
+import { addReason, answeredBy, connect, letterReason, originsRef } from './origins';
 import { cardVisible } from './present';
 import { visibleCardById } from './reads';
 
@@ -130,7 +130,9 @@ export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name fi
  * (connectionOrigins). Between two people already connected a note is one
  * more message: it counts nothing, and answers a letter only from that
  * letter's recipient (it is kept as a reason then: a resonance taken back
- * leaves them connected); and the connection records that its sender wrote.
+ * leaves them connected); and from the original's author of a resonance of
+ * the card's author's that stands, it answers that resonance — kept as a
+ * reason for good (answeredBy, ./origins).
  *
  * A note on an anonymous card stays out of every thread, even between two
  * people already connected (the conversation would tell the sender whose card
@@ -244,16 +246,16 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
     });
     if (!threaded) return { id: note.id, notificationId: bell.id, push: null };
 
-    if (answers) {
-      // Their letter answered: the two connected by it — or, connected already, kept so by it too.
-      if (writing) connect(tx, db, [uid, author], letterReason(uid), { wrote: uid });
-      else addReason(tx, db, [uid, author], origins, letterReason(uid));
-      clearLetters(tx, db, uid, author);
-    } else if (writing) {
-      tx.set(letter, { from: uid, to: author, count: left + 1, cardId: card.id, at: FieldValue.serverTimestamp() });
+    if (writing) {
+      // Their letter answered: the two connected by it. Else this one waits.
+      if (answers) connect(tx, db, [uid, author], letterReason(uid));
+      else tx.set(letter, { from: uid, to: author, count: left + 1, cardId: card.id, at: FieldValue.serverTimestamp() });
+    } else {
+      // Connected: the letter it answers, and a resonance of theirs on a card of mine
+      // it answers, are reasons they stay so (a take-back reads them).
+      addReason(tx, db, [uid, author], origins, answers ? letterReason(uid) : null, answeredBy(origins, uid, author));
     }
-    // Words between two people connected: the connection keeps that they wrote (a take-back reads it).
-    if (!writing) noteWrote(tx, db, uid, author);
+    if (answers) clearLetters(tx, db, uid, author);
 
     if (!convo.exists) {
       tx.set(conversation, {
@@ -324,9 +326,10 @@ const RESERVED_ID = /^__.*__$/;
  * two people already connected (a resonance did it) a letter still waiting is
  * answered the same way, by its recipient only, and stays a reason they are
  * connected (connectionOrigins); a message from its writer leaves it waiting.
- * Every message is recorded on the connection as its sender's words
- * (noteWrote): a resonance taken back keeps a connection the original's
- * author has written in.
+ * A message from the original's author of a resonance that stands between
+ * the two, to its writer, answers that resonance: kept as a reason for good
+ * (answeredBy), so taking the resonance back leaves them connected. Words
+ * before a resonance never answer it, and the resonator's answer nothing.
  *
  * `replyTo` names a message of this same conversation; the new message keeps
  * a snapshot of it (`replyTo: { id, senderId, text, cardRef? }`, the text cut
@@ -411,14 +414,12 @@ export async function sendMessage(
     // A reply answers a message of this conversation (the path alone keeps it from being anyone else's).
     if (replied && !replied.exists) throw new ApiFailure('invalid_request', 'No such message to reply to.');
 
-    if (answers) {
-      // Their letter answered: it connects you — or, connected already, stays a reason you are.
-      if (connection.exists) addReason(tx, db, [uid, other], origins, letterReason(uid));
-      else connect(tx, db, [uid, other], letterReason(uid));
-      clearLetters(tx, db, uid, other);
-    }
-    // Your words, kept on the connection: a resonance taken back keeps a connection its original's author wrote in.
-    noteWrote(tx, db, uid, other);
+    // Connected: the letter of theirs this answers, and a resonance of theirs
+    // on a card of yours it answers, are reasons you stay so (a take-back
+    // reads them). Not connected, their letter answered is what connects you.
+    if (connection.exists) addReason(tx, db, [uid, other], origins, answers ? letterReason(uid) : null, answeredBy(origins, uid, other));
+    else connect(tx, db, [uid, other], letterReason(uid));
+    if (answers) clearLetters(tx, db, uid, other);
     // An answered letter has a conversation already: no "new conversation" bell for it.
     const first = !convo.exists;
     if (first) {

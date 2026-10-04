@@ -1014,7 +1014,6 @@ describe('server-only records', () => {
         userIds: ['alice', 'bob'],
         reasons: { resonance_alice_mine: { kind: 'resonance', by: 'alice', cardId: 'mine', originalId: 'orig' } },
         resonanceCards: ['mine'],
-        wrote: {},
       });
     });
     for (const uid of ['alice', 'bob', 'carol']) {

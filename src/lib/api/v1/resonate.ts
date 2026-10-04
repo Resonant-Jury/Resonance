@@ -309,9 +309,9 @@ export async function resonateWith(db: Firestore, uid: string, targetId: string,
  * Stop your card answering `targetId` (DELETE /cards/{targetId}/resonances/
  * {cardId}): it stays, as a card of its own. Written resonances too. It is no
  * longer a reason the two of you are connected (readTakeBack), and the
- * connection goes when nothing else holds it: no other resonance either way,
- * no answered letter, no invite, not made before reasons were kept — and the
- * original's author hasn't written to you since. The bell row stays:
+ * connection goes when no reason is left: no other resonance either way, no
+ * answer from the original's author to one (answeredBy), no answered letter,
+ * no invite, not made before reasons were kept. The bell row stays:
  * answering that card again rings no one and connects no one (reachOriginal
  * rings a reader once per card). Asking again changes nothing (`changed:
  * false`); someone else's card is not_found.
