@@ -36,6 +36,9 @@ final class PushCenter {
     /// foreground: set while the thread is visible and cleared when it isn't, so a message that
     /// arrives behind another page or with the app in the background still rings.
     @ObservationIgnored private(set) var viewingConversation: String?
+    /// The thread that said so: only it can say it stopped (two threads of one conversation can
+    /// change places — a push tapped while it is open opens another).
+    @ObservationIgnored private var viewer: ObjectIdentifier?
     /// Called with each new FCM token (the session registers it under whoever is signed in).
     @ObservationIgnored var onToken: ((String) -> Void)?
 
@@ -111,16 +114,21 @@ final class PushCenter {
 
     // MARK: Chat
 
-    /// The thread of `pairId` is on screen (or none is, with nil). Opening it clears its pushes:
+    /// `viewer`, a thread of `pairId`, is on screen. Opening the conversation clears its pushes:
     /// the messages in them are being read.
-    func viewing(_ pairId: String?) {
+    func viewing(_ pairId: String, by viewer: ObjectIdentifier) {
+        let opened = viewingConversation != pairId || self.viewer != viewer
         viewingConversation = pairId
-        if let pairId { Self.removeDelivered(conversation: pairId) }
+        self.viewer = viewer
+        if opened { Self.removeDelivered(conversation: pairId) }
     }
 
-    /// The thread of `pairId` stopped being on screen — unless another has taken its place already.
-    func stoppedViewing(_ pairId: String) {
-        if viewingConversation == pairId { viewingConversation = nil }
+    /// `viewer` stopped being on screen — unless another thread has taken its place already, even
+    /// one of the same conversation.
+    func stoppedViewing(by viewer: ObjectIdentifier) {
+        guard self.viewer == viewer else { return }
+        viewingConversation = nil
+        self.viewer = nil
     }
 
     /// How a push that arrives while the app is open shows: a chat message of the conversation on

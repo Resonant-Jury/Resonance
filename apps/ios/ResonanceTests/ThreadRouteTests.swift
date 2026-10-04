@@ -64,6 +64,19 @@ import Testing
             == .thread(handle: "bob", uid: "uid-bob", note: MessagingAPI.NoteRef(cardId: "c1", noteId: "note1")))
     }
 
+    @Test func aPushForTheConversationOnTopOpensNoSecondCopy() {
+        let open = Route.thread(handle: "bob", uid: "uid-bob", note: nil)
+        // The same person, by uid (the pen name may have changed since), or by pen name when either lacks one.
+        #expect(Route.thread(handle: "bobby", uid: "uid-bob", note: nil).reopens(open))
+        #expect(Route.thread(handle: "Bob", note: nil).reopens(open))
+        #expect(!Route.thread(handle: "carol", uid: "uid-carol", note: nil).reopens(open))
+        #expect(!Route.thread(handle: "bob", uid: "uid-other", note: nil).reopens(open))
+        // A note to go to opens the thread for it; a page that isn't the thread is no copy of it.
+        #expect(!Route.thread(handle: "bob", uid: "uid-bob", note: MessagingAPI.NoteRef(cardId: "c1", noteId: "n1")).reopens(open))
+        #expect(!Route.thread(handle: "bob", note: nil).reopens(.author("bob")))
+        #expect(!Route.author("bob").reopens(open))
+    }
+
     @Test func theConversationIsFoundByItsPairId() {
         #expect(ThreadModel.pairId("bob", "alice") == "alice_bob")
         #expect(ThreadModel.pairId("alice", "bob") == "alice_bob")

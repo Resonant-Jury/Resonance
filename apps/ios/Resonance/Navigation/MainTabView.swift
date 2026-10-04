@@ -27,6 +27,13 @@ enum AppTab: Hashable, CaseIterable {
     }
 }
 
+extension EnvironmentValues {
+    /// Whether the tab a page is on is the one chosen. Every tab's stack stays mounted (unseen under
+    /// the chosen one), so a page on another tab never disappears: what may only happen while it is
+    /// seen (a conversation being read) asks this too.
+    @Entry var isSelectedTab = true
+}
+
 /// Four tabs and the pen. Each tab keeps its own navigation stack alive, so
 /// switching tabs preserves where you were; re-tapping the current tab pops
 /// to its root. The bar hides on pushed screens, like the system one.
@@ -59,6 +66,7 @@ struct MainTabView: View {
                         paths[t] = path + [route]
                     }
                 ))
+                .environment(\.isSelectedTab, t == tab)
                 .opacity(t == tab ? 1 : 0)
                 .allowsHitTesting(t == tab)
                 .accessibilityHidden(t != tab)
@@ -127,6 +135,8 @@ struct MainTabView: View {
     private func open(_ route: Route) {
         // A conversation belongs to the Messages tab's stack.
         if case .thread = route { tab = .messages }
+        // Its message tapped while the conversation is open: it is on screen already, not opened again over itself.
+        if let top = paths[tab]?.last, route.reopens(top) { return }
         paths[tab, default: []].append(route)
     }
 

@@ -17,7 +17,12 @@ struct ThreadScreen: View {
     @Environment(\.openRoute) private var openRoute
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.isSelectedTab) private var onSelectedTab
     @State private var model: ThreadModel?
+    /// Closes the model once the screen is gone for good (`ScreenLifetime`).
+    @State private var lifetime = ScreenLifetime()
+    /// Between appearing and disappearing: the top of its stack (a page pushed over it makes it disappear).
+    @State private var appeared = false
     @State private var searching = false
     @State private var query = ""
     /// The list of matches covers the thread; after a match is chosen the thread shows and the bar steps through them.
@@ -76,25 +81,31 @@ struct ThreadScreen: View {
                 }
                 #endif
                 self.model = model
-                model.setOnScreen(scenePhase == .active)
+                lifetime.model = model
+                model.setOnScreen(visible && scenePhase == .active)
                 await model.load()
             }
-            // The conversation is read only while it is on show (its unread count, its pushes).
-            .onAppear { model?.setOnScreen(scenePhase == .active) }
-            .onDisappear {
-                model?.setOnScreen(false)
-                model?.stop()
+            // The conversation is read and listened to only while it is on show (its unread count, its pushes):
+            // not under a page pushed over it, nor on a tab out of sight.
+            .onAppear {
+                appeared = true
+                shown(onSelectedTab)
             }
+            .onDisappear {
+                appeared = false
+                shown(false)
+            }
+            .onChange(of: onSelectedTab) { _, selected in shown(appeared && selected) }
             // Back in the foreground: listeners that failed listen again; a thread that couldn't find its person asks again.
             .onChange(of: scenePhase) { _, phase in
-                guard let model else { return }
+                guard let model, visible else { return }
                 model.setOnScreen(phase == .active)
                 guard phase == .active else { return }
                 if model.phase == .failed { Task { await model.load() } } else { model.resume() }
             }
             // No conversation yet, then their first message arrives: it shows up in Messages, and here.
             .onChange(of: conversationListed) { _, listed in
-                if listed { model?.resume() }
+                if listed, visible { model?.resume() }
             }
             // Opened for a note that is in the thread: there, flashed, and the reply to it set up.
             .onChange(of: model?.noteToShow) { _, id in
@@ -138,6 +149,16 @@ struct ThreadScreen: View {
         }
         .background(Tokens.cream)
         .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { safe = $0 }
+    }
+
+    /// On show: the top of its stack, on the tab chosen.
+    private var visible: Bool { appeared && onSelectedTab }
+
+    /// The thread came on show, or went out of it: listening, and reading what arrives, only while it shows.
+    private func shown(_ visible: Bool) {
+        guard let model else { return }
+        model.setOnScreen(visible && scenePhase == .active)
+        if visible { model.resume() } else { model.stop() }
     }
 
     private var conversationListed: Bool {
@@ -477,6 +498,19 @@ struct ThreadScreen: View {
         format.locale = locale(language)
         format.dateFormat = pattern
         return format.string(from: date)
+    }
+}
+
+/// Lives as long as the thread screen's state: SwiftUI lets go of it only when the screen is gone for
+/// good (popped — not when a page is pushed over it, nor when its tab is out of sight), and it then
+/// closes the model, whose reads of older pages (a search's, up to the whole history; a quote's jump)
+/// would otherwise go on with nobody to show them to.
+nonisolated private final class ScreenLifetime {
+    var model: ThreadModel?
+
+    deinit {
+        guard let model else { return }
+        Task { @MainActor in model.close() }
     }
 }
 

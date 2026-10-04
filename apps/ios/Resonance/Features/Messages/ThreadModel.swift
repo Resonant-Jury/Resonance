@@ -118,6 +118,8 @@ final class ThreadModel {
     @ObservationIgnored private var searching: Task<Void, Never>?
     @ObservationIgnored private var unreadForMe = 0
     @ObservationIgnored private var onScreen = false
+    /// The screen is gone for good (`close`): nothing more is listened to or read.
+    @ObservationIgnored private(set) var closed = false
     @ObservationIgnored private var watchedOutbox: Outbox?
     @ObservationIgnored private var rebuilding = false
     /// The note the route named, until the thread is read and it is looked for.
@@ -236,14 +238,14 @@ final class ThreadModel {
     /// Back on screen (from a page pushed over the thread), or the conversation
     /// just appeared in Messages: listening again if the listeners stopped.
     func resume() {
-        guard phase == .ready, listeners.isEmpty else { return }
+        guard phase == .ready, listeners.isEmpty, !closed else { return }
         listenFailed = false
         attach()
     }
 
     /// Listens to the conversation and its newest 50 messages, by pair id.
     private func attach() {
-        guard let pairId, listeners.isEmpty else { return }
+        guard let pairId, listeners.isEmpty, !closed else { return }
         watchOutbox()
         syncViewing()
         listening += 1
@@ -365,6 +367,21 @@ final class ThreadModel {
         listeners = []
     }
 
+    /// The screen is gone for good: no more listening, and the older pages still being read — a
+    /// search's way back through the whole history, a quote's jump — stop with it (a page read
+    /// already arriving is dropped). Messages still sending carry on; they belong to the session.
+    func close() {
+        guard !closed else { return }
+        closed = true
+        setOnScreen(false)
+        stop()
+        forgetPaging()
+        searching?.cancel()
+        searching = nil
+        watchedOutbox?.unwatch(self)
+        watchedOutbox = nil
+    }
+
     // MARK: - Reading
 
     /// Whether the thread is on screen with the app in the foreground — the screen says so as it
@@ -379,13 +396,15 @@ final class ThreadModel {
         markReadIfNeeded()
     }
 
-    /// Tells the push center whether this conversation is the one on show (once its pair id is known).
+    /// Tells the push center whether this thread is the one on show (once its pair id is known). By
+    /// itself, not by the conversation: another thread of it may be taking its place (a push tapped
+    /// while it was open), and this one leaving must not end that one's quiet.
     private func syncViewing() {
         guard let pairId else { return }
-        if !onScreen {
-            PushCenter.shared.stoppedViewing(pairId)
-        } else if PushCenter.shared.viewingConversation != pairId {
-            PushCenter.shared.viewing(pairId)
+        if onScreen {
+            PushCenter.shared.viewing(pairId, by: ObjectIdentifier(self))
+        } else {
+            PushCenter.shared.stoppedViewing(by: ObjectIdentifier(self))
         }
     }
 
@@ -459,7 +478,7 @@ final class ThreadModel {
         olderError = false
         var pages = 0
         while !history.contains(id) {
-            guard history.hasOlder, pages < maxPages else { return false }
+            guard history.hasOlder, pages < maxPages, !closed else { return false }
             pages += 1
             if pagesPending > 0, let running = paging {
                 await running.value
@@ -477,7 +496,7 @@ final class ThreadModel {
         guard !allRequested else { return }
         allRequested = true
         page { model in
-            while model.history.hasOlder, model.history.count < cap {
+            while model.history.hasOlder, model.history.count < cap, !model.closed {
                 guard await model.fetchOlder(ChatPaging.allPage) else { break }
             }
             model.searchCapped = model.history.hasOlder && model.history.count >= cap
@@ -496,7 +515,7 @@ final class ThreadModel {
         loadingOlder = true
         let task = Task { [weak self] in
             await before?.value
-            if let self, !Task.isCancelled { await work(self) }
+            if let self, !Task.isCancelled, !self.closed { await work(self) }
             guard let self else { return }
             self.pagesPending -= 1
             if self.pagesPending == 0 { self.loadingOlder = false }
@@ -508,7 +527,7 @@ final class ThreadModel {
     /// One older page into the history; whether it brought a page in.
     @discardableResult
     private func fetchOlder(_ limit: Int) async -> Bool {
-        guard let pairId, let cursor = history.oldestCursor else { return false }
+        guard let pairId, let cursor = history.oldestCursor, !closed else { return false }
         let life = epoch
         let origin = session.config.origin
         olderError = false
@@ -686,6 +705,7 @@ final class ThreadModel {
     /// the matches, newest first, are `searchHits`. The first search of a visit also reads the
     /// whole history (`loadAll`), and the hits grow as it arrives. A blank query ends the search.
     func search(_ query: String) {
+        guard !closed else { return }
         searchQuery = query
         guard !query.isBlank else { return endSearch() }
         loadAll()
