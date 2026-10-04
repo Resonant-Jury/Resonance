@@ -111,6 +111,8 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
       readAt: null,
       payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' },
     });
+    // A named original: the bell opens the thread with the resonator, as it always has.
+    expect((bell as unknown as { payload: object }).payload).not.toHaveProperty('anonymous');
     expect(result.notificationId).toBe('resonance_alice_orig');
   });
 
@@ -215,7 +217,8 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
       const result = await resonateWith(db, 'alice', 'bobMasked', 'mine');
       expect(result.notificationId).toBe('resonance_alice_bobMasked');
       const [bell] = await bells();
-      expect(bell).toMatchObject({ userId: 'bob', type: 'resonance', payload: { cardId: 'bobMasked', fromUserId: 'alice' } });
+      // Its bell says so: it opens the card, never a thread with her (its unread count would answer for him).
+      expect(bell).toMatchObject({ userId: 'bob', type: 'resonance', payload: { cardId: 'bobMasked', fromUserId: 'alice', anonymous: true } });
       expect(await connected()).toBe(false);
     });
   });

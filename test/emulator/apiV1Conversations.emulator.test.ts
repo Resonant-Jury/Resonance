@@ -93,6 +93,16 @@ describe('sendNote', () => {
     expect((await db.doc('connections/alice_bob').get()).exists).toBe(false);
   });
 
+  // Opening a thread with the note's writer would zero the author's unread
+  // count there, which the writer can watch: a read receipt for "it was you".
+  it("says on the bell of a note on an anonymous card that it is one (it opens the card, never the writer's thread); a named card's bell doesn't", async () => {
+    const masked = await sendNote(db, 'alice', { cardId: 'masked', text: 'on the anonymous card' });
+    const walk = await sendNote(db, 'alice', { cardId: 'walk', text: 'on the named card' });
+    const payload = async (id: string | null) => (await db.doc(`notifications/${id}`).get()).get('payload');
+    expect(await payload(masked.notificationId)).toMatchObject({ cardId: 'masked', noteId: masked.id, anonymous: true, preview: 'on the anonymous card' });
+    expect(await payload(walk.notificationId)).not.toHaveProperty('anonymous');
+  });
+
   describe('in the thread', () => {
     it("opens the two people's conversation with the note as a message on the author's card, ringing once through the chat push", async () => {
       const sent = await sendNote(db, 'alice', { cardId: 'walk', text: '謝謝你寫下這段' });

@@ -158,7 +158,10 @@ export async function readReach(tx: Transaction, db: Firestore, from: string, or
  * conversation (`request`, see sendNote): it is deleted in the same
  * transaction, with both people's letters/* counts. The connection names
  * what made it (`via`, ConnectionVia), so taking the resonance back can take
- * it back too. Answers the bell's id, or null when nothing reached.
+ * it back too. The bell of a resonance on an anonymous card says so
+ * (`payload.anonymous`): it opens the card, never a thread with the
+ * resonator, which their unread count would answer for. Answers the bell's
+ * id, or null when nothing reached.
  */
 export function reachOriginal(tx: Transaction, db: Firestore, cardId: string, card: DocumentData, r: ReachReads): string | null {
   const o = r.original;
@@ -178,7 +181,7 @@ export function reachOriginal(tx: Transaction, db: Firestore, cardId: string, ca
   tx.set(r.bell.ref, {
     userId: o.authorId,
     type: 'resonance',
-    payload: { fromUserId: r.from, fromHandle: String(r.me.get('handle')), cardId: r.originalId },
+    payload: { fromUserId: r.from, fromHandle: String(r.me.get('handle')), cardId: r.originalId, ...(o.anonymous === true ? { anonymous: true } : {}) },
     readAt: null,
     createdAt: FieldValue.serverTimestamp(),
   });
