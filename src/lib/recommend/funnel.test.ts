@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./profile', () => ({ getOrBuildProfile: vi.fn() }));
-vi.mock('./signals', () => ({ getEngagedAuthorIds: vi.fn() }));
+vi.mock('./signals', () => ({ getEngagedAuthorIds: vi.fn(), namedCardIds: vi.fn() }));
 vi.mock('./vectorStore', () => ({ getVectorStore: vi.fn() }));
 vi.mock('@/lib/ai/openai', () => ({
   chatJSON: vi.fn(),
@@ -10,7 +10,7 @@ vi.mock('@/lib/ai/openai', () => ({
 
 import { RERANK_TIMEOUT_MS, SELECT_TIMEOUT_MS, recommendFeed } from './funnel';
 import { getOrBuildProfile } from './profile';
-import { getEngagedAuthorIds } from './signals';
+import { getEngagedAuthorIds, namedCardIds } from './signals';
 import { getVectorStore } from './vectorStore';
 import { chatJSON } from '@/lib/ai/openai';
 import type { NearestHit } from './vectorStore/types';
@@ -46,6 +46,8 @@ beforeEach(() => {
     listByAuthor: vi.fn(),
   });
   vi.mocked(getEngagedAuthorIds).mockResolvedValue(new Set());
+  // Every card named unless a test says otherwise.
+  vi.mocked(namedCardIds).mockImplementation(async (ids: string[]) => new Set(ids));
 });
 
 afterEach(() => {
@@ -107,6 +109,39 @@ describe('recommendFeed', () => {
     const c2 = feed.find((i) => i.cardId === 'c2')!;
     const c1 = feed.find((i) => i.cardId === 'c1')!;
     expect(c2.score).toBeGreaterThan(c1.score);
+  });
+
+  // Review: the vector records carry an anonymous card's author too; lifting
+  // it for being by an author the reader answered said who wrote it (a score
+  // past 1 could only come from the boost).
+  it("never boosts an anonymous card, whoever wrote it — asking only about the engaged authors' cards", async () => {
+    vi.mocked(getOrBuildProfile).mockResolvedValue(profile());
+    vi.mocked(getEngagedAuthorIds).mockResolvedValue(new Set(['a2']));
+    vi.mocked(namedCardIds).mockResolvedValue(new Set(['c3']));
+    nearest.mockResolvedValue([hit('c1', 'a1', 0.1), hit('c2', 'a2', 0.1), hit('c3', 'a2', 0.1)]);
+    vi.mocked(chatJSON)
+      .mockResolvedValueOnce({ scores: [{ ref: 'c1', score: 0.5 }, { ref: 'c2', score: 0.5 }, { ref: 'c3', score: 0.5 }] })
+      .mockResolvedValueOnce({ picks: [{ ref: 'c1', reason: 'r1' }, { ref: 'c2', reason: 'r2' }, { ref: 'c3', reason: 'r3' }] });
+
+    const { items } = await recommendFeed('u1');
+    const score = (id: string) => items.find((i) => i.cardId === id)!.score;
+    // c2 is a2's anonymous card: ranked as anyone's would be.
+    expect(score('c2')).toBe(score('c1'));
+    expect(score('c3')).toBeGreaterThan(score('c2'));
+    expect(vi.mocked(namedCardIds).mock.calls).toEqual([[['c2', 'c3']]]);
+  });
+
+  it('boosts nothing when whether the cards are named cannot be read', async () => {
+    vi.mocked(getOrBuildProfile).mockResolvedValue(profile());
+    vi.mocked(getEngagedAuthorIds).mockResolvedValue(new Set(['a2']));
+    vi.mocked(namedCardIds).mockRejectedValue(new Error('firestore down'));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    nearest.mockResolvedValue([hit('c1', 'a1', 0.1), hit('c2', 'a2', 0.1)]);
+    vi.mocked(chatJSON)
+      .mockResolvedValueOnce({ scores: [{ ref: 'c1', score: 0.5 }, { ref: 'c2', score: 0.5 }] })
+      .mockResolvedValueOnce({ picks: [{ ref: 'c1', reason: 'r1' }, { ref: 'c2', reason: 'r2' }] });
+    const { items } = await recommendFeed('u1');
+    expect(items.map((i) => i.score)).toEqual([0.5, 0.5]);
   });
 
   it("reads the reader's own resonances beside the profile, not after the vector search", async () => {

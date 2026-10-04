@@ -9,12 +9,20 @@ import type { IVectorStore } from '@/lib/recommend/vectorStore/interfaces';
 // build, and the vector search's distance direction on real unit vectors.
 // No LLM runs here: the build is injected, and the funnel's OpenAI calls fail.
 
-const mocks = vi.hoisted(() => ({ store: null as IVectorStore | null, centroids: [] as number[][] }));
+const mocks = vi.hoisted(() => ({ store: null as IVectorStore | null, centroids: [] as number[][], db: null as Firestore | null }));
 vi.mock('@/lib/recommend/vectorStore', () => ({ getVectorStore: () => mocks.store }));
 vi.mock('@/lib/recommend/profile', () => ({
   getOrBuildProfile: async (uid: string) => ({ uid, centroids: mocks.centroids, summaries: [], updatedAt: new Date() }),
 }));
-vi.mock('@/lib/recommend/signals', () => ({ getEngagedAuthorIds: async () => new Set<string>() }));
+// The reader's resonances and the candidates' bylines, read for real on this
+// suite's emulator (a reader with no cards answers no one).
+vi.mock('@/lib/recommend/signals', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/recommend/signals')>();
+  return {
+    getEngagedAuthorIds: (uid: string) => real.getEngagedAuthorIds(uid, mocks.db!),
+    namedCardIds: (ids: string[]) => real.namedCardIds(ids, mocks.db!),
+  };
+});
 vi.mock('@/lib/ai/openai', () => ({
   chatJSON: async () => {
     throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
@@ -37,6 +45,7 @@ beforeAll(() => {
   process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
   app = initializeApp({ projectId: PROJECT }, 'api-v1-recommended-test');
   db = getFirestore(app);
+  mocks.db = db;
 });
 
 afterAll(async () => {
@@ -228,5 +237,46 @@ describe('the vector search', () => {
     const { items, partial } = await recommendFeed('reader', { fallback: true });
     expect(partial).toBe(true);
     expect(items.map((i) => i.cardId)).toEqual(['near', 'mid', 'far']);
+  });
+
+  // Review: a draft answering anyone's named card made its author one the
+  // reader had answered, and the boost then lifted that author's anonymous
+  // card too — a score past 1 could only come from it, and even unseen it
+  // reordered the feed: a draft, a feed, and the card's author was named.
+  it("lifts only a named card for its author, and only for an answer its original shows — never an anonymous one", async () => {
+    const at = Timestamp.fromDate(new Date('2026-09-01T00:00:00Z'));
+    const shown = { visibility: 'public', anonymous: false, publishedAt: at, thoughtCore: 't', story: '' };
+    await Promise.all([
+      db.doc('cards/bobNamed').set({ authorId: 'bob', ...shown }),
+      db.doc('cards/bobMasked').set({ authorId: 'bob', ...shown, anonymous: true }),
+      db.doc('cards/carolCard').set({ authorId: 'carol', ...shown }),
+      // Alice answers Bob's named card in a draft only: nothing Bob was ever shown.
+      db.doc('cards/aliceDraft').set({ authorId: 'alice', ...shown, publishedAt: null, referenceCardId: 'bobNamed' }),
+    ]);
+    const store = new FirestoreVectorStore(db);
+    await store.upsert([
+      record('bobNamed', 'bob', [1, 0.2, 0, 0]),
+      record('bobMasked', 'bob', [1, 0.2, 0, 0]),
+      record('carolCard', 'carol', [1, 0.2, 0, 0]),
+    ]);
+    mocks.store = store;
+    mocks.centroids = [unit([1, 0, 0, 0])];
+    const scores = async () => {
+      const { items } = await recommendFeed('alice', { fallback: true });
+      return Object.fromEntries(items.map((i) => [i.cardId, i.score]));
+    };
+
+    // Three cards as close as each other: as alike in score, none past what the distance gives.
+    let s = await scores();
+    expect(Object.keys(s).sort()).toEqual(['bobMasked', 'bobNamed', 'carolCard']);
+    expect(s.bobNamed).toBeCloseTo(s.carolCard, 9);
+    expect(s.bobMasked).toBeCloseTo(s.carolCard, 9);
+    expect(s.carolCard).toBeLessThanOrEqual(1);
+
+    // A resonance Bob's card lists under her name: his named card is lifted, his anonymous one still isn't.
+    await db.doc('cards/aliceAnswer').set({ authorId: 'alice', ...shown, referenceCardId: 'bobNamed' });
+    s = await scores();
+    expect(s.bobNamed).toBeCloseTo(s.carolCard + 0.15, 9);
+    expect(s.bobMasked).toBeCloseTo(s.carolCard, 9);
   });
 });
