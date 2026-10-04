@@ -87,6 +87,7 @@ import com.resonance.geometry.SegValue
 import com.resonance.geometry.WobRectOptions
 import com.resonance.geometry.jsRound
 import com.resonance.kit.chat.RunPosition
+import com.resonance.kit.l10n.L10n
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
@@ -619,7 +620,7 @@ fun ColumnScope.SharedCardSection(
 /** [SharedCardSection] while the card is read: its footprint in plain shimmering blocks (no wobble, nothing measured). */
 @Composable
 fun ColumnScope.SharedCardSkeleton() {
-    Column(Modifier.fillMaxWidth().semantics { contentDescription = "Loading" }) {
+    Column(Modifier.fillMaxWidth().semantics { contentDescription = L10n.Home.moreLoading }) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Skeleton(height = 32.dp, circle = true)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

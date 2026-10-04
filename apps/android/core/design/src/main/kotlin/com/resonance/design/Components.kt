@@ -92,6 +92,7 @@ import com.resonance.geometry.WobRectOptions
 import com.resonance.geometry.penWave
 import com.resonance.geometry.seedFromString
 import com.resonance.geometry.wobLoop
+import com.resonance.kit.l10n.L10n
 import kotlin.math.hypot
 import kotlin.math.max
 
@@ -543,7 +544,7 @@ fun SketchLoader(size: Dp = 56.dp, color: Color = Tokens.Terracotta) {
     val t = if (still) null else rememberInfiniteTransition(label = "loader").animateFloat(
         0f, 1f, infiniteRepeatable(tween(2600, easing = LinearEasing)), label = "t",
     )
-    Canvas(Modifier.size(size).semantics { contentDescription = "Loading" }) {
+    Canvas(Modifier.size(size).semantics { contentDescription = L10n.Home.moreLoading }) {
         val d = density
         val c = size.value / 2.0
         val path = wobLoop(c, c, size.value * 0.34, size.value * 0.27, 7.0, WobLoopOptions(segments = 9, mag = size.value * 0.03, cpJitter = 0.7)).toPath(d)
