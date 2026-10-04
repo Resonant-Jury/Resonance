@@ -1,4 +1,5 @@
 import Foundation
+import OpenAPIRuntime
 import ResonanceAPI
 
 /// A failed API call as the UI needs it: the contract's error code (so a
@@ -28,4 +29,15 @@ public struct APIFailure: Error, Equatable, Sendable {
     public var isNotFound: Bool { code == "not_found" }
     /// A pen name someone else holds (creating or renaming a profile).
     public var isConflict: Bool { code == "conflict" }
+}
+
+extension APIFailure {
+    /// Whether `error` is the phone being offline — no network, or it went away mid-request —
+    /// rather than the server: a screen can then say so plainly, and that what it shows is still
+    /// there. A transport error reaches the screen wrapped by the generated client (`ClientError`).
+    public static func isOffline(_ error: Error) -> Bool {
+        if let client = error as? ClientError { return isOffline(client.underlyingError) }
+        guard let url = error as? URLError else { return false }
+        return [.notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff].contains(url.code)
+    }
 }

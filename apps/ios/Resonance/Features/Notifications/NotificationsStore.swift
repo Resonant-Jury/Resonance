@@ -19,6 +19,9 @@ final class NotificationsStore {
         let count: Int?
         let readAt: Date?
         let createdAt: Date?
+        /// A note or resonance on one of this person's anonymous cards (`payload.anonymous`): it opens
+        /// the card, never a thread with whoever wrote it (see `NotificationsScreen.route`).
+        var anonymous = false
         var isUnread: Bool { readAt == nil }
     }
 
@@ -81,18 +84,24 @@ final class NotificationsStore {
     }
 
     nonisolated static func item(_ doc: QueryDocumentSnapshot) -> Item {
-        let payload = doc.get("payload") as? [String: Any] ?? [:]
+        item(id: doc.documentID, data: doc.data())
+    }
+
+    /// A bell row's fields as the list draws them.
+    nonisolated static func item(id: String, data: [String: Any]) -> Item {
+        let payload = data["payload"] as? [String: Any] ?? [:]
         return Item(
-            id: doc.documentID,
-            type: doc.get("type") as? String ?? "",
+            id: id,
+            type: data["type"] as? String ?? "",
             fromHandle: payload["fromHandle"] as? String,
             fromUserId: payload["fromUserId"] as? String,
             cardId: payload["cardId"] as? String,
             preview: payload["preview"] as? String,
             noteId: payload["noteId"] as? String,
             count: (payload["count"] as? NSNumber)?.intValue,
-            readAt: (doc.get("readAt") as? Timestamp)?.dateValue(),
-            createdAt: (doc.get("createdAt") as? Timestamp)?.dateValue()
+            readAt: (data["readAt"] as? Timestamp)?.dateValue(),
+            createdAt: (data["createdAt"] as? Timestamp)?.dateValue(),
+            anonymous: payload["anonymous"] as? Bool == true
         )
     }
 }

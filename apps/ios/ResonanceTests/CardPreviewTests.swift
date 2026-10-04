@@ -103,4 +103,38 @@ import Testing
         #expect(model.placeholder == nil)
         #expect(forgotten == ["a-walk"])
     }
+
+    @Test func aCardForConnectionsOnlyGoesWithTheConnection() async {
+        let state = Flag()   // on: the connection is gone (a take-back)
+        let failing = Flag()
+        let model = CardModel(key: "walk") { _ in
+            if failing.on { throw APIFailure.unexpected(status: 502) }
+            if state.on { throw APIFailure(code: "not_found", message: "No such card.", status: 404) }
+            return Fixture.detail(Fixture.card("c1", slug: "walk", by: "bob", visibility: "connections"))
+        }
+        await model.load()
+        // Seen through the connection with its author: their connection moving is this page's business.
+        #expect(model.seenThroughConnection == "bob")
+
+        // Read again and it fails (offline): the page stays, not the load error.
+        failing.on = true
+        await model.load()
+        #expect(model.phase == .loaded)
+        #expect(model.detail?.card.id == "c1")
+
+        // The connection taken back: the card is no longer the reader's to see.
+        failing.on = false
+        state.on = true
+        await model.load()
+        #expect(model.phase == .notFound)
+    }
+
+    @Test func publicOrOwnCardsDontHangOnAConnection() async {
+        let open = CardModel(key: "walk") { _ in Fixture.detail(Fixture.card("c1", by: "bob")) }
+        await open.load()
+        #expect(open.seenThroughConnection == nil)
+        let mine = CardModel(key: "walk") { _ in Fixture.detail(Fixture.card("c1", by: "alice", visibility: "connections"), isOwner: true) }
+        await mine.load()
+        #expect(mine.seenThroughConnection == nil)
+    }
 }

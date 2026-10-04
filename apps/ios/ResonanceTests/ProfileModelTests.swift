@@ -47,4 +47,44 @@ import Testing
         await model.load()
         #expect(model.phase == .notFound)
     }
+
+    @Test func connectedOrNoLongerThePageAsksAgainBehindWhatItShows() async {
+        let connected = Flag(), failing = Flag()
+        connected.on = true
+        let model = ProfileModel(handle: "bob", profile: { _ in
+            if failing.on { throw APIFailure.unexpected(status: 502) }
+            // Connected, their card for connections only is on the page; a take-back later, it isn't.
+            let cards = connected.on ? [Fixture.card("c1"), Fixture.card("conn", visibility: "connections")] : [Fixture.card("c1")]
+            return Fixture.profile("bob", cards: Fixture.page(cards), connected: connected.on)
+        }, page: { _, _ in Fixture.page([]) })
+        await model.load()
+        #expect(model.profile?.isConnected == true)
+        #expect(model.cards.map(\.id) == ["c1", "conn"])
+
+        // Asked again and it fails (offline): the page stays as it was, no error page.
+        failing.on = true
+        await model.revalidate()
+        #expect(model.phase == .loaded)
+        #expect(model.cards.map(\.id) == ["c1", "conn"])
+
+        // The connection gone: the answer takes the page's place.
+        failing.on = false
+        connected.on = false
+        await model.revalidate()
+        #expect(model.phase == .loaded)
+        #expect(model.profile?.isConnected == false)
+        #expect(model.cards.map(\.id) == ["c1"])
+    }
+
+    @Test func whoseConnectionMovedIsWhoIsAskedAbout() {
+        // The live list of connections, read twice: whose began or ended.
+        #expect(ConversationsStore.moved(from: ["bob", "carol"], to: ["carol", "dave"]) == ["bob", "dave"])
+        #expect(ConversationsStore.moved(from: ["bob"], to: ["bob"]).isEmpty)
+        let moved = ConnectionsMove().next(["bob"])
+        #expect(moved.concerns("bob"))
+        #expect(!moved.concerns("carol"))
+        #expect(!moved.concerns(nil))
+        // The same person twice in a row is still two changes (the screens hear both).
+        #expect(moved.next(["bob"]) != moved)
+    }
 }
