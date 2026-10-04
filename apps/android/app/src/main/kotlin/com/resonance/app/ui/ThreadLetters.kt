@@ -25,14 +25,17 @@ internal enum class ThreadFoot {
 
     companion object {
         /**
-         * [connected] is null until known (the composer shows meanwhile); [requestFrom] who left
-         * the note waiting, if one is ([me] or [other]).
+         * [connected] is null until known; [requestFrom] who left the note waiting, if one is ([me]
+         * or [other]). A note waits only between people not connected (the server lets go of it as
+         * it connects them), so a waiting one says what the foot is before the profile has; with
+         * none, the composer shows meanwhile.
          */
         fun of(connected: Boolean?, blocked: Boolean, requestFrom: String?, me: String?, other: String?): ThreadFoot = when {
             blocked -> Closed
-            connected != false -> Composer
+            connected == true -> Composer
             requestFrom != null && requestFrom == other -> Answer
             requestFrom != null && requestFrom == me -> Awaiting
+            connected == null -> Composer
             else -> Closed
         }
     }

@@ -24,7 +24,13 @@ class ThreadLettersTest {
         // The note that connected them was answered long ago; a stray request changes nothing.
         assertEquals(ThreadFoot.Composer, foot(true, requestFrom = "carol"))
         // Not known yet: the composer shows meanwhile.
-        assertEquals(ThreadFoot.Composer, foot(null, requestFrom = "alice"))
+        assertEquals(ThreadFoot.Composer, foot(null))
+    }
+
+    @Test fun aWaitingNoteSaysWhatTheFootIsBeforeTheProfileDoes() {
+        // A note waits only between people not connected: no composer showing first, then going.
+        assertEquals(ThreadFoot.Awaiting, foot(null, requestFrom = "alice"))
+        assertEquals(ThreadFoot.Answer, foot(null, requestFrom = "carol"))
     }
 
     @Test fun theirNoteWaitsForYourAnswerYoursForTheirs() {
