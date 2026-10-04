@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,6 +27,8 @@ import com.resonance.design.CssText
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicConfirmDialog
 import com.resonance.design.MenuTrigger
+import com.resonance.design.Mixes
+import com.resonance.design.OrganicAlert
 import com.resonance.design.OrganicMenu
 import com.resonance.design.OrganicMenuItem
 import com.resonance.design.OrganicModal
@@ -42,9 +45,13 @@ import kotlinx.coroutines.launch
  * (for a card answering another, [referenceCardId]) / 刪除, in the shared
  * OrganicMenu. Deleting and no longer resonating ask first, in the web's own
  * small dialogs. The changes go through the server (PATCH / DELETE
- * /api/v1/cards/{id}, DELETE …/{original}/resonances/{id}), which also
- * refreshes the site's cached pages that showed the card. The twin of iOS's
- * CardActionsMenu.
+ * /api/v1/cards/{id}, DELETE …/{original}/resonances/{id}) — never straight to
+ * Firestore, whose rules refuse them on a published card — which also
+ * refreshes the site's cached pages that showed the card. One that fails says
+ * so and changes nothing: the card stays where it is listed. Any of them may
+ * end a connection a resonance made: every screen showing cards reads them
+ * again ([Session.noteCardChange]), and the conversations and an open thread
+ * follow the connections live. The twin of iOS's CardActionsMenu.
  */
 @Composable
 fun CardActionsMenu(
@@ -69,6 +76,10 @@ fun CardActionsMenu(
     var confirming by remember { mutableStateOf(false) }
     var unresonating by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
+    /** The visibility change didn't go through (the card is as it was): said in a small alert. */
+    var changeFailed by remember { mutableStateOf(false) }
+    /** The delete didn't go through: said in its dialog, which stays for another try. */
+    var deleteFailed by remember { mutableStateOf(false) }
     val isPrivate = visibility == "private"
 
     val items = listOf(
@@ -87,7 +98,8 @@ fun CardActionsMenu(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    // Nothing changed; the menu is as it was.
+                    // Nothing changed: the card stays as it was, and says so.
+                    changeFailed = true
                 } finally {
                     busy = false
                 }
@@ -95,7 +107,10 @@ fun CardActionsMenu(
         },
     ) + listOfNotNull(
         referenceCardId?.let { OrganicMenuItem(L10n.Me.Actions.unresonate, IconName.Wave) { unresonating = true } },
-        OrganicMenuItem(L10n.Me.Actions.delete, IconName.Trash, destructive = true) { confirming = true },
+        OrganicMenuItem(L10n.Me.Actions.delete, IconName.Trash, destructive = true) {
+            deleteFailed = false
+            confirming = true
+        },
     )
 
     Box(Modifier.fade(if (busy && !confirming && !unresonating) 0.6f else 1f)) {
@@ -117,13 +132,18 @@ fun CardActionsMenu(
                 )
                 Spacer(Modifier.height(10.dp))
                 CssText(L10n.Me.Actions.deleteConfirmBody, AppFonts.Family.Body, 14f, lineHeight = 1.6f, color = Tokens.TextMuted)
-                Spacer(Modifier.height(24.dp))
+                if (deleteFailed) {
+                    Spacer(Modifier.height(10.dp))
+                    BasicText(L10n.Safety.actionError, style = AppFonts.body(13f, color = Mixes.Danger))
+                }
+                Spacer(Modifier.height(if (deleteFailed) 14.dp else 24.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                     // The modal is the frame: "keep it" is plain text, and deleting — which can't be undone — is red.
                     OrganicButton(L10n.Me.Actions.deleteCancel, variant = ButtonVariant.Text, small = true, enabled = !busy) { confirming = false }
                     OrganicButton(if (busy) "…" else L10n.Me.Actions.deleteConfirm, variant = ButtonVariant.Danger, small = true, enabled = !busy) {
                         if (busy) return@OrganicButton
                         busy = true
+                        deleteFailed = false
                         scope.launch {
                             try {
                                 session.writing.deleteCard(cardId)
@@ -133,7 +153,8 @@ fun CardActionsMenu(
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {
-                                // Still there; the dialog stays for another try.
+                                // Still there, and listed where it was: the dialog says so and stays for another try.
+                                deleteFailed = true
                             } finally {
                                 busy = false
                             }
@@ -143,6 +164,7 @@ fun CardActionsMenu(
             }
         }
     }
+    if (changeFailed) OrganicAlert(L10n.Safety.actionError, "OK", seed = seed + 3) { changeFailed = false }
     if (unresonating && referenceCardId != null) UnresonateDialog(
         session, cardId, referenceCardId, referenceTitle, seed = seed + 9,
         onDone = {
