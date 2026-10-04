@@ -365,10 +365,20 @@ export const ResonateResponse = named(
 export const NOTE_TEXT_MAX = 2000;
 export const MESSAGE_TEXT_MAX = 2000;
 
+/** A sender's own id for what they send (SendNoteRequest, SendMessageRequest): 16–64 of [A-Za-z0-9_-]. */
+const ClientId = z.string().regex(/^[A-Za-z0-9_-]{16,64}$/, 'Not a valid client id.');
+
 export const SendNoteRequest = named(
   z.object({
     cardId: DocId,
     text: z.string().trim().min(1).max(NOTE_TEXT_MAX),
+    /**
+     * The sender's own id for this note, made when they press send and kept
+     * for every retry of it: it becomes the note's id, so sending it again (a
+     * retry after a lost answer) finds the note already left — answered as
+     * the first send was, ringing no one twice — instead of leaving it twice.
+     */
+    clientId: ClientId.nullish(),
   }),
   'SendNoteRequest',
   "A note to a card's author (the server finds the author — anonymous cards too).",
@@ -394,7 +404,7 @@ export const SendMessageRequest = named(
      * the message's id, so sending it again (a retry after a lost answer) finds
      * the one already written instead of writing it twice.
      */
-    clientId: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/, 'Not a valid client id.').nullish(),
+    clientId: ClientId.nullish(),
   }),
   'SendMessageRequest',
 );
