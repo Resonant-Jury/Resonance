@@ -38,6 +38,7 @@ import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
 import com.resonance.kit.api.ApiFailure
+import com.resonance.kit.chat.NoteAttempt
 import com.resonance.kit.l10n.L10n
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -65,6 +66,9 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
     var error by remember { mutableStateOf<String?>(null) }
     var showsHint by remember { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
+    // The note on its way, under one client id until it is left: Send pressed again on the same
+    // words after a failure is a retry the server can recognise, never a second note.
+    val attempt = remember { NoteAttempt() }
 
     // The web counts the trimmed text in UTF-16 units (Kotlin's length is the same unit).
     val count = text.trim().length
@@ -130,9 +134,10 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
                     if (!valid || pending) return@OrganicButton
                     pending = true
                     error = null
+                    val words = text.trim()
                     scope.launch {
                         try {
-                            session.messaging.sendNote(cardId, text.trim())
+                            attempt.send(cardId, words) { clientId -> session.messaging.sendNote(cardId, words, clientId) }
                             sent = true
                             PushCenter.reachedOut()
                         } catch (e: CancellationException) {
