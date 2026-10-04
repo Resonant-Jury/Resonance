@@ -467,10 +467,14 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
       retry: (key) => live.current.thread.retry(key),
       discard: (key) => live.current.thread.discard(key),
       copy: (text) => {
-        void navigator.clipboard?.writeText(text).then(() => {
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 1600);
-        });
+        // A copy the browser refuses (no focus, a policy) says nothing: no「已複製」for what wasn't.
+        void navigator.clipboard?.writeText(text).then(
+          () => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1600);
+          },
+          () => undefined,
+        );
       },
       press: setPressed,
     }),
