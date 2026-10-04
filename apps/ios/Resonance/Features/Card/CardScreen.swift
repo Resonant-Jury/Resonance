@@ -107,10 +107,11 @@ struct CardScreen: View {
                     CardEmbedView(href: href, title: title, card: model.embed(for: href))
                 } linkCard: { href, text in
                     model.linkPreview(href: href, text: text).map { preview in
-                        StoryLinkCard(title: preview.title, description: preview.description,
-                                      host: preview.link.host.replacingOccurrences(of: "www.", with: "", options: .anchored),
-                                      imageURL: preview.imageURL, seed: Double(seedFromString(preview.url.absoluteString)),
-                                      openLabel: L10n.Card.LinkPreview.open(host: preview.link.host)) { openPreview(preview) }
+                        // The host as the card shows it is also what VoiceOver says the card opens (as on the web).
+                        let host = preview.link.host.replacingOccurrences(of: "www.", with: "", options: .anchored)
+                        return StoryLinkCard(title: preview.title, description: preview.description, host: host,
+                                             imageURL: preview.imageURL, seed: Double(seedFromString(preview.url.absoluteString)),
+                                             openLabel: L10n.Card.LinkPreview.open(host: host)) { openPreview(preview) }
                     }
                 }
                 .padding(.bottom, 32)
