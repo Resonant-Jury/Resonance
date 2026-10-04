@@ -79,6 +79,17 @@ describe('the bell’s rows', () => {
     expect(within(list).getByText('「Thank you for the walk.」')).toBeInTheDocument();
   });
 
+  // The dot ends the line that says who it is from; under a note's words it read as a mark on the note.
+  it('put the unread dot of a note row on its first line, before the note’s words', async () => {
+    const { list } = await openBell();
+    const row = within(list).getAllByRole('link')[2];
+    const dot = row.querySelector('[data-unread-dot]')!;
+    const words = within(row).getByText('「Thank you for the walk.」');
+    expect(dot).not.toBeNull();
+    expect(dot.compareDocumentPosition(words) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(words.contains(dot)).toBe(false);
+  });
+
   it('mark only the bell row read when one on an anonymous card is opened — no conversation, and offer no reply', async () => {
     const { user, list } = await openBell();
     await user.click(within(list).getAllByRole('link')[0]);
