@@ -69,7 +69,7 @@ class PageTransitionsTest {
         assertTrue(early.scale > 0.9f)
     }
 
-    @Test fun theReleaseTakesThePageOffTheScreenTheWayTheFingerWentAndClearsTheScrim() {
+    @Test fun aSwipeDrawnAllTheWayTakesThePageOffTheScreenTheWayTheFingerWentAndClearsTheScrim() {
         val left = pose(PageMove.Predictive, PageRole.Exiting, 1f, finger = 1f)
         // Scaled about its centre, its near edge is at this offset plus the margin the scale leaves.
         assertTrue(left.translationX + width * (1f - left.scale) / 2f >= width)
@@ -80,11 +80,74 @@ class PageTransitionsTest {
         assertEquals(left.translationX, pose(PageMove.Predictive, PageRole.Exiting, 1f, end = -1f, finger = 1f).translationX, 0.001f)
     }
 
-    @Test fun theLeavingAcceleratesRatherThanSlowingAtTheEdge() {
+    @Test fun aLongSwipeAcceleratesTheLeavingRatherThanSlowingAtTheEdge() {
         val a = pose(PageMove.Predictive, PageRole.Exiting, 0.6f).translationX
         val b = pose(PageMove.Predictive, PageRole.Exiting, 0.8f).translationX
         val c = pose(PageMove.Predictive, PageRole.Exiting, 1f).translationX
         assertTrue("$a $b $c", c - b > b - a)
+    }
+
+    private val drift = 20f
+
+    private fun released(at: Float, t: Float, finger: Float = 1f) =
+        releasedPose(pose(PageMove.Predictive, PageRole.Exiting, at, finger = finger), t, finger, drift)
+
+    @Test fun letGoThePageIsFirstExactlyAsTheFingerLeftIt() {
+        for (at in listOf(0f, 0.1f, 0.25f, 0.6f)) {
+            assertEquals(pose(PageMove.Predictive, PageRole.Exiting, at), released(at, 0f))
+        }
+    }
+
+    @Test fun letGoThePageFadesAndTheScrimClearsWithIt() {
+        val gone = released(0.25f, 1f)
+        assertEquals(0f, gone.alpha, 0.001f)
+        assertEquals(0f, gone.scrim, 0.001f)
+        // At every step the scrim is the page's own share of what it was: the two clear together.
+        val drag = pose(PageMove.Predictive, PageRole.Exiting, 0.25f)
+        for (t in listOf(0.2f, 0.5f, 0.8f)) {
+            val p = released(0.25f, t)
+            assertEquals(drag.scrim * p.alpha, p.scrim, 0.001f)
+        }
+    }
+
+    @Test fun theFadeIsFrontLoadedSoThePageBeneathIsThereAtOnce() {
+        var before = 1f
+        for (step in 1..20) {
+            val alpha = released(0.2f, step / 20f).alpha
+            assertTrue("alpha falls at every step: $before → $alpha", alpha < before)
+            before = alpha
+        }
+        // Most of the page is gone in the first third of the little time left.
+        assertTrue(released(0.2f, 0.3f).alpha <= 0.5f)
+    }
+
+    @Test fun letGoThePageCarriesOnTheWayTheFingerWentAndNeverBack() {
+        for (finger in listOf(1f, -1f)) {
+            val drag = pose(PageMove.Predictive, PageRole.Exiting, 0.3f, finger = finger)
+            for (t in listOf(0.1f, 0.5f, 1f)) {
+                val p = released(0.3f, t, finger)
+                assertTrue(p.scale <= drag.scale)
+                assertTrue(kotlin.math.abs(p.translationX) >= kotlin.math.abs(drag.translationX))
+                assertEquals(finger > 0, p.translationX > 0)
+                // The rounded corners stay as they were.
+                assertEquals(drag.corner, p.corner, 0f)
+            }
+        }
+    }
+
+    @Test fun whatIsLeftOfASwipeLetGoTakesAFewFramesAtMost() {
+        // Let go at 20%, the rest of the move is 80% of its timeline: about 7 frames at 60 Hz.
+        assertTrue(PageMove.Predictive.millis * 0.8f in 80f..130f)
+    }
+
+    @Test fun onlyAPageLeavingByASwipeThatWentThroughIsLetGo() {
+        assertTrue(releasing(PageMove.Predictive, PageRole.Exiting, onStack = false))
+        // Called off: the page is still on its stack, and follows the finger back.
+        assertEquals(false, releasing(PageMove.Predictive, PageRole.Exiting, onStack = true))
+        // The page coming back, and a back by the arrow or the key, move as they always have.
+        assertEquals(false, releasing(PageMove.Predictive, PageRole.Entering, onStack = true))
+        assertEquals(false, releasing(PageMove.Pop, PageRole.Exiting, onStack = false))
+        assertEquals(false, releasing(PageMove.Push, PageRole.Exiting, onStack = false))
     }
 
     @Test fun switchingTabsFadesOneIntoTheOtherWithoutMovingOrDarkening() {
