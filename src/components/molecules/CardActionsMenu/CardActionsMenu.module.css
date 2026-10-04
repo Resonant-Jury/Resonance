@@ -29,3 +29,11 @@
   justify-content: flex-end;
   gap: 10px;
 }
+/* A change the server refused, said on its own (the visibility switch has no dialog of its own to say it in). */
+.notice {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  margin: 0 0 4px;
+}

@@ -9,7 +9,7 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useRouter } from '@/i18n/navigation';
 import { useCardSummaries } from '@/lib/data/hooks';
-import { useResonanceRefresh } from '@/lib/data/resonate';
+import { useConnectionRefresh, useResonanceRefresh } from '@/lib/data/resonate';
 import { deleteCard, unresonate, updateCardSettings } from '@/lib/db/firestore/client/cards';
 import type { Visibility } from '@/lib/db/types';
 import styles from './CardActionsMenu.module.css';
@@ -47,7 +47,12 @@ type ActionKey = 'edit' | 'visibility' | 'unresonate' | 'delete';
  * (PATCH / DELETE /api/v1/cards/{id}), which also drops the cached pages that
  * showed the card as it was and keeps the recommender's copy in step; then the
  * viewer's card box and profile lists are read again, so the card visibly
- * moves tabs / disappears without a reload.
+ * moves tabs / disappears without a reload. A change refused (an error, a
+ * card the rules won't let go of) says so and leaves the card where it was.
+ *
+ * Hiding or deleting a card that resonates with another takes the resonance
+ * back, and that can end the connection with the original's author: what
+ * turns on the viewer's connections is read again too (lib/data/resonate).
  */
 export function CardActionsMenu({
   card,
@@ -66,10 +71,13 @@ export function CardActionsMenu({
   const { mutate } = useSWRConfig();
 
   const refreshResonance = useResonanceRefresh();
+  const refreshConnections = useConnectionRefresh();
 
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState<'delete' | 'unresonate' | null>(null);
   const [failed, setFailed] = useState(false);
+  // A visibility change the server refused: said in a dialog of its own (the menu has closed by then).
+  const [visibilityFailed, setVisibilityFailed] = useState(false);
 
   const original = card.referenceCardId;
   // The confirm asks「不再與〈title〉共振？」: the title is the page's when it
@@ -92,16 +100,16 @@ export function CardActionsMenu({
 
   // What this browser holds of the viewer's own cards: the card box's shelves, and
   // their profile's lists (profileCards: signed-out reads; profilePage: one
-  // per profile they looked at, keyed by viewer).
+  // per profile they looked at, keyed by viewer). A resonance hidden or deleted
+  // was taken back: what turns on their connections is read again in the same pass.
   const refreshOwnLists = useCallback(() => {
     if (!user) return;
     const uid = user.id;
-    void mutate(
-      (key) =>
-        typeof key === 'string' &&
-        (key.startsWith(`cardbox:${uid}:`) || key === `profileCards:${uid}` || (key.startsWith('profilePage:') && key.endsWith(`:${uid}`))),
-    );
-  }, [mutate, user]);
+    const own = (key: string) =>
+      key.startsWith(`cardbox:${uid}:`) || key === `profileCards:${uid}` || (key.startsWith('profilePage:') && key.endsWith(`:${uid}`));
+    if (original) refreshConnections(own);
+    else void mutate((key) => typeof key === 'string' && own(key));
+  }, [mutate, user, original, refreshConnections]);
 
   async function choose(key: ActionKey) {
     if (busy) return;
@@ -111,10 +119,13 @@ export function CardActionsMenu({
     }
     if (key === 'visibility') {
       setBusy(true);
+      setVisibilityFailed(false);
       try {
         await updateCardSettings(card.id, { visibility: isPrivate ? 'public' : 'private' });
         refreshOwnLists();
         onChanged?.();
+      } catch {
+        setVisibilityFailed(true);
       } finally {
         setBusy(false);
       }
@@ -128,11 +139,15 @@ export function CardActionsMenu({
   async function confirmDelete() {
     if (busy) return;
     setBusy(true);
+    setFailed(false);
     try {
       await deleteCard(card.id);
       refreshOwnLists();
       setConfirming(null);
       onDeleted?.();
+    } catch {
+      // Not deleted: the question stays open, saying so, and the card stays in every list.
+      setFailed(true);
     } finally {
       setBusy(false);
     }
@@ -178,6 +193,11 @@ export function CardActionsMenu({
       >
         <h3 className={styles.confirmTitle}>{t('deleteConfirmTitle')}</h3>
         <p className={styles.confirmBody}>{t('deleteConfirmBody')}</p>
+        {failed && (
+          <p className={styles.confirmError} role="alert">
+            {tSafety('actionError')}
+          </p>
+        )}
         {/* Gated via pointer-events while deleting. */}
         <div
           className={styles.confirmActions}
@@ -222,6 +242,21 @@ export function CardActionsMenu({
             {busy ? '…' : t('unresonateConfirm')}
           </OrganicButton>
         </div>
+      </Modal>
+
+      {/* The menu has closed by the time the server answers: a refusal is said here, and the card stays as it was. */}
+      <Modal
+        open={visibilityFailed}
+        onClose={() => setVisibilityFailed(false)}
+        seed={seed + 13}
+        maxWidth={400}
+        ariaLabel={isPrivate ? t('makePublic') : t('makePrivate')}
+        closeButton
+      >
+        <h3 className={styles.confirmTitle}>{isPrivate ? t('makePublic') : t('makePrivate')}</h3>
+        <p className={styles.notice} role="alert">
+          {tSafety('actionError')}
+        </p>
       </Modal>
     </>
   );
