@@ -7,7 +7,13 @@ import SwiftUI
 /// OrganicMenu. Deleting, and taking a resonance back, ask first, in the web's
 /// own small dialogs. Visibility, deleting and the resonance go through the
 /// server (PATCH / DELETE /api/v1/cards/{id}, DELETE …/resonances/{id}), which
-/// also refreshes the site's cached pages.
+/// also refreshes the site's cached pages — never straight to Firestore, whose
+/// rules refuse both on a published card. A change that didn't go through says
+/// so, and the card stays where it was.
+///
+/// On a resonance each of them can end the connection with the original's
+/// author: the change names the card it answered (its page reads again), and
+/// the connection's screens hear of it from the live connections list.
 struct CardActionsMenu: View {
     let cardId: String
     let visibility: String
@@ -29,6 +35,8 @@ struct CardActionsMenu: View {
     @State private var unresonating = false
     @State private var busy = false
     @State private var failed = false
+    /// The visibility change didn't go through: a small dialog says so, with a retry.
+    @State private var visibilityFailed = false
     /// The answered card's title, asked for when the page didn't have it.
     @State private var askedTitle: String?
 
@@ -48,6 +56,12 @@ struct CardActionsMenu: View {
                             seed: seed + 9) {
                 Task { await unresonate() }
             }
+            // Turning public or private didn't go through: the card is as it was; say so, and offer it again.
+            .organicConfirm(isPresented: $visibilityFailed, title: visibilityLabel, message: L10n.Safety.actionError,
+                            cancelLabel: L10n.Safety.Report.close, confirmLabel: L10n.Native.retry,
+                            closeLabel: L10n.Safety.Report.close, busy: busy, seed: seed + 11) {
+                Task { await toggleVisibility() }
+            }
             .task(id: unresonating) {
                 guard unresonating, let answering, answeringTitle == nil, askedTitle == nil else { return }
                 if let kept = session.cardPreviews.card(for: answering) { return askedTitle = kept.title }
@@ -64,17 +78,24 @@ struct CardActionsMenu: View {
     private var items: [OrganicMenuItem] {
         [
             OrganicMenuItem(id: "edit", title: L10n.Me.Actions.edit, icon: .pen) { writer.edit(cardId, showsCard: showsCardAfterEdit) },
-            OrganicMenuItem(id: "visibility", title: isPrivate ? L10n.Me.Actions.makePublic : L10n.Me.Actions.makePrivate,
-                            icon: isPrivate ? .globe : .lock) { Task { await toggleVisibility() } },
+            OrganicMenuItem(id: "visibility", title: visibilityLabel, icon: isPrivate ? .globe : .lock) { Task { await toggleVisibility() } },
         ] + (answering == nil ? [] : [
             OrganicMenuItem(id: "unresonate", title: L10n.Me.Actions.unresonate, icon: .wave) {
                 failed = false
                 unresonating = true
             },
         ]) + [
-            OrganicMenuItem(id: "delete", title: L10n.Me.Actions.delete, icon: .trash, danger: true) { confirming = true },
+            OrganicMenuItem(id: "delete", title: L10n.Me.Actions.delete, icon: .trash, danger: true) {
+                failed = false
+                confirming = true
+            },
         ]
     }
+
+    private var visibilityLabel: String { isPrivate ? L10n.Me.Actions.makePublic : L10n.Me.Actions.makePrivate }
+
+    /// What changed: this card, and on a resonance the card it answers (its page lists it).
+    private var change: WriteLauncher.Change { .init(cardId: cardId, referenceCardId: answering) }
 
     /// The delete confirmation: 20pt heading, the muted note, then Keep it / Delete card on the right.
     private var confirm: some View {
@@ -84,7 +105,11 @@ struct CardActionsMenu: View {
                 .padding(.bottom, 10)
             CSSText(L10n.Me.Actions.deleteConfirmBody, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.6,
                     color: UIColor(Tokens.textMuted))
-                .padding(.bottom, 24)
+                .padding(.bottom, failed ? 10 : 24)
+            if failed {
+                // Not deleted (offline, or refused): the card stays, in the list too.
+                ModalError(L10n.Safety.actionError).padding(.bottom, 14)
+            }
             HStack(spacing: 10) {
                 Spacer(minLength: 0)
                 // The modal is the frame: "keep it" is plain text, and deleting — which can't be undone — is red.
@@ -100,9 +125,13 @@ struct CardActionsMenu: View {
         guard !busy else { return }
         busy = true
         defer { busy = false }
-        guard let card = try? await session.writing.updateCard(cardId, visibility: isPrivate ? ._public : ._private) else { return }
+        guard let card = try? await session.writing.updateCard(cardId, visibility: isPrivate ? ._public : ._private) else {
+            visibilityFailed = true
+            return
+        }
+        visibilityFailed = false
         session.cardPreviews.remember(card)
-        writer.noteChange(.init(cardId: cardId))
+        writer.noteChange(change)
         onChanged()
     }
 
@@ -120,18 +149,22 @@ struct CardActionsMenu: View {
         }
         unresonating = false
         // This card's page, the page of the card it answered, and the card box's shelves read again.
-        writer.noteChange(.init(cardId: cardId, referenceCardId: answering))
+        writer.noteChange(change)
         onChanged()
     }
 
     private func delete() async {
         guard !busy else { return }
         busy = true
+        failed = false
         defer { busy = false }
-        guard (try? await session.writing.deleteCard(cardId)) != nil else { return }
+        guard (try? await session.writing.deleteCard(cardId)) != nil else {
+            failed = true
+            return
+        }
         session.cardPreviews.forget(cardId)
         confirming = false
-        writer.noteChange(.init(cardId: cardId))
+        writer.noteChange(change)
         onDeleted()
     }
 }
