@@ -87,6 +87,14 @@ class ConversationsStore {
     private val _ids = MutableStateFlow<Set<String>>(emptySet())
     val ids: StateFlow<Set<String>> = _ids
 
+    /**
+     * Whom the person is connected with, live (null until Firestore has said): an open thread
+     * follows it, so a connection that ends — a take-back by either of them — or begins shows in
+     * its composer at once.
+     */
+    private val _connected = MutableStateFlow<Set<String>?>(null)
+    val connectedIds: StateFlow<Set<String>?> = _connected
+
     /** Called when the person's blocks change after they were first read. */
     var onBlocksChanged: (() -> Unit)? = null
 
@@ -126,6 +134,7 @@ class ConversationsStore {
                 .addSnapshotListener { snap, _ ->
                     snap ?: return@addSnapshotListener failed("connections")
                     connectionUids = snap.documents.mapNotNull { doc -> (doc.get("userIds") as? List<*>)?.firstOrNull { it != uid } as? String }
+                    _connected.value = connectionUids.toSet()
                     arrived("connections")
                 }
         }
@@ -175,6 +184,7 @@ class ConversationsStore {
         rawConversations = emptyList()
         _ids.value = emptySet()
         connectionUids = emptyList()
+        _connected.value = null
         _blocked.value = null
         ready.clear()
         _state.value = State()

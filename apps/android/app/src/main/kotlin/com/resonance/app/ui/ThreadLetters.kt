@@ -7,8 +7,10 @@ import com.resonance.kit.chat.ChatMessage
  * Who may write in a thread, and what its foot shows instead of the composer when you may not. A
  * note is a letter: it doesn't connect two people, the card's author answering it does — so a
  * conversation can hold a note from someone you're not connected with, waiting
- * (`conversations/{pair}.request`, written by the server: who left it). The messages show in
- * every state; only the foot changes.
+ * (`conversations/{pair}.request`, written by the server: who left it; only its recipient's
+ * answer lets go of it). The messages show in every state; only the foot changes. A letter
+ * counts only between people not connected: one still waiting while they are (they connected
+ * another way, a resonance) is ignored, and counts again should that connection end.
  */
 internal enum class ThreadFoot {
     /** Connected (or not known yet): the composer. */
@@ -26,9 +28,10 @@ internal enum class ThreadFoot {
     companion object {
         /**
          * [connected] is null until known; [requestFrom] who left the note waiting, if one is ([me]
-         * or [other]). A note waits only between people not connected (the server lets go of it as
-         * it connects them), so a waiting one says what the foot is before the profile has; with
-         * none, the composer shows meanwhile.
+         * or [other]). Connected, a waiting note is ignored. Not known yet, a waiting one says what
+         * the foot most likely is (a note mostly waits between people not connected; the live
+         * connections usually say before the thread draws, [connectionOf]); with none, the
+         * composer shows meanwhile.
          */
         fun of(connected: Boolean?, blocked: Boolean, requestFrom: String?, me: String?, other: String?): ThreadFoot = when {
             blocked -> Closed
@@ -39,6 +42,18 @@ internal enum class ThreadFoot {
             else -> Closed
         }
     }
+}
+
+/**
+ * Whether two people are connected, as a thread knows it: the person's connections as Firestore
+ * has them live ([live], null until it has said) — so a connection that a take-back by either of
+ * them ends, or an answer begins, shows at once, whatever a profile read a moment before said —
+ * else the profile's word ([profile], null until read). Never across a block. Null: not known.
+ */
+internal fun connectionOf(live: Set<String>?, other: String?, profile: Boolean?, blocked: Boolean): Boolean? = when {
+    blocked -> false
+    live != null && other != null -> other in live
+    else -> profile
 }
 
 /**

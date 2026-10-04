@@ -41,6 +41,39 @@ class ThreadLettersTest {
         assertEquals(ThreadFoot.Closed, foot(false, requestFrom = "dora"))
     }
 
+    @Test fun aLetterStillWaitingWhileConnectedIsIgnoredAndCountsAgainOnceTheConnectionEnds() {
+        // They connected another way (a resonance) and the note waits on: the composer, no line.
+        assertEquals(ThreadFoot.Composer, foot(true, requestFrom = "alice"))
+        assertEquals(ThreadFoot.Composer, foot(true, requestFrom = "carol"))
+        // The resonance taken back: the letter is a letter again.
+        assertEquals(ThreadFoot.Awaiting, foot(false, requestFrom = "alice"))
+        assertEquals(ThreadFoot.Answer, foot(false, requestFrom = "carol"))
+    }
+
+    @Test fun theLiveConnectionsSayWhetherYouAreConnectedOverTheProfile() {
+        // Firestore's live list, once it has said, wins over a profile the HTTP cache may have kept.
+        assertEquals(false, connectionOf(live = setOf("dora"), other = "carol", profile = true, blocked = false))
+        assertEquals(true, connectionOf(live = setOf("carol"), other = "carol", profile = false, blocked = false))
+        assertEquals(true, connectionOf(live = setOf("carol"), other = "carol", profile = null, blocked = false))
+        // Not heard from yet (or whom the thread is with not known yet): the profile's word, or nothing.
+        assertEquals(true, connectionOf(live = null, other = "carol", profile = true, blocked = false))
+        assertEquals(null, connectionOf(live = null, other = "carol", profile = null, blocked = false))
+        assertEquals(null, connectionOf(live = setOf("carol"), other = null, profile = null, blocked = false))
+        // Never across a block.
+        assertEquals(false, connectionOf(live = setOf("carol"), other = "carol", profile = true, blocked = true))
+    }
+
+    @Test fun aTakeBackEndingTheConnectionChangesTheFootAtOnce() {
+        // Connected through alice's resonance, with carol's note still waiting for alice's answer…
+        val before = connectionOf(live = setOf("carol"), other = "carol", profile = true, blocked = false)
+        assertEquals(ThreadFoot.Composer, foot(before, requestFrom = "carol"))
+        // …the resonance taken back: the live list drops carol, and the thread asks for an answer again.
+        val after = connectionOf(live = emptySet(), other = "carol", profile = before, blocked = false)
+        assertEquals(ThreadFoot.Answer, foot(after, requestFrom = "carol"))
+        // With no letter between them, "not connected".
+        assertEquals(ThreadFoot.Closed, foot(after))
+    }
+
     @Test fun aBlockClosesTheThreadWhateverWaits() {
         assertEquals(ThreadFoot.Closed, foot(false, requestFrom = "carol", blocked = true))
         assertEquals(ThreadFoot.Closed, foot(null, blocked = true))
