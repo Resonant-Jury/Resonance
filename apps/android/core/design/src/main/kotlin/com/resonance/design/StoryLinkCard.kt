@@ -16,9 +16,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -52,7 +50,6 @@ fun StoryLinkCard(preview: LinkPreview, host: String, label: String, onOpen: () 
     val shape = remember(seed) { WobRectShape(16.0, seed) }
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    var pictureFailed by remember(preview.imageUrl) { mutableStateOf(false) }
     Column(
         modifier
             .widthIn(max = 520.dp)
@@ -76,8 +73,9 @@ fun StoryLinkCard(preview: LinkPreview, host: String, label: String, onOpen: () 
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         val picture = preview.imageUrl
-        if (picture != null && !pictureFailed) {
-            OrganicImage(picture, seed + 3, Modifier.fillMaxWidth().aspectRatio(1.91f), radius = 12.0, onError = { pictureFailed = true }) {
+        // One that failed before is left out at once (FailedPictures), not drawn as a box and dropped again.
+        if (picture != null && !FailedPictures.shared.has(picture)) {
+            OrganicImage(picture, seed + 3, Modifier.fillMaxWidth().aspectRatio(1.91f), radius = 12.0, onError = { FailedPictures.shared.note(picture) }) {
                 Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
             }
         }

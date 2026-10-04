@@ -38,10 +38,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -528,10 +526,10 @@ fun ColumnScope.LinkPreviewSection(
     onLongPress: (() -> Unit)?,
 ) {
     Column(Modifier.fillMaxWidth().bubblePart(title, onClick, onLongPress)) {
-        var pictureFailed by remember(imageUrl) { mutableStateOf(false) }
-        if (imageUrl != null && !pictureFailed) {
+        // One that failed before is left out at once (FailedPictures), not drawn as a box and dropped again.
+        if (imageUrl != null && !FailedPictures.shared.has(imageUrl)) {
             if (afterWords) Box(Modifier.height(BubblePadY))
-            BubblePicture(imageUrl) { pictureFailed = true }
+            BubblePicture(imageUrl) { FailedPictures.shared.note(imageUrl) }
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14.5f, 600, lineHeight = 1.35f))
@@ -592,9 +590,8 @@ fun ColumnScope.SharedCardSection(
                 BasicText("$source · $readTime", maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.35f, color = Tokens.TextMuted))
             }
         }
-        var coverFailed by remember(imageUrl) { mutableStateOf(false) }
-        if (imageUrl != null && !coverFailed) {
-            BubblePicture(imageUrl) { coverFailed = true }
+        if (imageUrl != null && !FailedPictures.shared.has(imageUrl)) {
+            BubblePicture(imageUrl) { FailedPictures.shared.note(imageUrl) }
         } else {
             val palette = CardPalette(accentHue, 0)
             Box(
