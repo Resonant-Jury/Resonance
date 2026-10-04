@@ -99,15 +99,19 @@ export async function updateCard(
 }
 
 /**
- * Delete your card, draft or published — what the card box's delete does
- * from the client, plus what only the server can reach: its pending edit
- * (a subcollection the client's delete leaves behind) and its recommendation
- * vectors. Links and resonances pointing at it dangle, as they always have:
- * readers resolve a missing card to nothing. Answers the stale pages.
+ * Delete your card, draft or published — what the card box's delete does from
+ * the client, plus what only the server can reach: its pending edit (a
+ * subcollection the client's delete leaves behind), the notes left on it and
+ * its recommendation vectors. Links and resonances pointing at it dangle, as
+ * they always have: readers resolve a missing card to nothing. Answers the
+ * stale pages.
  *
  * A resonance takes back the connection it made, as taking it back without
  * deleting it does (unresonate): while the two have written each other
- * nothing, the connection goes in the same transaction as the card.
+ * nothing, the connection goes in the same transaction as the card. The notes
+ * go just after the card — once it is gone no note can land on it — so they
+ * leave their writers' backups when the card's page goes, never later with
+ * its author's account, which would say whose card it was.
  */
 export async function deleteCard(
   db: Firestore,
@@ -131,9 +135,26 @@ export async function deleteCard(
   }
   // The card with what is under it (its pending edit), whether or not the above took the document first.
   await db.recursiveDelete(ref);
-  // The card is gone either way; stray vectors only cost the recommender a candidate it then can't read.
+  // The card is gone either way: stray notes go with its author's account, stray vectors only cost the recommender a candidate it then can't read.
+  await deleteNotesOn(db, id).catch((e) => console.error('[api/v1] notes', id, e));
   await Promise.resolve()
     .then(() => (vectors ?? getVectorStore()).deleteByCard(id))
     .catch((e) => console.error('[api/v1] vectors', id, e));
   return { stale: [...cardPagePaths(card), ...profilePagePaths(me.get('handle')), ...landingPagePaths(snap.data())] };
 }
+
+/** Every note left on the card `id`, delivered or withheld, a batch at a time. */
+async function deleteNotesOn(db: Firestore, id: string): Promise<void> {
+  const notes = db.collection('notes').where('cardId', '==', id).select().limit(BATCH_MAX);
+  for (;;) {
+    const page = await notes.get();
+    if (page.empty) return;
+    const batch = db.batch();
+    page.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    if (page.size < BATCH_MAX) return;
+  }
+}
+
+/** A batch's limit on writes. */
+const BATCH_MAX = 500;

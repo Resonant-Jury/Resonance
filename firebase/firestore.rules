@@ -452,7 +452,9 @@ service cloud.firestore {
     // on their uid, which this per-doc condition enforces for every result).
     // Sent by the server (POST /api/v1/notes), which finds the author from
     // the card — so the document names an anonymous card's author too, and
-    // its sender (who has their own words) never reads it back.
+    // its sender (who has their own words) never reads it back. One withheld
+    // across a block is addressed to no one (`toUserId: null`) and names
+    // whom it was withheld from (`withheldFor`): readable by no client.
     match /notes/{noteId} {
       allow read: if signedIn() && resource.data.toUserId == request.auth.uid;
       allow create: if false;

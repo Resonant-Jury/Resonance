@@ -266,7 +266,8 @@ describe('sendNote', () => {
         const sent = await sendNote(db, 'alice', { cardId: 'masked', text: 'about your anonymous card' });
         expect(sent).toEqual({ id: expect.stringMatching(/^[A-Za-z0-9]{20}$/), notificationId: null, push: null });
         const note = (await db.doc(`notes/${sent.id}`).get()).data()!;
-        expect(note).toMatchObject({ cardId: 'masked', fromUserId: 'alice', toUserId: null, text: 'about your anonymous card', readAt: null });
+        // Withheld from Bob, the card's author: it goes with his account, as a delivered note would.
+        expect(note).toMatchObject({ cardId: 'masked', fromUserId: 'alice', toUserId: null, withheldFor: 'bob', text: 'about your anonymous card', readAt: null });
         expect(note.createdAt).toBeInstanceOf(Timestamp);
         await db.doc(`users/${blocker}/blocks/${blocked}`).delete();
       }

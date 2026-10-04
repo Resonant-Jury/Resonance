@@ -373,6 +373,24 @@ describe('deleteCard (DELETE /cards/{id})', () => {
     expect((await failure(getCardDetail(db, 'alice', 'a-quiet-night'))).code).toBe('not_found');
   });
 
+  // Review: left behind, the notes on a deleted anonymous card stayed in their
+  // writers' backups until its author's account was purged — the day they
+  // vanished would point at whose profile went that day.
+  it('removes the notes left on it, delivered or withheld, with the card — and no one else\'s', async () => {
+    const { sendNote } = await import('@/lib/api/v1/conversations');
+    await db.doc('users/carol').set({ handle: 'carol', handleLower: 'carol' });
+    await db.doc('cards/live').update({ anonymous: true });
+    await db.doc('cards/bobs').set({ authorId: 'bob', thoughtCore: 'b', story: 's', visibility: 'public', anonymous: false, publishedAt: published });
+    const delivered = await sendNote(db, 'carol', { cardId: 'live', text: 'hi' });
+    await db.doc('users/carol/blocks/alice').set({ blockedUid: 'alice' });
+    const withheld = await sendNote(db, 'carol', { cardId: 'live', text: 'hi again' });
+    const elsewhere = await sendNote(db, 'carol', { cardId: 'bobs', text: 'to bob' });
+    await deleteCard(db, 'alice', 'live', new FirestoreVectorStore(db));
+    expect((await db.doc(`notes/${delivered.id}`).get()).exists).toBe(false);
+    expect((await db.doc(`notes/${withheld.id}`).get()).exists).toBe(false);
+    expect((await db.doc(`notes/${elsewhere.id}`).get()).exists).toBe(true);
+  });
+
   it("names only the id page of a card without a slug (a draft)", async () => {
     await db.doc('cards/draft').set({ authorId: 'alice', thoughtCore: '草稿', story: '', visibility: 'public', publishedAt: null });
     const { stale } = await deleteCard(db, 'alice', 'draft', new FirestoreVectorStore(db));

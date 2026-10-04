@@ -136,7 +136,10 @@ export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name fi
  * anonymous card is answered as if delivered and delivers nothing. It is kept
  * as its writer's words — in their export like any note they wrote — but
  * addressed to no one (`toUserId: null`): no bell, no push, readable by no
- * client. The pen name is asked first, so its refusal says nothing either.
+ * client. It names whom it was withheld from (`withheldFor`, never read by a
+ * client nor exported), so it goes with that account as a delivered note
+ * goes with its recipient's. The pen name is asked first, so its refusal
+ * says nothing either.
  */
 export interface SentNote {
   id: string;
@@ -185,6 +188,7 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
         cardId: card.id,
         fromUserId: uid,
         toUserId: null,
+        withheldFor: author,
         text: input.text,
         readAt: null,
         createdAt: FieldValue.serverTimestamp(),

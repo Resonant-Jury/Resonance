@@ -109,13 +109,14 @@ export interface PurgeReport {
  * a purge cut short still finds the pen name (its page to revalidate) next
  * time. Only ids and the fields the pages need are read.
  *
- * Some records name only one of the user's cards, not the user: other
- * readers' legacy resonance records, and notes withheld across a block (left
- * on an anonymous card, addressed to no one). The card is the only way to
- * find them, so each goes just before its card (`byCard`): a purge cut short
- * never leaves one behind whose card is gone. A withheld note outliving the
- * card's author would tell its writer, beside the delivered ones that went,
- * that a block stood between them and whoever wrote it.
+ * Some records are found through one of the user's cards: other readers'
+ * legacy resonance records (which name only the card), and every note left on
+ * it. Each goes just before its card (`byCard`), so a purge cut short never
+ * leaves one behind whose card is gone. Notes left on a card deleted earlier
+ * are found by whom they were for: `toUserId`, or `withheldFor` for one
+ * withheld across a block (left on an anonymous card, delivered to no one) —
+ * so the withheld ones go with the delivered: one outliving the card's author
+ * would tell its writer that a block stood between them and whoever wrote it.
  */
 async function collectAccountData(db: Firestore, uid: string) {
   const roots: DocumentReference[] = [
@@ -150,6 +151,7 @@ async function collectAccountData(db: Firestore, uid: string) {
     db.collection('resonances').where('userId', '==', uid),
     db.collection('notes').where('fromUserId', '==', uid),
     db.collection('notes').where('toUserId', '==', uid),
+    db.collection('notes').where('withheldFor', '==', uid),
     // How many unanswered notes one left the other, either way (lib/api/v1/conversations letterRef).
     db.collection('letters').where('from', '==', uid),
     db.collection('letters').where('to', '==', uid),

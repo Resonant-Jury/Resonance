@@ -70,24 +70,20 @@ async function* rows(q: Query, extra: Record<string, unknown> = {}): AsyncGenera
 }
 
 /**
- * What a note of yours on an anonymous card keeps in your export: your words
- * and the card you left them on — not whom they reached (its author is no
- * one's to know, and a note withheld across a block reached no one) nor
- * whether they were read. A note on a card under its author's name keeps both,
- * as a card's page names them anyway; the card is read as it is now, so one
- * made anonymous since, or deleted (it may have been anonymous), keeps neither.
+ * What a note of yours keeps in your export: your words, the card you left
+ * them on and when — never whom they reached, nor whether they were read.
+ * Every note alike, so no difference between two of them says anything: a
+ * note on an anonymous card names its author, one withheld across a block
+ * reached no one (`withheldFor` names whom it was withheld from), and a card
+ * named now may have been anonymous then.
  */
-const NOTE_OMIT = ['toUserId', 'readAt'] as const;
+const NOTE_OMIT = ['toUserId', 'readAt', 'withheldFor'] as const;
 
-/** Your notes, a page at a time, each with whom it reached only when its card names its author (NOTE_OMIT). */
 async function* noteRows(db: Firestore, uid: string): AsyncGenerator<DocumentData[]> {
   for await (const docs of pages(db.collection('notes').where('fromUserId', '==', uid))) {
-    const ids = [...new Set(docs.map((d) => d.get('cardId')).filter((id): id is string => typeof id === 'string' && !!id && !id.includes('/')))];
-    const cards = ids.length ? await db.getAll(...ids.map((id) => db.doc(`cards/${id}`)), { fieldMask: ['anonymous'] }) : [];
-    const named = new Set(cards.filter((c) => c.exists && c.get('anonymous') !== true).map((c) => c.id));
     yield docs.map((d) => {
       const r: DocumentData = row(d);
-      if (!named.has(d.get('cardId'))) for (const key of NOTE_OMIT) delete r[key];
+      for (const key of NOTE_OMIT) delete r[key];
       return r;
     });
   }
