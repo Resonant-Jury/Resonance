@@ -4,6 +4,7 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import { backfillAnonymous } from '../../scripts/backfills/anonymous';
 import { backfillHandles } from '../../scripts/backfills/handles';
 import { cleanUpEdits } from '../../scripts/backfills/orphanEdits';
+import { deleteOrphanNotes } from '../../scripts/backfills/orphanNotes';
 import { setStorageHost } from '../../scripts/backfills/storageHost';
 import { rekeyAnonymousImages, type Storage } from '../../scripts/backfills/rekeyImages';
 import { rehostImages } from '../../scripts/backfills/rehostImages';
@@ -136,6 +137,48 @@ describe('edits', () => {
     expect(await data('cards/gone/edits/current')).toBeNull();
     expect((await data('cards/live/edits/current'))!.authorId).toBe('alice');
     expect((await data('cards/named/edits/current'))!.authorId).toBe('bob');
+  });
+});
+
+describe('orphan-notes', () => {
+  // Review: a card deleted by an older build (or whose clean-up failed after it went) left its notes behind.
+  it('deletes the notes whose card is gone, delivered or withheld, and nothing else', async () => {
+    const at = joined('2026-09-01T00:00:00Z');
+    const note = (id: string, cardId: unknown, extra: Record<string, unknown> = {}) =>
+      db.doc(`notes/${id}`).set({ cardId, fromUserId: 'carol', toUserId: 'alice', text: 'hi', readAt: null, createdAt: at, ...extra });
+    await Promise.all([
+      db.doc('cards/live').set({ authorId: 'alice', anonymous: true }),
+      note('kept', 'live'),
+      note('kept-withheld', 'live', { toUserId: null, withheldFor: 'alice' }),
+      note('stray', 'gone'),
+      note('stray-withheld', 'gone', { toUserId: null, withheldFor: 'alice' }),
+      note('stray-too', 'also-gone'),
+      note('nameless', null),
+      // The note's message in a thread is the conversation's: it stays.
+      db.doc('conversations/alice_carol/messages/stray').set({ senderId: 'carol', text: 'hi', sentAt: at, cardRef: 'gone', kind: 'note' }),
+    ]);
+
+    expect(await deleteOrphanNotes(db, { apply: false, log: quiet })).toEqual({ notes: 6, orphans: 3, malformed: 1, deleted: 0 });
+    expect(await data('notes/stray')).not.toBeNull();
+
+    expect(await deleteOrphanNotes(db, { apply: true, log: quiet })).toEqual({ notes: 6, orphans: 3, malformed: 1, deleted: 3 });
+    for (const id of ['stray', 'stray-withheld', 'stray-too']) expect(await data(`notes/${id}`)).toBeNull();
+    for (const id of ['kept', 'kept-withheld', 'nameless']) expect(await data(`notes/${id}`)).not.toBeNull();
+    expect(await data('conversations/alice_carol/messages/stray')).not.toBeNull();
+    // Idempotent: a second run finds nothing to do.
+    expect(await deleteOrphanNotes(db, { apply: true, log: quiet })).toEqual({ notes: 3, orphans: 0, malformed: 1, deleted: 0 });
+  });
+
+  it('reads past a page of notes', async () => {
+    const at = joined('2026-09-01T00:00:00Z');
+    const writer = db.bulkWriter();
+    for (let i = 0; i < 520; i++) {
+      void writer.set(db.doc(`notes/n${String(i).padStart(4, '0')}`), { cardId: i % 2 ? 'gone' : 'live', fromUserId: 'carol', toUserId: 'alice', text: 'hi', readAt: null, createdAt: at });
+    }
+    await writer.close();
+    await db.doc('cards/live').set({ authorId: 'alice' });
+    expect(await deleteOrphanNotes(db, { apply: true, log: quiet })).toEqual({ notes: 520, orphans: 260, malformed: 0, deleted: 260 });
+    expect((await db.collection('notes').count().get()).data().count).toBe(260);
   });
 });
 
