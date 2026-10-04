@@ -28,11 +28,12 @@ vi.mock('@/i18n/navigation', () => ({
 
 const mockUseConversations = vi.fn();
 const mockUseMyProfile = vi.fn();
+const mockUseCardSummaries = vi.fn((_keys: string[]): unknown => null);
 vi.mock('@/lib/data/hooks', () => ({
   useConversations: () => mockUseConversations(),
   useMyProfile: () => mockUseMyProfile(),
   useMyBlockedIds: () => ({ data: new Set<string>() }),
-  useCardSummaries: () => null,
+  useCardSummaries: (keys: string[]) => mockUseCardSummaries(keys),
 }));
 
 const mockBlockUser = vi.fn();
@@ -188,6 +189,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.clearAllMocks();
+  mockUseCardSummaries.mockImplementation(() => null);
   forgetOutboxes();
 });
 
@@ -224,7 +226,7 @@ describe('MessagesPage thread', () => {
     fireEvent.change(screen.getByPlaceholderText('Write a message…'), {
       target: { value: 'a reply' },
     });
-    // The send disc wakes once there is something to send.
+    // The send button wakes once there is something to send.
     expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-enabled');
     await userEvent.setup({ pointerEventsCheck: 0 }).click(
       screen.getByRole('button', { name: 'Send' }),
@@ -277,7 +279,22 @@ describe('MessagesPage thread', () => {
     expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument();
   });
 
-  it('carries a note reply as a quoted reference on the sent message', async () => {
+  /** The thread's card lookup, answering for the card a note was left on. */
+  const noteCard = (anonymous: boolean) =>
+    mockUseCardSummaries.mockImplementation((keys: string[]) =>
+      keys.includes('card-1')
+        ? {
+            status: 'ready',
+            cards: { cards: [{ id: 'card-1', authorId: 'me', thoughtCore: 'My card', anonymous }], authors: {} },
+            asked: new Set(keys),
+            failed: new Set(),
+          }
+        : null,
+    );
+
+  // An older note (left before notes came into threads) isn't in the conversation: its quote rides the reply.
+  it('carries an older note’s reply as a quoted reference on the sent message', async () => {
+    noteCard(false);
     renderPage(
       <MessagesPage
         activeHandle="alice"
@@ -300,6 +317,17 @@ describe('MessagesPage thread', () => {
         expect.objectContaining({ noteRef: { noteId: 'note-1', cardId: 'card-1' } }),
       ),
     );
+  });
+
+  // Answering a note on an anonymous card with its quote would tell the writer whose card it was.
+  it('answers an older note on an anonymous card without its quote', async () => {
+    noteCard(true);
+    renderPage(<MessagesPage activeHandle="alice" replyNote={{ noteId: 'note-1', cardId: 'card-1' }} />);
+    await waitFor(() => expect(mockUseCardSummaries).toHaveBeenCalledWith(expect.arrayContaining(['card-1'])));
+    fireEvent.change(await screen.findByPlaceholderText('Write a message…'), { target: { value: 'thank you' } });
+    expect(screen.queryByText('In reply to your note')).not.toBeInTheDocument();
+    await userEvent.setup({ pointerEventsCheck: 0 }).click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(mockSendMessage).toHaveBeenCalledWith('alice', 'thank you', expect.objectContaining({ noteRef: undefined })));
   });
 
   it('attaches a picked card and sends it as a cardRef', async () => {

@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -50,6 +51,13 @@ export interface OrganicMenuProps {
    * (`triggerSize` is ignored).
    */
   bare?: boolean;
+  /**
+   * For `bare`: muted ink at rest (default), or full ink — a trigger leading
+   * or closing a bar's row beside the bar's back arrow, which is full ink.
+   */
+  tone?: 'muted' | 'ink';
+  /** For `bare`: where its tooltip hangs — over it (default), or under it at the top of a screen. */
+  tip?: 'above' | 'below';
   /** A quiet line under the rows (a message's full time), parted from them by one more divider. */
   footer?: ReactNode;
   /**
@@ -111,6 +119,8 @@ export function OrganicMenu({
   triggerIcon = 'dots',
   triggerSize = 38,
   bare = false,
+  tone = 'muted',
+  tip = 'above',
   footer,
   floating = false,
   align = 'end',
@@ -131,6 +141,15 @@ export function OrganicMenu({
   const [tipDismissed, setTipDismissed] = useState(false);
   const [panelSeed, setPanelSeed] = useState(seed);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Opened from the keyboard: the focus goes to the first row (a pointer's opening leaves no ring on it).
+  const [byKeyboard, setByKeyboard] = useState(false);
+  /** Closes it — and, when the focus was in the panel, puts it back on the trigger, where the reader was. */
+  const closeMenu = useCallback(() => {
+    const had = panelRef.current?.contains(document.activeElement);
+    setOpen(false);
+    if (had) triggerRef.current?.focus({ preventScroll: true });
+  }, []);
   const uid = useId().replace(/:/g, '');
 
   useEffect(() => {
@@ -141,7 +160,7 @@ export function OrganicMenu({
       setOpen(false);
     }
     function onKey(e: globalThis.KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') closeMenu();
     }
     // A floating panel stays where it opened: whatever scrolls under it takes it away.
     function onScroll(e: Event) {
@@ -160,7 +179,7 @@ export function OrganicMenu({
       document.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', close);
     };
-  }, [open, floating]);
+  }, [open, floating, closeMenu]);
 
   const styleOverrides = menuColors(hue);
 
@@ -185,10 +204,12 @@ export function OrganicMenu({
       style={styleOverrides}
     >
       <button
+        ref={triggerRef}
         type="button"
         className={bare ? `${styles.trigger} ${styles.bare}` : styles.trigger}
         style={bare ? undefined : { width: triggerSize, height: triggerSize }}
         data-open={open || undefined}
+        data-tone={bare ? tone : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={`${uid}-menu`}
@@ -200,6 +221,8 @@ export function OrganicMenu({
           e.preventDefault();
           e.stopPropagation();
           if (floating) setPlaced(place(e.currentTarget));
+          // Enter or Space on the trigger is a click with no pointer behind it.
+          setByKeyboard(e.detail === 0);
           setOpen((v) => {
             const next = !v;
             if (next) setPanelSeed(Math.floor(Math.random() * 10000));
@@ -228,7 +251,7 @@ export function OrganicMenu({
         </span>
       </button>
       {bare && (
-        <span className={styles.tip} aria-hidden="true" data-dismissed={tipDismissed || undefined}>
+        <span className={styles.tip} aria-hidden="true" data-side={tip} data-dismissed={tipDismissed || undefined}>
           {label}
         </span>
       )}
@@ -245,8 +268,12 @@ export function OrganicMenu({
                 busy={busy}
                 footer={footer}
                 placed
+                // Laid at the end of the page, the panel is out of the trigger's tab order: it takes the focus
+                // (its first row, from the keyboard), and Tab out of it closes it, back on the trigger.
+                autoFocus={byKeyboard ? 'row' : 'panel'}
+                onTabOut={closeMenu}
                 onChoose={(key) => {
-                  setOpen(false);
+                  closeMenu();
                   onChoose(key);
                 }}
               />
@@ -261,8 +288,9 @@ export function OrganicMenu({
             items={items}
             busy={busy}
             footer={footer}
+            autoFocus={byKeyboard ? 'row' : null}
             onChoose={(key) => {
-              setOpen(false);
+              closeMenu();
               onChoose(key);
             }}
           />
@@ -324,11 +352,15 @@ interface MenuPanelProps {
   footer?: ReactNode;
   /** Placed by its host (or a floating wrapper) rather than hung under the trigger. */
   placed?: boolean;
+  /** Where the focus goes as it opens: its first row, the panel itself (Tab then walks its rows), or nowhere. */
+  autoFocus?: 'row' | 'panel' | null;
+  /** Tab leaves its rows (a panel out of the page's tab order closes on it). */
+  onTabOut?: () => void;
   onChoose: (key: string) => void;
   ref?: React.Ref<HTMLDivElement>;
 }
 
-function MenuPanel({ uid, seed, items, busy, footer, placed = false, onChoose, ref: outerRef }: MenuPanelProps) {
+function MenuPanel({ uid, seed, items, busy, footer, placed = false, autoFocus = null, onTabOut, onChoose, ref: outerRef }: MenuPanelProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   // The panel's own ref (it measures itself) and the host's (whose outside-click test needs it).
   const setRef = (el: HTMLDivElement | null) => {
@@ -368,12 +400,47 @@ function MenuPanel({ uid, seed, items, busy, footer, placed = false, onChoose, r
     return Array.from({ length: bands - 1 }, (_, i) => rowBoundary((i + 1) * ROW_H, w, seed + i * 31 + 7, 2, pad));
   }, [w, bands, seed, pad]);
 
+  const listRef = useRef<HTMLDivElement>(null);
+  const rows = () => Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
+  useLayoutEffect(() => {
+    if (autoFocus === 'row') rows()[0]?.focus({ preventScroll: true });
+    else if (autoFocus === 'panel') listRef.current?.focus({ preventScroll: true });
+    // Only as it opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /** The arrows walk the rows (round from the last to the first), Home and End go to either end. */
+  const onListKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    byKeys.current = true;
+    const all = rows();
+    const at = all.indexOf(document.activeElement as HTMLButtonElement);
+    const to =
+      e.key === 'ArrowDown' ? (at + 1) % all.length
+      : e.key === 'ArrowUp' ? (at <= 0 ? all.length - 1 : at - 1)
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? all.length - 1
+      : null;
+    if (to != null && all.length) {
+      e.preventDefault();
+      all[to].focus();
+    } else if (e.key === 'Tab' && onTabOut) {
+      const leaving = e.shiftKey ? at <= 0 : at === all.length - 1;
+      if (leaving) {
+        e.preventDefault();
+        onTabOut();
+      }
+    }
+  };
+
   const ready = w > 0 && boundaries.length === bands - 1;
   const dangerIndex = items.findIndex((it) => it.danger);
 
-  // Pointer-driven only: the rows are plain buttons the keyboard tabs through,
-  // so there is no active row to rest the ink on.
-  const ink = useRowInk({ panelRef: ref, w, h });
+  // The pointer's row takes the ink, and so does the keyboard's (a row focused from the keyboard: the arrows,
+  // Tab), growing from its centre — the same wash, never a box around it.
+  const [keyRow, setKeyRow] = useState<number | null>(null);
+  const inkRows = useMemo(() => items.map((_, i) => ({ top: i * ROW_H, height: ROW_H })), [items]);
+  const ink = useRowInk({ panelRef: ref, rows: inkRows, w, h, activeIndex: keyRow });
+  // Whether the focus is the keyboard's to show: it opened the menu, or a key moved it since a pointer last did.
+  const byKeys = useRef(autoFocus === 'row');
   const washes: string[] = items.map((_, i) =>
     i === dangerIndex
       ? 'color-mix(in oklch, var(--color-yellow) 45%, var(--menu-cream))'
@@ -441,7 +508,15 @@ function MenuPanel({ uid, seed, items, busy, footer, placed = false, onChoose, r
           />
         </svg>
       )}
-      <div id={`${uid}-menu`} role="menu" className={styles.list}>
+      <div
+        id={`${uid}-menu`}
+        ref={listRef}
+        role="menu"
+        tabIndex={-1}
+        className={styles.list}
+        onKeyDown={onListKey}
+        onPointerDown={() => (byKeys.current = false)}
+      >
         {items.map((it, i) => (
           <button
             key={it.key}
@@ -450,7 +525,9 @@ function MenuPanel({ uid, seed, items, busy, footer, placed = false, onChoose, r
             className={styles.option}
             data-active={ink.index === i || undefined}
             disabled={busy}
-            {...ink.rowProps(i)}
+            {...ink.rowProps(i, () => setKeyRow(null))}
+            onFocus={() => setKeyRow(byKeys.current ? i : null)}
+            onBlur={() => setKeyRow((cur) => (cur === i ? null : cur))}
             onClick={() => onChoose(it.key)}
           >
             <span className={styles.optionIcon}>

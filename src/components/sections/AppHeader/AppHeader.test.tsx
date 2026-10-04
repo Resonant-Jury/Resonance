@@ -58,6 +58,20 @@ describe('AppHeader account slot', () => {
     expect(screen.getByTestId('notification-bell')).toBeInTheDocument();
   });
 
+  // The pen is the signed-in reader's way to start a card at every width: the feed's end and the card pages
+  // carry no write button of their own.
+  it('leads the signed-in account row with the pen to the writer', () => {
+    renderWithIntl(<AppHeader user={user} signedIn authReady />);
+    const write = screen.getByRole('link', { name: 'Write' });
+    expect(write.getAttribute('href')).toMatch(/^(\/en)?\/write$/);
+    expect(write.compareDocumentPosition(screen.getByTestId('messages-entry')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('offers no pen to a signed-out visitor', () => {
+    renderWithIntl(<AppHeader user={user} signedIn={false} authReady />);
+    expect(screen.queryByRole('link', { name: 'Write' })).toBeNull();
+  });
+
   it('renders no account controls until auth resolves', () => {
     renderWithIntl(<AppHeader user={user} signedIn={false} authReady={false} />);
 

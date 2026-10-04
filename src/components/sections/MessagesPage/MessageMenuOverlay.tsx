@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
+import { useDimmedChrome } from '@/components/molecules/Modal/Modal';
 import { OrganicMenuPanel, menuPanelHeight } from '@/components/molecules/OrganicMenu/OrganicMenu';
 import { seedFromId } from '@/lib/design/bubble';
 import { MessageCore } from './MessageRow';
@@ -58,14 +59,14 @@ export function MessageMenuOverlay({ pressed, own, fullTime, onClose }: MessageM
     true,
   );
 
-  const dismiss = (after?: () => void) => {
+  // The browser's bars dim with the window, as under a modal.
+  useDimmedChrome(true);
+
+  const dismiss = () => {
     if (closing.current) return;
     closing.current = true;
     setLeaving(true);
-    window.setTimeout(() => {
-      onClose();
-      after?.();
-    }, 120);
+    window.setTimeout(onClose, 120);
   };
 
   useEffect(() => {
@@ -136,10 +137,13 @@ export function MessageMenuOverlay({ pressed, own, fullTime, onClose }: MessageM
           seed={seedFromId(message.key, 23)}
           footer={fullTime}
           origin={`${below ? 'top' : 'bottom'} ${side}`}
-          onChoose={(key) =>
-            // A tap is shorter than the ink's spread: the menu stays long enough to show it.
-            window.setTimeout(() => dismiss(() => chooseMenuItem(key, message, link, actions)), 150)
-          }
+          onChoose={(key) => {
+            // Done in the tap itself — a copy, a page opened, the field focused for a reply (iOS raises the
+            // keyboard only for a focus the tap gave) — then the menu goes, staying long enough to show the
+            // ink the tap spread.
+            chooseMenuItem(key, message, link, actions);
+            window.setTimeout(dismiss, 150);
+          }}
         />
       </div>
     </div>,

@@ -22,6 +22,15 @@ const VISIBILITY_ICON: Record<'public' | 'private', 'globe' | 'lock'> = {
   private: 'lock',
 };
 
+/**
+ * An anonymous card is public or only its author's — never for connections
+ * only, which would tell those few who wrote it (the server refuses it): one
+ * asked for connections while anonymous is public instead.
+ */
+export function anonymousVisibility(visibility: Visibility, anonymous: boolean): Visibility {
+  return anonymous && visibility === 'connections' ? 'public' : visibility;
+}
+
 export interface PublishPanelProps {
   open: boolean;
   onClose: () => void;
@@ -85,7 +94,7 @@ export function PublishPanel({
     }
     if (openedRef.current) return;
     openedRef.current = true;
-    setVisibility(initialVisibility);
+    setVisibility(anonymousVisibility(initialVisibility, initialAnonymous));
     setAnonymous(initialAnonymous);
     setInsight(null);
     if (updating) return;
@@ -216,6 +225,10 @@ export function PublishPanel({
               })}
             />
           </div>
+          {/* Never for connections only: who could read it would say who wrote it. */}
+          {anonymous && (
+            <p style={{ fontSize: 'var(--hint-size, 12px)', color: 'var(--color-text-muted)' }}>{t('anonymousVisibility')}</p>
+          )}
         </div>
 
         {/* 3 — anonymous toggle + WYSIWYG card-head preview */}
@@ -235,7 +248,10 @@ export function PublishPanel({
             {t('anonymousToggle')}
             <ToggleSwitch
               checked={anonymous}
-              onChange={() => setAnonymous(!anonymous)}
+              onChange={() => {
+                setAnonymous(!anonymous);
+                setVisibility((v) => anonymousVisibility(v, !anonymous));
+              }}
               ariaLabel={t('anonymousToggle')}
               seed={57}
             />
@@ -276,7 +292,11 @@ export function PublishPanel({
         {/* 4 — publish. The modal is the frame: the verb is a solid fill, cancel plain text. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
-            <OrganicButton variant="solid" size="sm" onClick={() => onPublish({ visibility, anonymous })}>
+            <OrganicButton
+              variant="solid"
+              size="sm"
+              onClick={() => onPublish({ visibility: anonymousVisibility(visibility, anonymous), anonymous })}
+            >
               {updating
                 ? pending
                   ? t('updating')

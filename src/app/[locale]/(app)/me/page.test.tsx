@@ -9,7 +9,11 @@ import type { Card, User } from '@/lib/db/types';
 // navigation are the boundary.
 vi.mock('@/components/providers/AuthProvider', () => ({ useAuth: () => ({ user: { id: 'me' }, loading: false }) }));
 vi.mock('@/i18n/navigation', () => ({
-  Link: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
+  Link: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
@@ -96,5 +100,15 @@ describe('the card box', () => {
     await userEvent.setup().click(screen.getByRole('tab', { name: 'Private' }));
     expect((await screen.findAllByText('Card private-1')).length).toBeGreaterThan(0);
     expect(vi.mocked(getCardsByAuthor).mock.calls.map((c) => c[1])).toEqual(['published', 'private']);
+  });
+
+  // The pen beside the identity row is a bare glyph on the page's paper (no chip, no pen line), as in the apps.
+  it('leads to the profile settings from a bare pen', async () => {
+    const { container } = renderPage();
+    const pen = await screen.findByRole('link', { name: 'Edit profile' });
+    expect(pen).toHaveAttribute('href', '/settings');
+    expect(pen).not.toHaveAttribute('data-variant');
+    expect(pen.querySelector('[data-variant]')).toBeNull();
+    expect(container.querySelector('button[data-variant="ghost"]')).toBeNull();
   });
 });

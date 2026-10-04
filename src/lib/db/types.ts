@@ -254,6 +254,22 @@ export interface Conversation {
   unread: Record<string, number>;
   /** The card (or the card a note referenced) this conversation grew from. */
   originCardId?: string;
+  /**
+   * Notes left by someone the other isn't connected with, waiting for an
+   * answer (a letter): `from` wrote them, and the other's reply is what
+   * connects the two. Absent when no letter waits. Written by the server only.
+   */
+  request?: ConversationRequest;
+}
+
+/** A conversation's waiting letter (`conversations/{pair}.request`). */
+export interface ConversationRequest {
+  /** Who left the notes. */
+  from: string;
+  /** The card of their latest note. */
+  cardId?: string;
+  /** How many notes they have left since the letter opened. */
+  count: number;
 }
 
 /** One message inside a conversation (`conversations/{id}/messages`). */
@@ -270,6 +286,12 @@ export interface Message {
   replyTo?: MessageReplyQuote;
   /** The first link's title and picture, which the server adds a moment after the message. */
   preview?: MessageLinkPreview;
+  /**
+   * What the message is beyond words and a card: `note` — a note (小紙條)
+   * its sender left on the other's card (`cardRef`), carried into the
+   * thread. A kind this build doesn't know reads as a plain message.
+   */
+  kind?: 'note';
 }
 
 export interface MessageReplyQuote {

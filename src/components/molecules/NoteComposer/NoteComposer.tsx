@@ -7,6 +7,7 @@ import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Icon } from '@/components/atoms/Icon';
 import { Panel } from '@/components/molecules/Panel/Panel';
 import { useMyProfile } from '@/lib/data/hooks';
+import { ApiError } from '@/lib/db/firestore/client/api';
 import { sendNote, NOTE_MAX_LENGTH } from '@/lib/db/firestore/client/notes';
 import { useHint } from '@/lib/hints';
 
@@ -45,6 +46,7 @@ export function NoteComposer({
   variant = 'soft',
 }: NoteComposerProps) {
   const t = useTranslations('card.note');
+  const tMessages = useTranslations('messages');
   const { data: me } = useMyProfile();
   const [text, setText] = useState(initialText ?? '');
   const [sent, setSent] = useState(false);
@@ -64,7 +66,8 @@ export function NoteComposer({
         setSent(true);
         onSent?.();
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        // Said in the reader's language, never the server's: a letter already full waits for its answer.
+        setError(err instanceof ApiError && err.code === 'conflict' ? t('waitForReply') : tMessages('sendError'));
       }
     });
   }

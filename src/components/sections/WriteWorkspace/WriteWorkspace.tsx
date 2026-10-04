@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { CardEditor, type CardEditorHandle, type CardEditorProps } from '@/components/molecules/CardEditor/CardEditor';
 import { ConfirmModal } from '@/components/molecules/ConfirmModal/ConfirmModal';
@@ -10,7 +10,7 @@ import { OriginalCardPanel } from './LazyOriginalCardPanel';
 import { WorkspaceShell } from './WorkspaceShell';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useHasWrittenCards } from '@/lib/data/hooks';
-import { useRouter } from '@/i18n/navigation';
+import { useLeaveWriter } from '@/lib/hooks/useLeaveWriter';
 import type { Card } from '@/lib/db/types';
 import styles from './WriteWorkspace.module.css';
 
@@ -31,7 +31,8 @@ export interface WriteWorkspaceProps {
  *
  * Back from the draft leaves the page, asking first when that leaves written
  * work behind (the apps' rule and words: it is kept either way). "Save draft
- * and leave" below the form is already that choice, so it doesn't ask.
+ * and leave" below the form is already that choice, so it doesn't ask. The
+ * browser's back steps out of a card opened from the map as the arrow does.
  *
  * For a brand-new writer (no cards at all) a small guide with 2–3 questions
  * sits above the editor (ux §5); picking one seeds it into the story as a
@@ -45,7 +46,6 @@ export function WriteWorkspace({
   referenceCardId,
 }: WriteWorkspaceProps) {
   const t = useTranslations('write');
-  const router = useRouter();
   const { user } = useAuth();
   const { data: hasWritten } = useHasWrittenCards();
   const [seed, setSeed] = useState<{ story: string; nonce: number } | null>(null);
@@ -76,23 +76,50 @@ export function WriteWorkspace({
         : t('editTitle');
 
   // What is written is saved first (not left to the debounce or the unmount),
-  // then the page goes back to wherever the writer came from.
+  // then the page goes back to wherever the writer came from (or, with
+  // nowhere to go back to in this tab, to the card box or the feed).
+  const leaveWriter = useLeaveWriter(initial?.id ? '/me' : '/home');
   const leave = async () => {
+    setConfirmingLeave(false);
     if (leaving.current) return;
     leaving.current = true;
-    setConfirmingLeave(false);
     try {
       await editor.current?.saveNow();
     } catch (err) {
       // The unmount's flush tries once more; staying would only ask again.
       console.error('Save before leaving failed:', err);
     }
-    router.back();
+    leaveWriter();
+    // Still here a moment later (the way back went nowhere): the way out answers again.
+    window.setTimeout(() => (leaving.current = false), 1500);
   };
 
+  // A card opened from the map is a step deeper in this tab's history too, so the browser's or the system's
+  // back steps out of it as the bar's arrow does, instead of leaving the writer. Its entry is the page's own
+  // (Next's state spread in: the router reads its tree from history.state); the popstate that takes it away
+  // folds the card back to the draft — the arrow's way out of it is that same back.
+  const openCard = (card: Card) => {
+    if (!openedRef.current) {
+      const base = (window.history.state ?? {}) as Record<string, unknown>;
+      window.history.pushState({ ...base, __writerOpened: true }, '', window.location.href);
+    }
+    setOpenedCard(card);
+  };
+  const openedRef = useRef(false);
+  openedRef.current = openedCard != null;
+  useEffect(() => {
+    const onPop = () => {
+      if (openedRef.current) setOpenedCard(null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   const goBack = () => {
+    // On its way out already: a second tap waits for it.
+    if (leaving.current) return;
     if (showOpened) {
-      setOpenedCard(null);
+      window.history.back();
       return;
     }
     if (editor.current?.hasWork()) setConfirmingLeave(true);
@@ -105,7 +132,7 @@ export function WriteWorkspace({
         open
         bar={{ title: barTitle, onBack: goBack }}
         leftOverride={referenceCardId ? <OriginalCardPanel cardId={referenceCardId} /> : undefined}
-        onOpenCard={setOpenedCard}
+        onOpenCard={openCard}
       >
         {/* The draft stays mounted under a card opened from the map, so back
             finds it as it was — remounted from `initial`, a new card would

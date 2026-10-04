@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties, type MouseEvent } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useTranslations } from 'next-intl';
 import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
@@ -13,7 +13,7 @@ import { Link } from '@/i18n/navigation';
 import { plainExcerpt } from '@/lib/adapters/story';
 import { readMinutes } from '@/lib/readTime';
 import type { Card, MessageLinkPreview, User } from '@/lib/db/types';
-import type { MessageLink } from './MessageBubble';
+import { messageLinkProps, type MessageLink, type OnMessageLink } from './MessageBubble';
 import styles from './Thread.module.css';
 
 export interface LinkPreviewPartProps {
@@ -23,7 +23,7 @@ export interface LinkPreviewPartProps {
   /** The message's words are above it: the picture keeps a step from them (without them it starts at the bubble's top edge). */
   afterWords: boolean;
   /** A click on it; null for the long-press copy, which only shows it. */
-  onLink: ((link: MessageLink, e: MouseEvent<HTMLAnchorElement>) => void) | null;
+  onLink: OnMessageLink;
 }
 
 /**
@@ -39,18 +39,7 @@ export function LinkPreviewPart({ preview, link, afterWords, onLink }: LinkPrevi
   const [pictureFailed, setPictureFailed] = useState(false);
   const host = link.host.replace(/^www\./, '');
   return (
-    <a
-      className={styles.previewPart}
-      href={link.url}
-      target="_blank"
-      rel="noopener noreferrer nofollow ugc"
-      data-link-url={link.url}
-      tabIndex={onLink === null ? -1 : undefined}
-      onClick={(e) => {
-        if (onLink === null) e.preventDefault();
-        else onLink(link, e);
-      }}
-    >
+    <a className={styles.previewPart} {...messageLinkProps(link, onLink)}>
       {preview.image && !pictureFailed && (
         <span className={styles.picture} data-after-words={afterWords || undefined}>
           {/* eslint-disable-next-line @next/next/no-img-element */}

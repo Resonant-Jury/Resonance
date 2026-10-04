@@ -10,6 +10,7 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { Link, usePathname } from '@/i18n/navigation';
 import { NotificationBell } from './NotificationBell';
 import { MessagesEntry } from './MessagesEntry';
+import { WriteEntry } from './WriteEntry';
 import { AppMobileNavModal } from './AppMobileNavModal';
 import { Subnavbar } from './Subnavbar';
 import { HeaderBar } from './HeaderBar';
@@ -110,6 +111,7 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
           </div>
         ) : (
           <div className={styles.account}>
+            <WriteEntry />
             <MessagesEntry />
             <NotificationBell />
             {menuButton}

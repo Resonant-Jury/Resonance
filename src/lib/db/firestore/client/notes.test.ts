@@ -3,14 +3,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Sending a note goes through the server (POST /api/v1/notes), which finds the
 // card's author itself — the client never names the recipient.
 vi.mock('./init', () => ({ getClientDb: vi.fn(() => ({})) }));
-const mockAuth = { currentUser: { uid: 'me' } as { uid: string } | null };
+type MockUser = { uid: string; getIdToken: () => Promise<string> };
+const mockAuth = { currentUser: { uid: 'me', getIdToken: async () => 'id-token' } as MockUser | null };
 vi.mock('@/lib/auth/firebase/client', () => ({ getFirebaseClientAuth: vi.fn(() => mockAuth) }));
 
+import { ApiError } from './api';
 import { sendNote } from './notes';
 
 const fetchMock = vi.fn();
 beforeEach(() => {
-  mockAuth.currentUser = { uid: 'me' };
+  mockAuth.currentUser = { uid: 'me', getIdToken: async () => 'id-token' };
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -24,6 +26,17 @@ describe('sendNote', () => {
     expect(url).toBe('/api/v1/notes');
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body)).toEqual({ cardId: 'c1', text: 'thank you' });
+    // As the signed-in writer, whatever the session cookie is doing.
+    expect(init.headers.Authorization).toBe('Bearer id-token');
+  });
+
+  it('says a letter is full as a conflict, for the composer to ask the writer to wait', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: 'conflict', message: 'Wait for them to reply.' } }), { status: 409 }),
+    );
+    const refused = await sendNote({ cardId: 'c1', text: 'hi' }).catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(ApiError);
+    expect(refused).toMatchObject({ status: 409, code: 'conflict' });
   });
 
   it("surfaces the server's reason when it refuses", async () => {

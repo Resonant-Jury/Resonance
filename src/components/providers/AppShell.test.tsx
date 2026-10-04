@@ -15,7 +15,6 @@ const replace = vi.fn();
 let pathname = '/home';
 vi.mock('@/i18n/navigation', () => ({ useRouter: () => ({ replace }), usePathname: () => pathname }));
 vi.mock('@/components/sections/AppHeader/AppHeader', () => ({ AppHeader: () => null }));
-vi.mock('@/components/sections/AppHeader/FloatingWriteButton', () => ({ FloatingWriteButton: () => null }));
 vi.mock('@/components/molecules/AccountDeletionBanner/AccountDeletionBanner', () => ({ AccountDeletionBanner: () => null }));
 
 import { AppShell } from './AppShell';

@@ -62,4 +62,30 @@ describe('PublishPanel', () => {
     // An update never asks for the mirror moment.
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  // An anonymous card is public or only yours: for connections only, its few readers would know who wrote it.
+  it('publishes an anonymous card asked for connections only as public, and says why', async () => {
+    const onPublish = vi.fn();
+    renderWithIntl(<PublishPanel {...baseProps} initialVisibility="connections" onPublish={onPublish} onClose={vi.fn()} />);
+    expect(screen.queryByText('An anonymous card is either public or only for you.')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Publish anonymously' }));
+    expect(screen.getByText('An anonymous card is either public or only for you.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+    expect(onPublish).toHaveBeenLastCalledWith({ visibility: 'public', anonymous: true });
+  });
+
+  it('opens an anonymous card kept for connections as public, and keeps private as it is', async () => {
+    const onPublish = vi.fn();
+    const { unmount } = renderWithIntl(
+      <PublishPanel {...baseProps} initialVisibility="connections" initialAnonymous onPublish={onPublish} onClose={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+    expect(onPublish).toHaveBeenLastCalledWith({ visibility: 'public', anonymous: true });
+    unmount();
+
+    renderWithIntl(<PublishPanel {...baseProps} initialVisibility="private" initialAnonymous onPublish={onPublish} onClose={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+    expect(onPublish).toHaveBeenLastCalledWith({ visibility: 'private', anonymous: true });
+  });
 });

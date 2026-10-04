@@ -31,13 +31,21 @@ export const LOAD_ALL_CAP = 5000;
 /**
  * Each conversation's outbox, for as long as the page lives: a message on its
  * way keeps going (and a failed one stays to retry) while the reader opens
- * another conversation and comes back. Kept per viewer, so another account
- * signing in on this tab sees none of them.
+ * another conversation and comes back. Kept per viewer: another account
+ * signing in on this tab (here, or in another tab — the sign-in is shared)
+ * sees none of them, and what one account queued never goes out as the next
+ * (each message is sent only while its writer is the one signed in).
  */
 const outboxes = new Map<string, Outbox>();
 
 /** The outbox of the viewer `uid`'s conversation `pairId` with `to`, made on first use. */
 export function outboxOf(uid: string, pairId: string, to: string): Outbox {
+  // Another account's turn: what the one before left on its way is let go of.
+  for (const [key, box] of outboxes) {
+    if (key.startsWith(`${uid}:`)) continue;
+    box.clear();
+    outboxes.delete(key);
+  }
   const key = `${uid}:${pairId}`;
   let box = outboxes.get(key);
   if (!box) {
@@ -49,6 +57,7 @@ export function outboxOf(uid: string, pairId: string, to: string): Outbox {
             noteRef: m.noteRef,
             replyTo: m.replyTo?.id,
             clientId: m.clientId,
+            as: uid,
           })
         ).id,
     );

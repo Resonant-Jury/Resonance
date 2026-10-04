@@ -5,7 +5,9 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { LoadError } from '@/components/molecules/LoadError/LoadError';
+import { HeaderBar } from '@/components/sections/AppHeader/HeaderBar';
 import { WriteWorkspace } from '@/components/sections/WriteWorkspace/WriteWorkspace';
+import { useLeaveWriter } from '@/lib/hooks/useLeaveWriter';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { getCardById } from '@/lib/db/firestore/client/reads';
 import { getPendingCardEdit, type PendingCardEdit } from '@/lib/db/firestore/client/cardEdits';
@@ -33,6 +35,8 @@ export default function EditCardPage() {
   const id = params?.id;
   const t = useTranslations('write');
   const tCard = useTranslations('card');
+  const tNav = useTranslations('app.nav');
+  const leaveWriter = useLeaveWriter('/me');
   const locale = useLocale() as Locale;
   const { user, loading } = useAuth();
 
@@ -62,50 +66,63 @@ export default function EditCardPage() {
   const card = data?.card;
   const pending = data?.pending ?? null;
 
+  // Until there is a card to write in, the writer's bar stands over the page all the same (the app header
+  // steps aside for the writer): the back arrow, and what the page is for.
+  const bar = <HeaderBar title={t('editTitle')} backLabel={tNav('back')} onBack={leaveWriter} heading />;
+
   const settled = data !== undefined || (!loading && !user);
   if (!settled) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          padding: 'calc(var(--app-header-h) + 120px) 20px 120px',
-        }}
-        aria-busy="true"
-      >
-        <SketchLoader />
-      </div>
+      <>
+        {bar}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            padding: 'calc(var(--app-header-h) + 120px) 20px 120px',
+          }}
+          aria-busy="true"
+        >
+          <SketchLoader />
+        </div>
+      </>
     );
   }
 
   if (data?.failed) {
     return (
-      <LoadError
-        style={{ padding: 'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)' }}
-        onRetry={() => {
-          setOpened(null);
-          setAttempt((n) => n + 1);
-        }}
-      />
+      <>
+        {bar}
+        <LoadError
+          style={{ padding: 'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)' }}
+          onRetry={() => {
+            setOpened(null);
+            setAttempt((n) => n + 1);
+          }}
+        />
+      </>
     );
   }
 
   // Missing, deleted, or not the viewer's card (rules deny → null).
   if (!card || !user || card.authorId !== user.id) {
     return (
-      <div
-        style={{
-          textAlign: 'center',
-          padding: 'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
-        }}
-      >
-        <p style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--color-text)', marginBottom: 12 }}>
-          {tCard('notFound.title')}
-        </p>
-        <Link href="/home" style={{ textDecoration: 'none' }}>
-          <span style={{ color: 'var(--color-terracotta)' }}>{tCard('notFound.back')}</span>
-        </Link>
-      </div>
+      <>
+        {bar}
+        <div
+          style={{
+            textAlign: 'center',
+            padding: 'calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom)',
+          }}
+        >
+          <p style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--color-text)', marginBottom: 12 }}>
+            {tCard('notFound.title')}
+          </p>
+          <Link href="/home" style={{ textDecoration: 'none' }}>
+            <span style={{ color: 'var(--color-terracotta)' }}>{tCard('notFound.back')}</span>
+          </Link>
+        </div>
+      </>
     );
   }
 

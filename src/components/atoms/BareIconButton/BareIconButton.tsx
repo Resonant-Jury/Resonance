@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState, type MouseEvent } from 'react';
+import { useMemo, useState, type ComponentProps, type MouseEvent } from 'react';
 import { Icon, type IconName } from '@/components/atoms/Icon';
+import { Link } from '@/i18n/navigation';
 import { wobCircle } from '@/lib/design/wobCircle';
 import { INK } from '@/lib/design/strokes';
 import styles from './BareIconButton.module.css';
@@ -10,7 +11,9 @@ export interface BareIconButtonProps {
   icon: IconName;
   /** What it does: its accessible name, and the tooltip a pointer or keyboard focus shows. */
   label: string;
-  onClick: (e: MouseEvent<HTMLButtonElement>) => void;
+  /** What a click does — or, with `href`, where it leads instead (a link, so it opens in a new tab like one). */
+  onClick?: (e: MouseEvent<HTMLButtonElement>) => void;
+  href?: ComponentProps<typeof Link>['href'];
   /** The glyph's size (the hit area is 36px, 44px under a coarse pointer). */
   iconSize?: number;
   /** Turns the glyph (a chevron pointing up is `chevron-down` at 180). */
@@ -29,7 +32,7 @@ export interface BareIconButtonProps {
 }
 
 /**
- * A glyph standing on bare paper as a button — the bare「⋯」trigger's
+ * A glyph standing on bare paper as a button (or a link, with `href`) — the bare「⋯」trigger's
  * language (OrganicMenu `bare`), for the small tools of a bar or beside a
  * message: muted ink at rest, a soft wobbly disc of ink under it on hover and
  * keyboard focus, and its label as a tooltip, since a frameless glyph has to
@@ -39,6 +42,7 @@ export function BareIconButton({
   icon,
   label,
   onClick,
+  href,
   iconSize = 20,
   rotate,
   mirror = false,
@@ -53,26 +57,35 @@ export function BareIconButton({
   const [tipDismissed, setTipDismissed] = useState(false);
   const disc = useMemo(() => wobCircle(50, 50, 46, seed, { segments: 8, mag: 2.2, cpJitter: 0.4 }), [seed]);
   const turn = [mirror && 'scaleX(-1)', rotate && `rotate(${rotate}deg)`].filter(Boolean).join(' ');
+  const shared = {
+    className: styles.button,
+    'data-tone': tone,
+    'aria-label': label,
+    onKeyDown: (e: React.KeyboardEvent) => e.key === 'Escape' && setTipDismissed(true),
+    onMouseLeave: () => setTipDismissed(false),
+    onBlur: () => setTipDismissed(false),
+  };
+  const face = (
+    <>
+      <svg className={styles.wash} viewBox="0 0 100 100" aria-hidden="true">
+        <path d={disc} />
+      </svg>
+      <span className={styles.glyph} style={turn ? { transform: turn } : undefined}>
+        <Icon name={icon} size={iconSize} strokeWidth={INK} />
+      </span>
+    </>
+  );
   return (
     <span className={[styles.root, className].filter(Boolean).join(' ')}>
-      <button
-        type="button"
-        className={styles.button}
-        data-tone={tone}
-        aria-label={label}
-        disabled={disabled}
-        onClick={onClick}
-        onKeyDown={(e) => e.key === 'Escape' && setTipDismissed(true)}
-        onMouseLeave={() => setTipDismissed(false)}
-        onBlur={() => setTipDismissed(false)}
-      >
-        <svg className={styles.wash} viewBox="0 0 100 100" aria-hidden="true">
-          <path d={disc} />
-        </svg>
-        <span className={styles.glyph} style={turn ? { transform: turn } : undefined}>
-          <Icon name={icon} size={iconSize} strokeWidth={INK} />
-        </span>
-      </button>
+      {href ? (
+        <Link href={href} {...shared}>
+          {face}
+        </Link>
+      ) : (
+        <button type="button" {...shared} disabled={disabled} onClick={onClick}>
+          {face}
+        </button>
+      )}
       {tip && (
         <span className={styles.tip} aria-hidden="true" data-side={tip} data-align={tipAlign} data-dismissed={tipDismissed || undefined}>
           {label}

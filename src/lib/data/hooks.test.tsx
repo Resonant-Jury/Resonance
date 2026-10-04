@@ -516,13 +516,13 @@ describe('useCard with the server render', () => {
     expect(resolveCardId).not.toHaveBeenCalled();
   });
 
-  it("lets another reader of the card's key (the write button beside the page) fetch by the server's id too", async () => {
+  it("lets another reader of the card's key (an embed of it beside the page) fetch by the server's id too", async () => {
     vi.mocked(getCardById).mockResolvedValue(card('doc1', 'a1'));
     vi.mocked(getUserById).mockResolvedValue(user('a1', 'writer'));
-    // Rendered together; the button holds no fallbackData, so SWR starts its
-    // fetch first (the page's waits a frame) and the page rides along on it.
-    const { result } = renderHook(() => ({ page: useCard('b-slug', seed), button: useCard('b-slug') }), { wrapper });
-    await waitFor(() => expect(result.current.button.data?.card.id).toBe('doc1'));
+    // Rendered together; the other reader holds no fallbackData, so SWR starts
+    // its fetch first (the page's waits a frame) and the page rides along on it.
+    const { result } = renderHook(() => ({ page: useCard('b-slug', seed), other: useCard('b-slug') }), { wrapper });
+    await waitFor(() => expect(result.current.other.data?.card.id).toBe('doc1'));
     await waitFor(() => expect(result.current.page.fromServer).toBe(false));
     expect(getCardById).toHaveBeenCalledTimes(1);
     expect(getCardById).toHaveBeenCalledWith('doc1');

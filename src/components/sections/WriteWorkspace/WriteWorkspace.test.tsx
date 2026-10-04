@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import * as React from 'react';
-import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, onTestFinished, vi } from 'vitest';
 import { renderWithIntl, screen, userEvent, waitFor } from '@/../test/render';
 import en from '@/messages/en.json';
 import type { Card } from '@/lib/db/types';
@@ -20,9 +20,13 @@ vi.mock('@/components/molecules/CardEditor/CardEditor', () => ({
 }));
 
 const back = vi.fn();
+const replace = vi.fn();
 vi.mock('@/i18n/navigation', () => ({
-  useRouter: () => ({ back, push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ back, push: vi.fn(), replace }),
 }));
+/** How many entries this tab's history holds (jsdom's starts with one: a tab opened on the writer). */
+let historyLength = 2;
+Object.defineProperty(window.history, 'length', { configurable: true, get: () => historyLength });
 vi.mock('@/components/providers/AuthProvider', () => ({
   useAuth: () => ({ user: { id: 'me' } }),
 }));
@@ -65,6 +69,7 @@ afterEach(() => {
   window.matchMedia = realMatchMedia;
   vi.clearAllMocks();
   editor.hasWork.mockReturnValue(false);
+  historyLength = 2;
 });
 
 const backArrow = () => screen.getByRole('button', { name: en.app.nav.back });
@@ -144,10 +149,22 @@ describe('a card opened from the map', () => {
 
     await userEvent.click(backArrow());
     expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(screen.queryByText('opened: My older card')).toBeNull());
     expect(back).not.toHaveBeenCalled();
-    expect(screen.queryByText('opened: My older card')).toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: en.write.title })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('not lost');
+  });
+
+  // A step deeper in the tab's history too: the browser's (or the system's) back steps out of it as the arrow
+  // does, instead of leaving the writer.
+  it('steps back to the draft on the browser’s back as well', async () => {
+    renderWithIntl(<WriteWorkspace title={en.write.title} locale="en" />);
+    await userEvent.click(screen.getByRole('button', { name: 'open mine' }));
+    expect(screen.getByText('opened: My older card')).toBeInTheDocument();
+    window.history.back();
+    await waitFor(() => expect(screen.queryByText('opened: My older card')).toBeNull());
+    expect(screen.getByRole('heading', { level: 1, name: en.write.title })).toBeInTheDocument();
+    expect(back).not.toHaveBeenCalled();
   });
 
   it('names someone else’s card as the original it is', async () => {
@@ -156,3 +173,48 @@ describe('a card opened from the map', () => {
     expect(screen.getByRole('heading', { level: 1, name: en.write.referenceCard })).toBeInTheDocument();
   });
 });
+
+describe('a writer opened in a tab of its own', () => {
+  // A bookmark, a pasted address, a Write link opened in a new tab: nothing in the tab to go back to.
+  it('leaves for the feed (an edit: the card box), and its way out answers every time', async () => {
+    historyLength = 1;
+    const { unmount } = renderWithIntl(<WriteWorkspace title={en.write.title} locale="en" />);
+    await userEvent.click(backArrow());
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/home'));
+    expect(back).not.toHaveBeenCalled();
+    unmount();
+
+    renderWithIntl(<WriteWorkspace title={en.write.editTitle} locale="en" initial={{ id: 'd1', story: 'x' }} />);
+    await userEvent.click(backArrow());
+    await waitFor(() => expect(replace).toHaveBeenLastCalledWith('/me'));
+  });
+
+  // Stepped back to as the tab's first page (its later pages ahead of it): the history is long, but nothing of
+  // ours lies behind — the Navigation API says so where there is one.
+  it('leaves for the feed from the tab’s first page, pages ahead of it or not', async () => {
+    vi.stubGlobal('navigation', { canGoBack: false });
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    renderWithIntl(<WriteWorkspace title={en.write.title} locale="en" />);
+    await userEvent.click(backArrow());
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/home'));
+    expect(back).not.toHaveBeenCalled();
+  });
+
+  it('asks again and leaves on Leave after a way back that went nowhere', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderWithIntl(<WriteWorkspace title={en.write.title} locale="en" />);
+    await userEvent.click(backArrow());
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+    // Still here: the router's back went nowhere.
+    await vi.advanceTimersByTimeAsync(1600);
+    editor.hasWork.mockReturnValue(true);
+    await userEvent.click(backArrow());
+    await userEvent.click(screen.getByRole('button', { name: en.write.leaveConfirm }));
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    vi.useRealTimers();
+  });
+});
+

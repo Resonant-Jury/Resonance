@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import useSWR, { useSWRConfig } from 'swr';
 import { BareIconButton } from '@/components/atoms/BareIconButton/BareIconButton';
@@ -22,7 +22,7 @@ import { useElementSize } from '@/lib/hooks/useElementSize';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useCardSummaries, useMyBlockedIds } from '@/lib/data/hooks';
-import { useChatThread } from '@/lib/data/thread';
+import { OLDER_PAGE, useChatThread } from '@/lib/data/thread';
 import { resonanceCardKey, threadCardKeys } from '@/lib/chat/cardLink';
 import { threadRows } from '@/lib/chat/rows';
 import type { TextRange } from '@/lib/chat/search';
@@ -34,7 +34,7 @@ import {
   markConversationRead,
 } from '@/lib/db/firestore/client/messages';
 import { linkify } from '@/lib/links/linkify';
-import type { MessageLink } from './MessageBubble';
+import { messageLinkProps } from './MessageBubble';
 import { MessageRow } from './MessageRow';
 import { MessageMenuOverlay } from './MessageMenuOverlay';
 import { SearchResults } from './ThreadSearch';
@@ -44,9 +44,21 @@ import { centerRow, useThreadScroll } from './useThreadScroll';
 import pageStyles from './MessagesPage.module.css';
 import styles from './Thread.module.css';
 
+/** How many messages before one gone to are drawn with it (when a search read it, and the thread hadn't drawn it). */
+const JUMP_CONTEXT = 10;
+/**
+ * A message gone to further than this from what is drawn (a match, a quote's original, pages back) is drawn
+ * as a stretch of its own — it, the few before it and a page after — rather than with everything between.
+ */
+const FAR = 2 * OLDER_PAGE;
+
 export interface ThreadViewProps {
   handle: string;
-  /** A note being replied to — the first message quotes it as a reply. */
+  /**
+   * A note the thread was opened for (a bell row's link, an older push): the
+   * thread goes to it and the next message answers it — or, for an older note
+   * that never came into the thread, quotes it.
+   */
   replyNote?: { noteId: string; cardId: string };
 }
 
@@ -104,6 +116,11 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     },
   });
 
+  // Whose turn it is between two people who aren't connected: the one who left notes (a letter) waits for the
+  // other, whose answer connects them.
+  const letter: 'mine' | 'theirs' | null =
+    connected !== false || !convo?.request ? null : convo.request.from === user?.id ? 'mine' : convo.request.from === other?.id ? 'theirs' : null;
+
   // Listen only once the conversation doc exists — the messages read rule
   // get()s the parent doc, so listening earlier would just error. The first
   // message makes it: then it is read again, and listened to.
@@ -113,14 +130,75 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     listen: !!convo,
     onSent: () => {
       if (!convo) void mutateConvo();
+      // An answer to their letter connected the two: the thread is an ordinary one now.
+      if (connected === false) {
+        void globalMutate(`connected:${pairId}`);
+        void mutateConvo();
+      }
     },
   });
+  // A note the thread was opened for that isn't in it (left before notes came into threads): the card it was
+  // left on is looked up with the thread's cards, so its quote rides the next message only when the card is
+  // named — answering a note on an anonymous card with it would tell its writer whose card it was.
+  const [olderNote, setOlderNote] = useState<{ noteId: string; cardId: string } | null>(null);
+
+  // The stretch of what is held that the thread draws. Its first message, once a search or a jump has read
+  // further back than the reader had scrolled: what that read is held (for the search, for going to a
+  // message), not laid out — a long conversation's thousands of rows aren't drawn for it. Scrolling up draws a
+  // page more of what is held before reading further back. Null: from the first message held.
+  const [drawFrom, setDrawFrom] = useState<string | null>(null);
+  // Its last message, while the thread draws a stretch further up — gone to a message far back, it draws that
+  // message, the few before it and a page after, not everything down to the newest; scrolling down draws a
+  // page more, and the way back down draws the newest again. Null: down to the newest, and on as they come.
+  const [drawTo, setDrawTo] = useState<string | null>(null);
+  const drawnFrom = drawFrom == null ? 0 : Math.max(0, thread.messages.findIndex((m) => m.key === drawFrom));
+  const toIndex = drawTo == null ? -1 : thread.messages.findIndex((m) => m.key === drawTo);
+  const tail = toIndex < 0;
+  const drawnTo = tail ? thread.messages.length - 1 : toIndex;
+  const searchingAll = thread.search.query.trim().length > 0;
+  /** What is read from here on (for a search, for a jump) is held, not drawn: the stretch starts where it does now. */
+  const holdOlder = () => {
+    if (drawFrom == null && thread.messages.length) setDrawFrom(thread.messages[0].key);
+  };
+  useEffect(() => {
+    if (searchingAll) holdOlder();
+    // Only as a search starts reading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchingAll]);
+  useEffect(() => {
+    setDrawFrom(null);
+    setDrawTo(null);
+  }, [pairId]);
+  const drawn = useMemo(
+    () => (drawnFrom === 0 && tail ? thread.messages : thread.messages.slice(drawnFrom, drawnTo + 1)),
+    [thread.messages, drawnFrom, drawnTo, tail],
+  );
+  /** Draws from the message at `index` of those held (the start of them all: no limit again). */
+  const drawFromIndex = (index: number) => setDrawFrom(index <= 0 ? null : (thread.messages[index]?.key ?? null));
+  /** Draws down to the message at `index` of those held (the newest, or past it: down to the newest again). */
+  const drawToIndex = (index: number) =>
+    setDrawTo(index >= thread.messages.length - 1 ? null : (thread.messages[index]?.key ?? null));
+  // The newest message held when the stretch was drawn: one newer has come in below it since.
+  const [stretchNewest, setStretchNewest] = useState<string | undefined>();
+  const newestHeld = thread.messages[thread.messages.length - 1];
+  useEffect(() => {
+    if (tail) setStretchNewest(undefined);
+    else setStretchNewest((cur) => cur ?? newestHeld?.key);
+    // Only as a stretch is drawn, or the newest is again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tail]);
+
+  // The「卡片與連結」list (the header menu's).
+  const [mediaOpen, setMediaOpen] = useState(false);
   // The cards this thread is about — shared ones, and Resonance card links —
   // each looked up once, a few to a request, as messages come in or older
-  // ones are read: what the cards in the bubbles and the「卡片與連結」list
-  // look up. Held still between answers, so the rows reading it draw again
-  // only when a card arrives.
-  const cardKeys = useMemo(() => threadCardKeys(thread.messages), [thread.messages]);
+  // ones are drawn: what the cards in the bubbles and the「卡片與連結」list
+  // (all of the thread's, while it is open) look up. Held still between
+  // answers, so the rows reading it draw again only when a card arrives.
+  const cardKeys = useMemo(
+    () => [...threadCardKeys(mediaOpen ? thread.messages : drawn), ...(olderNote ? [olderNote.cardId] : [])],
+    [thread.messages, drawn, mediaOpen, olderNote],
+  );
   const summaries = useCardSummaries(cardKeys);
   const summariesReady = summaries?.status === 'ready' ? summaries : null;
   const sharedCards = useMemo(
@@ -128,21 +206,28 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [summaries?.status, summariesReady?.cards, summariesReady?.asked, summariesReady?.failed],
   );
-  const sharedCardIds = useMemo(
-    () => [...new Set(thread.messages.flatMap((m) => (m.cardRef ? [m.cardRef] : [])))],
-    [thread.messages],
-  );
-  // Links written in messages, each once, for the same list.
-  const sharedLinks = useMemo(
-    () => [
-      ...new Map(
-        thread.messages
-          .flatMap((m) => linkify(m.text))
-          .flatMap((seg) => (seg.type === 'link' ? [seg] : []))
-          .map((l) => [l.url, l]),
-      ).values(),
-    ],
-    [thread.messages],
+  const noteQuote = useMemo(() => {
+    if (!olderNote || summaries?.status !== 'ready' || !summaries.asked?.has(olderNote.cardId)) return undefined;
+    const card = summaries.cards.cards.find((c) => c.id === olderNote.cardId);
+    return card && !card.anonymous ? olderNote : undefined;
+  }, [olderNote, summaries]);
+  // Every card this thread is about — shared, or linked to (the bubbles' own detection) — each once.
+  const sharedCardKeys = useMemo(() => (mediaOpen ? threadCardKeys(thread.messages) : []), [mediaOpen, thread.messages]);
+  // Links written in messages, each once, for the same list — but a link to one of our cards, which is among
+  // its cards. Worked out while the list is open only: it reads every word of the thread.
+  const mediaLinks = useMemo(
+    () =>
+      mediaOpen
+        ? [
+            ...new Map(
+              thread.messages
+                .flatMap((m) => linkify(m.text))
+                .flatMap((seg) => (seg.type === 'link' && !resonanceCardKey(seg.url) ? [seg] : []))
+                .map((l) => [l.url, l]),
+            ).values(),
+          ]
+        : [],
+    [mediaOpen, thread.messages],
   );
   // The newest message the conversation holds (not one still on its way):
   // what the unread counter is about.
@@ -159,7 +244,6 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // While searching: the list of matches over the thread, or the thread itself at the match picked from it.
   const [listShown, setListShown] = useState(true);
   const [hitIndex, setHitIndex] = useState<number | null>(null);
-  const [mediaOpen, setMediaOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // A link that is easy to mistake for another place (an IP address, a
   // punycode name) waits here for the reader's yes before it opens.
@@ -188,23 +272,83 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convo, user?.id, pairId, lastMessageId]);
 
+  // Between two people who aren't connected, a new message is an answer to a letter (theirs to the viewer's,
+  // or the viewer's own to theirs, which the thread may hear before the send's answer): it connected them, so
+  // whether they are is read again — and the conversation, whose letter is gone.
+  const seenLast = useRef(lastMessageId);
+  useEffect(() => {
+    const before = seenLast.current;
+    seenLast.current = lastMessageId;
+    if (!before || before === lastMessageId || connected !== false || !pairId) return;
+    void globalMutate(`connected:${pairId}`);
+    void mutateConvo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMessageId]);
+
   const scrollerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // The「卡片與連結」modal's scroll area (hand-drawn rail replaces the native bar).
   const mediaScrollRef = useRef<HTMLDivElement>(null);
 
-  const rows = useMemo(() => threadRows(thread.messages), [thread.messages]);
-  const newest = thread.messages[thread.messages.length - 1];
+  const rows = useMemo(() => threadRows(drawn), [drawn]);
+  const newest = drawn[drawn.length - 1];
+  // On its way to a message (a quote's original, a match, a note): no older page is read meanwhile — one
+  // landing mid-glide would stop the glide short of it.
+  const jumping = useRef(false);
 
   // The newest message stays in view as messages come in (the viewer's own
   // always), older ones going in above leave the view where it was, and
-  // scrolling up near the top reads the next older page.
+  // scrolling up near the top draws a page more of what is held, else reads
+  // the next older page; down near the foot of a stretch further up, it draws
+  // a page more of it.
   const scroll = useThreadScroll(scrollerRef, {
-    firstKey: thread.messages[0]?.key,
+    firstKey: drawn[0]?.key,
     lastKey: newest?.key,
     lastIsOwn: !!newest && newest.senderId === user?.id,
-    onNearTop: thread.loadOlder,
+    tail,
+    onNearTop: () => {
+      if (jumping.current) return;
+      if (drawnFrom > 0) drawFromIndex(drawnFrom - OLDER_PAGE);
+      else {
+        // At the first message held (and no search reading back): what is read next is drawn as it comes.
+        if (drawFrom != null && !searchingAll) setDrawFrom(null);
+        thread.loadOlder();
+      }
+    },
+    onNearBottom: () => {
+      if (!jumping.current && !tail) drawToIndex(drawnTo + OLDER_PAGE);
+    },
   });
+
+  // Back to the latest message from a stretch further up: the newest are drawn again (the stretch with them,
+  // when they are only a page away — the way down glides; else in its place), then the thread is at the foot.
+  const wantBottom = useRef<ScrollBehavior | null>(null);
+  const toLatest = () => {
+    if (tail) {
+      scroll.toBottom('smooth');
+      return;
+    }
+    const near = thread.messages.length - 1 - drawnTo <= OLDER_PAGE;
+    wantBottom.current = near ? 'smooth' : 'auto';
+    if (!near) drawFromIndex(thread.messages.length - OLDER_PAGE);
+    setDrawTo(null);
+  };
+  useLayoutEffect(() => {
+    const how = wantBottom.current;
+    if (!tail || !how) return;
+    wantBottom.current = null;
+    scroll.toBottom(how);
+    // Only once the newest are drawn again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tail]);
+  // The viewer's own message sent from a stretch further up: the thread goes down to it.
+  const lastHeldKey = useRef(newestHeld?.key);
+  useEffect(() => {
+    const before = lastHeldKey.current;
+    lastHeldKey.current = newestHeld?.key;
+    if (!tail && before && newestHeld && newestHeld.key !== before && newestHeld.senderId === user?.id) toLatest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newestHeld?.key]);
 
   // Search runs over the whole conversation (older pages are read for it);
   // every match is marked in its bubble, the one being looked at stronger.
@@ -221,19 +365,37 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // once it has arrived — washed on the way, it would be over before it is seen).
   useEffect(() => {
     if (!jumpTarget) return;
+    // Held but not drawn (a search or the jump read it): the thread draws it first, with a few before it — the
+    // stretch drawn reaching on to it, or, from far away, a stretch of its own (it and a page after it).
+    const at = thread.messages.findIndex((m) => m.id === jumpTarget.id);
+    if (at >= 0 && (at < drawnFrom || at > drawnTo)) {
+      jumping.current = true;
+      if (at < drawnFrom && drawnFrom - (at - JUMP_CONTEXT) <= FAR) drawFromIndex(at - JUMP_CONTEXT);
+      else if (at > drawnTo && at + JUMP_CONTEXT - drawnTo <= FAR) drawToIndex(at + JUMP_CONTEXT);
+      else {
+        drawFromIndex(at - JUMP_CONTEXT);
+        drawToIndex(at + OLDER_PAGE);
+      }
+      return;
+    }
     const scroller = scrollerRef.current;
     const row = scroller?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(jumpTarget.id)}"]`);
     if (!scroller || !row) return;
+    jumping.current = true;
+    scroll.leaveBottom();
     const arrived = centerRow(scroller, row);
     setJumpTarget(null);
-    if (!jumpTarget.flash) return;
     const id = jumpTarget.id;
+    const flash = jumpTarget.flash;
     void arrived.then(() => {
+      jumping.current = false;
+      if (!flash) return;
       // Off first, so a second jump to the same message washes it again.
       setFlashId(null);
       window.requestAnimationFrame(() => setFlashId(id));
       window.setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1000);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpTarget, rows]);
 
   // The thread's labels and times, worked out once per message rather than on every draw.
@@ -263,22 +425,25 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   );
 
   // What every message can ask of the thread — the same functions for as long as the conversation is open.
-  const live = useRef({ thread, router });
-  live.current = { thread, router };
+  const live = useRef({ thread, router, holdOlder });
+  live.current = { thread, router, holdOlder };
   const actions = useMemo<ThreadActions>(
     () => ({
       viewerId: user?.id ?? '',
       otherHandle: other?.handle ?? '',
-      openLink: (link: MessageLink, e?: MouseEvent<HTMLAnchorElement>) => {
+      openLink: (link, e) => {
+        // An address easy to mistake for another asks first, however it was opened.
+        if (link.suspicious) {
+          e?.preventDefault();
+          setLinkToConfirm({ url: link.url, host: link.host });
+          return;
+        }
         // A new tab asked for on purpose is the browser's to open.
-        if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0)) return;
+        if (e && 'button' in e && (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0)) return;
         const card = resonanceCardKey(link.url);
         if (card) {
           e?.preventDefault();
           live.current.router.push(`/card/${card}`);
-        } else if (link.suspicious) {
-          e?.preventDefault();
-          setLinkToConfirm({ url: link.url, host: link.host });
         } else if (!e) {
           window.open(link.url, '_blank', 'noopener,noreferrer');
         }
@@ -288,27 +453,76 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
         inputRef.current?.focus();
       },
       jumpTo: (id) => {
-        void live.current.thread.ensureLoaded(id).then((held) => held && setJumpTarget({ id, flash: true }));
+        const { thread: chat, holdOlder: hold } = live.current;
+        // Pages back: what is read on the way is held, not drawn, and no other page is read meanwhile.
+        if (!chat.messages.some((m) => m.id === id)) {
+          hold();
+          jumping.current = true;
+        }
+        void chat.ensureLoaded(id).then((held) => {
+          if (held) setJumpTarget({ id, flash: true });
+          else jumping.current = false;
+        });
       },
       retry: (key) => live.current.thread.retry(key),
       discard: (key) => live.current.thread.discard(key),
       copy: (text) => {
-        void navigator.clipboard?.writeText(text).then(() => {
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 1600);
-        });
+        // A copy the browser refuses (no focus, a policy) says nothing: no「已複製」for what wasn't.
+        void navigator.clipboard?.writeText(text).then(
+          () => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1600);
+          },
+          () => undefined,
+        );
       },
       press: setPressed,
     }),
     [user?.id, other?.handle],
   );
 
+  // The note the thread was opened for: once the conversation's first messages are in (older ones read for it
+  // if need be), it is gone to, washed and answered; one that isn't in the conversation is an older note.
+  const noteAsked = useRef<string | null>(null);
+  const [noteFound, setNoteFound] = useState<string | null>(null);
+  useEffect(() => {
+    if (!replyNote || noteAsked.current === replyNote.noteId || convo === undefined || (convo && !thread.ready)) return;
+    noteAsked.current = replyNote.noteId;
+    setOlderNote(null);
+    if (!convo) {
+      setOlderNote(replyNote);
+      return;
+    }
+    if (!thread.messages.some((m) => m.id === replyNote.noteId)) {
+      holdOlder();
+      jumping.current = true;
+    }
+    void thread.ensureLoaded(replyNote.noteId).then((held) => {
+      if (held) setNoteFound(replyNote.noteId);
+      else {
+        jumping.current = false;
+        setOlderNote(replyNote);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyNote?.noteId, convo, thread.ready]);
+  useEffect(() => {
+    const note = noteFound ? thread.messages.find((m) => m.id === noteFound) : undefined;
+    if (!note) return;
+    setNoteFound(null);
+    actions.reply(note);
+    setJumpTarget({ id: note.id, flash: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteFound, thread.messages]);
+
   // Escape leaves the search wherever the focus is (after a click on a match it isn't in the field) — unless
-  // something over the thread (a message's menu) is the one to close.
+  // something over the thread (a message's menu, a dialog: the link's confirm, the card picker) is the one to
+  // close, whichever of the two hears the key first.
   useEffect(() => {
     if (!searchOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || pressed || document.querySelector('[role="menu"]')) return;
+      if (e.key !== 'Escape' || e.defaultPrevented || pressed) return;
+      if (document.querySelector('[role="menu"], [aria-modal="true"]')) return;
       closeSearch();
     };
     document.addEventListener('keydown', onKey);
@@ -354,10 +568,21 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   }
 
   const profileHref = `/u/${other.handle}` as const;
+  // Not connected, and no letter of theirs to answer: the way to them is their profile.
+  const notConnected = (
+    <div className={styles.letterLine}>
+      <p className={pageStyles.quietNote}>{t('notConnected')}</p>
+      <Link href={profileHref} className={styles.letterLink}>
+        {t('viewProfile')}
+      </Link>
+    </div>
+  );
   const replyHandle = thread.replyingTo?.senderId === user?.id ? null : other.handle;
   // The way back to the latest message — not under the search's list, which covers the thread.
   // (A word that something was copied takes its place for a moment.)
-  const showPill = !copied && !(searchOpen && listShown) && (scroll.newBelow || (scroll.farUp && !scroll.atBottom));
+  // (Over a stretch further up, it is always offered: the newest aren't under it.)
+  const newBelow = scroll.newBelow || (!tail && !!stretchNewest && newestHeld?.key !== stretchNewest);
+  const showPill = !copied && !(searchOpen && listShown) && (!tail || newBelow || (scroll.farUp && !scroll.atBottom));
 
   return (
     <CardEmbedSourceContext.Provider value={sharedCards}>
@@ -386,7 +611,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 aria-label={t('menuSearch')}
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                     e.preventDefault();
                     // Enter looks at the newest match, then steps back through the older ones (Shift: forward).
                     if (listShown || hitIndex == null) pickHit(0);
@@ -444,7 +669,10 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 <OrganicMenu
                   label={t('moreMenu')}
                   seed={seedFromString(convo.id)}
-                  triggerSize={34}
+                  // A glyph on the header's paper, in the back arrow's ink, its name hanging under it.
+                  bare
+                  tone="ink"
+                  tip="below"
                   busy={deleting}
                   items={[
                     { key: 'search', icon: 'search', label: t('menuSearch') },
@@ -467,16 +695,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
           <Divider seed={41} spacing={0} strokeWidth={INK} />
         </div>
 
-        {connected === false ? (
-          <div style={{ padding: '20px 2px' }}>
-            <p className={pageStyles.quietNote}>{t('notConnected')}</p>
-            <Link
-              href={profileHref}
-              style={{ fontSize: 13, color: 'var(--color-terracotta)', textUnderlineOffset: 3 }}
-            >
-              {t('viewProfile')}
-            </Link>
-          </div>
+        {connected === false && !convo ? (
+          // Someone the viewer isn't connected with and has never written with: nothing to show but that.
+          convo === null && notConnected
         ) : (
           <>
             <div className={styles.body}>
@@ -485,9 +706,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 {convo === null && !thread.ready && <p className={pageStyles.quietNote}>{t('noMessagesYet')}</p>}
                 {/* Older pages: read as the reader nears the top, said here while they come. The row
                     keeps its height, so its words coming and going never nudge the messages under it. */}
-                {thread.messages.length > 0 && (
+                {drawn.length > 0 && (
                   <div className={styles.older}>
-                    {thread.olderError ? (
+                    {drawnFrom > 0 ? null : thread.olderError ? (
                       <>
                         <span>{t('loadOlderError')}</span>
                         <OrganicButton variant="textAccent" size="sm" onClick={() => thread.loadOlder()}>
@@ -524,12 +745,14 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                   />
                 ))}
               </div>
+              {/* Where the thread meets what is fixed under it: the paper dissolving upward over the messages. */}
+              <div className={styles.edge} aria-hidden />
               {showPill && (
                 <Pill
                   className={styles.pill}
-                  onClick={() => scroll.toBottom('smooth')}
+                  onClick={toLatest}
                   icon="chevron-down"
-                  label={scroll.newBelow ? t('newMessages') : t('jumpToLatest')}
+                  label={newBelow ? t('newMessages') : t('jumpToLatest')}
                 />
               )}
               {copied && <Pill className={styles.pill} label={t('copied')} />}
@@ -546,16 +769,26 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               )}
             </div>
 
-            <ThreadComposer
-              inputRef={inputRef}
-              otherHandle={other.handle}
-              replyingTo={thread.replyingTo}
-              replyHandle={replyHandle}
-              onCancelReply={thread.cancelReply}
-              replyNote={replyNote}
-              send={thread.send}
-              ready={!!pairId}
-            />
+            {connected === false && letter === 'mine' ? (
+              // Their answer is what connects the two: until it comes, nothing more to write here.
+              <p className={styles.letterLine}>{t('awaitingReply')}</p>
+            ) : connected === false && letter !== 'theirs' ? (
+              notConnected
+            ) : (
+              <>
+                {letter === 'theirs' && <p className={styles.letterHint}>{t('replyToConnect', { handle: other.handle })}</p>}
+                <ThreadComposer
+                  inputRef={inputRef}
+                  otherHandle={other.handle}
+                  replyingTo={thread.replyingTo}
+                  replyHandle={replyHandle}
+                  onCancelReply={thread.cancelReply}
+                  replyNote={noteQuote}
+                  send={thread.send}
+                  ready={!!pairId}
+                />
+              </>
+            )}
             {error && <p className={styles.error}>{error}</p>}
 
             {pressed && (
@@ -579,35 +812,29 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
             >
               <h3 className={pageStyles.mediaTitle}>{t('mediaTitle')}</h3>
               <p className={pageStyles.mediaSubtitle}>{t('mediaSubtitle')}</p>
-              {sharedCardIds.length === 0 && sharedLinks.length === 0 ? (
+              {sharedCardKeys.length === 0 && mediaLinks.length === 0 ? (
                 <p className={pageStyles.quietNote}>{t('mediaEmpty')}</p>
               ) : (
                 <div className={pageStyles.mediaArea}>
                   <div ref={mediaScrollRef} className={pageStyles.mediaBody}>
-                    {sharedCardIds.length > 0 && (
+                    {sharedCardKeys.length > 0 && (
                       <section>
                         <h4 className={pageStyles.mediaSection}>{t('mediaCards')}</h4>
-                        {sharedCardIds.map((id, i) => (
-                          <Fragment key={id}>
+                        {sharedCardKeys.map((key, i) => (
+                          <Fragment key={key}>
                             {i > 0 && <Divider seed={53 + i * 7} spacing={0} />}
-                            <SharedCardRow cardId={id} />
+                            <SharedCardRow cardKey={key} />
                           </Fragment>
                         ))}
                       </section>
                     )}
-                    {sharedLinks.length > 0 && (
+                    {mediaLinks.length > 0 && (
                       <section>
                         <h4 className={pageStyles.mediaSection}>{t('mediaLinks')}</h4>
-                        {sharedLinks.map((link, i) => (
+                        {mediaLinks.map((link, i) => (
                           <Fragment key={link.url}>
                             {i > 0 && <Divider seed={97 + i * 11} spacing={0} />}
-                            <a
-                              className={pageStyles.mediaLinkRow}
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer nofollow ugc"
-                              onClick={(e) => actions.openLink(link, e)}
-                            >
+                            <a className={pageStyles.mediaLinkRow} {...messageLinkProps(link, actions.openLink)}>
                               {link.text}
                             </a>
                           </Fragment>
@@ -713,8 +940,8 @@ function Pill({ label, icon, onClick, className }: { label: string; icon?: 'chev
  * previews, like an in-thread card — a card the viewer can no longer see
  * simply renders nothing.
  */
-function SharedCardRow({ cardId }: { cardId: string }) {
-  const data = useCardEmbed(`/card/${cardId}`);
+function SharedCardRow({ cardKey }: { cardKey: string }) {
+  const data = useCardEmbed(`/card/${cardKey}`);
   if (data.status !== 'ready') return null;
   const { card } = data;
   return (

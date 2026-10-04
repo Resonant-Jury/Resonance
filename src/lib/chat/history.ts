@@ -140,6 +140,7 @@ function sameMessage(held: Message | undefined, next: Message): boolean {
     held.text === next.text &&
     held.sentAt.getTime() === next.sentAt.getTime() &&
     held.cardRef === next.cardRef &&
+    held.kind === next.kind &&
     JSON.stringify(held.noteRef ?? null) === JSON.stringify(next.noteRef ?? null) &&
     JSON.stringify(held.replyTo ?? null) === JSON.stringify(next.replyTo ?? null) &&
     JSON.stringify(held.preview ?? null) === JSON.stringify(next.preview ?? null)

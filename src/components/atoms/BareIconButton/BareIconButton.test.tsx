@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen, userEvent } from '@/../test/render';
+import { fireEvent, render, renderWithIntl, screen, userEvent } from '@/../test/render';
 import { BareIconButton } from './BareIconButton';
 
 describe('BareIconButton', () => {
@@ -29,5 +29,14 @@ describe('BareIconButton', () => {
     rerender(<BareIconButton icon="chevron-down" label="Later match" onClick={onClick} disabled />);
     await userEvent.click(screen.getByRole('button', { name: 'Later match' }));
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  // The card box's pen beside the name: a place to go, so a link (it opens in a new tab like one).
+  it('is a link, named and tipped the same, when it leads somewhere', () => {
+    renderWithIntl(<BareIconButton icon="pen" label="Edit profile" href="/settings" />);
+    const link = screen.getByRole('link', { name: 'Edit profile' });
+    expect(link.getAttribute('href')).toMatch(/\/settings$/);
+    expect(link.nextElementSibling).toHaveTextContent('Edit profile');
+    expect(screen.queryByRole('button')).toBeNull();
   });
 });

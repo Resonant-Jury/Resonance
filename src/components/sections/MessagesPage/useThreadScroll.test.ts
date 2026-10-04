@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { centerRow } from './useThreadScroll';
+import { renderHook } from '@testing-library/react';
+import { centerRow, useThreadScroll } from './useThreadScroll';
 
 /** A scroller `height` tall over `content` of rows, and a row `rowTop` down the content, 40 tall. */
 function thread({ height = 600, content = 20_000, at = 19_400, rowTop }: { height?: number; content?: number; at?: number; rowTop: number }) {
@@ -65,5 +66,147 @@ describe('centerRow', () => {
   it('has arrived at once when the row is already in the middle', async () => {
     const t = thread({ rowTop: 19_400 + 280 });
     await expect(centerRow(t.scroller, t.row)).resolves.toBeUndefined();
+  });
+});
+
+describe('where the browser doesn’t anchor scrolling by itself (Safari)', () => {
+  /** Rows 100 tall, the third of them `grow`s; the scroller well up a long thread. */
+  function rows() {
+    const scroller = document.createElement('div');
+    const heights = [100, 100, 100, 100, 100, 100];
+    const els = heights.map((_, i) => {
+      const row = document.createElement('div');
+      row.dataset.messageKey = `m${i}`;
+      scroller.appendChild(row);
+      return row;
+    });
+    let top = 250;
+    const topOf = (i: number) => heights.slice(0, i).reduce((a, b) => a + b, 0);
+    Object.defineProperties(scroller, {
+      clientHeight: { value: 200 },
+      scrollHeight: { get: () => heights.reduce((a, b) => a + b, 0) + 5000 },
+      scrollTop: { get: () => top, set: (v: number) => (top = v) },
+    });
+    scroller.getBoundingClientRect = () => ({ top: 0, bottom: 200 }) as DOMRect;
+    els.forEach((row, i) => {
+      row.getBoundingClientRect = () => ({ top: topOf(i) - top, bottom: topOf(i) + heights[i] - top }) as DOMRect;
+    });
+    return { scroller, heights, top: () => top };
+  }
+
+  it('keeps the row the reader is at in place when one above it changes height', () => {
+    const observed: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          observed.push(cb);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal('CSS', { supports: () => false });
+    const t = rows();
+    renderHook(() => useThreadScroll({ current: t.scroller }, { firstKey: 'm0', lastKey: 'm5', lastIsOwn: false }));
+    // The reader scrolls to the third row (its top half off the window).
+    t.scroller.scrollTop = 250;
+    t.scroller.dispatchEvent(new Event('scroll'));
+    // A shared card's stand-in above becomes the card, 60 shorter.
+    t.heights[1] = 40;
+    for (const cb of observed) cb([], {} as ResizeObserver);
+    expect(t.top()).toBe(190);
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('taken up the thread', () => {
+  // A glide to a note, a quote's original or a match starts at the bottom: a card arriving below meanwhile
+  // must not pull the reader back down to it.
+  it('lets go of the bottom while a jump glides away from it', () => {
+    const observed: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          observed.push(cb);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const scroller = document.createElement('div');
+    let top = 0;
+    Object.defineProperties(scroller, {
+      clientHeight: { value: 600 },
+      scrollHeight: { value: 3000 },
+      scrollTop: { get: () => top, set: (v: number) => (top = v) },
+    });
+    const { result } = renderHook(() => useThreadScroll({ current: scroller }, { firstKey: 'a', lastKey: 'z', lastIsOwn: false }));
+    // At the bottom, something below grows: the reader stays at the bottom.
+    for (const cb of observed) cb([], {} as ResizeObserver);
+    expect(top).toBe(3000);
+
+    result.current.leaveBottom();
+    top = 1200;
+    for (const cb of observed) cb([], {} as ResizeObserver);
+    expect(top).toBe(1200);
+    vi.unstubAllGlobals();
+  });
+});
+
+
+describe('a stretch drawn further up', () => {
+  // Gone to a message far back, the thread draws a stretch around it: its foot isn't the bottom.
+  function scroller(at: number) {
+    const el = document.createElement('div');
+    let top = at;
+    Object.defineProperties(el, {
+      clientHeight: { value: 600 },
+      scrollHeight: { value: 3000 },
+      scrollTop: { get: () => top, set: (v: number) => (top = v) },
+    });
+    return { el, top: () => top, move: (to: number) => ((top = to), el.dispatchEvent(new Event('scroll'))) };
+  }
+
+  it('follows nothing at its foot, holds no one there, and asks for the next newer page near it', () => {
+    const observed: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          observed.push(cb);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const s = scroller(1200);
+    const onNearBottom = vi.fn();
+    const { result, rerender } = renderHook((props: { lastKey: string; tail: boolean }) =>
+      useThreadScroll({ current: s.el }, { firstKey: 'a', lastKey: props.lastKey, lastIsOwn: false, tail: props.tail, onNearBottom }),
+    { initialProps: { lastKey: 'm', tail: false } });
+
+    // At its foot, the reader isn't "at the bottom": what grows there doesn't pull them down.
+    s.move(2400);
+    expect(result.current.atBottom).toBe(false);
+    for (const cb of observed) cb([], {} as ResizeObserver);
+    expect(s.top()).toBe(2400);
+    // Near it, the next page is asked for.
+    expect(onNearBottom).toHaveBeenCalled();
+
+    // A page more drawn under it moves nothing, and isn't news.
+    rerender({ lastKey: 'n', tail: false });
+    expect(s.top()).toBe(2400);
+    expect(result.current.newBelow).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('never asks for a newer page at the newest message', () => {
+    const s = scroller(1200);
+    const onNearBottom = vi.fn();
+    renderHook(() => useThreadScroll({ current: s.el }, { firstKey: 'a', lastKey: 'z', lastIsOwn: false, onNearBottom }));
+    s.move(2400);
+    expect(onNearBottom).not.toHaveBeenCalled();
   });
 });

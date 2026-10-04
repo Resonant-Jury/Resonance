@@ -33,6 +33,7 @@ import type { Card, CardMedia, Visibility, Locale } from '@/lib/db/types';
 import type { GenerateImageEvent } from '@/app/api/generate-image/route';
 import { ndjsonValues } from '@/lib/streams/ndjson';
 import { useRouter } from '@/i18n/navigation';
+import { useLeaveWriter } from '@/lib/hooks/useLeaveWriter';
 import styles from './CardEditor.module.css';
 
 // The publish panel loads when it is first opened, not with the editor.
@@ -163,6 +164,8 @@ export function CardEditor({
   const tCard = useTranslations('card');
   // const tAi = useTranslations('write.ai'); // AI 寫作夥伴：暫時停用
   const router = useRouter();
+  // Back where the writer came from — or, in a tab of its own, to the card box, where the draft now is.
+  const leaveWriter = useLeaveWriter('/me');
   const inline = mode === 'inline';
 
   const [thoughtCore, setThoughtCore] = useState(initial?.thoughtCore ?? '');
@@ -510,7 +513,7 @@ export function CardEditor({
     try {
       if (needsSave()) await saveDraft();
       closedRef.current = true;
-      router.back();
+      leaveWriter();
     } catch (err) {
       console.error('Save draft failed:', err);
       closedRef.current = false;
