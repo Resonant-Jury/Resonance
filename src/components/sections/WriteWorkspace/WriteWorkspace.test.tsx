@@ -193,7 +193,9 @@ describe('a writer opened in a tab of its own', () => {
   // ours lies behind — the Navigation API says so where there is one.
   it('leaves for the feed from the tab’s first page, pages ahead of it or not', async () => {
     vi.stubGlobal('navigation', { canGoBack: false });
-    onTestFinished(() => vi.unstubAllGlobals());
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
     renderWithIntl(<WriteWorkspace title={en.write.title} locale="en" />);
     await userEvent.click(backArrow());
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/home'));
