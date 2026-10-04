@@ -12,6 +12,7 @@ import styles from './NotificationBell.module.css';
 import type { Notification } from '@/lib/db/types';
 import { useNotifications } from '@/lib/data/hooks';
 import { markNotificationRead } from '@/lib/db/firestore/client/notifications';
+import { bellHref } from './bellLink';
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
@@ -122,47 +123,20 @@ export function NotificationBell() {
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
               {items.map((n, i) => {
                 const isUnread = n.readAt === null;
+                const handle = String(n.payload.fromHandle ?? '');
+                // Where the row leads (as its push does): a note on an anonymous card opens the card, never a
+                // thread with its writer — see bellLink.
+                const href = bellHref(n);
                 let body = '';
-                let href: string | null = null;
-                // A resonance or note auto-connects the pair at send time, so the
-                // notification is purely informational — clicking it lands in the
-                // conversation (私訊), not on an in-place connect flow.
-                if (n.type === 'invite') {
-                  body = tApp('invite', { handle: String(n.payload.fromHandle ?? '') });
-                  href = '/me';
-                } else if (n.type === 'invite_accepted') {
-                  body = tApp('inviteAccepted', { handle: String(n.payload.fromHandle ?? '') });
-                  if (n.payload.fromHandle) href = `/messages/${n.payload.fromHandle}`;
-                } else if (n.type === 'message') {
-                  body = tApp('message', { handle: String(n.payload.fromHandle ?? '') });
-                  href = `/messages/${n.payload.fromHandle}`;
-                } else if (n.type === 'resonance_summary') {
-                  body = tApp('resonanceSummary', { count: Number(n.payload.count ?? 0) });
-                } else if (n.type === 'translation_done') {
-                  body = tApp('translationDone');
-                  href = `/card/${n.payload.cardId}`;
-                } else if (n.type === 'resonance') {
-                  body = tApp('resonance', { handle: String(n.payload.fromHandle ?? '') });
-                  if (n.payload.fromHandle) href = `/messages/${n.payload.fromHandle}`;
-                } else if (n.type === 'note') {
-                  body = tApp('note', { handle: String(n.payload.fromHandle ?? '') });
-                  if (n.payload.fromHandle) {
-                    // Carry the note reference along so the reply can quote it.
-                    const params =
-                      n.payload.noteId && n.payload.cardId
-                        ? `?${new URLSearchParams({
-                            note: String(n.payload.noteId),
-                            card: String(n.payload.cardId),
-                          }).toString()}`
-                        : '';
-                    href = `/messages/${n.payload.fromHandle}${params}`;
-                  }
-                } else if (n.type === 'card_link') {
-                  body = tApp('cardLink', { handle: String(n.payload.fromHandle ?? '') });
-                  href = `/card/${n.payload.cardId}`;
-                } else if (n.type === 'invite_expired') {
-                  body = 'Invite expired';
-                }
+                if (n.type === 'invite') body = tApp('invite', { handle });
+                else if (n.type === 'invite_accepted') body = tApp('inviteAccepted', { handle });
+                else if (n.type === 'message') body = tApp('message', { handle });
+                else if (n.type === 'resonance_summary') body = tApp('resonanceSummary', { count: Number(n.payload.count ?? 0) });
+                else if (n.type === 'translation_done') body = tApp('translationDone');
+                else if (n.type === 'resonance') body = tApp('resonance', { handle });
+                else if (n.type === 'note') body = tApp('note', { handle });
+                else if (n.type === 'card_link') body = tApp('cardLink', { handle });
+                else if (n.type === 'invite_expired') body = 'Invite expired';
                 const inner = (
                   <div
                     style={{
@@ -209,10 +183,7 @@ export function NotificationBell() {
                     <li>
                       <div onClick={() => handleClickItem(n)}>
                         {href ? (
-                          <Link
-                            href={href as '/me' | `/card/${string}` | `/messages/${string}`}
-                            style={{ textDecoration: 'none' }}
-                          >
+                          <Link href={href} style={{ textDecoration: 'none' }}>
                             {inner}
                           </Link>
                         ) : (
