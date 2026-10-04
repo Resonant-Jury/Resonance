@@ -127,6 +127,17 @@ class FeedLoader(
         return scope.launch { read(run) }.also { loading = it }
     }
 
+    /**
+     * Reads the feed again now, asked for by hand (a pull): what is on screen stays until the new
+     * lists arrive. Returns once both have answered or failed — picks asked for again a little
+     * later don't hold it — or after [limit] at most.
+     */
+    suspend fun reload(now: Long = System.currentTimeMillis(), limit: Duration = RELOAD_LIMIT) {
+        loadedAt = now
+        load()
+        withTimeoutOrNull(limit) { _state.first { it.latestSettled && it.picksSettled } }
+    }
+
     /** A new reader's first read: the feed as they last saw it shows while it goes. */
     private fun restoreAndLoad(saved: FeedStore): Job {
         loading?.cancel()
@@ -248,5 +259,8 @@ class FeedLoader(
     companion object {
         /** A feed read longer ago than this is read again when the screen (or the app) comes back to it. */
         val STALE_AFTER: Duration = 15.minutes
+
+        /** The longest a [reload] keeps its caller waiting (the reads still finish behind it). */
+        val RELOAD_LIMIT: Duration = 20.seconds
     }
 }

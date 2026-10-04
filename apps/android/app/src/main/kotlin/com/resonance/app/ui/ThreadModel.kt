@@ -86,7 +86,11 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
     /** The other person's uid: from where the thread was opened, or their profile. */
     var otherId by mutableStateOf(uid)
         private set
-    /** Whether you may write (connected, no block). Null until known — the composer shows meanwhile. */
+    /**
+     * Whether you may write (connected, no block). Null until known — the composer shows meanwhile.
+     * It follows the person's connections live ([watchConnections]): a take-back by either of you
+     * that ends the connection, or an answer that begins it, changes the foot at once.
+     */
     var connected by mutableStateOf<Boolean?>(null)
         private set
     var isBlocked by mutableStateOf(false)
@@ -201,6 +205,7 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
 
     suspend fun load() {
         if (phase == Phase.Failed) phase = Phase.Loading
+        watchConnections()
         otherId?.let { id ->
             // The conversation list already drew them: the header shows at once, beside the messages.
             session.conversations.person(id)?.let { person ->
@@ -230,12 +235,30 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
         other = profile.author
         otherId = profile.author.id
         isBlocked = profile.isBlocked
-        connected = profile.isConnected && !profile.isBlocked
+        // The live connections, when Firestore has said, over a profile the HTTP cache may have kept a little while.
+        connected = connectionOf(session.conversations.connectedIds.value, profile.author.id, profile.isConnected, profile.isBlocked)
         phase = Phase.Ready
         watch()
     }
 
-    /** Re-reads whether you may still write (after a block, or coming back). */
+    private var connectionsWatch: Job? = null
+
+    /**
+     * Follows the person's connections, live (the conversation list's listener): a connection
+     * that ends — a take-back of the resonance that made it, by either of you — or begins shows
+     * in the foot at once, a waiting letter counting again once you are no longer connected.
+     */
+    private fun watchConnections() {
+        if (connectionsWatch != null) return
+        connectionsWatch = scope.launch {
+            session.conversations.connectedIds.collect { live -> connected = connectionOf(live, otherId, connected, isBlocked) }
+        }
+    }
+
+    /**
+     * Re-reads whether you may still write (after a block, or an answer): a read made after the
+     * write, so the profile's word stands over a live list that may not have heard yet.
+     */
     suspend fun refreshConnection() {
         val read = try {
             read(other?.handle ?: handle)
@@ -539,9 +562,10 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
     }
 
     /**
-     * The conversation says who left a note waiting, if anyone. A note of theirs that stops
-     * waiting was answered (most likely by you, just now): until the profile says so, the composer
-     * stays — "not known" rather than "not connected".
+     * The conversation says who left a note waiting, if anyone (it may stay while you are
+     * connected another way: the foot ignores it then). A note of theirs that stops waiting was
+     * answered (most likely by you, just now): until the connection shows, the composer stays —
+     * "not known" rather than "not connected".
      */
     private fun noteRequest(from: String?) {
         val answered = requestFrom != null && from == null && connected == false

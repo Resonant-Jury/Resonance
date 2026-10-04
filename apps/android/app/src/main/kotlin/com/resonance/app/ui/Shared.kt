@@ -50,6 +50,10 @@ import com.resonance.design.MiniStoryCard
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicBrandBar
 import com.resonance.design.OrganicPageTitle
+import com.resonance.design.SketchPullIndicator
+import com.resonance.design.pulledDown
+import com.resonance.design.rememberSketchPull
+import com.resonance.design.sketchPull
 import com.resonance.design.StoryCard
 import com.resonance.design.StoryCardContent
 import com.resonance.design.cream
@@ -141,6 +145,10 @@ fun LazyListState.scrolledPast20(): Boolean {
  * The other tabs (`titleInBar`) have no title block: the title takes the
  * brand's place in the bar, with the wave mark before it and `trailing` at the
  * bar's end, and the list starts a little under the bar's line.
+ *
+ * With [onRefresh], the list can be pulled down past its top to run it: the gap
+ * that opens under the bar draws the Resonance loader (SketchPullIndicator),
+ * never Material's spinner.
  */
 @Composable
 fun TabScreen(
@@ -152,13 +160,20 @@ fun TabScreen(
     list: LazyListState = rememberLazyListState(),
     /** Floats over the list, under nothing but the brand bar (the feed's picks hint). */
     overlay: @Composable BoxScope.() -> Unit = {},
+    /** What a pull past the list's top runs (a refresh asked for by hand), awaited while the loader is docked; null: no pull. */
+    onRefresh: (suspend () -> Unit)? = null,
+    /** Whether a pull may start now (not while a first read still shows its skeleton). */
+    refreshEnabled: Boolean = true,
     content: LazyListScope.() -> Unit,
 ) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight
     val quickReturn = rememberQuickReturn(list)
-    Box(Modifier.fillMaxSize().cream().nestedScroll(quickReturn.connection)) {
+    val pull = rememberSketchPull(onRefresh ?: {})
+    // The pull is the outer of the two: pushing a pulled list back up is the pull's, not the bar's to slide away on.
+    val pulling = Modifier.sketchPull(pull, enabled = onRefresh != null && (refreshEnabled || pull.refreshing))
+    Box(Modifier.fillMaxSize().cream().then(pulling).nestedScroll(quickReturn.connection)) {
         // Without the title block, the first row still starts clear of the bar's line.
-        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = if (titleInBar) top + TitledBarGap else top, bottom = 120.dp)) {
+        LazyColumn(Modifier.fillMaxSize().pulledDown(pull), state = list, contentPadding = PaddingValues(top = if (titleInBar) top + TitledBarGap else top, bottom = 120.dp)) {
             if (!titleInBar) item {
                 // The web's page padding: 40 under the header, the title block 40 above the content (home's header).
                 Column(
@@ -171,6 +186,7 @@ fun TabScreen(
             }
             content()
         }
+        SketchPullIndicator(pull, top)
         // The bar slides up under the status bar while reading down and comes back on the way up
         // (the brand has nothing to press, so it gives the stories the room); the status bar keeps its paper.
         val bar = Modifier.offset { IntOffset(0, quickReturn.offset.roundToInt()) }

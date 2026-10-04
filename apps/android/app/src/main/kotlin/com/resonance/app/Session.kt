@@ -188,6 +188,9 @@ class Session(
     /** A write that goes straight to Firestore (a bookmark): what the API reads back is read afresh. */
     fun noteOwnWrite() = httpCaching.invalidate()
 
+    /** A refresh asked for by hand (a pull): the server answers the next reads, not the HTTP cache. */
+    fun readAfresh() = httpCaching.invalidate()
+
     /** When the app last came to the foreground (the screens read again then if what they hold is old). */
     private val _foregrounded = MutableStateFlow(0L)
     val foregrounded: StateFlow<Long> = _foregrounded
