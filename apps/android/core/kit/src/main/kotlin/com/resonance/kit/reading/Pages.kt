@@ -3,7 +3,12 @@ package com.resonance.kit.reading
 import com.resonance.api.models.FeedCard
 import com.resonance.api.models.FeedPage
 import com.resonance.api.models.Profile
+import com.resonance.kit.api.CardKey
 import com.resonance.kit.api.ReadingApi
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import java.net.URLDecoder
 
 /**
@@ -65,13 +70,35 @@ suspend fun ReadingApi.profilePage(handle: String, limit: Int = 12): ProfilePage
 
 /**
  * Cards named by id or slug where only their summary shows (the cards shared in a conversation,
- * carried or linked to), in one request: every key asked for is in the answer, as its card — or
- * null when the reader can't see it (gone, hidden, by someone blocked).
+ * carried or linked to), 30 to a request: every key asked for is in the answer, as its card — or
+ * null when the reader can't see it (gone, hidden, by someone blocked), or when it can't name a
+ * card at all ([CardKey]; never asked for).
+ *
+ * The requests stand on their own: the keys of one that fails are left out of the answer (to be
+ * asked again), and the others' cards still come back. Only when every request fails does this
+ * throw.
  */
 suspend fun ReadingApi.cardsByKey(keys: Collection<String>): Map<String, FeedCard?> {
-    if (keys.isEmpty()) return emptyMap()
-    val found = cards(keys)
+    val asked = keys.distinct()
+    if (asked.isEmpty()) return emptyMap()
+    val chunks = asked.filter(CardKey::isValid).chunked(ReadingApi.CARDS_PER_REQUEST)
+    val answers = coroutineScope {
+        chunks.map { chunk ->
+            async {
+                try {
+                    Result.success(cards(chunk))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
+        }.awaitAll()
+    }
+    if (answers.isNotEmpty() && answers.all { it.isFailure }) throw answers.first().exceptionOrNull()!!
+    val found = answers.flatMap { it.getOrDefault(emptyList()) }
     val byId = found.associateBy { it.id }
     val bySlug = found.filter { it.slug != null }.associateBy { it.slug }
-    return keys.associateWith { byId[it] ?: bySlug[it] }
+    val failed = chunks.zip(answers).filter { (_, answer) -> answer.isFailure }.flatMapTo(HashSet()) { (chunk, _) -> chunk }
+    return asked.filterNot { it in failed }.associateWith { byId[it] ?: bySlug[it] }
 }

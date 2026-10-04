@@ -667,7 +667,8 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
     /**
      * The cards shared in the messages — carried, or linked to — each read once: the ones not yet
      * asked for go out together (GET /cards?keys=…, ids and slugs alike); a card's summary is all a
-     * message shows. A failed read is forgotten, so the next snapshot asks again.
+     * message shows. A read that fails is forgotten — the whole of it, or only the request of 30 that
+     * failed ([cardsByKey]) — so the next snapshot asks for those again.
      */
     private fun loadCards() {
         val wanted = messages.mapNotNull { sharedCard(it)?.key }.distinct().filterNot { it in cards || it in cardsLoading }
@@ -681,7 +682,7 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // Nothing is kept: the next snapshot asks for them again.
+                // Nothing came back: the next snapshot asks for them again (as for any left out of the answer).
             } finally {
                 cardsLoading.removeAll(wanted.toSet())
             }
