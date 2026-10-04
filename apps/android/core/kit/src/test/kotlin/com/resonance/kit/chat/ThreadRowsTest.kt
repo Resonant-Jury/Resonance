@@ -21,6 +21,22 @@ class ThreadRowsTest {
         assertEquals(listOf(false, true, true, true), r.map { it.joinsAbove })
     }
 
+    @Test fun aMessageThatDrawsNothingShapesNoRunAndLeadsNoLabel() {
+        // Their words, then a card they shared that the viewer can't see, sent alone: it draws nothing.
+        val words = msg("a", "bob", at(1, 9, 0))
+        val hidden = ChatMessage("b", "bob", "", Date(at(1, 9, 1)), cardRef = "gone")
+        val drawn = { m: ChatMessage -> Carried.of(m, SharedCards.of(m), mapOf("gone" to null), emptySet()) != Carried.Nothing }
+        val r = ThreadRows.build(listOf(words, hidden), zone, drawn)
+        // The words are the run's last (their face beside them, the corner round), and the card has no row.
+        assertEquals(listOf("a"), r.map { it.message.id })
+        assertEquals(RunPosition.Single, r.single().position)
+        // Nor does it carry the time label for the next one: that one is measured from what is drawn.
+        val later = msg("c", "bob", at(1, 9, 16))
+        val withLater = ThreadRows.build(listOf(words, ChatMessage("b", "bob", "", Date(at(1, 9, 10)), cardRef = "gone"), later), zone, drawn)
+        assertEquals(listOf("a", "c"), withLater.map { it.message.id })
+        assertEquals(listOf(false, true), withLater.map { it.timeLabel })
+    }
+
     @Test fun aLoneMessageIsRoundOnAllCorners() {
         assertEquals(listOf(RunPosition.Single), rows(msg("a", "bob", at(1, 9, 0))).map { it.position })
     }

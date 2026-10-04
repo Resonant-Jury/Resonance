@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +76,7 @@ import com.resonance.design.inlineBarTop
 import com.resonance.design.plainClickable
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.api.MessagingApi
+import com.resonance.kit.chat.Carried
 import com.resonance.kit.chat.ChatMessage
 import com.resonance.kit.chat.SearchHit
 import com.resonance.kit.chat.ThreadRows
@@ -143,7 +145,8 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     val searchFocus = remember { FocusRequester() }
     val flash = remember { Flash() }
 
-    val rows = remember(model.messages) { ThreadRows.build(model.messages) }
+    // Over what is drawn: a card the viewer can't see, sent alone, has no row, and shapes no run around it.
+    val rows by remember(model) { derivedStateOf { ThreadRows.build(model.messages, drawn = { model.carried(it) != Carried.Nothing }) } }
     val rowsNow by rememberUpdatedState(rows)
     val list = rememberLazyListState()
     val resultsList = rememberLazyListState()

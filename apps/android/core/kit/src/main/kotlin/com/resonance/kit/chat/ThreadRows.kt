@@ -53,8 +53,14 @@ object ThreadRows {
     /** A message this long after the one before it (on the same day) gets a time label. */
     const val TIME_LABEL_GAP_MILLIS = 15 * 60_000L
 
-    /** [messages] oldest first, as [ThreadMessages.build] returns them. */
-    fun build(messages: List<ChatMessage>, zone: ZoneId = ZoneId.systemDefault()): List<ThreadRow> {
+    /**
+     * [messages] oldest first, as [ThreadMessages.build] returns them. Only those [drawn] says the
+     * thread draws have rows: one that draws nothing ([Carried.Nothing]: a card the viewer can't
+     * see, sent without words) shapes no run — the bubble before it keeps its round corner and their
+     * face — and leads no label.
+     */
+    fun build(messages: List<ChatMessage>, zone: ZoneId = ZoneId.systemDefault(), drawn: (ChatMessage) -> Boolean = { true }): List<ThreadRow> {
+        @Suppress("NAME_SHADOWING") val messages = messages.filter(drawn)
         if (messages.isEmpty()) return emptyList()
         val days = messages.map { day(it, zone) }
         val day = BooleanArray(messages.size) { it == 0 || days[it] != days[it - 1] }
