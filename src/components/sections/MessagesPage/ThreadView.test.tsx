@@ -863,7 +863,7 @@ describe('a long conversation searched', () => {
   });
 
   it('goes down to the viewer’s own message sent from a stretch far back', async () => {
-    scrolledDown();
+    const place = scrolledDown();
     vi.mocked(sendMessage).mockReturnValue(new Promise(() => {}));
     const user = (await import('@testing-library/user-event')).default.setup();
     const { container } = renderWithIntl(thread());
@@ -872,11 +872,16 @@ describe('a long conversation searched', () => {
     await waitFor(() => expect(container.querySelector('[data-message-id="m100"]')).toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: 'Close search' }));
+    // The glide to the match over, the reader near the top of the stretch.
+    await new Promise((r) => setTimeout(r, 750));
+    place.top = 300;
     fireEvent.change(screen.getByRole('textbox', { name: 'Conversation with alice' }), { target: { value: 'back to now' } });
     await user.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByText('back to now')).toBeInTheDocument();
     expect(screen.getByText('message 300')).toBeInTheDocument();
     expect(container.querySelector('[data-message-id="m100"]')).toBeNull();
+    // The newest page, and no older one for where the reader stood in the stretch.
+    expect(rowCount(container)).toBe(50);
   });
 
   it('holds the pages read for a quote’s original far back, drawing only around it', async () => {

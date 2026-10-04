@@ -198,8 +198,8 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
       }
     }
     // Rows that don't fill the window give the reader nothing to scroll by: read further back (or draw further
-    // down a stretch) now.
-    if (firstKey !== before.firstKey || lastKey !== before.lastKey) {
+    // down a stretch) now — not as a stretch gives way to the newest, which the reader is taken down to.
+    if ((firstKey !== before.firstKey || lastKey !== before.lastKey) && !(tail && before.tail === false)) {
       if (scroller.scrollTop <= TOP_SLACK) onNearTop.current?.();
       if (!tail && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= TOP_SLACK) onNearBottom.current?.();
     }
