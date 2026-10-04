@@ -13,8 +13,10 @@ import ResonanceKit
 ///
 /// A cold start draws the feed the last run kept (`FeedKeeping`) at once and
 /// asks the server again behind it (`revalidate`); so does a return to the
-/// app after a while. Whatever is drawn leaves out people the reader has
-/// blocked, as the block list is now.
+/// app after a while. A pull to refresh (`refresh`) asks again with the feed
+/// kept on screen, and keeps it there — saying so quietly — when nothing
+/// comes back. Whatever is drawn leaves out people the reader has blocked, as
+/// the block list is now.
 @Observable
 final class FeedModel {
     enum Phase: Equatable { case idle, loading, loaded, failed(String) }
@@ -27,6 +29,9 @@ final class FeedModel {
     private(set) var isLoadingMore = false
     /// Picks that arrived after the latest cards were already showing.
     private(set) var heldPicks: [FeedCard] = []
+    /// The last pull to refresh brought nothing back (and why): the feed on screen stayed as it
+    /// was. Cleared when the next answer arrives.
+    private(set) var refreshFailure: RefreshFailure?
     /// Where the next page of the latest cards starts (its page token, or an older server's cursor).
     private var nextPage: PageAfter?
     private var hasMorePages = true
@@ -40,6 +45,10 @@ final class FeedModel {
     private var arrivedPicks: [FeedCard]?
     /// The latest cards waiting out `patience` for the picks.
     @ObservationIgnored private var patienceWait: Task<Void, Never>?
+    /// The refresh still putting its answers together (its `generation`), and the picks it has
+    /// had meanwhile (`.some(nil)`: they failed).
+    @ObservationIgnored private var refreshing: Int?
+    @ObservationIgnored private var refreshPicks: [FeedCard]??
 
     private let fetchFeed: @Sendable (PageAfter?) async throws -> FeedPage
     private let fetchRecommended: @Sendable () async throws -> [FeedCard]
@@ -90,6 +99,7 @@ final class FeedModel {
         generation += 1
         let asked = generation
         phase = .loading
+        refreshFailure = nil
         recommended = []
         heldPicks = []
         arrivedPicks = nil
@@ -140,9 +150,71 @@ final class FeedModel {
         }
     }
 
+    /// Pulled to refresh: both are asked for again, with the feed kept on screen meanwhile (no
+    /// skeleton). The answers take their places as a fresh load's do — today's picks heading the
+    /// feed and the first page of the latest cards behind "load more" (picks nearly there still
+    /// lead; later ones wait behind the hint, as late picks do) — and one that fails leaves its
+    /// part as it was. When nothing comes back the feed stays as it is and `refreshFailure` says
+    /// why. Nothing on screen yet: an ordinary load, its failure the page's.
     func refresh() async {
-        showLatest = false
-        await load()
+        guard phase == .loaded else {
+            showLatest = false
+            refreshFailure = nil
+            return await load()
+        }
+        generation += 1
+        let asked = generation
+        refreshing = asked
+        refreshPicks = nil
+        defer { if refreshing == asked { refreshing = nil } }
+        let deadline = ContinuousClock.now.advanced(by: patience)
+        // Unstructured on purpose, as in `load`: leaving the screen doesn't abandon them.
+        let (fetchFeed, fetchRecommended) = (fetchFeed, fetchRecommended)
+        let picks = Task { [weak self] () -> [FeedCard]? in
+            let picks = try? await fetchRecommended()
+            self?.refreshedPicks(picks, for: asked)
+            return picks
+        }
+        var failure: Error?
+        let page: FeedPage?
+        do {
+            page = try await fetchFeed(nil)
+        } catch {
+            page = nil
+            failure = error
+        }
+        guard asked == generation else { return }
+        guard let page else {
+            // Let go of (the screen went away): the feed stays as it is, with nothing to say.
+            if Task.isCancelled { return }
+            // The latest didn't come: whatever this refresh brings now is the picks.
+            let picks = await picks.value
+            guard asked == generation else { return }
+            refreshing = nil
+            if let picks {
+                takeRefreshed(picks: picks)
+            } else {
+                refreshFailure = RefreshFailure(failure)
+            }
+            return
+        }
+        if refreshPicks == nil {
+            // Picks that are nearly there still lead (they end the wait when they come).
+            let wait = Task<Void, Never> { try? await Task.sleep(until: deadline) }
+            patienceWait = wait
+            await withTaskCancellationHandler { await wait.value } onCancel: { wait.cancel() }
+            patienceWait = nil
+            guard asked == generation else { return }
+        }
+        refreshing = nil
+        refreshFailure = nil
+        keeping?.keepLatest(page)
+        latest = page.cards
+        nextPage = page.next
+        hasMorePages = page.next != nil
+        latestLoaded = true
+        extraPages = 0
+        if case let picks?? = refreshPicks { takeRefreshed(picks: picks) }
     }
 
     /// Asks the server again without taking down what's on screen (the kept
@@ -230,6 +302,7 @@ final class FeedModel {
 
     private func freshPicks(_ picks: [FeedCard], for asked: Int) {
         guard asked == generation else { return }
+        refreshFailure = nil
         keeping?.keepPicks(picks)
         if recommended.isEmpty, !picks.isEmpty, !latest.isEmpty {
             // The latest cards lead what's on screen: don't move them.
@@ -241,6 +314,7 @@ final class FeedModel {
 
     private func freshLatest(_ page: FeedPage, for asked: Int) {
         guard asked == generation else { return }
+        refreshFailure = nil
         keeping?.keepLatest(page)
         if extraPages == 0 {
             latest = page.cards
@@ -252,6 +326,28 @@ final class FeedModel {
             latest = page.cards + latest.filter { !fresh.contains($0.id) }
         }
         latestLoaded = true
+    }
+
+    /// The refresh's picks: held for it while it puts its answers together, taken as late picks are after.
+    private func refreshedPicks(_ picks: [FeedCard]?, for asked: Int) {
+        guard asked == generation else { return }
+        if refreshing == asked {
+            refreshPicks = .some(picks)
+            patienceWait?.cancel()
+            return
+        }
+        guard let picks else { return }
+        freshPicks(picks, for: asked)
+    }
+
+    /// Picks a refresh brought in time: they head the feed, as after a fresh load (the latest
+    /// cards behind "load more" again); none at all leave the latest showing.
+    private func takeRefreshed(picks: [FeedCard]) {
+        keeping?.keepPicks(picks)
+        refreshFailure = nil
+        recommended = picks
+        heldPicks = []
+        showLatest = false
     }
 
     private func keep(picks: [FeedCard], for asked: Int) {
@@ -316,5 +412,22 @@ struct FeedKeeping {
     init(_ cache: APICache, uid: String) {
         self.init(latest: { cache.value(.latest, uid: uid) }, picks: { cache.value(.recommended, uid: uid) },
                   keepLatest: { cache.save($0, as: .latest, uid: uid) }, keepPicks: { cache.save($0, as: .recommended, uid: uid) })
+    }
+}
+
+/// Why a pull to refresh brought nothing back: the phone is offline, or anything else (the server).
+enum RefreshFailure: Equatable {
+    case offline, failed
+
+    init(_ error: Error?) {
+        self = error.map(APIFailure.isOffline) == true ? .offline : .failed
+    }
+
+    /// What the feed says, quietly, above what it kept.
+    var message: String {
+        switch self {
+        case .offline: L10n.Native.offline
+        case .failed: L10n.Native.loadError
+        }
     }
 }
