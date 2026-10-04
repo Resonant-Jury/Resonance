@@ -400,13 +400,20 @@ private fun MessageItem(row: ThreadRow, ctx: ThreadContext, deliveryLine: Boolea
     }
 }
 
-/** Their face, bottom-aligned beside the last bubble of their run ([shown]); else the empty column. A tap goes to their page. */
+/**
+ * Their face, bottom-aligned beside the last bubble of their run ([shown]); else the empty column. A
+ * tap goes to their page; a screen reader names whose it is (the face itself says nothing).
+ */
 @Composable
 private fun TheirFace(shown: Boolean, ctx: ThreadContext) {
     Box(Modifier.padding(end = FACE_GAP).size(FACE)) {
         val other = ctx.model.other
         if (shown && other != null) {
-            Box(Modifier.plainClickable(role = Role.Button, onClickLabel = L10n.Messages.viewProfile) { ctx.open(Route.Author(other.handle)) }) {
+            Box(
+                Modifier
+                    .plainClickable(role = Role.Button, onClickLabel = L10n.Messages.viewProfile) { ctx.open(Route.Author(other.handle)) }
+                    .semantics { contentDescription = other.handle },
+            ) {
                 HandDrawnAvatar(other.initials, other.avatarUrl, OklchColor.parse(other.accentColor) ?: Tokens.TerracottaLight, FACE, seedOr(other.avatarSeed, 3.0))
             }
         }
