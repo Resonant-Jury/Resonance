@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import useSWR, { useSWRConfig } from 'swr';
 import { BareIconButton } from '@/components/atoms/BareIconButton/BareIconButton';
@@ -46,6 +46,11 @@ import styles from './Thread.module.css';
 
 /** How many messages before one gone to are drawn with it (when a search read it, and the thread hadn't drawn it). */
 const JUMP_CONTEXT = 10;
+/**
+ * A message gone to further than this from what is drawn (a match, a quote's original, pages back) is drawn
+ * as a stretch of its own — it, the few before it and a page after — rather than with everything between.
+ */
+const FAR = 2 * OLDER_PAGE;
 
 export interface ThreadViewProps {
   handle: string;
@@ -137,22 +142,51 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // named — answering a note on an anonymous card with it would tell its writer whose card it was.
   const [olderNote, setOlderNote] = useState<{ noteId: string; cardId: string } | null>(null);
 
-  // The oldest message the thread draws, once a search has read further back than the reader had scrolled: what
-  // it read is held for the search (and for going to a match), not laid out — a long conversation's thousands
-  // of rows aren't drawn for a search. Scrolling up draws a page more of what is held before reading further
-  // back, and going to a message draws down to it. Null: every message held is drawn.
+  // The stretch of what is held that the thread draws. Its first message, once a search or a jump has read
+  // further back than the reader had scrolled: what that read is held (for the search, for going to a
+  // message), not laid out — a long conversation's thousands of rows aren't drawn for it. Scrolling up draws a
+  // page more of what is held before reading further back. Null: from the first message held.
   const [drawFrom, setDrawFrom] = useState<string | null>(null);
+  // Its last message, while the thread draws a stretch further up — gone to a message far back, it draws that
+  // message, the few before it and a page after, not everything down to the newest; scrolling down draws a
+  // page more, and the way back down draws the newest again. Null: down to the newest, and on as they come.
+  const [drawTo, setDrawTo] = useState<string | null>(null);
   const drawnFrom = drawFrom == null ? 0 : Math.max(0, thread.messages.findIndex((m) => m.key === drawFrom));
+  const toIndex = drawTo == null ? -1 : thread.messages.findIndex((m) => m.key === drawTo);
+  const tail = toIndex < 0;
+  const drawnTo = tail ? thread.messages.length - 1 : toIndex;
   const searchingAll = thread.search.query.trim().length > 0;
+  /** What is read from here on (for a search, for a jump) is held, not drawn: the stretch starts where it does now. */
+  const holdOlder = () => {
+    if (drawFrom == null && thread.messages.length) setDrawFrom(thread.messages[0].key);
+  };
   useEffect(() => {
-    if (searchingAll && drawnFrom === 0 && thread.messages.length) setDrawFrom(thread.messages[0].key);
+    if (searchingAll) holdOlder();
     // Only as a search starts reading.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchingAll]);
-  useEffect(() => setDrawFrom(null), [pairId]);
-  const drawn = useMemo(() => (drawnFrom ? thread.messages.slice(drawnFrom) : thread.messages), [thread.messages, drawnFrom]);
+  useEffect(() => {
+    setDrawFrom(null);
+    setDrawTo(null);
+  }, [pairId]);
+  const drawn = useMemo(
+    () => (drawnFrom === 0 && tail ? thread.messages : thread.messages.slice(drawnFrom, drawnTo + 1)),
+    [thread.messages, drawnFrom, drawnTo, tail],
+  );
   /** Draws from the message at `index` of those held (the start of them all: no limit again). */
-  const drawDownTo = (index: number) => setDrawFrom(index <= 0 ? null : (thread.messages[index]?.key ?? null));
+  const drawFromIndex = (index: number) => setDrawFrom(index <= 0 ? null : (thread.messages[index]?.key ?? null));
+  /** Draws down to the message at `index` of those held (the newest, or past it: down to the newest again). */
+  const drawToIndex = (index: number) =>
+    setDrawTo(index >= thread.messages.length - 1 ? null : (thread.messages[index]?.key ?? null));
+  // The newest message held when the stretch was drawn: one newer has come in below it since.
+  const [stretchNewest, setStretchNewest] = useState<string | undefined>();
+  const newestHeld = thread.messages[thread.messages.length - 1];
+  useEffect(() => {
+    if (tail) setStretchNewest(undefined);
+    else setStretchNewest((cur) => cur ?? newestHeld?.key);
+    // Only as a stretch is drawn, or the newest is again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tail]);
 
   // The「卡片與連結」list (the header menu's).
   const [mediaOpen, setMediaOpen] = useState(false);
@@ -265,17 +299,56 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // The newest message stays in view as messages come in (the viewer's own
   // always), older ones going in above leave the view where it was, and
   // scrolling up near the top draws a page more of what is held, else reads
-  // the next older page.
+  // the next older page; down near the foot of a stretch further up, it draws
+  // a page more of it.
   const scroll = useThreadScroll(scrollerRef, {
     firstKey: drawn[0]?.key,
     lastKey: newest?.key,
     lastIsOwn: !!newest && newest.senderId === user?.id,
+    tail,
     onNearTop: () => {
       if (jumping.current) return;
-      if (drawnFrom > 0) drawDownTo(drawnFrom - OLDER_PAGE);
-      else thread.loadOlder();
+      if (drawnFrom > 0) drawFromIndex(drawnFrom - OLDER_PAGE);
+      else {
+        // At the first message held (and no search reading back): what is read next is drawn as it comes.
+        if (drawFrom != null && !searchingAll) setDrawFrom(null);
+        thread.loadOlder();
+      }
+    },
+    onNearBottom: () => {
+      if (!jumping.current && !tail) drawToIndex(drawnTo + OLDER_PAGE);
     },
   });
+
+  // Back to the latest message from a stretch further up: the newest are drawn again (the stretch with them,
+  // when they are only a page away — the way down glides; else in its place), then the thread is at the foot.
+  const wantBottom = useRef<ScrollBehavior | null>(null);
+  const toLatest = () => {
+    if (tail) {
+      scroll.toBottom('smooth');
+      return;
+    }
+    const near = thread.messages.length - 1 - drawnTo <= OLDER_PAGE;
+    wantBottom.current = near ? 'smooth' : 'auto';
+    if (!near) drawFromIndex(thread.messages.length - OLDER_PAGE);
+    setDrawTo(null);
+  };
+  useLayoutEffect(() => {
+    const how = wantBottom.current;
+    if (!tail || !how) return;
+    wantBottom.current = null;
+    scroll.toBottom(how);
+    // Only once the newest are drawn again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tail]);
+  // The viewer's own message sent from a stretch further up: the thread goes down to it.
+  const lastHeldKey = useRef(newestHeld?.key);
+  useEffect(() => {
+    const before = lastHeldKey.current;
+    lastHeldKey.current = newestHeld?.key;
+    if (!tail && before && newestHeld && newestHeld.key !== before && newestHeld.senderId === user?.id) toLatest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newestHeld?.key]);
 
   // Search runs over the whole conversation (older pages are read for it);
   // every match is marked in its bubble, the one being looked at stronger.
@@ -292,10 +365,17 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // once it has arrived — washed on the way, it would be over before it is seen).
   useEffect(() => {
     if (!jumpTarget) return;
-    // Held but not drawn (a search read it): the thread draws down to it, with a few before it, first.
+    // Held but not drawn (a search or the jump read it): the thread draws it first, with a few before it — the
+    // stretch drawn reaching on to it, or, from far away, a stretch of its own (it and a page after it).
     const at = thread.messages.findIndex((m) => m.id === jumpTarget.id);
-    if (at >= 0 && at < drawnFrom) {
-      drawDownTo(at - JUMP_CONTEXT);
+    if (at >= 0 && (at < drawnFrom || at > drawnTo)) {
+      jumping.current = true;
+      if (at < drawnFrom && drawnFrom - (at - JUMP_CONTEXT) <= FAR) drawFromIndex(at - JUMP_CONTEXT);
+      else if (at > drawnTo && at + JUMP_CONTEXT - drawnTo <= FAR) drawToIndex(at + JUMP_CONTEXT);
+      else {
+        drawFromIndex(at - JUMP_CONTEXT);
+        drawToIndex(at + OLDER_PAGE);
+      }
       return;
     }
     const scroller = scrollerRef.current;
@@ -345,8 +425,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   );
 
   // What every message can ask of the thread — the same functions for as long as the conversation is open.
-  const live = useRef({ thread, router });
-  live.current = { thread, router };
+  const live = useRef({ thread, router, holdOlder });
+  live.current = { thread, router, holdOlder };
   const actions = useMemo<ThreadActions>(
     () => ({
       viewerId: user?.id ?? '',
@@ -373,7 +453,16 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
         inputRef.current?.focus();
       },
       jumpTo: (id) => {
-        void live.current.thread.ensureLoaded(id).then((held) => held && setJumpTarget({ id, flash: true }));
+        const { thread: chat, holdOlder: hold } = live.current;
+        // Pages back: what is read on the way is held, not drawn, and no other page is read meanwhile.
+        if (!chat.messages.some((m) => m.id === id)) {
+          hold();
+          jumping.current = true;
+        }
+        void chat.ensureLoaded(id).then((held) => {
+          if (held) setJumpTarget({ id, flash: true });
+          else jumping.current = false;
+        });
       },
       retry: (key) => live.current.thread.retry(key),
       discard: (key) => live.current.thread.discard(key),
@@ -400,7 +489,17 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
       setOlderNote(replyNote);
       return;
     }
-    void thread.ensureLoaded(replyNote.noteId).then((held) => (held ? setNoteFound(replyNote.noteId) : setOlderNote(replyNote)));
+    if (!thread.messages.some((m) => m.id === replyNote.noteId)) {
+      holdOlder();
+      jumping.current = true;
+    }
+    void thread.ensureLoaded(replyNote.noteId).then((held) => {
+      if (held) setNoteFound(replyNote.noteId);
+      else {
+        jumping.current = false;
+        setOlderNote(replyNote);
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replyNote?.noteId, convo, thread.ready]);
   useEffect(() => {
@@ -477,7 +576,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const replyHandle = thread.replyingTo?.senderId === user?.id ? null : other.handle;
   // The way back to the latest message — not under the search's list, which covers the thread.
   // (A word that something was copied takes its place for a moment.)
-  const showPill = !copied && !(searchOpen && listShown) && (scroll.newBelow || (scroll.farUp && !scroll.atBottom));
+  // (Over a stretch further up, it is always offered: the newest aren't under it.)
+  const newBelow = scroll.newBelow || (!tail && !!stretchNewest && newestHeld?.key !== stretchNewest);
+  const showPill = !copied && !(searchOpen && listShown) && (!tail || newBelow || (scroll.farUp && !scroll.atBottom));
 
   return (
     <CardEmbedSourceContext.Provider value={sharedCards}>
@@ -645,9 +746,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               {showPill && (
                 <Pill
                   className={styles.pill}
-                  onClick={() => scroll.toBottom('smooth')}
+                  onClick={toLatest}
                   icon="chevron-down"
-                  label={scroll.newBelow ? t('newMessages') : t('jumpToLatest')}
+                  label={newBelow ? t('newMessages') : t('jumpToLatest')}
                 />
               )}
               {copied && <Pill className={styles.pill} label={t('copied')} />}

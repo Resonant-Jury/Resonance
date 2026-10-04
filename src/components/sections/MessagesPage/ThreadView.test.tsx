@@ -767,18 +767,43 @@ describe('a long conversation searched', () => {
   });
   afterEach(() => vi.mocked(getOlderMessages).mockImplementation(async () => []));
 
-  it('reads the whole conversation for a search but draws only what the reader had, down to a match picked', async () => {
-    // The reader is well down the thread (jsdom's scroller would otherwise sit at its top, reading page after page).
-    const scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
-    Object.defineProperty(Element.prototype, 'scrollTop', { configurable: true, get: () => 5000, set: () => {} });
-    onTestFinished(() => {
-      Object.defineProperty(Element.prototype, 'scrollTop', scrollTop);
+  /**
+   * The reader well down a thread of rows 100 tall in a 600 window (jsdom's scroller would otherwise sit at its
+   * top, reading page after page); `place.top` moves them.
+   */
+  function scrolledDown() {
+    const place = { top: 5000 };
+    const saved = (['scrollTop', 'scrollHeight', 'clientHeight'] as const).map(
+      (key) => [key, Object.getOwnPropertyDescriptor(Element.prototype, key)!] as const,
+    );
+    Object.defineProperty(Element.prototype, 'scrollTop', { configurable: true, get: () => place.top, set: () => {} });
+    Object.defineProperty(Element.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => document.querySelectorAll('[data-message-key]').length * 100,
     });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get: () => 600 });
+    onTestFinished(() => {
+      for (const [key, descriptor] of saved) Object.defineProperty(Element.prototype, key, descriptor);
+    });
+    return place;
+  }
+
+  /** Searches the thread for `query` and goes to the match `index` (newest first). */
+  async function goToMatch(user: { click: (el: Element) => Promise<void>; type: (el: Element, text: string) => Promise<void> }, query: string, index = 0) {
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Search messages' }));
+    await user.type(screen.getByRole('textbox', { name: 'Search messages' }), query);
+    const list = await screen.findByRole('region', { name: 'Search messages' });
+    await waitFor(() => expect(within(list).queryByText('Searching earlier messages…')).toBeNull());
+    await user.click(within(list).getAllByRole('button')[index]);
+  }
+
+  it('reads the whole conversation for a search but draws only what the reader had', async () => {
+    scrolledDown();
     const user = (await import('@testing-library/user-event')).default.setup();
     const { container } = renderWithIntl(thread());
     await screen.findByText('message 300');
-    const before = rowCount(container);
-    expect(before).toBe(50);
+    expect(rowCount(container)).toBe(50);
 
     await user.click(screen.getByRole('button', { name: 'Conversation options' }));
     await user.click(screen.getByRole('menuitem', { name: 'Search messages' }));
@@ -787,13 +812,86 @@ describe('a long conversation searched', () => {
     await waitFor(() => expect(within(list).getByText('1 match')).toBeInTheDocument());
     await waitFor(() => expect(within(list).queryByText('Searching earlier messages…')).toBeNull());
     // Read for the search, not laid out.
-    expect(rowCount(container)).toBe(before);
+    expect(rowCount(container)).toBe(50);
     expect(container.querySelector('[data-message-id="m100"]')).toBeNull();
+  });
 
-    await user.click(within(list).getAllByRole('button')[0]);
-    // Going to it draws down to it (with a few before it), not the whole conversation.
+  it('draws a match far back as a stretch of its own — not everything down to the newest — and the newest again on the way back', async () => {
+    const place = scrolledDown();
+    const user = (await import('@testing-library/user-event')).default.setup();
+    const { container } = renderWithIntl(thread());
+    await screen.findByText('message 300');
+    await goToMatch(user, 'needle');
+
+    // The match, the few before it and a page after it.
     await waitFor(() => expect(container.querySelector('[data-message-id="m100"]')).toBeInTheDocument());
-    expect(rowCount(container)).toBe(300 - 89);
+    expect(rowCount(container)).toBe(10 + 1 + 50);
+    expect(container.querySelector('[data-message-id="m090"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-message-id="m150"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-message-id="m151"]')).toBeNull();
+    expect(screen.queryByText('message 300')).toBeNull();
+
+    // Down near its foot (once the glide to the match is over), a page more of it is drawn.
+    const scroller = container.querySelector('[data-message-id="m100"]')!.closest('[class*="scroller"]')!;
+    // 61 rows: 6100 tall, the window's foot 300 from the stretch's.
+    place.top = 5_200;
+    await waitFor(
+      () => {
+        fireEvent.scroll(scroller);
+        expect(rowCount(container)).toBe(10 + 1 + 50 + 50);
+      },
+      { timeout: 2000 },
+    );
+
+    // The way back down is always offered over it, and draws the newest again (not all between).
+    await user.click(screen.getByRole('button', { name: 'Latest messages' }));
+    await screen.findByText('message 300');
+    expect(rowCount(container)).toBe(50);
+    expect(screen.queryByRole('button', { name: 'Latest messages' })).toBeNull();
+  });
+
+  it('reaches on to a match a little way back instead', async () => {
+    scrolledDown();
+    const user = (await import('@testing-library/user-event')).default.setup();
+    const { container } = renderWithIntl(thread());
+    await screen.findByText('message 300');
+    await goToMatch(user, 'message 211');
+
+    await waitFor(() => expect(container.querySelector('[data-message-id="m211"]')).toBeInTheDocument());
+    expect(rowCount(container)).toBe(300 - 200);
+    expect(screen.getByText('message 300')).toBeInTheDocument();
+  });
+
+  it('goes down to the viewer’s own message sent from a stretch far back', async () => {
+    scrolledDown();
+    vi.mocked(sendMessage).mockReturnValue(new Promise(() => {}));
+    const user = (await import('@testing-library/user-event')).default.setup();
+    const { container } = renderWithIntl(thread());
+    await screen.findByText('message 300');
+    await goToMatch(user, 'needle');
+    await waitFor(() => expect(container.querySelector('[data-message-id="m100"]')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Close search' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Conversation with alice' }), { target: { value: 'back to now' } });
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText('back to now')).toBeInTheDocument();
+    expect(screen.getByText('message 300')).toBeInTheDocument();
+    expect(container.querySelector('[data-message-id="m100"]')).toBeNull();
+  });
+
+  it('holds the pages read for a quote’s original far back, drawing only around it', async () => {
+    scrolledDown();
+    const latest = text('m301', 'answering the hay', { sentAt: at(300), replyTo: { id: 'm100', senderId: 'alice', text: 'a needle in the hay' } });
+    server.messages = [...long.slice(-49), latest];
+    const user = (await import('@testing-library/user-event')).default.setup();
+    const { container } = renderWithIntl(thread());
+    await screen.findByText('answering the hay');
+
+    await user.click(screen.getByRole('button', { name: /a needle in the hay/ }));
+    await waitFor(() => expect(container.querySelector('[data-message-id="m100"]')).toBeInTheDocument());
+    // Read a page at a time back to it, but drawn only around it.
+    expect(rowCount(container)).toBe(10 + 1 + 50);
+    expect(screen.queryByText('answering the hay')).toBeNull();
   });
 
   it('draws a page of a long list of matches, and more as it is scrolled', async () => {

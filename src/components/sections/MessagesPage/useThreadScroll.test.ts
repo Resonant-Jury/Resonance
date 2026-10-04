@@ -155,3 +155,58 @@ describe('taken up the thread', () => {
   });
 });
 
+
+describe('a stretch drawn further up', () => {
+  // Gone to a message far back, the thread draws a stretch around it: its foot isn't the bottom.
+  function scroller(at: number) {
+    const el = document.createElement('div');
+    let top = at;
+    Object.defineProperties(el, {
+      clientHeight: { value: 600 },
+      scrollHeight: { value: 3000 },
+      scrollTop: { get: () => top, set: (v: number) => (top = v) },
+    });
+    return { el, top: () => top, move: (to: number) => ((top = to), el.dispatchEvent(new Event('scroll'))) };
+  }
+
+  it('follows nothing at its foot, holds no one there, and asks for the next newer page near it', () => {
+    const observed: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          observed.push(cb);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const s = scroller(1200);
+    const onNearBottom = vi.fn();
+    const { result, rerender } = renderHook((props: { lastKey: string; tail: boolean }) =>
+      useThreadScroll({ current: s.el }, { firstKey: 'a', lastKey: props.lastKey, lastIsOwn: false, tail: props.tail, onNearBottom }),
+    { initialProps: { lastKey: 'm', tail: false } });
+
+    // At its foot, the reader isn't "at the bottom": what grows there doesn't pull them down.
+    s.move(2400);
+    expect(result.current.atBottom).toBe(false);
+    for (const cb of observed) cb([], {} as ResizeObserver);
+    expect(s.top()).toBe(2400);
+    // Near it, the next page is asked for.
+    expect(onNearBottom).toHaveBeenCalled();
+
+    // A page more drawn under it moves nothing, and isn't news.
+    rerender({ lastKey: 'n', tail: false });
+    expect(s.top()).toBe(2400);
+    expect(result.current.newBelow).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('never asks for a newer page at the newest message', () => {
+    const s = scroller(1200);
+    const onNearBottom = vi.fn();
+    renderHook(() => useThreadScroll({ current: s.el }, { firstKey: 'a', lastKey: 'z', lastIsOwn: false, onNearBottom }));
+    s.move(2400);
+    expect(onNearBottom).not.toHaveBeenCalled();
+  });
+});

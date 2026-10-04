@@ -14,8 +14,16 @@ export interface ThreadScrollOptions {
   lastKey: string | undefined;
   /** The newest row is the viewer's own: their own send always scrolls to it. */
   lastIsOwn: boolean;
+  /**
+   * The last row drawn is the newest message (the default). False while the thread draws a stretch further
+   * up (gone to a message far back): its foot isn't the bottom — nothing new is followed there, and nothing
+   * holds the reader at it.
+   */
+  tail?: boolean;
   /** The reader is near the top: read the next older page (called again as they keep scrolling there). */
   onNearTop?: () => void;
+  /** For a stretch further up (`tail` false): the reader is near its foot — draw the next newer page. */
+  onNearBottom?: () => void;
 }
 
 export interface ThreadScroll {
@@ -25,7 +33,7 @@ export interface ThreadScroll {
   farUp: boolean;
   /** A message came in below while the reader was further up (for a "new messages" pill). */
   newBelow: boolean;
-  /** Scrolls to the newest message. */
+  /** Scrolls to the newest message drawn. */
   toBottom: (behavior?: ScrollBehavior) => void;
   /**
    * The reader is being taken up the thread (to a quote's original, a match, a note): what grows at the
@@ -115,22 +123,28 @@ export function centerRow(scroller: HTMLElement, row: HTMLElement, behavior: Scr
  *   itself (Safari).
  * - A new message at the bottom is followed when it is the viewer's own or
  *   the reader was at the bottom already; otherwise `newBelow` says one came.
- * - Coming near the top asks for the next older page.
+ * - Coming near the top asks for the next older page — and, in a stretch
+ *   drawn further up (`tail` false), coming near its foot for the next newer.
  */
 export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: ThreadScrollOptions): ThreadScroll {
   const { firstKey, lastKey, lastIsOwn } = opts;
+  const tail = opts.tail ?? true;
+  const tailRef = useRef(tail);
+  tailRef.current = tail;
   const [atBottom, setAtBottom] = useState(true);
   const [farUp, setFarUp] = useState(false);
   const [newBelow, setNewBelow] = useState(false);
   const atBottomRef = useRef(true);
   /** Until when the bottom doesn't pull the reader back (they are being taken up the thread). */
   const leftUntil = useRef(0);
-  const drawn = useRef<{ firstKey?: string; lastKey?: string }>({});
+  const drawn = useRef<{ firstKey?: string; lastKey?: string; tail?: boolean }>({});
   // Where the row that was first stood before older rows went in above it — read while rendering, which is
   // the last moment before the new rows are in the page.
   const anchor = useRef<{ forFirst: string; key: string; offset: number } | null>(null);
   const onNearTop = useRef(opts.onNearTop);
   onNearTop.current = opts.onNearTop;
+  const onNearBottom = useRef(opts.onNearBottom);
+  onNearBottom.current = opts.onNearBottom;
 
   const el = ref.current;
   if (el && drawn.current.firstKey && firstKey !== drawn.current.firstKey && anchor.current?.forFirst !== firstKey) {
@@ -142,8 +156,14 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
     (behavior: ScrollBehavior = 'auto') => {
       const scroller = ref.current;
       if (!scroller) return;
-      if (behavior === 'auto') scroller.scrollTop = scroller.scrollHeight;
-      else scroller.scrollTo({ top: scroller.scrollHeight, behavior });
+      if (behavior === 'auto') {
+        scroller.scrollTop = scroller.scrollHeight;
+        // There at once: what grows at the foot from here on keeps the reader with it.
+        if (tailRef.current) {
+          atBottomRef.current = true;
+          setAtBottom(true);
+        }
+      } else scroller.scrollTo({ top: scroller.scrollHeight, behavior });
       setNewBelow(false);
     },
     [ref],
@@ -159,9 +179,16 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
       if (row) scroller.scrollTop += offsetIn(scroller, row) - held.offset;
     }
     anchor.current = null;
+    // A stretch further up has no bottom to be at.
+    if (!tail && atBottomRef.current) {
+      atBottomRef.current = false;
+      setAtBottom(false);
+    }
     if (lastKey && lastKey !== before.lastKey) {
-      // The first rows drawn, the viewer's own send, or a reader already at the bottom: follow it.
-      if (!before.lastKey || lastIsOwn || atBottomRef.current) {
+      if (!tail || before.tail === false) {
+        // The stretch drawn moved (or reached the newest message as the reader came down to it): nothing came in.
+      } else if (!before.lastKey || lastIsOwn || atBottomRef.current) {
+        // The first rows drawn, the viewer's own send, or a reader already at the bottom: follow it.
         scroller.scrollTop = scroller.scrollHeight;
         atBottomRef.current = true;
         setAtBottom(true);
@@ -170,12 +197,14 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
         setNewBelow(true);
       }
     }
-    // Rows that don't fill the window give the reader nothing to scroll up by: read further back now.
-    if ((firstKey !== before.firstKey || lastKey !== before.lastKey) && scroller.scrollTop <= TOP_SLACK) {
-      onNearTop.current?.();
+    // Rows that don't fill the window give the reader nothing to scroll by: read further back (or draw further
+    // down a stretch) now.
+    if (firstKey !== before.firstKey || lastKey !== before.lastKey) {
+      if (scroller.scrollTop <= TOP_SLACK) onNearTop.current?.();
+      if (!tail && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= TOP_SLACK) onNearBottom.current?.();
     }
-    drawn.current = { firstKey, lastKey };
-  }, [ref, firstKey, lastKey, lastIsOwn]);
+    drawn.current = { firstKey, lastKey, tail };
+  }, [ref, firstKey, lastKey, lastIsOwn, tail]);
 
   // The scroller may be drawn after the hook first runs (the thread waits for its person): follow the element.
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
@@ -205,7 +234,7 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
     };
     const onScroll = () => {
       const below = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-      const bottom = below <= BOTTOM_SLACK;
+      const bottom = tailRef.current && below <= BOTTOM_SLACK;
       setFarUp(below > scroller.clientHeight * 1.5);
       if (bottom !== atBottomRef.current) {
         atBottomRef.current = bottom;
@@ -213,6 +242,7 @@ export function useThreadScroll(ref: RefObject<HTMLElement | null>, opts: Thread
       }
       if (bottom) setNewBelow(false);
       if (scroller.scrollTop <= TOP_SLACK) onNearTop.current?.();
+      if (!tailRef.current && below <= TOP_SLACK) onNearBottom.current?.();
       holdPlace();
     };
     // A reader at the bottom stays there when the window changes size, or the newest messages grow after
