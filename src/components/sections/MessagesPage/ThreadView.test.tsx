@@ -66,6 +66,7 @@ import { getCardById, getCardBySlugOrId, getUserByHandle, getUserById, isConnect
 import { getConversation, getOlderMessages, sendMessage } from '@/lib/db/firestore/client/messages';
 import { forgetOutboxes } from '@/lib/data/thread';
 import { useConnectionRefresh } from '@/lib/data/resonate';
+import { SWR_DEFAULTS } from '@/components/providers/SWRProvider';
 import { wobRect } from '@/lib/design/wobRect';
 import { ThreadView } from './ThreadView';
 
@@ -741,6 +742,26 @@ describe('a letter: notes between two people who aren’t connected', () => {
     expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
     // The conversation, whose letter it is, is read again with it.
     expect(vi.mocked(getConversation).mock.calls.length).toBeGreaterThan(asked);
+  });
+
+  // Their take-back ended it, in their browser: coming back to the tab is when this one hears of it.
+  it('reads again on coming back to the tab whether they are still connected', async () => {
+    vi.mocked(isConnected).mockResolvedValue(true);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = notes;
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(
+      // SWR ignores focus for 5 s after mount by default; tests don't wait that long.
+      <SWRConfig value={{ ...SWR_DEFAULTS, provider: () => new Map(), dedupingInterval: 0, focusThrottleInterval: 0 }}>
+        <ThreadView handle="alice" />
+      </SWRConfig>,
+    );
+    expect(await screen.findByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
+
+    vi.mocked(isConnected).mockResolvedValue(false);
+    await new Promise((r) => setTimeout(r, 5));
+    act(() => void window.dispatchEvent(new Event('focus')));
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
   });
 
   it('keeps the messages of a conversation that no longer connects them, with the way to their profile', async () => {

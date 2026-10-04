@@ -93,9 +93,12 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     () => getConversation(pairId!),
     { revalidateOnFocus: true },
   );
+  // Read again on coming back to the tab, as the conversation is: the other may have taken back the
+  // resonance that connected the two meanwhile (this browser's own take-backs read it again themselves).
   const { data: connected } = useSWR(
     user && other && user.id !== other.id ? `connected:${pairId}` : null,
     () => isConnected(user!.id, other!.id),
+    { revalidateOnFocus: true },
   );
 
   // Report / block the other participant from the header「⋯」menu. Blocking
