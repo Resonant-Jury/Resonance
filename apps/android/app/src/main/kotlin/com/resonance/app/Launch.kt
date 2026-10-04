@@ -1,5 +1,6 @@
 package com.resonance.app
 
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -55,12 +56,16 @@ object Launch {
 
     /**
      * Holds [splash] until [ready] (or [HOLD_MILLIS]) and plays the hand-off. `fresh` is a launch, not
-     * an activity coming back (rotation, a restored process), which shows no splash.
+     * an activity coming back (rotation, a restored process), which shows no splash. From Android 12
+     * the system decides that, and calls the hand-off only for a splash it showed; on 10 and 11 the
+     * splash is the library's own view, laid over the screen as soon as a hand-off is asked for — so
+     * there an activity coming back asks for none, or a rotation would be covered and dissolved again.
      */
     fun hold(activity: ComponentActivity, splash: SplashScreen, fresh: Boolean, ready: () -> Boolean) {
+        covering = fresh
+        if (!handsOff(fresh, Build.VERSION.SDK_INT)) return
         val start = SystemClock.uptimeMillis()
         var released = false
-        covering = fresh
         splash.setKeepOnScreenCondition {
             val keep = !ready() && SystemClock.uptimeMillis() - start < HOLD_MILLIS
             if (!keep && !released) {
@@ -107,3 +112,10 @@ object Launch {
             .start()
     }
 }
+
+/**
+ * Whether [Launch.hold] holds and hands off the splash on Android [sdk]: always from 12, where the
+ * system shows one or not and calls the hand-off only for its own; before 12 only on a launch
+ * (`fresh`), since asking draws the library's splash over whatever is on screen.
+ */
+internal fun handsOff(fresh: Boolean, sdk: Int): Boolean = fresh || sdk >= Build.VERSION_CODES.S
