@@ -21,8 +21,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -70,6 +72,8 @@ import com.resonance.api.models.FeedCard
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.CardByline
+import com.resonance.design.ComposerFade
+import com.resonance.design.ComposerFadeHeight
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.LinkPreviewSection
 import com.resonance.design.MessageBubble
@@ -132,11 +136,18 @@ internal class ThreadContext(
     /** The key of the message the long-press menu has lifted out of the thread: its place stays empty under the scrim. */
     val lifted: String? = null,
 ) {
-    /** A link in a message was tapped: a card of this site opens in the app, anything else by the link rules ([LinkOpener]). */
-    fun tapLink(url: String) {
-        val key = model.cardKeyOf(url)
-        if (key != null) open(Route.Card(key, model.cards[key])) else opener.tap(url)
-    }
+    /** A link in a message was tapped ([openLink]). */
+    fun tapLink(url: String) = model.openLink(url, opener, open)
+}
+
+/**
+ * Where a link in the thread leads, however it was reached — tapped in a bubble, its preview, the
+ * long-press menu's Open link, Cards & links: a card of this site opens in the app ([open]), as the
+ * signed-in reader sees it; anything else by the link rules ([LinkOpener]).
+ */
+internal fun ThreadModel.openLink(url: String, opener: LinkOpener, open: (Route) -> Unit) {
+    val key = cardKeyOf(url)
+    if (key != null) open(Route.Card(key, cards[key])) else opener.tap(url)
 }
 
 /** The message the thread just jumped to from a reply's quote pulses once. */
@@ -209,12 +220,15 @@ internal fun MessageList(
     modifier: Modifier = Modifier,
     /** The floating pill (new messages, back to the latest) is for the list alone, not under search results. */
     pillVisible: Boolean = true,
+    /** An empty thread says so — not where the foot already says why nothing can be written. */
+    sayEmpty: Boolean = true,
 ) {
     val model = ctx.model
     val newestFirst = remember(rows) { rows.asReversed() }
     val quiet = when {
         // Not "no messages yet" when they couldn't be read.
-        model.threadReady && model.messages.isEmpty() -> if (model.listenFailed) L10n.Native.loadError else L10n.Messages.noMessagesYet
+        model.threadReady && model.messages.isEmpty() && model.listenFailed -> L10n.Native.loadError
+        model.threadReady && model.messages.isEmpty() && sayEmpty -> L10n.Messages.noMessagesYet
         else -> null
     }
     val density = LocalDensity.current
@@ -246,7 +260,8 @@ internal fun MessageList(
             Modifier.fillMaxSize(),
             state = list,
             reverseLayout = true,
-            contentPadding = PaddingValues(top = top + 4.dp, bottom = 10.dp, start = 16.dp, end = 16.dp),
+            // The latest message rests clear of the composer's soft edge; only what scrolls under it fades.
+            contentPadding = PaddingValues(top = top + 4.dp, bottom = 10.dp + ComposerFadeHeight, start = 16.dp, end = 16.dp),
         ) {
             // The key a row had while it was sending is the one its document comes under, so it doesn't jump.
             itemsIndexed(newestFirst, key = { _, r -> r.message.key }) { i, row ->
@@ -267,6 +282,9 @@ internal fun MessageList(
             if (quiet != null) item(key = "quiet") { QuietNote(quiet) }
             else if (model.threadReady && rows.isNotEmpty()) item(key = "older") { OlderRow(model) }
         }
+        // Where the thread meets the composer it dissolves into the paper instead of ending on a cut;
+        // the pill (and anything laid over the thread) stays above it.
+        ComposerFade(Modifier.align(Alignment.BottomCenter))
         AnimatedVisibility(
             visible = pillVisible && (unseen > 0 || farUp) && !atBottom,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
@@ -367,7 +385,7 @@ private fun MessageItem(row: ThreadRow, ctx: ThreadContext, deliveryLine: Boolea
     // A card the viewer can't see, carried alone: nothing to draw (not even a face beside it).
     if (model.carried(message) == Carried.Nothing) return
     val mine = model.isMine(message)
-    SwipeToReply(enabled = message.canReply, mine = mine, onReply = { ctx.onReply(message) }) {
+    SwipeToReply(enabled = message.canReply && model.foot.composes, mine = mine, onReply = { ctx.onReply(message) }) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
@@ -382,13 +400,20 @@ private fun MessageItem(row: ThreadRow, ctx: ThreadContext, deliveryLine: Boolea
     }
 }
 
-/** Their face, bottom-aligned beside the last bubble of their run ([shown]); else the empty column. A tap goes to their page. */
+/**
+ * Their face, bottom-aligned beside the last bubble of their run ([shown]); else the empty column. A
+ * tap goes to their page; a screen reader names whose it is (the face itself says nothing).
+ */
 @Composable
 private fun TheirFace(shown: Boolean, ctx: ThreadContext) {
     Box(Modifier.padding(end = FACE_GAP).size(FACE)) {
         val other = ctx.model.other
         if (shown && other != null) {
-            Box(Modifier.plainClickable(role = Role.Button, onClickLabel = L10n.Messages.viewProfile) { ctx.open(Route.Author(other.handle)) }) {
+            Box(
+                Modifier
+                    .plainClickable(role = Role.Button, onClickLabel = L10n.Messages.viewProfile) { ctx.open(Route.Author(other.handle)) }
+                    .semantics { contentDescription = other.handle },
+            ) {
                 HandDrawnAvatar(other.initials, other.avatarUrl, OklchColor.parse(other.accentColor) ?: Tokens.TerracottaLight, FACE, seedOr(other.avatarSeed, 3.0))
             }
         }
@@ -427,6 +452,38 @@ private fun ReplyQuoteView(message: ChatMessage, mine: Boolean, ctx: ThreadConte
 }
 
 /**
+ * A note's head (it was left on a card of the recipient's): who left it on whose card, with the
+ * note glyph, over the card itself — the shared-card section on the quote's paper, which the note's
+ * own bubble lies over the foot of, as a reply lies over what it quotes. A tap opens the card. While
+ * the card is read, its plain stand-in; a card that can't be read is the quote's "a card".
+ */
+@Composable
+private fun NoteQuoteView(message: ChatMessage, mine: Boolean, carried: Carried, ctx: ThreadContext, interactive: Boolean, press: (String?) -> Unit) {
+    val handle = ctx.model.other?.handle.orEmpty()
+    // The card is always the recipient's: theirs when I left the note, mine when they did.
+    val caption = if (mine) L10n.Messages.youLeftNote(handle) else L10n.Messages.noteOnYourCard(handle)
+    val seed = seedFromId(message.key, 19)
+    val width = min(CARD_WIDTH, ctx.rowMax)
+    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+        ReplyCaption(caption, Modifier.padding(start = if (mine) 0.dp else 12.dp, end = if (mine) 12.dp else 0.dp, bottom = 4.dp), icon = IconName.Note)
+        when (carried) {
+            is Carried.Card -> MessageBubble(
+                "", mine, seed, fill = Tokens.BubbleQuote, width = width,
+                onLongPress = if (interactive) { _ -> press(null) } else null,
+            ) {
+                CardPart(carried.card, ctx, interactive, press)
+                Spacer(Modifier.height(REPLY_OVERLAP))
+            }
+            is Carried.CardLoading -> MessageBubble("", mine, seed, fill = Tokens.BubbleQuote, width = width, plain = true) {
+                SharedCardSkeleton()
+                Spacer(Modifier.height(REPLY_OVERLAP))
+            }
+            else -> QuoteBubble(L10n.Messages.replyCard, seed = seed)
+        }
+    }
+}
+
+/**
  * The message itself — the quote it answers and its bubble with all it carries — which a long-press
  * lifts: drawn again, without gestures, by the menu.
  */
@@ -437,6 +494,8 @@ internal fun MessageCore(row: ThreadRow, ctx: ThreadContext, interactive: Boolea
     val mine = model.isMine(message)
     val carried = model.carried(message)
     if (carried == Carried.Nothing) return
+    // A note's card goes over it, as what it answers; its own bubble carries only its words.
+    val carries = if (message.isNote) Carried.Words else carried
     val haptic = LocalHapticFeedback.current
     var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val words = carried.words(message)
@@ -469,11 +528,12 @@ internal fun MessageCore(row: ThreadRow, ctx: ThreadContext, interactive: Boolea
             .onGloballyPositioned { coords = it },
         horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
     ) {
-        if (message.replyTo != null) ReplyQuoteView(message, mine, ctx, interactive)
+        if (message.isNote) NoteQuoteView(message, mine, carried, ctx, interactive, press)
+        else if (message.replyTo != null) ReplyQuoteView(message, mine, ctx, interactive)
         MessageBubble(
             words, mine, seedFromId(message.key),
-            // The reply lies over the foot of what it quotes.
-            modifier = if (message.replyTo != null) Modifier.overlapAbove(REPLY_OVERLAP) else Modifier,
+            // The reply lies over the foot of what it quotes, a note over the card it was left on.
+            modifier = if (message.replyTo != null || message.isNote) Modifier.overlapAbove(REPLY_OVERLAP) else Modifier,
             quoteLabel = if (message.noteRef == null) null else L10n.Messages.quotedNote,
             run = row.position,
             links = ranges,
@@ -481,17 +541,17 @@ internal fun MessageCore(row: ThreadRow, ctx: ThreadContext, interactive: Boolea
             highlightStrong = message.id == ctx.currentHit,
             // A search hit in words the bubble doesn't show (a card's link, standing for the card) washes the whole bubble.
             flash = if (words != message.text && message.id == ctx.currentHit) { { max(pulse.value, 0.5f) } } else { { pulse.value } },
-            width = when (carried) {
+            width = when (carries) {
                 is Carried.Preview -> min(PREVIEW_WIDTH, ctx.rowMax)
                 is Carried.Card, is Carried.CardLoading -> min(CARD_WIDTH, ctx.rowMax)
                 else -> null
             },
-            plain = carried is Carried.CardLoading,
+            plain = carries is Carried.CardLoading,
             onLinkTap = if (interactive) { i -> links.getOrNull(i)?.let { ctx.tapLink(it.url) } } else null,
             onLongPress = if (interactive) { i -> press(i?.let { links.getOrNull(it)?.url }) } else null,
-            attachment = when (carried) {
-                is Carried.Preview -> { { PreviewPart(carried.preview, afterWords = words.isNotEmpty() || message.noteRef != null, ctx, interactive, press) } }
-                is Carried.Card -> { { CardPart(carried.card, ctx, interactive, press) } }
+            attachment = when (carries) {
+                is Carried.Preview -> { { PreviewPart(carries.preview, afterWords = words.isNotEmpty() || message.noteRef != null, ctx, interactive, press) } }
+                is Carried.Card -> { { CardPart(carries.card, ctx, interactive, press) } }
                 is Carried.CardLoading -> { { SharedCardSkeleton() } }
                 else -> null
             },

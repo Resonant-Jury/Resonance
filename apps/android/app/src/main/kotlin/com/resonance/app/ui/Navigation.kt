@@ -1,10 +1,10 @@
 package com.resonance.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -21,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -42,6 +43,7 @@ import com.resonance.design.cream
 import com.resonance.design.generated.IconName
 import com.resonance.kit.api.MessagingApi
 import com.resonance.kit.l10n.L10n
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
@@ -221,15 +223,22 @@ private fun rememberRouteStack(root: Route): NavBackStack<Route> =
  * ViewModelStore — two card pages never share one. They are kept for as long as the page is on
  * its stack, whichever tab is showing, so going back or switching tabs finds a page as it was
  * left; popping it drops them. A page is known by its tab, its place and its route, so the same
- * card twice on one stack, or on two tabs, is two pages.
+ * card twice on one stack, or on two tabs, is two pages. [content] is also given whether the page
+ * is still on its stack (its route, that very one, at its place): a page going while it is drawn
+ * has been popped.
  */
 @Composable
-private fun rememberStackEntries(tab: Tab, stack: NavBackStack<Route>, content: @Composable (Route) -> Unit): List<NavEntry<Route>> {
+private fun rememberStackEntries(
+    tab: Tab,
+    stack: NavBackStack<Route>,
+    content: @Composable (route: Route, onStack: () -> Boolean) -> Unit,
+): List<NavEntry<Route>> {
     val decorators = listOf(rememberSaveableStateHolderNavEntryDecorator<Route>(), rememberViewModelStoreNavEntryDecorator<Route>())
     val routes = stack.toList()
     val entries = remember(routes) {
         routes.mapIndexed { i, route ->
-            NavEntry(route, contentKey = "$tab/$i/${route.contentKey}", metadata = mapOf(PageMotion.TAB_METADATA to tab), content = content)
+            val onStack = { stack.getOrNull(i) === route }
+            NavEntry(route, contentKey = "$tab/$i/${route.contentKey}", metadata = mapOf(PageMotion.TAB_METADATA to tab)) { content(it, onStack) }
         }
     }
     return rememberDecoratedNavEntries(entries, decorators)
@@ -300,7 +309,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         key(languageEpoch) {
             val entries: Map<Tab, List<NavEntry<Route>>> = Tab.entries.associateWith { t ->
                 val own = stacks.getValue(t)
-                rememberStackEntries(t, own) { route -> PageFrame(motion) { Page(session, route, own) } }
+                rememberStackEntries(t, own) { route, onStack -> PageFrame(motion, onStack) { Page(session, route, own) } }
             }
             NavDisplay(
                 entries = entries.getValue(tab),
@@ -316,15 +325,10 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                 AccountDeletionBanner(session, date)
             }
         }
-        AnimatedVisibility(
-            stack.size == 1,
-            modifier = Modifier.align(Alignment.BottomCenter),
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut(),
-        ) {
+        TabBarSlot(stack.size == 1, Modifier.align(Alignment.BottomCenter)) {
             OrganicTabBar(
                 listOf(
-                    // The web's glyphs for the same places (Subnavbar, NotificationBell, FloatingWriteButton).
+                    // The web's glyphs for the same places (Subnavbar, NotificationBell, the header's pen).
                     OrganicTabItem(Tab.Feed, L10n.Native.tabFeed, IconName.Sparkle),
                     OrganicTabItem(Tab.Messages, L10n.App.Nav.messages, IconName.Chat, badge = conversations.unreadTotal),
                     OrganicTabItem(Tab.Write, L10n.App.Nav.write, IconName.Pen, isAction = true),
@@ -333,7 +337,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                 ),
                 selection = tab,
                 onSelect = { picked ->
-                    // The pen opens the writer over the current tab, like the web's floating pen.
+                    // The pen opens the writer over the current tab, like the web header's pen.
                     if (picked == Tab.Write) {
                         stack.add(Route.Write())
                         return@OrganicTabBar
@@ -345,6 +349,50 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         }
     }
 }
+
+/**
+ * Where the tab bar is: shown on a tab's first page, hidden on the pages pushed over it. Back on the
+ * first page it is there at once, as the page beneath a swipe let go of is — a quick fade and a short
+ * rise, not a spring still settling after the page has gone — and it goes the way it always went,
+ * sliding down as it fades. Hidden, it stays composed and is only left unplaced (it draws nothing,
+ * takes no touch and isn't read out), so coming back doesn't spend the frame of the release on
+ * building it.
+ */
+@Composable
+private fun TabBarSlot(shown: Boolean, modifier: Modifier, bar: @Composable () -> Unit) {
+    // How visible it is, and how far below its place (of its height).
+    val alpha = remember { Animatable(if (shown) 1f else 0f) }
+    val drop = remember { Animatable(if (shown) 0f else 1f) }
+    LaunchedEffect(shown) {
+        if (shown) {
+            // From hidden it rises from a third of its height; caught half-way down, from where it is.
+            if (alpha.value == 0f) drop.snapTo(TAB_BAR_RISE_FROM)
+            launch { alpha.animateTo(1f, tween(TAB_BAR_FADE_MILLIS, easing = LinearEasing)) }
+            drop.animateTo(0f, tween(TAB_BAR_RISE_MILLIS, easing = PageMotionSpec.EmphasizedDecelerate))
+        } else {
+            launch { alpha.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
+            drop.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
+        }
+    }
+    Box(
+        modifier.layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            layout(placeable.width, placeable.height) {
+                if (shown || alpha.value > 0f) {
+                    placeable.placeWithLayer(0, 0) {
+                        this.alpha = alpha.value
+                        translationY = drop.value * size.height
+                    }
+                }
+            }
+        },
+    ) { bar() }
+}
+
+/** The tab bar coming back: its fade, and its rise from [TAB_BAR_RISE_FROM] of its height. */
+private const val TAB_BAR_FADE_MILLIS = 90
+private const val TAB_BAR_RISE_MILLIS = 150
+private const val TAB_BAR_RISE_FROM = 1f / 3f
 
 /** A page of a tab's stack: what it opens goes on the same stack, and back pops it. */
 @Composable

@@ -37,7 +37,6 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -393,35 +392,4 @@ fun Modifier.footerEdge(lineAlpha: Float = 0.5f): Modifier = drawWithCache {
         drawPath(fill, Tokens.Cream)
         drawPath(line, Tokens.FieldBorderHover, alpha = lineAlpha, style = Stroke(ink, cap = StrokeCap.Round))
     }
-}
-
-/** FloatingWriteButton's face: a rounded square (R 0.4 of its size), one turn a side, lopsided corners; no grain. */
-@Composable
-fun WriteButtonFace(size: Dp, icon: IconName = IconName.Pen) {
-    Box(
-        Modifier.size(size).drawWithCache {
-            val s = size.value.toDouble()
-            val o = WobRectShape(s * 0.4, 3.0, mag = s * 0.022, options = WobRectOptions(
-                curve = 1.3, cornerJitter = 3.2, cornerOffset = s * 0.06, segmentsH = SegValue.Count(1.0), segmentsV = SegValue.Count(1.0),
-            )).createOutline(this.size, layoutDirection, this)
-            val ink = Stroke(Tokens.Ink.toPx(), join = StrokeJoin.Round)
-            onDrawBehind {
-                drawOutline(o, Tokens.Terracotta)
-                drawOutline(o, Tokens.TerracottaInk, style = ink)
-            }
-        },
-        contentAlignment = Alignment.Center,
-    ) { OrganicIcon(icon, size = 24.dp, color = Tokens.Cream) }
-}
-
-/** The web's FloatingWriteButton on pages without the tab bar (a card): the pen, bottom right, 20 in. */
-@Composable
-fun FloatingWriteButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier
-            .navigationBarsPadding()
-            .padding(20.dp)
-            .plainClickable(role = Role.Button, onClickLabel = label, onClick = onClick)
-            .semantics { contentDescription = label },
-    ) { WriteButtonFace(56.dp) }
 }

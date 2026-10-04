@@ -1,6 +1,7 @@
 package com.resonance.kit.chat
 
 import com.resonance.api.models.FeedCard
+import com.resonance.kit.api.CardKey
 import java.net.URLDecoder
 
 /**
@@ -41,7 +42,11 @@ object SharedCards {
         return message.preview?.url?.let { keyOf(it, ownHost) }?.let { SharedCard(it, attached = false) }
     }
 
-    /** The card key a link leads to (decoded), or null when it isn't a card page of the site. */
+    /**
+     * The card key a link leads to (decoded), or null when it isn't a card page of the site — or
+     * its key couldn't name a card ([CardKey]: a link read on into the words after it, `/card/故事`,
+     * `/card/a.html`): asked for, it would fail the request for every other shared card with it.
+     */
     fun keyOf(url: String, ownHost: String? = null): String? {
         val normalized = Linkify.normalize(url) ?: return null
         val afterScheme = normalized.substringAfter("://")
@@ -51,7 +56,7 @@ object SharedCards {
         val segments = path.split('/').filter { it.isNotEmpty() }.let { if (it.firstOrNull()?.lowercase() in LOCALES) it.drop(1) else it }
         if (segments.size != 2 || segments[0] != "card") return null
         val key = runCatching { URLDecoder.decode(segments[1].replace("+", "%2B"), "UTF-8") }.getOrNull()
-        return key?.takeIf { it.isNotBlank() && it.none { c -> c == '/' || c.isWhitespace() || c.isISOControl() } }
+        return key?.takeIf(CardKey::isValid)
     }
 
     /**

@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.resonance.design.AppFonts
@@ -47,13 +48,21 @@ import com.resonance.kit.l10n.L10n
 /**
  * The message being written: what is attached (the note being answered, a card), the reply it
  * carries and the field with Send beside it. Sending never holds the composer — a message goes to the
- * outbox and the field is empty for the next one, with its keyboard still up.
+ * outbox and the field is empty for the next one, with its keyboard still up. [lead] is a quiet line
+ * over all of it (answering their note is what connects you).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun Composer(model: ThreadModel, handle: String, focus: FocusRequester, onPickCard: () -> Unit, modifier: Modifier = Modifier) {
+internal fun Composer(model: ThreadModel, handle: String, focus: FocusRequester, onPickCard: () -> Unit, modifier: Modifier = Modifier, lead: String? = null) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth()) {
+        lead?.let {
+            BasicText(
+                it,
+                style = AppFonts.body(12.5f, lineHeight = 1.5f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 8.dp, end = 8.dp),
+            )
+        }
         if (model.noteRef != null || model.pendingCard != null) {
             FlowRow(
                 Modifier.padding(top = 10.dp).padding(horizontal = 2.dp),
@@ -65,7 +74,7 @@ internal fun Composer(model: ThreadModel, handle: String, focus: FocusRequester,
             }
         }
         model.replyingTo?.let { ReplyBar(model, it) }
-        // Send is a disc a little shorter than the field: it stays at the foot of the field as that grows.
+        // Send is a little shorter than the field: it stays at the foot of the field as that grows.
         Row(
             Modifier.padding(top = 12.dp),
             verticalAlignment = Alignment.Bottom,

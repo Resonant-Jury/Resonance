@@ -162,6 +162,17 @@ val FeedPage.next: NextPage?
         else -> null
     }
 
+/**
+ * What can name a card in the contract (`CardKey`: an id or a slug — letters, digits, `_` and `-`,
+ * up to 160): the twin of the web's CARD_KEY and iOS's CardKey. A list of keys (`GET /cards?keys=`)
+ * with one that isn't is refused whole.
+ */
+object CardKey {
+    private val pattern = Regex("^[A-Za-z0-9_-]{1,160}$")
+
+    fun isValid(key: String): Boolean = pattern.matches(key)
+}
+
 /** The reading side of /api/v1 (feed, card page, author page, card box). */
 class ReadingApi(private val api: DefaultApi) {
     constructor(configuration: ApiConfiguration, http: OkHttpClient = OkHttpClient()) : this(
@@ -183,10 +194,12 @@ class ReadingApi(private val api: DefaultApi) {
     /**
      * Several cards by slug or id as list summaries (no story), in the order asked: those the
      * reader may not see (gone, hidden, blocked) are left out. The contract takes 30 a request,
-     * so a longer list goes out in several, side by side; none go out for an empty one.
+     * so a longer list goes out in several, side by side; none go out for an empty one. A key that
+     * can't name a card ([CardKey]) is left out before asking: the server refuses a whole request
+     * for one.
      */
     suspend fun cards(keys: Collection<String>): List<FeedCard> = coroutineScope {
-        keys.distinct().chunked(CARDS_PER_REQUEST)
+        keys.filter(CardKey::isValid).distinct().chunked(CARDS_PER_REQUEST)
             .map { chunk -> async { call { api.getCards(chunk.joinToString(",")).cards } } }
             .awaitAll()
             .flatten()

@@ -48,9 +48,9 @@ import com.resonance.design.TagSize
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicEmptyState
-import com.resonance.design.ButtonVariant
 import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicButton
+import com.resonance.design.OrganicIconButton
 import com.resonance.design.OrganicListEmpty
 import com.resonance.design.Skeleton
 import com.resonance.design.plainClickable
@@ -169,8 +169,8 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
                         BasicText(p.me.handle, style = AppFonts.heading(24f))
                         BasicText(p.me.bio ?: L10n.Me.bioEmpty, style = AppFonts.body(14f, color = Tokens.TextMuted))
                     }
-                    // /me on phones: the identity row ends on a compact chip holding the pen, the app's settings glyph.
-                    OrganicButton(L10n.Me.editProfile, variant = ButtonVariant.Ghost, icon = IconName.Pen, iconOnly = true) { open(Route.Settings) }
+                    // The identity row ends on the pen alone, the app's settings glyph: a bare glyph, no frame of its own.
+                    OrganicIconButton(IconName.Pen, L10n.Me.editProfile, size = 20.dp) { open(Route.Settings) }
                 }
                 Session.Profile.Missing -> OrganicEmptyState(L10n.Auth.stepHandle)
                 Session.Profile.Failed -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { session.loadMe() } }, action = EmptyAction.Outline)
@@ -230,7 +230,7 @@ private fun LazyListScope.managedCards(session: Session, cards: List<FeedCard>, 
                 // The chip 14 in from the card's corner (the card's box sits 20 in from the screen);
                 // the trigger's 44dp hit box reaches 3 past the 38dp chip.
                 Box(Modifier.align(Alignment.TopEnd).padding(top = 14.dp - 3.dp, end = 34.dp - 3.dp)) {
-                    CardActionsMenu(session, card.id, card.visibility.value, open, seed = hue, hue = hue)
+                    CardActionsMenu(session, card.id, card.visibility.value, open, seed = hue, hue = hue, referenceCardId = card.referenceCardId)
                 }
             }
             if (card.anonymous) {

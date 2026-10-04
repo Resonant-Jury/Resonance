@@ -470,9 +470,10 @@ private fun Cover(model: WriteModel, pick: () -> Unit) {
 private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint: Boolean, onPublished: (String) -> Unit, onCancel: () -> Unit) {
     val scope = rememberCoroutineScope()
     val updating = model.isPublished
-    // As it is: a connections card shows neither row picked, and keeps its audience unless one is.
-    var visibility by remember { mutableStateOf(model.values.visibility) }
+    // As it is: a connections card shows neither row picked, and keeps its audience unless one is —
+    // except an anonymous one, which is public or only yours (the server refuses it for connections only).
     var anonymous by remember { mutableStateOf(model.values.anonymous) }
+    var visibility by remember { mutableStateOf(anonymousVisibility(model.values.visibility, model.values.anonymous)) }
     var insight by remember { mutableStateOf<String?>(null) }
     var insightLoading by remember { mutableStateOf(!updating) }
     var pending by remember { mutableStateOf(false) }
@@ -509,11 +510,18 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
                 WavyDivider(seed = 49.0, modifier = Modifier.padding(vertical = 2.dp))
                 VisibilityRow(L10n.Write.Visibility.private, IconName.Lock, 73.0, visibility == "private") { visibility = "private" }
             }
+            // Never for connections only while anonymous (who could read it would say who wrote it): say so.
+            if (anonymous) {
+                BasicText(L10n.Write.PublishPanel.anonymousVisibility, style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted))
+            }
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BasicText(L10n.Write.PublishPanel.anonymousToggle, style = AppFonts.body(14f), modifier = Modifier.weight(1f))
-                OrganicToggle(anonymous, { anonymous = it }, L10n.Write.PublishPanel.anonymousToggle, seed = 57.0)
+                OrganicToggle(anonymous, {
+                    anonymous = it
+                    visibility = anonymousVisibility(visibility, it)
+                }, L10n.Write.PublishPanel.anonymousToggle, seed = 57.0)
             }
             // Seeing is understanding: the exact card head the world will get.
             val me = session.me
@@ -545,7 +553,8 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
                 error = null
                 scope.launch {
                     try {
-                        onPublished(if (updating) model.applyEdit(visibility, anonymous) else model.publish(visibility, anonymous))
+                        val audience = anonymousVisibility(visibility, anonymous)
+                        onPublished(if (updating) model.applyEdit(audience, anonymous) else model.publish(audience, anonymous))
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: ApiFailure) {
@@ -561,6 +570,14 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
         error?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
     }
 }
+
+/**
+ * Who sees a card that is [anonymous]: an anonymous card is public or only its author's, never for
+ * connections only (who would know whose it is), so one kept for connections becomes public; any
+ * other choice stands.
+ */
+internal fun anonymousVisibility(visibility: String, anonymous: Boolean): String =
+    if (anonymous && visibility == "connections") "public" else visibility
 
 @Composable
 private fun VisibilityRow(label: String, icon: IconName, seed: Double, selected: Boolean, onClick: () -> Unit) {

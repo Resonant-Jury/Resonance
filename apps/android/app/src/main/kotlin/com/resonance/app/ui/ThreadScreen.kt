@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +40,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,6 +76,7 @@ import com.resonance.design.inlineBarTop
 import com.resonance.design.plainClickable
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.api.MessagingApi
+import com.resonance.kit.chat.Carried
 import com.resonance.kit.chat.ChatMessage
 import com.resonance.kit.chat.SearchHit
 import com.resonance.kit.chat.ThreadRows
@@ -141,7 +145,8 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     val searchFocus = remember { FocusRequester() }
     val flash = remember { Flash() }
 
-    val rows = remember(model.messages) { ThreadRows.build(model.messages) }
+    // Over what is drawn: a card the viewer can't see, sent alone, has no row, and shapes no run around it.
+    val rows by remember(model) { derivedStateOf { ThreadRows.build(model.messages, drawn = { model.carried(it) != Carried.Nothing }) } }
     val rowsNow by rememberUpdatedState(rows)
     val list = rememberLazyListState()
     val resultsList = rememberLazyListState()
@@ -190,6 +195,13 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
         runCatching { composerFocus.requestFocus() }
         keyboard?.show()
     }
+    // Opened at a note (a bell row, an older push): the note itself — brought to the middle, flashed and
+    // set up to be answered — or, for an older one the thread never got, the chip that answers it.
+    LaunchedEffect(model) {
+        val landing = model.landOnNote() as? NoteLanding.Message ?: return@LaunchedEffect
+        model.reply(landing.message)
+        jump(landing.message.id, true)
+    }
     BackHandler(enabled = searching) {
         if (showResults && currentHit != null) showResults = false else closeSearch()
     }
@@ -221,22 +233,31 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
                 ThreadModel.Phase.Failed -> Box(Modifier.padding(top = top)) {
                     OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { model.load() } }, action = EmptyAction.Outline)
                 }
+                // The messages show whoever may write; only the foot changes (ThreadFoot).
                 ThreadModel.Phase.Ready -> {
-                    if (model.connected == false) {
-                        Column(Modifier.fillMaxWidth().padding(top = top).padding(vertical = 20.dp, horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            BasicText(L10n.Messages.notConnected, style = AppFonts.body(13f, lineHeight = 1.3f, color = Tokens.TextMuted))
+                    val foot = model.foot
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        MessageList(rows, ctx, list, top, Modifier.fillMaxSize(), pillVisible = !(searching && showResults), sayEmpty = foot.composes)
+                        if (searching && showResults) SearchResults(model, query, top, resultsList, pick)
+                    }
+                    val padded = Modifier.padding(horizontal = 14.dp).padding(bottom = 14.dp)
+                    when (foot) {
+                        ThreadFoot.Composer -> Composer(model, handle, composerFocus, onPickCard = { pickingCard = true }, padded)
+                        ThreadFoot.Answer -> Composer(
+                            model, handle, composerFocus, onPickCard = { pickingCard = true }, padded,
+                            lead = L10n.Messages.replyToConnect(model.other?.handle ?: handle),
+                        )
+                        ThreadFoot.Awaiting -> FootNote(L10n.Messages.awaitingReply)
+                        ThreadFoot.Closed -> FootNote(L10n.Messages.notConnected) {
                             BasicText(
                                 L10n.Messages.viewProfile,
                                 style = AppFonts.body(13f, lineHeight = 1.3f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline),
-                                modifier = Modifier.plainClickable(role = Role.Button) { open(Route.Author(model.other?.handle ?: handle)) },
+                                modifier = Modifier
+                                    .heightIn(min = 44.dp)
+                                    .wrapContentHeight()
+                                    .plainClickable(role = Role.Button) { open(Route.Author(model.other?.handle ?: handle)) },
                             )
                         }
-                    } else {
-                        Box(Modifier.weight(1f).fillMaxWidth()) {
-                            MessageList(rows, ctx, list, top, Modifier.fillMaxSize(), pillVisible = !(searching && showResults))
-                            if (searching && showResults) SearchResults(model, query, top, resultsList, pick)
-                        }
-                        Composer(model, handle, composerFocus, onPickCard = { pickingCard = true }, Modifier.padding(horizontal = 14.dp).padding(bottom = 14.dp))
                     }
                 }
             }
@@ -260,7 +281,7 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
         menu?.let { m ->
             MessageMenuOverlay(
                 m, ctx,
-                items = remember(m) { messageMenuItems(m, model, links, context, reply = { reply(m.row.message) }) },
+                items = remember(m) { messageMenuItems(m, model, links, context, open, reply = { reply(m.row.message) }) },
                 footer = fullTime(m.row.message.sentAt),
                 onDismiss = { menu = null },
             )
@@ -338,6 +359,22 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
             model.pendingCard = ThreadModel.Attachment(card.id, card.title)
             pickingCard = false
         }) { pickingCard = false }
+    }
+}
+
+/**
+ * The thread's foot where there is no composer: a calm line, centred — a note of yours waiting for
+ * its answer, or why you can't write here — and what can be done about it, if anything.
+ */
+@Composable
+private fun FootNote(text: String, action: (@Composable () -> Unit)? = null) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 28.dp).padding(top = 14.dp, bottom = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        BasicText(text, style = AppFonts.body(13.5f, lineHeight = 1.55f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center))
+        action?.invoke()
     }
 }
 
@@ -522,7 +559,7 @@ private fun SharedMediaContent(model: ThreadModel, opener: LinkOpener, onClose: 
                         style = AppFonts.body(13.5f, lineHeight = 1.3f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .plainClickable(role = Role.Button) { opener.tap(url) }
+                            .plainClickable(role = Role.Button) { model.openLink(url, opener, open) }
                             .padding(vertical = 10.dp, horizontal = 4.dp),
                     )
                 }

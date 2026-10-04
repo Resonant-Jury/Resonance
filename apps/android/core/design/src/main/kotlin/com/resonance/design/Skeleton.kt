@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.resonance.kit.l10n.L10n
 
 /** The shimmer's highlight: the theme's light accent, or a card's own hue inside a card. */
 val LocalSkeletonHighlight = compositionLocalOf { Mixes.skeletonHighlight() }
@@ -85,7 +86,7 @@ fun androidx.compose.foundation.lazy.LazyListScope.storyCardSkeletons(count: Int
  */
 @Composable
 fun CardDetailSkeleton(modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().semantics { contentDescription = "Loading" }) {
+    Column(modifier.fillMaxWidth().semantics { contentDescription = L10n.Home.moreLoading }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Skeleton(height = 44.dp, circle = true)
             Column(Modifier.weight(1f)) {

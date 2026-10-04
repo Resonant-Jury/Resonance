@@ -51,6 +51,7 @@ import com.resonance.design.generated.Tokens
 import com.resonance.geometry.SegValue
 import com.resonance.geometry.WobRectOptions
 import com.resonance.geometry.wobRect
+import com.resonance.kit.l10n.L10n
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -106,6 +107,8 @@ fun OrganicImage(
     magFactor: Double = 0.05,
     /** The picture couldn't be loaded (the placeholder stays); a caller may drop the frame altogether. */
     onError: (() -> Unit)? = null,
+    /** Laid over the picture, inside the same clip (a picked card's wash and tick). */
+    overlay: (@Composable () -> Unit)? = null,
     placeholder: @Composable () -> Unit,
 ) {
     BoxWithConstraints(modifier) {
@@ -121,6 +124,7 @@ fun OrganicImage(
                 model = url, contentDescription = contentDescription, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
                 onError = onError?.let { report -> { _ -> report() } },
             )
+            overlay?.invoke()
         }
     }
 }
@@ -286,7 +290,7 @@ fun StoryCardSkeleton(position: Int, isLast: Boolean = false, modifier: Modifier
     val palette = CardPalette(null, position)
     val seed = position * 77.0 + 13
     WithSkeletonHue(palette.hue) {
-        StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier.semantics { contentDescription = "Loading" }) {
+        StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier.semantics { contentDescription = L10n.Home.moreLoading }) {
             Skeleton(Modifier.aspectRatio(1 / 0.62f), height = Dp.Unspecified, radius = 18.dp)
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Skeleton(Modifier.width(56.dp), height = 22.dp, radius = 11.dp)

@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,10 +38,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +48,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
@@ -86,10 +84,10 @@ import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.CornerRadii
 import com.resonance.geometry.SegValue
-import com.resonance.geometry.WobCircleOptions
 import com.resonance.geometry.WobRectOptions
 import com.resonance.geometry.jsRound
 import com.resonance.kit.chat.RunPosition
+import com.resonance.kit.l10n.L10n
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
@@ -120,8 +118,9 @@ private const val QUOTE_RADIUS = 16.0
  * (1–8), bow 1.3, corner jitter 1.6, corners pulled in 4%.
  *
  * A bubble in a run of messages from one person (Messenger's stacking) tucks the corners that face
- * its neighbours to a radius of 4, on the sender's side — the right for your own, the left for
- * theirs: the first of a run tucks its bottom one, a middle one both, the last its top one
+ * its neighbours to a radius of 4, on the sender's side — the end side for your own, the start for
+ * theirs (the right and the left, mirrored where the layout reads right to left, as the row places
+ * them): the first of a run tucks its bottom one, a middle one both, the last its top one
  * ([RunPosition]). A bubble that carries a preview or a card is still one shape, and tucks the same.
  */
 class MessageBubbleShape(
@@ -138,19 +137,29 @@ class MessageBubbleShape(
         val across = min(6.0, max(2.0, jsRound(w / 80)))
         val down = min(8.0, max(1.0, jsRound(h / 52)))
         val radius = min(maxRadius, h * 0.42)
-        val tucked = min(TUCKED_RADIUS, radius)
-        val top = if (run.joinsAbove) tucked else radius
-        val bottom = if (run.joinsBelow) tucked else radius
-        val radii = if (mine) CornerRadii(radius, top, bottom, radius) else CornerRadii(top, radius, radius, bottom)
         return WobRectShape(
             radius, seed, mag = min(2.6, h * 0.05),
             options = WobRectOptions(
                 curve = 1.3, cornerJitter = 1.6, cornerOffset = min(w, h) * 0.04,
                 segmentsH = SegValue.Count(across), segmentsV = SegValue.Count(down),
-                cornerRadii = if (run == RunPosition.Single) null else radii,
+                cornerRadii = bubbleCorners(mine, run, radius, layoutDirection),
             ),
         ).createOutline(size, layoutDirection, density)
     }
+}
+
+/**
+ * A bubble's corners in its run ([MessageBubbleShape]): the full [radius], with the ones on the
+ * sender's side that face a neighbour tucked — the end side for your own, the start for theirs, in
+ * [direction]. Null (all alike) for a bubble on its own.
+ */
+internal fun bubbleCorners(mine: Boolean, run: RunPosition, radius: Double, direction: LayoutDirection): CornerRadii? {
+    if (run == RunPosition.Single) return null
+    val tucked = min(TUCKED_RADIUS, radius)
+    val top = if (run.joinsAbove) tucked else radius
+    val bottom = if (run.joinsBelow) tucked else radius
+    val onRight = mine == (direction == LayoutDirection.Ltr)
+    return if (onRight) CornerRadii(radius, top, bottom, radius) else CornerRadii(top, radius, radius, bottom)
 }
 
 /**
@@ -213,18 +222,20 @@ fun MessageBubble(
     flash: () -> Float = { 0f },
     width: Dp? = null,
     plain: Boolean = false,
+    /** Another paper than the sender's ([Tokens.BubbleQuote]: the card a note answers, quoted over it). */
+    fill: Color? = null,
     onLinkTap: ((Int) -> Unit)? = null,
     onLongPress: ((Int?) -> Unit)? = null,
     attachment: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val longPress by rememberUpdatedState(onLongPress)
-    val fill = bubbleFill(mine)
+    val paper = fill ?: bubbleFill(mine)
     Column(
         modifier
             .then(if (width != null) Modifier.width(width) else Modifier)
             .then(
-                if (plain) Modifier.clip(plainBubbleShape(mine, run)).background(fill)
-                else Modifier.bubbleSurface(remember(seed, mine, run) { MessageBubbleShape(seed, mine, run) }, fill, flash),
+                if (plain) Modifier.clip(plainBubbleShape(mine, run)).background(paper)
+                else Modifier.bubbleSurface(remember(seed, mine, run) { MessageBubbleShape(seed, mine, run) }, paper, flash),
             )
             .then(
                 if (onLongPress != null) Modifier
@@ -288,11 +299,11 @@ fun QuoteBubble(text: String, seed: Double, modifier: Modifier = Modifier, onCli
 /** How far a reply's bubble lies over the foot of the message it quotes. */
 val REPLY_OVERLAP = 14.dp
 
-/** The reply glyph and a line of who answered whom, over the quote. */
+/** A glyph and a line of who answered whom, over the quote: the reply glyph, or the note's ([icon]) over the card a note was left on. */
 @Composable
-fun ReplyCaption(text: String, modifier: Modifier = Modifier) {
+fun ReplyCaption(text: String, modifier: Modifier = Modifier, icon: IconName = IconName.Reply) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        OrganicIcon(IconName.Reply, size = 12.dp, color = Tokens.TextMuted)
+        OrganicIcon(icon, size = 12.dp, color = Tokens.TextMuted)
         BasicText(text, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted))
     }
 }
@@ -516,10 +527,10 @@ fun ColumnScope.LinkPreviewSection(
     onLongPress: (() -> Unit)?,
 ) {
     Column(Modifier.fillMaxWidth().bubblePart(title, onClick, onLongPress)) {
-        var pictureFailed by remember(imageUrl) { mutableStateOf(false) }
-        if (imageUrl != null && !pictureFailed) {
+        // One that failed before is left out at once (FailedPictures), not drawn as a box and dropped again.
+        if (imageUrl != null && !FailedPictures.shared.has(imageUrl)) {
             if (afterWords) Box(Modifier.height(BubblePadY))
-            BubblePicture(imageUrl) { pictureFailed = true }
+            BubblePicture(imageUrl) { FailedPictures.shared.note(imageUrl) }
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14.5f, 600, lineHeight = 1.35f))
@@ -580,9 +591,8 @@ fun ColumnScope.SharedCardSection(
                 BasicText("$source · $readTime", maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.35f, color = Tokens.TextMuted))
             }
         }
-        var coverFailed by remember(imageUrl) { mutableStateOf(false) }
-        if (imageUrl != null && !coverFailed) {
-            BubblePicture(imageUrl) { coverFailed = true }
+        if (imageUrl != null && !FailedPictures.shared.has(imageUrl)) {
+            BubblePicture(imageUrl) { FailedPictures.shared.note(imageUrl) }
         } else {
             val palette = CardPalette(accentHue, 0)
             Box(
@@ -610,7 +620,7 @@ fun ColumnScope.SharedCardSection(
 /** [SharedCardSection] while the card is read: its footprint in plain shimmering blocks (no wobble, nothing measured). */
 @Composable
 fun ColumnScope.SharedCardSkeleton() {
-    Column(Modifier.fillMaxWidth().semantics { contentDescription = "Loading" }) {
+    Column(Modifier.fillMaxWidth().semantics { contentDescription = L10n.Home.moreLoading }) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Skeleton(height = 32.dp, circle = true)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -631,19 +641,20 @@ fun ColumnScope.SharedCardSkeleton() {
 // Send
 
 /**
- * The composer's Send: a wobbly terracotta disc with the paper plane in cream. It is the verb of the
- * bar, so it is a solid face with the buttons' grain and no pen line of its own. Dimmed and deaf
- * until there is something to send — never held by a send in flight.
+ * The composer's Send: a wobbly terracotta rounded rectangle — the shape of the web's and iOS's
+ * (one seed, one turn a side) — with the paper plane in cream. It is the verb of the bar, so it is
+ * a solid face with the buttons' grain and no pen line of its own. Dimmed and deaf until there is
+ * something to send — never held by a send in flight.
  */
 @Composable
-fun OrganicSendButton(label: String, enabled: Boolean, modifier: Modifier = Modifier, size: Dp = 44.dp, onClick: () -> Unit) {
+fun OrganicSendButton(label: String, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val haptic = LocalHapticFeedback.current
-    val shape = remember { WobCircleShape(23.0, WobCircleOptions(segments = 8, mag = 0.9, cpJitter = 0.4)) }
+    val shape = remember { SendShape }
     Box(
         modifier
-            .size(size)
+            .size(width = SendWidth, height = SendHeight)
             .fade(if (enabled) 1f else 0.45f)
             .scale(if (pressed) 0.95f else 1f)
             .drawWithCache {
@@ -661,10 +672,49 @@ fun OrganicSendButton(label: String, enabled: Boolean, modifier: Modifier = Modi
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        // The plane's weight sits low and to the left of its box: a step right and up to read as centred.
-        OrganicIcon(IconName.Send, Modifier.offset(x = 1.dp, y = (-1).dp), size = 20.dp, color = Tokens.Cream)
+        // The plane is drawn optically centred in its own box: it sits in the middle as it is.
+        OrganicIcon(IconName.Send, size = 20.dp, color = Tokens.Cream)
     }
 }
+
+/** Send's size: a little wider than tall, beside a field one line high. */
+val SendWidth = 52.dp
+val SendHeight = 44.dp
+
+/** Send's outline: radius 13, seed 23, a 1.1 swing, one turn a side with the corners a little lopsided (the web's 48×40 wobRect, at the apps' size). */
+private val SendShape = WobRectShape(
+    13.0, 23.0, mag = 1.1,
+    options = WobRectOptions(curve = 1.3, cornerJitter = 2.4, cornerOffset = 2.2, segmentsH = SegValue.Count(1.0), segmentsV = SegValue.Count(1.0)),
+)
+
+/**
+ * The soft edge where a thread's messages meet its composer (or whatever stands at its foot): a
+ * band of the page's paper fading to nothing upward, laid over the messages so they dissolve into
+ * the composer instead of ending on a hard line — eased, so neither of its edges shows. Nothing
+ * under it is hidden from a finger or a screen reader. Light on a divider: the composer itself
+ * stays opaque on the same paper, so it reads as its edge, not as a shadow.
+ */
+@Composable
+fun ComposerFade(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(ComposerFadeHeight)
+            .clearAndSetSemantics { }
+            .drawBehind { drawRect(ComposerFadeBrush) },
+    )
+}
+
+/** How tall the composer's soft edge is (the thread's list keeps that much more room at its foot). */
+val ComposerFadeHeight = 12.dp
+
+/** The paper from the bottom (whole) to the top (gone), on an eased curve: 1, .75 at 35%, .3 at 70%, 0. */
+private val ComposerFadeBrush = Brush.verticalGradient(
+    0f to Tokens.Cream.copy(alpha = 0f),
+    0.3f to Tokens.Cream.copy(alpha = 0.3f),
+    0.65f to Tokens.Cream.copy(alpha = 0.75f),
+    1f to Tokens.Cream,
+)
 
 /** A reply's rule in the composer: a short vertical pen line in terracotta, wavy like the headers' edges. */
 @Composable

@@ -138,7 +138,12 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: ApiFailure) {
-                            error = if (e.status == 403) e.message else L10n.Messages.sendError
+                            error = when {
+                                // Notes waiting unanswered: the next one waits for their reply (in the app's words, never the server's).
+                                e.isConflict -> L10n.Card.Note.waitForReply
+                                e.status == 403 -> e.message
+                                else -> L10n.Messages.sendError
+                            }
                         } catch (e: Exception) {
                             error = L10n.Messages.sendError
                         } finally {

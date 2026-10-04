@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Resonance</string>
-    <!-- The paper color while the first frame draws (the color-cream token). -->
+    <!--
+      The paper color while the first frame draws (the color-cream token), and the system bars as
+      MainActivity's enableEdgeToEdge sets them: see-through, dark glyphs, no contrast scrim. Said here
+      too because on Android 12 and 12L the splash, as it hands off, copies this theme's bar colors
+      onto the window — Theme.Material's grey and black bands, had it none of its own.
+    -->
     <style name="Theme.Resonance" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/paper</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
     </style>
 
     <!--

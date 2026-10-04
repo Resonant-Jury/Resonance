@@ -43,8 +43,9 @@ data class ThreadRow(
 /**
  * Lays the thread out in runs, the way Messenger stacks messages sent close together: consecutive
  * messages from the same sender, less than [RUN_GAP_MILLIS] apart on the same day, with no label
- * between them, are one run; a reply opens a run (it leads with the quote it answers) and a message that
- * failed to send ends the run it is in (its "not sent" line sits under it). Used on the main thread; pure.
+ * between them, are one run; a reply opens a run (it leads with the quote it answers), so does a note
+ * (it leads with the card it was left on), and a message that failed to send ends the run it is in
+ * (its "not sent" line sits under it). Used on the main thread; pure.
  */
 object ThreadRows {
     /** Messages further apart than this don't stack. */
@@ -52,8 +53,14 @@ object ThreadRows {
     /** A message this long after the one before it (on the same day) gets a time label. */
     const val TIME_LABEL_GAP_MILLIS = 15 * 60_000L
 
-    /** [messages] oldest first, as [ThreadMessages.build] returns them. */
-    fun build(messages: List<ChatMessage>, zone: ZoneId = ZoneId.systemDefault()): List<ThreadRow> {
+    /**
+     * [messages] oldest first, as [ThreadMessages.build] returns them. Only those [drawn] says the
+     * thread draws have rows: one that draws nothing ([Carried.Nothing]: a card the viewer can't
+     * see, sent without words) shapes no run — the bubble before it keeps its round corner and their
+     * face — and leads no label.
+     */
+    fun build(messages: List<ChatMessage>, zone: ZoneId = ZoneId.systemDefault(), drawn: (ChatMessage) -> Boolean = { true }): List<ThreadRow> {
+        @Suppress("NAME_SHADOWING") val messages = messages.filter(drawn)
         if (messages.isEmpty()) return emptyList()
         val days = messages.map { day(it, zone) }
         val day = BooleanArray(messages.size) { it == 0 || days[it] != days[it - 1] }
@@ -64,8 +71,8 @@ object ThreadRows {
             val m = messages[i]
             val before = messages.getOrNull(i - 1)
             before != null && !day[i] && !time[i] &&
-                // A reply opens with the quote it answers: it starts a run of its own.
-                m.replyTo == null &&
+                // A reply opens with the quote it answers, a note with the card it was left on: each starts a run of its own.
+                m.replyTo == null && !m.isNote &&
                 before.senderId == m.senderId && before.delivery != Delivery.Failed &&
                 // A message still on its way carries this phone's clock: a few seconds off the server's doesn't unstack it.
                 abs(m.sentAt.time - before.sentAt.time) < RUN_GAP_MILLIS

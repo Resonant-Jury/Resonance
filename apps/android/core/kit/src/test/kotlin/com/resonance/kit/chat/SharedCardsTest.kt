@@ -29,7 +29,25 @@ class SharedCardsTest {
         assertEquals("a-walk", SharedCards.keyOf("https://resonance-world.vercel.app/en/card/a-walk"))
         // An id works as well as a slug; an escaped key is read decoded.
         assertEquals("eBkq0mYc2pQXn8vL1sD3", SharedCards.keyOf("https://resonance.channel/card/eBkq0mYc2pQXn8vL1sD3"))
-        assertEquals("一張卡", SharedCards.keyOf("https://resonance.channel/card/%E4%B8%80%E5%BC%B5%E5%8D%A1"))
+        assertEquals("a_b-c", SharedCards.keyOf("https://resonance.channel/card/a%5Fb-c"))
+    }
+
+    @Test fun aKeyNoCardCouldHaveIsNoCard() {
+        // The contract's CardKey is letters, digits, `_` and `-`, up to 160: asked for, anything else
+        // would fail the request for every other card shared beside it.
+        listOf(
+            // A link read on into the words written after it (the path may hold CJK letters).
+            "https://resonance.channel/card/rich-story了嗎",
+            "https://resonance.channel/card/%E4%B8%80%E5%BC%B5%E5%8D%A1",
+            "https://resonance.channel/card/hello.world", "https://resonance.channel/card/a,b", "https://resonance.channel/card/a~b",
+            "https://resonance.channel/card/..", "https://resonance.channel/card/a%20b",
+            "https://resonance.channel/card/" + "a".repeat(161),
+        ).forEach { assertNull(SharedCards.keyOf(it), it) }
+        assertEquals("a".repeat(160), SharedCards.keyOf("https://resonance.channel/card/" + "a".repeat(160)))
+        // Such a link is a link again, with its preview if the server made one.
+        val text = "看這張 https://resonance.channel/card/rich-story了嗎"
+        assertNull(SharedCards.of(message(text)))
+        assertEquals(Carried.Words, Carried.of(message(text), null, emptyMap(), emptySet()))
     }
 
     @Test fun anythingElseIsNoCard() {

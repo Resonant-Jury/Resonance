@@ -29,6 +29,19 @@ class ChatMessageTest {
         assertEquals(MessagingApi.Note("walk", "n1"), m.noteRef)
     }
 
+    @Test fun aNoteInTheThreadIsANoteAndAnUnknownKindIsAPlainMessage() {
+        val note = read("senderId" to "bob", "text" to "I walked there too", "cardRef" to "walk", "kind" to "note")
+        assertTrue(note.isNote)
+        assertEquals("walk", note.cardRef)
+        // Never "in reply to your note": a note in the thread carries no noteRef.
+        assertNull(note.noteRef)
+        assertFalse(read("senderId" to "bob", "text" to "hi").isNote)
+        // A kind a later server writes is drawn as the message it is.
+        val unknown = read("senderId" to "bob", "text" to "hi", "cardRef" to "walk", "kind" to "letter")
+        assertFalse(unknown.isNote)
+        assertEquals("walk", unknown.cardRef)
+    }
+
     @Test fun aReplyKeepsTheQuoteTheServerSnapshotted() {
         val m = read(
             "senderId" to "bob", "text" to "agreed",

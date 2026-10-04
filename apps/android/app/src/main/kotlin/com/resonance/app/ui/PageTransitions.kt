@@ -8,6 +8,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
@@ -34,9 +35,10 @@ import com.resonance.design.cream
  * between activities on new Android. NavDisplay still decides which transition runs and sequences
  * it (seeks the predictive one with the finger, finishes or reverses it on release, keeps the
  * leaving page composed until it is done, and draws the page that is opening or being dismissed
- * above the other). A ContentTransform cannot say a scrim or rounded corners, nor "hold, then leave
- * once let go", so the specs below are empty transforms that only name the move, and each page
- * draws its own part of it in [PageFrame] from how far its transition has got.
+ * above the other). A ContentTransform cannot say a scrim or rounded corners, nor "follow the
+ * finger, then fade where it was let go", so the specs below are empty transforms that only name
+ * the move, and each page draws its own part of it in [PageFrame] from how far its transition has
+ * got.
  */
 
 /** The kinds of move, each with how long it takes. */
@@ -48,11 +50,13 @@ internal enum class PageMove(val millis: Int) {
     Pop(300),
 
     /**
-     * Back by edge swipe. NavDisplay seeks the move with the finger, then plays what is left from
-     * wherever it was let go. The page shrinks over its first third, which is what the finger moves,
-     * and leaves in the rest, so a release plays the leaving with no pause in between.
+     * Back by edge swipe. NavDisplay seeks the move with the finger — the page shrinks over its
+     * first third, which is what the finger moves — and, once let go, plays what is left of it in
+     * time: (1 − how far the finger got) × this. So it is short, and what the page does in that
+     * time is not the rest of the swipe but [releasedPose]: back at once, as the system's own back
+     * between apps is.
      */
-    Predictive(400),
+    Predictive(150),
 
     /** The other tab's page replacing this one. */
     Tabs(150),
@@ -82,6 +86,10 @@ internal object PageMotionSpec {
     // At 0.9 a 411 dp phone's page is inset about 20 dp a side; 12 keeps it about 8 dp clear of the edge.
     const val SHIFT_DP = 12f
     const val CORNER_DP = 28f
+
+    /** Let go, the page drifts on this far the way the finger went as it fades, and shrinks by [RELEASE_SHRINK] more (never back toward rest). */
+    const val RELEASE_DRIFT_DP = 8f
+    const val RELEASE_SHRINK = 0.02f
 
     val Emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
@@ -141,6 +149,32 @@ internal fun pagePose(
 }
 
 /**
+ * A page let go of mid-swipe, and going ([releasing]): it stays as the finger left it ([drag], the
+ * swipe's pose at that moment) and fades, most of the way in the first few frames, with the scrim
+ * under it clearing as it goes — so the page beneath is there at once, as when the system goes back
+ * between apps. On the way it drifts on a little ([drift] px) the way the finger went ([finger])
+ * and shrinks a touch, so it reads as carried on, not stopped. [t] is how far the rest of the move
+ * has got (0..1); at 0 the page is exactly as it was let go.
+ */
+internal fun releasedPose(drag: PagePose, t: Float, finger: Float, drift: Float): PagePose {
+    val k = LinearOutSlowInEasing.transform(t.coerceIn(0f, 1f))
+    return drag.copy(
+        translationX = drag.translationX + finger * drift * k,
+        scale = drag.scale - PageMotionSpec.RELEASE_SHRINK * k,
+        alpha = drag.alpha * (1f - k),
+        scrim = drag.scrim * (1f - k),
+    )
+}
+
+/**
+ * Whether a page is being let go of: it was leaving by a back swipe and the swipe went through, so
+ * its route is no longer on its stack ([onStack]). A swipe called off leaves it there (and it goes
+ * back as the finger brings it), and a back by the arrow or the key is a [PageMove.Pop].
+ */
+internal fun releasing(move: PageMove, role: PageRole, onStack: Boolean): Boolean =
+    move == PageMove.Predictive && role == PageRole.Exiting && !onStack
+
+/**
  * Which move is starting, taken from the spec NavDisplay picks rather than worked out again from the
  * back stack and the gesture: [push] when the stack grew or a page replaced another, [pop] when it
  * shrank without a gesture, [predictivePop] while an edge swipe seeks the pop (the release finishes
@@ -189,6 +223,9 @@ private class PagePart(val move: PageMove, val edge: Int, val role: PageRole)
 
 private class PartHolder {
     var part: PagePart? = null
+
+    /** How far the swipe had got when it was let go ([releasing]); the page is drawn from that pose until it is gone. */
+    var releasedAt: Float? = null
 }
 
 /**
@@ -203,9 +240,14 @@ private class PartHolder {
  * kept until it settles again. Going by the transition's states instead would turn a page that was
  * opening into one that is leaving the moment a back cuts the push short, and it would jump; kept,
  * the same animation just runs backwards.
+ *
+ * A swipe let go of is told by the page's own route leaving its stack ([onStack]: that route, by
+ * identity, still at the page's place), which NavDisplay does on the release that goes through and
+ * not on one called off. Both are read while drawing, so the release changes how the page is drawn
+ * from the next frame, without composing it again.
  */
 @Composable
-internal fun PageFrame(motion: PageMotion, content: @Composable () -> Unit) {
+internal fun PageFrame(motion: PageMotion, onStack: () -> Boolean, content: @Composable () -> Unit) {
     val transition = LocalNavAnimatedContentScope.current.transition
     val held = remember { PartHolder() }
     val progress = transition.animateFloat(
@@ -217,6 +259,7 @@ internal fun PageFrame(motion: PageMotion, content: @Composable () -> Unit) {
     }
     if (settled) {
         held.part = null
+        held.releasedAt = null
     } else if (held.part == null) {
         val role = if (transition.targetState == EnterExitState.PostExit) PageRole.Exiting else PageRole.Entering
         held.part = PagePart(motion.move, motion.edge, role)
@@ -227,18 +270,31 @@ internal fun PageFrame(motion: PageMotion, content: @Composable () -> Unit) {
     val end = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1f else 1f
     val finger = if (part?.edge == BackEventCompat.EDGE_RIGHT) -1f else 1f
 
+    // The page's pose now (read while drawing): the move [f] of the way through — or, let go of, the
+    // pose it was let go in, fading. The scrim's pass needs no shift or corner.
+    fun pose(width: Float, shift: Float, corner: Float, drift: Float): PagePose {
+        val f = if (role == PageRole.Exiting) 1f - progress.value else progress.value
+        if (!releasing(move, role, onStack())) return pagePose(move, role, f, width, end, finger, shift, corner)
+        val at = held.releasedAt ?: f.also { held.releasedAt = it }
+        val t = if (at >= 1f) 1f else (f - at) / (1f - at)
+        return releasedPose(pagePose(move, role, at, width, end, finger, shift, corner), t, finger, drift)
+    }
+
     Box(
         Modifier.fillMaxSize().drawBehind {
-            val f = if (role == PageRole.Exiting) 1f - progress.value else progress.value
-            val scrim = pagePose(move, role, f, size.width, end, finger, 0f, 0f).scrim
+            val scrim = pose(size.width, 0f, 0f, 0f).scrim
             if (scrim > 0f) drawRect(Color.Black, alpha = scrim)
         },
     ) {
         Box(
             Modifier.fillMaxSize()
                 .graphicsLayer {
-                    val f = if (role == PageRole.Exiting) 1f - progress.value else progress.value
-                    val pose = pagePose(move, role, f, size.width, end, finger, PageMotionSpec.SHIFT_DP.dp.toPx(), PageMotionSpec.CORNER_DP.dp.toPx())
+                    val pose = pose(
+                        size.width,
+                        PageMotionSpec.SHIFT_DP.dp.toPx(),
+                        PageMotionSpec.CORNER_DP.dp.toPx(),
+                        PageMotionSpec.RELEASE_DRIFT_DP.dp.toPx(),
+                    )
                     translationX = pose.translationX
                     scaleX = pose.scale
                     scaleY = pose.scale

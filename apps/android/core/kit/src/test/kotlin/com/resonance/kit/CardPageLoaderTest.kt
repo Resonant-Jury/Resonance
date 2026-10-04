@@ -174,6 +174,38 @@ class CardPageLoaderTest {
         assertEquals(listOf(30, 5), routes.queries.map { q -> q.substringAfter("keys=").split("%2C", ",").size }.sortedDescending())
     }
 
+    @Test fun aKeyNoCardCouldHaveIsNeverAskedForAndIsNoCard() = runBlocking {
+        routes.on("/cards") { json(listJson("c1")) }
+        val cards = api.cardsByKey(listOf("c1", "故事", "a.html", "a".repeat(161)))
+        // One request, without them: the server would refuse it whole for any one of them.
+        assertEquals("c1", routes.parameter("/cards", "keys"))
+        assertEquals("c1", cards["c1"]?.id)
+        assertEquals(listOf("c1", "故事", "a.html", "a".repeat(161)), cards.keys.toList())
+        assertNull(cards["故事"])
+        // Nothing to ask for, nothing asked.
+        assertEquals(mapOf<String, Any?>("雨" to null), api.cardsByKey(listOf("雨")))
+        assertEquals(1, routes.requested.size)
+    }
+
+    @Test fun aRequestThatFailsLosesOnlyItsOwnCards() = runBlocking {
+        // 35 cards are two requests; the one with c31 in it fails, the other answers.
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): okhttp3.mockwebserver.MockResponse {
+                val keys = request.requestUrl!!.queryParameter("keys")!!.split(",")
+                return if ("c31" in keys) okhttp3.mockwebserver.MockResponse().setResponseCode(503)
+                else json(listJson(*keys.toTypedArray()))
+            }
+        }
+        val ids = (1..35).map { "c$it" }
+        val cards = api.cardsByKey(ids)
+        // The cards of the request that answered; the others are left out, to be asked for again.
+        assertEquals((1..30).map { "c$it" }, cards.keys.toList())
+        assertEquals("c30", cards["c30"]?.id)
+        assertTrue("c31" !in cards && "c35" !in cards)
+        // Every request failing is a failure.
+        assertFailsWith<ApiFailure> { api.cardsByKey(listOf("c31", "c32")) }
+    }
+
     @Test fun theCacheIsForgottenWhole() {
         cache.rememberPreview(feedCard("c1", "a-walk"))
         assertEquals("c1", cache.idFor("a-walk"))
