@@ -814,6 +814,15 @@ describe('cards: what the author may write', () => {
         await assertFails(updateDoc(old, { visibility: 'connections', updatedAt: serverTimestamp() }));
       });
 
+      it('keeps an older one its author\'s alone: no one answers it, connected to them or not', async () => {
+        await seedConnection();
+        // Bob is connected to Alice: her named card for connections he may answer, the anonymous one he may not.
+        await assertSucceeds(setDoc(doc(collection(as('bob'), 'cards')), draft('bob', { referenceCardId: 'namedConn' })));
+        await assertFails(setDoc(doc(collection(as('bob'), 'cards')), draft('bob', { referenceCardId: OLD })));
+        await assertFails(setDoc(doc(collection(as('carol'), 'cards')), draft('carol', { referenceCardId: OLD })));
+        await assertSucceeds(setDoc(doc(collection(as('alice'), 'cards')), draft('alice', { referenceCardId: OLD })));
+      });
+
       it("is no pending edit's outcome — unless the card already is, and the edit keeps it", async () => {
         const db = as('alice');
         const edit = (id: string) => doc(db, 'cards', id, 'edits', 'current');

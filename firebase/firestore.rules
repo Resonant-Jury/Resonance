@@ -30,14 +30,18 @@ service cloud.firestore {
     // A card is its author's; anyone else sees it once it is published, and
     // then only as its visibility allows. (Drafts start as "public": that is
     // the choice they will be published with, not permission to read them.)
-    // This is what answering a card asks — an anonymous card included.
+    // This is what answering a card asks — an anonymous card included. An
+    // anonymous card shown to connections only (none is made any more, see
+    // anonymousForConnections) is its author's alone: whether a reader could
+    // answer it would turn on being connected to its author.
     function cardOpen(data) {
       return (signedIn() && data.authorId == request.auth.uid)
         || (
           data.publishedAt != null
           && (
             data.visibility == "public"
-            || (signedIn() && data.visibility == "connections" && connectedTo(data.authorId))
+            || (signedIn() && data.visibility == "connections"
+                && data.get("anonymous", false) != true && connectedTo(data.authorId))
           )
         );
     }
@@ -72,7 +76,9 @@ service cloud.firestore {
     // connected to its author, and blocking someone ends the connection, so
     // the card vanishing as they blocked someone would name its author. An
     // anonymous card is public or private (the server holds publishing, a
-    // PATCH and an applied edit to the same: lib/db/firestore/cardContent).
+    // PATCH and an applied edit to the same: lib/db/firestore/cardContent),
+    // and one already so is read as private (cardOpen, and the server's
+    // cardVisible).
     function anonymousForConnections(d) {
       return d.get("anonymous", false) == true && d.get("visibility", "") == "connections";
     }
