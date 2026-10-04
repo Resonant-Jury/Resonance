@@ -190,6 +190,8 @@ struct ThreadScreen: View {
             ZStack(alignment: .bottom) {
                 MessageList(rows: model.rows, ctx: context(model), position: $scroll, topMargin: barHeight,
                             pillVisible: !(searching && showResults) && toast == nil, underBar: $underBar)
+                    // Under the search's list of matches the thread is out of sight: out of VoiceOver's reach too.
+                    .accessibilityHidden(searching && showResults)
                 if searching && showResults {
                     ThreadSearchResults(model: model, query: query, topMargin: barHeight, underBar: $resultsUnderBar) { pick($0) }
                 }

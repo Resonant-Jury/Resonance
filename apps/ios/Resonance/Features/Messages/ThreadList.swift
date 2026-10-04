@@ -393,7 +393,8 @@ struct MessageCore: View {
         let mine = model.isMine(message)
         let carried = model.carried(message)
         let words = carried.words(of: message)
-        let links = ChatLinks.links(in: words).map { MessageLinkRange(range: $0.range, url: $0.url) }
+        let found = ChatLinks.links(in: words)
+        let links = found.map { MessageLinkRange(range: $0.range, url: $0.url) }
         let pulse = ctx.flash.level(of: message.key)
         // A search hit in words the bubble doesn't show (a card's link, standing for the card) washes the whole bubble.
         let wholeHit = words != message.text && message.id == ctx.currentHit
@@ -432,11 +433,26 @@ struct MessageCore: View {
                 .opacity(ctx.lifted == message.key ? 0 : 1)
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { ctx.frames.frames[message.key] = $0 }
                 .gesture(MessagePress { link in press(link, carried: carried) })
-                // The press-and-hold is the message's whole menu: assistive tech reaches it (and Reply) as actions.
+                // The press-and-hold is the message's whole menu: assistive tech reaches it (and Reply) as actions —
+                // and each link in its words, which a finger finds by where it lies and VoiceOver can't.
                 .accessibilityAction(named: L10n.Messages.reply) { if ctx.model.canReply(message) { ctx.onReply(message) } }
+                .accessibilityActions {
+                    ForEach(Array(zip(found, Self.linkActionLabels(found)).enumerated()), id: \.offset) { _, pair in
+                        Button(pair.1) { ctx.openLink(pair.0.url) }
+                    }
+                }
                 .accessibilityAction(named: L10n.Messages.moreMenu) { press(nil, carried: carried) }
         } else {
             core
+        }
+    }
+
+    /// What VoiceOver calls the action of each link in a message's words: "Open link: host" (without
+    /// www., as a story's link card names it) — or, for links sharing a host, the link as written.
+    static func linkActionLabels(_ links: [ChatLinks.Link]) -> [String] {
+        let hosts = links.map { $0.host.replacingOccurrences(of: "www.", with: "", options: .anchored) }
+        return zip(links, hosts).map { link, host in
+            L10n.Card.LinkPreview.open(host: hosts.count(where: { $0 == host }) > 1 ? link.text : host)
         }
     }
 

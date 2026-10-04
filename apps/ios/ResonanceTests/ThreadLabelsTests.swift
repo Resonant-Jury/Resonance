@@ -4,8 +4,8 @@ import Testing
 @testable import Resonance
 
 /// The thread's quiet labels — the time between messages, the full time under a held message's
-/// menu, a search result's when — in each language the same as on Android and the web; and the
-/// link a held message offers, whatever its bubble carries.
+/// menu, a search result's when — in each language the same as on Android and the web; the link a
+/// held message offers, whatever its bubble carries; and what VoiceOver calls each of its links.
 @MainActor @Suite struct ThreadLabelsTests {
     /// 2026-09-29 15:04 where the test runs (the labels are local times).
     let afternoon = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 29, hour: 15, minute: 4))!
@@ -51,5 +51,16 @@ import Testing
         let plain = Carried<FeedCard>.of(words, share: nil) { _ in .loading }
         #expect(plain.link(of: words)?.absoluteString == "https://a.example/x")
         #expect(!plain.carriesMore)
+    }
+
+    @Test func everyLinkInAMessageIsAnActionOfItsOwn() {
+        // VoiceOver reaches each link, not only the first (the menu's): by its host, or as written where two share one.
+        let links = ChatLinks.links(in: "see https://www.b.example/x, https://a.example/1 and https://a.example/2")
+        #expect(MessageCore.linkActionLabels(links) == [
+            L10n.Card.LinkPreview.open(host: "b.example"),
+            L10n.Card.LinkPreview.open(host: "https://a.example/1"),
+            L10n.Card.LinkPreview.open(host: "https://a.example/2"),
+        ])
+        #expect(MessageCore.linkActionLabels([]).isEmpty)
     }
 }
