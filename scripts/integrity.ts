@@ -174,9 +174,10 @@ async function main() {
   const future = await db.collection('notifications').where('createdAt', '>', Timestamp.fromMillis(now + FUTURE_SLACK_MS)).get();
   add('notifications: createdAt in the future (pinned to the top of a bell)', 'delete the row', future.docs.map((d) => d.id));
   // For a day (5998ec4 → 90d9728) the browser rang a "like" with the very row a
-  // resonance rings — nothing tells the two apart. A reader who liked a card
-  // then and has answered it since counts as having rung its author: their
-  // answer rang no one and connected no one (lib/api/v1/resonate.ts legacyBell).
+  // resonance rings — only the date tells them apart, and when 90d9728 went
+  // live is recorded nowhere. A reader who liked a card then and has answered
+  // it since counts as having rung its author: their answer rang no one and
+  // connected no one (lib/api/v1/resonate.ts legacyBell).
   const likeDays = await db
     .collection('notifications')
     .where('createdAt', '>=', Timestamp.fromDate(new Date('2026-06-04T00:00:00+08:00')))

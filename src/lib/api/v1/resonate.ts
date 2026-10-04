@@ -95,10 +95,11 @@ export interface ReachReads {
  *
  * For one day (2026-06-04/05, 5998ec4 → 90d9728) the browser also rang this
  * row for a "like" (markResonance, before a resonance became a card): the
- * same type, the same payload, its own random id — nothing in the row tells
- * the two apart. So a reader who liked a card that day and answers it now
- * counts as having rung its author already: no second ring, and no
- * connection made by it.
+ * same type, the same payload, its own random id. Only its date tells the
+ * two apart — every such row from before 90d9728 went live was a like — and
+ * when that was is recorded nowhere. So a reader who liked a card that day
+ * and answers it now counts as having rung its author already: no second
+ * ring, and no connection made by it (fewer connections, never more).
  */
 const legacyBell = (db: Firestore, from: string, author: string, originalId: string) =>
   db.collection('notifications')
