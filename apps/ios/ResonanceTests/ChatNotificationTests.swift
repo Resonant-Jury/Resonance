@@ -73,6 +73,23 @@ import UserNotifications
         #expect(center.presentation(for: message()) == banner)
     }
 
+    @Test func aTappedMessageForAnotherAccountOpensNothing() {
+        let center = PushCenter()
+        // A push the server sends iOS names no recipient: the conversation's pair stands in.
+        center.open(userInfo: message())
+        #expect(center.opened?.isFor("alice") == true)
+        #expect(center.opened?.isFor("carol") == false)
+        #expect(center.opened?.isFor(nil) == false)
+        center.open(userInfo: message().merging(["toUserId": "bob"]) { $1 })
+        #expect(center.opened?.isFor("alice") == false)
+        // A bell's push says nothing of whom it was for: it opens as it always has.
+        center.open(userInfo: ["type": "note", "route": "/messages/bob", "notificationId": "n1"])
+        #expect(center.opened?.isFor("carol") == true)
+        // A message push names no bell row (an older server sent an empty id): none is marked read.
+        center.open(userInfo: message().merging(["notificationId": ""]) { $1 })
+        #expect(center.opened?.notificationId == nil)
+    }
+
     @Test func aDeliveredPushBelongsToItsConversation() {
         let grouped = UNMutableNotificationContent()
         grouped.threadIdentifier = "alice_bob"

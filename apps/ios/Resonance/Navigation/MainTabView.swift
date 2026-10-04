@@ -105,6 +105,8 @@ struct MainTabView: View {
         .onChange(of: push.opened, initial: true) { _, opened in
             guard let opened else { return }
             push.opened = nil
+            // A message sent to the account signed in before this one: nothing of it is opened here.
+            guard opened.isFor(session.uid) else { return }
             if let id = opened.notificationId { session.notifications.markRead(id: id) }
             if let url = URL(string: opened.route, relativeTo: session.config.origin)?.absoluteURL,
                let route = Route(url: url, origin: session.config.origin) {

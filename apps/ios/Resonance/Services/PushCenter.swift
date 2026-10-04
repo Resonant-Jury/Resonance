@@ -25,12 +25,25 @@ final class PushCenter {
         let notificationId: String?
         /// The sender's uid, on a push that opens their conversation (note, message, resonance, accepted invite).
         var fromUserId: String?
+        /// A chat message's push: it was sent to one account.
+        var chat: ChatPush?
         let at = Date()
+
+        /// Whether `uid`, signed in now, may follow it. A message sent to another account (a sign-out
+        /// whose unregister never reached the server leaves the install registered to it for a while)
+        /// still shows with the app closed (see `signedIn`), but a tap on it opens nothing here. A
+        /// bell's push names no recipient and opens as it always has.
+        func isFor(_ uid: String?) -> Bool {
+            chat?.isFor(uid) ?? true
+        }
     }
 
     var opened: Opened?
     private(set) var token: String?
-    /// The account signed in (the session sets it): a chat push for anyone else stays quiet.
+    /// The account signed in (the session sets it): a chat push for anyone else stays quiet while
+    /// the app is open. With the app closed the system shows it (the server's push for iOS carries
+    /// its words, and the app has no notification extension to take them back); a tap on it opens
+    /// nothing (`Opened.isFor`).
     @ObservationIgnored var signedIn: String?
     /// The conversation (its pair id) whose thread is on screen right now, with the app in the
     /// foreground: set while the thread is visible and cleared when it isn't, so a message that
@@ -108,8 +121,8 @@ final class PushCenter {
         onToken?(token)
     }
 
-    func open(route: String, notificationId: String?, fromUserId: String? = nil) {
-        opened = Opened(route: route, notificationId: notificationId, fromUserId: fromUserId)
+    func open(route: String, notificationId: String?, fromUserId: String? = nil, chat: ChatPush? = nil) {
+        opened = Opened(route: route, notificationId: notificationId, fromUserId: fromUserId, chat: chat)
     }
 
     // MARK: Chat
@@ -153,10 +166,12 @@ final class PushCenter {
         content.threadIdentifier == pairId || ChatPush(userInfo: content.userInfo)?.conversationId == pairId
     }
 
-    /// A tapped push's data (FCM's `data`, at the top of the payload).
+    /// A tapped push's data (FCM's `data`, at the top of the payload). An empty id names nothing (a
+    /// message's push has no bell row; an older server sent "").
     func open(userInfo info: [AnyHashable: Any]) {
-        let sender = (info["fromUserId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        open(route: info["route"] as? String ?? "", notificationId: info["notificationId"] as? String, fromUserId: sender)
+        let value = { (key: String) in (info[key] as? String).flatMap { $0.isEmpty ? nil : $0 } }
+        open(route: info["route"] as? String ?? "", notificationId: value("notificationId"), fromUserId: value("fromUserId"),
+             chat: ChatPush(userInfo: info))
     }
 }
 
