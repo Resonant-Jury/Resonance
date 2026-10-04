@@ -119,8 +119,9 @@ private const val QUOTE_RADIUS = 16.0
  * (1–8), bow 1.3, corner jitter 1.6, corners pulled in 4%.
  *
  * A bubble in a run of messages from one person (Messenger's stacking) tucks the corners that face
- * its neighbours to a radius of 4, on the sender's side — the right for your own, the left for
- * theirs: the first of a run tucks its bottom one, a middle one both, the last its top one
+ * its neighbours to a radius of 4, on the sender's side — the end side for your own, the start for
+ * theirs (the right and the left, mirrored where the layout reads right to left, as the row places
+ * them): the first of a run tucks its bottom one, a middle one both, the last its top one
  * ([RunPosition]). A bubble that carries a preview or a card is still one shape, and tucks the same.
  */
 class MessageBubbleShape(
@@ -137,19 +138,29 @@ class MessageBubbleShape(
         val across = min(6.0, max(2.0, jsRound(w / 80)))
         val down = min(8.0, max(1.0, jsRound(h / 52)))
         val radius = min(maxRadius, h * 0.42)
-        val tucked = min(TUCKED_RADIUS, radius)
-        val top = if (run.joinsAbove) tucked else radius
-        val bottom = if (run.joinsBelow) tucked else radius
-        val radii = if (mine) CornerRadii(radius, top, bottom, radius) else CornerRadii(top, radius, radius, bottom)
         return WobRectShape(
             radius, seed, mag = min(2.6, h * 0.05),
             options = WobRectOptions(
                 curve = 1.3, cornerJitter = 1.6, cornerOffset = min(w, h) * 0.04,
                 segmentsH = SegValue.Count(across), segmentsV = SegValue.Count(down),
-                cornerRadii = if (run == RunPosition.Single) null else radii,
+                cornerRadii = bubbleCorners(mine, run, radius, layoutDirection),
             ),
         ).createOutline(size, layoutDirection, density)
     }
+}
+
+/**
+ * A bubble's corners in its run ([MessageBubbleShape]): the full [radius], with the ones on the
+ * sender's side that face a neighbour tucked — the end side for your own, the start for theirs, in
+ * [direction]. Null (all alike) for a bubble on its own.
+ */
+internal fun bubbleCorners(mine: Boolean, run: RunPosition, radius: Double, direction: LayoutDirection): CornerRadii? {
+    if (run == RunPosition.Single) return null
+    val tucked = min(TUCKED_RADIUS, radius)
+    val top = if (run.joinsAbove) tucked else radius
+    val bottom = if (run.joinsBelow) tucked else radius
+    val onRight = mine == (direction == LayoutDirection.Ltr)
+    return if (onRight) CornerRadii(radius, top, bottom, radius) else CornerRadii(top, radius, radius, bottom)
 }
 
 /**
