@@ -459,7 +459,7 @@
       "deleteCancel": "先留著",
       "unresonate": "取消共振",
       "unresonateConfirmTitle": "不再與〈{title}〉共振？",
-      "unresonateConfirmBody": "卡片會留著，只是不再列在那篇的共振裡。",
+      "unresonateConfirmBody": "卡片會留著。如果是這次共振讓你們連結、對方也還沒寫信給你，你們的連結會一併收回。",
       "unresonateConfirm": "取消共振"
     },
     "anonymousBadge": "匿名發布",

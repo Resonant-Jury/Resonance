@@ -137,9 +137,11 @@ export async function deleteCard(
     tx.delete(ref);
     return snap.data()!;
   });
+  // The card is gone either way, so each clean-up below runs whatever the one before it did: a pending edit
+  // left under it is unreadable writing its author's account takes, stray notes go with that account too (or
+  // `backfill.ts orphan-notes`), and stray vectors only cost the recommender a candidate it then can't read.
   // What is under the card (its pending edit).
-  await db.recursiveDelete(ref);
-  // The card is gone either way: stray notes go with its author's account, stray vectors only cost the recommender a candidate it then can't read.
+  await db.recursiveDelete(ref).catch((e) => console.error('[api/v1] pending edit', id, e));
   await deleteNotesOn(db, id).catch((e) => console.error('[api/v1] notes', id, e));
   await Promise.resolve()
     .then(() => (vectors ?? getVectorStore()).deleteByCard(id))

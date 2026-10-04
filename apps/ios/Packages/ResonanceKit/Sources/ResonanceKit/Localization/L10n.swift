@@ -849,7 +849,7 @@ public enum L10n {
             public static var unresonate: String { Strings.shared.string("me.actions.unresonate") }
             /// Stop resonating with \"{title}\"?
             public static func unresonateConfirmTitle(title: String) -> String { Strings.shared.format("me.actions.unresonateConfirmTitle", ["title": title]) }
-            /// Your card stays; it just won't be listed with that card.
+            /// Your card stays. If this resonance is what connected you two and they haven't written to you, you won't be connected any
             public static var unresonateConfirmBody: String { Strings.shared.string("me.actions.unresonateConfirmBody") }
             /// Stop resonating
             public static var unresonateConfirm: String { Strings.shared.string("me.actions.unresonateConfirm") }

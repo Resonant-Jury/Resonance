@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRef } from 'react';
+import useSWR, { SWRConfig } from 'swr';
 import { act } from '@testing-library/react';
 import { renderWithIntl, screen, fireEvent, waitFor, userEvent } from '@/../test/render';
 import en from '@/messages/en.json';
@@ -11,6 +12,9 @@ const back = vi.fn();
 const replace = vi.fn();
 vi.mock('@/i18n/navigation', () => ({
   useRouter: () => ({ push, back, replace }),
+}));
+vi.mock('@/components/providers/AuthProvider', () => ({
+  useAuth: () => ({ user: { id: 'me' }, loading: false }),
 }));
 vi.mock('@/lib/db/firestore/client/cards', () => ({
   createCardDraft: vi.fn(),
@@ -461,6 +465,43 @@ describe('CardEditor', () => {
       } finally {
         vi.unstubAllGlobals();
       }
+    });
+
+    // Hiding or unnaming a resonance takes it back, which can end the connection with the original's author.
+    it('reads again what turns on the viewer’s connections once changes to a resonance are applied', async () => {
+      const connected = vi.fn(async () => true);
+      function Thread() {
+        useSWR('connected:bob_me', connected);
+        return null;
+      }
+      renderWithIntl(
+        <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+          <Thread />
+          <CardEditor locale="en" initial={livePost} referenceCardId="bobs-card" />
+        </SWRConfig>,
+      );
+      await waitFor(() => expect(connected).toHaveBeenCalledTimes(1));
+      await saveChanges();
+      await waitFor(() => expect(push).toHaveBeenCalledWith('/card/a-quiet-thought'));
+      await waitFor(() => expect(connected).toHaveBeenCalledTimes(2));
+    });
+
+    it('leaves the viewer’s connections alone when the card answers nothing', async () => {
+      const connected = vi.fn(async () => true);
+      function Thread() {
+        useSWR('connected:bob_me', connected);
+        return null;
+      }
+      renderWithIntl(
+        <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+          <Thread />
+          <CardEditor locale="en" initial={livePost} />
+        </SWRConfig>,
+      );
+      await waitFor(() => expect(connected).toHaveBeenCalledTimes(1));
+      await saveChanges();
+      await waitFor(() => expect(push).toHaveBeenCalledWith('/card/a-quiet-thought'));
+      expect(connected).toHaveBeenCalledTimes(1);
     });
 
     it('goes to the card where the server says it lives', async () => {

@@ -34,6 +34,7 @@ import type { GenerateImageEvent } from '@/app/api/generate-image/route';
 import { ndjsonValues } from '@/lib/streams/ndjson';
 import { useRouter } from '@/i18n/navigation';
 import { useLeaveWriter } from '@/lib/hooks/useLeaveWriter';
+import { useConnectionRefresh } from '@/lib/data/resonate';
 import styles from './CardEditor.module.css';
 
 // The publish panel loads when it is first opened, not with the editor.
@@ -164,6 +165,7 @@ export function CardEditor({
   const tCard = useTranslations('card');
   // const tAi = useTranslations('write.ai'); // AI 寫作夥伴：暫時停用
   const router = useRouter();
+  const refreshConnections = useConnectionRefresh();
   // Back where the writer came from — or, in a tab of its own, to the card box, where the draft now is.
   const leaveWriter = useLeaveWriter('/me');
   const inline = mode === 'inline';
@@ -469,6 +471,9 @@ export function CardEditor({
       }
       setHasPendingEdit(false);
       closedRef.current = true;
+      // A resonance these changes hid or unnamed was taken back with them: the connection with the original's
+      // author may have ended, so what turns on the viewer's connections is read again.
+      if (referenceCardId) refreshConnections();
       router.push(`/card/${result.slug ?? initial?.slug ?? id}`);
     } catch (err) {
       console.error('Save changes failed:', err);

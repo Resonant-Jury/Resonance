@@ -35,6 +35,12 @@ const resonanceReads = {
   ownPage: vi.fn(async () => ({})),
   resonatedShelf: vi.fn(async () => []),
 };
+/** …and what turns on whom the viewer is connected with: a thread's composer, their people (see lib/data/resonate). */
+const connectionReads = {
+  connected: vi.fn(async () => true),
+  conversation: vi.fn(async () => null),
+  people: vi.fn(async () => ['orig-author']),
+};
 function OwnLists() {
   useSWR('cardbox:u1:published', boxReads);
   useSWR('cardbox:u1:private', privateShelfReads);
@@ -43,6 +49,9 @@ function OwnLists() {
   useSWR('cardPage:orig:u1', resonanceReads.originalPage);
   useSWR('cardPage:c5:u1', resonanceReads.ownPage);
   useSWR('cardbox:u1:resonated', resonanceReads.resonatedShelf);
+  useSWR('connected:orig-author_u1', connectionReads.connected);
+  useSWR('conversation:orig-author_u1', connectionReads.conversation);
+  useSWR('conversations:u1', connectionReads.people);
   return null;
 }
 
@@ -163,7 +172,12 @@ describe('CardActionsMenu', () => {
     // Nothing sent yet: the question names the card it resonates with.
     expect(mockCallApi).not.toHaveBeenCalled();
     expect(screen.getByText('Stop resonating with "A walk"?')).toBeInTheDocument();
-    expect(screen.getByText("Your card stays; it just won't be listed with that card.")).toBeInTheDocument();
+    // The card stays — and the connection it made may not.
+    expect(
+      screen.getByText(
+        "Your card stays. If this resonance is what connected you two and they haven't written to you, you won't be connected any more.",
+      ),
+    ).toBeInTheDocument();
     // The card stays, so the verb is the dialog's plain solid fill, not the red of a delete.
     const confirm = screen.getByRole('button', { name: 'Stop resonating' });
     expect(confirm).toHaveAttribute('data-variant', 'solid');
@@ -212,6 +226,67 @@ describe('CardActionsMenu', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent("That didn't work. Try again.");
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  // A take-back by another way: hiding or deleting a resonance can end the connection with the original's author.
+  it.each([
+    ['making it private', 'Make private', null],
+    ['deleting it', 'Delete', 'Delete card'],
+  ])('reads again what turns on the viewer’s connections after %s', async (_how, item, confirm) => {
+    renderMenu(<CardActionsMenu card={{ id: 'c5', visibility: 'public', referenceCardId: 'orig' }} referenceTitle="A walk" />);
+    await waitFor(() => expect(connectionReads.people).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(connectionReads.connected).toHaveBeenCalledTimes(1));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Manage card' }));
+    await userEvent.click(screen.getByText(item));
+    if (confirm) await userEvent.click(screen.getByRole('button', { name: confirm }));
+
+    await waitFor(() => expect(connectionReads.connected).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(connectionReads.conversation).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(connectionReads.people).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(boxReads).toHaveBeenCalledTimes(2));
+    expect(profileReads).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves the viewer’s connections alone when the card resonates with nothing', async () => {
+    renderMenu(<CardActionsMenu card={{ id: 'c1', visibility: 'public' }} />);
+    await waitFor(() => expect(connectionReads.people).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage card' }));
+    await userEvent.click(screen.getByText('Make private'));
+    await waitFor(() => expect(boxReads).toHaveBeenCalledTimes(2));
+    expect(connectionReads.people).toHaveBeenCalledTimes(1);
+  });
+
+  // An older path, or a rule, refusing: the card stays where it was, and the viewer is told.
+  it('keeps the question open and says so when the server refuses the delete, leaving the card in its lists', async () => {
+    const onDeleted = vi.fn();
+    mockCallApi.mockRejectedValue(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }));
+    renderMenu(<CardActionsMenu card={{ id: 'c3', visibility: 'public' }} onDeleted={onDeleted} />);
+    await waitFor(() => expect(boxReads).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage card' }));
+    await userEvent.click(screen.getByText('Delete'));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete card' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("That didn't work. Try again.");
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(onDeleted).not.toHaveBeenCalled();
+    expect(boxReads).toHaveBeenCalledTimes(1);
+  });
+
+  it('says so when the server refuses a visibility change, and leaves the card as it was', async () => {
+    const onChanged = vi.fn();
+    mockCallApi.mockRejectedValue(new Error('Missing or insufficient permissions.'));
+    renderMenu(<CardActionsMenu card={{ id: 'c1', visibility: 'public' }} onChanged={onChanged} />);
+    await waitFor(() => expect(boxReads).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage card' }));
+    await userEvent.click(screen.getByText('Make private'));
+
+    const notice = await screen.findByRole('dialog', { name: 'Make private' });
+    expect(notice).toHaveTextContent("That didn't work. Try again.");
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(boxReads).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('keeps the card when the confirm dialog is cancelled', async () => {

@@ -459,7 +459,7 @@
       "deleteCancel": "Keep it",
       "unresonate": "Stop resonating",
       "unresonateConfirmTitle": "Stop resonating with \"{title}\"?",
-      "unresonateConfirmBody": "Your card stays; it just won't be listed with that card.",
+      "unresonateConfirmBody": "Your card stays. If this resonance is what connected you two and they haven't written to you, you won't be connected any more.",
       "unresonateConfirm": "Stop resonating"
     },
     "anonymousBadge": "Anonymous",

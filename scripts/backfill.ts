@@ -22,6 +22,9 @@
  *   npx tsx scripts/backfill.ts anonymous-bells [--apply] [--emulator]
  *       bells of a note or resonance on an anonymous card say so (`payload.anonymous`), as new ones do:
  *       they open the card, never a thread with whoever wrote the note or resonance
+ *   npx tsx scripts/backfill.ts orphan-notes  [--apply] [--emulator]
+ *       delete notes whose card is gone (left by older builds' client deletes, or a clean-up that failed
+ *       after the card went); notes naming no card are reported, not deleted — production runs are the owner's call
  *   npx tsx scripts/backfill.ts link-previews [--apply] [--emulator]
  *       published cards get the previews of their stories' standalone links (fetches the pages;
  *       --apply against production needs LINK_PREVIEW_SECRET or FIREBASE_PRIVATE_KEY — the deployment's —
@@ -111,6 +114,11 @@ async function main() {
       await backfillAnonymousBells(db, { apply });
       return;
     }
+    case 'orphan-notes': {
+      const { deleteOrphanNotes } = await import('./backfills/orphanNotes');
+      await deleteOrphanNotes(db, { apply });
+      return;
+    }
     case 'link-previews': {
       // The pictures' paths are signed by this process: with a key the deployment doesn't have, they 404.
       const source = process.env.LINK_PREVIEW_SECRET?.trim()
@@ -127,7 +135,7 @@ async function main() {
       return;
     }
     default:
-      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images | notes | anonymous-bells | link-previews)`);
+      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images | notes | anonymous-bells | orphan-notes | link-previews)`);
   }
 }
 

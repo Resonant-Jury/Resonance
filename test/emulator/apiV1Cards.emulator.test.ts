@@ -391,6 +391,28 @@ describe('deleteCard (DELETE /cards/{id})', () => {
     expect((await db.doc(`notes/${elsewhere.id}`).get()).exists).toBe(true);
   });
 
+  // Review: a failing clean-up of what is under the card skipped the notes after it.
+  it('still removes the notes, and the vectors, when what is under the card cannot be removed', async () => {
+    const { sendNote } = await import('@/lib/api/v1/conversations');
+    await db.doc('users/carol').set({ handle: 'carol', handleLower: 'carol' });
+    const note = await sendNote(db, 'carol', { cardId: 'live', text: 'hi' });
+    const underneath = vi.spyOn(db, 'recursiveDelete').mockRejectedValueOnce(new Error('deadline exceeded'));
+    const quiet = console.error;
+    console.error = () => {};
+    let tried = 0;
+    try {
+      await deleteCard(db, 'alice', 'live', new FirestoreVectorStore(db));
+      tried = underneath.mock.calls.length;
+    } finally {
+      console.error = quiet;
+      underneath.mockRestore();
+    }
+    expect(tried).toBe(1);
+    expect((await db.doc('cards/live').get()).exists).toBe(false);
+    expect((await db.doc(`notes/${note.id}`).get()).exists).toBe(false);
+    expect((await db.doc('cardVectors/live__insight').get()).exists).toBe(false);
+  });
+
   it("names only the id page of a card without a slug (a draft)", async () => {
     await db.doc('cards/draft').set({ authorId: 'alice', thoughtCore: '草稿', story: '', visibility: 'public', publishedAt: null });
     const { stale } = await deleteCard(db, 'alice', 'draft', new FirestoreVectorStore(db));

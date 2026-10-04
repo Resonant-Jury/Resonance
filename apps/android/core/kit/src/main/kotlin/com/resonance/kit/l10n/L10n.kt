@@ -851,7 +851,7 @@ object L10n {
             val unresonate: String get() = Strings.string("me.actions.unresonate")
             /** Stop resonating with \"{title}\"? */
             fun unresonateConfirmTitle(title: String): String = Strings.format("me.actions.unresonateConfirmTitle", mapOf("title" to title))
-            /** Your card stays; it just won't be listed with that card. */
+            /** Your card stays. If this resonance is what connected you two and they haven't written to you, you won't be connected any */
             val unresonateConfirmBody: String get() = Strings.string("me.actions.unresonateConfirmBody")
             /** Stop resonating */
             val unresonateConfirm: String get() = Strings.string("me.actions.unresonateConfirm")
