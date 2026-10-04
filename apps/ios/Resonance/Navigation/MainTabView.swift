@@ -183,6 +183,8 @@ struct MainTabView: View {
 /// stories the room: it slides up under the status bar while reading down and
 /// comes back on the way up (settling shown or hidden when the scroll stops).
 /// A `banner` floats just under the bar, over the content, and moves with it.
+/// A `.refreshable` given to it is pulled with the Resonance loader
+/// (`sketchRefreshable`), never the system's spinner.
 /// Home keeps its title in the page; every other tab (`titleInBar`) names
 /// itself in the bar where "Resonance" stood, with any `trailing` control at the
 /// bar's end, and the content starts just under the bar's line.
@@ -193,6 +195,8 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     let trailing: Trailing
     let banner: Banner
     let content: Content
+    /// The screen's `.refreshable` (the feed, the card box), handed on to the scroll view drawn with the loader.
+    @Environment(\.refresh) private var refresh
     @State private var scrolled = false
     /// How far the brand bar has slid up (0…`travel`).
     @State private var hidden: CGFloat = 0
@@ -237,6 +241,7 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
         }
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
+        .sketchRefreshable(refresh)
         .overlay(alignment: .top) { banner.offset(y: -hidden) }
         .safeAreaInset(edge: .top, spacing: 0) {
             OrganicBrandBar(title: titleInBar ? title : nil, scrolled: scrolled) { if titleInBar { trailing } }
