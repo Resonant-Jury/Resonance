@@ -50,6 +50,10 @@ final class ConversationsStore {
     @ObservationIgnored var onBlocksChange: (() -> Void)?
     /// Called with every read of the block list, the first included.
     @ObservationIgnored var onBlocks: ((Set<String>) -> Void)?
+    /// Called with the people whose connection with this account began or ended (not for the first
+    /// read at sign-in) — a resonance or an answered letter, a take-back or a block, here or on any
+    /// device, theirs or this account's.
+    @ObservationIgnored var onConnectionsChange: ((Set<String>) -> Void)?
 
     @ObservationIgnored private var uid: String?
     @ObservationIgnored private let listeners = LiveListeners()
@@ -81,7 +85,10 @@ final class ConversationsStore {
                     MainActor.assumeIsolated {
                         guard let self else { return }
                         guard let snap else { return self.failed("connections", error) }
-                        self.connectionUids = snap.documents.compactMap { ($0.get("userIds") as? [String])?.first { $0 != uid } }
+                        let uids = snap.documents.compactMap { ($0.get("userIds") as? [String])?.first { $0 != uid } }
+                        let moved = Self.moved(from: self.connectionUids, to: uids)
+                        self.connectionUids = uids
+                        if self.ready.contains("connections"), !moved.isEmpty { self.onConnectionsChange?(moved) }
                         self.arrived("connections")
                     }
                 }
@@ -186,6 +193,11 @@ final class ConversationsStore {
         } catch {
             return FirestoreFailure.isGone(error) ? .gone : .failed
         }
+    }
+
+    /// Whose connection began or ended between two reads of the list.
+    nonisolated static func moved(from before: [String], to after: [String]) -> Set<String> {
+        Set(before).symmetricDifference(after)
     }
 
     private static func other(in doc: QueryDocumentSnapshot, me: String) -> String? {

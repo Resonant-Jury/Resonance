@@ -107,6 +107,12 @@ struct ThreadScreen: View {
             .onChange(of: conversationListed) { _, listed in
                 if listed, visible { model?.resume() }
             }
+            // Connected to them, or no longer (a resonance, a take-back — either one's, from anywhere): what the
+            // foot offers is asked again; a letter left waiting applies again once the connection is gone.
+            .onChange(of: session.connectionsMoved) { _, moved in
+                guard let model, moved.concerns(model.otherId) else { return }
+                Task { await model.refreshConnection() }
+            }
             // Opened for a note that is in the thread: there, flashed, and the reply to it set up.
             .onChange(of: model?.noteToShow) { _, id in
                 guard let id, let model else { return }

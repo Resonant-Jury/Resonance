@@ -25,6 +25,11 @@ actor Calls<Call: Sendable> {
     func record(_ call: Call) { all.append(call) }
 }
 
+/// A switch a stubbed endpoint reads on each call (failing now, connected now).
+final class Flag: @unchecked Sendable {
+    var on = false
+}
+
 /// Waits (a little) for something the code under test does on its own time.
 @MainActor func eventually(within timeout: Duration = .seconds(3), _ condition: @MainActor () async -> Bool) async -> Bool {
     let end = ContinuousClock.now.advanced(by: timeout)
@@ -37,7 +42,8 @@ actor Calls<Call: Sendable> {
 
 /// Contract-shaped values, decoded from JSON as the API sends them.
 enum Fixture {
-    static func card(_ id: String, slug: String? = nil, title: String? = nil, anonymous: Bool = false, by author: String = "bob") -> FeedCard {
+    static func card(_ id: String, slug: String? = nil, title: String? = nil, anonymous: Bool = false, by author: String = "bob",
+                     visibility: String = "public") -> FeedCard {
         let slugJSON = slug.map { "\"\($0)\"" } ?? "null"
         let author = anonymous ? "null" : """
         {"id":"\(author)","handle":"\(author)","initials":"BO","accentColor":"oklch(90% 0.05 60)","avatarUrl":null,
@@ -45,7 +51,7 @@ enum Fixture {
         """
         return decode("""
         {"id":"\(id)","slug":\(slugJSON),"title":"\(title ?? "Card \(id)")","excerpt":"…","tags":["日常"],
-         "publishedAt":"2026-09-01T08:00:00.000Z","author":\(author),"anonymous":\(anonymous),"visibility":"public",
+         "publishedAt":"2026-09-01T08:00:00.000Z","author":\(author),"anonymous":\(anonymous),"visibility":"\(visibility)",
          "imageUrl":null,"imageLabel":null,"accentHue":140,"readMinutes":2,"referenceCardId":null,"reason":null}
         """)
     }
@@ -80,12 +86,12 @@ enum Fixture {
     }
 
     /// A profile as the API sends it; `cards` and `links` come along as `include` brings them.
-    static func profile(_ handle: String, cards: FeedPage? = nil, links: [FeedCard]? = nil) -> Profile {
+    static func profile(_ handle: String, cards: FeedPage? = nil, links: [FeedCard]? = nil, connected: Bool = false) -> Profile {
         let lists = (cards.map { #","cards":\#(json($0))"# } ?? "") + (links.map { #","links":{"cards":\#(json($0))}"# } ?? "")
         return decode("""
         {"author":{"id":"\(handle)","handle":"\(handle)","initials":"BO","accentColor":"oklch(90% 0.05 60)","avatarUrl":null,
          "avatarSeed":"42","verified":false,"region":"TW"},"bio":null,"joinedAt":"2026-01-01T00:00:00.000Z","cardCount":3,
-         "isSelf":false,"isConnected":false,"isBlocked":false\(lists)}
+         "isSelf":false,"isConnected":\(connected),"isBlocked":false\(lists)}
         """)
     }
 

@@ -10,6 +10,14 @@ import Testing
         #expect(ThreadAccess.of(connected: true, blocked: false, requestFrom: "bob", me: "alice") == .open)
     }
 
+    @Test func aLetterLeftWaitingAppliesAgainOnceTheConnectionEnds() {
+        // Connected by a resonance while a letter waits: the letter is ignored.
+        #expect(ThreadAccess.of(connected: true, blocked: false, requestFrom: "alice", me: "alice").canWrite)
+        // The resonance taken back, the connection gone: the letter's state is back, whoever wrote it.
+        #expect(ThreadAccess.of(connected: false, blocked: false, requestFrom: "alice", me: "alice") == .awaitingReply)
+        #expect(ThreadAccess.of(connected: false, blocked: false, requestFrom: "bob", me: "alice") == .replyToConnect)
+    }
+
     @Test func untilItIsKnownTheComposerShows() {
         #expect(ThreadAccess.of(connected: nil, blocked: false, requestFrom: nil, me: "alice") == .open)
     }

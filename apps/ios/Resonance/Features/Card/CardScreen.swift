@@ -96,6 +96,12 @@ struct CardScreen: View {
             if let id = model.detail?.card.id, let change = writer.lastChange, !change.concerns(id) { return }
             Task { await model.load() }
         }
+        // Someone's card for connections only, and the connection with them began or ended (a take-back —
+        // either one's, from anywhere): read again, so a card the reader may no longer see goes.
+        .onChange(of: session.connectionsMoved) { _, moved in
+            guard let model, moved.concerns(model.seenThroughConnection) else { return }
+            Task { await model.load() }
+        }
     }
 
     private func page(_ model: CardModel, _ detail: CardDetail) -> some View {

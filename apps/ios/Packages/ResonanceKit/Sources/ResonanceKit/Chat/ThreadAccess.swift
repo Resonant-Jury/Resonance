@@ -5,8 +5,10 @@ import Foundation
 ///
 /// A note left on a card is a letter: it connects no one, the card's author answering it does.
 /// While one waits, the conversation keeps `request: { from, cardId, at, count }` (the server's
-/// alone); once the author's reply connects the two, it is gone. Whether they are connected is
-/// still the connection itself (the profile's `isConnected`).
+/// alone); once the author's reply connects the two, it is gone. Only that answer clears it: two
+/// people connected some other way (a resonance) can still have one waiting, and while they are
+/// connected it is ignored — it applies again if a take-back ends the connection. Whether they are
+/// connected is still the connection itself (the profile's `isConnected`).
 public enum ThreadAccess: Equatable, Sendable {
     /// Connected (or not known yet: the composer shows meanwhile): write as usual.
     case open

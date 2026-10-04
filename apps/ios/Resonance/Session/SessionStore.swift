@@ -73,6 +73,9 @@ final class SessionStore {
     /// the server again, keeping theirs on screen meanwhile.
     private(set) var awayRefreshes = 0
     @ObservationIgnored private var foreground = ForegroundRefresh(last: .now)
+    /// The last change in who this account is connected with (`ConnectionsMove`): the screens
+    /// showing what a connection opens ask again when it concerns their person.
+    private(set) var connectionsMoved = ConnectionsMove()
     /// The block list kept from the last run, until the live one arrives.
     private var keptBlocked: Set<String> = []
 
@@ -123,6 +126,17 @@ final class SessionStore {
             guard let self, let uid else { return }
             kept.save(ids.sorted(), as: .blocked, uid: uid)
         }
+        // Connected or no longer (a resonance or a take-back, an answered letter, a block — anyone's, anywhere).
+        conversations.onConnectionsChange = { [weak self] people in self?.connectionsChanged(people) }
+    }
+
+    /// Who this account is connected with changed: what the server said about it (a profile's
+    /// `isConnected`, a card for connections only) may be in the HTTP cache, so the next GET asks
+    /// again; then the screens showing it are told (`connectionsMoved`).
+    func connectionsChanged(_ people: Set<String>) {
+        guard !people.isEmpty else { return }
+        httpCache.freshness.invalidate()
+        connectionsMoved = connectionsMoved.next(people)
     }
 
     var reading: ReadingAPI { ReadingAPI(client: api) }
@@ -513,5 +527,26 @@ extension UIApplication {
         var top = window?.rootViewController
         while let presented = top?.presentedViewController { top = presented }
         return top
+    }
+}
+
+/// A change in who the account is connected with: whose connection began or ended, numbered so
+/// that two alike in a row still count as two.
+struct ConnectionsMove: Equatable {
+    let count: Int
+    let people: Set<String>
+
+    init(count: Int = 0, people: Set<String> = []) {
+        self.count = count
+        self.people = people
+    }
+
+    func next(_ people: Set<String>) -> ConnectionsMove {
+        ConnectionsMove(count: count + 1, people: people)
+    }
+
+    /// Whether it touches `uid` (an unknown person is no one's).
+    func concerns(_ uid: String?) -> Bool {
+        uid.map(people.contains) ?? false
     }
 }

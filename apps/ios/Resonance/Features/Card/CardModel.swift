@@ -10,6 +10,8 @@ import ResonanceKit
 ///
 /// Opened from a list, the page starts from that list's copy of the card
 /// (`placeholder`: byline, cover, title) while the card itself is asked for.
+/// Read again once shown (an edit, a connection gone), it stays on the page
+/// should that read fail; only a card that is gone takes the page with it.
 @Observable
 final class CardModel {
     enum Phase: Equatable { case loading, loaded, notFound, failed(String) }
@@ -94,7 +96,16 @@ final class CardModel {
             phase = .notFound
             onNotFound(key)
         } catch {
+            // Read again while shown (offline, a server error): the page stays as it was.
+            guard detail == nil else { return }
             phase = .failed((error as? APIFailure)?.message ?? error.localizedDescription)
         }
+    }
+
+    /// Whose connection the reader sees this card through: its author, when it is someone
+    /// else's card for connections only — gone from the reader once that connection is.
+    var seenThroughConnection: String? {
+        guard let detail, !detail.isOwner, detail.card.visibility == .connections else { return nil }
+        return detail.card.author?.value1.id
     }
 }
