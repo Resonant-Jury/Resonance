@@ -341,6 +341,8 @@ export async function sendMessage(
   if (input.replyTo && RESERVED_ID.test(input.replyTo)) throw new ApiFailure('invalid_request', 'No such message to reply to.');
   const card = input.cardRef ? await visibleCardById(db, uid, input.cardRef) : null;
   if (card && !card.publishedAt) throw new ApiFailure('not_found', 'No such card.');
+  // A noteRef naming an id Firestore keeps for itself names no note: read as one that isn't there (one answer for all).
+  const noteRef = input.noteRef && !RESERVED_ID.test(input.noteRef.noteId) && !RESERVED_ID.test(input.noteRef.cardId) ? input.noteRef : null;
   const pair = pairOf(uid, other);
   const conversation = db.doc(`conversations/${pair}`);
   const messages = conversation.collection('messages');
@@ -353,8 +355,8 @@ export async function sendMessage(
       tx.get(db.doc(`users/${other}/blocks/${uid}`)),
       tx.get(db.doc(`connections/${pair}`)),
       tx.get(conversation),
-      input.noteRef ? tx.get(db.doc(`notes/${input.noteRef.noteId}`)) : Promise.resolve(null),
-      input.noteRef ? tx.get(db.doc(`cards/${input.noteRef.cardId}`)) : Promise.resolve(null),
+      noteRef ? tx.get(db.doc(`notes/${noteRef.noteId}`)) : Promise.resolve(null),
+      noteRef ? tx.get(db.doc(`cards/${noteRef.cardId}`)) : Promise.resolve(null),
       input.clientId ? tx.get(message) : Promise.resolve(null),
       input.replyTo ? tx.get(messages.doc(input.replyTo)) : Promise.resolve(null),
     ]);
@@ -372,7 +374,7 @@ export async function sendMessage(
     // A message answers a note they left you, on the card it names — nothing
     // else, one answer for all of it: a note of your own on an anonymous card
     // would otherwise tell you, by which error came back, whether they wrote it.
-    if (note && (!note.exists || note.get('cardId') !== input.noteRef!.cardId
+    if (input.noteRef && (!note?.exists || note.get('cardId') !== input.noteRef.cardId
       || note.get('fromUserId') !== other || note.get('toUserId') !== uid)) {
       throw new ApiFailure('invalid_request', 'That is not a note they left you.');
     }
@@ -380,7 +382,7 @@ export async function sendMessage(
     // One left on your anonymous card (or a card gone, which may have been
     // one) is answered all the same, without saying so: the message is theirs
     // to read too, and would tell them whose card it was.
-    const noteRef = note && noteCard?.exists && noteCard.get('anonymous') !== true ? input.noteRef! : null;
+    const keptNoteRef = noteRef && noteCard?.exists && noteCard.get('anonymous') !== true ? noteRef : null;
     // A reply answers a message of this conversation (the path alone keeps it from being anyone else's).
     if (replied && !replied.exists) throw new ApiFailure('invalid_request', 'No such message to reply to.');
 
@@ -405,7 +407,7 @@ export async function sendMessage(
       text: input.text,
       sentAt: FieldValue.serverTimestamp(),
       ...(card ? { cardRef: card.id } : {}),
-      ...(noteRef ? { noteRef: { cardId: noteRef.cardId, noteId: noteRef.noteId } } : {}),
+      ...(keptNoteRef ? { noteRef: { cardId: keptNoteRef.cardId, noteId: keptNoteRef.noteId } } : {}),
       ...(quoted ? { replyTo: quoted } : {}),
     });
     // The list's preview: the text, or the attached card's title when there is none.

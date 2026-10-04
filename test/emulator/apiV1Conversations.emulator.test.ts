@@ -701,6 +701,15 @@ describe('sendMessage', () => {
       expect(JSON.stringify(await docs('conversations/alice_bob/messages'))).not.toContain(onMasked);
     });
 
+    it('refuses a noteRef naming ids Firestore keeps for itself as any other wrong note, not an error of the server\'s', async () => {
+      await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
+      for (const noteRef of [{ cardId: '__x__', noteId: 'n1' }, { cardId: 'walk', noteId: '__x__' }]) {
+        const e = await failure(sendMessage(db, 'bob', { to: 'alice', text: 'x', noteRef }));
+        expect([e.code, e.message]).toEqual(['invalid_request', 'That is not a note they left you.']);
+      }
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(0);
+    });
+
     it('leaves out the noteRef of a card made anonymous since, or gone (it may have been one)', async () => {
       const { id: before } = await sendNote(db, 'alice', { cardId: 'walk', text: 'on a named card' });
       await db.doc('cards/walk').update({ anonymous: true });
