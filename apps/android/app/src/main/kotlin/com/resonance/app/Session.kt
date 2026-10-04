@@ -74,12 +74,24 @@ class Session(
 
     /**
      * What a signed-in person sees: the tabs, or first the pen-name step (a new
-     * account), or — before this device knows which — the paper and a loader.
-     * Only the API's own `not_found` for /me sends someone to onboarding; any
-     * other failure lets them in (the card box offers the retry), so a bad
-     * connection never traps an existing account there.
+     * account, or a profile made before onboarding asked for a pen name), or —
+     * before this device knows which — the paper and a loader. Only the API's
+     * own `not_found` for /me, or a profile it answers without a pen name, sends
+     * someone to onboarding; any other failure lets them in (the card box offers
+     * the retry), so a bad connection never traps an existing account there.
      */
-    enum class Entry { Waiting, Onboarding, App }
+    enum class Entry {
+        Waiting, Onboarding, App;
+
+        companion object {
+            /**
+             * Where an account with the profile [me] goes: a profile without a pen name chooses
+             * one first, as on the web (AppShell) — reaching anyone (a message, a note, a
+             * resonance) takes one, and onboarding (POST /api/v1/me) names such a profile.
+             */
+            fun of(me: Me): Entry = if (me.handle.isBlank()) Onboarding else App
+        }
+    }
 
     private val _phase = MutableStateFlow(Phase.Restoring)
     val phase: StateFlow<Phase> = _phase
@@ -285,7 +297,8 @@ class Session(
     private suspend fun restoreKept(who: String) {
         val account = kept?.of(who) ?: return
         account.blocked()?.let { if (uid == who) _keptBlocks.value = it }
-        val me = account.me() ?: return
+        // A kept profile without a pen name opens nothing: /me decides where it goes.
+        val me = account.me()?.takeIf { Entry.of(it) == Entry.App } ?: return
         val now = _profile.value
         if (uid == who && (now == Profile.Unknown || now == Profile.Loading || now == Profile.Failed)) {
             _profile.value = Profile.Loaded(me)
@@ -361,7 +374,8 @@ class Session(
     /**
      * Onboarding: the new account's pen name, region and writing language
      * (POST /api/v1/me). An account that already had a profile gets it back
-     * unchanged; a name taken meanwhile throws a conflict [ApiFailure].
+     * unchanged — named, if it had no pen name; a name taken meanwhile throws a
+     * conflict [ApiFailure].
      */
     suspend fun createProfile(handle: String, region: String, primaryLocale: String) {
         val me = profiles.create(handle, region, primaryLocale)
@@ -378,16 +392,22 @@ class Session(
 
     /**
      * The profile as the API returned it, with the account's scheduled deletion; the device
-     * remembers the account has one (and the profile, for the next cold start).
+     * remembers the account has one (and the profile, for the next cold start) — once it has a
+     * pen name: one without is sent to choose it ([Entry.of]), and is asked for again next time.
      */
     private fun setMe(me: Me) {
         _profile.value = Profile.Loaded(me)
         _deletionDate.value = me.deletion?.purgeAfter
+        val entry = Entry.of(me)
         uid?.let { who ->
-            prefs.edit().putBoolean(profileKey(who), true).apply()
-            scope.launch { kept?.of(who)?.saveMe(me) }
+            if (entry == Entry.App) {
+                prefs.edit().putBoolean(profileKey(who), true).apply()
+                scope.launch { kept?.of(who)?.saveMe(me) }
+            } else {
+                prefs.edit().remove(profileKey(who)).apply()
+            }
         }
-        _entry.value = Entry.App
+        _entry.value = entry
     }
 
     private fun profileKey(uid: String) = "hasProfile:$uid"
