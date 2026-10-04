@@ -65,6 +65,7 @@ import { callApi } from '@/lib/db/firestore/client/api';
 import { getCardById, getCardBySlugOrId, getUserByHandle, getUserById, isConnected } from '@/lib/db/firestore/client/reads';
 import { getConversation, getOlderMessages, sendMessage } from '@/lib/db/firestore/client/messages';
 import { forgetOutboxes } from '@/lib/data/thread';
+import { useConnectionRefresh } from '@/lib/data/resonate';
 import { wobRect } from '@/lib/design/wobRect';
 import { ThreadView } from './ThreadView';
 
@@ -692,6 +693,54 @@ describe('a letter: notes between two people who aren’t connected', () => {
     deliver([note, text('r1', 'Thank you for this.', { sentAt: new Date('2026-03-01T10:05:00Z') }, 'me')]);
     await waitFor(() => expect(vi.mocked(isConnected).mock.calls.length).toBeGreaterThan(asked));
     await waitFor(() => expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument());
+  });
+
+  // A letter can stay on the conversation while the two are connected (a resonance doesn't clear it, only its
+  // recipient's answer does): connected, it is no one's turn.
+  it.each([
+    ['the viewer', 'me'],
+    ['the other', 'alice'],
+  ])('ignores a letter from %s while the two are connected: the composer as ever, no line about whose turn it is', async (_who, from) => {
+    vi.mocked(isConnected).mockResolvedValue(true);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from, cardId: 'c1', count: 1 } });
+    server.messages = [{ ...notes[0], senderId: from }];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+
+    expect(await screen.findByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
+    expect(screen.getByText('Your walk stayed with me.')).toBeInTheDocument();
+    expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
+    expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument();
+  });
+
+  // …and once a take-back ends the connection (the card ⋯'s, elsewhere on the page), the letter is whose turn
+  // it is again: the refresh that follows one reads the connection and the conversation again.
+  it('shows the letter again when a take-back elsewhere ends the connection', async () => {
+    vi.mocked(isConnected).mockResolvedValue(true);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = notes;
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    let tookBack: () => void = () => {};
+    function TakeBack() {
+      const refresh = useConnectionRefresh();
+      tookBack = () => refresh();
+      return null;
+    }
+    renderWithIntl(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <ThreadView handle="alice" />
+        <TakeBack />
+      </SWRConfig>,
+    );
+    expect(await screen.findByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
+    const asked = vi.mocked(getConversation).mock.calls.length;
+
+    vi.mocked(isConnected).mockResolvedValue(false);
+    act(() => tookBack());
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
+    // The conversation, whose letter it is, is read again with it.
+    expect(vi.mocked(getConversation).mock.calls.length).toBeGreaterThan(asked);
   });
 
   it('keeps the messages of a conversation that no longer connects them, with the way to their profile', async () => {

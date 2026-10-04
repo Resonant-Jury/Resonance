@@ -25,10 +25,35 @@ export function resonanceKeys(uid: string, targetId: string, card: { id: string;
   ];
 }
 
+/** SWR keys held per viewer, ending in their uid (`{kind}:{what}:{uid}`), whose answers turn on whom they are connected with. */
+const PER_VIEWER = ['card:', 'cardPage:', 'profilePage:', 'relation:'];
+
+/**
+ * Whether an SWR key holds something that turns on the viewer's connections —
+ * what a resonance can start and taking one back can end: whether they are
+ * connected with someone (a thread's composer, the card page's「傳訊息」), a
+ * thread's conversation (whose waiting letter is someone's turn again once
+ * the two aren't), the people the messages page lists, a profile's standing
+ * and the cards it shows them, and every card a connection lets them read —
+ * a connections-only card's page and the lists around card pages, and the
+ * card box's shelves.
+ */
+export function dependsOnConnections(uid: string): (key: unknown) => boolean {
+  return (key) =>
+    typeof key === 'string' &&
+    (key.startsWith('connected:') ||
+      key.startsWith('conversation:') ||
+      key === `conversations:${uid}` ||
+      key.startsWith(`cardbox:${uid}:`) ||
+      (PER_VIEWER.some((kind) => key.startsWith(kind)) && key.endsWith(`:${uid}`)));
+}
+
 /**
  * Reads again everything {@link resonanceKeys} names, after the server
- * pointed one of the viewer's cards at another card or took it back. Only
- * what is cached is read again; the rest is read when it is next shown.
+ * pointed one of the viewer's cards at another card or took it back — and,
+ * since that can start or end a connection with the original's author,
+ * everything that {@link dependsOnConnections}. Only what is cached is read
+ * again; the rest is read when it is next shown.
  */
 export function useResonanceRefresh(): (targetId: string, card: { id: string; slug?: string }) => void {
   const { user } = useAuth();
@@ -37,7 +62,31 @@ export function useResonanceRefresh(): (targetId: string, card: { id: string; sl
   return useCallback(
     (targetId, card) => {
       if (!uid) return;
-      for (const key of resonanceKeys(uid, targetId, card)) void mutate(key);
+      const named = new Set(resonanceKeys(uid, targetId, card));
+      const connections = dependsOnConnections(uid);
+      // One pass, so a key both name is read again once.
+      void mutate((key) => (typeof key === 'string' && named.has(key)) || connections(key));
+    },
+    [mutate, uid],
+  );
+}
+
+/**
+ * After a take-back that went by another way — one of the viewer's published
+ * resonances deleted, made private, connections-only or anonymous (the card
+ * ⋯, the editor's applied changes): the connection with the original's
+ * author may have ended with it, so what {@link dependsOnConnections} is read
+ * again, with `also` (a caller's own keys) in the same pass.
+ */
+export function useConnectionRefresh(): (also?: (key: string) => boolean) => void {
+  const { user } = useAuth();
+  const { mutate } = useSWRConfig();
+  const uid = user?.id;
+  return useCallback(
+    (also) => {
+      if (!uid) return;
+      const connections = dependsOnConnections(uid);
+      void mutate((key) => connections(key) || (typeof key === 'string' && !!also?.(key)));
     },
     [mutate, uid],
   );
