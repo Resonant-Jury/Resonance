@@ -312,9 +312,11 @@ const RESERVED_ID = /^__.*__$/;
  * non-empty message unless it carries a card (one you can read). A reply to
  * a note carries its noteRef so the thread shows what it answers: a note the
  * recipient left the sender, nothing else. Only one left on a card under the
- * sender's name keeps it: a reply to a note on their anonymous card (or on a
- * card since deleted) is sent without it, quietly — the thread is the other
- * person's to read, and the note's card would tell them whose card it was.
+ * sender's name keeps it: a reply to a note on their anonymous card is sent
+ * without it, quietly — the thread is the other person's to read, and the
+ * note's card would tell them whose card it was. So is a reply to a note gone
+ * with its card (deleting a card deletes its notes): the reply still goes,
+ * and still answers a letter.
  *
  * Or answer a letter: with no connection, a message is allowed only to
  * someone whose notes to you wait in your conversation (`request.from` is
@@ -399,18 +401,24 @@ export async function sendMessage(
     const answers = openRequest(convo)?.from === other;
     // Connected first (a resonance, or an answered note, connects you); a block also ends the connection.
     if (!connection.exists && !answers) throw new ApiFailure('forbidden', 'You can message people you are connected with.');
+    // A note gone with its card — deleting a card deletes its notes after it —
+    // is answered all the same, without saying which (as below). A card that
+    // isn't yours is as gone as a missing one, so the answer never says
+    // whether someone else's card is there; one of yours still there means a
+    // note that never was.
+    const noteGone = !!noteRef && !note?.exists && !(noteCard?.exists && noteCard.get('authorId') === uid);
     // A message answers a note they left you, on the card it names — nothing
     // else, one answer for all of it: a note of your own on an anonymous card
     // would otherwise tell you, by which error came back, whether they wrote it.
-    if (input.noteRef && (!note?.exists || note.get('cardId') !== input.noteRef.cardId
+    if (input.noteRef && !noteGone && (!note?.exists || note.get('cardId') !== input.noteRef.cardId
       || note.get('fromUserId') !== other || note.get('toUserId') !== uid)) {
       throw new ApiFailure('invalid_request', 'That is not a note they left you.');
     }
     // A note they left you on a card under your name: the message says which.
-    // One left on your anonymous card (or a card gone, which may have been
-    // one) is answered all the same, without saying so: the message is theirs
-    // to read too, and would tell them whose card it was.
-    const keptNoteRef = noteRef && noteCard?.exists && noteCard.get('anonymous') !== true ? noteRef : null;
+    // One left on your anonymous card, or gone with its card (which may have
+    // been one), is answered all the same, without saying so: the message is
+    // theirs to read too, and would tell them whose card it was.
+    const keptNoteRef = noteRef && note?.exists && noteCard?.exists && noteCard.get('anonymous') !== true ? noteRef : null;
     // A reply answers a message of this conversation (the path alone keeps it from being anyone else's).
     if (replied && !replied.exists) throw new ApiFailure('invalid_request', 'No such message to reply to.');
 

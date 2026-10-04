@@ -3,6 +3,7 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { NOTE_REQUEST_MAX, sendMessage, sendNote } from '@/lib/api/v1/conversations';
+import { deleteCard } from '@/lib/api/v1/cards';
 import { acceptInvite } from '@/lib/api/v1/invites';
 import { resonateWith } from '@/lib/api/v1/resonate';
 import { SendMessageRequest } from '@/lib/api/v1/schemas';
@@ -730,6 +731,52 @@ describe('sendMessage', () => {
         expect([e.code, e.message]).toEqual(['invalid_request', 'That is not a note they left you.']);
       }
       expect(await docs('conversations/alice_bob/messages')).toHaveLength(0);
+    });
+
+    // Deleting a card deletes its notes after it: the bell, the push and the
+    // thread still hand the author the note to answer.
+    describe('a note gone with its card (DELETE /cards/{id})', () => {
+      const noVectors = { deleteByCard: async () => {} };
+
+      it('is answered all the same, without its noteRef — and the answer is still the one that connects the two', async () => {
+        await db.doc('connections/alice_bob').delete();
+        const { id } = await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter on your walk' });
+        await deleteCard(db, 'bob', 'walk', noVectors);
+        expect((await db.doc(`notes/${id}`).get()).exists).toBe(false);
+        // Bob answers from the note's bell, the note attached, as every client does.
+        const sent = await sendMessage(db, 'bob', { to: 'alice', text: 'thank you', noteRef: { cardId: 'walk', noteId: id } });
+        const stored = (await db.doc(`conversations/alice_bob/messages/${sent.id}`).get()).data()!;
+        expect(stored).toMatchObject({ senderId: 'bob', text: 'thank you' });
+        expect(stored).not.toHaveProperty('noteRef');
+        expect((await db.doc('connections/alice_bob').get()).exists).toBe(true);
+        expect((await db.doc('conversations/alice_bob').get()).get('request')).toBeUndefined();
+        expect((await db.doc('letters/alice_bob').get()).exists).toBe(false);
+      });
+
+      it('between two people connected too', async () => {
+        const { id } = await sendNote(db, 'alice', { cardId: 'walk', text: 'about your walk' });
+        await deleteCard(db, 'bob', 'walk', noVectors);
+        const sent = await sendMessage(db, 'bob', { to: 'alice', text: 'thanks', noteRef: { cardId: 'walk', noteId: id } });
+        expect((await db.doc(`conversations/alice_bob/messages/${sent.id}`).get()).get('noteRef')).toBeUndefined();
+      });
+
+      it('still refuses a note that is there and is not theirs, its card gone or not', async () => {
+        await deleteCard(db, 'bob', 'walk', noVectors);
+        // A stray an older build left behind: Carol's, not Alice's.
+        await db.doc('notes/stray').set({ cardId: 'walk', fromUserId: 'carol', toUserId: 'bob', text: 'x' });
+        const e = await failure(sendMessage(db, 'bob', { to: 'alice', text: 'x', noteRef: { cardId: 'walk', noteId: 'stray' } }));
+        expect([e.code, e.message]).toEqual(['invalid_request', 'That is not a note they left you.']);
+      });
+
+      // Only a card of the sender's own, still there, makes a missing note a wrong one:
+      // whether someone else's card is there is never the answer.
+      it("answers a missing note on a card that isn't the sender's alike, whether that card is there or not", async () => {
+        await db.doc('cards/alices').set({ authorId: 'alice', thoughtCore: 't', story: 's', visibility: 'private', anonymous: false, publishedAt: Timestamp.now() });
+        for (const cardId of ['alices', 'never-was']) {
+          const sent = await sendMessage(db, 'bob', { to: 'alice', text: cardId, noteRef: { cardId, noteId: 'nope' } });
+          expect((await db.doc(`conversations/alice_bob/messages/${sent.id}`).get()).get('noteRef')).toBeUndefined();
+        }
+      });
     });
 
     it('leaves out the noteRef of a card made anonymous since, or gone (it may have been one)', async () => {
