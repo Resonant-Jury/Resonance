@@ -419,8 +419,8 @@ service cloud.firestore {
 
     // --- connection origins (server-only) ---
     // connectionOrigins/{pair}: why two people are connected — each standing
-    // resonance that reached (which card of whose), an answered letter, an
-    // invite — and who has written to the other since. What lets taking a
+    // resonance that reached (which card of whose), its original's author's
+    // answer to one, an answered letter, an invite. What lets taking a
     // resonance back end the connection it alone stands for. It names which
     // card a resonance was, and a resonance may be made anonymous later, so
     // clients never see it (lib/api/v1/origins). Purged with either account.

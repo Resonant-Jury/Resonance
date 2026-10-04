@@ -171,9 +171,10 @@ export async function readReach(tx: Transaction, db: Firestore, from: string, or
  * whichever path fires, and a connection a block ended (or a take-back) is
  * never made again without a ring. A bell rung before the record had a fixed
  * id counts too (ReachReads.rang). The bell of a resonance on an anonymous
- * card says so (`payload.anonymous`): it opens the card, never a thread with
- * the resonator, which their unread count would answer for. Answers the
- * bell's id, or null when nothing rang.
+ * card says so (`payload.anonymous`): its push opens the card, never a thread
+ * with the resonator, which their unread count would answer for (the bell
+ * lists are to do the same: the clients' part). Answers the bell's id, or
+ * null when nothing rang.
  */
 export function reachOriginal(tx: Transaction, db: Firestore, cardId: string, card: DocumentData, r: ReachReads): string | null {
   const o = r.original;

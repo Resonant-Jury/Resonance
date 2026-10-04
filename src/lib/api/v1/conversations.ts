@@ -140,9 +140,10 @@ export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name fi
  * row, as before. Whether it is anonymous is read in the note's transaction,
  * beside the blocks: a byline taken off a moment before still keeps it out.
  *
- * The bell of a note on an anonymous card says so (`payload.anonymous`): it
- * opens the card, never a thread with the note's writer, which their unread
- * count there would answer for.
+ * The bell of a note on an anonymous card says so (`payload.anonymous`): its
+ * push opens the card (lib/push pushRoute), never a thread with the note's
+ * writer, which their unread count there would answer for — and the bell
+ * lists are to do the same (the clients' part, still to come).
  *
  * A block never answers for an anonymous card (the sender keeps their own
  * block list, and a refusal would name the author): across one, a note on an

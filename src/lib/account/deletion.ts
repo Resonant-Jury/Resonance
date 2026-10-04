@@ -155,7 +155,7 @@ async function collectAccountData(db: Firestore, uid: string) {
     // How many unanswered notes one left the other, either way (lib/api/v1/conversations letterRef).
     db.collection('letters').where('from', '==', uid),
     db.collection('letters').where('to', '==', uid),
-    // Why they are connected with someone, and who wrote to whom (lib/api/v1/origins).
+    // Why they are connected with someone (lib/api/v1/origins).
     db.collection('connectionOrigins').where('userIds', 'array-contains', uid),
     db.collection('cardLinks').where('sourceAuthorId', '==', uid),
     db.collection('cardLinks').where('targetAuthorId', '==', uid),
