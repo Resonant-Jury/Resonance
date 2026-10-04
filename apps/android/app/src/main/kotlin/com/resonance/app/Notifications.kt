@@ -27,8 +27,20 @@ class NotificationsStore {
         val count: Int?,
         val readAt: Date?,
         val createdAt: Date?,
+        /**
+         * A note or resonance on one of your anonymous cards (`payload.anonymous`): it opens the
+         * card, never a conversation with whoever wrote it (see [onAnonymousCard]).
+         */
+        val anonymous: Boolean = false,
     ) {
         val isUnread get() = readAt == null
+
+        /**
+         * A note or resonance on an anonymous card of yours. Opening its writer's conversation would
+         * zero their unread count there, which they can watch, and a reply would answer the card
+         * under your name: the row leads to the card instead, as its push does.
+         */
+        val onAnonymousCard: Boolean get() = anonymous && (type == "note" || type == "resonance")
     }
 
     private val _items = MutableStateFlow<List<Item>>(emptyList())
@@ -111,6 +123,7 @@ class NotificationsStore {
             count = (payload["count"] as? Number)?.toInt(),
             readAt = doc.getTimestamp("readAt")?.toDate(),
             createdAt = doc.getTimestamp("createdAt")?.toDate(),
+            anonymous = payload["anonymous"] == true,
         )
     }
 }

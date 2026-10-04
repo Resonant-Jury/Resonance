@@ -67,8 +67,9 @@ private fun NotificationRow(item: NotificationsStore.Item, session: Session, ope
         Modifier
             .fillMaxWidth()
             .plainClickable {
+                // The bell row is read; a conversation is marked read only by opening it, which an anonymous card's row never does.
                 session.notifications.markRead(item)
-                routeFor(item)?.let(open)
+                notificationRoute(item)?.let(open)
             }
             .padding(horizontal = 2.dp, vertical = 13.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
@@ -107,11 +108,16 @@ private fun textFor(item: NotificationsStore.Item): String {
 /**
  * Where a notification leads (the web's hrefs, NotificationBell): these open the
  * conversation with that person (by who they are, so a pen name changed since
- * still finds them); a note arrives quoted, ready to answer.
+ * still finds them); a note arrives quoted, ready to answer. A note or resonance
+ * on an anonymous card of yours opens that card instead — never its writer's
+ * conversation, and so no reply to it (as its push does: lib/push pushRoute).
  */
-private fun routeFor(item: NotificationsStore.Item): Route? = when (item.type) {
-    "translation_done", "card_link" -> item.cardId?.let { Route.Card(it) }
-    "note" -> item.fromHandle?.let { handle -> Route.Thread(handle, item.cardId?.takeIf { item.noteId != null }, item.noteId?.takeIf { item.cardId != null }, item.fromUserId) }
-    "invite_accepted", "message", "resonance" -> item.fromHandle?.let { Route.Thread(it, uid = item.fromUserId) }
-    else -> null
+internal fun notificationRoute(item: NotificationsStore.Item): Route? = when {
+    item.onAnonymousCard -> item.cardId?.let { Route.Card(it) }
+    else -> when (item.type) {
+        "translation_done", "card_link" -> item.cardId?.let { Route.Card(it) }
+        "note" -> item.fromHandle?.let { handle -> Route.Thread(handle, item.cardId?.takeIf { item.noteId != null }, item.noteId?.takeIf { item.cardId != null }, item.fromUserId) }
+        "invite_accepted", "message", "resonance" -> item.fromHandle?.let { Route.Thread(it, uid = item.fromUserId) }
+        else -> null
+    }
 }
