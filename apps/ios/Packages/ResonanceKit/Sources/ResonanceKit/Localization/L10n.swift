@@ -1272,5 +1272,7 @@ public enum L10n {
         public static var offline: String { Strings.shared.string("native.offline") }
         /// Feed
         public static var tabFeed: String { Strings.shared.string("native.tabFeed") }
+        /// Refresh
+        public static var refresh: String { Strings.shared.string("native.refresh") }
     }
 }

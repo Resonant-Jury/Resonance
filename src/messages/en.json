@@ -689,6 +689,7 @@
     "saveError": "Couldn't save that — try again.",
     "retry": "Try again",
     "offline": "You're offline. What you've already opened is still here.",
-    "tabFeed": "Feed"
+    "tabFeed": "Feed",
+    "refresh": "Refresh"
   }
 }

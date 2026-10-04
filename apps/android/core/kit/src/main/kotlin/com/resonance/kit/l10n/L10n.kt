@@ -1274,5 +1274,7 @@ object L10n {
         val offline: String get() = Strings.string("native.offline")
         /** Feed */
         val tabFeed: String get() = Strings.string("native.tabFeed")
+        /** Refresh */
+        val refresh: String get() = Strings.string("native.refresh")
     }
 }
