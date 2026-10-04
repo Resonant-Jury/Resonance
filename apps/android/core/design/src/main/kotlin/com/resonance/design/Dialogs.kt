@@ -273,11 +273,13 @@ fun OrganicConfirmDialog(
     error: String? = null,
     /** A permanent loss (delete a card, a conversation, the account): the verb in red. */
     destructive: Boolean = false,
+    /** The question's own words are still on their way: its place is kept, unwritten, rather than changing under the reader. */
+    titlePending: Boolean = false,
 ) {
     OrganicModal(if (busy) null else onCancel, title, seed) {
         // ConfirmModal: 8 between title and body, 18 before the actions (14 + ModalActions' 4).
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ModalTitle(title)
+            Box(Modifier.fade(if (titlePending) 0f else 1f)) { ModalTitle(title) }
             ModalBody(body)
         }
         if (error != null) BasicText(

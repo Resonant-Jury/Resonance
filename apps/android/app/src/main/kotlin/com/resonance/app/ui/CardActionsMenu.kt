@@ -156,8 +156,8 @@ fun CardActionsMenu(
 /**
  * "Stop resonating with 〈title〉?" — the card stays, answering nothing; the server lets go of its
  * link to the original. The title is the page's when it has it, else read once the question is
- * asked (until then the question is the plain words). Nothing here is irreversible, so the verb
- * is the plain solid fill.
+ * asked (until then the question keeps its place unwritten; one that can't be read is the plain
+ * words). Nothing here is irreversible, so the verb is the plain solid fill.
  */
 @Composable
 private fun UnresonateDialog(
@@ -171,10 +171,20 @@ private fun UnresonateDialog(
 ) {
     val scope = rememberCoroutineScope()
     var title by remember { mutableStateOf(knownTitle) }
+    var looking by remember { mutableStateOf(knownTitle == null) }
     var busy by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     LaunchedEffect(original) {
-        if (title == null) title = runCatching { session.reading.cardsByKey(listOf(original))[original]?.title }.getOrNull()
+        if (title == null) {
+            title = try {
+                session.reading.cardsByKey(listOf(original))[original]?.title
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
+        }
+        looking = false
     }
     OrganicConfirmDialog(
         title = title?.let(L10n.Me.Actions::unresonateConfirmTitle) ?: L10n.Me.Actions.unresonate,
@@ -204,5 +214,6 @@ private fun UnresonateDialog(
         busy = busy,
         seed = seed,
         error = if (failed) L10n.Safety.actionError else null,
+        titlePending = looking,
     )
 }
