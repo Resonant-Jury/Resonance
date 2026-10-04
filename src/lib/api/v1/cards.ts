@@ -4,16 +4,18 @@ import { mapCard } from '@/lib/db/firestore/mapper';
 import { getVectorStore, type IVectorStore } from '@/lib/recommend/vectorStore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { ApiFailure } from './http';
+import { readTakeBack, takeBack } from './origins';
 import { toFeedCard } from './present';
-import { becameReachable, readTakeBack } from './resonate';
+import { becameReachable, hiddenResonance } from './resonate';
 import { summaryFields } from './summary';
 import type { FeedCardBody, UpdateCardInput } from './schemas';
 
 /**
  * The card box's own changes to a card — its visibility, its byline, deleting
  * it — made by the server. The author can still do all three straight from
- * the client (the rules allow it for the builds that do), but only a server
- * path can drop the cached pages that showed the card as it was: each
+ * the client (the rules allow it for the builds that do) — but not to a
+ * published resonance, whose take-back only the server runs — and only a
+ * server path can drop the cached pages that showed the card as it was: each
  * answers the logical paths now stale (`stale`: the card, its author's
  * profile, the landing page when it could be listed there), which the route
  * revalidates after its response.
@@ -48,6 +50,10 @@ export interface UpdatedCard {
  * runs tryReachResonance after its response, so the answer never waits on
  * it): the two connected, their bell rung, once for each reader and card
  * whatever path rings it. The reach reads the card again, as it is then.
+ * One made private, connections-only or anonymous no longer stands under its
+ * original: it is taken back in the same transaction, as unresonate takes it
+ * back (hiddenResonance, ./origins) — the connection goes with it when
+ * nothing else holds it.
  */
 export async function updateCard(
   db: Firestore,
@@ -68,6 +74,9 @@ export async function updateCard(
     const after = { ...snap.data()!, ...patch };
     // Never into anonymous and for connections only; a card already that way keeps it until changed.
     if (changed && anonymousForConnections(after)) throw new ApiFailure('invalid_request', ANONYMOUS_VISIBILITY_MESSAGE);
+    // Read before anything is written: what hiding a published resonance takes back.
+    const plans = changed && hiddenResonance(after) ? await readTakeBack(tx, db, uid, id) : [];
+    takeBack(tx, plans);
     if (changed) {
       // A published card's story is as read here: its list summary is restated
       // with the new updatedAt (./summary). A draft gets one when it is published.
@@ -106,12 +115,12 @@ export async function updateCard(
  * they always have: readers resolve a missing card to nothing. Answers the
  * stale pages.
  *
- * A resonance takes back the connection it made, as taking it back without
- * deleting it does (unresonate): while the two have written each other
- * nothing, the connection goes in the same transaction as the card. The notes
- * go just after the card — once it is gone no note can land on it — so they
- * leave their writers' backups when the card's page goes, never later with
- * its author's account, which would say whose card it was.
+ * A resonance is taken back with it, as unresonate takes it back
+ * (readTakeBack): read in the transaction that deletes the card, so a
+ * resonance pointed at a card a moment before can't outlive it with its
+ * connection. The notes go just after the card — once it is gone no note can
+ * land on it — so they leave their writers' backups when the card's page goes,
+ * never later with its author's account, which would say whose card it was.
  */
 export async function deleteCard(
   db: Firestore,
@@ -120,27 +129,22 @@ export async function deleteCard(
   vectors?: Pick<IVectorStore, 'deleteByCard'>,
 ): Promise<{ stale: string[] }> {
   const ref = db.doc(`cards/${id}`);
-  const [snap, me] = await Promise.all([ref.get(), db.doc(`users/${uid}`).get()]);
-  if (!snap.exists || snap.get('authorId') !== uid) throw notFound();
-  const card = mapCard(id, snap.data()!);
-  const original = snap.get('referenceCardId');
-  if (typeof original === 'string' && original) {
-    await db.runTransaction(async (tx) => {
-      const now = await tx.get(ref);
-      if (!now.exists || now.get('authorId') !== uid) return;
-      const connection = now.get('referenceCardId') === original ? await readTakeBack(tx, db, uid, id, original) : null;
-      if (connection) tx.delete(connection);
-      tx.delete(ref);
-    });
-  }
-  // The card with what is under it (its pending edit), whether or not the above took the document first.
+  const data = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists || snap.get('authorId') !== uid) throw notFound();
+    takeBack(tx, await readTakeBack(tx, db, uid, id));
+    tx.delete(ref);
+    return snap.data()!;
+  });
+  // What is under the card (its pending edit).
   await db.recursiveDelete(ref);
   // The card is gone either way: stray notes go with its author's account, stray vectors only cost the recommender a candidate it then can't read.
   await deleteNotesOn(db, id).catch((e) => console.error('[api/v1] notes', id, e));
   await Promise.resolve()
     .then(() => (vectors ?? getVectorStore()).deleteByCard(id))
     .catch((e) => console.error('[api/v1] vectors', id, e));
-  return { stale: [...cardPagePaths(card), ...profilePagePaths(me.get('handle')), ...landingPagePaths(snap.data())] };
+  const me = await db.doc(`users/${uid}`).get();
+  return { stale: [...cardPagePaths(mapCard(id, data)), ...profilePagePaths(me.get('handle')), ...landingPagePaths(data)] };
 }
 
 /** Every note left on the card `id`, delivered or withheld, a batch at a time. */

@@ -2,6 +2,7 @@ import { FieldValue, type DocumentSnapshot, type Firestore, type Transaction } f
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { MessagePush } from '@/lib/push/chat';
 import { ApiFailure } from './http';
+import { addReason, connect, letterReason, noteWrote, originsRef } from './origins';
 import { cardVisible } from './present';
 import { visibleCardById } from './reads';
 
@@ -31,10 +32,15 @@ export const NOTE_REQUEST_MAX = 3;
  * the writer; `cardId` and `at` are their latest note's card and time;
  * `count` how many they have left unanswered (as their letters/* record
  * counts them). Written by the server only (the rules let a participant
- * change nothing but their unread count), and deleted by whatever connects
- * the two — or with the conversation: either participant may delete it, the
- * writer withdrawing their letter, its recipient declining it. Gone, it can
- * no longer be answered: the recipient's reply connects no one.
+ * change nothing but their unread count), and answered only by its
+ * recipient: their message or note to its writer deletes it (and accepting
+ * an invite between them does) — connecting them if they aren't. Anything
+ * else that connects the two (a resonance) leaves it as it is: clients
+ * ignore it while they are connected, and a resonance taken back leaves the
+ * letter waiting as it was. It also goes with the conversation: either
+ * participant may delete it, the writer withdrawing their letter, its
+ * recipient declining it. Gone, it can no longer be answered: the
+ * recipient's reply connects no one.
  */
 export interface NoteRequest {
   from: string;
@@ -59,8 +65,10 @@ export function openRequest(convo: DocumentSnapshot): NoteRequest | null {
  * unanswered (`at` and `cardId`: the latest one's). It is what holds the
  * writer to NOTE_REQUEST_MAX, and it lives where no one but the server
  * reaches (the rules close letters/* to clients): deleting the conversation
- * — which either of the two may do — never resets it. Whatever connects the
- * two deletes it, both ways (clearLetters); the account purge takes it from
+ * — which either of the two may do — never resets it, and neither does a
+ * connection made otherwise and taken back. Answering the letter deletes it,
+ * both ways (clearLetters): the recipient's message or note to its writer,
+ * or an invite accepted between them. The account purge takes it from
  * either side.
  */
 export const letterRef = (db: Firestore, from: string, to: string) => db.doc(`letters/${from}_${to}`);
@@ -69,15 +77,15 @@ export const letterRef = (db: Firestore, from: string, to: string) => db.doc(`le
 export const lettersLeft = (letter: DocumentSnapshot) => (letter.exists ? countOf(letter.get('count')) : 0);
 
 /**
- * Two people now connected: the count of each one's unanswered notes to the
- * other goes (blind deletes — a record that isn't there deletes nothing).
+ * A letter answered: the count of each one's unanswered notes to the other
+ * goes (blind deletes — a record that isn't there deletes nothing).
  */
 export function clearLetters(tx: Transaction, db: Firestore, a: string, b: string): void {
   tx.delete(letterRef(db, a, b));
   tx.delete(letterRef(db, b, a));
 }
 
-/** Whether a conversation holds a `request` field at all (one to delete when the two connect). */
+/** Whether a conversation holds a `request` field at all (one to delete when it is answered). */
 export const holdsRequest = (convo: DocumentSnapshot | null | undefined) => convo?.exists === true && convo.get('request') !== undefined;
 
 /**
@@ -118,8 +126,11 @@ export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name fi
  * a conflict ("Wait for them to reply."), writing and ringing nothing.
  * Crossing letters: a note to someone whose own letter to the sender is
  * waiting answers it — the two are connected, `request` and both counts gone,
- * in the same transaction. Between two people already connected a note is
- * one more message.
+ * in the same transaction, the answered letter the connection's reason
+ * (connectionOrigins). Between two people already connected a note is one
+ * more message: it counts nothing, and answers a letter only from that
+ * letter's recipient (it is kept as a reason then: a resonance taken back
+ * leaves them connected); and the connection records that its sender wrote.
  *
  * A note on an anonymous card stays out of every thread, even between two
  * people already connected (the conversation would tell the sender whose card
@@ -161,7 +172,7 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
   const letter = letterRef(db, uid, author);
 
   return db.runTransaction(async (tx) => {
-    const [now, me, blockOut, blockIn, connected, convo, mine] = await Promise.all([
+    const [now, me, blockOut, blockIn, connected, convo, mine, origins] = await Promise.all([
       tx.get(db.doc(`cards/${card.id}`)),
       tx.get(db.doc(`users/${uid}`)),
       tx.get(db.doc(`users/${uid}/blocks/${author}`)),
@@ -169,6 +180,7 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
       tx.get(connection),
       tx.get(conversation),
       tx.get(letter),
+      tx.get(originsRef(db, uid, author)),
     ]);
     // The card as it is now: one deleted or hidden from the sender since the read above takes no note.
     const current = now.exists ? mapCard(now.id, now.data()!) : null;
@@ -197,12 +209,10 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
     }
     // Not connected, on a named card: a letter, waiting for its answer.
     const writing = threaded && !connected.exists;
-    const request = openRequest(convo);
-    // Crossing letters: theirs to me is waiting, and this note answers it.
-    const answers = writing && request?.from === author;
-    // My notes to them still unanswered: their record — or, beside one from
-    // before it was kept, the conversation's own count of them.
-    const left = writing ? Math.max(lettersLeft(mine), request?.from === uid ? request.count : 0) : 0;
+    // Their letter to me is waiting, and this note — mine, its recipient's — answers it
+    // (crossing letters when we aren't connected; connected, it is a reason we are).
+    const answers = threaded && openRequest(convo)?.from === author;
+    const left = writing ? lettersLeft(mine) : 0;
     if (writing && !answers && left >= NOTE_REQUEST_MAX) throw new ApiFailure('conflict', 'Wait for them to reply.');
 
     const note = db.collection('notes').doc();
@@ -232,14 +242,18 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
       ...(threaded ? { pushedAt: FieldValue.serverTimestamp() } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
-    // Their letter answered: the two are connected (`answers` means there was no connection to write over).
+    if (!threaded) return { id: note.id, notificationId: bell.id, push: null };
+
     if (answers) {
-      tx.set(connection, { userIds: [uid, author].sort(), establishedAt: FieldValue.serverTimestamp() });
+      // Their letter answered: the two connected by it — or, connected already, kept so by it too.
+      if (writing) connect(tx, db, [uid, author], letterReason(uid), { wrote: uid });
+      else addReason(tx, db, [uid, author], origins, letterReason(uid));
       clearLetters(tx, db, uid, author);
     } else if (writing) {
       tx.set(letter, { from: uid, to: author, count: left + 1, cardId: card.id, at: FieldValue.serverTimestamp() });
     }
-    if (!threaded) return { id: note.id, notificationId: bell.id, push: null };
+    // Words between two people connected: the connection keeps that they wrote (a take-back reads it).
+    if (!writing) noteWrote(tx, db, uid, author);
 
     if (!convo.exists) {
       tx.set(conversation, {
@@ -263,10 +277,10 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
       lastMessage: { text: cut(input.text, LAST_MESSAGE_PREVIEW), senderId: uid, sentAt: FieldValue.serverTimestamp() },
       updatedAt: FieldValue.serverTimestamp(),
       unread: { [author]: FieldValue.increment(1) },
-      // A letter waits for its answer; an answer, or a note between two connected, leaves none waiting.
+      // A letter waits for its answer; the answer leaves none waiting. Anything else leaves it as it is.
       ...(writing && !answers
         ? { request: { from: uid, cardId: card.id, at: FieldValue.serverTimestamp(), count: left + 1 } }
-        : holdsRequest(convo) ? { request: FieldValue.delete() } : {}),
+        : answers && holdsRequest(convo) ? { request: FieldValue.delete() } : {}),
     }, { merge: true });
     return { id: note.id, notificationId: bell.id, push: { conversationId: pair, messageId: note.id, from: uid, to: author } };
   });
@@ -306,7 +320,13 @@ const RESERVED_ID = /^__.*__$/;
  * connection made, `request` and both people's letters/* counts deleted in
  * the same transaction as the message. Everyone else, the letter's own
  * writer included, is refused as before — and so is everyone once the
- * conversation holding the letter is deleted (withdrawn or declined).
+ * conversation holding the letter is deleted (withdrawn or declined). Between
+ * two people already connected (a resonance did it) a letter still waiting is
+ * answered the same way, by its recipient only, and stays a reason they are
+ * connected (connectionOrigins); a message from its writer leaves it waiting.
+ * Every message is recorded on the connection as its sender's words
+ * (noteWrote): a resonance taken back keeps a connection the original's
+ * author has written in.
  *
  * `replyTo` names a message of this same conversation; the new message keeps
  * a snapshot of it (`replyTo: { id, senderId, text, cardRef? }`, the text cut
@@ -353,12 +373,13 @@ export async function sendMessage(
   const message = input.clientId ? messages.doc(input.clientId) : messages.doc();
 
   return db.runTransaction(async (tx) => {
-    const [me, blockOut, blockIn, connection, convo, note, noteCard, existing, replied] = await Promise.all([
+    const [me, blockOut, blockIn, connection, convo, origins, note, noteCard, existing, replied] = await Promise.all([
       tx.get(db.doc(`users/${uid}`)),
       tx.get(db.doc(`users/${uid}/blocks/${other}`)),
       tx.get(db.doc(`users/${other}/blocks/${uid}`)),
       tx.get(db.doc(`connections/${pair}`)),
       tx.get(conversation),
+      tx.get(originsRef(db, uid, other)),
       noteRef ? tx.get(db.doc(`notes/${noteRef.noteId}`)) : Promise.resolve(null),
       noteRef ? tx.get(db.doc(`cards/${noteRef.cardId}`)) : Promise.resolve(null),
       input.clientId ? tx.get(message) : Promise.resolve(null),
@@ -371,8 +392,8 @@ export async function sendMessage(
     }
     if (!hasPenName(me)) throw noPenName();
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot message this person.');
-    // Answering their letter: this reply is what connects the two of you.
-    const answers = !connection.exists && openRequest(convo)?.from === other;
+    // Answering their letter (I am its recipient): without a connection, this reply is what connects the two of you.
+    const answers = openRequest(convo)?.from === other;
     // Connected first (a resonance, or an answered note, connects you); a block also ends the connection.
     if (!connection.exists && !answers) throw new ApiFailure('forbidden', 'You can message people you are connected with.');
     // A message answers a note they left you, on the card it names — nothing
@@ -391,9 +412,13 @@ export async function sendMessage(
     if (replied && !replied.exists) throw new ApiFailure('invalid_request', 'No such message to reply to.');
 
     if (answers) {
-      tx.set(db.doc(`connections/${pair}`), { userIds: [uid, other].sort(), establishedAt: FieldValue.serverTimestamp() });
+      // Their letter answered: it connects you — or, connected already, stays a reason you are.
+      if (connection.exists) addReason(tx, db, [uid, other], origins, letterReason(uid));
+      else connect(tx, db, [uid, other], letterReason(uid));
       clearLetters(tx, db, uid, other);
     }
+    // Your words, kept on the connection: a resonance taken back keeps a connection its original's author wrote in.
+    noteWrote(tx, db, uid, other);
     // An answered letter has a conversation already: no "new conversation" bell for it.
     const first = !convo.exists;
     if (first) {
@@ -419,8 +444,8 @@ export async function sendMessage(
       lastMessage: { text: cut(input.text || card?.thoughtCore || '', LAST_MESSAGE_PREVIEW), senderId: uid, sentAt: FieldValue.serverTimestamp() },
       updatedAt: FieldValue.serverTimestamp(),
       unread: { [other]: FieldValue.increment(1) },
-      // Connected (or connecting now): no letter waits any more.
-      ...(holdsRequest(convo) ? { request: FieldValue.delete() } : {}),
+      // Their letter answered: it waits no more. One of yours waits on (only they answer it).
+      ...(answers && holdsRequest(convo) ? { request: FieldValue.delete() } : {}),
     }, { merge: true });
     if (first) {
       // The bell lists a new conversation, but the push for it is the chat push's (pushedAt marks it done).

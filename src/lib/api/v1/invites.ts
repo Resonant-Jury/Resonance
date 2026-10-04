@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { clearLetters, hasPenName, holdsRequest, noPenName, pairOf } from './conversations';
 import { ApiFailure } from './http';
+import { addReason, connect, inviteReason, originsRef } from './origins';
 
 export interface AcceptedInvite {
   /** connections/{id}: the two user ids, sorted, joined by "_". */
@@ -14,11 +15,13 @@ export interface AcceptedInvite {
  * answered). What the web's acceptInvite() did from the browser, in one
  * transaction: the invite goes from pending to accepted, the two are
  * connected — naming the invite; a connection they already have (a
- * resonance or an answered note made it since) is kept as it is — and the
- * sender's bell rings "invite accepted", under the recipient's pen name as
- * it is now. Connecting them answers any letter waiting in their
- * conversation (`request`, see sendNote): it is deleted, with both people's
- * letters/* counts.
+ * resonance or an answered note made it since) is kept as it is, the
+ * accepted invite one more reason it stands (connectionOrigins: taking a
+ * resonance back never ends it then) — and the sender's bell rings "invite
+ * accepted", under the recipient's pen name as it is now. Both of them
+ * having said yes, it answers any letter waiting in their conversation
+ * (`request`, see sendNote): it is deleted, with both people's letters/*
+ * counts.
  *
  * Only its recipient may accept it: anyone else's is not_found. A block
  * either way refuses it; one no longer pending (declined, withdrawn,
@@ -48,12 +51,12 @@ export async function acceptInvite(db: Firestore, uid: string, inviteId: string)
       return 'expired';
     }
 
-    const connection = db.doc(`connections/${pair}`);
-    const [me, blockOut, blockIn, existing, conversation] = await Promise.all([
+    const [me, blockOut, blockIn, existing, origins, conversation] = await Promise.all([
       tx.get(db.doc(`users/${uid}`)),
       tx.get(db.doc(`users/${uid}/blocks/${other}`)),
       tx.get(db.doc(`users/${other}/blocks/${uid}`)),
-      tx.get(connection),
+      tx.get(db.doc(`connections/${pair}`)),
+      tx.get(originsRef(db, uid, other)),
       tx.get(db.doc(`conversations/${pair}`)),
     ]);
     // The pen name before the blocks, as on every path that reaches someone.
@@ -62,11 +65,10 @@ export async function acceptInvite(db: Firestore, uid: string, inviteId: string)
     if (blockOut.exists || blockIn.exists) throw new ApiFailure('blocked', 'You cannot connect with this person.');
 
     tx.update(ref, { status: 'accepted' });
-    if (!existing.exists) {
-      tx.set(connection, { userIds: [uid, other].sort(), establishedAt: FieldValue.serverTimestamp(), inviteId });
-      if (holdsRequest(conversation)) tx.update(conversation.ref, { request: FieldValue.delete() });
-      clearLetters(tx, db, uid, other);
-    }
+    if (existing.exists) addReason(tx, db, [uid, other], origins, inviteReason(inviteId));
+    else connect(tx, db, [uid, other], inviteReason(inviteId), { extra: { inviteId } });
+    if (holdsRequest(conversation)) tx.update(conversation.ref, { request: FieldValue.delete() });
+    clearLetters(tx, db, uid, other);
     const bell = db.collection('notifications').doc();
     tx.set(bell, {
       userId: other,

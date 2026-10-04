@@ -688,6 +688,7 @@ describe('cards: what the author may write', () => {
       await seed(async (db) => {
         await setDoc(doc(db, 'cards', ID), { ...publishedCard('alice', { referenceCardId: 'orig', readCount: 3 }), accentHue: null });
         await setDoc(doc(db, 'cards', 'draft1'), publishedCard('alice', { publishedAt: null, slug: null }));
+        await setDoc(doc(db, 'cards', 'plain'), publishedCard('alice'));
       });
     });
 
@@ -699,9 +700,33 @@ describe('cards: what the author may write', () => {
       await assertSucceeds(setDoc(ref, { media: { type: 'image', url: 'https://img.example/x.avif', label: 'x' }, accentHue: 120, updatedAt: serverTimestamp() }, { merge: true }));
       // A removed cover: media deleted, hue nulled.
       await assertSucceeds(setDoc(ref, { media: deleteField(), accentHue: null, updatedAt: serverTimestamp() }, { merge: true }));
-      // The card box's 轉為公開／私人 and applying a pending edit on a published card.
-      await assertSucceeds(setDoc(doc(db, 'cards', ID), { visibility: 'private', updatedAt: serverTimestamp() }, { merge: true }));
+      // The card box's 轉為公開／私人 and applying a pending edit on a published card (older builds).
+      await assertSucceeds(setDoc(doc(db, 'cards', 'plain'), { visibility: 'private', updatedAt: serverTimestamp() }, { merge: true }));
       await assertSucceeds(setDoc(doc(db, 'cards', ID), { thoughtCore: 'Edited', story: 'Edited', updatedAt: serverTimestamp() }, { merge: true }));
+    });
+
+    // A published resonance may be why two people are connected: hiding or
+    // deleting it takes that back, and only the server does (PATCH / DELETE
+    // /api/v1/cards/{id}, edits/apply). A client doing it would keep the
+    // connection with nothing left standing under the original.
+    it("leaves a published resonance's byline, visibility and deletion to the server", async () => {
+      await seed(async (db) => {
+        await setDoc(doc(db, 'cards', 'draftAnswer'), publishedCard('alice', { publishedAt: null, slug: null, referenceCardId: 'orig' }));
+      });
+      const db = as('alice');
+      const answer = doc(db, 'cards', ID);
+      await assertFails(updateDoc(answer, { visibility: 'private', updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(answer, { visibility: 'connections', updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(answer, { anonymous: true, updatedAt: serverTimestamp() }));
+      await assertFails(deleteDoc(answer));
+      // Its words stay the author's; the editors write the two back unchanged.
+      await assertSucceeds(setDoc(answer, { story: 'Edited', visibility: 'public', anonymous: false, updatedAt: serverTimestamp() }, { merge: true }));
+      // A draft answer never reached anyone, and a card answering nothing is no reason for anything.
+      await assertSucceeds(updateDoc(doc(db, 'cards', 'draftAnswer'), { visibility: 'private', anonymous: true, updatedAt: serverTimestamp() }));
+      await assertSucceeds(deleteDoc(doc(db, 'cards', 'draftAnswer')));
+      await assertSucceeds(updateDoc(doc(db, 'cards', 'plain'), { anonymous: true, updatedAt: serverTimestamp() }));
+      await assertSucceeds(deleteDoc(doc(db, 'cards', 'plain')));
+      await assertFails(deleteDoc(doc(as('bob'), 'cards', 'draft1')));
     });
 
     it('never lets the client publish, re-date, re-slug, re-attribute or re-point a card', async () => {
@@ -978,6 +1003,26 @@ describe('server-only records', () => {
     await assertFails(setDoc(doc(as('alice'), 'uploads', 'u2'), { ownerId: 'alice', key: 'x' }));
     await assertFails(getDoc(doc(as('alice'), 'config', 'storage')));
     await assertFails(setDoc(doc(as('alice'), 'config', 'storage'), { host: 'tracker.example' }));
+  });
+
+  // Why two people are connected names which card of whose made it — a
+  // resonance its writer may have made anonymous since. Neither of them reads it.
+  it("why two people are connected is the server's alone, theirs included", async () => {
+    await seedConnection();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'connectionOrigins', PAIR), {
+        userIds: ['alice', 'bob'],
+        reasons: { resonance_alice_mine: { kind: 'resonance', by: 'alice', cardId: 'mine', originalId: 'orig' } },
+        resonanceCards: ['mine'],
+        wrote: {},
+      });
+    });
+    for (const uid of ['alice', 'bob', 'carol']) {
+      await assertFails(getDoc(doc(as(uid), 'connectionOrigins', PAIR)));
+      await assertFails(getDocs(query(collection(as(uid), 'connectionOrigins'), where('userIds', 'array-contains', uid))));
+      await assertFails(setDoc(doc(as(uid), 'connectionOrigins', PAIR), { userIds: ['alice', 'bob'], reasons: { legacy: {} } }));
+      await assertFails(deleteDoc(doc(as(uid), 'connectionOrigins', PAIR)));
+    }
   });
 });
 

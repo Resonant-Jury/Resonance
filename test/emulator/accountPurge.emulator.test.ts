@@ -83,6 +83,9 @@ async function seedWorld() {
     // Withheld across a block, on cards long deleted: found by whom they were withheld from.
     set('notes/w-alice', { cardId: 'deleted-card', fromUserId: 'carol', toUserId: null, withheldFor: 'alice', text: 'w' }),
     set('notes/w-bob', { cardId: 'deleted-card-2', fromUserId: 'carol', toUserId: null, withheldFor: 'bob', text: 'w' }),
+    // Why two people are connected (server-only), with either of them.
+    set('connectionOrigins/alice_bob', { userIds: ['alice', 'bob'], reasons: { letter: { kind: 'letter' } }, resonanceCards: [], wrote: { bob: now } }),
+    set('connectionOrigins/bob_carol', { userIds: ['bob', 'carol'], reasons: { legacy: { kind: 'legacy' } }, resonanceCards: [], wrote: {} }),
     // How many unanswered notes one left the other (server-only), either way.
     set('letters/alice_bob', { from: 'alice', to: 'bob', count: 1 }),
     set('letters/carol_alice', { from: 'carol', to: 'alice', count: 2 }),
@@ -165,6 +168,7 @@ describe('purgeAccount', () => {
       'notes/n1',
       'notes/n2',
       'notes/w-alice',
+      'connectionOrigins/alice_bob',
       'letters/alice_bob',
       'letters/carol_alice',
       'cardLinks/bob-card_alice-card',
@@ -196,6 +200,7 @@ describe('purgeAccount', () => {
       'resonances/bob-card_carol',
       'notes/n3',
       'notes/w-bob',
+      'connectionOrigins/bob_carol',
       'letters/bob_carol',
       'notifications/bob-own',
       'cardVectors/bob-card__insight',

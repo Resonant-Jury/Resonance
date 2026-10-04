@@ -470,27 +470,40 @@ describe('a letter: a note between two people not connected', () => {
       });
     }
 
+    const fixtures = () => Promise.all([
+      db.doc('cards/bobAnswer').set({ authorId: 'bob', thoughtCore: 'answer', story: 's', visibility: 'public', anonymous: false, publishedAt: Timestamp.now() }),
+      db.doc('invites/i1').set({ fromUserId: 'alice', toUserId: 'bob', status: 'pending', expiresAt: Timestamp.fromMillis(Date.now() + 86_400_000) }),
+      // An older count of Bob's to Alice, from a letter she declined.
+      db.doc('letters/bob_alice').set({ from: 'bob', to: 'alice', count: 2, cardId: 'dawn', at: Timestamp.now() }),
+    ]);
     const paths: [string, () => Promise<unknown>][] = [
       ['a reply', () => sendMessage(db, 'bob', { to: 'alice', text: 'hello' })],
       ['a crossing note', () => sendNote(db, 'bob', { cardId: 'dawn', text: 'hello' })],
-      ['a resonance', () => resonateWith(db, 'bob', 'dawn', 'bobAnswer')],
       ['a legacy invite', () => acceptInvite(db, 'bob', 'i1')],
     ];
-    for (const [path, connect] of paths) {
-      it(`goes, both ways, when the two connect through ${path}`, async () => {
-        await Promise.all([
-          db.doc('cards/bobAnswer').set({ authorId: 'bob', thoughtCore: 'answer', story: 's', visibility: 'public', anonymous: false, publishedAt: Timestamp.now() }),
-          db.doc('invites/i1').set({ fromUserId: 'alice', toUserId: 'bob', status: 'pending', expiresAt: Timestamp.fromMillis(Date.now() + 86_400_000) }),
-          // An older count of Bob's to Alice, from a letter she declined.
-          db.doc('letters/bob_alice').set({ from: 'bob', to: 'alice', count: 2, cardId: 'dawn', at: Timestamp.now() }),
-        ]);
+    for (const [path, answer] of paths) {
+      it(`goes, both ways, when its recipient answers it with ${path}`, async () => {
+        await fixtures();
         await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
-        await connect();
+        await answer();
         expect(await connected()).toBe(true);
         expect(await letter('alice', 'bob')).toBeUndefined();
         expect(await letter('bob', 'alice')).toBeUndefined();
+        expect(await convo()).not.toHaveProperty('request');
       });
     }
+
+    // A resonance is not an answer: taken back, it would have reset the count of a letter never answered.
+    it('stays, both ways, when a resonance connects the two: only its recipient answers a letter', async () => {
+      await fixtures();
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
+      const waiting = (await convo())!.request;
+      await resonateWith(db, 'bob', 'dawn', 'bobAnswer');
+      expect(await connected()).toBe(true);
+      expect(await letter('alice', 'bob')).toMatchObject({ count: 1 });
+      expect(await letter('bob', 'alice')).toMatchObject({ count: 2 });
+      expect((await convo())!.request).toEqual(waiting);
+    });
   });
 
   it('answers past the cap: crossing letters are a reply, never a fourth note', async () => {
@@ -577,14 +590,22 @@ describe('a letter: a note between two people not connected', () => {
     expect(await convo()).toEqual(before);
   });
 
-  it('clears a request found beside a connection with the next note or message (whatever connected them)', async () => {
+  it('beside a connection made otherwise, waits for its recipient: their message or note answers it, its writer\'s words leave it', async () => {
     await sendNote(db, 'alice', { cardId: 'walk', text: 'a letter' });
     await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
     await sendMessage(db, 'alice', { to: 'bob', text: 'hi' });
+    await sendNote(db, 'alice', { cardId: 'river', text: 'and a note' });
+    expect((await convo())!.request).toMatchObject({ from: 'alice', count: 1 });
+    expect((await db.doc('letters/alice_bob').get()).get('count')).toBe(1);
+    await sendMessage(db, 'bob', { to: 'alice', text: 'thanks' });
     expect(await convo()).not.toHaveProperty('request');
+    expect((await db.doc('letters/alice_bob').get()).exists).toBe(false);
+    // Bob's letter, Alice's note back: answered too.
     await db.doc('conversations/alice_bob').update({ request: { from: 'bob', cardId: 'dawn', at: Timestamp.now(), count: 1 } });
+    await db.doc('letters/bob_alice').set({ from: 'bob', to: 'alice', count: 1, cardId: 'dawn', at: Timestamp.now() });
     await sendNote(db, 'alice', { cardId: 'walk', text: 'a note' });
     expect(await convo()).not.toHaveProperty('request');
+    expect((await db.doc('letters/bob_alice').get()).exists).toBe(false);
   });
 });
 

@@ -146,13 +146,15 @@ describe('publishCard', () => {
       expect(bell.docs[0].data()).toMatchObject({ type: 'resonance', readAt: null, payload: { fromUserId: 'alice', fromHandle: 'alice', cardId: 'orig' } });
     });
 
-    it('answers a letter waiting between the two: the connection it makes clears the request', async () => {
+    it('leaves a letter waiting between the two as it is: only its recipient answers it', async () => {
       await sendNote(db, 'alice', { cardId: 'orig', text: 'a letter before the resonance' });
-      expect((await db.doc('conversations/alice_bob').get()).get('request')).toMatchObject({ from: 'alice', count: 1 });
+      const request = (await db.doc('conversations/alice_bob').get()).get('request');
+      expect(request).toMatchObject({ from: 'alice', count: 1 });
       await draft('r1', { referenceCardId: 'orig' });
       await publishCard(db, 'alice', 'r1', slugBase);
       expect((await db.doc('connections/alice_bob').get()).exists).toBe(true);
-      expect((await db.doc('conversations/alice_bob').get()).get('request')).toBeUndefined();
+      expect((await db.doc('conversations/alice_bob').get()).get('request')).toEqual(request);
+      expect((await db.doc('letters/alice_bob').get()).get('count')).toBe(1);
     });
 
     it("connects the authors without waiting for a slow slug", async () => {
