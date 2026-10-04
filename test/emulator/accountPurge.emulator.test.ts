@@ -274,7 +274,7 @@ describe('purgeAccount', () => {
     await db.doc('users/carol/blocks/alice').set({ blockedUid: 'alice' });
     const withheld = await sendNote(db, 'carol', { cardId: 'alice-masked', text: 'after the block' });
     expect(withheld.notificationId).toBeNull();
-    // Deleted as an older app deletes a card: the document alone.
+    // Deleted as older app builds deleted a card, before the rules left that to the server: the document alone.
     await db.doc('cards/alice-masked').delete();
     await purgeAccount({ db, deleteAuthUser: vi.fn(async () => {}) }, 'alice');
     expect(await exists(`notes/${delivered.id}`)).toBe(false);

@@ -3,9 +3,10 @@ import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 /**
  * Pending edits (cards/{id}/edits/current) and what can be left of them.
  *
- *  - An edit whose card is gone: older app builds delete a card straight
- *    from the client, which leaves its subcollection behind — unpublished
- *    writing nobody can read or delete any more. Deleted here.
+ *  - An edit whose card is gone: older app builds deleted a card straight
+ *    from the client (the rules now leave a published one to the server),
+ *    which left its subcollection behind — unpublished writing nobody can
+ *    read or delete any more. Deleted here.
  *  - An edit without its author's uid (written before the clients named it):
  *    given the uid of its card's author, so the account purge can find it
  *    should its card later go the same way.

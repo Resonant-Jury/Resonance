@@ -12,13 +12,14 @@ import type { FeedCardBody, UpdateCardInput } from './schemas';
 
 /**
  * The card box's own changes to a card — its visibility, its byline, deleting
- * it — made by the server. The author can still do all three straight from
- * the client (the rules allow it for the builds that do) — but not to a
- * published resonance, whose take-back only the server runs — and only a
- * server path can drop the cached pages that showed the card as it was: each
- * answers the logical paths now stale (`stale`: the card, its author's
- * profile, the landing page when it could be listed there), which the route
- * revalidates after its response.
+ * it — made by the server. The author can still change the first two straight
+ * from the client (the rules allow it for the builds that do), but not on a
+ * published resonance, whose take-back only the server runs; and the client
+ * deletes drafts only, since deleting a published card deletes the notes left
+ * on it, which only the server reaches. Only a server path can drop the
+ * cached pages that showed the card as it was: each answers the logical paths
+ * now stale (`stale`: the card, its author's profile, the landing page when
+ * it could be listed there), which the route revalidates after its response.
  */
 
 const notFound = () => new ApiFailure('not_found', 'No such card.');
@@ -108,10 +109,10 @@ export async function updateCard(
 }
 
 /**
- * Delete your card, draft or published — what the card box's delete does from
- * the client, plus what only the server can reach: its pending edit (a
- * subcollection the client's delete leaves behind), the notes left on it and
- * its recommendation vectors. Links and resonances pointing at it dangle, as
+ * Delete your card, draft or published — the only way a published one goes
+ * (the rules let a client delete a draft alone) — with what only the server
+ * can reach: its pending edit (a subcollection a client's delete leaves
+ * behind), the notes left on it and its recommendation vectors. Links and resonances pointing at it dangle, as
  * they always have: readers resolve a missing card to nothing. Answers the
  * stale pages.
  *

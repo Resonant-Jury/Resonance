@@ -84,8 +84,9 @@ service cloud.firestore {
     }
 
     // A published resonance: it may be a reason two people are connected
-    // (connectionOrigins), so hiding or deleting it — which takes that back —
-    // is the server's (PATCH / DELETE /api/v1/cards/{id}, edits/apply).
+    // (connectionOrigins), so hiding it — which takes that back — is the
+    // server's (PATCH /api/v1/cards/{id}, edits/apply), as deleting any
+    // published card is.
     function publishedResonance(d) {
       return d.get("publishedAt", null) != null && d.get("referenceCardId", null) is string;
     }
@@ -261,14 +262,16 @@ service cloud.firestore {
         && validCardContent(request.resource.data, changedKeys())
         && (!anonymousForConnections(request.resource.data) || !changedKeys().hasAny(["anonymous", "visibility"]))
         && (!publishedResonance(resource.data) || !changedKeys().hasAny(["anonymous", "visibility"]));
-      // Authors may delete their cards (drafts and published alike) — the
-      // card box has a delete action — except a published resonance, which
-      // the server deletes (DELETE /api/v1/cards/{id}) with what it took
-      // back. Dangling references (cardLinks, resonance referenceCardId)
+      // Authors may delete their drafts. A published card is deleted by the
+      // server (DELETE /api/v1/cards/{id}, as the web and both apps do), with
+      // what only it reaches: the resonance it takes back, and the notes left
+      // on it — a client delete would leave those in their writers' backups
+      // until the author's account goes, and their going then would say whose
+      // card it was. Dangling references (cardLinks, resonance referenceCardId)
       // degrade gracefully: readers resolve the missing card to null and drop it.
       allow delete: if signedIn()
         && resource.data.authorId == request.auth.uid
-        && !publishedResonance(resource.data);
+        && resource.data.get("publishedAt", null) == null;
 
       // The content fields named in `keys` (all of them on create, the
       // changed ones on update — so an older card stays editable). The same

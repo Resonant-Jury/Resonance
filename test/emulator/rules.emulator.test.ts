@@ -725,8 +725,22 @@ describe('cards: what the author may write', () => {
       await assertSucceeds(updateDoc(doc(db, 'cards', 'draftAnswer'), { visibility: 'private', anonymous: true, updatedAt: serverTimestamp() }));
       await assertSucceeds(deleteDoc(doc(db, 'cards', 'draftAnswer')));
       await assertSucceeds(updateDoc(doc(db, 'cards', 'plain'), { anonymous: true, updatedAt: serverTimestamp() }));
-      await assertSucceeds(deleteDoc(doc(db, 'cards', 'plain')));
       await assertFails(deleteDoc(doc(as('bob'), 'cards', 'draft1')));
+    });
+
+    // Deleting a published card deletes the notes left on it, which only the
+    // server reaches (DELETE /api/v1/cards/{id}, which the web and both apps
+    // call): a client delete would leave them in their writers' backups until
+    // the author's account goes — and their going then would say whose card it was.
+    it('lets the author delete a draft, never a published card: that is the server\'s', async () => {
+      await seed(async (db) => {
+        await setDoc(doc(db, 'cards', 'masked'), publishedCard('alice', { anonymous: true }));
+        await setDoc(doc(db, 'cards', 'unlisted'), publishedCard('alice', { visibility: 'private' }));
+      });
+      const db = as('alice');
+      for (const id of ['plain', 'masked', 'unlisted', ID]) await assertFails(deleteDoc(doc(db, 'cards', id)));
+      await assertFails(deleteDoc(doc(as('bob'), 'cards', 'draft1')));
+      await assertSucceeds(deleteDoc(doc(db, 'cards', 'draft1')));
     });
 
     it('never lets the client publish, re-date, re-slug, re-attribute or re-point a card', async () => {
