@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SWRConfig } from 'swr';
-import { act, renderWithIntl, screen, fireEvent, waitFor, userEvent, within } from '@/../test/render';
+import { act, cleanup, renderWithIntl, screen, fireEvent, waitFor, userEvent, within } from '@/../test/render';
 import type { Conversation, Message, User } from '@/lib/db/types';
 import { forgetOutboxes } from '@/lib/data/thread';
 import { MessagesPage } from './MessagesPage';
@@ -188,6 +188,8 @@ beforeEach(() => {
   mockSubmitReport.mockResolvedValue(undefined);
 });
 afterEach(() => {
+  // Unmount first: emptying the outboxes under a thread still drawn would redraw it outside act().
+  cleanup();
   vi.clearAllMocks();
   mockUseCardSummaries.mockImplementation(() => null);
   forgetOutboxes();

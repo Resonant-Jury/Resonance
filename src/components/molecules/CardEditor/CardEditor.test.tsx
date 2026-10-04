@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRef } from 'react';
 import useSWR, { SWRConfig } from 'swr';
 import { act } from '@testing-library/react';
-import { renderWithIntl, screen, fireEvent, waitFor, userEvent } from '@/../test/render';
+import { cleanup, renderWithIntl, screen, fireEvent, waitFor, userEvent } from '@/../test/render';
 import en from '@/messages/en.json';
 import { CardEditor, type CardEditorHandle } from './CardEditor';
 
@@ -81,7 +81,11 @@ beforeEach(() => {
   vi.mocked(discardPendingCardEdit).mockResolvedValue(undefined);
   vi.mocked(applyPendingCardEdit).mockResolvedValue({ id: 'card-1', slug: 'a-quiet-thought', applied: true });
 });
-afterEach(() => {
+afterEach(async () => {
+  // Unmount while the mocks still answer: the editor flushes unsaved edits as
+  // it unmounts (an autosave), which would otherwise meet a cleared mock.
+  cleanup();
+  await new Promise((r) => setTimeout(r, 0));
   vi.clearAllMocks();
   vi.restoreAllMocks();
 });
