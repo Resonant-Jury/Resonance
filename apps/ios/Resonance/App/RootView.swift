@@ -2,10 +2,11 @@ import DesignSystem
 import SwiftUI
 
 /// Signed out → sign-in; signed in → the tabs, or first the pen-name step
-/// when the account has no profile yet. While Firebase restores a previous
-/// session (or a new sign-in waits for its profile), the paper and a loader
-/// (no flash of the sign-in screen, or of the tabs before onboarding). A cold
-/// launch opens under the launch cover, which hands off to the first of these.
+/// when the account has no profile yet (or one without a pen name). While
+/// Firebase restores a previous session (or a new sign-in waits for its
+/// profile), the paper and a loader (no flash of the sign-in screen, or of
+/// the tabs before onboarding). A cold launch opens under the launch cover,
+/// which hands off to the first of these.
 struct RootView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.scenePhase) private var scenePhase
