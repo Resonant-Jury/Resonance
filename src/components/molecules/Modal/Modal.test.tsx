@@ -187,6 +187,38 @@ describe('Modal', () => {
     expect(heard).toHaveReturnedWith(true);
   });
 
+  // A dialog opened over another (a confirm over a picker) is the one Escape and Tab are for.
+  it('leaves the keys to a dialog opened over it', async () => {
+    function Stacked() {
+      const [under, setUnder] = useState(true);
+      const [over, setOver] = useState(true);
+      return (
+        <>
+          <Modal open={under} onClose={() => setUnder(false)} ariaLabel="Picker">
+            <button>Pick</button>
+          </Modal>
+          <Modal open={over} onClose={() => setOver(false)} ariaLabel="Confirm">
+            <button>Yes</button>
+          </Modal>
+        </>
+      );
+    }
+    render(<Stacked />);
+    expect(screen.getByRole('dialog', { name: 'Confirm' })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Yes' })).toHaveFocus();
+    await userEvent.tab();
+    await userEvent.tab();
+    // Round the top dialog, never into the one under it.
+    expect(screen.getByRole('button', { name: 'Yes' })).toHaveFocus();
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Confirm' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Picker' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Picker' })).not.toBeInTheDocument();
+  });
+
   // The browser paints its own bars in the theme colour: they dim with the
   // page while a modal is open, and come back after.
   it('dims the theme colour while open', () => {

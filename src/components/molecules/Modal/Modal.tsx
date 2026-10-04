@@ -74,6 +74,16 @@ export function useDimmedChrome(active: boolean): void {
   }, [active]);
 }
 
+/**
+ * Whether `panel` is the dialog on top — the last laid over the page (each is
+ * portalled to the end of the body as it opens): a dialog opened over another
+ * is the one its keys are for.
+ */
+function onTop(panel: HTMLElement | null): boolean {
+  const open = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+  return !!panel && open[open.length - 1] === panel;
+}
+
 /** What Tab can reach inside a dialog. */
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -141,6 +151,8 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
+      // Another dialog over this one answers the key (or did already).
+      if (e.defaultPrevented || !onTop(ref.current)) return;
       if (e.key === 'Escape') {
         if (!onClose) return;
         // This dialog is what Escape closes — nothing under it (a search open over a thread) closes with it.
