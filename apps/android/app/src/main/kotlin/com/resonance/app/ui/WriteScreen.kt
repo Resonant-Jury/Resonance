@@ -510,8 +510,8 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
                 WavyDivider(seed = 49.0, modifier = Modifier.padding(vertical = 2.dp))
                 VisibilityRow(L10n.Write.Visibility.private, IconName.Lock, 73.0, visibility == "private") { visibility = "private" }
             }
-            // A card kept for connections that turned anonymous became public: say why.
-            if (anonymous && model.values.visibility == "connections") {
+            // Never for connections only while anonymous (who could read it would say who wrote it): say so.
+            if (anonymous) {
                 BasicText(L10n.Write.PublishPanel.anonymousVisibility, style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted))
             }
         }
@@ -553,7 +553,8 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
                 error = null
                 scope.launch {
                     try {
-                        onPublished(if (updating) model.applyEdit(visibility, anonymous) else model.publish(visibility, anonymous))
+                        val audience = anonymousVisibility(visibility, anonymous)
+                        onPublished(if (updating) model.applyEdit(audience, anonymous) else model.publish(audience, anonymous))
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: ApiFailure) {
