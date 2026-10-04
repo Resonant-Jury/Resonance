@@ -75,10 +75,12 @@ struct ResonatePickerContent: View {
                 // The modal is the frame: cancel is plain text, the verb a solid fill.
                 OrganicButton(L10n.Card.ResonatePicker.cancel, variant: .text, size: .sm, action: onCancel)
                     .disabled(busy)
-                OrganicButton(busy ? "…" : L10n.Card.ResonatePicker.confirm, icon: busy ? nil : .wave, variant: .solid, size: .sm) {
+                // While the server answers, the pen keeps inking where the wave was (the web's SketchLoader).
+                OrganicButton(L10n.Card.ResonatePicker.confirm, icon: .wave, variant: .solid, size: .sm) {
                     Task { await confirm() }
                 }
-                .disabled(selectedId == nil || busy)
+                .working(busy)
+                .disabled(selectedId == nil)
                 .opacity(selectedId == nil ? 0.5 : 1)
             }
         }
