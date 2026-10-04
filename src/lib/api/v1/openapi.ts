@@ -168,7 +168,9 @@ export function buildOpenApi(): Json {
             "no one — reaches the original's author after the response, as publishing it so would have: you two connected " +
             '(not when the original is anonymous), their bell rung — once per reader and card, whatever path rang it first; ' +
             'never across a block, nor without a pen name. The answer never waits on it. One made private, connections-only ' +
-            'or anonymous is taken back at once, as `DELETE /cards/{key}/resonances/{cardId}` takes it back. An anonymous card is ' +
+            'or anonymous is at once no longer a reason you two are connected, and the connection goes when no reason is left ' +
+            '(see `DELETE /cards/{key}/resonances/{cardId}`); the card still answers the original (listed under it while ' +
+            'public, without your name when anonymous). An anonymous card is ' +
             'public or private: a change that would leave it anonymous and for connections only is `400 invalid_request` ("An ' +
             'anonymous card is public or private."); a card already that way stays so until either field changes.',
           parameters: [pathParam('key', 'The card id')],
@@ -180,7 +182,8 @@ export function buildOpenApi(): Json {
           summary: 'Delete your card, draft or published (a retry after success is 404)',
           description:
             'A resonance is taken back with it, as `DELETE /cards/{key}/resonances/{cardId}` takes it back. The notes left on ' +
-            'the card go with it.',
+            'the card go with it. The only way a published card is deleted: a client may delete its own draft straight from ' +
+            'Firestore, never a published card.',
           parameters: [pathParam('key', 'The card id')],
           responses: { '204': { description: 'Deleted' }, ...errors(400, 401, 404) },
         },
@@ -193,11 +196,13 @@ export function buildOpenApi(): Json {
           description:
             'A card answers one card, and you answer a card with one of yours: `409 conflict` when the card already answers another, ' +
             'or another of your cards already answers this one. Asking again with the same card is `changed: false` and rings no one. ' +
-            'An anonymous card connects no one and rings no one; an anonymous original rings its author but connects no one. ' +
+            'An anonymous card connects no one and rings no one; an anonymous original rings its author but connects no one ' +
+            '(that bell carries `payload.anonymous`: its push opens the card). ' +
             'A block either way is `403 blocked` for a named original; an anonymous one is answered all the same, and the block ' +
             'keeps it from reaching anyone. A card public under your name needs your pen name (`403 forbidden`). While it ' +
-            'stands it is a reason you two are connected (one more, when you already are); a letter waiting between you is ' +
-            'left as it is — only its recipient answers it.',
+            'stands it is a reason you two are connected (one more, when you already are), and the original\'s author ' +
+            'writing to you while it stands (a message, or a note in your thread) answers it: a reason for good. A letter ' +
+            'waiting between you is left as it is — only its recipient answers it.',
           parameters: [cardId],
           requestBody: { required: true, ...json(ref('ResonateRequest')) },
           responses: { '200': { description: 'OK', ...json(ref('ResonateResponse')) }, ...errors(400, 401, 403, 404, 409, 429) },
@@ -208,10 +213,11 @@ export function buildOpenApi(): Json {
           operationId: 'unresonateCard',
           summary: 'Your card stops answering this one and stays as a card of its own (204 whether or not it still did)',
           description:
-            "It no longer keeps you connected with the card's author: the connection goes when nothing else does — no other " +
-            'resonance between you either way, no answered letter, no accepted invite, not made before reasons were kept — ' +
-            "and they haven't written to you since you were connected (your own messages keep nothing). A letter waiting " +
-            'between you is left as it was. Their bell stays too: answering that card again rings and connects no one.',
+            "It no longer keeps you connected with the card's author: the connection goes exactly when no reason is left — " +
+            "no other resonance between you either way, no answer to one from its original's author (their message or note " +
+            'in your thread while it stood; words from before it never answer it, and its writer\'s own answer nothing), no ' +
+            'answered letter, no accepted invite, not made before reasons were kept. A letter waiting between you is left as ' +
+            'it was. Their bell stays too: answering that card again rings and connects no one.',
           parameters: [pathParam('key', 'The card id it answers'), pathParam('cardId', 'Your card id')],
           responses: { '204': { description: 'It no longer answers this card' }, ...errors(400, 401, 404) },
         },
@@ -294,8 +300,9 @@ export function buildOpenApi(): Json {
             '`conflict` ("Wait for them to reply."). Either of you may delete the conversation: the writer withdraws the letter, ' +
             'the author declines it, and it can no longer be answered — but the count of 3 is kept apart and goes only when it ' +
             "is answered. Only its recipient answers it: connected some other way (a resonance), it still waits, and the " +
-            "recipient's message or note clears it. On an anonymous card: the bell only (`payload.anonymous` true: it opens " +
-            'the card) — no conversation, no connection; ' +
+            "recipient's message or note clears it. On an anonymous card: the bell only (`payload.anonymous` true: its push " +
+            'opens the card — `data.route` `/card/{cardId}`, no `fromUserId` — and a bell list should open the card too, never ' +
+            'a thread with the writer) — no conversation, no connection; ' +
             'across a block it is answered 201 all the same and delivered to no one (a refusal would name its author)',
           requestBody: { required: true, ...json(ref('SendNoteRequest')) },
           responses: { '201': { description: 'Created', ...json(ref('SendNoteResponse')) }, ...errors(400, 401, 403, 404, 409) },
@@ -316,7 +323,10 @@ export function buildOpenApi(): Json {
             'forbidden`, "You can message people you are connected with.", unless a letter of theirs waits in your ' +
             'conversation — then your answer connects you); `noteRef`, a note they left you on the card it names (else `400`, ' +
             '"That is not a note they left you."); `replyTo`, a message of this conversation (else `400`). A reply to a note ' +
-            'left on your anonymous card (or on a card since deleted) is sent without its `noteRef`, saying nothing of the card.',
+            'left on your anonymous card, or to a note no longer there whose card is gone too (deleting a card deletes its ' +
+            'notes) or isn\'t yours, is sent without its `noteRef`, saying nothing of the card — and still answers a letter; a ' +
+            'note no longer there on your own card, still there, is the `400`. A message from the original\'s author ' +
+            'of a resonance standing between you, to its writer, answers that resonance (see `unresonateCard`).',
           requestBody: { required: true, ...json(ref('SendMessageRequest')) },
           responses: { '201': { description: 'Created', ...json(ref('SendMessageResponse')) }, ...errors(400, 401, 403, 404) },
         },
