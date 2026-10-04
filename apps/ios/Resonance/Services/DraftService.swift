@@ -138,11 +138,17 @@ struct DraftService {
 
     // MARK: Reads of your own cards
 
+    /// Your card answering another: a draft still being written, or published.
+    struct Resonance: Equatable {
+        let id: String
+        let published: Bool
+    }
+
     /// getMyResonanceCard: your card (draft or published) answering this one, if any.
-    func myResonance(to cardId: String) async throws -> String? {
+    func myResonance(to cardId: String) async throws -> Resonance? {
         let snap = try await db.collection("cards").whereField("authorId", isEqualTo: uid)
             .whereField("referenceCardId", isEqualTo: cardId).limit(to: 1).getDocuments()
-        return snap.documents.first?.documentID
+        return snap.documents.first.map { Resonance(id: $0.documentID, published: $0.get("publishedAt") is Timestamp) }
     }
 
     /// hasAnyOwnCards: whether you have written anything at all (drafts count).

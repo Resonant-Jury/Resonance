@@ -1,4 +1,5 @@
 import Foundation
+import ResonanceKit
 import Testing
 @testable import StoryFormat
 
@@ -69,6 +70,67 @@ import Testing
     @Test func escapedSyntaxAndHTMLStayText() {
         #expect(text(blocks("escapes")[0]) == "*不是粗體*，1. 不是清單，# 不是標題，a_b_c。")
         #expect(text(blocks("html-is-text")[0]) == "<b>不是 HTML</b> 與 <script>x</script>")
+    }
+
+    // MARK: Standalone links (native/fixtures/story-link-cards.json)
+
+    struct LinkCase: Decodable, CustomTestStringConvertible {
+        let id: String
+        let markdown: String
+        let soleLinks: [String]
+        let links: [String]
+        let inline: [String]?
+        var testDescription: String { id }
+    }
+
+    static let linkCases: [LinkCase] = {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("../../../../../../native/fixtures/story-link-cards.json").standardized
+        struct File: Decodable { let cases: [LinkCase] }
+        return try! JSONDecoder().decode(File.self, from: Data(contentsOf: url)).cases
+    }()
+
+    /// An address in disguise (`https://127.1/x`, which a browser reads as 127.0.0.1) is no link
+    /// to these rules (ChatLinks, as in a chat message), so its paragraph stays a paragraph. The
+    /// server never unfurls an IP address at all, so no card can be missing for it.
+    static let refusedHere: Set<String> = ["https://127.0.0.1/x"]
+
+    /// The keys of the paragraphs that stand alone as links, in reading order (quotes and lists too).
+    func soleLinkKeys(_ blocks: [StoryBlock]) -> [String] {
+        blocks.flatMap { block -> [String] in
+            switch block {
+            case let .soleLink(href, text, _): StoryLinks.key(href: href, text: text).map { [$0] } ?? []
+            case let .quote(children): soleLinkKeys(children)
+            case let .list(_, _, items): items.flatMap(soleLinkKeys)
+            default: []
+            }
+        }
+    }
+
+    @Test(arguments: linkCases)
+    func everyStandaloneLinkOfTheSharedFixture(_ c: LinkCase) {
+        let keys = soleLinkKeys(StoryParser.parse(c.markdown))
+        #expect(keys == c.soleLinks.filter { !Self.refusedHere.contains($0) })
+        // What the server would draw a card for is never one of those left out here.
+        #expect(c.links.allSatisfy { !Self.refusedHere.contains($0) })
+        for link in c.inline ?? [] { #expect(!keys.contains(link)) }
+    }
+
+    @Test func aLinkStandingAloneKeepsItsParagraphForWhenThereIsNoPreview() {
+        let blocks = StoryParser.parse("前一段。\n\n[一篇好文章](https://blog.example.com/post/42)")
+        guard case let .soleLink(href, text, runs) = blocks[1] else { return #expect(Bool(false)) }
+        #expect(href == "https://blog.example.com/post/42" && text == "一篇好文章")
+        #expect(runs == [InlineRun("一篇好文章", link: "https://blog.example.com/post/42")])
+        // A bare address is words to CommonMark (and to the reader, until it has the page's card).
+        guard case let .soleLink(nil, bare, bareRuns) = StoryParser.parse("https://example.com/rain").first else { return #expect(Bool(false)) }
+        #expect(bare == "https://example.com/rain" && bareRuns.allSatisfy { $0.link == nil })
+        // Words round a link, or marks on it, keep it in its sentence.
+        #expect(StoryParser.parse("我讀了 [這篇](https://example.com/inline) 之後").first.map { if case .paragraph = $0 { true } else { false } } == true)
+        #expect(StoryParser.parse("**https://example.com/bold**").first.map { if case .paragraph = $0 { true } else { false } } == true)
+        // Spaced like a paragraph.
+        #expect(ProseMetrics.margins(blocks[1]).bottom == ProseMetrics.margins(.paragraph([])).bottom)
+        #expect(ProseMetrics.margins(blocks[1]).top == 0)
     }
 
     @Test func proseMarginsCollapseLikeCSS() {

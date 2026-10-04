@@ -2,15 +2,21 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// The owner's ⋯ on a card (CardActionsMenu.tsx): 編輯 / 轉為公開·私人 / 刪除,
-/// in the shared OrganicMenu. Deleting asks first, in the web's own small
-/// dialog. Visibility and deleting go through the server (PATCH / DELETE
-/// /api/v1/cards/{id}), which also refreshes the site's cached pages.
+/// The owner's ⋯ on a card (CardActionsMenu.tsx): 編輯 / 轉為公開·私人 /
+/// 取消共振 (a card that resonates with another) / 刪除, in the shared
+/// OrganicMenu. Deleting, and taking a resonance back, ask first, in the web's
+/// own small dialogs. Visibility, deleting and the resonance go through the
+/// server (PATCH / DELETE /api/v1/cards/{id}, DELETE …/resonances/{id}), which
+/// also refreshes the site's cached pages.
 struct CardActionsMenu: View {
     let cardId: String
     let visibility: String
     var seed: Double = 7
     var hue: Double?
+    /// The card this one resonates with, if any — and its title, when the page has it (else it is
+    /// asked for when the question is).
+    var answering: String?
+    var answeringTitle: String?
     /// Whether the card opens once edited (false on the card's own page, which is already underneath).
     var showsCardAfterEdit = true
     var onChanged: () -> Void = {}
@@ -20,7 +26,11 @@ struct CardActionsMenu: View {
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
     @State private var confirming = false
+    @State private var unresonating = false
     @State private var busy = false
+    @State private var failed = false
+    /// The answered card's title, asked for when the page didn't have it.
+    @State private var askedTitle: String?
 
     private var isPrivate: Bool { visibility == "private" }
 
@@ -31,6 +41,24 @@ struct CardActionsMenu: View {
                           dismissible: !busy) {
                 confirm
             }
+            // The card stays: nothing here can't be undone, so the verb is the plain solid fill.
+            .organicConfirm(isPresented: $unresonating, title: unresonateTitle, message: L10n.Me.Actions.unresonateConfirmBody,
+                            cancelLabel: L10n.Me.Actions.deleteCancel, confirmLabel: L10n.Me.Actions.unresonateConfirm,
+                            closeLabel: L10n.Me.Actions.deleteCancel, busy: busy, error: failed ? L10n.Safety.actionError : nil,
+                            seed: seed + 9) {
+                Task { await unresonate() }
+            }
+            .task(id: unresonating) {
+                guard unresonating, let answering, answeringTitle == nil, askedTitle == nil else { return }
+                if let kept = session.cardPreviews.card(for: answering) { return askedTitle = kept.title }
+                let cards = try? await session.reading.cards(keys: [answering])
+                askedTitle = cards?.first { $0.id == answering }?.title
+            }
+    }
+
+    /// 「不再與〈title〉共振？」 — or the plain words while the title isn't known (or can't be read).
+    private var unresonateTitle: String {
+        (answeringTitle ?? askedTitle).map { L10n.Me.Actions.unresonateConfirmTitle(title: $0) } ?? L10n.Me.Actions.unresonate
     }
 
     private var items: [OrganicMenuItem] {
@@ -38,6 +66,12 @@ struct CardActionsMenu: View {
             OrganicMenuItem(id: "edit", title: L10n.Me.Actions.edit, icon: .pen) { writer.edit(cardId, showsCard: showsCardAfterEdit) },
             OrganicMenuItem(id: "visibility", title: isPrivate ? L10n.Me.Actions.makePublic : L10n.Me.Actions.makePrivate,
                             icon: isPrivate ? .globe : .lock) { Task { await toggleVisibility() } },
+        ] + (answering == nil ? [] : [
+            OrganicMenuItem(id: "unresonate", title: L10n.Me.Actions.unresonate, icon: .wave) {
+                failed = false
+                unresonating = true
+            },
+        ]) + [
             OrganicMenuItem(id: "delete", title: L10n.Me.Actions.delete, icon: .trash, danger: true) { confirming = true },
         ]
     }
@@ -69,6 +103,24 @@ struct CardActionsMenu: View {
         guard let card = try? await session.writing.updateCard(cardId, visibility: isPrivate ? ._public : ._private) else { return }
         session.cardPreviews.remember(card)
         writer.noteChange(.init(cardId: cardId))
+        onChanged()
+    }
+
+    /// The card stays, answering nothing; the server lets go of its link to the card it answered.
+    private func unresonate() async {
+        guard let answering, !busy else { return }
+        busy = true
+        failed = false
+        defer { busy = false }
+        do {
+            try await session.writing.unresonate(from: answering, cardId: cardId)
+        } catch {
+            failed = true
+            return
+        }
+        unresonating = false
+        // This card's page, the page of the card it answered, and the card box's shelves read again.
+        writer.noteChange(.init(cardId: cardId, referenceCardId: answering))
         onChanged()
     }
 

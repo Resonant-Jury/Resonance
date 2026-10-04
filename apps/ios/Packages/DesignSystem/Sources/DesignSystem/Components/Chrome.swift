@@ -212,49 +212,6 @@ public struct UnreadBadge: View {
     }
 }
 
-/// FloatingWriteButton's face: a wobbly terracotta rounded square — one
-/// lopsided turn per side and drifting corners (the avatar's recipe) — with
-/// the pen in cream.
-public struct WriteButtonFace: View {
-    let size: CGFloat
-    let icon: IconName
-
-    public init(size: CGFloat = 56, icon: IconName = .pen) {
-        self.size = size
-        self.icon = icon
-    }
-
-    public var body: some View {
-        let shape = WobRectShape(radius: size * 0.4, seed: 3, mag: size * 0.022, options: WobRectOptions(
-            curve: 1.3, cornerJitter: 3.2, cornerOffset: size * 0.06, segmentsH: .count(1), segmentsV: .count(1)))
-        OrganicIcon(icon, size: 24, color: Tokens.cream)
-            .frame(width: size, height: size)
-            .background {
-                shape.fill(Tokens.terracotta)
-                shape.stroke(Tokens.terracottaInk, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
-            }
-    }
-}
-
-/// FloatingWriteButton: the pen fixed bottom-right of a browsing page (the
-/// card page; on the tabs it lives in the bar).
-public struct FloatingWriteButton: View {
-    let label: String
-    let action: () -> Void
-
-    public init(label: String, action: @escaping () -> Void) {
-        self.label = label
-        self.action = action
-    }
-
-    public var body: some View {
-        Button(action: action) { WriteButtonFace(size: 56) }
-            .buttonStyle(.plain)
-            .accessibilityLabel(label)
-            .padding(20)
-    }
-}
-
 /// The root tabs' pinned bar (the web AppHeader on a phone): the brand
 /// lockup on cream that ends on the wavy pen line, content scrolling under it.
 /// A tab that names itself in the bar gives its `title`, which takes the

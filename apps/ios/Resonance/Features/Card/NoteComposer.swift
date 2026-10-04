@@ -102,7 +102,8 @@ struct NoteComposer: View {
             sent = true
             PushCenter.shared.reachedOut()
         } catch let failure as APIFailure {
-            error = failure.status == 403 ? failure.message : L10n.Messages.sendError
+            // Three notes left unanswered: the next waits for the author's reply (said in the reader's own words).
+            error = failure.status == 409 ? L10n.Card.Note.waitForReply : failure.status == 403 ? failure.message : L10n.Messages.sendError
         } catch {
             self.error = L10n.Messages.sendError
         }

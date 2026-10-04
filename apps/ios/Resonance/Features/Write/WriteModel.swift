@@ -273,9 +273,16 @@ final class WriteModel {
 
     // MARK: Publish
 
+    /// Who may read a card published with these choices: an anonymous card is public or its
+    /// author's alone — never for connections, which would tell them who wrote it (the server
+    /// refuses the pair), so a connections card made anonymous goes public.
+    nonisolated static func visibility(_ visibility: String, anonymous: Bool) -> String {
+        anonymous && visibility == "connections" ? "public" : visibility
+    }
+
     /// Saves the choices with the draft, then publishes it; returns where the card lives.
     func publish(visibility: String, anonymous: Bool) async throws -> String {
-        values.visibility = visibility
+        values.visibility = Self.visibility(visibility, anonymous: anonymous)
         values.anonymous = anonymous
         guard let id = await saveNow() else { throw APIFailure(code: "invalid_request", message: "Nothing to publish.", status: nil) }
         let result = try await writing.publish(id)
@@ -288,7 +295,7 @@ final class WriteModel {
     /// buffer, then the server makes it the live card — the moment an edit
     /// reaches readers. The publish date stays. Returns where the card lives.
     func applyEdit(visibility: String, anonymous: Bool) async throws -> String {
-        values.visibility = visibility
+        values.visibility = Self.visibility(visibility, anonymous: anonymous)
         values.anonymous = anonymous
         guard let id = draftId else { throw APIFailure(code: "not_found", message: "No such card.", status: nil) }
         await saveNow()

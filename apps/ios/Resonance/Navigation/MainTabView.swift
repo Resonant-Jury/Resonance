@@ -15,7 +15,7 @@ enum AppTab: Hashable, CaseIterable {
         }
     }
 
-    /// The web's glyphs for the same places (Subnavbar, NotificationBell, FloatingWriteButton).
+    /// The web's glyphs for the same places (Subnavbar, NotificationBell, the header's write entry).
     var icon: IconName {
         switch self {
         case .feed: .sparkle
@@ -25,6 +25,13 @@ enum AppTab: Hashable, CaseIterable {
         case .cardBox: .cards
         }
     }
+}
+
+extension EnvironmentValues {
+    /// Whether the tab a page is on is the one chosen. Every tab's stack stays mounted (unseen under
+    /// the chosen one), so a page on another tab never disappears: what may only happen while it is
+    /// seen (a conversation being read) asks this too.
+    @Entry var isSelectedTab = true
 }
 
 /// Four tabs and the pen. Each tab keeps its own navigation stack alive, so
@@ -59,6 +66,7 @@ struct MainTabView: View {
                         paths[t] = path + [route]
                     }
                 ))
+                .environment(\.isSelectedTab, t == tab)
                 .opacity(t == tab ? 1 : 0)
                 .allowsHitTesting(t == tab)
                 .accessibilityHidden(t != tab)
@@ -69,7 +77,9 @@ struct MainTabView: View {
                                    badge: $0 == .notifications ? session.notifications.unreadCount
                                        : $0 == .messages ? session.conversations.unreadTotal : 0)
                 }, selection: tab, onSelect: select)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // In place, fading: back on a tab's first page it is simply there again (a slide up after
+                    // the pop has finished read as arriving late), and on a push it gives way as quickly.
+                    .transition(.opacity)
             }
         }
         // Content moves down under the banner rather than behind it.
@@ -78,7 +88,7 @@ struct MainTabView: View {
                 AccountDeletionBanner(date: date).padding(.vertical, 6)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: paths[tab]?.isEmpty ?? true)
+        .animation(.easeOut(duration: 0.12), value: paths[tab]?.isEmpty ?? true)
         .background(Tokens.cream)
         .environment(writer)
         .onAppear { writer.onChange = { [session] in session.noteOwnWrite() } }
@@ -95,6 +105,8 @@ struct MainTabView: View {
         .onChange(of: push.opened, initial: true) { _, opened in
             guard let opened else { return }
             push.opened = nil
+            // A message sent to the account signed in before this one: nothing of it is opened here.
+            guard opened.isFor(session.uid) else { return }
             if let id = opened.notificationId { session.notifications.markRead(id: id) }
             if let url = URL(string: opened.route, relativeTo: session.config.origin)?.absoluteURL,
                let route = Route(url: url, origin: session.config.origin) {
@@ -105,12 +117,13 @@ struct MainTabView: View {
             }
         }
         #if DEBUG
-        // `-route /card/<slug>` or `-route /u/<handle>` opens that page at launch (screen checks).
+        // `-route /card/<slug>` or `-route /u/<handle>` opens that page at launch (screen checks); a query
+        // comes along (`/messages/<handle>?note=…&card=…`, a bell's link).
         .task {
             // Once per launch: the tab view reappears (a language change), and must not push the page again.
             guard !Self.openedLaunchRoute, let path = UserDefaults.standard.string(forKey: "route") else { return }
             Self.openedLaunchRoute = true
-            open(session.config.origin.appending(path: path))
+            open(URL(string: path, relativeTo: session.config.origin)?.absoluteURL ?? session.config.origin.appending(path: path))
         }
         #endif
     }
@@ -124,6 +137,8 @@ struct MainTabView: View {
     private func open(_ route: Route) {
         // A conversation belongs to the Messages tab's stack.
         if case .thread = route { tab = .messages }
+        // Its message tapped while the conversation is open: it is on screen already, not opened again over itself.
+        if let top = paths[tab]?.last, route.reopens(top) { return }
         paths[tab, default: []].append(route)
     }
 

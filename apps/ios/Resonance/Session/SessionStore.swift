@@ -16,7 +16,8 @@ final class SessionStore {
     enum ProfileState: Equatable { case unknown, loading, loaded, missing, failed(String) }
 
     /// Where a signed-in person lands: the tabs, or onboarding (the pen-name
-    /// step) when the API says the account has no profile yet.
+    /// step) when the API says the account has no profile yet — or one that
+    /// never got a pen name.
     enum Landing: Equatable {
         /// The loader, until the first answer about a new sign-in's profile —
         /// so a new account never glimpses the tabs before onboarding.
@@ -25,19 +26,29 @@ final class SessionStore {
         case tabs
 
         /// What an answer about the profile does to it. Only the API's own
-        /// "no profile yet" (404 not_found) opens onboarding; a failed request
-        /// (offline, a server error) can only let a waiting person into the
-        /// tabs, never send anyone to onboarding.
+        /// "no profile yet" (404 not_found), or a profile without a pen name,
+        /// opens onboarding; a failed request (offline, a server error) can
+        /// only let a waiting person into the tabs, never send anyone to onboarding.
         func after(_ answer: ProfileAnswer) -> Landing {
             switch answer {
             case .found: .tabs
-            case .missing: .onboarding
+            case .missing, .unnamed: .onboarding
             case .failed: self == .pending ? .tabs : self
             }
         }
     }
 
-    enum ProfileAnswer { case found, missing, failed }
+    /// `unnamed`: a profile that never got a pen name (older accounts can have
+    /// one). It can reach no one — notes, messages and resonances take a pen
+    /// name — so it goes through onboarding, where choosing one names it
+    /// (POST /api/v1/me), as the web's AppShell does.
+    enum ProfileAnswer {
+        case found, unnamed, missing, failed
+
+        static func of(_ me: Components.Schemas.Me) -> ProfileAnswer {
+            me.handle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .unnamed : .found
+        }
+    }
 
     private(set) var phase: Phase = .restoring
     private(set) var uid: String?
@@ -339,7 +350,7 @@ final class SessionStore {
         if arrived, phase == .signedIn { Task { await push.registerIfAllowed() } }
     }
 
-    /// The last account this install saw with a profile (see `landing`).
+    /// The last account this install saw with a profile and its pen name (see `landing`).
     nonisolated static let profiledKey = "profiledAccount"
 
     /// Asks for the account's profile. A failure keeps whatever was known
@@ -372,14 +383,21 @@ final class SessionStore {
     }
 
     /// A profile the API just returned (loaded, created in onboarding, saved
-    /// in settings) becomes the session's, and the tabs open.
+    /// in settings) becomes the session's, and the tabs open — or, while it
+    /// has no pen name, onboarding, to choose one.
     func adopt(_ found: Components.Schemas.Me) {
         guard let uid, found.id == uid else { return }
         me = found
         kept.save(found, as: .me, uid: uid)
         profile = .loaded
-        land(landing.after(.found))
-        UserDefaults.standard.set(uid, forKey: Self.profiledKey)
+        let answer = ProfileAnswer.of(found)
+        land(landing.after(answer))
+        // Only a named profile opens straight onto the tabs next time; one without waits for its answer.
+        if answer == .found {
+            UserDefaults.standard.set(uid, forKey: Self.profiledKey)
+        } else if UserDefaults.standard.string(forKey: Self.profiledKey) == uid {
+            UserDefaults.standard.removeObject(forKey: Self.profiledKey)
+        }
     }
 
     // MARK: - Signing in

@@ -78,6 +78,13 @@ import Testing
         #expect(r.map(\.position) == [.single, .first, .last])
     }
 
+    @Test func aNoteOpensARunOfItsOwnLikeAReply() {
+        // It leads with the card it was left on, as a reply leads with its quote.
+        let note = ChatMessage(id: "n", senderId: "bob", text: "我也是", sentAt: at(1, 9, 0, 20), cardRef: "walk", isNote: true)
+        let r = rows(msg("a", "bob", at(1, 9, 0)), note, msg("c", "bob", at(1, 9, 0, 40)))
+        #expect(r.map(\.position) == [.single, .first, .last])
+    }
+
     @Test func aSendingMessageStacksUnderTheOneBeforeItEvenWithAClockABitBehind() {
         let r = rows(msg("a", "alice", at(1, 9, 0, 10)), msg("b", "alice", at(1, 9, 0, 5), .sending))
         #expect(r.map(\.position) == [.first, .last])

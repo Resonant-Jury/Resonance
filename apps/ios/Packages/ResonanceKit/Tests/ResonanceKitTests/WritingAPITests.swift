@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import Testing
 @testable import ResonanceAPI
 @testable import ResonanceKit
@@ -109,6 +110,42 @@ actor TokenLog {
         #expect(request.method == .delete)
         #expect(request.path == "/cards/c1")
         #expect(request.headerFields[.authorization] == "Bearer stale-token")
+    }
+
+    @Test func resonatesWithAnExistingCardThroughTheContract() async throws {
+        let transport = StubTransport(body: #"{"card":\#(ReadingAPITests.card),"changed":true}"#)
+        let result = try await api(transport).resonate(with: "target", cardId: "c1")
+        #expect(result.changed)
+        #expect(result.card.id == "c1")
+        let request = try #require(transport.requests.first)
+        #expect(request.method == .post)
+        #expect(request.path == "/cards/target/resonances")
+        #expect(request.headerFields[.authorization] == "Bearer stale-token")
+        let sent = try #require(transport.sentJSON.first ?? nil)
+        #expect(sent["cardId"] as? String == "c1")
+        #expect(sent.keys.sorted() == ["cardId"])
+    }
+
+    @Test func resonatingSaysWhyItWasRefused() async throws {
+        for (status, code) in [(HTTPResponse.Status.conflict, "conflict"), (.tooManyRequests, "rate_limited"),
+                               (.forbidden, "forbidden"), (.notFound, "not_found"), (.badRequest, "invalid_request")] {
+            let transport = StubTransport(status: status, body: #"{"error":{"code":"\#(code)","message":"No."}}"#)
+            await #expect(throws: APIFailure(code: code, message: "No.", status: status.code)) {
+                try await api(transport).resonate(with: "target", cardId: "c1")
+            }
+        }
+    }
+
+    @Test func stopsResonatingThroughTheContract() async throws {
+        let transport = StubTransport(status: .noContent, body: "")
+        try await api(transport).unresonate(from: "target", cardId: "c1")
+        let request = try #require(transport.requests.first)
+        #expect(request.method == .delete)
+        #expect(request.path == "/cards/target/resonances/c1")
+        let refused = StubTransport(status: .notFound, body: #"{"error":{"code":"not_found","message":"No such card."}}"#)
+        await #expect(throws: APIFailure(code: "not_found", message: "No such card.", status: 404)) {
+            try await api(refused).unresonate(from: "target", cardId: "bobs-card")
+        }
     }
 
     @Test func someoneElsesCardIsNotFound() async throws {

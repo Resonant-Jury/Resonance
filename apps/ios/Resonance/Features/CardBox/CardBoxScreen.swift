@@ -63,8 +63,8 @@ struct CardBoxScreen: View {
                     Text(me.bio ?? L10n.Me.bioEmpty).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
                 }
                 Spacer(minLength: 0)
-                // The phone's settings entry: the pen (the app's settings glyph) in a small ghost chip.
-                OrganicButton(icon: .pen, label: L10n.Me.editProfile) { openRoute(.settings) }
+                // The phone's settings entry: the pen (the app's settings glyph), bare — a glyph beside the name, not a chip.
+                OrganicIconButton(.pen, label: L10n.Me.editProfile, size: 20) { openRoute(.settings) }
             }
         } else if case .failed = session.profile {
             OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
@@ -247,7 +247,8 @@ private struct ManagedCardList: View {
                     // .actions: the chip 14 in from the card's corner (the card's box sits 20 in from
                     // the screen); the trigger's 44pt hit box reaches 3 past the 38pt chip.
                     .overlay(alignment: .topTrailing) {
-                        CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, seed: hue, hue: hue)
+                        CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, seed: hue, hue: hue,
+                                        answering: card.referenceCardId)
                             .padding(.top, 14 - 3)
                             .padding(.trailing, 34 - 3)
                     }

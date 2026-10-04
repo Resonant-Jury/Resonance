@@ -3,11 +3,12 @@ import ResonanceKit
 import SwiftUI
 
 /// The signup page's profile step, shown before the tabs to a signed-in
-/// account that has no profile yet: a pen name (checked as it's typed), a
-/// region and a main writing language, then Finish. The sign-in screen's
-/// shell with the compact cover (the lockup's row alone) and the sheet taking
-/// the rest of the screen, its content from the top; signing out stays within
-/// reach at its end, for someone who signed in with the wrong account.
+/// account that has no profile yet — or one that never got a pen name, which
+/// Finish names: a pen name (checked as it's typed), a region and a main
+/// writing language, then Finish. The sign-in screen's shell with the compact
+/// cover (the lockup's row alone) and the sheet taking the rest of the screen,
+/// its content from the top; signing out stays within reach at its end, for
+/// someone who signed in with the wrong account.
 struct OnboardingScreen: View {
     @Environment(SessionStore.self) private var session
     @State private var handle = ""
@@ -96,6 +97,8 @@ struct OnboardingScreen: View {
             // Idempotent on the server: a retry after a lost answer gets the profile it made.
             let me = try await session.profiles.create(handle: PenName.normalized(handle), region: region, language: language)
             session.adopt(me)
+            // A server that handed a profile without a pen name back unchanged (an older one) leaves it here: say so.
+            if SessionStore.ProfileAnswer.of(me) == .unnamed { self.error = L10n.Auth.signUpError }
         } catch let failure as APIFailure where failure.isConflict {
             // Someone took the name between the check and Finish.
             status = .taken

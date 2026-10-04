@@ -17,7 +17,12 @@ struct ThreadScreen: View {
     @Environment(\.openRoute) private var openRoute
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.isSelectedTab) private var onSelectedTab
     @State private var model: ThreadModel?
+    /// Closes the model once the screen is gone for good (`ScreenLifetime`).
+    @State private var lifetime = ScreenLifetime()
+    /// Between appearing and disappearing: the top of its stack (a page pushed over it makes it disappear).
+    @State private var appeared = false
     @State private var searching = false
     @State private var query = ""
     /// The list of matches covers the thread; after a match is chosen the thread shows and the bar steps through them.
@@ -76,25 +81,41 @@ struct ThreadScreen: View {
                 }
                 #endif
                 self.model = model
-                model.setOnScreen(scenePhase == .active)
+                lifetime.model = model
+                model.setOnScreen(visible && scenePhase == .active)
                 await model.load()
             }
-            // The conversation is read only while it is on show (its unread count, its pushes).
-            .onAppear { model?.setOnScreen(scenePhase == .active) }
-            .onDisappear {
-                model?.setOnScreen(false)
-                model?.stop()
+            // The conversation is read and listened to only while it is on show (its unread count, its pushes):
+            // not under a page pushed over it, nor on a tab out of sight.
+            .onAppear {
+                appeared = true
+                shown(onSelectedTab)
             }
+            .onDisappear {
+                appeared = false
+                shown(false)
+            }
+            .onChange(of: onSelectedTab) { _, selected in shown(appeared && selected) }
             // Back in the foreground: listeners that failed listen again; a thread that couldn't find its person asks again.
             .onChange(of: scenePhase) { _, phase in
-                guard let model else { return }
+                guard let model, visible else { return }
                 model.setOnScreen(phase == .active)
                 guard phase == .active else { return }
                 if model.phase == .failed { Task { await model.load() } } else { model.resume() }
             }
             // No conversation yet, then their first message arrives: it shows up in Messages, and here.
             .onChange(of: conversationListed) { _, listed in
-                if listed { model?.resume() }
+                if listed, visible { model?.resume() }
+            }
+            // Opened for a note that is in the thread: there, flashed, and the reply to it set up.
+            .onChange(of: model?.noteToShow) { _, id in
+                guard let id, let model else { return }
+                model.noteShown()
+                Task {
+                    guard await model.ensureLoaded(id), let message = model.message(id) else { return }
+                    model.reply(to: message)
+                    jump(to: id, pulse: true)
+                }
             }
             // The words typed are searched for a moment after the last key; a blank field is no search.
             .task(id: searching ? query : nil) {
@@ -130,6 +151,16 @@ struct ThreadScreen: View {
         .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { safe = $0 }
     }
 
+    /// On show: the top of its stack, on the tab chosen.
+    private var visible: Bool { appeared && onSelectedTab }
+
+    /// The thread came on show, or went out of it: listening, and reading what arrives, only while it shows.
+    private func shown(_ visible: Bool) {
+        guard let model else { return }
+        model.setOnScreen(visible && scenePhase == .active)
+        if visible { model.resume() } else { model.stop() }
+    }
+
     private var conversationListed: Bool {
         guard let pair = model?.pairId else { return false }
         return session.conversations.conversations.contains { $0.id == pair }
@@ -155,35 +186,58 @@ struct ThreadScreen: View {
             .padding(.top, barHeight)
             Spacer()
         case .ready:
-            if model.connected == false {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(L10n.Messages.notConnected).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+            // The messages show whoever may write: only the foot changes with it.
+            ZStack(alignment: .bottom) {
+                MessageList(rows: model.rows, ctx: context(model), position: $scroll, topMargin: barHeight,
+                            pillVisible: !(searching && showResults) && toast == nil, underBar: $underBar)
+                    // Under the search's list of matches the thread is out of sight: out of VoiceOver's reach too.
+                    .accessibilityHidden(searching && showResults)
+                if searching && showResults {
+                    ThreadSearchResults(model: model, query: query, topMargin: barHeight, underBar: $resultsUnderBar) { pick($0) }
+                }
+                if let toast {
+                    ThreadPill(icon: .check, text: toast)
+                        .padding(.bottom, 10)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
+            }
+            .frame(maxHeight: .infinity)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
+            foot(model)
+        }
+    }
+
+    /// Under the messages: the composer — with a quiet line over it when answering their note
+    /// connects the two — or, where there is nothing to write, a calm line in its place: the wait
+    /// for an answer to one's own note, or why messages can't be sent here. Nothing while that isn't known yet.
+    @ViewBuilder private func foot(_ model: ThreadModel) -> some View {
+        if model.accessKnown {
+            switch model.access {
+            case .open, .replyToConnect:
+                VStack(spacing: 0) {
+                    if model.access == .replyToConnect {
+                        ThreadFootNote(text: L10n.Messages.replyToConnect(handle: model.displayHandle), size: 12.5)
+                            .padding(.top, 10)
+                    }
+                    ThreadComposer(model: model, composing: $composing) { pickingCard = true }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 14)
+            case .awaitingReply:
+                ThreadFootNote(text: L10n.Messages.awaitingReply)
+                    .padding(.horizontal, 28)
+                    .padding(.top, 14)
+                    .padding(.bottom, 22)
+            case .notConnected:
+                VStack(spacing: 6) {
+                    ThreadFootNote(text: L10n.Messages.notConnected)
                     Button(L10n.Messages.viewProfile) { openRoute(.author(model.displayHandle)) }
                         .font(AppFonts.body(13)).foregroundStyle(Tokens.terracotta).underline().buttonStyle(.plain)
+                        .frame(minHeight: 32)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 20)
-                .padding(.horizontal, 16)
-                .padding(.top, barHeight)
-                Spacer()
-            } else {
-                ZStack(alignment: .bottom) {
-                    MessageList(rows: model.rows, ctx: context(model), position: $scroll, topMargin: barHeight,
-                                pillVisible: !(searching && showResults) && toast == nil, underBar: $underBar)
-                    if searching && showResults {
-                        ThreadSearchResults(model: model, query: query, topMargin: barHeight, underBar: $resultsUnderBar) { pick($0) }
-                    }
-                    if let toast {
-                        ThreadPill(icon: .check, text: toast)
-                            .padding(.bottom, 10)
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                    }
-                }
-                .frame(maxHeight: .infinity)
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
-                ThreadComposer(model: model, composing: $composing) { pickingCard = true }
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 14)
+                .padding(.horizontal, 28)
+                .padding(.top, 14)
+                .padding(.bottom, 16)
             }
         }
     }
@@ -446,6 +500,19 @@ struct ThreadScreen: View {
         format.locale = locale(language)
         format.dateFormat = pattern
         return format.string(from: date)
+    }
+}
+
+/// Lives as long as the thread screen's state: SwiftUI lets go of it only when the screen is gone for
+/// good (popped — not when a page is pushed over it, nor when its tab is out of sight), and it then
+/// closes the model, whose reads of older pages (a search's, up to the whole history; a quote's jump)
+/// would otherwise go on with nobody to show them to.
+nonisolated private final class ScreenLifetime {
+    var model: ThreadModel?
+
+    deinit {
+        guard let model else { return }
+        Task { @MainActor in model.close() }
     }
 }
 

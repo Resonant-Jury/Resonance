@@ -20,6 +20,16 @@ enum Route: Hashable {
     case write(WriteLauncher.Request)
 }
 
+extension Route {
+    /// This route is the conversation `top` already shows, with nothing more to do there: opening it
+    /// again would only stack a second copy over it (a note to go to still opens).
+    func reopens(_ top: Route) -> Bool {
+        guard case let .thread(handle, uid, nil) = self, case let .thread(topHandle, topUid, _) = top else { return false }
+        if let uid, let topUid { return uid == topUid }
+        return handle.caseInsensitiveCompare(topHandle) == .orderedSame
+    }
+}
+
 /// Pushes a route onto the current tab's stack (for taps that aren't
 /// NavigationLinks, e.g. a card link inside a story).
 struct OpenRouteAction {

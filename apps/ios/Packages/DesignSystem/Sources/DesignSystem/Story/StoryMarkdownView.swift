@@ -4,48 +4,66 @@ import SwiftUI
 
 /// A story, laid out like the web reader's `.prose`: 17pt DM Sans on a 1.8
 /// line box, Playfair headings, the curved quote rail, photos in organic
-/// clips, card links as embedded cards, and blank-line markers as air.
-/// Vertical rhythm follows CSS margins, collapsing between blocks.
-public struct StoryMarkdownView<Embed: View>: View {
+/// clips, card links as embedded cards, links standing alone as their page's
+/// card (when the story has one), and blank-line markers as air. Vertical
+/// rhythm follows CSS margins, collapsing between blocks.
+///
+/// `embed` draws a card link's card; `linkCard` a standalone link's page
+/// card (`StoryBlock.soleLink`'s address and words) — nil leaves the
+/// paragraph as it is written.
+public struct StoryMarkdownView<Embed: View, LinkCard: View>: View {
     let blocks: [StoryBlock]
     let onOpenURL: (URL) -> Void
     let embed: (_ href: String, _ title: String) -> Embed
+    let linkCard: (_ href: String?, _ text: String) -> LinkCard?
 
     public init(blocks: [StoryBlock], onOpenURL: @escaping (URL) -> Void,
-                @ViewBuilder embed: @escaping (_ href: String, _ title: String) -> Embed) {
+                @ViewBuilder embed: @escaping (_ href: String, _ title: String) -> Embed,
+                linkCard: @escaping (_ href: String?, _ text: String) -> LinkCard?) {
         self.blocks = blocks
         self.onOpenURL = onOpenURL
         self.embed = embed
+        self.linkCard = linkCard
     }
 
     public var body: some View {
-        BlockStack(blocks: blocks, style: .body, onOpenURL: onOpenURL, embed: embed)
+        BlockStack(blocks: blocks, style: .body, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard)
     }
 }
 
-struct BlockStack<Embed: View>: View {
+extension StoryMarkdownView where LinkCard == EmptyView {
+    /// A story whose standalone links stay the paragraphs they are.
+    public init(blocks: [StoryBlock], onOpenURL: @escaping (URL) -> Void,
+                @ViewBuilder embed: @escaping (_ href: String, _ title: String) -> Embed) {
+        self.init(blocks: blocks, onOpenURL: onOpenURL, embed: embed) { _, _ in nil }
+    }
+}
+
+struct BlockStack<Embed: View, LinkCard: View>: View {
     let blocks: [StoryBlock]
     let style: ProseStyle
     let onOpenURL: (URL) -> Void
     let embed: (String, String) -> Embed
+    let linkCard: (String?, String) -> LinkCard?
 
     var body: some View {
         // CSS px at the reader's 17pt, grown with the text.
         let gaps = ProseMetrics.gaps(blocks).map { $0 * TextScale.factor(relativeTo: .body) }
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { i, block in
-                BlockView(block: block, style: style, onOpenURL: onOpenURL, embed: embed)
+                BlockView(block: block, style: style, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard)
                     .padding(.top, gaps[i])
             }
         }
     }
 }
 
-struct BlockView<Embed: View>: View {
+struct BlockView<Embed: View, LinkCard: View>: View {
     let block: StoryBlock
     let style: ProseStyle
     let onOpenURL: (URL) -> Void
     let embed: (String, String) -> Embed
+    let linkCard: (String?, String) -> LinkCard?
 
     var body: some View {
         let em = ProseMetrics.em * TextScale.factor(relativeTo: .body)
@@ -63,6 +81,8 @@ struct BlockView<Embed: View>: View {
                 .frame(maxWidth: .infinity)
         case let .cardEmbed(href, title):
             embed(href, title)
+        case let .soleLink(href, words, runs):
+            if let card = linkCard(href, words) { card } else { text(runs, style) }
         case let .quote(children):
             HStack(alignment: .top, spacing: em) {
                 WavyRailShape(seed: 5)
@@ -70,13 +90,14 @@ struct BlockView<Embed: View>: View {
                     .frame(width: 6)
                     .frame(maxHeight: .infinity)
                     .accessibilityHidden(true)
-                BlockStack(blocks: children, style: style.quoted, onOpenURL: onOpenURL, embed: embed)
+                BlockStack(blocks: children, style: style.quoted, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard)
             }
             .fixedSize(horizontal: false, vertical: true)
         case let .list(ordered, start, items):
             VStack(alignment: .leading, spacing: 0.3 * em) {
                 ForEach(Array(items.enumerated()), id: \.offset) { i, item in
-                    ListItemView(marker: ordered ? "\(start + i)." : "•", blocks: item, style: style, onOpenURL: onOpenURL, embed: embed)
+                    ListItemView(marker: ordered ? "\(start + i)." : "•", blocks: item, style: style, onOpenURL: onOpenURL, embed: embed,
+                                 linkCard: linkCard)
                 }
             }
         case .rule:
@@ -96,12 +117,13 @@ struct BlockView<Embed: View>: View {
 
 /// A list item: the marker hangs in a 1.5em gutter, the content keeps its
 /// own blocks (tight lists hold a single paragraph).
-struct ListItemView<Embed: View>: View {
+struct ListItemView<Embed: View, LinkCard: View>: View {
     let marker: String
     let blocks: [StoryBlock]
     let style: ProseStyle
     let onOpenURL: (URL) -> Void
     let embed: (String, String) -> Embed
+    let linkCard: (String?, String) -> LinkCard?
 
     var body: some View {
         let gutter = 1.5 * ProseMetrics.em * TextScale.factor(relativeTo: .body)
@@ -111,7 +133,7 @@ struct ListItemView<Embed: View>: View {
             CSSTextView(style.attributed([InlineRun(marker)]), font: style.font, lineHeight: style.lineHeight)
                 .frame(width: gutter, alignment: .leading)
                 .accessibilityHidden(true)
-            BlockStack(blocks: blocks, style: style, onOpenURL: onOpenURL, embed: embed)
+            BlockStack(blocks: blocks, style: style, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard)
                 .padding(.leading, gutter)
         }
     }

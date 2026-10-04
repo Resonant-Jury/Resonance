@@ -73,6 +73,8 @@ struct MessageMenu {
 private let farUpScreens: CGFloat = 1.5
 /// How close to the oldest message held the list comes (in messages) before the next page is read.
 private let olderAhead = 6
+/// How tall the fade is where the thread meets its foot (the composer, the reply bar over it, a line in its place).
+private let edgeFade: CGFloat = 12
 private let runGap: CGFloat = 2
 private let betweenRuns: CGFloat = 12
 /// Their face beside their messages: the column every one of their bubbles is indented by.
@@ -115,8 +117,12 @@ struct MessageList: View {
                             .onAppear { if oldest.contains(row.id) { model.loadOlder() } }
                     }
                     if model.threadReady && model.messages.isEmpty {
-                        // Not "no messages yet" when they couldn't be read.
-                        QuietNote(model.listenFailed ? L10n.Native.loadError : L10n.Messages.noMessagesYet).upsideDown()
+                        // Not "no messages yet" when they couldn't be read, nor "say hello" where nothing can be said.
+                        if model.listenFailed {
+                            QuietNote(L10n.Native.loadError).upsideDown()
+                        } else if model.access.canWrite {
+                            QuietNote(L10n.Messages.noMessagesYet).upsideDown()
+                        }
                     } else if model.threadReady && !rows.isEmpty {
                         OlderRow(model: model).upsideDown()
                     }
@@ -130,9 +136,10 @@ struct MessageList: View {
             .upsideDown()
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
-            // Upside down, the list's bottom margin is the room under the bar, its top the air over the composer.
+            // Upside down, the list's bottom margin is the room under the bar, its top the air over the
+            // composer — with the fade's height besides, so the newest message rests clear of it.
             .contentMargins(.bottom, topMargin + 4, for: .scrollContent)
-            .contentMargins(.top, 10, for: .scrollContent)
+            .contentMargins(.top, 10 + edgeFade, for: .scrollContent)
             .onScrollGeometryChange(for: ListPlace.self) { geo in
                 // The container is what lies between the insets: upside down, the air over the
                 // composer below it and the bar (with the status bar) above it.
@@ -156,6 +163,8 @@ struct MessageList: View {
                     unseen += 1
                 }
             }
+            // Over the messages, under the pill: what scrolls down to the foot dissolves into the paper.
+            FootEdge()
             if pillVisible && (unseen > 0 || farUp) && !atBottom {
                 ThreadPill(icon: .chevronDown, text: unseen > 0 ? L10n.Messages.newMessages : L10n.Messages.jumpToLatest) {
                     unseen = 0
@@ -183,6 +192,24 @@ extension MessageList {
             try? await Task.sleep(for: .milliseconds(80))
             position.scrollTo(edge: .top)
         }
+    }
+}
+
+/// The thread's edge over its foot: no rule (it would be busy) but a narrow band of the paper fading
+/// up into the messages, eased so neither of its own edges shows — the foot dissolving upward, not a
+/// shadow. It catches no touch; the pill, the search results and the long-press layer lie over it.
+private struct FootEdge: View {
+    var body: some View {
+        LinearGradient(stops: [
+            .init(color: Tokens.cream, location: 0),
+            .init(color: Tokens.cream.opacity(0.75), location: 0.35),
+            .init(color: Tokens.cream.opacity(0.3), location: 0.7),
+            .init(color: Tokens.cream.opacity(0), location: 1),
+        ], startPoint: .bottom, endPoint: .top)
+        .frame(height: edgeFade)
+        .frame(maxWidth: .infinity)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -315,7 +342,7 @@ private struct MessageItem: View {
         let mine = model.isMine(message)
         // A card the viewer can't see, sent alone: nothing to draw (not even a face beside it).
         if model.carried(message) != .nothing {
-            SwipeToReply(enabled: message.canReply, mine: mine, onReply: { ctx.onReply(message) }) {
+            SwipeToReply(enabled: model.canReply(message), mine: mine, onReply: { ctx.onReply(message) }) {
                 HStack(alignment: .bottom, spacing: 0) {
                     if mine { Spacer(minLength: 0) } else { TheirFace(shown: !row.position.joinsBelow, ctx: ctx) }
                     VStack(alignment: mine ? .trailing : .leading, spacing: 0) {
@@ -366,12 +393,19 @@ struct MessageCore: View {
         let mine = model.isMine(message)
         let carried = model.carried(message)
         let words = carried.words(of: message)
-        let links = ChatLinks.links(in: words).map { MessageLinkRange(range: $0.range, url: $0.url) }
+        let found = ChatLinks.links(in: words)
+        let links = found.map { MessageLinkRange(range: $0.range, url: $0.url) }
         let pulse = ctx.flash.level(of: message.key)
         // A search hit in words the bubble doesn't show (a card's link, standing for the card) washes the whole bubble.
         let wholeHit = words != message.text && message.id == ctx.currentHit
+        // A note carries its card above its words, not inside its bubble.
+        let note = message.isNote
         let core = VStack(alignment: mine ? .trailing : .leading, spacing: 0) {
-            if let quote = message.replyTo { QuotedReply(quote: quote, mine: mine, ctx: ctx, interactive: interactive) }
+            if note {
+                NotedCard(message: message, carried: carried, mine: mine, ctx: ctx, interactive: interactive)
+            } else if let quote = message.replyTo {
+                QuotedReply(quote: quote, mine: mine, ctx: ctx, interactive: interactive)
+            }
             MessageBubble(
                 text: words, mine: mine, seed: seedFromId(message.key),
                 quoteLabel: message.noteRef == nil ? nil : L10n.Messages.quotedNote,
@@ -380,15 +414,17 @@ struct MessageCore: View {
                 highlights: words == message.text ? ctx.highlights[message.id] ?? [] : [],
                 highlightStrong: message.id == ctx.currentHit,
                 flash: wholeHit ? max(pulse, 0.5) : pulse,
-                width: width(carried),
-                plain: carried.isCard && carried.card == nil,
-                carries: carried.carriesMore,
+                width: note ? nil : width(carried),
+                plain: !note && carried.isCard && carried.card == nil,
+                carries: !note && carried.carriesMore,
                 onLinkTap: interactive ? { ctx.openLink($0) } : nil
             ) {
-                CarriedPart(carried: carried, afterWords: !words.isEmpty || message.noteRef != nil, ctx: ctx, interactive: interactive)
+                if !note {
+                    CarriedPart(carried: carried, afterWords: !words.isEmpty || message.noteRef != nil, ctx: ctx, interactive: interactive)
+                }
             }
-            // The reply lies over the foot of what it quotes.
-            .padding(.top, message.replyTo == nil ? 0 : -BubbleMetrics.replyOverlap)
+            // A reply lies over the foot of what it quotes, a note over the foot of its card.
+            .padding(.top, message.replyTo == nil && !note ? 0 : -BubbleMetrics.replyOverlap)
         }
         .opacity(message.delivery == .failed ? 0.6 : 1)
         if interactive {
@@ -397,11 +433,26 @@ struct MessageCore: View {
                 .opacity(ctx.lifted == message.key ? 0 : 1)
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { ctx.frames.frames[message.key] = $0 }
                 .gesture(MessagePress { link in press(link, carried: carried) })
-                // The press-and-hold is the message's whole menu: assistive tech reaches it (and Reply) as actions.
-                .accessibilityAction(named: L10n.Messages.reply) { if message.canReply { ctx.onReply(message) } }
+                // The press-and-hold is the message's whole menu: assistive tech reaches it (and Reply) as actions —
+                // and each link in its words, which a finger finds by where it lies and VoiceOver can't.
+                .accessibilityAction(named: L10n.Messages.reply) { if ctx.model.canReply(message) { ctx.onReply(message) } }
+                .accessibilityActions {
+                    ForEach(Array(zip(found, Self.linkActionLabels(found)).enumerated()), id: \.offset) { _, pair in
+                        Button(pair.1) { ctx.openLink(pair.0.url) }
+                    }
+                }
                 .accessibilityAction(named: L10n.Messages.moreMenu) { press(nil, carried: carried) }
         } else {
             core
+        }
+    }
+
+    /// What VoiceOver calls the action of each link in a message's words: "Open link: host" (without
+    /// www., as a story's link card names it) — or, for links sharing a host, the link as written.
+    static func linkActionLabels(_ links: [ChatLinks.Link]) -> [String] {
+        let hosts = links.map { $0.host.replacingOccurrences(of: "www.", with: "", options: .anchored) }
+        return zip(links, hosts).map { link, host in
+            L10n.Card.LinkPreview.open(host: hosts.count(where: { $0 == host }) > 1 ? link.text : host)
         }
     }
 
@@ -462,20 +513,63 @@ private struct CarriedPart: View {
                                imageURL: preview.imageURL, afterWords: afterWords,
                                onOpen: interactive ? { ctx.openLink(preview.url) } : nil)
         case let .card(card, _):
-            let author = card.anonymous ? nil : card.author?.value1
-            SharedCardSection(
-                byline: author.map {
-                    CardByline(name: $0.handle, initials: $0.initials, imageURL: $0.avatarUrl.flatMap(URL.init(string:)),
-                               color: $0.accent, avatarSeed: $0.avatarSeedValue)
-                } ?? .anonymous(L10n.Card.anonymousAuthor),
-                readTime: L10n.App.readMinutes(count: card.readMinutes),
-                title: card.title, excerpt: card.excerpt, imageURL: card.imageUrl.flatMap(URL.init(string:)),
-                accentHue: card.accentHue, source: L10n.Messages.cardSource,
-                onOpen: interactive ? { ctx.openRoute(.card(card.routeKey)) } : nil)
+            SharedCard(card: card, ctx: ctx, interactive: interactive)
         case .cardLoading:
             SharedCardSkeleton()
         case .words, .nothing:
             EmptyView()
+        }
+    }
+}
+
+/// A shared card as the thread draws it (Messenger's shared post): its author — or the anonymous
+/// mark —, cover, title, excerpt and the source line; a tap opens it.
+private struct SharedCard: View {
+    let card: FeedCard
+    let ctx: ThreadContext
+    let interactive: Bool
+
+    var body: some View {
+        let author = card.anonymous ? nil : card.author?.value1
+        SharedCardSection(
+            byline: author.map {
+                CardByline(name: $0.handle, initials: $0.initials, imageURL: $0.avatarUrl.flatMap(URL.init(string:)),
+                           color: $0.accent, avatarSeed: $0.avatarSeedValue)
+            } ?? .anonymous(L10n.Card.anonymousAuthor),
+            readTime: L10n.App.readMinutes(count: card.readMinutes),
+            title: card.title, excerpt: card.excerpt, imageURL: card.imageUrl.flatMap(URL.init(string:)),
+            accentHue: card.accentHue, source: L10n.Messages.cardSource,
+            onOpen: interactive ? { ctx.openRoute(.card(card.routeKey)) } : nil)
+    }
+}
+
+/// Over a note's words: whose card it was left on (the note glyph and "{handle} left a note on
+/// your card" / "You left a note on {handle}'s card", inset on the sender's side), then that card in
+/// a quote the note's bubble lies over — its skeleton while it is read, and, when the reader may
+/// not see it (any more), the plain quote of "a card", which leads nowhere.
+private struct NotedCard: View {
+    let message: ChatMessage
+    let carried: Carried<FeedCard>
+    let mine: Bool
+    let ctx: ThreadContext
+    let interactive: Bool
+
+    var body: some View {
+        let handle = ctx.model.displayHandle
+        let width = min(cardWidth, ctx.rowMax)
+        let seed = seedFromId(message.key, start: 19)
+        VStack(alignment: mine ? .trailing : .leading, spacing: 0) {
+            ReplyCaption(mine ? L10n.Messages.youLeftNote(handle: handle) : L10n.Messages.noteOnYourCard(handle: handle), icon: .note)
+                .padding(mine ? .trailing : .leading, 12)
+                .padding(.bottom, 4)
+            switch carried {
+            case let .card(card, _):
+                CardQuote(seed: seed, width: width) { SharedCard(card: card, ctx: ctx, interactive: interactive) }
+            case .cardLoading:
+                CardQuote(seed: seed, width: width, plain: true) { SharedCardSkeleton() }
+            case .words, .preview, .nothing:
+                QuoteBubble(text: L10n.Messages.replyCard, seed: seed)
+            }
         }
     }
 }

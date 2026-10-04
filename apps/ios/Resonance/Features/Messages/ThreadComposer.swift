@@ -26,7 +26,7 @@ struct ThreadComposer: View {
                 .padding(.horizontal, 2)
             }
             if let quote = model.replyingTo { ReplyBar(model: model, quote: quote) }
-            // Send is a disc a little shorter than the field: it stays at the foot of the field as that grows.
+            // Send is a little shorter than the field: it stays at the foot of the field as that grows.
             HStack(alignment: .bottom, spacing: 8) {
                 Button(action: onPickCard) {
                     OrganicIcon(.cards, size: 18, color: Tokens.textMuted)
@@ -58,6 +58,22 @@ struct ThreadComposer: View {
                 Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta).padding(.top, 6)
             }
         }
+    }
+}
+
+/// A calm line at the thread's foot, centred and muted: in the composer's place where there is
+/// nothing to write (a note waiting for its answer, no connection), or over it.
+struct ThreadFootNote: View {
+    let text: String
+    var size: CGFloat = 13
+
+    var body: some View {
+        Text(text)
+            .font(AppFonts.body(size)).foregroundStyle(Tokens.textMuted)
+            .lineSpacing(size * 0.35)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
     }
 }
 

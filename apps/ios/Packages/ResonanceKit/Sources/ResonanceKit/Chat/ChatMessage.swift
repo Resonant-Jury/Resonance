@@ -87,6 +87,11 @@ public struct ChatMessage: Equatable, Sendable {
     public let sentAt: Date
     public let cardRef: String?
     public let noteRef: MessagingAPI.NoteRef?
+    /// A note left on a card (`kind: 'note'`), which the server copies into the conversation: its
+    /// `cardRef` is the card it was left on — the note's author's words to that card's author — and
+    /// the thread draws that card above the words, the way a reply draws its quote. Any other kind
+    /// the server may add one day reads as a plain message.
+    public let isNote: Bool
     /// The message this one answers, as it read when the reply was sent.
     public var replyTo: ReplyQuote?
     /// The first link's page; the server writes it a moment after the message.
@@ -95,13 +100,15 @@ public struct ChatMessage: Equatable, Sendable {
     public var key: String
 
     public init(id: String, senderId: String, text: String, sentAt: Date, cardRef: String? = nil, noteRef: MessagingAPI.NoteRef? = nil,
-                replyTo: ReplyQuote? = nil, preview: LinkPreview? = nil, delivery: Delivery = .delivered, key: String? = nil) {
+                isNote: Bool = false, replyTo: ReplyQuote? = nil, preview: LinkPreview? = nil, delivery: Delivery = .delivered,
+                key: String? = nil) {
         self.id = id
         self.senderId = senderId
         self.text = text
         self.sentAt = sentAt
         self.cardRef = cardRef
         self.noteRef = noteRef
+        self.isNote = isNote
         self.replyTo = replyTo
         self.preview = preview
         self.delivery = delivery
@@ -127,13 +134,16 @@ public struct ChatMessage: Equatable, Sendable {
         let noteRef = (note?["cardId"] as? String).flatMap { card in
             (note?["noteId"] as? String).map { MessagingAPI.NoteRef(cardId: card, noteId: $0) }
         }
+        let cardRef = (fields["cardRef"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         return ChatMessage(
             id: id,
             senderId: fields["senderId"] as? String ?? "",
             text: fields["text"] as? String ?? "",
             sentAt: sentAt,
-            cardRef: (fields["cardRef"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+            cardRef: cardRef,
             noteRef: noteRef,
+            // A note without the card it was left on would be about nothing: drawn as plain words.
+            isNote: fields["kind"] as? String == "note" && cardRef != nil,
             replyTo: quote(fields["replyTo"] as? [String: Any]),
             preview: preview(fields["preview"] as? [String: Any], origin: origin)
         )
