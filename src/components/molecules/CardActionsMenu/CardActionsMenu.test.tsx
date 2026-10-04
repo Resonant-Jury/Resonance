@@ -163,7 +163,12 @@ describe('CardActionsMenu', () => {
     // Nothing sent yet: the question names the card it resonates with.
     expect(mockCallApi).not.toHaveBeenCalled();
     expect(screen.getByText('Stop resonating with "A walk"?')).toBeInTheDocument();
-    expect(screen.getByText("Your card stays; it just won't be listed with that card.")).toBeInTheDocument();
+    // The card stays — and the connection it made may not.
+    expect(
+      screen.getByText(
+        "Your card stays. If this resonance is what connected you two and they haven't written to you, you won't be connected any more.",
+      ),
+    ).toBeInTheDocument();
     // The card stays, so the verb is the dialog's plain solid fill, not the red of a delete.
     const confirm = screen.getByRole('button', { name: 'Stop resonating' });
     expect(confirm).toHaveAttribute('data-variant', 'solid');
