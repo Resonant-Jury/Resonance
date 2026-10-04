@@ -77,6 +77,12 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
         L10n.Home.heading,
         subtitle = L10n.Home.subheading,
         list = list,
+        // Pulled down: read again now, from the server rather than the HTTP cache.
+        onRefresh = {
+            session.readAfresh()
+            feed.reload()
+        },
+        refreshEnabled = state.phase != FeedLoader.Phase.Loading,
         overlay = {
             val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight
             AnimatedVisibility(

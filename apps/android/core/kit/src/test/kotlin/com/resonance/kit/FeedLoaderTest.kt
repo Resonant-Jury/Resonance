@@ -6,6 +6,7 @@ import com.resonance.kit.reading.FeedLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -22,6 +23,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The home feed never waits on today's picks: the latest cards show when they
@@ -195,6 +197,46 @@ class FeedLoaderTest {
         // What is on screen stays while it goes.
         assertEquals(listOf("a"), loader.state.value.cards.map { it.id })
         withTimeout(4_000) { while (reads.get() < 2) kotlinx.coroutines.delay(10) }
+    }
+
+    @Test fun aPullReadsAgainKeepingWhatIsShownAndReturnsOnceTheNewFeedIsIn() = runBlocking {
+        routes.on("/feed") { json(pageJson("a")) }
+        routes.on("/feed/recommended") { json(listJson()) }
+        loader.refresh("me", version = 0, now = 0)
+        until { it.phase == FeedLoader.Phase.Loaded }
+        routes.on("/feed") { held(latestGate, pageJson("new", "a")) }
+        val pulled = scope.async { loader.reload() }
+        // While it goes, the feed on screen stays (no skeleton), and the pull waits.
+        kotlinx.coroutines.delay(100)
+        assertEquals(FeedLoader.Phase.Loaded, loader.state.value.phase)
+        assertEquals(listOf("a"), loader.state.value.cards.map { it.id })
+        assertFalse(pulled.isCompleted)
+        latestGate.countDown()
+        withTimeout(4_000) { pulled.await() }
+        assertEquals(listOf("new", "a"), loader.state.value.cards.map { it.id })
+    }
+
+    @Test fun aPullIsNotHeldByPicksAskedForAgainLater() = runBlocking {
+        val patient = FeedLoader(ReadingApi(ApiConfiguration(server.url("/").toString()) { "token" }), scope, retryPicksAfter = 30.seconds)
+        routes.on("/feed") { json(pageJson("a")) }
+        routes.on("/feed/recommended") { MockResponse().setResponseCode(504) }
+        patient.load()
+        withTimeout(4_000) { patient.state.first { it.phase == FeedLoader.Phase.Loaded } }
+        // The picks failed again: the pull ends with the latest cards, not after the picks' retry.
+        withTimeout(4_000) { patient.reload() }
+        assertEquals(listOf("a"), patient.state.value.cards.map { it.id })
+    }
+
+    @Test fun aPullThatFailsLeavesTheFeedAsItWas() = runBlocking {
+        routes.on("/feed") { json(pageJson("a")) }
+        routes.on("/feed/recommended") { json(listJson()) }
+        loader.load()
+        until { it.phase == FeedLoader.Phase.Loaded }
+        routes.on("/feed") { MockResponse().setResponseCode(500) }
+        routes.on("/feed/recommended") { MockResponse().setResponseCode(500) }
+        withTimeout(4_000) { loader.reload() }
+        assertEquals(FeedLoader.Phase.Loaded, loader.state.value.phase)
+        assertEquals(listOf("a"), loader.state.value.cards.map { it.id })
     }
 
     @Test fun nothingAnsweringIsAFailureAndATryAgainLoads() = runBlocking {

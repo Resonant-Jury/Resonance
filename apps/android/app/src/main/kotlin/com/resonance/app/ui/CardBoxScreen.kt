@@ -62,6 +62,8 @@ import com.resonance.geometry.seedFromString
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.FeedLoader
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -92,22 +94,23 @@ class CardBoxModel(private val session: Session) : ViewModel() {
 
     /**
      * Reads `shelf` unless it was read since the last change (`changes`) and lately; `retry` always
-     * does. One of my own shelves brings the others of them that are due too.
+     * does. One of my own shelves brings the others of them that are due too. Returns the read
+     * (null: none was needed), for a pull to wait on.
      */
-    fun refresh(shelf: TabGetCardBox, changes: Int, retry: Boolean = false, now: Long = System.currentTimeMillis()) {
+    fun refresh(shelf: TabGetCardBox, changes: Int, retry: Boolean = false, now: Long = System.currentTimeMillis()): Job? {
         if (changes != seenChanges) {
             seenChanges = changes
             readAt.clear()
         }
         val current = { s: TabGetCardBox -> readAt[s]?.let { now - it < FeedLoader.STALE_AFTER.inWholeMilliseconds } == true }
-        if (!retry && current(shelf)) return
+        if (!retry && current(shelf)) return null
         val asked = shelvesToRead(shelf, current)
         val read = ++reads
         for (s in asked) {
             readAt[s] = now
             readBy[s] = read
         }
-        viewModelScope.launch {
+        return viewModelScope.launch {
             try {
                 val answered = session.reading.cardBox(asked)
                 failed = false
@@ -158,7 +161,18 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(shelf, changes, foregrounded) { model.refresh(shelf, changes) }
 
-    TabScreen(L10n.App.Nav.me, titleInBar = true) {
+    TabScreen(
+        L10n.App.Nav.me,
+        titleInBar = true,
+        // Pulled down: who I am and the shelf in view, read again now from the server rather than the HTTP cache.
+        onRefresh = {
+            session.readAfresh()
+            coroutineScope {
+                launch { session.loadMe() }
+                model.refresh(shelf, changes, retry = true)?.join()
+            }
+        },
+    ) {
         item {
             when (val p = profile) {
                 is Session.Profile.Loaded -> Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {

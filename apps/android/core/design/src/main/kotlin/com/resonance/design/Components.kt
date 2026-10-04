@@ -545,12 +545,10 @@ fun SketchLoader(size: Dp = 56.dp, color: Color = Tokens.Terracotta) {
         0f, 1f, infiniteRepeatable(tween(2600, easing = LinearEasing)), label = "t",
     )
     Canvas(Modifier.size(size).semantics { contentDescription = L10n.Home.moreLoading }) {
-        val d = density
-        val c = size.value / 2.0
-        val path = wobLoop(c, c, size.value * 0.34, size.value * 0.27, 7.0, WobLoopOptions(segments = 9, mag = size.value * 0.03, cpJitter = 0.7)).toPath(d)
-        val pen = size.toPx() * 0.036f
+        val path = loaderLoop(size, density)
+        val pen = loaderPen(size)
         if (t == null) {
-            drawPath(path, color.copy(alpha = 0.7f), style = Stroke(pen, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(path, color.copy(alpha = LOOP_AT_REST), style = Stroke(pen, cap = StrokeCap.Round, join = StrokeJoin.Round))
             return@Canvas
         }
         val measure = PathMeasure().apply { setPath(path, false) }
@@ -565,6 +563,35 @@ fun SketchLoader(size: Dp = 56.dp, color: Color = Tokens.Terracotta) {
         }
     }
 }
+
+/**
+ * The loader's loop drawn as far as [drawn] (0…1, read as it draws: a pull's progress) — the same
+ * two wobbly laps SketchLoader's dashes travel, in the loop's resting ink, so a loop drawn to its
+ * end is the reduced-motion loader.
+ */
+@Composable
+fun SketchLoaderLoop(drawn: () -> Float, size: Dp = 56.dp, color: Color = Tokens.Terracotta) {
+    Canvas(Modifier.size(size)) {
+        val part = drawn().coerceIn(0f, 1f)
+        if (part <= 0f) return@Canvas
+        val path = loaderLoop(size, density)
+        val measure = PathMeasure().apply { setPath(path, false) }
+        val seg = Path()
+        measure.getSegment(0f, part * measure.length, seg, true)
+        drawPath(seg, color.copy(alpha = LOOP_AT_REST), style = Stroke(loaderPen(size), cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+/** The loader's two-lap wobbly loop at [size] (seed 7: every loader is the same sketch). */
+private fun loaderLoop(size: Dp, density: Float): Path {
+    val c = size.value / 2.0
+    return wobLoop(c, c, size.value * 0.34, size.value * 0.27, 7.0, WobLoopOptions(segments = 9, mag = size.value * 0.03, cpJitter = 0.7)).toPath(density)
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.loaderPen(size: Dp): Float = size.toPx() * 0.036f
+
+/** The whole loop at rest (the web's reduced-motion sketch), and a pull drawing it. */
+private const val LOOP_AT_REST = 0.7f
 
 /** How an empty state's action reads: the web's filled CTA, an outline, or a plain terracotta link (not-found "back"). */
 enum class EmptyAction { Primary, Outline, Link }
