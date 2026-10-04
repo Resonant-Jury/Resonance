@@ -69,7 +69,9 @@ struct MainTabView: View {
                                    badge: $0 == .notifications ? session.notifications.unreadCount
                                        : $0 == .messages ? session.conversations.unreadTotal : 0)
                 }, selection: tab, onSelect: select)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // In place, fading: back on a tab's first page it is simply there again (a slide up after
+                    // the pop has finished read as arriving late), and on a push it gives way as quickly.
+                    .transition(.opacity)
             }
         }
         // Content moves down under the banner rather than behind it.
@@ -78,7 +80,7 @@ struct MainTabView: View {
                 AccountDeletionBanner(date: date).padding(.vertical, 6)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: paths[tab]?.isEmpty ?? true)
+        .animation(.easeOut(duration: 0.12), value: paths[tab]?.isEmpty ?? true)
         .background(Tokens.cream)
         .environment(writer)
         .onAppear { writer.onChange = { [session] in session.noteOwnWrite() } }
