@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import * as React from 'react';
-import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, onTestFinished, vi } from 'vitest';
 import { renderWithIntl, screen, userEvent, waitFor } from '@/../test/render';
 import en from '@/messages/en.json';
 import type { Card } from '@/lib/db/types';
@@ -187,6 +187,17 @@ describe('a writer opened in a tab of its own', () => {
     renderWithIntl(<WriteWorkspace title={en.write.editTitle} locale="en" initial={{ id: 'd1', story: 'x' }} />);
     await userEvent.click(backArrow());
     await waitFor(() => expect(replace).toHaveBeenLastCalledWith('/me'));
+  });
+
+  // Stepped back to as the tab's first page (its later pages ahead of it): the history is long, but nothing of
+  // ours lies behind — the Navigation API says so where there is one.
+  it('leaves for the feed from the tab’s first page, pages ahead of it or not', async () => {
+    vi.stubGlobal('navigation', { canGoBack: false });
+    onTestFinished(() => vi.unstubAllGlobals());
+    renderWithIntl(<WriteWorkspace title={en.write.title} locale="en" />);
+    await userEvent.click(backArrow());
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/home'));
+    expect(back).not.toHaveBeenCalled();
   });
 
   it('asks again and leaves on Leave after a way back that went nowhere', async () => {
