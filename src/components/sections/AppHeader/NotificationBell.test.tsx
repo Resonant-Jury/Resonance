@@ -5,6 +5,7 @@ import { renderWithIntl, screen, userEvent, within } from '@/../test/render';
 import type { Notification } from '@/lib/db/types';
 import { bellHref, onAnonymousCard } from './bellLink';
 import { NotificationBell } from './NotificationBell';
+import zhTW from '@/messages/zh-TW.json';
 
 // The header's bell, on its live list (useNotifications) and the read mark it writes: where each row leads.
 
@@ -88,6 +89,18 @@ describe('the bell’s rows', () => {
     expect(dot).not.toBeNull();
     expect(dot.compareDocumentPosition(words) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(words.contains(dot)).toBe(false);
+  });
+
+  // In the reader's language, the bell and its list as every row: never English words in zh-TW.
+  it('name the bell and its list, and an expired invite, in the reader’s language', async () => {
+    live.rows = [bell('n5', 'invite_expired', {})];
+    const user = userEvent.setup();
+    renderWithIntl(<NotificationBell />, { locale: 'zh-TW', messages: zhTW });
+    await user.click(screen.getByRole('button', { name: zhTW.app.nav.notifications }));
+    const list = screen.getByRole('dialog', { name: zhTW.app.nav.notifications });
+    expect(within(list).getByText(zhTW.app.notifications.inviteExpired)).toBeInTheDocument();
+    expect(screen.queryByText('Invite expired')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Notifications' })).toBeNull();
   });
 
   it('mark only the bell row read when one on an anonymous card is opened — no conversation, and offer no reply', async () => {
