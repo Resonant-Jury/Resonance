@@ -167,10 +167,14 @@ public enum L10n {
             public static var alreadyConnected: String { Strings.shared.string("app.notifications.alreadyConnected") }
             /// View all
             public static var viewAll: String { Strings.shared.string("app.notifications.viewAll") }
-            /// {handle} sent you a message.
+            /// {handle} sent you a message
             public static func message(handle: String) -> String { Strings.shared.format("app.notifications.message", ["handle": handle]) }
             /// Shared a card
             public static var messageCard: String { Strings.shared.string("app.notifications.messageCard") }
+            /// Unread
+            public static var unread: String { Strings.shared.string("app.notifications.unread") }
+            /// An invite expired
+            public static var inviteExpired: String { Strings.shared.string("app.notifications.inviteExpired") }
         }
         public enum SignOutConfirm {
             /// Sign out?
@@ -1274,5 +1278,7 @@ public enum L10n {
         public static var tabFeed: String { Strings.shared.string("native.tabFeed") }
         /// Refresh
         public static var refresh: String { Strings.shared.string("native.refresh") }
+        /// Close
+        public static var close: String { Strings.shared.string("native.close") }
     }
 }

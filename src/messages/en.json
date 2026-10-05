@@ -90,8 +90,10 @@
       "connect": "Connect with them",
       "alreadyConnected": "Connected",
       "viewAll": "View all",
-      "message": "{handle} sent you a message.",
-      "messageCard": "Shared a card"
+      "message": "{handle} sent you a message",
+      "messageCard": "Shared a card",
+      "unread": "Unread",
+      "inviteExpired": "An invite expired"
     },
     "signOutConfirm": {
       "title": "Sign out?",
@@ -690,6 +692,7 @@
     "retry": "Try again",
     "offline": "You're offline. What you've already opened is still here.",
     "tabFeed": "Feed",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "close": "Close"
   }
 }

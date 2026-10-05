@@ -169,10 +169,14 @@ object L10n {
             val alreadyConnected: String get() = Strings.string("app.notifications.alreadyConnected")
             /** View all */
             val viewAll: String get() = Strings.string("app.notifications.viewAll")
-            /** {handle} sent you a message. */
+            /** {handle} sent you a message */
             fun message(handle: String): String = Strings.format("app.notifications.message", mapOf("handle" to handle))
             /** Shared a card */
             val messageCard: String get() = Strings.string("app.notifications.messageCard")
+            /** Unread */
+            val unread: String get() = Strings.string("app.notifications.unread")
+            /** An invite expired */
+            val inviteExpired: String get() = Strings.string("app.notifications.inviteExpired")
         }
         object SignOutConfirm {
             /** Sign out? */
@@ -1276,5 +1280,7 @@ object L10n {
         val tabFeed: String get() = Strings.string("native.tabFeed")
         /** Refresh */
         val refresh: String get() = Strings.string("native.refresh")
+        /** Close */
+        val close: String get() = Strings.string("native.close")
     }
 }

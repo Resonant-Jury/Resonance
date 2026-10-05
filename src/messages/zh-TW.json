@@ -90,8 +90,10 @@
       "connect": "與 Ta 建立連結",
       "alreadyConnected": "已連結",
       "viewAll": "查看全部",
-      "message": "{handle} 傳了一則訊息給你。",
-      "messageCard": "分享了一張卡片"
+      "message": "{handle} 傳了一則訊息給你",
+      "messageCard": "分享了一張卡片",
+      "unread": "未讀",
+      "inviteExpired": "一則邀請已過期"
     },
     "signOutConfirm": {
       "title": "確定要登出嗎？",
@@ -690,6 +692,7 @@
     "retry": "再試一次",
     "offline": "目前離線，已經打開過的內容還在。",
     "tabFeed": "共振 Feed",
-    "refresh": "重新整理"
+    "refresh": "重新整理",
+    "close": "關閉"
   }
 }
