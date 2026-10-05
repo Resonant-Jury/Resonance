@@ -821,10 +821,7 @@ describe('a letter: notes between two people who aren’t connected', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Conversation options' }));
     await user.click(screen.getByRole('menuitem', { name: 'Block' }));
-    const before = vi.mocked(getMyBlockedIds).mock.calls.length;
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Block' }));
-    await new Promise((r) => setTimeout(r, 500));
-    console.log('DBG calls', before, vi.mocked(getMyBlockedIds).mock.calls.length, vi.mocked(blockUser).mock.calls.length);
     expect(await screen.findByText("You can only message people you're connected with.")).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
 
