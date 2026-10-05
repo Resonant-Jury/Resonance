@@ -28,4 +28,17 @@ class UiWordsTest {
         val found = offending(Regex("""\b(OrganicAlert|OrganicButton|ModalCloseButton|OrganicConfirmDialog)\([^)]*"[^"]*\p{L}"""))
         assertTrue(found.joinToString("\n"), found.isEmpty())
     }
+
+    @Test fun nothingTalkBackReadsIsWrittenInWordsOfItsOwn() {
+        // `contentDescription = "unread"`: read out in English whatever the reader's language.
+        val found = offending(Regex("""\b(contentDescription|stateDescription|onClickLabel|onLongClickLabel|paneTitle)\s*=\s*"[^"]*\p{L}"""))
+            .filterNot { line -> waiting.any { line.endsWith(it) } }
+        assertTrue(found.joinToString("\n"), found.isEmpty())
+    }
+
+    /**
+     * Labels still waiting for a key of their own in the catalogs (the web's TagPill says "Remove
+     * tag" in English too): known, and none may join them.
+     */
+    private val waiting = listOf("""onClickLabel = "Remove tag", onClick = onRemove),""")
 }
