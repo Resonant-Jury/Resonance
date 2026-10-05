@@ -12,7 +12,7 @@ import { StoryLinkCard } from '@/components/molecules/StoryLinkCard/StoryLinkCar
 import { StoryLinkPreviewsContext } from '@/components/molecules/StoryLinkCard/StoryLinkPreviews';
 import type { LinkPreview } from '@/lib/db/types';
 import { isBlankParagraph } from '@/lib/markdown/blankLines';
-import { soleLinkParagraphs } from '@/lib/links/storyLinks';
+import { SITE_HOSTS, soleLinkParagraphs } from '@/lib/links/storyLinks';
 import { seedFromString } from '@/lib/design/prng';
 import { storyLinkWave } from '@/lib/design/storyLinkWave';
 import styles from './StoryMarkdown.module.css';
@@ -42,16 +42,45 @@ function hastText(node: ElementContent): string {
   return '';
 }
 
+/**
+ * Our own hosts — the same in the server's render and the browser's (the page
+ * is drawn on both): the site's names and the deployment's own address.
+ */
+const OWN_HOSTS: readonly string[] = (() => {
+  const hosts = [...SITE_HOSTS];
+  try {
+    if (process.env.NEXT_PUBLIC_SITE_URL) hosts.push(new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname);
+  } catch {
+    // Not a URL: nothing to add.
+  }
+  return hosts;
+})();
+
+/** A link to another site's page (http or https, a host not ours) — not a page of ours, an anchor or a mail address. */
+function toOtherSite(href: string | undefined): boolean {
+  if (!href || !/^https?:\/\//i.test(href)) return false;
+  try {
+    return !OWN_HOSTS.includes(new URL(href).hostname.replace(/\.$/, '').toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/** How a link to another site opens, as its link card does: a tab of its own, sending no referrer and vouching for nothing. */
+const AWAY = { target: '_blank', rel: 'noopener noreferrer nofollow ugc' } as const;
+
 const components: Components = {
   // Links wear the pen's wavy underline as a repeating background, so a link
   // that wraps gets a stroke under every line (OrganicLink's absolutely
-  // positioned svg can't follow a wrapped inline box).
+  // positioned svg can't follow a wrapped inline box). One to another site
+  // opens in a tab of its own; one to our pages stays in this one.
   a: ({ node: _node, href, children, ...rest }) => {
     const wave = storyLinkWave(href ?? '');
     return (
       <a
         {...rest}
         href={href}
+        {...(toOtherSite(href) ? AWAY : {})}
         className={styles.link}
         style={{ '--wave': wave.rest, '--wave-strong': wave.strong } as CSSProperties}
       >
