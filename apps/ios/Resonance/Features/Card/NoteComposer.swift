@@ -126,16 +126,22 @@ struct NoteComposer: View {
 
 /// A note that didn't go, as the composer says it: in the app's words, never the server's (which
 /// are English, and for a block would say more than the web's composer does) — three notes left
-/// unanswered wait for the author's reply, anything else is the send error. `refused`: the server
-/// answered no to these words (three notes waiting, a block, no pen name, the card gone), which
-/// sending them again would only hear again; the rest (offline, the server's trouble) is a retry.
+/// unanswered wait for the author's reply, a card gone (deleted, or hidden from the writer since,
+/// its notes with it) can't be found, anything else is the send error (as the web's NoteComposer
+/// says them). `refused`: the server answered no to these words (three notes waiting, a block, no
+/// pen name, the card gone), which sending them again would only hear again; the rest (offline,
+/// the server's trouble) is a retry.
 struct NoteFailure: Equatable {
     let message: String
     let refused: Bool
 
     init(_ error: Error) {
         let failure = error as? APIFailure
-        message = failure?.status == 409 ? L10n.Card.Note.waitForReply : L10n.Messages.sendError
+        switch failure?.status {
+        case 409: message = L10n.Card.Note.waitForReply
+        case 404: message = L10n.Card.NotFound.title
+        default: message = L10n.Messages.sendError
+        }
         refused = [403, 404, 409].contains(failure?.status ?? 0)
     }
 }

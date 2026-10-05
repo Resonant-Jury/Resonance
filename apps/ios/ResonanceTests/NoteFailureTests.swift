@@ -23,6 +23,14 @@ import UIKit
         #expect(full.refused)
     }
 
+    @Test func aCardGoneSaysItCantBeFoundNotToTryAgain() {
+        // Deleted (its notes with it) or hidden from the writer since: no retry reaches it.
+        let gone = NoteFailure(APIFailure(code: "not_found", message: "No such card.", status: 404))
+        #expect(gone.message == L10n.Card.NotFound.title)
+        #expect(gone.message != L10n.Messages.sendError)
+        #expect(gone.refused)
+    }
+
     @Test func troubleOnTheWayIsARetryNotARefusal() {
         #expect(NoteFailure(APIFailure.unexpected(status: 502)) == NoteFailure(URLError(.notConnectedToInternet)))
         #expect(!NoteFailure(APIFailure.unexpected(status: 502)).refused)
