@@ -40,7 +40,8 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
   profile mark. Android backup / device transfer keeps only `settings.xml`.
 - **Push**: the registration (with the device's IANA time zone) is sent again only when the uid, token,
   language, app version or time zone changes, or after 24 h, never twice at once. Notification permission is asked after the first note, message or
-  published card (`PushCenter.reachedOut()`): before that nobody can reach the account. The iOS
+  published card (`PushCenter.reachedOut()`): before that nobody can reach the account — or when a
+  Settings → Notifications switch is turned on while notifications can't show. The iOS
   installation id is tied to the phone (`identifierForVendor`), so a restored backup gets its own.
 - **Live lists** use `LiveListeners`: a failed listener re-attaches on the next foreground or a retry
   button; only permission-denied / not-found means "gone". With nothing loaded yet, a screen shows a retry.
@@ -272,8 +273,9 @@ token with `PUT /api/v1/me/devices/{installationId}` (see "Both apps" for when) 
 Settings → Notifications holds the two pushes a person turns on (both off until then; `GET/PATCH
 /api/v1/me/notifications` through `NotificationSwitches`: a flip shows at once, is sent one at a time and
 undone with `saveError` when it fails). Turning one on while notifications can't show asks for the
-permission first (API 33+) and saves once it is given; refused, the switch stays off and `permissionDenied`
-offers the app's notification settings. Those pushes — tonight's card (`type: pick`) and a connection's new
+permission first (API 33+) and saves once it is given; refused — or with only the "picks" channel turned off
+(`PushCenter.picksBlock`) — the switch stays off and `permissionDenied` offers the app's notification settings
+(that channel's page, when only it is off). Those pushes — tonight's card (`type: pick`) and a connection's new
 card (`type: new_card`) — come on the "picks" channel (`native.channelNewCards`), and a card route opens the
 card; one that arrives while the app is open is drawn in the same channel and tag (`PushPlacement`). Real delivery needs a build against production (not `--ez emulator true`)
 on a device with Google Play services.
