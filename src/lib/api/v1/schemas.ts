@@ -376,7 +376,9 @@ export const SendNoteRequest = named(
      * The sender's own id for this note, made when they press send and kept
      * for every retry of it: it becomes the note's id, so sending it again (a
      * retry after a lost answer) finds the note already left — answered as
-     * the first send was, ringing no one twice — instead of leaving it twice.
+     * the first send was, ringing no one twice — instead of leaving it twice,
+     * for as long as the note is there (a card deleted takes its notes with
+     * it: a resend then is the 404 of a missing card).
      */
     clientId: ClientId.nullish(),
   }),

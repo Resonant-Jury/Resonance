@@ -304,6 +304,13 @@ export function buildOpenApi(): Json {
             'opens the card — `data.route` `/card/{cardId}`, no `fromUserId` — and a bell list should open the card too, never ' +
             'a thread with the writer) — no conversation, no connection; ' +
             'across a block it is answered 201 all the same and delivered to no one (a refusal would name its author)',
+          description:
+            'A `clientId` makes sending retry-safe: it becomes the note\'s id (and its message\'s in the thread), and the same ' +
+            'one sent again (a retry after a lost answer) is answered `201` with that id as it was first sent, writing, ' +
+            'counting and ringing nothing, while the note is there — whatever has become of the blocks or the card\'s ' +
+            'visibility since. A card deleted takes its notes with it: a resend after that is `404`, as any note to a missing ' +
+            'card is. Someone else\'s note, or a message already in the two people\'s thread on a named card, is `400` ("Not ' +
+            'a valid client id.").',
           requestBody: { required: true, ...json(ref('SendNoteRequest')) },
           responses: { '201': { description: 'Created', ...json(ref('SendNoteResponse')) }, ...errors(400, 401, 403, 404, 409) },
         },

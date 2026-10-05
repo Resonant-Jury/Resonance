@@ -160,10 +160,13 @@ export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name fi
  * note's id (and, in the thread, its message's), and sending the same one
  * again — the answer was lost — finds the note already left and answers with
  * it as the first send did (`duplicate`): nothing written, no bell, no
- * letter counted, no push. That holds whatever has become of the card or the
- * blocks since — it is asked before either — and for a note withheld across
- * a block alike, so a retry tells the sender nothing the first answer
- * didn't. A `clientId` naming someone else's note is refused; so is one
+ * letter counted, no push. That holds for as long as the note is there,
+ * whatever has become of the blocks or the card's visibility since — it is
+ * asked before either — and for a note withheld across a block alike, so a
+ * retry tells the sender nothing the first answer didn't. A card deleted
+ * (DELETE /cards/{id}) takes its notes with it: a resend after that is
+ * not_found, as any note to a missing card is — a withheld note's alike. A
+ * `clientId` naming someone else's note is refused; so is one
  * naming a message already in the two people's thread (the note's message
  * would overwrite it), asked only on a named card, where the thread is theirs.
  */
@@ -192,7 +195,8 @@ export async function sendNote(
   if (input.clientId && isReservedId(input.clientId)) throw new ApiFailure('invalid_request', 'Not a valid client id.');
   const notes = db.collection('notes');
   const sent = input.clientId ? notes.doc(input.clientId) : null;
-  // A resend first, before the card is read: one deleted or hidden since must not turn the answer into a 404.
+  // A resend first, before the card is read: one hidden since must not turn the answer into a 404 (one deleted
+  // since took the note with it: that resend is the 404 of a missing card).
   if (sent) {
     const existing = await sent.get();
     if (existing.exists) return resentNote(existing, uid);

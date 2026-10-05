@@ -367,13 +367,12 @@ describe('sendNote', () => {
       expect(await docs('notifications')).toHaveLength(3);
     });
 
-    it('answers a resend with the note as it was left, whatever the resend says or has become of the blocks or the card', async () => {
+    it('answers a resend with the note as it was left, whatever the resend says or has become of the blocks or the card\'s visibility', async () => {
       await sendNote(db, 'alice', { cardId: 'walk', text: 'original words', clientId });
       const changes = [
         () => db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' }),
         () => db.doc('users/alice').set({ handle: '' }),
         () => db.doc('cards/walk').update({ visibility: 'private' }),
-        () => db.doc('cards/walk').delete(),
       ];
       for (const change of changes) {
         await change();
@@ -382,6 +381,21 @@ describe('sendNote', () => {
       }
       expect((await db.doc(`notes/${clientId}`).get()).get('text')).toBe('original words');
       expect(await docs('notifications')).toHaveLength(1);
+    });
+
+    // Deleting a card (DELETE /cards/{id}, the only way a published one goes) deletes its notes: the resend
+    // finds no note and no card — the 404 of any note to a missing card, writing and ringing nothing.
+    it('answers a resend after the card was deleted, its notes with it, as a note to a missing card', async () => {
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'original words', clientId });
+      await deleteCard(db, 'bob', 'walk', { deleteByCard: async () => {} });
+      expect((await db.doc(`notes/${clientId}`).get()).exists).toBe(false);
+      const [messagesBefore, letterBefore] = [await docs('conversations/alice_bob/messages'), await letter()];
+      const again = await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'original words', clientId }));
+      expect([again.code, again.message]).toEqual(['not_found', 'No such card.']);
+      expect(await docs('notes')).toHaveLength(0);
+      expect(await docs('notifications')).toHaveLength(1);
+      expect(await docs('conversations/alice_bob/messages')).toEqual(messagesBefore);
+      expect(await letter()).toEqual(letterBefore);
     });
 
     it('writes one note when the same send arrives twice at once', async () => {
