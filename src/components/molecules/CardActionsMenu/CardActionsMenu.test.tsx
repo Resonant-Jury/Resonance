@@ -132,10 +132,13 @@ describe('CardActionsMenu', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Delete this card?')).toBeInTheDocument();
 
-    // Deleting can't be undone: the verb is red, "keep it" plain text, and
-    // neither draws a pen line inside the modal's own frame.
-    expect(screen.getByRole('button', { name: 'Delete card' })).toHaveAttribute('data-variant', 'danger');
-    expect(screen.getByRole('button', { name: 'Keep it' })).toHaveAttribute('data-variant', 'text');
+    // Deleting can't be undone: the verb is red and rightmost, "keep it" the
+    // tonal pill before it — the one confirm dialog's row.
+    const verb = screen.getByRole('button', { name: 'Delete card' });
+    const keep = screen.getByRole('button', { name: 'Keep it' });
+    expect(verb).toHaveAttribute('data-variant', 'danger');
+    expect(keep).toHaveAttribute('data-variant', 'tonal');
+    expect(Array.from(verb.parentElement!.children)).toEqual([keep, verb]);
 
     await userEvent.click(screen.getByText('Delete card'));
     await waitFor(() => expect(mockCallApi).toHaveBeenCalledWith('/api/v1/cards/c3', { method: 'DELETE' }));

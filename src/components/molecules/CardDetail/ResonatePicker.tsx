@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
+import { ModalActions } from '@/components/molecules/Modal/ModalActions';
 import { CardPickList } from '@/components/molecules/CardPicker/CardPickList';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { HandDrawnDashedBorder } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
@@ -188,9 +189,9 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
         </p>
       )}
 
-      <div className={styles.actions}>
-        {/* The modal is the frame: cancel is plain text, the verb a solid fill. */}
-        <OrganicButton variant="text" size="sm" onClick={close}>
+      <ModalActions>
+        {/* The modal is the frame: cancel is the tonal pill, the verb a solid fill, rightmost. */}
+        <OrganicButton variant="tonal" size="sm" onClick={close}>
           {t('cancel')}
         </OrganicButton>
         <OrganicButton variant="solid" size="sm" onClick={() => void confirm()} disabled={!selected}>
@@ -202,7 +203,7 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
           )}
           {t('confirm')}
         </OrganicButton>
-      </div>
+      </ModalActions>
     </Modal>
   );
 }

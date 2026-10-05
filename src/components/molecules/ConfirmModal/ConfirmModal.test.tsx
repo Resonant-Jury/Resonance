@@ -34,10 +34,13 @@ function renderConfirm(props: Partial<ComponentProps<typeof ConfirmModal>> = {})
 
 describe('ConfirmModal', () => {
   // The modal is the frame: neither action draws a pen outline of its own.
-  it('asks with plain-text cancel and a solid verb, both without a pen line', async () => {
+  it('asks with a tonal cancel and a solid verb, both without a pen line, the verb rightmost', async () => {
     const { cancel, confirm, onCancel, onConfirm } = renderConfirm();
 
-    expect(cancel).toHaveAttribute('data-variant', 'text');
+    expect(cancel).toHaveAttribute('data-variant', 'tonal');
+    // One row, in scanning order: the way out, then the verb.
+    expect(cancel.parentElement).toBe(confirm.parentElement);
+    expect(Array.from(cancel.parentElement!.children)).toEqual([cancel, confirm]);
     expect(confirm).toHaveAttribute('data-variant', 'solid');
     expect(penLines(cancel)).toHaveLength(0);
     expect(penLines(confirm)).toHaveLength(0);
@@ -53,13 +56,26 @@ describe('ConfirmModal', () => {
 
     expect(confirm).toHaveAttribute('data-variant', 'danger');
     expect(penLines(confirm)).toHaveLength(0);
-    // Keeping it stays plain text — only the verb is flagged.
-    expect(cancel).toHaveAttribute('data-variant', 'text');
+    // Keeping it stays the tonal pill — only the verb is flagged.
+    expect(cancel).toHaveAttribute('data-variant', 'tonal');
   });
 
   it('dims the actions and swaps the verb for an ellipsis while busy', () => {
     const { confirm } = renderConfirm({ busy: true, destructive: true });
     expect(confirm).toHaveTextContent('…');
     expect(confirm.parentElement).toHaveAttribute('data-busy', 'true');
+  });
+
+  // The apps' confirm says why a try failed, and keeps the question until its words are read.
+  it('says why the last try failed, above the buttons, and stays open to try again', () => {
+    const { confirm } = renderConfirm({ error: "That didn't go through — try again" });
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent("That didn't go through — try again");
+    expect(alert.compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps the title\'s line empty while its words are on their way', () => {
+    renderConfirm({ titlePending: true });
+    expect(screen.getByRole('heading', { name: 'Delete this?' })).toHaveAttribute('data-pending');
   });
 });

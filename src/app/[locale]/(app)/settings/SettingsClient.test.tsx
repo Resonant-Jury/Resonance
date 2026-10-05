@@ -169,7 +169,7 @@ describe('SettingsClient sign out', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Sign out?' });
     expect(mockSignOut).not.toHaveBeenCalled();
-    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveAttribute('data-variant', 'text');
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveAttribute('data-variant', 'tonal');
     const confirm = within(dialog).getByRole('button', { name: 'Sign out' });
     expect(confirm).toHaveAttribute('data-variant', 'solid');
 
@@ -192,10 +192,10 @@ describe('SettingsClient account deletion', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Delete your account?' });
     expect(scheduleMyAccountDeletion).not.toHaveBeenCalled();
-    // Deleting the account is permanent: the verb is red, the way back plain text.
+    // Deleting the account is permanent: the verb is red, the way back the tonal pill.
     const confirm = within(dialog).getByRole('button', { name: 'Delete account' });
     expect(confirm).toHaveAttribute('data-variant', 'danger');
-    expect(within(dialog).getByRole('button', { name: 'Keep my account' })).toHaveAttribute('data-variant', 'text');
+    expect(within(dialog).getByRole('button', { name: 'Keep my account' })).toHaveAttribute('data-variant', 'tonal');
     await u.click(confirm);
 
     await waitFor(() => expect(scheduleMyAccountDeletion).toHaveBeenCalledTimes(1));

@@ -226,10 +226,10 @@ describe('ResonatePicker', () => {
     expect(screen.getByRole('button', { name: 'Resonate' })).toBeDisabled();
   });
 
-  it('closes through its plain-text cancel', async () => {
+  it('closes through its tonal cancel', async () => {
     const { onClose } = renderPicker();
     const cancel = screen.getByRole('button', { name: 'Cancel' });
-    expect(cancel).toHaveAttribute('data-variant', 'text');
+    expect(cancel).toHaveAttribute('data-variant', 'tonal');
     await user().click(cancel);
     expect(onClose).toHaveBeenCalled();
   });

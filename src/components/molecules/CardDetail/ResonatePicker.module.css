@@ -134,9 +134,3 @@
   color: var(--color-danger, oklch(58% 0.16 25));
   margin: -6px 0 12px;
 }
-
-.actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}

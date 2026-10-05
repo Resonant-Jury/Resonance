@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
+import { ModalActions, ModalCloseRow } from '@/components/molecules/Modal/ModalActions';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { ToggleSwitch } from '@/components/atoms/ToggleSwitch/ToggleSwitch';
 import { CharCount, Field, Select, Textarea } from '@/components/atoms/Field/Field';
@@ -101,17 +102,15 @@ export function ReportModal({ open, target, offerBlock = true, onClose, onReport
   return (
     <Modal open={open} onClose={busy ? undefined : onClose} maxWidth={460} seed={83} ariaLabel={title}>
       {done ? (
-        <div className={styles.stack}>
-          <h3 className={styles.title}>{t('doneTitle')}</h3>
-          <p className={styles.body}>{t('doneBody')}</p>
-          {done.blocked && <p className={styles.body}>{t('doneBlocked', { handle })}</p>}
-          <div className={styles.actions}>
-            {/* The one way out: a close, so the quiet tonal pill, not a verb. */}
-            <OrganicButton variant="text" size="sm" onClick={onClose}>
-              {t('close')}
-            </OrganicButton>
+        <>
+          <div className={styles.stack}>
+            <h3 className={styles.title}>{t('doneTitle')}</h3>
+            <p className={styles.body}>{t('doneBody')}</p>
+            {done.blocked && <p className={styles.body}>{t('doneBlocked', { handle })}</p>}
           </div>
-        </div>
+          {/* Nothing left to do but leave: the one-exit notice's centred close, not a verb. */}
+          <ModalCloseRow label={t('close')} onClose={onClose} />
+        </>
       ) : (
         <div className={styles.stack}>
           <h3 className={styles.title}>{title}</h3>
@@ -156,14 +155,15 @@ export function ReportModal({ open, target, offerBlock = true, onClose, onReport
               {tSafety('actionError')}
             </p>
           )}
-          <div className={styles.actions} data-busy={busy || undefined}>
-            {/* The modal is the frame: cancel is plain text, the verb a solid fill. */}
-            <OrganicButton variant="text" size="sm" onClick={onClose}>
-              {tSafety('cancel')}
-            </OrganicButton>
-            <OrganicButton variant="solid" size="sm" onClick={() => void send()}>
-              {busy ? '…' : t('submit')}
-            </OrganicButton>
+          <div className={styles.foot}>
+            <ModalActions busy={busy}>
+              <OrganicButton variant="tonal" size="sm" onClick={onClose}>
+                {tSafety('cancel')}
+              </OrganicButton>
+              <OrganicButton variant="solid" size="sm" onClick={() => void send()}>
+                {busy ? '…' : t('submit')}
+              </OrganicButton>
+            </ModalActions>
           </div>
         </div>
       )}

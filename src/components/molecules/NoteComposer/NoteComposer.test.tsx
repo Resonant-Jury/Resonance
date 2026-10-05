@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.clearAllMocks());
 
-// The Send button sits in a pointer-events-gated wrapper while invalid.
+// The action row rests (pointer-events: none) while a note is on its way.
 const user = () => userEvent.setup({ pointerEventsCheck: 0 });
 
 describe('NoteComposer', () => {
@@ -49,18 +49,39 @@ describe('NoteComposer', () => {
     expect(await screen.findByText('Your note is on its way')).toBeInTheDocument();
   });
 
-  // The composer sits in a panel (or a modal): Send is a solid fill and
-  // cancel plain text, so neither adds a pen line to the frame around them.
-  it('sends with a solid verb beside a plain-text cancel', async () => {
+  // The composer sits in a panel (or a modal): Send is a solid fill, rightmost,
+  // and cancel the tonal pill before it — the modal foot every dialog shares.
+  it('sends with a solid verb beside a tonal cancel', async () => {
     const onClose = vi.fn();
     renderWithIntl(<NoteComposer cardId="c1" onClose={onClose} />);
 
-    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-variant', 'solid');
+    const send = screen.getByRole('button', { name: 'Send' });
+    expect(send).toHaveAttribute('data-variant', 'solid');
     const cancel = screen.getByRole('button', { name: 'Cancel' });
-    expect(cancel).toHaveAttribute('data-variant', 'text');
+    expect(cancel).toHaveAttribute('data-variant', 'tonal');
+    expect(Array.from(send.parentElement!.children)).toEqual([cancel, send]);
+    // Nothing written yet: nothing to send.
+    expect(send).toBeDisabled();
     await user().click(cancel);
     expect(onClose).toHaveBeenCalled();
     expect(sendNote).not.toHaveBeenCalled();
+  });
+
+  // Sent, there is nothing left to do but leave: a one-exit notice's close.
+  it('ends in a lone tonal Close once the note is sent', async () => {
+    const onClose = vi.fn();
+    renderWithIntl(<NoteComposer cardId="c1" onClose={onClose} />);
+    fireEvent.change(screen.getByPlaceholderText('Something you want to tell the author…'), {
+      target: { value: 'Thank you' },
+    });
+    await user().click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText('Your note is on its way')).toBeInTheDocument();
+    const close = screen.getByRole('button', { name: 'Close' });
+    expect(close).toHaveAttribute('data-variant', 'tonal');
+    expect(close.parentElement!.children).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    await user().click(close);
+    expect(onClose).toHaveBeenCalled();
   });
 
   // A letter holds three notes until the author answers; the fourth is refused, said in the reader's words.

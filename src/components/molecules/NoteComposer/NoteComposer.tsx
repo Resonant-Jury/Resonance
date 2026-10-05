@@ -6,6 +6,7 @@ import { Field, Textarea, CharCount } from '@/components/atoms/Field/Field';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Icon } from '@/components/atoms/Icon';
 import { Panel } from '@/components/molecules/Panel/Panel';
+import { ModalActions, ModalCloseRow } from '@/components/molecules/Modal/ModalActions';
 import { useMyProfile } from '@/lib/data/hooks';
 import { ApiError } from '@/lib/db/firestore/client/api';
 import { sendNote, NOTE_MAX_LENGTH } from '@/lib/db/firestore/client/notes';
@@ -98,15 +99,10 @@ export function NoteComposer({
           <Icon name="note" size={18} />
           <span style={{ fontSize: 14, color: 'var(--color-text)' }}>{t('sent')}</span>
         </div>
-        {/* Nothing is left to do but leave: the close at the foot, quiet and
-            centred (no ✕ — the modal around it has none either). */}
-        {onClose && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14, marginBottom: -8 }}>
-            <OrganicButton variant="text" size="sm" onClick={onClose}>
-              {t('close')}
-            </OrganicButton>
-          </div>
-        )}
+        {/* Nothing is left to do but leave: the one-exit notice's close at the
+            foot, a small tonal pill, centred (no ✕ — the modal around it has
+            none either). */}
+        {onClose && <ModalCloseRow label={t('close')} onClose={onClose} />}
       </Panel>
     );
   }
@@ -156,19 +152,20 @@ export function NoteComposer({
       )}
 
       {/* Breathing room between the char-count line and the action row. The
-          panel (or the modal hosting it) is the frame, so cancel is plain text
-          and Send a solid fill — neither draws a pen line of its own. */}
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
-        {onClose && (
-          <OrganicButton variant="text" size="sm" onClick={onClose}>
-            {t('cancel')}
-          </OrganicButton>
-        )}
-        <div style={{ opacity: valid ? 1 : 0.5, pointerEvents: valid ? 'auto' : 'none' }}>
-          <OrganicButton variant="solid" size="sm" onClick={submit}>
+          panel (or the modal hosting it) is the frame, so neither button
+          draws a pen line: cancel the tonal pill, Send the solid verb,
+          rightmost — the modal foot every dialog shares. */}
+      <div style={{ marginTop: 18 }}>
+        <ModalActions busy={pending}>
+          {onClose && (
+            <OrganicButton variant="tonal" size="sm" onClick={onClose}>
+              {t('cancel')}
+            </OrganicButton>
+          )}
+          <OrganicButton variant="solid" size="sm" onClick={submit} disabled={!valid}>
             {pending ? '…' : t('send')}
           </OrganicButton>
-        </div>
+        </ModalActions>
       </div>
     </Panel>
   );

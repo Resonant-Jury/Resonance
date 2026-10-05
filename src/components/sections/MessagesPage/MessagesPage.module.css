@@ -331,12 +331,6 @@
   cursor: pointer;
 }
 
-.confirmActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
 @media (max-width: 900px) {
   .page {
     grid-template-columns: 1fr;

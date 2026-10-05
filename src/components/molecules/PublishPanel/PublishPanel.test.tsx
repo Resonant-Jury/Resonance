@@ -30,8 +30,9 @@ afterEach(() => {
 });
 
 describe('PublishPanel', () => {
-  // The modal is the frame: Publish is a solid fill, "Not yet" plain text.
-  it('publishes with a solid verb and backs out with a plain-text cancel', async () => {
+  // The modal is the frame: Publish is a solid fill, "Not yet" the tonal pill
+  // before it — the foot every dialog shares, right-aligned, the verb rightmost.
+  it('publishes with a solid verb, rightmost, and backs out with a tonal cancel', async () => {
     const onPublish = vi.fn();
     const onClose = vi.fn();
     renderWithIntl(<PublishPanel {...baseProps} onPublish={onPublish} onClose={onClose} />);
@@ -39,7 +40,8 @@ describe('PublishPanel', () => {
     const publish = screen.getByRole('button', { name: 'Publish' });
     const cancel = screen.getByRole('button', { name: 'Not yet' });
     expect(publish).toHaveAttribute('data-variant', 'solid');
-    expect(cancel).toHaveAttribute('data-variant', 'text');
+    expect(cancel).toHaveAttribute('data-variant', 'tonal');
+    expect(Array.from(publish.parentElement!.children)).toEqual([cancel, publish]);
 
     await userEvent.click(cancel);
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -50,13 +52,28 @@ describe('PublishPanel', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalled());
   });
 
-  it('keeps the same solid / text pair when updating a live card', async () => {
+  // Why it didn't go through is read before the buttons that try again.
+  it('says a failed publish above the actions', () => {
+    renderWithIntl(<PublishPanel {...baseProps} error="Couldn't publish" onPublish={vi.fn()} onClose={vi.fn()} />);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't publish");
+    const publish = screen.getByRole('button', { name: 'Publish' });
+    expect(alert.compareDocumentPosition(publish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  // The request is on its way: the row rests, so it is neither sent twice nor walked away from.
+  it('rests its actions while publishing', () => {
+    renderWithIntl(<PublishPanel {...baseProps} pending onPublish={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Publishing…' }).parentElement).toHaveAttribute('data-busy', 'true');
+  });
+
+  it('keeps the same tonal / solid pair when updating a live card', async () => {
     const onPublish = vi.fn();
     renderWithIntl(<PublishPanel {...baseProps} mode="update" onPublish={onPublish} onClose={vi.fn()} />);
 
     const save = screen.getByRole('button', { name: 'Save changes' });
     expect(save).toHaveAttribute('data-variant', 'solid');
-    expect(screen.getByRole('button', { name: 'Not yet' })).toHaveAttribute('data-variant', 'text');
+    expect(screen.getByRole('button', { name: 'Not yet' })).toHaveAttribute('data-variant', 'tonal');
     await userEvent.click(save);
     expect(onPublish).toHaveBeenCalled();
     // An update never asks for the mirror moment.

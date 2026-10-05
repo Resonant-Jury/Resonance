@@ -1,0 +1,96 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+
+/* The mirror moment: the sparkle beside the echo, or the loader while it is read. */
+.insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+
+.insight[data-loading] {
+  align-items: center;
+}
+
+.insightGlyph {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.label {
+  font-family: var(--font-body);
+  font-size: var(--label-size);
+  letter-spacing: var(--label-tracking);
+  color: var(--color-text-muted);
+}
+
+.choice {
+  display: flex;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--hint-size, 12px);
+  color: var(--color-text-muted);
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.byline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.name {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.name[data-anonymous] {
+  color: var(--color-text-muted);
+}

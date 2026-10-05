@@ -50,6 +50,45 @@
   margin-top: 14px;
 }
 
+/* ModalActions: a choice's foot. Right-aligned, the verb rightmost; a pair
+   too wide for one row wraps in reverse — the verb (the later item) on top,
+   the way out under it, both still at the right — instead of breaking its
+   labels inside the pills. */
+.actions {
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.actions > button {
+  white-space: nowrap;
+}
+
+/* A request on its way: the row rests. */
+.actions[data-busy] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* A finger needs 44px to land on (the small pills are about 38px). */
+@media (pointer: coarse) {
+  .actions > button,
+  .closeRow > button {
+    min-height: 44px;
+  }
+}
+
+/* A dialog's error line: right above its actions, in the danger red. */
+.error {
+  margin: 0 0 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-danger, oklch(58% 0.16 25));
+}
+
 /* The close a screen reader finds (there is no ✕). Out of sight until the
    keyboard reaches it — then a quiet word in the corner, ringed in the focus
    colour, so a sighted keyboard user sees where they are. */

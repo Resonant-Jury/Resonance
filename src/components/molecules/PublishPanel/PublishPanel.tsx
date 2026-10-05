@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
+import { ModalActions } from '@/components/molecules/Modal/ModalActions';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -16,6 +17,8 @@ import {
 import { useMyProfile } from '@/lib/data/hooks';
 import { useHint } from '@/lib/hints';
 import type { Visibility } from '@/lib/db/types';
+import modalStyles from '@/components/molecules/Modal/Modal.module.css';
+import styles from './PublishPanel.module.css';
 
 const VISIBILITY_ICON: Record<'public' | 'private', 'globe' | 'lock'> = {
   public: 'globe',
@@ -57,7 +60,7 @@ export interface PublishPanelProps {
  *   1. AI insight echo (the mirror moment — `coreInsight` only, never a score)
  *   2. visibility
  *   3. publish anonymously (toggle + WYSIWYG card-head preview)
- *   4. the publish button
+ *   4. the actions: 再想想 | 發布 (儲存修改), right-aligned, the verb rightmost
  *
  * The echo is fetched when the panel opens and is purely a grace note: the
  * publish button never waits for it.
@@ -131,53 +134,22 @@ export function PublishPanel({
       seed={29}
       ariaLabel={updating ? t('updateTitle') : t('title')}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <h2
-          style={{
-            fontFamily: 'var(--font-heading)',
-            fontSize: 22,
-            fontWeight: 700,
-            color: 'var(--color-text)',
-          }}
-        >
-          {updating ? t('updateTitle') : t('title')}
-        </h2>
+      <div className={styles.panel}>
+        <h2 className={styles.title}>{updating ? t('updateTitle') : t('title')}</h2>
 
         {/* 1 — the mirror moment (first publication only); for an update, the
             plain statement of what the button is about to do instead */}
-        {updating && (
-          <p
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              lineHeight: 1.7,
-              color: 'var(--color-text-muted)',
-              margin: 0,
-            }}
-          >
-            {t('updateHint')}
-          </p>
-        )}
+        {updating && <p className={styles.hint}>{t('updateHint')}</p>}
         {(insightLoading || insight) && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: insightLoading ? 'center' : 'flex-start',
-              gap: 10,
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              lineHeight: 1.7,
-              color: 'var(--color-text)',
-            }}
-          >
+          <div className={styles.insight} data-loading={insightLoading || undefined}>
             {insightLoading ? (
               <>
                 <SketchLoader size={28} seed={29} ariaLabel={t('insightLoading')} />
-                <span style={{ color: 'var(--color-text-muted)' }}>{t('insightLoading')}</span>
+                <span className={styles.muted}>{t('insightLoading')}</span>
               </>
             ) : (
               <>
-                <span style={{ flexShrink: 0, marginTop: 2 }}>
+                <span className={styles.insightGlyph}>
                   <Icon name="sparkle" size={16} color="var(--color-terracotta)" />
                 </span>
                 <span>{t('insight', { coreInsight: insight! })}</span>
@@ -189,18 +161,9 @@ export function PublishPanel({
         <Divider seed={31} spacing={2} />
 
         {/* 2 — visibility */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <span
-            style={{
-              fontSize: 'var(--label-size)',
-              letterSpacing: 'var(--label-tracking)',
-              color: 'var(--color-text-muted)',
-              fontFamily: 'var(--font-body)',
-            }}
-          >
-            {tVis('label')}
-          </span>
-          <div style={{ display: 'flex' }}>
+        <div className={styles.group}>
+          <span className={styles.label}>{tVis('label')}</span>
+          <div className={styles.choice}>
             {/* A segmented choice with no pen line (its options are buttons):
                 a quiet paper-dark track shows the control's extent, and the
                 chosen side wears the tonal peach with the deep terracotta
@@ -227,25 +190,12 @@ export function PublishPanel({
             />
           </div>
           {/* Never for connections only: who could read it would say who wrote it. */}
-          {anonymous && (
-            <p style={{ fontSize: 'var(--hint-size, 12px)', color: 'var(--color-text-muted)' }}>{t('anonymousVisibility')}</p>
-          )}
+          {anonymous && <p className={styles.note}>{t('anonymousVisibility')}</p>}
         </div>
 
         {/* 3 — anonymous toggle + WYSIWYG card-head preview */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              color: 'var(--color-text)',
-              cursor: 'pointer',
-            }}
-          >
+        <div className={styles.group}>
+          <label className={styles.toggleRow}>
             {t('anonymousToggle')}
             <ToggleSwitch
               checked={anonymous}
@@ -258,7 +208,7 @@ export function PublishPanel({
             />
           </label>
           {/* Seeing is understanding: the exact card head the world will get. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className={styles.byline}>
             {anonymous ? (
               <HandDrawnAvatar initials="·" size={34} color="var(--color-cream-dark)" seed={97} />
             ) : (
@@ -270,29 +220,28 @@ export function PublishPanel({
                 seed={Number(me?.avatarSeed ?? 0)}
               />
             )}
-            <span
-              style={{
-                fontFamily: 'var(--font-body)',
-                fontWeight: 600,
-                fontSize: 14,
-                color: anonymous ? 'var(--color-text-muted)' : 'var(--color-text)',
-              }}
-            >
+            <span className={styles.name} data-anonymous={anonymous || undefined}>
               {anonymous ? t('anonymousName') : me?.handle ?? ''}
             </span>
           </div>
-          {anonymousHint.visible && (
-            <p style={{ fontSize: 'var(--hint-size, 12px)', color: 'var(--color-text-muted)' }}>
-              {t('anonymousHint')}
-            </p>
-          )}
+          {anonymousHint.visible && <p className={styles.note}>{t('anonymousHint')}</p>}
         </div>
 
         <Divider seed={47} spacing={2} />
 
-        {/* 4 — publish. The modal is the frame: the verb is a solid fill, cancel plain text. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ opacity: pending ? 0.6 : 1, pointerEvents: pending ? 'none' : 'auto' }}>
+        {/* 4 — the foot every dialog shares: right-aligned, 再想想 the tonal
+            way out, the verb solid and rightmost; why the last try failed
+            right above it. */}
+        <div>
+          {error && (
+            <p className={modalStyles.error} role="alert">
+              {error}
+            </p>
+          )}
+          <ModalActions busy={pending}>
+            <OrganicButton variant="tonal" size="sm" onClick={onClose}>
+              {t('cancel')}
+            </OrganicButton>
             <OrganicButton
               variant="solid"
               size="sm"
@@ -306,13 +255,7 @@ export function PublishPanel({
                 ? t('publishing')
                 : t('publish')}
             </OrganicButton>
-          </div>
-          <OrganicButton variant="text" size="sm" onClick={onClose}>
-            {t('cancel')}
-          </OrganicButton>
-          {error && (
-            <span style={{ fontSize: 12, color: 'var(--color-terracotta)' }}>{error}</span>
-          )}
+          </ModalActions>
         </div>
       </div>
     </Modal>

@@ -5,9 +5,9 @@ import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wobRect } from '@/lib/design/wobRect';
+import { ModalCloseRow } from './ModalActions';
 import styles from './Modal.module.css';
 import { INK } from '@/lib/design/strokes';
 
@@ -29,8 +29,9 @@ export interface ModalProps {
   /** The close's words: its name for a screen reader, and its label with `closeButton`. 關閉 / Close by default. */
   closeLabel?: string;
   /**
-   * For a modal whose foot has nothing else to do — a list, a picker: the
-   * close is drawn there, a quiet centred text button, as in the apps.
+   * For a modal whose foot has nothing else to do — a list, a picker, a
+   * notice: the close is drawn there, a small centred tonal pill, as in the
+   * apps (`ModalCloseRow`).
    */
   closeButton?: boolean;
 }
@@ -239,14 +240,7 @@ export function Modal({
         />
         <div className={styles.content}>
           {children}
-          {closeButton && onClose && (
-            // The modal is the frame, so the close draws none of its own.
-            <div className={styles.closeRow}>
-              <OrganicButton variant="text" size="sm" onClick={onClose}>
-                {close}
-              </OrganicButton>
-            </div>
-          )}
+          {closeButton && onClose && <ModalCloseRow label={close} onClose={onClose} />}
         </div>
         {!closeButton && onClose && (
           <button type="button" className={styles.hiddenClose} onClick={onClose}>

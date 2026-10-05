@@ -4,8 +4,8 @@ import { useCallback, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSWRConfig } from 'swr';
 import { Modal } from '@/components/molecules/Modal/Modal';
+import { ConfirmModal } from '@/components/molecules/ConfirmModal/ConfirmModal';
 import { OrganicMenu, type OrganicMenuItem } from '@/components/molecules/OrganicMenu/OrganicMenu';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useRouter } from '@/i18n/navigation';
 import { useCardSummaries } from '@/lib/data/hooks';
@@ -184,65 +184,36 @@ export function CardActionsMenu({
         className={className}
       />
 
-      <Modal
+      {/* Deleting can't be undone: the verb in red. A refusal is said in the dialog, which stays to try again. */}
+      <ConfirmModal
         open={confirming === 'delete'}
-        onClose={() => (busy ? undefined : setConfirming(null))}
+        title={t('deleteConfirmTitle')}
+        body={t('deleteConfirmBody')}
+        cancelLabel={t('deleteCancel')}
+        confirmLabel={t('deleteConfirm')}
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => void confirmDelete()}
+        busy={busy}
+        destructive
+        error={failed ? tSafety('actionError') : null}
         seed={seed + 5}
-        maxWidth={400}
-        ariaLabel={t('deleteConfirmTitle')}
-      >
-        <h3 className={styles.confirmTitle}>{t('deleteConfirmTitle')}</h3>
-        <p className={styles.confirmBody}>{t('deleteConfirmBody')}</p>
-        {failed && (
-          <p className={styles.confirmError} role="alert">
-            {tSafety('actionError')}
-          </p>
-        )}
-        {/* Gated via pointer-events while deleting. */}
-        <div
-          className={styles.confirmActions}
-          style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
-        >
-          {/* The modal is the frame: "keep it" is plain text, and deleting — which can't be undone — is red. */}
-          <OrganicButton variant="text" size="sm" onClick={() => setConfirming(null)}>
-            {t('deleteCancel')}
-          </OrganicButton>
-          <OrganicButton variant="danger" size="sm" onClick={() => void confirmDelete()}>
-            {busy ? '…' : t('deleteConfirm')}
-          </OrganicButton>
-        </div>
-      </Modal>
+      />
 
-      <Modal
+      {/* The card stays: nothing here is irreversible, so the verb is the plain solid fill. While the title
+          it names is on its way the question waits, rather than changing its words under the reader. */}
+      <ConfirmModal
         open={confirming === 'unresonate'}
-        onClose={() => (busy ? undefined : setConfirming(null))}
+        title={originalTitle ? t('unresonateConfirmTitle', { title: originalTitle }) : t('unresonate')}
+        titlePending={lookup?.status === 'loading'}
+        body={t('unresonateConfirmBody')}
+        cancelLabel={t('deleteCancel')}
+        confirmLabel={t('unresonateConfirm')}
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => void confirmUnresonate()}
+        busy={busy}
+        error={failed ? tSafety('actionError') : null}
         seed={seed + 9}
-        maxWidth={400}
-        ariaLabel={t('unresonate')}
-      >
-        {/* While its title is on its way the question waits, rather than changing its words under the reader. */}
-        <h3 className={styles.confirmTitle} data-pending={lookup?.status === 'loading' || undefined}>
-          {originalTitle ? t('unresonateConfirmTitle', { title: originalTitle }) : t('unresonate')}
-        </h3>
-        <p className={styles.confirmBody}>{t('unresonateConfirmBody')}</p>
-        {failed && (
-          <p className={styles.confirmError} role="alert">
-            {tSafety('actionError')}
-          </p>
-        )}
-        <div
-          className={styles.confirmActions}
-          style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
-        >
-          {/* The card stays: nothing here is irreversible, so the verb is the plain solid fill. */}
-          <OrganicButton variant="text" size="sm" onClick={() => setConfirming(null)}>
-            {t('deleteCancel')}
-          </OrganicButton>
-          <OrganicButton variant="solid" size="sm" onClick={() => void confirmUnresonate()}>
-            {busy ? '…' : t('unresonateConfirm')}
-          </OrganicButton>
-        </div>
-      </Modal>
+      />
 
       {/* The menu has closed by the time the server answers: a refusal is said here, and the card stays as it was. */}
       <Modal
@@ -253,7 +224,7 @@ export function CardActionsMenu({
         ariaLabel={isPrivate ? t('makePublic') : t('makePrivate')}
         closeButton
       >
-        <h3 className={styles.confirmTitle}>{isPrivate ? t('makePublic') : t('makePrivate')}</h3>
+        <h3 className={styles.noticeTitle}>{isPrivate ? t('makePublic') : t('makePrivate')}</h3>
         <p className={styles.notice} role="alert">
           {tSafety('actionError')}
         </p>
