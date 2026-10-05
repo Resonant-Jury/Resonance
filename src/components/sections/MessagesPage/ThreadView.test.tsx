@@ -245,8 +245,18 @@ describe('replies, links and link previews in a thread', () => {
     const user = (await import('@testing-library/user-event')).default.setup();
     renderWithIntl(thread());
 
-    expect(await screen.findAllByText('alice replied to you')).toHaveLength(2);
+    // Who answered whom is plain in a one-to-one thread: not shown (no caption, no glyph), only read out before the quote.
+    const spoken = await screen.findAllByText('alice replied to you');
+    expect(spoken).toHaveLength(2);
     expect(screen.getByText('alice replied to themselves')).toBeInTheDocument();
+    for (const caption of [...spoken, screen.getByText('alice replied to themselves')]) {
+      expect(caption.className).toMatch(/quoteSpoken/);
+      expect(caption.parentElement!.querySelector('svg')).toBeNull();
+      // Read before the quoted words, and the reply's run stands a little further off.
+      expect(caption.nextElementSibling?.tagName).toBe('BUTTON');
+      expect(caption.closest('[data-message-id]')).toHaveAttribute('data-quoted');
+    }
+    expect(screen.getByText('Are you coming on Friday?', { selector: '[data-message-id="m1"] *' }).closest('[data-message-id]')).not.toHaveAttribute('data-quoted');
     // A card-only original reads as「A card」.
     expect(screen.getByRole('button', { name: 'A card' })).toBeInTheDocument();
 
@@ -593,8 +603,13 @@ describe('notes in a thread', () => {
     vi.mocked(callApi).mockResolvedValue({ cards: [summary('c1', 'A walk at dawn'), summary('c2', 'Their letter')] });
     const { container } = renderWithIntl(thread());
 
-    expect(await screen.findByText('alice left a note on your card')).toBeInTheDocument();
-    expect(screen.getByText("You left a note on alice's card")).toBeInTheDocument();
+    // That a note answers a card is not shown (the card over its words says so), only read out before the card.
+    for (const caption of [await screen.findByText('alice left a note on your card'), screen.getByText("You left a note on alice's card")]) {
+      expect(caption.className).toMatch(/quoteSpoken/);
+      expect(caption.parentElement!.querySelector(':scope > svg')).toBeNull();
+      expect(caption.nextElementSibling).toHaveAttribute('data-tone', 'quote');
+      expect(caption.closest('[data-message-id]')).toHaveAttribute('data-quoted');
+    }
     // The card is the quote over the note, on the quieter fill, and opens the card; the note's words are its own bubble.
     const card = await screen.findByRole('link', { name: /A walk at dawn/ });
     expect(card).toHaveAttribute('href', '/card/c1-slug');

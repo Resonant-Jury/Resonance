@@ -2,7 +2,6 @@
 
 import { useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { Icon } from '@/components/atoms/Icon';
 import type { Carried } from '@/lib/chat/carried';
 import { QUOTE_RADIUS, bubbleStandInRadius, seedFromId } from '@/lib/design/bubble';
 import { useBubbleClip } from './MessageBubble';
@@ -23,12 +22,15 @@ export interface NoteQuoteProps {
 
 /**
  * What a note (小紙條) answers, over its words — the card it was left on, the
- * way a reply's quote sits over a reply: a caption with the note glyph
- * (「{handle} 用小紙條回覆了你的卡片」, or that the viewer left one), then the
- * card as the shared post a thread draws, on the quieter quote fill at a
- * card's width, whose foot the note's own bubble lies over. A click opens the
- * card. While the card is read it is the shared card's plain stand-in; a card
- * the viewer can no longer see is the plain quote「一張卡片」.
+ * way a reply's quote sits over a reply: the card as the shared post a thread
+ * draws, on the quieter quote fill at a card's width, whose foot the note's
+ * own bubble lies over. A click opens the card. While the card is read it is
+ * the shared card's plain stand-in; a card the viewer can no longer see is
+ * the plain quote「一張卡片」.
+ *
+ * That it is a note on the card (「{handle} 用小紙條回覆了你的卡片」, or that
+ * the viewer left one) is not shown — the card over the words says so — only
+ * read out, before the card, as it always was.
  */
 export function NoteQuote({ seedKey, own, otherHandle, carried, interactive }: NoteQuoteProps) {
   const t = useTranslations('messages');
@@ -41,10 +43,7 @@ export function NoteQuote({ seedKey, own, otherHandle, carried, interactive }: N
 
   return (
     <div className={styles.quote} data-own={own || undefined} data-note="">
-      <span className={styles.quoteCaption}>
-        <Icon name="note" size={12} />
-        {caption}
-      </span>
+      <span className={styles.quoteSpoken}>{caption}</span>
       {card ? (
         <div
           ref={ref}
