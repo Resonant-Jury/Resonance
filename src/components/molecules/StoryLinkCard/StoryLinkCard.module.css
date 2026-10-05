@@ -12,6 +12,8 @@
   box-sizing: border-box;
   padding: 10px 10px 14px;
   color: inherit;
+  /* Upright wherever it stands — a story's quote sets its words in italics, not the card quoted in it. */
+  font-style: normal;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
