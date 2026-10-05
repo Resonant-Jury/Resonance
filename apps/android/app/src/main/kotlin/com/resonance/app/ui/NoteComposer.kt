@@ -142,15 +142,8 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
                             PushCenter.reachedOut()
                         } catch (e: CancellationException) {
                             throw e
-                        } catch (e: ApiFailure) {
-                            error = when {
-                                // Notes waiting unanswered: the next one waits for their reply (in the app's words, never the server's).
-                                e.isConflict -> L10n.Card.Note.waitForReply
-                                e.status == 403 -> e.message
-                                else -> L10n.Messages.sendError
-                            }
                         } catch (e: Exception) {
-                            error = L10n.Messages.sendError
+                            error = noteSendError(e)
                         } finally {
                             pending = false
                         }
@@ -160,6 +153,14 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
         }
     }
 }
+
+/**
+ * Why a note didn't go, in the app's words — never the server's English: notes waiting
+ * unanswered, that the next one waits for their reply; anything else (a refusal, a block either
+ * way — which it doesn't tell apart — the network), that it didn't send, as the web says.
+ */
+internal fun noteSendError(e: Exception): String =
+    if (e is ApiFailure && e.isConflict) L10n.Card.Note.waitForReply else L10n.Messages.sendError
 
 /** Text held to `max` UTF-16 units (the field's maxLength), never cutting a surrogate pair in two. */
 internal fun capped(text: String, max: Int): String {
