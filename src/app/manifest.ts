@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Resonance — Let lives influence lives',
     short_name: 'Resonance',
-    description: 'A space for real life stories from around the world to connect.',
+    description: 'A space for real life stories from around the world to connect',
     start_url: '/',
     scope: '/',
     display: 'standalone',

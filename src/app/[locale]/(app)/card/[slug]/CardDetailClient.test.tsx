@@ -217,7 +217,7 @@ describe('CardDetailClient (no server content)', () => {
     const user = userEvent.setup();
     renderPage({ slug: 'c1' });
 
-    expect(await screen.findByText("Couldn't load this — please try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load this — please try again")).toBeInTheDocument();
     expect(screen.queryByText("This card can't be found")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Try again' }));

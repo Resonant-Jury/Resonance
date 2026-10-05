@@ -275,7 +275,7 @@ describe('MessagesPage thread', () => {
     renderPage(<MessagesPage activeHandle="alice" />);
     await waitFor(() =>
       expect(
-        screen.getByText("You can only message people you're connected with."),
+        screen.getByText("You can only message people you're connected with"),
       ).toBeInTheDocument(),
     );
     expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument();

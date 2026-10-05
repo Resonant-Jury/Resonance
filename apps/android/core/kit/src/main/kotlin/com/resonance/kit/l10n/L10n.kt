@@ -8,7 +8,7 @@ object L10n {
     object Metadata {
         /** Resonance — Let lives influence lives */
         val title: String get() = Strings.string("metadata.title")
-        /** A space for real life stories from around the world to connect. */
+        /** A space for real life stories from around the world to connect */
         val description: String get() = Strings.string("metadata.description")
     }
     object Nav {
@@ -50,7 +50,7 @@ object L10n {
         val tag: String get() = Strings.string("feed.tag")
         /** Stories worth reading */
         val title: String get() = Strings.string("feed.title")
-        /** Real people, real experiences — every voice carries a world. */
+        /** Real people, real experiences — every voice carries a world */
         val subtitle: String get() = Strings.string("feed.subtitle")
         /** View all stories */
         val viewAll: String get() = Strings.string("feed.viewAll")
@@ -147,7 +147,7 @@ object L10n {
             val editThisCard: String get() = Strings.string("app.nav.editThisCard")
         }
         object Notifications {
-            /** When someone resonates with your card — or sends you a little note — it will show up here. */
+            /** When someone resonates with your card — or sends you a little note — it will show up here */
             val empty: String get() = Strings.string("app.notifications.empty")
             /** {handle} wants to connect */
             fun invite(handle: String): String = Strings.format("app.notifications.invite", mapOf("handle" to handle))
@@ -194,7 +194,7 @@ object L10n {
     object Home {
         /** Stories picked for you */
         val heading: String get() = Strings.string("home.heading")
-        /** Chosen from the insights you have written, alongside the newest public cards. */
+        /** Chosen from the insights you have written, alongside the newest public cards */
         val subheading: String get() = Strings.string("home.subheading")
         /** Load more */
         val moreBtn: String get() = Strings.string("home.moreBtn")
@@ -207,7 +207,7 @@ object L10n {
         object Empty {
             /** Write your first card */
             val title: String get() = Strings.string("home.empty.title")
-            /** Once published, it can appear in the latest public feed. */
+            /** Once published, it can appear in the latest public feed */
             val subtitle: String get() = Strings.string("home.empty.subtitle")
             /** Start writing */
             val cta: String get() = Strings.string("home.empty.cta")
@@ -215,13 +215,13 @@ object L10n {
         /** because of “{reason}” */
         fun matchReason(reason: String): String = Strings.format("home.matchReason", mapOf("reason" to reason))
         object Recommended {
-            /** The insights you write decide which stories find you. */
+            /** The insights you write decide which stories find you */
             val hint: String get() = Strings.string("home.recommended.hint")
             /** Today's picks are ready */
             val ready: String get() = Strings.string("home.recommended.ready")
         }
         object ColdStart {
-            /** Your first card becomes the point this world starts arranging itself around. */
+            /** Your first card becomes the point this world starts arranging itself around */
             val title: String get() = Strings.string("home.coldStart.title")
             /** Write a story */
             val cta: String get() = Strings.string("home.coldStart.cta")
@@ -244,14 +244,14 @@ object L10n {
         val resonatedBy: String get() = Strings.string("card.resonatedBy")
         /** View all */
         val viewAllResonators: String get() = Strings.string("card.viewAllResonators")
-        /** No one has resonated with this card yet. */
+        /** No one has resonated with this card yet */
         val noResonatorsYet: String get() = Strings.string("card.noResonatorsYet")
-        /** No bio yet. */
+        /** No bio yet */
         val noBio: String get() = Strings.string("card.noBio")
         object Resonance {
             /** Reflections on \"{title}\" */
             fun titlePrefill(title: String): String = Strings.format("card.resonance.titlePrefill", mapOf("title" to title))
-            /** Your response becomes a card of your own. */
+            /** Your response becomes a card of your own */
             val hint: String get() = Strings.string("card.resonance.hint")
             /** Not ready to go public? Send it to the author as a note instead. */
             val downgrade: String get() = Strings.string("card.resonance.downgrade")
@@ -265,13 +265,13 @@ object L10n {
             val label: String get() = Strings.string("card.note.label")
             /** Something you want to tell the author… */
             val placeholder: String get() = Strings.string("card.note.placeholder")
-            /** Only the author can see this. */
+            /** Only the author can see this */
             val hint: String get() = Strings.string("card.note.hint")
             /** Want to turn this into a resonance card? */
             val upgrade: String get() = Strings.string("card.note.upgrade")
-            /** Your note is on its way. */
+            /** Your note is on its way */
             val sent: String get() = Strings.string("card.note.sent")
-            /** You've left notes they haven't answered yet — wait for their reply. */
+            /** You've left notes they haven't answered yet — wait for their reply */
             val waitForReply: String get() = Strings.string("card.note.waitForReply")
             /** Send */
             val send: String get() = Strings.string("card.note.send")
@@ -293,13 +293,13 @@ object L10n {
             val title: String get() = Strings.string("card.resonanceSection.title")
             /** Resonating with */
             val sourceTitle: String get() = Strings.string("card.resonanceSection.sourceTitle")
-            /** No one has resonated with this card yet — be the first. */
+            /** No one has resonated with this card yet — be the first */
             val empty: String get() = Strings.string("card.resonanceSection.empty")
         }
         object LinkModal {
             /** Link with a card */
             val title: String get() = Strings.string("card.linkModal.title")
-            /** Pick one of your cards to link with this one. */
+            /** Pick one of your cards to link with this one */
             val pickCard: String get() = Strings.string("card.linkModal.pickCard")
             /** Create link */
             val confirm: String get() = Strings.string("card.linkModal.confirm")
@@ -309,7 +309,7 @@ object L10n {
             val close: String get() = Strings.string("card.linkModal.close")
             /** Linked! */
             val linked: String get() = Strings.string("card.linkModal.linked")
-            /** You have no published cards to link yet. */
+            /** You have no published cards to link yet */
             val noCards: String get() = Strings.string("card.linkModal.noCards")
         }
         object LinkPreview {
@@ -323,25 +323,25 @@ object L10n {
         object ResonatePicker {
             /** Resonate with this card */
             val title: String get() = Strings.string("card.resonatePicker.title")
-            /** Write a new card, or pick one you've written about something similar. */
+            /** Write a new card, or pick one you've written about something similar */
             val subtitle: String get() = Strings.string("card.resonatePicker.subtitle")
             /** Write a new card */
             val writeNew: String get() = Strings.string("card.resonatePicker.writeNew")
-            /** Start from this card and put your own experience into words. */
+            /** Start from this card and put your own experience into words */
             val writeNewHint: String get() = Strings.string("card.resonatePicker.writeNewHint")
             /** Or pick one you've written */
             val pickHeading: String get() = Strings.string("card.resonatePicker.pickHeading")
-            /** You have no public cards yet — write your first one above. */
+            /** You have no public cards yet — write your first one above */
             val empty: String get() = Strings.string("card.resonatePicker.empty")
-            /** Cards already resonating with another card aren't listed. */
+            /** Cards already resonating with another card aren't listed */
             val hiddenNote: String get() = Strings.string("card.resonatePicker.hiddenNote")
             /** Resonate */
             val confirm: String get() = Strings.string("card.resonatePicker.confirm")
             /** Cancel */
             val cancel: String get() = Strings.string("card.resonatePicker.cancel")
-            /** Couldn't resonate — please try again. */
+            /** Couldn't resonate — please try again */
             val failed: String get() = Strings.string("card.resonatePicker.failed")
-            /** This card already resonates with another card. */
+            /** This card already resonates with another card */
             val alreadyAnswering: String get() = Strings.string("card.resonatePicker.alreadyAnswering")
             /** Anonymous */
             val anonymous: String get() = Strings.string("card.resonatePicker.anonymous")
@@ -380,33 +380,33 @@ object L10n {
         }
         /** Anonymous */
         val anonymousAuthor: String get() = Strings.string("card.anonymousAuthor")
-        /** This card was published anonymously — your pen name isn't shown on it or on your profile. */
+        /** This card was published anonymously — your pen name isn't shown on it or on your profile */
         val anonymousOwnerNote: String get() = Strings.string("card.anonymousOwnerNote")
     }
     object Messages {
         /** Messages */
         val title: String get() = Strings.string("messages.title")
-        /** Quiet conversations with the people you're connected with. */
+        /** Quiet conversations with the people you're connected with */
         val subtitle: String get() = Strings.string("messages.subtitle")
-        /** Once you form a connection, your conversations will live here. */
+        /** Once you form a connection, your conversations will live here */
         val empty: String get() = Strings.string("messages.empty")
         /** Connected — no conversation yet */
         val startSection: String get() = Strings.string("messages.startSection")
-        /** Pick a conversation from the left. */
+        /** Pick a conversation from the left */
         val pickOne: String get() = Strings.string("messages.pickOne")
-        /** No messages yet — say hello. */
+        /** No messages yet — say hello */
         val noMessagesYet: String get() = Strings.string("messages.noMessagesYet")
         /** Write a message… */
         val placeholder: String get() = Strings.string("messages.placeholder")
         /** Send */
         val send: String get() = Strings.string("messages.send")
-        /** Couldn't send — please try again. */
+        /** Couldn't send — please try again */
         val sendError: String get() = Strings.string("messages.sendError")
-        /** You can only message people you're connected with. */
+        /** You can only message people you're connected with */
         val notConnected: String get() = Strings.string("messages.notConnected")
         /** They'll see your note. Once they reply, you can keep talking. */
         val awaitingReply: String get() = Strings.string("messages.awaitingReply")
-        /** Reply to start talking with {handle}. */
+        /** Reply to start talking with {handle} */
         fun replyToConnect(handle: String): String = Strings.format("messages.replyToConnect", mapOf("handle" to handle))
         /** View profile */
         val viewProfile: String get() = Strings.string("messages.viewProfile")
@@ -414,7 +414,7 @@ object L10n {
         val back: String get() = Strings.string("messages.back")
         /** You:  */
         val youPrefix: String get() = Strings.string("messages.youPrefix")
-        /** This person doesn't exist. */
+        /** This person doesn't exist */
         val userNotFound: String get() = Strings.string("messages.userNotFound")
         /** Conversation with {handle} */
         fun threadWith(handle: String): String = Strings.format("messages.threadWith", mapOf("handle" to handle))
@@ -438,7 +438,7 @@ object L10n {
         val cardShared: String get() = Strings.string("messages.cardShared")
         /** Share one of your cards */
         val pickCard: String get() = Strings.string("messages.pickCard")
-        /** Share one of your published cards in this conversation. */
+        /** Share one of your published cards in this conversation */
         val pickCardSubtitle: String get() = Strings.string("messages.pickCardSubtitle")
         /** Conversation options */
         val moreMenu: String get() = Strings.string("messages.moreMenu")
@@ -456,13 +456,13 @@ object L10n {
         val searchClose: String get() = Strings.string("messages.searchClose")
         /** Cards & links */
         val mediaTitle: String get() = Strings.string("messages.mediaTitle")
-        /** Everything shared in this conversation. */
+        /** Everything shared in this conversation */
         val mediaSubtitle: String get() = Strings.string("messages.mediaSubtitle")
         /** Shared cards */
         val mediaCards: String get() = Strings.string("messages.mediaCards")
         /** Links */
         val mediaLinks: String get() = Strings.string("messages.mediaLinks")
-        /** Nothing shared here yet. */
+        /** Nothing shared here yet */
         val mediaEmpty: String get() = Strings.string("messages.mediaEmpty")
         /** Delete this conversation? */
         val deleteConfirmTitle: String get() = Strings.string("messages.deleteConfirmTitle")
@@ -472,7 +472,7 @@ object L10n {
         val deleteCancel: String get() = Strings.string("messages.deleteCancel")
         /** Delete */
         val deleteConfirm: String get() = Strings.string("messages.deleteConfirm")
-        /** Couldn’t delete — please try again. */
+        /** Couldn’t delete — please try again */
         val deleteError: String get() = Strings.string("messages.deleteError")
         /** Reply */
         val reply: String get() = Strings.string("messages.reply")
@@ -506,7 +506,7 @@ object L10n {
         val linkConfirmOpen: String get() = Strings.string("messages.linkConfirmOpen")
         /** Cancel */
         val linkConfirmCancel: String get() = Strings.string("messages.linkConfirmCancel")
-        /** This link can't be opened. */
+        /** This link can't be opened */
         val linkUnsupported: String get() = Strings.string("messages.linkUnsupported")
         /** Sending… */
         val sending: String get() = Strings.string("messages.sending")
@@ -518,9 +518,9 @@ object L10n {
         val discardFailed: String get() = Strings.string("messages.discardFailed")
         /** Loading earlier messages… */
         val loadingOlder: String get() = Strings.string("messages.loadingOlder")
-        /** Couldn't load earlier messages. */
+        /** Couldn't load earlier messages */
         val loadOlderError: String get() = Strings.string("messages.loadOlderError")
-        /** This is the start of your conversation. */
+        /** This is the start of your conversation */
         val beginning: String get() = Strings.string("messages.beginning")
         /** Latest messages */
         val jumpToLatest: String get() = Strings.string("messages.jumpToLatest")
@@ -544,7 +544,7 @@ object L10n {
         val cardSource: String get() = Strings.string("messages.cardSource")
     }
     object Write {
-        /** Give it a one-line title first. */
+        /** Give it a one-line title first */
         val titleRequired: String get() = Strings.string("write.titleRequired")
         /** New card */
         val title: String get() = Strings.string("write.title")
@@ -570,7 +570,7 @@ object L10n {
         val referenceCard: String get() = Strings.string("write.referenceCard")
         /** One-line title */
         val coreLabel: String get() = Strings.string("write.coreLabel")
-        /** e.g. Being seen matters more than being liked. */
+        /** e.g. Being seen matters more than being liked */
         val corePlaceholder: String get() = Strings.string("write.corePlaceholder")
         /** Story */
         val storyLabel: String get() = Strings.string("write.storyLabel")
@@ -608,9 +608,9 @@ object L10n {
             object CardModal {
                 /** Insert a card link */
                 val title: String get() = Strings.string("write.editor.cardModal.title")
-                /** Pick one of your public cards — the link lands at your cursor. */
+                /** Pick one of your public cards — the link lands at your cursor */
                 val subtitle: String get() = Strings.string("write.editor.cardModal.subtitle")
-                /** You have no public cards yet. */
+                /** You have no public cards yet */
                 val empty: String get() = Strings.string("write.editor.cardModal.empty")
                 /** Cancel */
                 val cancel: String get() = Strings.string("write.editor.cardModal.cancel")
@@ -698,7 +698,7 @@ object L10n {
         val editLiveHint: String get() = Strings.string("write.editLiveHint")
         /** Changes saved privately · {time} (readers still see the old version) */
         fun editBuffered(time: String): String = Strings.format("write.editBuffered", mapOf("time" to time))
-        /** You have unsaved changes here — only you can see them. */
+        /** You have unsaved changes here — only you can see them */
         val editBufferedIdle: String get() = Strings.string("write.editBufferedIdle")
         /** Save draft and leave */
         val saveDraftAndLeave: String get() = Strings.string("write.saveDraftAndLeave")
@@ -719,7 +719,7 @@ object L10n {
             val anonymousToggle: String get() = Strings.string("write.publishPanel.anonymousToggle")
             /** Anonymous */
             val anonymousName: String get() = Strings.string("write.publishPanel.anonymousName")
-            /** Anonymous cards never appear on your profile. */
+            /** Anonymous cards never appear on your profile */
             val anonymousHint: String get() = Strings.string("write.publishPanel.anonymousHint")
             /** Publish */
             val publish: String get() = Strings.string("write.publishPanel.publish")
@@ -735,7 +735,7 @@ object L10n {
             val update: String get() = Strings.string("write.publishPanel.update")
             /** Saving… */
             val updating: String get() = Strings.string("write.publishPanel.updating")
-            /** An anonymous card is either public or only for you. */
+            /** An anonymous card is either public or only for you */
             val anonymousVisibility: String get() = Strings.string("write.publishPanel.anonymousVisibility")
         }
         object FirstCard {
@@ -760,7 +760,7 @@ object L10n {
         val editProfile: String get() = Strings.string("me.editProfile")
         /** View public profile */
         val viewPublicProfile: String get() = Strings.string("me.viewPublicProfile")
-        /** No bio yet. */
+        /** No bio yet */
         val bioEmpty: String get() = Strings.string("me.bioEmpty")
         object Tabs {
             /** Published */
@@ -779,7 +779,7 @@ object L10n {
             val thoughtMap: String get() = Strings.string("me.tabs.thoughtMap")
         }
         object ThoughtMap {
-            /** Bring your cards onto the map and start weaving your thoughts together. */
+            /** Bring your cards onto the map and start weaving your thoughts together */
             val empty: String get() = Strings.string("me.thoughtMap.empty")
             /** Add card */
             val addCard: String get() = Strings.string("me.thoughtMap.addCard")
@@ -793,7 +793,7 @@ object L10n {
             val newGroup: String get() = Strings.string("me.thoughtMap.newGroup")
             /** Pick a card to add */
             val trayTitle: String get() = Strings.string("me.thoughtMap.trayTitle")
-            /** Every card is already on the map. */
+            /** Every card is already on the map */
             val trayEmpty: String get() = Strings.string("me.thoughtMap.trayEmpty")
             /** Zoom in */
             val zoomIn: String get() = Strings.string("me.thoughtMap.zoomIn")
@@ -822,17 +822,17 @@ object L10n {
             /** Leave */
             val leave: String get() = Strings.string("me.thoughtMap.leave")
         }
-        /** Your first card becomes the point this world starts arranging itself around. */
+        /** Your first card becomes the point this world starts arranging itself around */
         val emptyPublished: String get() = Strings.string("me.emptyPublished")
-        /** No private cards. */
+        /** No private cards */
         val emptyPrivate: String get() = Strings.string("me.emptyPrivate")
-        /** No drafts. */
+        /** No drafts */
         val emptyDraft: String get() = Strings.string("me.emptyDraft")
-        /** No one has linked a card to you yet. */
+        /** No one has linked a card to you yet */
         val emptyLinked: String get() = Strings.string("me.emptyLinked")
-        /** No resonances yet. */
+        /** No resonances yet */
         val emptyResonated: String get() = Strings.string("me.emptyResonated")
-        /** When a story is too good to forget, press the bookmark — it will wait here quietly, only for you. */
+        /** When a story is too good to forget, press the bookmark — it will wait here quietly, only for you */
         val emptyBookmarks: String get() = Strings.string("me.emptyBookmarks")
         object Actions {
             /** Manage card */
@@ -900,7 +900,7 @@ object L10n {
         fun shareTitle(handle: String): String = Strings.format("profile.shareTitle", mapOf("handle" to handle))
         /** {handle}'s life stories on Resonance */
         fun shareDescription(handle: String): String = Strings.format("profile.shareDescription", mapOf("handle" to handle))
-        /** No bio yet. */
+        /** No bio yet */
         val bioEmpty: String get() = Strings.string("profile.bioEmpty")
         /** Joined {date} */
         fun joined(date: String): String = Strings.format("profile.joined", mapOf("date" to date))
@@ -910,9 +910,9 @@ object L10n {
         fun cardCount(count: Int): String = Strings.format("profile.cardCount", mapOf("count" to count))
         /** Published */
         val publishedHeading: String get() = Strings.string("profile.publishedHeading")
-        /** Nothing published yet. */
+        /** Nothing published yet */
         val emptyPublished: String get() = Strings.string("profile.emptyPublished")
-        /** Your first card becomes the point this world starts arranging itself around. */
+        /** Your first card becomes the point this world starts arranging itself around */
         val emptyPublishedSelf: String get() = Strings.string("profile.emptyPublishedSelf")
         /** Write a story */
         val emptyPublishedCta: String get() = Strings.string("profile.emptyPublishedCta")
@@ -948,7 +948,7 @@ object L10n {
         val seeWho: String get() = Strings.string("invite.seeWho")
         /** You’re connected ✿ */
         val successTitle: String get() = Strings.string("invite.successTitle")
-        /** You can now see each other’s full card box and DM. */
+        /** You can now see each other’s full card box and DM */
         val successSubtitle: String get() = Strings.string("invite.successSubtitle")
         /** {days} days to respond */
         fun expiresIn(days: Int): String = Strings.format("invite.expiresIn", mapOf("days" to days))
@@ -964,7 +964,7 @@ object L10n {
         fun expiresAt(date: String): String = Strings.format("inviteInbox.expiresAt", mapOf("date" to date))
         /** (No message) */
         val emptyMessage: String get() = Strings.string("inviteInbox.emptyMessage")
-        /** This invite has closed — it can't be accepted any more. */
+        /** This invite has closed — it can't be accepted any more */
         val closed: String get() = Strings.string("inviteInbox.closed")
         /** That didn't go through. Try again. */
         val error: String get() = Strings.string("inviteInbox.error")
@@ -1046,7 +1046,7 @@ object L10n {
         fun welcome(handle: String): String = Strings.format("auth.welcome", mapOf("handle" to handle))
         /** Your account is scheduled for deletion. Sign in within 7 days to cancel. */
         val deletionScheduled: String get() = Strings.string("auth.deletionScheduled")
-        /** By continuing, you agree to the {terms} and the {privacy}. */
+        /** By continuing, you agree to the {terms} and the {privacy} */
         fun agreeTerms(terms: String, privacy: String): String = Strings.format("auth.agreeTerms", mapOf("terms" to terms, "privacy" to privacy))
         /** Terms of Use */
         val termsLink: String get() = Strings.string("auth.termsLink")
@@ -1147,7 +1147,7 @@ object L10n {
             val title: String get() = Strings.string("settings.delete.title")
             /** You'll be signed out right away. After 7 days your account, cards, messages and uploaded images are deleted for good; si */
             val warn: String get() = Strings.string("settings.delete.warn")
-            /** Before you go, you can download everything you've written. */
+            /** Before you go, you can download everything you've written */
             val exportHint: String get() = Strings.string("settings.delete.exportHint")
             /** Download my data */
             val export: String get() = Strings.string("settings.delete.export")
@@ -1198,7 +1198,7 @@ object L10n {
         val anonymousAuthor: String get() = Strings.string("safety.anonymousAuthor")
         /** You blocked {handle} */
         fun blockedNotice(handle: String): String = Strings.format("safety.blockedNotice", mapOf("handle" to handle))
-        /** You don't see their cards, and they can't reach you. */
+        /** You don't see their cards, and they can't reach you */
         val blockedNoticeBody: String get() = Strings.string("safety.blockedNoticeBody")
         object Report {
             /** Report this card */
@@ -1247,9 +1247,9 @@ object L10n {
         object BlockedList {
             /** Blocked people */
             val title: String get() = Strings.string("safety.blockedList.title")
-            /** People you block can't reach you, and you don't see their cards. */
+            /** People you block can't reach you, and you don't see their cards */
             val subtitle: String get() = Strings.string("safety.blockedList.subtitle")
-            /** You haven't blocked anyone. */
+            /** You haven't blocked anyone */
             val empty: String get() = Strings.string("safety.blockedList.empty")
             /** Blocked {date} */
             fun since(date: String): String = Strings.format("safety.blockedList.since", mapOf("date" to date))
@@ -1260,7 +1260,7 @@ object L10n {
         }
     }
     object AccountDeletion {
-        /** Your account will be deleted on {date}. */
+        /** Your account will be deleted on {date} */
         fun banner(date: String): String = Strings.format("accountDeletion.banner", mapOf("date" to date))
         /** Cancel deletion */
         val cancel: String get() = Strings.string("accountDeletion.cancel")
@@ -1268,11 +1268,11 @@ object L10n {
         val error: String get() = Strings.string("accountDeletion.error")
     }
     object Native {
-        /** Couldn't load this — please try again. */
+        /** Couldn't load this — please try again */
         val loadError: String get() = Strings.string("native.loadError")
         /** Copy */
         val copy: String get() = Strings.string("native.copy")
-        /** Couldn't save that — try again. */
+        /** Couldn't save that — try again */
         val saveError: String get() = Strings.string("native.saveError")
         /** Try again */
         val retry: String get() = Strings.string("native.retry")

@@ -672,7 +672,7 @@ describe('a letter: notes between two people who aren’t connected', () => {
     vi.mocked(sendMessage).mockResolvedValue({ conversationId: 'alice_me', id: 'r1' });
     renderWithIntl(thread());
 
-    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+    expect(await screen.findByText('Reply to start talking with alice')).toBeInTheDocument();
     const field = screen.getByRole('textbox', { name: 'Conversation with alice' });
     const asked = vi.mocked(isConnected).mock.calls.length;
     vi.mocked(isConnected).mockResolvedValue(true);
@@ -681,7 +681,7 @@ describe('a letter: notes between two people who aren’t connected', () => {
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith('alice', 'Thank you for this.', expect.anything()));
     // Answered, the two are connected: the thread asks again, and the line goes.
     await waitFor(() => expect(vi.mocked(isConnected).mock.calls.length).toBeGreaterThan(asked));
-    await waitFor(() => expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Reply to start talking with alice')).not.toBeInTheDocument());
   });
 
   // The thread may hear the answer before the send does (the listener is quicker than the server's reply).
@@ -693,13 +693,13 @@ describe('a letter: notes between two people who aren’t connected', () => {
     vi.mocked(callApi).mockResolvedValue({ cards: [] });
     vi.mocked(sendMessage).mockReturnValue(new Promise(() => {}));
     renderWithIntl(thread());
-    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+    expect(await screen.findByText('Reply to start talking with alice')).toBeInTheDocument();
     const asked = vi.mocked(isConnected).mock.calls.length;
     vi.mocked(isConnected).mockResolvedValue(true);
     vi.mocked(getConversation).mockResolvedValue(conversation);
     deliver([note, text('r1', 'Thank you for this.', { sentAt: new Date('2026-03-01T10:05:00Z') }, 'me')]);
     await waitFor(() => expect(vi.mocked(isConnected).mock.calls.length).toBeGreaterThan(asked));
-    await waitFor(() => expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Reply to start talking with alice')).not.toBeInTheDocument());
   });
 
   // The first read of whether they are connected may still be out when the answer comes — and answer from before
@@ -723,7 +723,7 @@ describe('a letter: notes between two people who aren’t connected', () => {
 
     expect(await screen.findByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
     expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
-    expect(screen.queryByText("You can only message people you're connected with.")).not.toBeInTheDocument();
+    expect(screen.queryByText("You can only message people you're connected with")).not.toBeInTheDocument();
   });
 
   // A letter can stay on the conversation while the two are connected (a resonance doesn't clear it, only its
@@ -741,7 +741,7 @@ describe('a letter: notes between two people who aren’t connected', () => {
     expect(await screen.findByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
     expect(screen.getByText('Your walk stayed with me.')).toBeInTheDocument();
     expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
-    expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Reply to start talking with alice')).not.toBeInTheDocument();
   });
 
   // …and once a take-back ends the connection (the card ⋯'s, elsewhere on the page), the letter is whose turn
@@ -821,11 +821,11 @@ describe('a letter: notes between two people who aren’t connected', () => {
     vi.mocked(callApi).mockResolvedValue({ cards: [] });
     renderWithIntl(thread());
 
-    const line = (await screen.findByText("You can only message people you're connected with.")).parentElement!;
+    const line = (await screen.findByText("You can only message people you're connected with")).parentElement!;
     expect(within(line).getByRole('link', { name: 'View profile' })).toHaveAttribute('href', '/u/alice');
     expect(screen.getByText('Your walk stayed with me.')).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Reply to start talking with alice')).not.toBeInTheDocument();
     expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
   });
 
@@ -838,7 +838,7 @@ describe('a letter: notes between two people who aren’t connected', () => {
     vi.mocked(callApi).mockResolvedValue({ cards: [] });
     const user = (await import('@testing-library/user-event')).default.setup();
     renderWithIntl(thread());
-    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+    expect(await screen.findByText('Reply to start talking with alice')).toBeInTheDocument();
 
     vi.mocked(blockUser).mockImplementation(async () => {
       vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['alice']));
@@ -846,7 +846,7 @@ describe('a letter: notes between two people who aren’t connected', () => {
     await user.click(screen.getByRole('button', { name: 'Conversation options' }));
     await user.click(screen.getByRole('menuitem', { name: 'Block' }));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Block' }));
-    expect(await screen.findByText("You can only message people you're connected with.")).toBeInTheDocument();
+    expect(await screen.findByText("You can only message people you're connected with")).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
 
     vi.mocked(unblockUser).mockImplementation(async () => {
@@ -854,7 +854,7 @@ describe('a letter: notes between two people who aren’t connected', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Conversation options' }));
     await user.click(screen.getByRole('menuitem', { name: 'Unblock' }));
-    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+    expect(await screen.findByText('Reply to start talking with alice')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
   });
 
@@ -914,7 +914,7 @@ describe('a letter: notes between two people who aren’t connected', () => {
     vi.mocked(callApi).mockResolvedValue({ cards: [] });
     renderWithIntl(thread());
     expect(await screen.findByText('from before')).toBeInTheDocument();
-    const line = (await screen.findByText("You can only message people you're connected with.")).parentElement!;
+    const line = (await screen.findByText("You can only message people you're connected with")).parentElement!;
     expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
     expect(within(line).getByRole('link', { name: 'View profile' })).toHaveAttribute('href', '/u/alice');
   });

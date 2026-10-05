@@ -20,7 +20,7 @@ describe('InsertCardModal', () => {
     const onClose = vi.fn();
     renderWithIntl(<InsertCardModal open onClose={onClose} onPick={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByText('You have no public cards yet.')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('You have no public cards yet')).toBeInTheDocument());
 
     // The modal is the frame, so the only button it adds draws no outline.
     const cancel = screen.getByRole('button', { name: 'Cancel' });

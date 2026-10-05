@@ -29,12 +29,12 @@ class NoteComposerTest {
 
     @Test fun aRefusalIsTheLocalizedSendErrorNeverTheServersWords() {
         val blocked = ApiFailure("blocked", "You cannot send a note to this person.", 403)
-        assertEquals("沒送出去，再試一次。", noteSendError(blocked))
-        assertEquals("沒送出去，再試一次。", noteSendError(ApiFailure("forbidden", "Choose a pen name first.", 403)))
+        assertEquals("沒送出去，再試一次", noteSendError(blocked))
+        assertEquals("沒送出去，再試一次", noteSendError(ApiFailure("forbidden", "Choose a pen name first.", 403)))
     }
 
     @Test fun notesWaitingUnansweredSayToWaitForTheirReply() {
-        assertEquals("你留的紙條對方還沒回覆，先等等對方吧。", noteSendError(ApiFailure("conflict", "Wait for a reply.", 409)))
+        assertEquals("你留的紙條對方還沒回覆，先等等對方吧", noteSendError(ApiFailure("conflict", "Wait for a reply.", 409)))
     }
 
     @Test fun aCardGoneSaysItCantBeFoundNotToTryAgain() {
@@ -43,7 +43,7 @@ class NoteComposerTest {
     }
 
     @Test fun theServersTroubleOrTheNetworksIsTheSendError() {
-        assertEquals("沒送出去，再試一次。", noteSendError(ApiFailure("internal", "HTTP 500", 500)))
-        assertEquals("沒送出去，再試一次。", noteSendError(IOException("offline")))
+        assertEquals("沒送出去，再試一次", noteSendError(ApiFailure("internal", "HTTP 500", 500)))
+        assertEquals("沒送出去，再試一次", noteSendError(IOException("offline")))
     }
 }

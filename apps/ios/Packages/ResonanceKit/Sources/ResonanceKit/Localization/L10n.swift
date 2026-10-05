@@ -6,7 +6,7 @@ public enum L10n {
     public enum Metadata {
         /// Resonance — Let lives influence lives
         public static var title: String { Strings.shared.string("metadata.title") }
-        /// A space for real life stories from around the world to connect.
+        /// A space for real life stories from around the world to connect
         public static var description: String { Strings.shared.string("metadata.description") }
     }
     public enum Nav {
@@ -48,7 +48,7 @@ public enum L10n {
         public static var tag: String { Strings.shared.string("feed.tag") }
         /// Stories worth reading
         public static var title: String { Strings.shared.string("feed.title") }
-        /// Real people, real experiences — every voice carries a world.
+        /// Real people, real experiences — every voice carries a world
         public static var subtitle: String { Strings.shared.string("feed.subtitle") }
         /// View all stories
         public static var viewAll: String { Strings.shared.string("feed.viewAll") }
@@ -145,7 +145,7 @@ public enum L10n {
             public static var editThisCard: String { Strings.shared.string("app.nav.editThisCard") }
         }
         public enum Notifications {
-            /// When someone resonates with your card — or sends you a little note — it will show up here.
+            /// When someone resonates with your card — or sends you a little note — it will show up here
             public static var empty: String { Strings.shared.string("app.notifications.empty") }
             /// {handle} wants to connect
             public static func invite(handle: String) -> String { Strings.shared.format("app.notifications.invite", ["handle": handle]) }
@@ -192,7 +192,7 @@ public enum L10n {
     public enum Home {
         /// Stories picked for you
         public static var heading: String { Strings.shared.string("home.heading") }
-        /// Chosen from the insights you have written, alongside the newest public cards.
+        /// Chosen from the insights you have written, alongside the newest public cards
         public static var subheading: String { Strings.shared.string("home.subheading") }
         /// Load more
         public static var moreBtn: String { Strings.shared.string("home.moreBtn") }
@@ -205,7 +205,7 @@ public enum L10n {
         public enum Empty {
             /// Write your first card
             public static var title: String { Strings.shared.string("home.empty.title") }
-            /// Once published, it can appear in the latest public feed.
+            /// Once published, it can appear in the latest public feed
             public static var subtitle: String { Strings.shared.string("home.empty.subtitle") }
             /// Start writing
             public static var cta: String { Strings.shared.string("home.empty.cta") }
@@ -213,13 +213,13 @@ public enum L10n {
         /// because of “{reason}”
         public static func matchReason(reason: String) -> String { Strings.shared.format("home.matchReason", ["reason": reason]) }
         public enum Recommended {
-            /// The insights you write decide which stories find you.
+            /// The insights you write decide which stories find you
             public static var hint: String { Strings.shared.string("home.recommended.hint") }
             /// Today's picks are ready
             public static var ready: String { Strings.shared.string("home.recommended.ready") }
         }
         public enum ColdStart {
-            /// Your first card becomes the point this world starts arranging itself around.
+            /// Your first card becomes the point this world starts arranging itself around
             public static var title: String { Strings.shared.string("home.coldStart.title") }
             /// Write a story
             public static var cta: String { Strings.shared.string("home.coldStart.cta") }
@@ -242,14 +242,14 @@ public enum L10n {
         public static var resonatedBy: String { Strings.shared.string("card.resonatedBy") }
         /// View all
         public static var viewAllResonators: String { Strings.shared.string("card.viewAllResonators") }
-        /// No one has resonated with this card yet.
+        /// No one has resonated with this card yet
         public static var noResonatorsYet: String { Strings.shared.string("card.noResonatorsYet") }
-        /// No bio yet.
+        /// No bio yet
         public static var noBio: String { Strings.shared.string("card.noBio") }
         public enum Resonance {
             /// Reflections on \"{title}\"
             public static func titlePrefill(title: String) -> String { Strings.shared.format("card.resonance.titlePrefill", ["title": title]) }
-            /// Your response becomes a card of your own.
+            /// Your response becomes a card of your own
             public static var hint: String { Strings.shared.string("card.resonance.hint") }
             /// Not ready to go public? Send it to the author as a note instead.
             public static var downgrade: String { Strings.shared.string("card.resonance.downgrade") }
@@ -263,13 +263,13 @@ public enum L10n {
             public static var label: String { Strings.shared.string("card.note.label") }
             /// Something you want to tell the author…
             public static var placeholder: String { Strings.shared.string("card.note.placeholder") }
-            /// Only the author can see this.
+            /// Only the author can see this
             public static var hint: String { Strings.shared.string("card.note.hint") }
             /// Want to turn this into a resonance card?
             public static var upgrade: String { Strings.shared.string("card.note.upgrade") }
-            /// Your note is on its way.
+            /// Your note is on its way
             public static var sent: String { Strings.shared.string("card.note.sent") }
-            /// You've left notes they haven't answered yet — wait for their reply.
+            /// You've left notes they haven't answered yet — wait for their reply
             public static var waitForReply: String { Strings.shared.string("card.note.waitForReply") }
             /// Send
             public static var send: String { Strings.shared.string("card.note.send") }
@@ -291,13 +291,13 @@ public enum L10n {
             public static var title: String { Strings.shared.string("card.resonanceSection.title") }
             /// Resonating with
             public static var sourceTitle: String { Strings.shared.string("card.resonanceSection.sourceTitle") }
-            /// No one has resonated with this card yet — be the first.
+            /// No one has resonated with this card yet — be the first
             public static var empty: String { Strings.shared.string("card.resonanceSection.empty") }
         }
         public enum LinkModal {
             /// Link with a card
             public static var title: String { Strings.shared.string("card.linkModal.title") }
-            /// Pick one of your cards to link with this one.
+            /// Pick one of your cards to link with this one
             public static var pickCard: String { Strings.shared.string("card.linkModal.pickCard") }
             /// Create link
             public static var confirm: String { Strings.shared.string("card.linkModal.confirm") }
@@ -307,7 +307,7 @@ public enum L10n {
             public static var close: String { Strings.shared.string("card.linkModal.close") }
             /// Linked!
             public static var linked: String { Strings.shared.string("card.linkModal.linked") }
-            /// You have no published cards to link yet.
+            /// You have no published cards to link yet
             public static var noCards: String { Strings.shared.string("card.linkModal.noCards") }
         }
         public enum LinkPreview {
@@ -321,25 +321,25 @@ public enum L10n {
         public enum ResonatePicker {
             /// Resonate with this card
             public static var title: String { Strings.shared.string("card.resonatePicker.title") }
-            /// Write a new card, or pick one you've written about something similar.
+            /// Write a new card, or pick one you've written about something similar
             public static var subtitle: String { Strings.shared.string("card.resonatePicker.subtitle") }
             /// Write a new card
             public static var writeNew: String { Strings.shared.string("card.resonatePicker.writeNew") }
-            /// Start from this card and put your own experience into words.
+            /// Start from this card and put your own experience into words
             public static var writeNewHint: String { Strings.shared.string("card.resonatePicker.writeNewHint") }
             /// Or pick one you've written
             public static var pickHeading: String { Strings.shared.string("card.resonatePicker.pickHeading") }
-            /// You have no public cards yet — write your first one above.
+            /// You have no public cards yet — write your first one above
             public static var empty: String { Strings.shared.string("card.resonatePicker.empty") }
-            /// Cards already resonating with another card aren't listed.
+            /// Cards already resonating with another card aren't listed
             public static var hiddenNote: String { Strings.shared.string("card.resonatePicker.hiddenNote") }
             /// Resonate
             public static var confirm: String { Strings.shared.string("card.resonatePicker.confirm") }
             /// Cancel
             public static var cancel: String { Strings.shared.string("card.resonatePicker.cancel") }
-            /// Couldn't resonate — please try again.
+            /// Couldn't resonate — please try again
             public static var failed: String { Strings.shared.string("card.resonatePicker.failed") }
-            /// This card already resonates with another card.
+            /// This card already resonates with another card
             public static var alreadyAnswering: String { Strings.shared.string("card.resonatePicker.alreadyAnswering") }
             /// Anonymous
             public static var anonymous: String { Strings.shared.string("card.resonatePicker.anonymous") }
@@ -378,33 +378,33 @@ public enum L10n {
         }
         /// Anonymous
         public static var anonymousAuthor: String { Strings.shared.string("card.anonymousAuthor") }
-        /// This card was published anonymously — your pen name isn't shown on it or on your profile.
+        /// This card was published anonymously — your pen name isn't shown on it or on your profile
         public static var anonymousOwnerNote: String { Strings.shared.string("card.anonymousOwnerNote") }
     }
     public enum Messages {
         /// Messages
         public static var title: String { Strings.shared.string("messages.title") }
-        /// Quiet conversations with the people you're connected with.
+        /// Quiet conversations with the people you're connected with
         public static var subtitle: String { Strings.shared.string("messages.subtitle") }
-        /// Once you form a connection, your conversations will live here.
+        /// Once you form a connection, your conversations will live here
         public static var empty: String { Strings.shared.string("messages.empty") }
         /// Connected — no conversation yet
         public static var startSection: String { Strings.shared.string("messages.startSection") }
-        /// Pick a conversation from the left.
+        /// Pick a conversation from the left
         public static var pickOne: String { Strings.shared.string("messages.pickOne") }
-        /// No messages yet — say hello.
+        /// No messages yet — say hello
         public static var noMessagesYet: String { Strings.shared.string("messages.noMessagesYet") }
         /// Write a message…
         public static var placeholder: String { Strings.shared.string("messages.placeholder") }
         /// Send
         public static var send: String { Strings.shared.string("messages.send") }
-        /// Couldn't send — please try again.
+        /// Couldn't send — please try again
         public static var sendError: String { Strings.shared.string("messages.sendError") }
-        /// You can only message people you're connected with.
+        /// You can only message people you're connected with
         public static var notConnected: String { Strings.shared.string("messages.notConnected") }
         /// They'll see your note. Once they reply, you can keep talking.
         public static var awaitingReply: String { Strings.shared.string("messages.awaitingReply") }
-        /// Reply to start talking with {handle}.
+        /// Reply to start talking with {handle}
         public static func replyToConnect(handle: String) -> String { Strings.shared.format("messages.replyToConnect", ["handle": handle]) }
         /// View profile
         public static var viewProfile: String { Strings.shared.string("messages.viewProfile") }
@@ -412,7 +412,7 @@ public enum L10n {
         public static var back: String { Strings.shared.string("messages.back") }
         /// You: 
         public static var youPrefix: String { Strings.shared.string("messages.youPrefix") }
-        /// This person doesn't exist.
+        /// This person doesn't exist
         public static var userNotFound: String { Strings.shared.string("messages.userNotFound") }
         /// Conversation with {handle}
         public static func threadWith(handle: String) -> String { Strings.shared.format("messages.threadWith", ["handle": handle]) }
@@ -436,7 +436,7 @@ public enum L10n {
         public static var cardShared: String { Strings.shared.string("messages.cardShared") }
         /// Share one of your cards
         public static var pickCard: String { Strings.shared.string("messages.pickCard") }
-        /// Share one of your published cards in this conversation.
+        /// Share one of your published cards in this conversation
         public static var pickCardSubtitle: String { Strings.shared.string("messages.pickCardSubtitle") }
         /// Conversation options
         public static var moreMenu: String { Strings.shared.string("messages.moreMenu") }
@@ -454,13 +454,13 @@ public enum L10n {
         public static var searchClose: String { Strings.shared.string("messages.searchClose") }
         /// Cards & links
         public static var mediaTitle: String { Strings.shared.string("messages.mediaTitle") }
-        /// Everything shared in this conversation.
+        /// Everything shared in this conversation
         public static var mediaSubtitle: String { Strings.shared.string("messages.mediaSubtitle") }
         /// Shared cards
         public static var mediaCards: String { Strings.shared.string("messages.mediaCards") }
         /// Links
         public static var mediaLinks: String { Strings.shared.string("messages.mediaLinks") }
-        /// Nothing shared here yet.
+        /// Nothing shared here yet
         public static var mediaEmpty: String { Strings.shared.string("messages.mediaEmpty") }
         /// Delete this conversation?
         public static var deleteConfirmTitle: String { Strings.shared.string("messages.deleteConfirmTitle") }
@@ -470,7 +470,7 @@ public enum L10n {
         public static var deleteCancel: String { Strings.shared.string("messages.deleteCancel") }
         /// Delete
         public static var deleteConfirm: String { Strings.shared.string("messages.deleteConfirm") }
-        /// Couldn’t delete — please try again.
+        /// Couldn’t delete — please try again
         public static var deleteError: String { Strings.shared.string("messages.deleteError") }
         /// Reply
         public static var reply: String { Strings.shared.string("messages.reply") }
@@ -504,7 +504,7 @@ public enum L10n {
         public static var linkConfirmOpen: String { Strings.shared.string("messages.linkConfirmOpen") }
         /// Cancel
         public static var linkConfirmCancel: String { Strings.shared.string("messages.linkConfirmCancel") }
-        /// This link can't be opened.
+        /// This link can't be opened
         public static var linkUnsupported: String { Strings.shared.string("messages.linkUnsupported") }
         /// Sending…
         public static var sending: String { Strings.shared.string("messages.sending") }
@@ -516,9 +516,9 @@ public enum L10n {
         public static var discardFailed: String { Strings.shared.string("messages.discardFailed") }
         /// Loading earlier messages…
         public static var loadingOlder: String { Strings.shared.string("messages.loadingOlder") }
-        /// Couldn't load earlier messages.
+        /// Couldn't load earlier messages
         public static var loadOlderError: String { Strings.shared.string("messages.loadOlderError") }
-        /// This is the start of your conversation.
+        /// This is the start of your conversation
         public static var beginning: String { Strings.shared.string("messages.beginning") }
         /// Latest messages
         public static var jumpToLatest: String { Strings.shared.string("messages.jumpToLatest") }
@@ -542,7 +542,7 @@ public enum L10n {
         public static var cardSource: String { Strings.shared.string("messages.cardSource") }
     }
     public enum Write {
-        /// Give it a one-line title first.
+        /// Give it a one-line title first
         public static var titleRequired: String { Strings.shared.string("write.titleRequired") }
         /// New card
         public static var title: String { Strings.shared.string("write.title") }
@@ -568,7 +568,7 @@ public enum L10n {
         public static var referenceCard: String { Strings.shared.string("write.referenceCard") }
         /// One-line title
         public static var coreLabel: String { Strings.shared.string("write.coreLabel") }
-        /// e.g. Being seen matters more than being liked.
+        /// e.g. Being seen matters more than being liked
         public static var corePlaceholder: String { Strings.shared.string("write.corePlaceholder") }
         /// Story
         public static var storyLabel: String { Strings.shared.string("write.storyLabel") }
@@ -606,9 +606,9 @@ public enum L10n {
             public enum CardModal {
                 /// Insert a card link
                 public static var title: String { Strings.shared.string("write.editor.cardModal.title") }
-                /// Pick one of your public cards — the link lands at your cursor.
+                /// Pick one of your public cards — the link lands at your cursor
                 public static var subtitle: String { Strings.shared.string("write.editor.cardModal.subtitle") }
-                /// You have no public cards yet.
+                /// You have no public cards yet
                 public static var empty: String { Strings.shared.string("write.editor.cardModal.empty") }
                 /// Cancel
                 public static var cancel: String { Strings.shared.string("write.editor.cardModal.cancel") }
@@ -696,7 +696,7 @@ public enum L10n {
         public static var editLiveHint: String { Strings.shared.string("write.editLiveHint") }
         /// Changes saved privately · {time} (readers still see the old version)
         public static func editBuffered(time: String) -> String { Strings.shared.format("write.editBuffered", ["time": time]) }
-        /// You have unsaved changes here — only you can see them.
+        /// You have unsaved changes here — only you can see them
         public static var editBufferedIdle: String { Strings.shared.string("write.editBufferedIdle") }
         /// Save draft and leave
         public static var saveDraftAndLeave: String { Strings.shared.string("write.saveDraftAndLeave") }
@@ -717,7 +717,7 @@ public enum L10n {
             public static var anonymousToggle: String { Strings.shared.string("write.publishPanel.anonymousToggle") }
             /// Anonymous
             public static var anonymousName: String { Strings.shared.string("write.publishPanel.anonymousName") }
-            /// Anonymous cards never appear on your profile.
+            /// Anonymous cards never appear on your profile
             public static var anonymousHint: String { Strings.shared.string("write.publishPanel.anonymousHint") }
             /// Publish
             public static var publish: String { Strings.shared.string("write.publishPanel.publish") }
@@ -733,7 +733,7 @@ public enum L10n {
             public static var update: String { Strings.shared.string("write.publishPanel.update") }
             /// Saving…
             public static var updating: String { Strings.shared.string("write.publishPanel.updating") }
-            /// An anonymous card is either public or only for you.
+            /// An anonymous card is either public or only for you
             public static var anonymousVisibility: String { Strings.shared.string("write.publishPanel.anonymousVisibility") }
         }
         public enum FirstCard {
@@ -758,7 +758,7 @@ public enum L10n {
         public static var editProfile: String { Strings.shared.string("me.editProfile") }
         /// View public profile
         public static var viewPublicProfile: String { Strings.shared.string("me.viewPublicProfile") }
-        /// No bio yet.
+        /// No bio yet
         public static var bioEmpty: String { Strings.shared.string("me.bioEmpty") }
         public enum Tabs {
             /// Published
@@ -777,7 +777,7 @@ public enum L10n {
             public static var thoughtMap: String { Strings.shared.string("me.tabs.thoughtMap") }
         }
         public enum ThoughtMap {
-            /// Bring your cards onto the map and start weaving your thoughts together.
+            /// Bring your cards onto the map and start weaving your thoughts together
             public static var empty: String { Strings.shared.string("me.thoughtMap.empty") }
             /// Add card
             public static var addCard: String { Strings.shared.string("me.thoughtMap.addCard") }
@@ -791,7 +791,7 @@ public enum L10n {
             public static var newGroup: String { Strings.shared.string("me.thoughtMap.newGroup") }
             /// Pick a card to add
             public static var trayTitle: String { Strings.shared.string("me.thoughtMap.trayTitle") }
-            /// Every card is already on the map.
+            /// Every card is already on the map
             public static var trayEmpty: String { Strings.shared.string("me.thoughtMap.trayEmpty") }
             /// Zoom in
             public static var zoomIn: String { Strings.shared.string("me.thoughtMap.zoomIn") }
@@ -820,17 +820,17 @@ public enum L10n {
             /// Leave
             public static var leave: String { Strings.shared.string("me.thoughtMap.leave") }
         }
-        /// Your first card becomes the point this world starts arranging itself around.
+        /// Your first card becomes the point this world starts arranging itself around
         public static var emptyPublished: String { Strings.shared.string("me.emptyPublished") }
-        /// No private cards.
+        /// No private cards
         public static var emptyPrivate: String { Strings.shared.string("me.emptyPrivate") }
-        /// No drafts.
+        /// No drafts
         public static var emptyDraft: String { Strings.shared.string("me.emptyDraft") }
-        /// No one has linked a card to you yet.
+        /// No one has linked a card to you yet
         public static var emptyLinked: String { Strings.shared.string("me.emptyLinked") }
-        /// No resonances yet.
+        /// No resonances yet
         public static var emptyResonated: String { Strings.shared.string("me.emptyResonated") }
-        /// When a story is too good to forget, press the bookmark — it will wait here quietly, only for you.
+        /// When a story is too good to forget, press the bookmark — it will wait here quietly, only for you
         public static var emptyBookmarks: String { Strings.shared.string("me.emptyBookmarks") }
         public enum Actions {
             /// Manage card
@@ -898,7 +898,7 @@ public enum L10n {
         public static func shareTitle(handle: String) -> String { Strings.shared.format("profile.shareTitle", ["handle": handle]) }
         /// {handle}'s life stories on Resonance
         public static func shareDescription(handle: String) -> String { Strings.shared.format("profile.shareDescription", ["handle": handle]) }
-        /// No bio yet.
+        /// No bio yet
         public static var bioEmpty: String { Strings.shared.string("profile.bioEmpty") }
         /// Joined {date}
         public static func joined(date: String) -> String { Strings.shared.format("profile.joined", ["date": date]) }
@@ -908,9 +908,9 @@ public enum L10n {
         public static func cardCount(count: Int) -> String { Strings.shared.format("profile.cardCount", ["count": count]) }
         /// Published
         public static var publishedHeading: String { Strings.shared.string("profile.publishedHeading") }
-        /// Nothing published yet.
+        /// Nothing published yet
         public static var emptyPublished: String { Strings.shared.string("profile.emptyPublished") }
-        /// Your first card becomes the point this world starts arranging itself around.
+        /// Your first card becomes the point this world starts arranging itself around
         public static var emptyPublishedSelf: String { Strings.shared.string("profile.emptyPublishedSelf") }
         /// Write a story
         public static var emptyPublishedCta: String { Strings.shared.string("profile.emptyPublishedCta") }
@@ -946,7 +946,7 @@ public enum L10n {
         public static var seeWho: String { Strings.shared.string("invite.seeWho") }
         /// You’re connected ✿
         public static var successTitle: String { Strings.shared.string("invite.successTitle") }
-        /// You can now see each other’s full card box and DM.
+        /// You can now see each other’s full card box and DM
         public static var successSubtitle: String { Strings.shared.string("invite.successSubtitle") }
         /// {days} days to respond
         public static func expiresIn(days: Int) -> String { Strings.shared.format("invite.expiresIn", ["days": days]) }
@@ -962,7 +962,7 @@ public enum L10n {
         public static func expiresAt(date: String) -> String { Strings.shared.format("inviteInbox.expiresAt", ["date": date]) }
         /// (No message)
         public static var emptyMessage: String { Strings.shared.string("inviteInbox.emptyMessage") }
-        /// This invite has closed — it can't be accepted any more.
+        /// This invite has closed — it can't be accepted any more
         public static var closed: String { Strings.shared.string("inviteInbox.closed") }
         /// That didn't go through. Try again.
         public static var error: String { Strings.shared.string("inviteInbox.error") }
@@ -1044,7 +1044,7 @@ public enum L10n {
         public static func welcome(handle: String) -> String { Strings.shared.format("auth.welcome", ["handle": handle]) }
         /// Your account is scheduled for deletion. Sign in within 7 days to cancel.
         public static var deletionScheduled: String { Strings.shared.string("auth.deletionScheduled") }
-        /// By continuing, you agree to the {terms} and the {privacy}.
+        /// By continuing, you agree to the {terms} and the {privacy}
         public static func agreeTerms(terms: String, privacy: String) -> String { Strings.shared.format("auth.agreeTerms", ["terms": terms, "privacy": privacy]) }
         /// Terms of Use
         public static var termsLink: String { Strings.shared.string("auth.termsLink") }
@@ -1145,7 +1145,7 @@ public enum L10n {
             public static var title: String { Strings.shared.string("settings.delete.title") }
             /// You'll be signed out right away. After 7 days your account, cards, messages and uploaded images are deleted for good; si
             public static var warn: String { Strings.shared.string("settings.delete.warn") }
-            /// Before you go, you can download everything you've written.
+            /// Before you go, you can download everything you've written
             public static var exportHint: String { Strings.shared.string("settings.delete.exportHint") }
             /// Download my data
             public static var export: String { Strings.shared.string("settings.delete.export") }
@@ -1196,7 +1196,7 @@ public enum L10n {
         public static var anonymousAuthor: String { Strings.shared.string("safety.anonymousAuthor") }
         /// You blocked {handle}
         public static func blockedNotice(handle: String) -> String { Strings.shared.format("safety.blockedNotice", ["handle": handle]) }
-        /// You don't see their cards, and they can't reach you.
+        /// You don't see their cards, and they can't reach you
         public static var blockedNoticeBody: String { Strings.shared.string("safety.blockedNoticeBody") }
         public enum Report {
             /// Report this card
@@ -1245,9 +1245,9 @@ public enum L10n {
         public enum BlockedList {
             /// Blocked people
             public static var title: String { Strings.shared.string("safety.blockedList.title") }
-            /// People you block can't reach you, and you don't see their cards.
+            /// People you block can't reach you, and you don't see their cards
             public static var subtitle: String { Strings.shared.string("safety.blockedList.subtitle") }
-            /// You haven't blocked anyone.
+            /// You haven't blocked anyone
             public static var empty: String { Strings.shared.string("safety.blockedList.empty") }
             /// Blocked {date}
             public static func since(date: String) -> String { Strings.shared.format("safety.blockedList.since", ["date": date]) }
@@ -1258,7 +1258,7 @@ public enum L10n {
         }
     }
     public enum AccountDeletion {
-        /// Your account will be deleted on {date}.
+        /// Your account will be deleted on {date}
         public static func banner(date: String) -> String { Strings.shared.format("accountDeletion.banner", ["date": date]) }
         /// Cancel deletion
         public static var cancel: String { Strings.shared.string("accountDeletion.cancel") }
@@ -1266,11 +1266,11 @@ public enum L10n {
         public static var error: String { Strings.shared.string("accountDeletion.error") }
     }
     public enum Native {
-        /// Couldn't load this — please try again.
+        /// Couldn't load this — please try again
         public static var loadError: String { Strings.shared.string("native.loadError") }
         /// Copy
         public static var copy: String { Strings.shared.string("native.copy") }
-        /// Couldn't save that — try again.
+        /// Couldn't save that — try again
         public static var saveError: String { Strings.shared.string("native.saveError") }
         /// Try again
         public static var retry: String { Strings.shared.string("native.retry") }

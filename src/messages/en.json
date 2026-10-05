@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Resonance — Let lives influence lives",
-    "description": "A space for real life stories from around the world to connect."
+    "description": "A space for real life stories from around the world to connect"
   },
   "nav": {
     "about": "About",
@@ -25,7 +25,7 @@
   "feed": {
     "tag": "Latest stories",
     "title": "Stories worth reading",
-    "subtitle": "Real people, real experiences — every voice carries a world.",
+    "subtitle": "Real people, real experiences — every voice carries a world",
     "viewAll": "View all stories"
   },
   "cta": {
@@ -79,7 +79,7 @@
       "editThisCard": "Edit this card"
     },
     "notifications": {
-      "empty": "When someone resonates with your card — or sends you a little note — it will show up here.",
+      "empty": "When someone resonates with your card — or sends you a little note — it will show up here",
       "invite": "{handle} wants to connect",
       "inviteAccepted": "{handle} accepted your invite — you're connected ✿",
       "resonanceSummary": "{count} people resonated with you yesterday",
@@ -105,23 +105,23 @@
   },
   "home": {
     "heading": "Stories picked for you",
-    "subheading": "Chosen from the insights you have written, alongside the newest public cards.",
+    "subheading": "Chosen from the insights you have written, alongside the newest public cards",
     "moreBtn": "Load more",
     "moreLoading": "Loading…",
     "endOfDay": "You are caught up on the latest public cards",
     "writeResponse": "Write a card",
     "empty": {
       "title": "Write your first card",
-      "subtitle": "Once published, it can appear in the latest public feed.",
+      "subtitle": "Once published, it can appear in the latest public feed",
       "cta": "Start writing"
     },
     "matchReason": "because of “{reason}”",
     "recommended": {
-      "hint": "The insights you write decide which stories find you.",
+      "hint": "The insights you write decide which stories find you",
       "ready": "Today's picks are ready"
     },
     "coldStart": {
-      "title": "Your first card becomes the point this world starts arranging itself around.",
+      "title": "Your first card becomes the point this world starts arranging itself around",
       "cta": "Write a story"
     }
   },
@@ -134,11 +134,11 @@
     "linkedCards": "Cards linked to this",
     "resonatedBy": "Resonated by",
     "viewAllResonators": "View all",
-    "noResonatorsYet": "No one has resonated with this card yet.",
-    "noBio": "No bio yet.",
+    "noResonatorsYet": "No one has resonated with this card yet",
+    "noBio": "No bio yet",
     "resonance": {
       "titlePrefill": "Reflections on \"{title}\"",
-      "hint": "Your response becomes a card of your own.",
+      "hint": "Your response becomes a card of your own",
       "downgrade": "Not ready to go public? Send it to the author as a note instead.",
       "aiPrompt": "The insight of this card is \"{coreInsight}\". Have you lived something similar — or the exact opposite?"
     },
@@ -146,10 +146,10 @@
       "entry": "Send the author a little note",
       "label": "A little note",
       "placeholder": "Something you want to tell the author…",
-      "hint": "Only the author can see this.",
+      "hint": "Only the author can see this",
       "upgrade": "Want to turn this into a resonance card?",
-      "sent": "Your note is on its way.",
-      "waitForReply": "You've left notes they haven't answered yet — wait for their reply.",
+      "sent": "Your note is on its way",
+      "waitForReply": "You've left notes they haven't answered yet — wait for their reply",
       "send": "Send",
       "cancel": "Cancel",
       "close": "Close"
@@ -162,16 +162,16 @@
     "resonanceSection": {
       "title": "Cards resonating with this",
       "sourceTitle": "Resonating with",
-      "empty": "No one has resonated with this card yet — be the first."
+      "empty": "No one has resonated with this card yet — be the first"
     },
     "linkModal": {
       "title": "Link with a card",
-      "pickCard": "Pick one of your cards to link with this one.",
+      "pickCard": "Pick one of your cards to link with this one",
       "confirm": "Create link",
       "cancel": "Cancel",
       "close": "Close",
       "linked": "Linked!",
-      "noCards": "You have no published cards to link yet."
+      "noCards": "You have no published cards to link yet"
     },
     "linkPreview": {
       "open": "Open link: {host}"
@@ -181,16 +181,16 @@
     },
     "resonatePicker": {
       "title": "Resonate with this card",
-      "subtitle": "Write a new card, or pick one you've written about something similar.",
+      "subtitle": "Write a new card, or pick one you've written about something similar",
       "writeNew": "Write a new card",
-      "writeNewHint": "Start from this card and put your own experience into words.",
+      "writeNewHint": "Start from this card and put your own experience into words",
       "pickHeading": "Or pick one you've written",
-      "empty": "You have no public cards yet — write your first one above.",
-      "hiddenNote": "Cards already resonating with another card aren't listed.",
+      "empty": "You have no public cards yet — write your first one above",
+      "hiddenNote": "Cards already resonating with another card aren't listed",
       "confirm": "Resonate",
       "cancel": "Cancel",
-      "failed": "Couldn't resonate — please try again.",
-      "alreadyAnswering": "This card already resonates with another card.",
+      "failed": "Couldn't resonate — please try again",
+      "alreadyAnswering": "This card already resonates with another card",
       "anonymous": "Anonymous"
     },
     "translateTo": "Translate to",
@@ -212,25 +212,25 @@
       "back": "Back to home"
     },
     "anonymousAuthor": "Anonymous",
-    "anonymousOwnerNote": "This card was published anonymously — your pen name isn't shown on it or on your profile."
+    "anonymousOwnerNote": "This card was published anonymously — your pen name isn't shown on it or on your profile"
   },
   "messages": {
     "title": "Messages",
-    "subtitle": "Quiet conversations with the people you're connected with.",
-    "empty": "Once you form a connection, your conversations will live here.",
+    "subtitle": "Quiet conversations with the people you're connected with",
+    "empty": "Once you form a connection, your conversations will live here",
     "startSection": "Connected — no conversation yet",
-    "pickOne": "Pick a conversation from the left.",
-    "noMessagesYet": "No messages yet — say hello.",
+    "pickOne": "Pick a conversation from the left",
+    "noMessagesYet": "No messages yet — say hello",
     "placeholder": "Write a message…",
     "send": "Send",
-    "sendError": "Couldn't send — please try again.",
-    "notConnected": "You can only message people you're connected with.",
+    "sendError": "Couldn't send — please try again",
+    "notConnected": "You can only message people you're connected with",
     "awaitingReply": "They'll see your note. Once they reply, you can keep talking.",
-    "replyToConnect": "Reply to start talking with {handle}.",
+    "replyToConnect": "Reply to start talking with {handle}",
     "viewProfile": "View profile",
     "back": "All conversations",
     "youPrefix": "You: ",
-    "userNotFound": "This person doesn't exist.",
+    "userNotFound": "This person doesn't exist",
     "threadWith": "Conversation with {handle}",
     "messageLink": "Message",
     "startChat": "Start chatting",
@@ -242,7 +242,7 @@
     "removeCard": "Remove card",
     "cardShared": "Shared a card",
     "pickCard": "Share one of your cards",
-    "pickCardSubtitle": "Share one of your published cards in this conversation.",
+    "pickCardSubtitle": "Share one of your published cards in this conversation",
     "moreMenu": "Conversation options",
     "menuSearch": "Search messages",
     "menuMedia": "Cards & links",
@@ -251,15 +251,15 @@
     "searchCount": "{count, plural, =0 {No matches} one {# match} other {# matches}}",
     "searchClose": "Close search",
     "mediaTitle": "Cards & links",
-    "mediaSubtitle": "Everything shared in this conversation.",
+    "mediaSubtitle": "Everything shared in this conversation",
     "mediaCards": "Shared cards",
     "mediaLinks": "Links",
-    "mediaEmpty": "Nothing shared here yet.",
+    "mediaEmpty": "Nothing shared here yet",
     "deleteConfirmTitle": "Delete this conversation?",
     "deleteConfirmBody": "This removes the whole conversation for both of you. It can’t be undone.",
     "deleteCancel": "Keep it",
     "deleteConfirm": "Delete",
-    "deleteError": "Couldn’t delete — please try again.",
+    "deleteError": "Couldn’t delete — please try again",
     "reply": "Reply",
     "replyingTo": "Replying to {handle}",
     "replyingToSelf": "Replying to yourself",
@@ -276,14 +276,14 @@
     "linkConfirmBody": "It leads to {host}. Open it only if you trust where it goes.",
     "linkConfirmOpen": "Open",
     "linkConfirmCancel": "Cancel",
-    "linkUnsupported": "This link can't be opened.",
+    "linkUnsupported": "This link can't be opened",
     "sending": "Sending…",
     "sendFailed": "Not sent · Tap to retry",
     "retry": "Retry",
     "discardFailed": "Delete",
     "loadingOlder": "Loading earlier messages…",
-    "loadOlderError": "Couldn't load earlier messages.",
-    "beginning": "This is the start of your conversation.",
+    "loadOlderError": "Couldn't load earlier messages",
+    "beginning": "This is the start of your conversation",
     "jumpToLatest": "Latest messages",
     "newMessages": "New messages",
     "searchSearching": "Searching earlier messages…",
@@ -296,7 +296,7 @@
     "cardSource": "Resonance"
   },
   "write": {
-    "titleRequired": "Give it a one-line title first.",
+    "titleRequired": "Give it a one-line title first",
     "title": "New card",
     "editTitle": "Edit draft",
     "editPublishedTitle": "Edit a published card",
@@ -309,7 +309,7 @@
     "resizeDivider": "Drag to resize panes",
     "referenceCard": "Original Article",
     "coreLabel": "One-line title",
-    "corePlaceholder": "e.g. Being seen matters more than being liked.",
+    "corePlaceholder": "e.g. Being seen matters more than being liked",
     "storyLabel": "Story",
     "storyPlaceholder": "Write the moment that pulled that line out of you…",
     "editor": {
@@ -329,8 +329,8 @@
       "removeCard": "Remove card",
       "cardModal": {
         "title": "Insert a card link",
-        "subtitle": "Pick one of your public cards — the link lands at your cursor.",
-        "empty": "You have no public cards yet.",
+        "subtitle": "Pick one of your public cards — the link lands at your cursor",
+        "empty": "You have no public cards yet",
         "cancel": "Cancel"
       }
     },
@@ -377,7 +377,7 @@
     "autosaved": "Draft saved · {time}",
     "editLiveHint": "This card is already published. Changes are kept privately until you press Save changes.",
     "editBuffered": "Changes saved privately · {time} (readers still see the old version)",
-    "editBufferedIdle": "You have unsaved changes here — only you can see them.",
+    "editBufferedIdle": "You have unsaved changes here — only you can see them",
     "saveDraftAndLeave": "Save draft and leave",
     "saveChanges": "Save changes",
     "saving": "Saving…",
@@ -388,7 +388,7 @@
       "insight": "What you seem to be saying — “{coreInsight}”",
       "anonymousToggle": "Publish anonymously",
       "anonymousName": "Anonymous",
-      "anonymousHint": "Anonymous cards never appear on your profile.",
+      "anonymousHint": "Anonymous cards never appear on your profile",
       "publish": "Publish",
       "publishing": "Publishing…",
       "cancel": "Not yet",
@@ -396,7 +396,7 @@
       "updateHint": "After this, readers see this version. The publish date stays as it was.",
       "update": "Save changes",
       "updating": "Saving…",
-      "anonymousVisibility": "An anonymous card is either public or only for you."
+      "anonymousVisibility": "An anonymous card is either public or only for you"
     },
     "firstCard": {
       "title": "Write your first card",
@@ -411,7 +411,7 @@
     "joined": "Joined {date}",
     "editProfile": "Edit profile",
     "viewPublicProfile": "View public profile",
-    "bioEmpty": "No bio yet.",
+    "bioEmpty": "No bio yet",
     "tabs": {
       "published": "Published",
       "private": "Private",
@@ -422,14 +422,14 @@
       "thoughtMap": "Thought map"
     },
     "thoughtMap": {
-      "empty": "Bring your cards onto the map and start weaving your thoughts together.",
+      "empty": "Bring your cards onto the map and start weaving your thoughts together",
       "addCard": "Add card",
       "addCardShort": "Card",
       "addGroup": "New group",
       "addGroupShort": "Group",
       "newGroup": "Untitled group",
       "trayTitle": "Pick a card to add",
-      "trayEmpty": "Every card is already on the map.",
+      "trayEmpty": "Every card is already on the map",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
       "zoomFit": "Fit to view",
@@ -444,12 +444,12 @@
       "back": "Back to profile",
       "leave": "Leave"
     },
-    "emptyPublished": "Your first card becomes the point this world starts arranging itself around.",
-    "emptyPrivate": "No private cards.",
-    "emptyDraft": "No drafts.",
-    "emptyLinked": "No one has linked a card to you yet.",
-    "emptyResonated": "No resonances yet.",
-    "emptyBookmarks": "When a story is too good to forget, press the bookmark — it will wait here quietly, only for you.",
+    "emptyPublished": "Your first card becomes the point this world starts arranging itself around",
+    "emptyPrivate": "No private cards",
+    "emptyDraft": "No drafts",
+    "emptyLinked": "No one has linked a card to you yet",
+    "emptyResonated": "No resonances yet",
+    "emptyBookmarks": "When a story is too good to forget, press the bookmark — it will wait here quietly, only for you",
     "actions": {
       "menuLabel": "Manage card",
       "edit": "Edit",
@@ -485,13 +485,13 @@
     "backHome": "Back to home",
     "shareTitle": "{handle} · Resonance",
     "shareDescription": "{handle}'s life stories on Resonance",
-    "bioEmpty": "No bio yet.",
+    "bioEmpty": "No bio yet",
     "joined": "Joined {date}",
     "editProfile": "Edit profile",
     "cardCount": "{count, plural, =0 {No public cards} one {# public card} other {# public cards}}",
     "publishedHeading": "Published",
-    "emptyPublished": "Nothing published yet.",
-    "emptyPublishedSelf": "Your first card becomes the point this world starts arranging itself around.",
+    "emptyPublished": "Nothing published yet",
+    "emptyPublishedSelf": "Your first card becomes the point this world starts arranging itself around",
     "emptyPublishedCta": "Write a story"
   },
   "invite": {
@@ -510,7 +510,7 @@
     "later": "Later",
     "seeWho": "See who",
     "successTitle": "You’re connected ✿",
-    "successSubtitle": "You can now see each other’s full card box and DM.",
+    "successSubtitle": "You can now see each other’s full card box and DM",
     "expiresIn": "{days} days to respond"
   },
   "inviteInbox": {
@@ -519,7 +519,7 @@
     "decline": "Decline",
     "expiresAt": "respond by {date}",
     "emptyMessage": "(No message)",
-    "closed": "This invite has closed — it can't be accepted any more.",
+    "closed": "This invite has closed — it can't be accepted any more",
     "error": "That didn't go through. Try again."
   },
   "auth": {
@@ -561,7 +561,7 @@
     "finish": "Finish",
     "welcome": "Welcome, {handle}. Start with your first card.",
     "deletionScheduled": "Your account is scheduled for deletion. Sign in within 7 days to cancel.",
-    "agreeTerms": "By continuing, you agree to the {terms} and the {privacy}.",
+    "agreeTerms": "By continuing, you agree to the {terms} and the {privacy}",
     "termsLink": "Terms of Use",
     "privacyLink": "Privacy Policy"
   },
@@ -620,7 +620,7 @@
     "delete": {
       "title": "Delete account",
       "warn": "You'll be signed out right away. After 7 days your account, cards, messages and uploaded images are deleted for good; signing back in within those 7 days cancels it.",
-      "exportHint": "Before you go, you can download everything you've written.",
+      "exportHint": "Before you go, you can download everything you've written",
       "export": "Download my data",
       "exporting": "Preparing…",
       "button": "Delete account",
@@ -647,7 +647,7 @@
     "actionError": "That didn't work. Try again.",
     "anonymousAuthor": "this author",
     "blockedNotice": "You blocked {handle}",
-    "blockedNoticeBody": "You don't see their cards, and they can't reach you.",
+    "blockedNoticeBody": "You don't see their cards, and they can't reach you",
     "report": {
       "titleCard": "Report this card",
       "titleUser": "Report {handle}",
@@ -674,22 +674,22 @@
     },
     "blockedList": {
       "title": "Blocked people",
-      "subtitle": "People you block can't reach you, and you don't see their cards.",
-      "empty": "You haven't blocked anyone.",
+      "subtitle": "People you block can't reach you, and you don't see their cards",
+      "empty": "You haven't blocked anyone",
       "since": "Blocked {date}",
       "unknownUser": "Deleted account",
       "close": "Close"
     }
   },
   "accountDeletion": {
-    "banner": "Your account will be deleted on {date}.",
+    "banner": "Your account will be deleted on {date}",
     "cancel": "Cancel deletion",
     "error": "Couldn't cancel. Try again."
   },
   "native": {
-    "loadError": "Couldn't load this — please try again.",
+    "loadError": "Couldn't load this — please try again",
     "copy": "Copy",
-    "saveError": "Couldn't save that — try again.",
+    "saveError": "Couldn't save that — try again",
     "retry": "Try again",
     "offline": "You're offline. What you've already opened is still here.",
     "tabFeed": "Feed",

@@ -149,7 +149,7 @@ describe('HomeFeedPage', () => {
     // …but neither the hint line nor the per-card reason caption does — the
     // reason is deliberately hidden to keep the surprise of opening the card.
     expect(
-      screen.queryByText('The insights you write decide which stories find you.'),
+      screen.queryByText('The insights you write decide which stories find you'),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText('because of “you both wrote about letting go”'),

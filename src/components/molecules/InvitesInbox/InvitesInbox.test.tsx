@@ -71,7 +71,7 @@ describe('InvitesInbox', () => {
 
     await userEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0]);
     await waitFor(() => expect(screen.queryByText('Loved your walk card')).not.toBeInTheDocument());
-    expect(screen.getByRole('status')).toHaveTextContent("This invite has closed — it can't be accepted any more.");
+    expect(screen.getByRole('status')).toHaveTextContent("This invite has closed — it can't be accepted any more");
     expect(screen.queryByText('This invite has expired.')).not.toBeInTheDocument();
     expect(screen.getByText('Hello again')).toBeInTheDocument();
   });
@@ -82,7 +82,7 @@ describe('InvitesInbox', () => {
     Object.assign(auth, { user: { id: 'alice' }, loading: false });
     renderWithIntl(<InvitesInbox />);
     await userEvent.click(await screen.findByRole('button', { name: 'Accept' }));
-    expect(await screen.findByRole('status')).toHaveTextContent("This invite has closed — it can't be accepted any more.");
+    expect(await screen.findByRole('status')).toHaveTextContent("This invite has closed — it can't be accepted any more");
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument();
   });

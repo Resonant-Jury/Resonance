@@ -126,7 +126,7 @@ describe('ResonatePicker', () => {
     expect(screen.queryByText('Card answering')).toBeNull();
     expect(screen.queryByText('Card friends-only')).toBeNull();
     expect(screen.queryByText('Card origin')).toBeNull();
-    expect(screen.getByText("Cards already resonating with another card aren't listed.")).toBeInTheDocument();
+    expect(screen.getByText("Cards already resonating with another card aren't listed")).toBeInTheDocument();
   });
 
   it('opens the writer for a new card from the first row', async () => {
@@ -173,7 +173,7 @@ describe('ResonatePicker', () => {
     await user().click(await screen.findByRole('radio', { name: 'Card walk' }));
     await user().click(screen.getByRole('button', { name: 'Resonate' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('This card already resonates with another card.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('This card already resonates with another card');
     expect(onClose).not.toHaveBeenCalled();
     await waitFor(() => expect(mockShelf).toHaveBeenCalledTimes(2));
   });
@@ -184,17 +184,17 @@ describe('ResonatePicker', () => {
     await user().click(await screen.findByRole('radio', { name: 'Card walk' }));
     await user().click(screen.getByRole('button', { name: 'Resonate' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't resonate — please try again.");
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't resonate — please try again");
     expect(onClose).not.toHaveBeenCalled();
   });
 
   it('points to the first row when there is no card to pick, with no footnote when nothing was left out', async () => {
     mockShelf.mockResolvedValue([card('friends-only', { visibility: 'connections' })]);
     renderPicker();
-    expect(await screen.findByText('You have no public cards yet — write your first one above.')).toBeInTheDocument();
+    expect(await screen.findByText('You have no public cards yet — write your first one above')).toBeInTheDocument();
     expect(screen.getByText("Or pick one you've written")).toBeInTheDocument();
     expect(screen.queryByRole('radio')).toBeNull();
-    expect(screen.queryByText("Cards already resonating with another card aren't listed.")).toBeNull();
+    expect(screen.queryByText("Cards already resonating with another card aren't listed")).toBeNull();
     expect(screen.getByRole('button', { name: 'Resonate' })).toBeDisabled();
   });
 
@@ -202,9 +202,9 @@ describe('ResonatePicker', () => {
   it('says why none is listed when every public card answers another, once', async () => {
     mockShelf.mockResolvedValue([card('answering', { referenceCardId: 'someone-elses' })]);
     renderPicker();
-    expect(await screen.findByText("Cards already resonating with another card aren't listed.")).toBeInTheDocument();
-    expect(screen.getAllByText("Cards already resonating with another card aren't listed.")).toHaveLength(1);
-    expect(screen.queryByText('You have no public cards yet — write your first one above.')).toBeNull();
+    expect(await screen.findByText("Cards already resonating with another card aren't listed")).toBeInTheDocument();
+    expect(screen.getAllByText("Cards already resonating with another card aren't listed")).toHaveLength(1);
+    expect(screen.queryByText('You have no public cards yet — write your first one above')).toBeNull();
     expect(screen.queryByRole('radio')).toBeNull();
     expect(screen.getByText("Or pick one you've written")).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Write a new card/ })).toBeInTheDocument();
@@ -220,8 +220,8 @@ describe('ResonatePicker', () => {
     expect(mockShelf).toHaveBeenCalled();
     expect(screen.queryByRole('radiogroup')).toBeNull();
     expect(screen.queryByRole('list')).toBeNull();
-    expect(screen.queryByText('You have no public cards yet — write your first one above.')).toBeNull();
-    expect(screen.queryByText("Cards already resonating with another card aren't listed.")).toBeNull();
+    expect(screen.queryByText('You have no public cards yet — write your first one above')).toBeNull();
+    expect(screen.queryByText("Cards already resonating with another card aren't listed")).toBeNull();
     expect(screen.getByRole('button', { name: /Write a new card/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resonate' })).toBeDisabled();
   });

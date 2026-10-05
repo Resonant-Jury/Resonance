@@ -67,10 +67,10 @@ describe('PublishPanel', () => {
   it('publishes an anonymous card asked for connections only as public, and says why', async () => {
     const onPublish = vi.fn();
     renderWithIntl(<PublishPanel {...baseProps} initialVisibility="connections" onPublish={onPublish} onClose={vi.fn()} />);
-    expect(screen.queryByText('An anonymous card is either public or only for you.')).not.toBeInTheDocument();
+    expect(screen.queryByText('An anonymous card is either public or only for you')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('switch', { name: 'Publish anonymously' }));
-    expect(screen.getByText('An anonymous card is either public or only for you.')).toBeInTheDocument();
+    expect(screen.getByText('An anonymous card is either public or only for you')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
     expect(onPublish).toHaveBeenLastCalledWith({ visibility: 'public', anonymous: true });
   });

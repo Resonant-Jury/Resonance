@@ -31,7 +31,7 @@ describe('NoteComposer', () => {
   it('shows the privacy micro-hint and sends a note to the author', async () => {
     renderWithIntl(<NoteComposer cardId="c1" />);
 
-    expect(screen.getByText('Only the author can see this.')).toBeInTheDocument();
+    expect(screen.getByText('Only the author can see this')).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Something you want to tell the author…'), {
       target: { value: 'Your story stayed with me all day.' },
@@ -46,7 +46,7 @@ describe('NoteComposer', () => {
       }),
     );
     // Confirmation replaces the form.
-    expect(await screen.findByText('Your note is on its way.')).toBeInTheDocument();
+    expect(await screen.findByText('Your note is on its way')).toBeInTheDocument();
   });
 
   // The composer sits in a panel (or a modal): Send is a solid fill and
@@ -69,13 +69,13 @@ describe('NoteComposer', () => {
     renderWithIntl(<NoteComposer cardId="c1" />);
     fireEvent.change(screen.getByPlaceholderText('Something you want to tell the author…'), { target: { value: 'One more thing' } });
     await user().click(screen.getByRole('button', { name: 'Send' }));
-    expect(await screen.findByText("You've left notes they haven't answered yet — wait for their reply.")).toBeInTheDocument();
+    expect(await screen.findByText("You've left notes they haven't answered yet — wait for their reply")).toBeInTheDocument();
     expect(screen.queryByText('Wait for them to reply.')).not.toBeInTheDocument();
-    expect(screen.queryByText('Your note is on its way.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your note is on its way')).not.toBeInTheDocument();
 
     vi.mocked(sendNote).mockRejectedValueOnce(new ApiError(403, 'blocked', 'You cannot send a note to this person.'));
     await user().click(screen.getByRole('button', { name: 'Send' }));
-    expect(await screen.findByText("Couldn't send — please try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't send — please try again")).toBeInTheDocument();
     expect(screen.queryByText('You cannot send a note to this person.')).not.toBeInTheDocument();
   });
 
@@ -87,7 +87,7 @@ describe('NoteComposer', () => {
     fireEvent.change(screen.getByPlaceholderText('Something you want to tell the author…'), { target: { value: 'Still thinking of it' } });
     await user().click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByText("This card can't be found")).toBeInTheDocument();
-    expect(screen.queryByText("Couldn't send — please try again.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Couldn't send — please try again")).not.toBeInTheDocument();
     expect(screen.queryByText('No such card.')).not.toBeInTheDocument();
   });
 
@@ -101,17 +101,17 @@ describe('NoteComposer', () => {
 
     fireEvent.change(box, { target: { value: 'First words' } });
     await user().click(screen.getByRole('button', { name: 'Send' }));
-    expect(await screen.findByText("Couldn't send — please try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't send — please try again")).toBeInTheDocument();
     // Trailing space trimmed away: still the same words, still the same note.
     fireEvent.change(box, { target: { value: 'First words ' } });
     await user().click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(sendNote).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText("Couldn't send — please try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't send — please try again")).toBeInTheDocument();
     expect(clientIdOf(1)).toBe(clientIdOf(0));
 
     fireEvent.change(box, { target: { value: 'Second thoughts' } });
     await user().click(screen.getByRole('button', { name: 'Send' }));
-    expect(await screen.findByText('Your note is on its way.')).toBeInTheDocument();
+    expect(await screen.findByText('Your note is on its way')).toBeInTheDocument();
     expect(sendNote).toHaveBeenCalledTimes(3);
     expect(clientIdOf(2)).toMatch(/^[A-Za-z0-9_-]{16,64}$/);
     expect(clientIdOf(2)).not.toBe(clientIdOf(0));

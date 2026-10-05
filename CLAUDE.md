@@ -37,6 +37,8 @@ Stack: Firebase Auth + session cookies, Cloud Firestore, Cloudflare R2 (object s
 
 `src/middleware.ts` intercepts all requests and routes through `[locale]` (supports `en` and `zh-TW`, `localePrefix: 'always'`). The `next-intl` plugin handles server-side translations; message files live in `src/messages/{locale}.json`. The path alias `@/*` maps to `src/*`. Note: `next.config.ts` lists `firebase`/`firebase-admin` in `serverExternalPackages` to avoid Webpack vendor-chunk require errors.
 
+**Copy**: a string of one sentence or a fragment ends without a full stop in both languages (zh-TW no 「。」, en no "." — titles, labels, buttons, placeholders, hints, captions, empty states, status lines, toasts, inline errors, push copy); two or more sentences keep every stop, the last too; ？！… stay; en alone keeps the period on a one-sentence alert/confirm dialog body (Apple style; listed in `src/messages/punctuation.test.ts`, which guards the rule).
+
 App routes under `src/app/[locale]/`:
 
 - `page.tsx` — marketing landing page (`SiteHeader → HeroSection → CardFeedSection → CTASection → SiteFooter`)

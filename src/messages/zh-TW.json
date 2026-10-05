@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Resonance — 讓生命影響生命",
-    "description": "一個讓世界各地的人生故事相互連結的空間。"
+    "description": "一個讓世界各地的人生故事相互連結的空間"
   },
   "nav": {
     "about": "關於我們",
@@ -25,7 +25,7 @@
   "feed": {
     "tag": "最新故事",
     "title": "值得閱讀的故事",
-    "subtitle": "真實的人、真實的經歷 — 每個聲音都承載著一個世界。",
+    "subtitle": "真實的人、真實的經歷 — 每個聲音都承載著一個世界",
     "viewAll": "瀏覽所有故事"
   },
   "cta": {
@@ -40,7 +40,7 @@
     "contact": "聯絡我們",
     "privacy": "隱私政策",
     "terms": "服務條款",
-    "copyright": "© 2026 Resonance 版權所有。"
+    "copyright": "© 2026 Resonance 版權所有"
   },
   "tweaks": {
     "title": "微調",
@@ -79,7 +79,7 @@
       "editThisCard": "編輯這張卡片"
     },
     "notifications": {
-      "empty": "當有人共振你的卡片、或寄來一張小紙條，會出現在這裡。",
+      "empty": "當有人共振你的卡片、或寄來一張小紙條，會出現在這裡",
       "invite": "{handle} 想和你連結",
       "inviteAccepted": "{handle} 接受了你的邀請，你們連上線了 ✿",
       "resonanceSummary": "昨天有 {count} 個人與你共振",
@@ -97,7 +97,7 @@
     },
     "signOutConfirm": {
       "title": "確定要登出嗎？",
-      "body": "登出後需要重新登入，才能繼續使用你的卡片盒。",
+      "body": "登出後需要重新登入，才能繼續使用你的卡片盒",
       "confirm": "登出",
       "cancel": "取消"
     },
@@ -112,16 +112,16 @@
     "writeResponse": "寫一張卡片",
     "empty": {
       "title": "先寫下你的第一張卡片，",
-      "subtitle": "發布後，大家就能在最新公開 feed 看見你的故事。",
+      "subtitle": "發布後，大家就能在最新公開 feed 看見你的故事",
       "cta": "開始寫"
     },
     "matchReason": "因為「{reason}」",
     "recommended": {
-      "hint": "你寫下的體悟，決定你會遇見哪些故事。",
+      "hint": "你寫下的體悟，決定你會遇見哪些故事",
       "ready": "今天的推薦準備好了"
     },
     "coldStart": {
-      "title": "你的第一張卡片，會成為這個世界為你排列的起點。",
+      "title": "你的第一張卡片，會成為這個世界為你排列的起點",
       "cta": "寫下一個故事"
     }
   },
@@ -134,11 +134,11 @@
     "linkedCards": "與 Ta 連結的文章",
     "resonatedBy": "與這張卡片共振的人",
     "viewAllResonators": "查看全部",
-    "noResonatorsYet": "還沒有人與這張卡片共振。",
-    "noBio": "這個人還沒寫下自我介紹。",
+    "noResonatorsYet": "還沒有人與這張卡片共振",
+    "noBio": "這個人還沒寫下自我介紹",
     "resonance": {
       "titlePrefill": "〈{title}〉有感而發",
-      "hint": "你的回應會成為一張自己的卡片。",
+      "hint": "你的回應會成為一張自己的卡片",
       "downgrade": "還不想公開？把這段話寄給作者就好。",
       "aiPrompt": "這張卡片的體悟是「{coreInsight}」。你有過類似、或完全相反的經驗嗎？"
     },
@@ -146,10 +146,10 @@
       "entry": "寄一張小紙條給作者",
       "label": "小紙條",
       "placeholder": "想對作者說的話⋯",
-      "hint": "這段話只有作者看得到。",
+      "hint": "這段話只有作者看得到",
       "upgrade": "這段話想寫成一張共振卡嗎？",
-      "sent": "紙條寄出了。",
-      "waitForReply": "你留的紙條對方還沒回覆，先等等對方吧。",
+      "sent": "紙條寄出了",
+      "waitForReply": "你留的紙條對方還沒回覆，先等等對方吧",
       "send": "寄出",
       "cancel": "取消",
       "close": "關閉"
@@ -162,16 +162,16 @@
     "resonanceSection": {
       "title": "與此文共振的文章",
       "sourceTitle": "此文共振自",
-      "empty": "還沒有人與這篇文章共振，成為第一個吧。"
+      "empty": "還沒有人與這篇文章共振，成為第一個吧"
     },
     "linkModal": {
       "title": "用一張卡片連結",
-      "pickCard": "選擇你的一張文章，與這篇建立連結。",
+      "pickCard": "選擇你的一張文章，與這篇建立連結",
       "confirm": "建立連結",
       "cancel": "取消",
       "close": "關閉",
       "linked": "已建立連結！",
-      "noCards": "你還沒有已發布的卡片可以連結。"
+      "noCards": "你還沒有已發布的卡片可以連結"
     },
     "linkPreview": {
       "open": "開啟連結：{host}"
@@ -181,16 +181,16 @@
     },
     "resonatePicker": {
       "title": "與這張卡片共振",
-      "subtitle": "寫一張新卡片回應，或選一張你寫過、有類似經驗的卡片。",
+      "subtitle": "寫一張新卡片回應，或選一張你寫過、有類似經驗的卡片",
       "writeNew": "寫一張新卡片",
-      "writeNewHint": "從這篇出發，寫下你的經驗。",
+      "writeNewHint": "從這篇出發，寫下你的經驗",
       "pickHeading": "或選一張你寫過的卡片",
-      "empty": "你還沒有公開發表的卡片，從上面寫第一張吧。",
-      "hiddenNote": "已與其他卡片共振的卡片不會列在這裡。",
+      "empty": "你還沒有公開發表的卡片，從上面寫第一張吧",
+      "hiddenNote": "已與其他卡片共振的卡片不會列在這裡",
       "confirm": "共振",
       "cancel": "取消",
-      "failed": "共振沒有成功，請再試一次。",
-      "alreadyAnswering": "這張卡片已經與其他卡片共振了。",
+      "failed": "共振沒有成功，請再試一次",
+      "alreadyAnswering": "這張卡片已經與其他卡片共振了",
       "anonymous": "匿名"
     },
     "translateTo": "翻譯成",
@@ -212,25 +212,25 @@
       "back": "回到首頁"
     },
     "anonymousAuthor": "匿名",
-    "anonymousOwnerNote": "這張卡以匿名發布——卡片和你的個人頁都不會顯示你的筆名。"
+    "anonymousOwnerNote": "這張卡以匿名發布——卡片和你的個人頁都不會顯示你的筆名"
   },
   "messages": {
     "title": "私訊",
-    "subtitle": "與你連結的人，安靜地把話說下去。",
-    "empty": "建立連結後，你們的對話會住在這裡。",
+    "subtitle": "與你連結的人，安靜地把話說下去",
+    "empty": "建立連結後，你們的對話會住在這裡",
     "startSection": "已連結、還沒說過話",
-    "pickOne": "從左邊選一段對話。",
-    "noMessagesYet": "還沒有訊息——說聲嗨吧。",
+    "pickOne": "從左邊選一段對話",
+    "noMessagesYet": "還沒有訊息——說聲嗨吧",
     "placeholder": "想說的話⋯",
     "send": "送出",
-    "sendError": "沒送出去，再試一次。",
+    "sendError": "沒送出去，再試一次",
     "notConnected": "只能與已連結的人對話",
-    "awaitingReply": "對方會收到你的紙條，回覆後就能繼續聊。",
-    "replyToConnect": "回覆後，你們就能開始聊天。",
+    "awaitingReply": "對方會收到你的紙條，回覆後就能繼續聊",
+    "replyToConnect": "回覆後，你們就能開始聊天",
     "viewProfile": "看看個人頁",
     "back": "所有對話",
     "youPrefix": "你：",
-    "userNotFound": "找不到這個人。",
+    "userNotFound": "找不到這個人",
     "threadWith": "與 {handle} 的對話",
     "messageLink": "傳訊息",
     "startChat": "開始聊天",
@@ -259,7 +259,7 @@
     "deleteConfirmBody": "整段對話會從你們雙方那裡消失，而且無法復原",
     "deleteCancel": "先留著",
     "deleteConfirm": "刪除",
-    "deleteError": "沒刪成，再試一次。",
+    "deleteError": "沒刪成，再試一次",
     "reply": "回覆",
     "replyingTo": "回覆 {handle}",
     "replyingToSelf": "回覆自己",
@@ -276,14 +276,14 @@
     "linkConfirmBody": "它會前往 {host}。確定信任這個網址再開啟。",
     "linkConfirmOpen": "開啟",
     "linkConfirmCancel": "取消",
-    "linkUnsupported": "這個連結無法開啟。",
+    "linkUnsupported": "這個連結無法開啟",
     "sending": "傳送中⋯",
     "sendFailed": "未送出 · 點一下重試",
     "retry": "重試",
     "discardFailed": "刪除",
     "loadingOlder": "正在讀取較早的訊息⋯",
-    "loadOlderError": "讀不到較早的訊息。",
-    "beginning": "這是你們對話的開頭。",
+    "loadOlderError": "讀不到較早的訊息",
+    "beginning": "這是你們對話的開頭",
     "jumpToLatest": "回到最新訊息",
     "newMessages": "新訊息",
     "searchSearching": "正在搜尋較早的訊息⋯",
@@ -296,20 +296,20 @@
     "cardSource": "共振"
   },
   "write": {
-    "titleRequired": "先寫下一句話標題。",
+    "titleRequired": "先寫下一句話標題",
     "title": "寫一張新卡片",
     "editTitle": "編輯草稿",
     "editPublishedTitle": "編輯已發布的卡片",
     "closeEditor": "關閉編輯區",
     "leaveTitle": "要先離開嗎？",
-    "leaveBody": "寫下的內容已經存成草稿，之後可以在「我的卡片盒」接著寫。",
-    "leaveBodyRevision": "你的修改已經存起來了，還沒套用到已發布的卡片。",
+    "leaveBody": "寫下的內容已經存成草稿，之後可以在「我的卡片盒」接著寫",
+    "leaveBodyRevision": "你的修改已經存起來了，還沒套用到已發布的卡片",
     "leaveStay": "繼續寫",
     "leaveConfirm": "離開",
     "resizeDivider": "拖曳調整左右比例",
     "referenceCard": "原文章",
     "coreLabel": "一句話標題",
-    "corePlaceholder": "例：被看見，比被喜歡更難得...",
+    "corePlaceholder": "例：被看見，比被喜歡更難得⋯",
     "storyLabel": "故事本體",
     "storyPlaceholder": "把那個讓你忍不住寫下思維核心的時刻，寫出來⋯",
     "editor": {
@@ -337,7 +337,7 @@
     "tagsLabel": "標籤",
     "tagsSuggest": "AI 建議",
     "tagsSuggesting": "AI 思考中⋯",
-    "tagsSuggestError": "標籤建議失敗，請再試一次。",
+    "tagsSuggestError": "標籤建議失敗，請再試一次",
     "tagsPlaceholder": "輸入標籤⋯",
     "tagsAdd": "新增",
     "tagsHelp": "按 Enter 新增，或讓 AI 從故事裡建議",
@@ -345,13 +345,13 @@
     "mediaRemove": "移除圖片",
     "mediaPlaceholder": "點一下，或把圖片拖進來",
     "mediaHint": "PNG、JPG、WebP，最大 5MB",
-    "mediaUploadError": "圖片上傳失敗，請稍後再試。",
+    "mediaUploadError": "圖片上傳失敗，請稍後再試",
     "mediaUploading": "正在描繪中⋯",
     "mediaGenerate": "生成圖片",
     "mediaGenerateHint": "依故事內容構思畫面",
     "mediaGenerateNeedStory": "請先寫下故事內容",
     "mediaGenerating": "正在構思畫面⋯",
-    "mediaGenerateError": "圖片生成失敗，請再試一次。",
+    "mediaGenerateError": "圖片生成失敗，請再試一次",
     "mediaGeneratedLabel": "AI 生成插圖",
     "visibility": {
       "label": "誰可以看見",
@@ -377,7 +377,7 @@
     "autosaved": "草稿已自動儲存 · {time}",
     "editLiveHint": "這張卡片已經發布了。修改會先私下暫存，按「儲存修改」才會更新給讀者。",
     "editBuffered": "修改已暫存 · {time}　（讀者還看不到）",
-    "editBufferedIdle": "有一份還沒儲存的修改，只有你看得到。",
+    "editBufferedIdle": "有一份還沒儲存的修改，只有你看得到",
     "saveDraftAndLeave": "存成草稿，稍後再寫",
     "saveChanges": "儲存修改",
     "saving": "儲存中⋯",
@@ -388,7 +388,7 @@
       "insight": "你想說的，也許是——「{coreInsight}」",
       "anonymousToggle": "以匿名發布",
       "anonymousName": "匿名",
-      "anonymousHint": "匿名卡不會出現在你的個人頁。",
+      "anonymousHint": "匿名卡不會出現在你的個人頁",
       "publish": "發布",
       "publishing": "發布中⋯",
       "cancel": "再想想",
@@ -396,7 +396,7 @@
       "updateHint": "按下之後，讀者看到的就會是這個版本。發布時間不會改變。",
       "update": "儲存修改",
       "updating": "儲存中⋯",
-      "anonymousVisibility": "匿名卡片只能公開，或設為只有自己看得到。"
+      "anonymousVisibility": "匿名卡片只能公開，或設為只有自己看得到"
     },
     "firstCard": {
       "title": "寫下你的第一張卡片",
@@ -411,7 +411,7 @@
     "joined": "{date} 加入",
     "editProfile": "編輯個人檔案",
     "viewPublicProfile": "查看公開個人頁面",
-    "bioEmpty": "還沒寫下一句話關於自己。",
+    "bioEmpty": "還沒寫下一句話關於自己",
     "tabs": {
       "published": "已發布",
       "private": "私人卡",
@@ -444,12 +444,12 @@
       "back": "回到個人頁面",
       "leave": "離開"
     },
-    "emptyPublished": "你的第一張卡片，會成為這個世界為你排列的起點。",
-    "emptyPrivate": "還沒有私人卡片。",
-    "emptyDraft": "沒有草稿。",
-    "emptyResonated": "還沒共振過別人的卡片。",
-    "emptyLinked": "還沒有人用卡片連結你。",
-    "emptyBookmarks": "讀到捨不得忘記的故事時，按下書籤——它們會安靜地待在這裡，只有你看得到。",
+    "emptyPublished": "你的第一張卡片，會成為這個世界為你排列的起點",
+    "emptyPrivate": "還沒有私人卡片",
+    "emptyDraft": "沒有草稿",
+    "emptyResonated": "還沒共振過別人的卡片",
+    "emptyLinked": "還沒有人用卡片連結你",
+    "emptyBookmarks": "讀到捨不得忘記的故事時，按下書籤——它們會安靜地待在這裡，只有你看得到",
     "actions": {
       "menuLabel": "管理卡片",
       "edit": "編輯",
@@ -457,7 +457,7 @@
       "makePrivate": "轉為私人",
       "delete": "刪除",
       "deleteConfirmTitle": "刪除這張卡片？",
-      "deleteConfirmBody": "刪除後無法復原，卡片的故事與共振連結都會消失。",
+      "deleteConfirmBody": "刪除後無法復原，卡片的故事與共振連結都會消失",
       "deleteConfirm": "刪除卡片",
       "deleteCancel": "先留著",
       "unresonate": "取消共振",
@@ -485,13 +485,13 @@
     "backHome": "回到首頁",
     "shareTitle": "{handle} · Resonance",
     "shareDescription": "{handle} 在 Resonance 分享的生命故事",
-    "bioEmpty": "還沒寫下關於自己的介紹。",
+    "bioEmpty": "還沒寫下關於自己的介紹",
     "joined": "{date} 加入",
     "editProfile": "編輯個人檔案",
     "cardCount": "{count, plural, other {# 篇公開卡片}}",
     "publishedHeading": "公開文章",
-    "emptyPublished": "目前還沒有公開的卡片。",
-    "emptyPublishedSelf": "你的第一張卡片，會成為這個世界為你排列的起點。",
+    "emptyPublished": "目前還沒有公開的卡片",
+    "emptyPublishedSelf": "你的第一張卡片，會成為這個世界為你排列的起點",
     "emptyPublishedCta": "寫下一個故事"
   },
   "invite": {
@@ -510,7 +510,7 @@
     "later": "晚點再說",
     "seeWho": "看 Ta 是誰",
     "successTitle": "你們連上線了 ✿",
-    "successSubtitle": "現在可以看見彼此完整的卡片盒，也可以私訊。",
+    "successSubtitle": "現在可以看見彼此完整的卡片盒，也可以私訊",
     "expiresIn": "{days} 天內回應即可"
   },
   "inviteInbox": {
@@ -519,8 +519,8 @@
     "decline": "婉拒",
     "expiresAt": "{date} 前回覆",
     "emptyMessage": "(這個人沒有留下訊息)",
-    "closed": "這個邀請已經失效，無法再接受了。",
-    "error": "沒送出去，再試一次。"
+    "closed": "這個邀請已經失效，無法再接受了",
+    "error": "沒送出去，再試一次"
   },
   "auth": {
     "signInTitle": "回到共振",
@@ -534,10 +534,10 @@
     "creating": "建立中⋯",
     "continueWithGoogle": "使用 Google 繼續",
     "continueWithApple": "使用 Apple 繼續",
-    "googleIntro": "我們透過 Google 登入，從不會看到你的密碼。",
-    "appleGoogleIntro": "我們透過 Apple 或 Google 登入，從不會看到你的密碼。",
-    "signInError": "登入失敗，請再試一次。",
-    "signUpError": "建立帳號失敗，請稍後再試。",
+    "googleIntro": "我們透過 Google 登入，從不會看到你的密碼",
+    "appleGoogleIntro": "我們透過 Apple 或 Google 登入，從不會看到你的密碼",
+    "signInError": "登入失敗，請再試一次",
+    "signUpError": "建立帳號失敗，請稍後再試",
     "switchToSignUp": "還沒有帳號？",
     "switchToSignIn": "已經有帳號？",
     "step": "第 {current} / {total} 步",
@@ -545,7 +545,7 @@
     "stepPhone": "手機驗證",
     "stepHandle": "選一個筆名",
     "phoneLabel": "手機號碼",
-    "phoneHint": "用來確認你是真人，不會公開顯示。",
+    "phoneHint": "用來確認你是真人，不會公開顯示",
     "otpLabel": "簡訊驗證碼",
     "otpSend": "寄驗證碼",
     "otpResend": "重新寄送",
@@ -561,7 +561,7 @@
     "finish": "完成建立",
     "welcome": "歡迎，{handle}。先寫第一張卡片吧。",
     "deletionScheduled": "帳號已排定刪除。7 天內重新登入就能取消。",
-    "agreeTerms": "繼續即表示你同意{terms}與{privacy}。",
+    "agreeTerms": "繼續即表示你同意{terms}與{privacy}",
     "termsLink": "服務條款",
     "privacyLink": "隱私權政策"
   },
@@ -586,7 +586,7 @@
       "avatarHint": "點擊或拖曳圖片到這裡 · 支援 PNG、JPG、WebP",
       "avatarChange": "更換頭像",
       "avatarUploading": "正在描繪中…",
-      "avatarError": "上傳失敗，請再試一次。"
+      "avatarError": "上傳失敗，請再試一次"
     },
     "account": {
       "email": "電子郵件",
@@ -620,7 +620,7 @@
     "delete": {
       "title": "刪除帳號",
       "warn": "送出後你會立刻被登出。7 天後，你的帳號、卡片、訊息與上傳的圖片會永久刪除；這 7 天內重新登入就能取消。",
-      "exportHint": "刪除前，可以先下載一份你寫過的所有內容。",
+      "exportHint": "刪除前，可以先下載一份你寫過的所有內容",
       "export": "下載我的資料",
       "exporting": "準備中⋯",
       "button": "刪除帳號",
@@ -628,7 +628,7 @@
       "confirmBody": "你會被登出。{date} 之後，帳號與所有內容會永久刪除，無法復原。",
       "confirm": "刪除帳號",
       "cancel": "先不要",
-      "error": "沒送出去，再試一次。"
+      "error": "沒送出去，再試一次"
     }
   },
   "safety": {
@@ -644,10 +644,10 @@
     "blockBody": "對方將無法再傳訊息、送邀請或寫紙條給你，你們的連結也會解除。你不會再看到對方的卡片。對方不會收到通知。",
     "blockConfirm": "封鎖",
     "cancel": "取消",
-    "actionError": "沒完成，再試一次。",
+    "actionError": "沒完成，再試一次",
     "anonymousAuthor": "這位作者",
     "blockedNotice": "你已封鎖 {handle}",
-    "blockedNoticeBody": "你看不到對方的卡片，對方也無法聯絡你。",
+    "blockedNoticeBody": "你看不到對方的卡片，對方也無法聯絡你",
     "report": {
       "titleCard": "檢舉這張卡片",
       "titleUser": "檢舉 {handle}",
@@ -669,29 +669,29 @@
       "submit": "送出檢舉",
       "doneTitle": "謝謝你告訴我們",
       "doneBody": "我們會盡快審閱。如果有人正處於立即的危險，請直接聯絡當地的緊急服務。",
-      "doneBlocked": "你也已經封鎖了 {handle}。",
+      "doneBlocked": "你也已經封鎖了 {handle}",
       "close": "關閉"
     },
     "blockedList": {
       "title": "封鎖名單",
-      "subtitle": "被封鎖的人無法聯絡你，你也看不到他們的卡片。",
-      "empty": "你還沒有封鎖任何人。",
+      "subtitle": "被封鎖的人無法聯絡你，你也看不到他們的卡片",
+      "empty": "你還沒有封鎖任何人",
       "since": "{date} 封鎖",
       "unknownUser": "已刪除的帳號",
       "close": "關閉"
     }
   },
   "accountDeletion": {
-    "banner": "你的帳號將於 {date} 刪除。",
+    "banner": "你的帳號將於 {date} 刪除",
     "cancel": "取消刪除",
-    "error": "沒取消成功，再試一次。"
+    "error": "沒取消成功，再試一次"
   },
   "native": {
-    "loadError": "沒能載入，請再試一次。",
+    "loadError": "沒能載入，請再試一次",
     "copy": "複製",
-    "saveError": "沒存成，再試一次。",
+    "saveError": "沒存成，再試一次",
     "retry": "再試一次",
-    "offline": "目前離線，已經打開過的內容還在。",
+    "offline": "目前離線，已經打開過的內容還在",
     "tabFeed": "共振 Feed",
     "refresh": "重新整理",
     "close": "關閉"
