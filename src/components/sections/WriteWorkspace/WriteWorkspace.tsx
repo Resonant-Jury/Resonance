@@ -50,7 +50,7 @@ export function WriteWorkspace({
   const { data: hasWritten } = useHasWrittenCards();
   const [seed, setSeed] = useState<{ story: string; nonce: number } | null>(null);
   // A card opened from the map takes over the pane (in-memory Card → no
-  // loading); the same card as this route's draft keeps the live editor.
+  // loading); never the route's own draft, which keeps the live editor.
   const [openedCard, setOpenedCard] = useState<Card | null>(null);
   // The editor's own save state, lifted so it sits at the top of the pane.
   // At the bottom of a long form it was invisible to exactly the people who
@@ -60,7 +60,7 @@ export function WriteWorkspace({
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   // The arrow and the dialog can both land before the page has gone: it leaves once.
   const leaving = useRef(false);
-  const showOpened = openedCard != null && openedCard.id !== initial?.id;
+  const showOpened = openedCard != null;
   // Only the very first card, started fresh (not edits, not resonances).
   const showGuide = hasWritten === false && !seed && !initial && !referenceCardId;
   const isPublished = initial?.publishedAt != null;
@@ -99,6 +99,13 @@ export function WriteWorkspace({
   // (Next's state spread in: the router reads its tree from history.state); the popstate that takes it away
   // folds the card back to the draft — the arrow's way out of it is that same back.
   const openCard = (card: Card) => {
+    // The draft's own card already fills the pane: opening it from the map is no step deeper (an entry pushed
+    // for it would be all the way out pops, and the writer would stay) — it only folds a card opened over the
+    // draft back to it, by the same back as the arrow's.
+    if (card.id === initial?.id) {
+      if (openedRef.current) window.history.back();
+      return;
+    }
     if (!openedRef.current) {
       const base = (window.history.state ?? {}) as Record<string, unknown>;
       window.history.pushState({ ...base, __writerOpened: true }, '', window.location.href);
