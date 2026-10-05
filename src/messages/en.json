@@ -147,6 +147,7 @@
     },
     "note": {
       "entry": "Send the author a little note",
+      "entryShort": "Send a note",
       "label": "A little note",
       "placeholder": "Something you want to tell the author…",
       "hint": "Only the author can see this",
@@ -605,12 +606,13 @@
     },
     "notifications": {
       "picks": "A card for you in the evening",
-      "picksHint": "Up to three evenings a week, around 8 pm: one card picked for you that you haven't opened yet",
+      "picksHint": "Up to three evenings a week, around 8 pm Taiwan time: one card picked for you that we haven't sent you before",
       "connectionCards": "New cards from people you're connected with",
       "connectionCardsHint": "When someone you're connected with publishes a public card under their pen name",
       "permissionDenied": "Notifications for Resonance are off in your device settings. Turn them on there first.",
       "openSettings": "Open Settings",
-      "saveError": "Couldn't save that — try again"
+      "saveError": "Couldn't save that — try again",
+      "appsOnly": "These notifications go to the Resonance app on your phone"
     },
     "language": {
       "ui": "UI language",

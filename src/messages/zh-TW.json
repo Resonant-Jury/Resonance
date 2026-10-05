@@ -147,6 +147,7 @@
     },
     "note": {
       "entry": "寄一張小紙條給作者",
+      "entryShort": "寄小紙條",
       "label": "小紙條",
       "placeholder": "想對作者說的話⋯",
       "hint": "這段話只有作者看得到",
@@ -605,12 +606,13 @@
     },
     "notifications": {
       "picks": "每晚一張推薦卡片",
-      "picksHint": "每週最多三次，晚上八點左右，送一張為你挑選、你還沒打開過的卡片",
+      "picksHint": "每週最多三次，台灣時間晚上八點左右，送一張為你挑選、還沒推播給你過的卡片",
       "connectionCards": "有連結的人發表新卡片",
       "connectionCardsHint": "和你有連結的人用筆名公開發表新卡片時通知你",
       "permissionDenied": "Resonance 的通知在系統設定裡關閉了，請先到系統設定開啟",
       "openSettings": "打開系統設定",
-      "saveError": "沒有存好，再試一次"
+      "saveError": "沒有存好，再試一次",
+      "appsOnly": "這些通知會送到手機上的 Resonance App"
     },
     "language": {
       "ui": "介面語言",

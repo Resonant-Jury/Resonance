@@ -265,6 +265,8 @@ public enum L10n {
         public enum Note {
             /// Send the author a little note
             public static var entry: String { Strings.shared.string("card.note.entry") }
+            /// Send a note
+            public static var entryShort: String { Strings.shared.string("card.note.entryShort") }
             /// A little note
             public static var label: String { Strings.shared.string("card.note.label") }
             /// Something you want to tell the author…
@@ -1121,7 +1123,7 @@ public enum L10n {
         public enum Notifications {
             /// A card for you in the evening
             public static var picks: String { Strings.shared.string("settings.notifications.picks") }
-            /// Up to three evenings a week, around 8 pm: one card picked for you that you haven't opened yet
+            /// Up to three evenings a week, around 8 pm Taiwan time: one card picked for you that we haven't sent you before
             public static var picksHint: String { Strings.shared.string("settings.notifications.picksHint") }
             /// New cards from people you're connected with
             public static var connectionCards: String { Strings.shared.string("settings.notifications.connectionCards") }
@@ -1133,6 +1135,8 @@ public enum L10n {
             public static var openSettings: String { Strings.shared.string("settings.notifications.openSettings") }
             /// Couldn't save that — try again
             public static var saveError: String { Strings.shared.string("settings.notifications.saveError") }
+            /// These notifications go to the Resonance app on your phone
+            public static var appsOnly: String { Strings.shared.string("settings.notifications.appsOnly") }
         }
         public enum Language {
             /// UI language
