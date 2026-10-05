@@ -99,6 +99,8 @@ class CardBoxModel internal constructor(
     /** The last refresh by hand that brought nothing back for the shelf it was asked for while that showed: gone with its next answer, or another shelf shown. */
     var refreshFailure by mutableStateOf<ShelfFailure?>(null)
         private set
+    /** The shelf on screen ([shelfShown]): a pull's failure is said only while the shelf it was for still is. */
+    private var shown: TabGetCardBox? = null
     private val readAt = HashMap<TabGetCardBox, Long>()
     /** The read each shelf waits for: one that answers after a newer one began doesn't overwrite it. */
     private val readBy = HashMap<TabGetCardBox, Int>()
@@ -113,11 +115,22 @@ class CardBoxModel internal constructor(
     }
 
     /** Why the last refresh of [shelf] by hand brought nothing back — said over that shelf only, while it shows. */
-    fun failureOver(shelf: TabGetCardBox): RefreshFailure? = refreshFailure?.takeIf { it.shelf == shelf && shelves[shelf] != null }?.failure
+    fun failureOver(shelf: TabGetCardBox): RefreshFailure? =
+        refreshFailure?.takeIf { it.shelf == shelf && shown == shelf && shelves[shelf] != null }?.failure
 
-    /** Another shelf is shown: what a refresh of the one before couldn't bring is no longer said. */
+    /** [shelf] is the one on screen: what a refresh of the one before couldn't bring is no longer said. */
     fun shelfShown(shelf: TabGetCardBox) {
+        shown = shelf
         if (refreshFailure?.shelf != shelf) refreshFailure = null
+    }
+
+    /**
+     * A pull of [shelf] brought nothing back: said over it — unless another shelf was chosen while
+     * the pull was on its way (that one isn't what failed, and coming back to this one later, the
+     * line would speak of a pull long over).
+     */
+    private fun pullFailed(shelf: TabGetCardBox, failure: RefreshFailure) {
+        if (shown == shelf) refreshFailure = ShelfFailure(shelf, failure)
     }
 
     /**
@@ -150,7 +163,7 @@ class CardBoxModel internal constructor(
                     if (cards == null) {
                         // Not in the answer: asked for again when next shown.
                         readAt.remove(s)
-                        if (pulled && s == shelf) refreshFailure = ShelfFailure(shelf, RefreshFailure.Failed)
+                        if (pulled && s == shelf) pullFailed(shelf, RefreshFailure.Failed)
                         continue
                     }
                     shelves[s] = cards
@@ -162,7 +175,7 @@ class CardBoxModel internal constructor(
             } catch (e: Exception) {
                 failed = true
                 for (s in asked) if (readBy[s] == read) readAt.remove(s)
-                if (pulled && readBy[shelf] == read) refreshFailure = ShelfFailure(shelf, RefreshFailure.of(e))
+                if (pulled && readBy[shelf] == read) pullFailed(shelf, RefreshFailure.of(e))
             }
         }
     }
@@ -192,16 +205,17 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     val shelves = model.shelves
     val failed = model.failed
     val scope = rememberCoroutineScope()
-    LaunchedEffect(shelf, changes, foregrounded) { model.refresh(shelf, changes) }
     // Another shelf: what a refresh of the one before couldn't bring isn't said over this one.
     LaunchedEffect(shelf) { model.shelfShown(shelf) }
+    LaunchedEffect(shelf, changes, foregrounded) { model.refresh(shelf, changes) }
     val view = LocalView.current
 
     TabScreen(
         L10n.App.Nav.me,
         titleInBar = true,
         // Pulled down: who I am and the shelf in view, read again now from the server rather than the HTTP cache.
-        // Nothing back for the shelf: it stays, and says why.
+        // Nothing back for the shelf: it stays, and says why — read out only while that shelf is still the one
+        // on screen (another chosen meanwhile, the failure isn't about what is shown).
         onRefresh = {
             session.readAfresh()
             val asked = shelf
@@ -209,7 +223,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
                 launch { session.loadMe() }
                 model.refresh(asked, changes, retry = true)?.join()
             }
-            model.failureOver(asked)?.let { view.announce(it.message) }
+            if (shelf == asked) model.failureOver(asked)?.let { view.announce(it.message) }
         },
     ) {
         item {
