@@ -16,26 +16,28 @@ const segments = (onNote = vi.fn()): SegmentSpec[] => [
 const bar = () => screen.getByRole('group');
 
 describe('SegmentedActionBar', () => {
-  // Like every button it is a filled shape: no pen line round the bar, the
-  // tonal face under the segments that bring none, and the seams between them
-  // cut in the paper's colour rather than drawn in ink.
-  it('draws no pen outline, only its tonal face and paper seams', () => {
+  // A lone button is a filled shape with no pen line, but a segmented control
+  // keeps its frame: the outline is what makes its options read as one
+  // control, and the dividers between them are drawn in the same pen.
+  it('draws its pen outline and inked dividers round the segments', () => {
     render(<SegmentedActionBar segments={segments()} />);
     const lines = penLines(bar());
-    expect(lines.length).toBe(2);
-    for (const seam of lines) expect(seam.getAttribute('stroke')).toBe('var(--color-cream)');
+    const PEN = 'color-mix(in oklch, var(--color-terracotta), black 12%)';
+    // two dividers between three segments, and the outline round them all
+    expect(lines.length).toBe(3);
+    for (const line of lines) expect(line.getAttribute('stroke')).toBe(PEN);
     const fills = Array.from(bar().querySelectorAll('svg path')).map((p) => p.getAttribute('fill'));
-    expect(fills).toContain('var(--button-tonal)');
     expect(fills).toContain('var(--button-fill)');
   });
 
+  // Plain terracotta on the bar's paper is 3.5:1; the button tokens clear 4.5:1.
   it('labels a segment without a colour of its own in the deep terracotta', () => {
     render(<SegmentedActionBar segments={segments()} />);
     expect(screen.getByRole('button', { name: 'Leave a note' }).style.color).toBe('var(--button-on-tonal)');
     expect(screen.getByRole('button', { name: 'Resonate' }).style.color).toBe('var(--color-cream)');
   });
 
-  it('still draws an outline when a caller asks for one', () => {
+  it('takes a caller\'s pen colour', () => {
     render(<SegmentedActionBar segments={segments()} stroke="var(--field-border)" />);
     const strokes = penLines(bar()).map((p) => p.getAttribute('stroke'));
     expect(strokes).toContain('var(--field-border)');

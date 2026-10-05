@@ -444,9 +444,10 @@ describe('MessagesPage thread safety menu', () => {
       }),
     );
     expect(await screen.findByText('Thanks for telling us')).toBeInTheDocument();
-    // The thank-you's Close (the modal's own ✕ shares its name) is the verb: solid.
+    // The thank-you's Close (the modal's hidden close shares its name) is its
+    // one way out, not a verb: the quiet tonal pill every close wears.
     const close = screen.getAllByRole('button', { name: 'Close' }).find((b) => b.hasAttribute('data-variant'));
-    expect(close).toHaveAttribute('data-variant', 'solid');
+    expect(close).toHaveAttribute('data-variant', 'text');
     // Not blocked unless the "also block" switch was turned on.
     expect(mockBlockUser).not.toHaveBeenCalled();
   });

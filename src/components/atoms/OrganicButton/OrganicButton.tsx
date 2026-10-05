@@ -10,33 +10,42 @@ import styles from './OrganicButton.module.css';
 
 /**
  * A button is a filled shape and never draws a pen line: an outline marks a
- * container (a card, a modal, a panel, a bar) or an input (a field, a select),
- * and a button inside or beside one would only add a second line to read. What
- * says "press me" is the fill — the same organic pill, coloured by rank:
- *  - `solid`      the verb: deep terracotta, cream label — Publish, Sign in,
- *                 Confirm, the page's one call to action
- *  - `tonal`      a secondary action: a soft peach face with a deep
- *                 terracotta label — Share your story, Sign out, Retry, the
- *                 thought map beside the shelf picker
- *  - `text`       no fill, muted ink: Cancel / Keep / Close beside a verb
- *  - `textAccent` the same in deep terracotta: a quiet accent ("load more", Unblock)
- *  - `danger`     solid in red, for what can't be undone (delete a card, the account)
- *  - `ink`        solid in the ink colour, cream label: for a brand that asks
- *                 for a black button (Sign in with Apple)
- *  - `paper`      the cards' paper, ink label: a control floating over busy
- *                 content (the thought map's toolbar) that needs a ground to
- *                 read on
- *  - `ctaLight` / `ctaGhost`  the same two ranks on the terracotta CTA band:
- *                 a cream pill, and a deeper-terracotta one with a cream label
+ * container (a card, a modal, a panel), an input (a field, a select) or a
+ * segmented control (SegmentedActionBar, whose frame makes its options one
+ * control) — never a lone button. And every button has a fill: bare text does
+ * not read as something to press, so a Cancel beside a verb is a pill as
+ * filled as the verb, only quieter. The same organic pill, coloured by rank:
+ *  - `solid`       the verb: deep terracotta, cream label — Publish, Sign in,
+ *                  Confirm, the page's one call to action
+ *  - `tonal`       everything beside it: a soft peach face with a deep
+ *                  terracotta label — a secondary action (Share your story,
+ *                  Sign out, Retry), Cancel / Keep / Close, Download, Load
+ *                  more, Unblock. `text` and `textAccent` (the names those
+ *                  call sites carry) wear it too.
+ *  - `danger`      solid in red: the final confirm of what can't be undone
+ *  - `dangerTonal` the peach's red twin: a button that opens a destructive
+ *                  flow (Settings' Delete account), whose dialog then asks
+ *                  with `danger`
+ *  - `ink`         solid in the ink colour, cream label: for a brand that asks
+ *                  for a black button (Sign in with Apple)
+ *  - `paper`       the cards' paper, ink label: for a control that has to
+ *                  match a paper surface (the floating tools that wore it —
+ *                  the thought map's toolbar, the workspace's Leave — are
+ *                  tonal now: on cream, card paper hardly reads as a fill)
+ *  - `ctaLight` / `ctaGhost`  the two ranks on the terracotta CTA band:
+ *                  a cream pill, and a deeper-terracotta one with a cream label
  * The older names keep working and wear the new faces — `primary` is `solid`;
- * `outline`, `ghost`, `secondary` and `secondaryOutline` are `tonal` — so the
- * call sites can move to the rank names at their own pace. The apps'
- * OrganicButton (ButtonVariant / Variant) carries the same names. Every face
- * keeps the hover brush and, for the keyboard, a focus ring round the pill.
+ * `outline`, `ghost`, `secondary`, `secondaryOutline`, `text` and
+ * `textAccent` are `tonal` — so the call sites can move to the rank names at
+ * their own pace. Bare text is left to a link inside running text (an <a>,
+ * not this) and to icon-only header and toolbar buttons, whose icon is the
+ * affordance. The apps' OrganicButton (ButtonVariant / Variant) carries the
+ * same names. Every face keeps the hover brush and, for the keyboard, a focus
+ * ring round the pill.
  */
 export type OrganicButtonVariant =
   | 'primary' | 'secondary' | 'ghost' | 'outline' | 'ctaLight' | 'ctaGhost' | 'secondaryOutline'
-  | 'solid' | 'tonal' | 'danger' | 'ink' | 'text' | 'textAccent' | 'paper';
+  | 'solid' | 'tonal' | 'danger' | 'dangerTonal' | 'ink' | 'text' | 'textAccent' | 'paper';
 
 // The fallback is the red every error line and danger row already uses
 // (`--color-danger` itself is not defined anywhere), deepened like the
@@ -45,8 +54,8 @@ const DANGER = 'color-mix(in oklch, var(--color-danger, oklch(58% 0.16 25)), bla
 
 type Face = { fill: string; text: string; hoverOverlay: string };
 
-// A filled face darkens under the hover ink; a tinted or bare one takes a
-// terracotta wash.
+// A filled face darkens under the hover ink; a tinted one takes a wash of
+// its own hue.
 const DARKEN = 'oklch(0% 0 0 / 0.14)';
 const WASH = 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)';
 const SOLID: Face = { fill: 'var(--button-fill)', text: 'var(--color-cream)', hoverOverlay: DARKEN };
@@ -60,23 +69,31 @@ const BTN_VARIANTS: Record<OrganicButtonVariant, Face> = {
   ghost: TONAL,
   secondary: TONAL,
   secondaryOutline: TONAL,
+  // Cancel / Close / Load more were bare words once; a word alone did not read
+  // as a button beside a filled verb, so they take the secondary pill.
+  text: TONAL,
+  textAccent: TONAL,
   // On the terracotta band: cream for the verb, a deeper terracotta for the
   // second action (cream on it 5.5:1; the band itself carries only large type).
   ctaLight:   { fill: 'var(--color-cream)', text: 'var(--button-on-tonal)', hoverOverlay: 'oklch(0% 0 0 / 0.08)' },
   ctaGhost:   { fill: 'color-mix(in oklch, var(--color-terracotta), black 18%)', text: 'var(--color-cream)', hoverOverlay: 'oklch(96% 0.015 75 / 0.14)' },
   danger:     { fill: DANGER, text: 'var(--color-cream)', hoverOverlay: DARKEN },
+  // The deep red on its rose tint, 5.7:1.
+  dangerTonal: {
+    fill: 'var(--button-danger-tonal)',
+    text: 'var(--button-on-danger-tonal)',
+    hoverOverlay: 'color-mix(in oklch, var(--color-danger, oklch(58% 0.16 25)) 14%, transparent)',
+  },
   ink:        { fill: 'var(--color-text)', text: 'var(--color-cream)', hoverOverlay: DARKEN },
-  text:       { fill: 'transparent', text: 'var(--color-text-muted)', hoverOverlay: WASH },
-  textAccent: { fill: 'transparent', text: 'var(--button-on-tonal)', hoverOverlay: WASH },
   paper:      { fill: 'var(--color-card-bg)', text: 'var(--color-text)', hoverOverlay: WASH },
 };
 
 // Each rank keeps the wobble of the variant it grew out of (solid / danger /
-// ink: primary's, tonal: outline's, text / paper: ghost's), so a renamed call
-// site wobbles exactly as before — and like its native twin.
+// ink: primary's, tonal / dangerTonal: outline's, text / paper: ghost's), so a
+// renamed call site wobbles exactly as before — and like its native twin.
 const BTN_SEEDS: Record<OrganicButtonVariant, number> = {
   primary: 3, secondary: 201, ghost: 401, outline: 601, ctaLight: 801, ctaGhost: 1001, secondaryOutline: 1201,
-  solid: 3, tonal: 601, danger: 3, ink: 3, text: 401, textAccent: 601, paper: 401,
+  solid: 3, tonal: 601, danger: 3, dangerTonal: 601, ink: 3, text: 401, textAccent: 601, paper: 401,
 };
 
 // Buttons are small — keep the wobble gentle (few turns, low bow) so the
@@ -158,13 +175,11 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', bloc
         curve={btnCurve} cornerJitter={btnJitter} cornerOffset={cornerOff}
       />
       {/* Paper carries the cards' own grain (the Modal's); every other fill the button's. */}
-      {v.fill !== 'transparent' && (
-        <ShapeGrain
-          w={w} h={h} d={overlayPath} seed={seed}
-          opacity={variant === 'paper' ? 0.3 : 0.38}
-          frequency={variant === 'paper' ? 0.88 : 1.1}
-        />
-      )}
+      <ShapeGrain
+        w={w} h={h} d={overlayPath} seed={seed}
+        opacity={variant === 'paper' ? 0.3 : 0.38}
+        frequency={variant === 'paper' ? 0.88 : 1.1}
+      />
       <BrushWash
         w={w} h={h} d={overlayPath}
         color={v.hoverOverlay}

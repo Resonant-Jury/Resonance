@@ -201,18 +201,14 @@ export function PublishPanel({
             {tVis('label')}
           </span>
           <div style={{ display: 'flex' }}>
-            {/* A segmented choice with no pen line: a quiet paper-dark track
-                shows the control's extent, and the chosen side wears the
-                tonal wash (the selected tab's language) with the deep
-                terracotta label; the other keeps a muted ink deep enough to
-                read on the track. */}
+            {/* A segmented choice: the bar's pen line makes the two one
+                control, the chosen side wears the tonal peach with the deep
+                terracotta label (4.8:1), the other the muted ink (5.1:1 on
+                the bar's paper). */}
             <SegmentedActionBar
-              fill="var(--color-cream-dark)"
               segments={(['public', 'private'] as const).map((v) => {
                 const active = visibility === v;
-                const ink = active
-                  ? 'var(--button-on-tonal)'
-                  : 'color-mix(in oklch, var(--color-text-muted), black 10%)';
+                const ink = active ? 'var(--button-on-tonal)' : 'var(--color-text-muted)';
                 return {
                   key: v,
                   icon: <Icon name={VISIBILITY_ICON[v]} size={16} color={ink} />,

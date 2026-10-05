@@ -106,7 +106,8 @@ export function ReportModal({ open, target, offerBlock = true, onClose, onReport
           <p className={styles.body}>{t('doneBody')}</p>
           {done.blocked && <p className={styles.body}>{t('doneBlocked', { handle })}</p>}
           <div className={styles.actions}>
-            <OrganicButton variant="solid" size="sm" onClick={onClose}>
+            {/* The one way out: a close, so the quiet tonal pill, not a verb. */}
+            <OrganicButton variant="text" size="sm" onClick={onClose}>
               {t('close')}
             </OrganicButton>
           </div>

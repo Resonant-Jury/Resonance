@@ -1,0 +1,21 @@
+/* The backup and the way into the deletion: two pills of one height side by
+   side. On a phone they do not fit one row, so they stack at one width — a
+   balanced column rather than two ragged pills. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  /* The face (.btn) is inline-flex and measures itself: stretched, it redraws at the column's width. */
+  .actions > button {
+    display: flex;
+    width: 100%;
+  }
+}

@@ -36,17 +36,23 @@
   --bubble-theirs: oklch(91.5% 0.017 74);
   --bubble-quote:  oklch(88.5% 0.013 72);
 
-  /* Buttons are filled shapes with no pen line (a pen outline marks a
-     container or an input, never a control): the verb a deep terracotta, a
-     secondary action a soft terracotta tint, a tertiary one bare text. Each is
-     a mix of the palette above, so labels clear 4.5:1 — cream on the fill
-     4.7:1, the deep label 5.0:1 on the tint and 6.1:1 on cream paper (plain
-     terracotta, 3.5:1 either way, never carries a label). Being mixes, not
-     oklch() literals, the native token pipeline leaves them to the apps'
+  /* Every button is a filled shape with no pen line (a pen outline marks a
+     container, an input or a segmented control — never a lone button): the
+     verb a deep terracotta, everything beside it (secondary, cancel, close,
+     load more) a soft terracotta tint, and a button that opens a destructive
+     flow the same tint in red. Each is a mix of the palette, so labels clear
+     4.5:1 — cream on the fill 4.7:1, the deep label 4.8:1 on the tint and
+     6.1:1 on cream paper, the deep red 5.7:1 on its tint (plain terracotta,
+     3.5:1 either way, never carries a label). Being mixes, not oklch()
+     literals, the native token pipeline leaves them to the apps'
      DesignSystem, which resolves the same mixes. */
   --button-fill:     color-mix(in oklch, var(--color-terracotta), black 12%);
   --button-tonal:    color-mix(in oklch, var(--color-terracotta-light) 75%, var(--color-cream-dark));
   --button-on-tonal: color-mix(in oklch, var(--color-terracotta), black 22%);
+  /* The danger red (--color-danger is unset: every red reads its fallback)
+     as a tint on a rose paper of its own hue, and deepened as the label. */
+  --button-danger-tonal:    color-mix(in oklch, var(--color-danger, oklch(58% 0.16 25)) 20%, oklch(98% 0.02 25));
+  --button-on-danger-tonal: color-mix(in oklch, var(--color-danger, oklch(58% 0.16 25)), black 22%);
 
   --grain-opacity: 0.10;
 

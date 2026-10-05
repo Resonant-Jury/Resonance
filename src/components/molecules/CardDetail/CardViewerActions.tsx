@@ -156,23 +156,23 @@ export function CardViewerActions({
         <SegmentedActionBar segments={segments} />
       </div>
 
-      {/* Mobile view: Stacked layout with text hyperlink note button */}
+      {/* Mobile view: the verb across the width, then the note as a tonal
+          pill of the same height (a bare word did not read as a button)
+          beside the bookmark, whose icon is its own affordance. */}
       <div className={styles.mobileOnly}>
         <div style={{ opacity: loadingMine ? 0.6 : 1, pointerEvents: loadingMine ? 'none' : 'auto' }}>
-          <OrganicButton variant={hasResonance ? 'outline' : 'primary'} onClick={onTrigger}>
+          <OrganicButton variant={hasResonance ? 'tonal' : 'solid'} block onClick={onTrigger}>
             <Icon name={glyph} size={16} style={{ marginTop: 1 }} />
             {label}
           </OrganicButton>
         </div>
         <div className={styles.mobileActionsRow}>
-          <OrganicButton
-            variant="secondaryOutline"
-            className={styles.mobileNoteButton}
-            onClick={onOpenNote}
-          >
-            <Icon name="note" size={16} />
-            {tNote('entry')}
-          </OrganicButton>
+          <div className={styles.mobileNote}>
+            <OrganicButton variant="tonal" block onClick={onOpenNote}>
+              <Icon name="note" size={16} />
+              {tNote('entry')}
+            </OrganicButton>
+          </div>
           <BookmarkButton cardId={cardId} />
         </div>
       </div>

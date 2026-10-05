@@ -8,6 +8,7 @@ import { ConfirmModal } from '@/components/molecules/ConfirmModal/ConfirmModal';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { downloadMyData, scheduleMyAccountDeletion } from '@/lib/account/client';
 import { DELETION_GRACE_DAYS } from '@/lib/account/constants';
+import styles from './DeleteAccountSection.module.css';
 
 /**
  * Settings → 刪除帳號. Offers the backup download first, then schedules the
@@ -64,12 +65,15 @@ export function DeleteAccountSection() {
       <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20 }}>{t('title')}</h3>
       <p style={muted}>{t('warn')}</p>
       <p style={muted}>{t('exportHint')}</p>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+      {/* Two pills of one height: the backup in the secondary peach, and the
+          way into the deletion in the red tint — it only opens the dialog,
+          whose confirm is the solid red. */}
+      <div className={styles.actions}>
         <OrganicButton variant="text" onClick={() => void exportData()}>
           <Icon name="document" size={16} />
           {exporting ? t('exporting') : t('export')}
         </OrganicButton>
-        <OrganicButton variant="outline" onClick={() => setConfirming(true)}>
+        <OrganicButton variant="dangerTonal" onClick={() => setConfirming(true)}>
           <Icon name="trash" size={16} />
           {t('button')}
         </OrganicButton>

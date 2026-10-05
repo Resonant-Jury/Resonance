@@ -135,8 +135,8 @@ export function WorkspaceShell({
           ))}
         {!bar && (
           <div className={styles.back}>
-            {/* Floats over the map: paper to read on, no pen line of its own. */}
-            <OrganicButton variant="paper" size="sm" onClick={() => router.back()}>
+            {/* Floats over the map: the tonal pill, opaque over the board's dots, no pen line of its own. */}
+            <OrganicButton variant="tonal" size="sm" onClick={() => router.back()}>
               <span className={styles.backIcon}>
                 <Icon
                   name="arrow-right"

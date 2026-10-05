@@ -4,7 +4,6 @@ import { MouseEvent, ReactNode, useCallback, useEffect, useId, useLayoutEffect, 
 import { wobRect } from '@/lib/design/wobRect';
 import { makePrng } from '@/lib/design/prng';
 import { INK } from '@/lib/design/strokes';
-import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import styles from './SegmentedActionBar.module.css';
 
 export interface SegmentSpec {
@@ -26,9 +25,9 @@ export interface SegmentedActionBarProps {
   seed?: number;
   /** The bar's own face, under every segment that brings no fill of its own. */
   fill?: string;
-  /** A pen line round the bar — none by default: like OrganicButton, the bar is a filled shape. */
-  stroke?: string | null;
-  /** The wavy seam between segments: by default a cut in the paper, not an ink line. */
+  /** The pen line round the bar: its frame is what makes the options one control. */
+  stroke?: string;
+  /** The wavy divider between segments, in the same pen as the outline by default. */
   divider?: string;
 }
 
@@ -69,18 +68,21 @@ export const polyline = (pts: [number, number][]) =>
 
 /**
  * Three (or more) actions fused into one organic bar, split by hand-drawn
- * wavy seams. Each segment keeps its own fill colour and icon — a compact
- * alternative to a row of separate buttons. Like every button it is a filled
- * shape with no pen line: the bar wears the secondary (tonal) face, a segment
- * may bring its own (the verb's solid terracotta), and the seams between them
- * are cut in the paper's colour.
+ * wavy dividers. Each segment keeps its own fill colour and icon — a compact
+ * alternative to a row of separate buttons. Unlike a lone button it keeps a
+ * pen line: the frame is what makes its options read as one control (a
+ * segmented control is a group, and an outline marks a group). Inside it the
+ * button tokens hold — the verb's segment in `--button-fill` (the pen's own
+ * colour, so the two read as one drawn shape), every other label in the deep
+ * `--button-on-tonal`, never plain terracotta (3.5:1 on the paper).
  */
 export function SegmentedActionBar({
   segments,
   seed = 71,
-  fill = 'var(--button-tonal)',
-  stroke = null,
-  divider = 'var(--color-cream)',
+  fill = 'oklch(97% 0.016 70 / 0.72)',
+  stroke = 'color-mix(in oklch, var(--color-terracotta), black 12%)',
+  // match the divider to the outer border so the bar reads as one drawn shape
+  divider = 'color-mix(in oklch, var(--color-terracotta), black 12%)',
 }: SegmentedActionBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const segRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -219,12 +221,10 @@ export function SegmentedActionBar({
               clipPath={`url(#sab-clip-${seed})`}
             />
           ))}
-          {/* an outer pen line only when a caller asks for one — the house pen (INK) */}
-          {stroke && <path d={outerPath} fill="none" stroke={stroke} strokeWidth={INK} strokeLinejoin="round" />}
+          {/* outer stroke — the house pen (INK), matched across all frames */}
+          <path d={outerPath} fill="none" stroke={stroke} strokeWidth={INK} strokeLinejoin="round" />
         </svg>
       )}
-      {/* The buttons' own grain over the whole face, so the bar and a lone OrganicButton feel cut from the same paper. */}
-      <ShapeGrain w={w} h={h} d={outerPath} seed={seed} opacity={0.38} frequency={1.1} />
 
       {segments.map((s, i) => (
         <button

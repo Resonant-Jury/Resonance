@@ -13,7 +13,7 @@ mockElementSize(120, 40);
 
 const ALL: OrganicButtonVariant[] = [
   'primary', 'secondary', 'ghost', 'outline', 'ctaLight', 'ctaGhost', 'secondaryOutline',
-  'solid', 'tonal', 'danger', 'ink', 'text', 'textAccent', 'paper',
+  'solid', 'tonal', 'danger', 'dangerTonal', 'ink', 'text', 'textAccent', 'paper',
 ];
 
 function renderVariant(variant: OrganicButtonVariant) {
@@ -49,16 +49,16 @@ describe('OrganicButton variants', () => {
     expect(ink()).toBe(0);
   });
 
-  // What says "press me" is the fill, ranked: the verb deep terracotta, a
-  // secondary action the tonal tint, a tertiary one bare text.
+  // What says "press me" is the fill, ranked: the verb deep terracotta,
+  // everything beside it the tonal tint, the final destructive confirm solid
+  // red and the button that opens that flow the red tint.
   it.each([
     ['solid', 'var(--button-fill)', 'var(--color-cream)'],
     ['tonal', 'var(--button-tonal)', 'var(--button-on-tonal)'],
     ['danger', 'color-mix(in oklch, var(--color-danger, oklch(58% 0.16 25)), black 8%)', 'var(--color-cream)'],
+    ['dangerTonal', 'var(--button-danger-tonal)', 'var(--button-on-danger-tonal)'],
     ['ink', 'var(--color-text)', 'var(--color-cream)'],
     ['paper', 'var(--color-card-bg)', 'var(--color-text)'],
-    ['text', 'transparent', 'var(--color-text-muted)'],
-    ['textAccent', 'transparent', 'var(--button-on-tonal)'],
     ['ctaLight', 'var(--color-cream)', 'var(--button-on-tonal)'],
     ['ctaGhost', 'color-mix(in oklch, var(--color-terracotta), black 18%)', 'var(--color-cream)'],
   ] as const)('%s wears the %s face with a %s label', (variant, fill, label) => {
@@ -68,13 +68,17 @@ describe('OrganicButton variants', () => {
   });
 
   // The older names keep working and wear the rank they stood for, so call
-  // sites can move to the rank names at their own pace.
+  // sites can move to the rank names at their own pace. Cancel / Close /
+  // Load more (`text`, `textAccent`) were bare words; a word alone did not
+  // read as a button beside a filled verb, so they wear the tonal pill.
   it.each([
     ['primary', 'solid'],
     ['outline', 'tonal'],
     ['ghost', 'tonal'],
     ['secondary', 'tonal'],
     ['secondaryOutline', 'tonal'],
+    ['text', 'tonal'],
+    ['textAccent', 'tonal'],
   ] as const)('%s wears the %s face', (legacy, rank) => {
     render(
       <>
@@ -119,12 +123,26 @@ describe('OrganicButton variants', () => {
   // Every label clears 4.5:1 on its face: the fills are mixes defined once,
   // beside the palette (a test can't evaluate color-mix; pin the recipe the
   // contrast was measured on — cream 4.7:1 on the fill, the deep label 4.8:1
-  // on the tint and 6.1:1 on cream).
+  // on the tint and 6.1:1 on cream, the deep red 5.7:1 on its tint).
   it('takes its faces from the button tokens', () => {
     const tokens = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8');
     expect(tokens).toMatch(/--button-fill:\s*color-mix\(in oklch, var\(--color-terracotta\), black 12%\);/);
     expect(tokens).toMatch(/--button-tonal:\s*color-mix\(in oklch, var\(--color-terracotta-light\) 75%, var\(--color-cream-dark\)\);/);
     expect(tokens).toMatch(/--button-on-tonal:\s*color-mix\(in oklch, var\(--color-terracotta\), black 22%\);/);
+    expect(tokens).toMatch(
+      /--button-danger-tonal:\s*color-mix\(in oklch, var\(--color-danger, oklch\(58% 0\.16 25\)\) 20%, oklch\(98% 0\.02 25\)\);/,
+    );
+    expect(tokens).toMatch(
+      /--button-on-danger-tonal:\s*color-mix\(in oklch, var\(--color-danger, oklch\(58% 0\.16 25\)\), black 22%\);/,
+    );
+  });
+
+  // No face is see-through: a button always shows the shape you press.
+  it.each(ALL)('%s has a fill', (variant) => {
+    const btn = renderVariant(variant);
+    expect(face(btn)).toBeTruthy();
+    expect(face(btn)).not.toBe('transparent');
+    expect(btn.style.getPropertyValue('--shape-fill')).not.toBe('transparent');
   });
 
   // Sign in with Apple asks for a black button: the ink face with a cream
