@@ -150,6 +150,62 @@ class StoryParserTest {
         assertNull(StoryLinks.keyOf("www.example.com"))
     }
 
+    @Test fun aKeyIsTheAddressAsTheServersUrlParserWritesIt() {
+        // Each pinned against node's `new URL(link).href`, which the server keys a preview by (normalizeLink).
+        val cases = mapOf(
+            // Each part with its own percent-encode set: `'` in the query only, `{ }` in the path only.
+            "https://example.com/search?q=what's+up" to "https://example.com/search?q=what%27s+up",
+            "https://example.com/p'q" to "https://example.com/p'q",
+            "https://example.com/q?a'b#c'd" to "https://example.com/q?a%27b#c'd",
+            "https://example.com/p{1}?x={1}#{f}" to "https://example.com/p%7B1%7D?x={1}#{f}",
+            "https://example.com/a\"b" to "https://example.com/a%22b",
+            "https://example.com/a`b?c`d#e`f" to "https://example.com/a%60b?c`d#e%60f",
+            "https://example.com/a<b>?c<d>#e<f>" to "https://example.com/a%3Cb%3E?c%3Cd%3E#e%3Cf%3E",
+            "https://example.com/a^b" to "https://example.com/a%5Eb",
+            "https://example.com/a|b?c|d#e|f" to "https://example.com/a|b?c|d#e|f",
+            "https://example.com/a[b]?c[d]#e[f]" to "https://example.com/a[b]?c[d]#e[f]",
+            "https://example.com/中文?q=中#中" to "https://example.com/%E4%B8%AD%E6%96%87?q=%E4%B8%AD#%E4%B8%AD",
+            "https://example.com/%zz?%" to "https://example.com/%zz?%",
+            // Dot segments resolved (`%2e` is a dot too); one ending the path leaves its slash.
+            "https://example.com/a/./b/../c" to "https://example.com/a/c",
+            "https://example.com/a/b/.." to "https://example.com/a/",
+            "https://example.com/a/." to "https://example.com/a/",
+            "https://example.com/.." to "https://example.com/",
+            "https://example.com/a/%2e%2E/b" to "https://example.com/b",
+            "https://example.com/a/%2e/b" to "https://example.com/a/b",
+            "https://example.com//x" to "https://example.com//x",
+            // No path: the empty path is `/`.
+            "https://example.com?x" to "https://example.com/?x",
+            "https://example.com#f" to "https://example.com/#f",
+            // The scheme's own port goes; the other of 80 and 443 stays, as written.
+            "https://example.com:80/x" to "https://example.com:80/x",
+            "http://example.com:443/x" to "http://example.com:443/x",
+            "https://EXAMPLE.com:0443/x" to "https://example.com/x",
+            "https://example.com:080/x" to "https://example.com:80/x",
+            // A host in Unicode, written as a link's address, is its punycode.
+            "https://例子.tw/x" to "https://xn--fsqu00a.tw/x",
+        )
+        for ((written, key) in cases) {
+            assertEquals(key, StoryLinks.keyOf(written), written)
+            // A key is its own key: the previews (the server's addresses) are found under what a paragraph derives.
+            assertEquals(key, StoryLinks.keyOf(key), key)
+        }
+        // In running text: the same keys, but a host in Unicode is no link of the server's there.
+        assertEquals("https://example.com/a'b?c%27d", StoryLinks.bareKey("https://example.com/a'b?c'd"))
+        assertEquals("https://www.example.org/q?x=%271%27x", StoryLinks.bareKey("www.example.org/q?x='1'x"))
+        assertNull(StoryLinks.bareKey("https://例子.tw/x"))
+    }
+
+    @Test fun aPreviewIsFoundUnderTheKeyItsParagraphDerives() {
+        val previews = StoryLinks.previews(
+            listOf(ApiLinkPreview("https://example.com/search?q=what%27s+up", "What's up", null, null, null)),
+            "https://resonance.channel",
+        )
+        val block = StoryParser.parse("https://example.com/search?q=what's+up").single()
+        assertIs<StoryBlock.SoleLink>(block)
+        assertEquals("What's up", previews[block.key]?.title)
+    }
+
     @Test fun thePreviewsAreFoundByTheirAddressWithAPictureOnlyFromTheProxy() {
         val origin = "http://10.0.2.2:3300"
         val previews = StoryLinks.previews(

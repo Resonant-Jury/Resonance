@@ -181,6 +181,30 @@
         "https://example.com/9",
         "https://example.com/10"
       ]
+    },
+    {
+      "id": "whatwg-apostrophe-in-query",
+      "markdown": "https://example.com/search?q=what's+up",
+      "soleLinks": ["https://example.com/search?q=what%27s+up"],
+      "links": ["https://example.com/search?q=what%27s+up"]
+    },
+    {
+      "id": "whatwg-braces-in-query-and-fragment",
+      "markdown": "https://example.com/?a={b}#c{d}",
+      "soleLinks": ["https://example.com/?a={b}#c{d}"],
+      "links": ["https://example.com/?a={b}#c{d}"]
+    },
+    {
+      "id": "whatwg-dot-segments",
+      "markdown": "https://example.com/a/./b/../c",
+      "soleLinks": ["https://example.com/a/c"],
+      "links": ["https://example.com/a/c"]
+    },
+    {
+      "id": "whatwg-idn-explicit-link",
+      "markdown": "[t](https://例子.tw/x)",
+      "soleLinks": ["https://xn--fsqu00a.tw/x"],
+      "links": ["https://xn--fsqu00a.tw/x"]
     }
   ]
 }
