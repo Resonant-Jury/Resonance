@@ -164,7 +164,7 @@ fun CardActionsMenu(
             }
         }
     }
-    if (changeFailed) OrganicAlert(L10n.Safety.actionError, "OK", seed = seed + 3) { changeFailed = false }
+    if (changeFailed) OrganicAlert(L10n.Safety.actionError, seed = seed + 3) { changeFailed = false }
     if (unresonating && referenceCardId != null) UnresonateDialog(
         session, cardId, referenceCardId, referenceTitle, seed = seed + 9,
         onDone = {

@@ -660,11 +660,15 @@ fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: S
     }
 }
 
-/** A one-button notice (an action that didn't go through), in the web's Modal. */
+/**
+ * A notice with nothing to choose (an action that didn't go through), in the web's Modal: its
+ * words, then the one way out — the quiet close, centred under them ([ModalCloseButton]), in the
+ * reader's language, as every one-exit modal ends.
+ */
 @Composable
-fun OrganicAlert(title: String, okLabel: String, seed: Double = 71.0, onDismiss: () -> Unit) {
+fun OrganicAlert(title: String, seed: Double = 71.0, closeLabel: String = L10n.Native.close, onDismiss: () -> Unit) {
     OrganicModal(onDismiss, title, seed) {
         ModalTitle(title)
-        ModalActions { OrganicButton(okLabel, variant = ButtonVariant.Solid, small = true, onClick = onDismiss) }
+        ModalCloseButton(closeLabel, onDismiss)
     }
 }
