@@ -10,6 +10,7 @@ const dailyRecommendations = vi.fn();
 vi.mock('@/lib/recommend/daily', () => ({ dailyRecommendations: (...a: unknown[]) => dailyRecommendations(...a) }));
 vi.mock('next/server', async (importOriginal) => ({ ...(await importOriginal<typeof import('next/server')>()), after: vi.fn() }));
 
+const { after } = await import('next/server');
 const { GET } = await import('./route');
 
 beforeEach(() => {
@@ -41,6 +42,20 @@ describe('GET /api/recommend/feed', () => {
       cached: true,
       status: 'fresh',
     });
+  });
+
+  // The evening's pick push leaves a reader who opened their picks today be.
+  it("puts the reader's ask on record after the response, and today's build when one is due", async () => {
+    const asked = vi.fn();
+    const refresh = vi.fn();
+    dailyRecommendations.mockResolvedValue({ items: [], cached: true, status: 'stale', refresh, asked });
+    expect((await GET()).status).toBe(200);
+    expect(vi.mocked(after).mock.calls.map(([work]) => work)).toEqual([refresh, asked]);
+
+    vi.mocked(after).mockClear();
+    dailyRecommendations.mockResolvedValue({ items: [], cached: true, status: 'fresh', refresh: null, asked: null });
+    await GET();
+    expect(after).not.toHaveBeenCalled();
   });
 
   it('is 401 signed out', async () => {

@@ -1,6 +1,9 @@
-import { FieldValue, Timestamp, type DocumentData, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
 import type { RecommendationItem } from '@/lib/db/types';
 import { recommendFeed, type FunnelOptions, type FunnelResult } from './funnel';
+import { RECOMMENDATIONS, readStored, recommendationDay, type StoredRecommendations } from './stored';
+
+export { readStored, recommendationDay, type StoredRecommendations };
 
 /**
  * Serving the recommended feed apart from building it. `recommendations/{uid}`
@@ -10,13 +13,12 @@ import { recommendFeed, type FunnelOptions, type FunnelResult } from './funnel';
  * Only a reader with nothing to show waits for a build — a quick one, inside
  * a budget well under the apps' read timeout.
  *
- * Shared by the web route (/api/recommend/feed) and /api/v1/feed/recommended.
+ * Shared by the web route (/api/recommend/feed) and /api/v1/feed/recommended,
+ * and the warm-up cron (/api/cron/warm-picks, warmRecommendations), which
+ * builds an opted-in reader's picks ahead of the evening's push through the
+ * same lease, store and failure path — marked `warm`, and never counted as
+ * the reader asking (`askedOn`, see ./stored).
  */
-
-/** UTC day key — the feed regenerates at most once per day per user. */
-export function recommendationDay(now = new Date()): string {
-  return now.toISOString().slice(0, 10);
-}
 
 /** How long a build holds the reader's document: longer than the routes' maxDuration, so a lease outlives its build. */
 export const LEASE_MS = 90_000;
@@ -36,6 +38,13 @@ export interface DailyRecommendations {
   status: RecommendationStatus;
   /** Today's full build when one is due, for the route to run after its response (`after()`). */
   refresh: (() => Promise<void>) | null;
+  /**
+   * Records that the reader asked for their picks today (`askedOn`), for the
+   * route to run after its response — null when today's ask is on record
+   * already (or this request's own build wrote it). The evening's pick push
+   * skips a reader who did.
+   */
+  asked: (() => Promise<void>) | null;
 }
 
 export type BuildFeed = (uid: string, opts: FunnelOptions) => Promise<FunnelResult>;
@@ -48,19 +57,6 @@ export interface DailyDeps {
   budgetMs?: number;
 }
 
-/** What `recommendations/{uid}` holds, read defensively. */
-export interface StoredRecommendations {
-  /** The UTC day the items were built on. */
-  date: string | null;
-  items: RecommendationItem[];
-  /** A quick first pass (no LLM ranking): served, but today's full build is still due. */
-  partial: boolean;
-  /** A build holds the document until then (ms). */
-  leaseUntil: number;
-  /** The last build failed then (ms). */
-  failedAt: number;
-}
-
 export type ServePlan =
   | { kind: 'fresh' }
   /** Something to show now; `rebuild` when a build may start. */
@@ -70,25 +66,6 @@ export type ServePlan =
   | { kind: 'cooldown' }
   /** Nothing to show: build now. */
   | { kind: 'build' };
-
-const millis = (v: unknown) => (v instanceof Timestamp ? v.toMillis() : 0);
-
-export function readStored(data: DocumentData | undefined): StoredRecommendations | null {
-  if (!data) return null;
-  const items = Array.isArray(data.items)
-    ? (data.items as unknown[]).filter(
-        (i): i is RecommendationItem =>
-          !!i && typeof (i as RecommendationItem).cardId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test((i as RecommendationItem).cardId),
-      )
-    : [];
-  return {
-    date: typeof data.date === 'string' ? data.date : null,
-    items,
-    partial: data.partial === true,
-    leaseUntil: millis(data.leaseUntil),
-    failedAt: millis(data.failedAt),
-  };
-}
 
 /** How to answer from what is stored, at `nowMs`. */
 export function planServe(stored: StoredRecommendations | null, nowMs: number): ServePlan {
@@ -113,7 +90,12 @@ async function takeLease(ref: DocumentReference, now: () => number): Promise<boo
   });
 }
 
-function store(ref: DocumentReference, day: string, result: FunnelResult) {
+/**
+ * Keep a build's result. One the reader asked for records their ask too
+ * (`askedOn`); a warm one (the cron's, ahead of them) is marked `warm` and
+ * leaves `askedOn` as it was.
+ */
+function store(ref: DocumentReference, day: string, result: FunnelResult, opts: { warm?: boolean } = {}) {
   return ref.set(
     {
       date: day,
@@ -122,9 +104,18 @@ function store(ref: DocumentReference, day: string, result: FunnelResult) {
       generatedAt: FieldValue.serverTimestamp(),
       leaseUntil: FieldValue.delete(),
       failedAt: FieldValue.delete(),
+      ...(opts.warm ? { warm: true } : { warm: FieldValue.delete(), askedOn: day }),
     },
     { merge: true },
   );
+}
+
+/** Note that the reader asked for their picks on `day` (never throws: it only steers the evening's push). */
+function markAsked(ref: DocumentReference, day: string): Promise<void> {
+  return ref
+    .set({ askedOn: day }, { merge: true })
+    .then(() => undefined)
+    .catch((e) => console.error('[recommend] recording the ask', e));
 }
 
 function recordFailure(ref: DocumentReference, now: () => number, e: unknown) {
@@ -152,11 +143,11 @@ async function waitForBuild(ref: DocumentReference, now: () => number, deadline:
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
     const stored = readStored((await ref.get()).data());
     if (stored?.date === recommendationDay(new Date(now()))) {
-      return { items: stored.items, cached: true, status: stored.partial ? 'stale' : 'fresh', refresh: null };
+      return { items: stored.items, cached: true, status: stored.partial ? 'stale' : 'fresh', refresh: null, asked: null };
     }
     if (!stored || stored.leaseUntil <= now()) break; // released without a result: it failed
   }
-  return { items: [], cached: true, status: 'stale', refresh: null };
+  return { items: [], cached: true, status: 'stale', refresh: null, asked: null };
 }
 
 /**
@@ -166,21 +157,25 @@ async function waitForBuild(ref: DocumentReference, now: () => number, deadline:
 export async function dailyRecommendations(db: Firestore, uid: string, deps: DailyDeps = {}): Promise<DailyRecommendations> {
   const build = deps.build ?? recommendFeed;
   const now = deps.now ?? Date.now;
-  const ref = db.collection('recommendations').doc(uid);
+  const ref = db.collection(RECOMMENDATIONS).doc(uid);
   const started = now();
   const deadline = started + (deps.budgetMs ?? INLINE_BUDGET_MS);
   const stored = readStored((await ref.get()).data());
   const plan = planServe(stored, started);
   const refresh = () => rebuild(ref, uid, build, now);
+  const today = recommendationDay(new Date(started));
+  // The ask goes on record once a day, after the response (a build of the reader's own writes it too).
+  const asked = stored?.askedOn === today ? null : () => markAsked(ref, today);
 
   switch (plan.kind) {
     case 'fresh':
-      return { items: stored!.items, cached: true, status: 'fresh', refresh: null };
+      return { items: stored!.items, cached: true, status: 'fresh', refresh: null, asked };
     case 'stale':
-      return { items: stored!.items, cached: true, status: 'stale', refresh: plan.rebuild ? refresh : null };
+      return { items: stored!.items, cached: true, status: 'stale', refresh: plan.rebuild ? refresh : null, asked };
     case 'cooldown':
-      return { items: [], cached: true, status: 'stale', refresh: null };
+      return { items: [], cached: true, status: 'stale', refresh: null, asked };
     case 'wait':
+      // Another request of the reader's is building their first picks: its store records the ask.
       return waitForBuild(ref, now, deadline);
     case 'build':
       break;
@@ -197,9 +192,36 @@ export async function dailyRecommendations(db: Firestore, uid: string, deps: Dai
       cached: false,
       status: result.partial ? 'stale' : 'fresh',
       refresh: result.partial ? refresh : null,
+      asked: null,
     };
   } catch (e) {
     await recordFailure(ref, now, e);
-    return { items: [], cached: false, status: 'stale', refresh: null };
+    return { items: [], cached: false, status: 'stale', refresh: null, asked };
+  }
+}
+
+export type WarmOutcome = 'built' | 'skipped' | 'failed';
+
+/**
+ * The warm-up cron's build of one reader's picks, ahead of the evening's
+ * push: today's full build (every LLM step, no fallback) through the same
+ * lease, store and failure path as a reader's own — so it never runs beside
+ * one of theirs, and none is tried again within the hour after a failure.
+ * `skipped` when no build is due (today's picks are there, a build holds the
+ * lease, or one failed within the hour). Stored as `warm`, without `askedOn`:
+ * the reader didn't open anything. Never throws.
+ */
+export async function warmRecommendations(db: Firestore, uid: string, deps: Pick<DailyDeps, 'build' | 'now'> = {}): Promise<WarmOutcome> {
+  const build = deps.build ?? recommendFeed;
+  const now = deps.now ?? Date.now;
+  const ref = db.collection(RECOMMENDATIONS).doc(uid);
+  const leased = await takeLease(ref, now).catch((e) => (console.error('[recommend] lease', e), false));
+  if (!leased) return 'skipped';
+  try {
+    await store(ref, recommendationDay(new Date(now())), await build(uid, { now }), { warm: true });
+    return 'built';
+  } catch (e) {
+    await recordFailure(ref, now, e);
+    return 'failed';
   }
 }
