@@ -1,6 +1,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { ANONYMOUS_VISIBILITY_MESSAGE, anonymousForConnections, cardContentProblem, editedAudience } from '@/lib/db/firestore/cardContent';
+import { isReservedId } from '@/lib/db/firestore/reservedId';
 import { ApiFailure } from './http';
 import { readTakeBack, takeBack } from './origins';
 import { becameReachable, hiddenResonance } from './resonate';
@@ -43,6 +44,7 @@ export interface ApplyEditResult {
  * edit keeps both as they are, so an older card stays editable.
  */
 export async function applyCardEdit(db: Firestore, uid: string, id: string): Promise<ApplyEditResult> {
+  if (isReservedId(id)) throw new ApiFailure('not_found', 'No such card.');
   const ref = db.doc(`cards/${id}`);
   const editRef = db.doc(`cards/${id}/edits/current`);
   return db.runTransaction(async (tx) => {

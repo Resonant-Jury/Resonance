@@ -4,6 +4,7 @@ import { getResonances } from '@/lib/api/v1/reads';
 import { resonateWith } from '@/lib/api/v1/resonate';
 import { CardIdParam, ResonateRequest } from '@/lib/api/v1/schemas';
 import { getAdminDb } from '@/lib/db/firestore/admin';
+import { isReservedId } from '@/lib/db/firestore/reservedId';
 import { BRIEF, cachedJson } from '@/lib/api/v1/cache';
 import { revalidateLocalized } from '@/lib/api/revalidate';
 import { spend } from '@/lib/api/rateLimit';
@@ -29,6 +30,8 @@ export const POST = withUser(async (user, req, ctx: RouteContext<'key'>) => {
     throw new ApiFailure('invalid_request', 'The body must be JSON.');
   });
   const { cardId } = parse(ResonateRequest, body);
+  // An id Firestore keeps for itself names no card: answered as one, before it costs any of the budget.
+  if (isReservedId(target) || isReservedId(cardId)) throw new ApiFailure('not_found', 'No such card.');
   const db = getAdminDb();
   await spend(db, user.id, 'resonate');
   const { notificationId, stale, ...result } = await resonateWith(db, user.id, target, cardId);

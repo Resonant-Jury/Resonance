@@ -1,6 +1,7 @@
 'use client';
 
 import { type CSSProperties, ReactNode, useMemo, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import styles from './TagPill.module.css';
@@ -117,36 +118,42 @@ export function TagPill({
         strokeColor={rim}
       />
       <span className={styles.label}>{children}</span>
-      {onRemove && (
-        <button
-          type="button"
-          className={styles.removeBtn}
-          aria-label="Remove tag"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
-            <path
-              d="M 1.6 1.8 C 3 3 5.2 5.2 8.2 8.4"
-              stroke="currentColor"
-              strokeWidth={INK}
-              strokeLinecap="round"
-              fill="none"
-            />
-            <path
-              d="M 8.2 1.8 C 7 3 4.8 5.2 1.6 8.4"
-              stroke="currentColor"
-              strokeWidth={INK}
-              strokeLinecap="round"
-              fill="none"
-            />
-          </svg>
-        </button>
-      )}
+      {onRemove && <RemoveTag onRemove={onRemove} />}
     </span>
   );
 
   return tag;
+}
+
+/** The writer's pill's ×: takes the tag off, named in the reader's language (only a removable pill reads a string). */
+function RemoveTag({ onRemove }: { onRemove: () => void }) {
+  const t = useTranslations('write');
+  return (
+    <button
+      type="button"
+      className={styles.removeBtn}
+      aria-label={t('removeTag')}
+      onClick={(e) => {
+        e.stopPropagation();
+        onRemove();
+      }}
+    >
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+        <path
+          d="M 1.6 1.8 C 3 3 5.2 5.2 8.2 8.4"
+          stroke="currentColor"
+          strokeWidth={INK}
+          strokeLinecap="round"
+          fill="none"
+        />
+        <path
+          d="M 8.2 1.8 C 7 3 4.8 5.2 1.6 8.4"
+          stroke="currentColor"
+          strokeWidth={INK}
+          strokeLinecap="round"
+          fill="none"
+        />
+      </svg>
+    </button>
+  );
 }

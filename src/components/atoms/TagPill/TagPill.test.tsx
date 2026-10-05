@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, userEvent } from '@/../test/render';
+import { render, renderWithIntl, screen, userEvent } from '@/../test/render';
+import zhTW from '@/messages/zh-TW.json';
 import { INK } from '@/lib/design/strokes';
 import { TagPill } from './TagPill';
 
@@ -92,7 +93,7 @@ describe('TagPill outline', () => {
   it('keeps the removal × on the writer pill and calls back without triggering the pill', async () => {
     const onRemove = vi.fn();
     const onClick = vi.fn();
-    render(
+    renderWithIntl(
       <TagPill size="lg" onRemove={onRemove} onClick={onClick}>
         removable
       </TagPill>,
@@ -100,6 +101,16 @@ describe('TagPill outline', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove tag' }));
     expect(onRemove).toHaveBeenCalledTimes(1);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('names the removal × in the reader’s language', () => {
+    renderWithIntl(
+      <TagPill size="lg" onRemove={() => {}}>
+        散步
+      </TagPill>,
+      { locale: 'zh-TW', messages: zhTW },
+    );
+    expect(screen.getByRole('button', { name: '移除標籤' })).toBeInTheDocument();
   });
 
   it('is still a keyboard-operable button when clickable, with or without the outline', async () => {

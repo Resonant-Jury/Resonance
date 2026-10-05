@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp, type DocumentData, type Firestore } from 'firebase-admin/firestore';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card } from '@/lib/db/types';
+import { excerpt, plainText } from '@/lib/markdown/plainText';
 import { readMinutes } from '@/lib/readTime';
 
 /**
@@ -15,36 +16,10 @@ import { readMinutes } from '@/lib/readTime';
  * write to the card that doesn't refresh the summary (the web editor still
  * applies an edit from the browser) moves `updatedAt` past `excerptAt`; the
  * stored summary is then ignored and the list reads that card's story
- * instead (withStories), as it does for a card that has none yet.
+ * instead (withStories), as it does for a card that has none yet. The
+ * excerpt's rules (plainText, excerpt) are lib/markdown/plainText's, shared
+ * with the web's own story cards.
  */
-
-/** StoryCard's excerpt length on the web (lib/adapters/story cardToStory). */
-const EXCERPT_CHARS = 96;
-
-/** A story's prose without Markdown syntax (links keep their text). */
-export function plainText(markdown: string): string {
-  return markdown
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^>\s?/gm, '')
-    .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
-    .replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, '')
-    .replace(/[*_~`]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * The first EXCERPT_CHARS characters, cut between code points: slicing UTF-16
- * units can leave half an emoji, a lone surrogate that Swift's JSONDecoder
- * rejects — failing the whole page.
- */
-export function excerpt(text: string, max = EXCERPT_CHARS): string {
-  const chars = Array.from(text);
-  return chars.length > max ? `${chars.slice(0, max).join('')}…` : text;
-}
 
 export interface StorySummary {
   excerpt: string;

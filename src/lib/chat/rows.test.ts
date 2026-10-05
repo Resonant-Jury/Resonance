@@ -64,6 +64,17 @@ describe('threadRows', () => {
     ).toEqual(['single', 'first', 'last', 'single', 'single']);
   });
 
+  // The twin of the apps' aNoteOpensARunOfItsOwnLikeAReply: a note leads with its caption and card.
+  it('opens a run with a note, as with a reply', () => {
+    const rows = layout([
+      msg('bob', at(9, 0)),
+      msg('bob', at(9, 0, 20), { kind: 'note', cardRef: 'walk' }),
+      msg('bob', at(9, 0, 40)),
+    ]);
+    expect(rows.map((r) => r.position)).toEqual(['single', 'first', 'last']);
+    expect(rows.map((r) => r.joinsAbove)).toEqual([false, false, true]);
+  });
+
   it('says which neighbours a bubble joins', () => {
     const rows = layout([msg('alice', at(10, 0)), msg('alice', at(10, 1)), msg('alice', at(10, 2))]);
     expect(rows.map((r) => [r.joinsAbove, r.joinsBelow])).toEqual([

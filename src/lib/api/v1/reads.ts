@@ -2,6 +2,7 @@ import { Timestamp, type DocumentData, type Firestore, type QueryDocumentSnapsho
 import { cardByKey, slugHolder } from '@/lib/db/firestore/cardKey';
 import { uidForHandle } from '@/lib/db/firestore/handles';
 import { mapCard } from '@/lib/db/firestore/mapper';
+import { isReservedId } from '@/lib/db/firestore/reservedId';
 import type { Card, RecommendationItem } from '@/lib/db/types';
 import { embeddedCardKeys } from './embeds';
 import { ApiFailure } from './http';
@@ -48,6 +49,8 @@ const PROFILE_COUNT_LIMIT = 40;
 const notFound = () => new ApiFailure('not_found', 'No such card.');
 
 async function cardDoc(db: Firestore, id: string): Promise<Card | null> {
+  // An id Firestore keeps for itself names no card (reading it would throw).
+  if (isReservedId(id)) return null;
   const snap = await db.doc(`cards/${id}`).get();
   return snap.exists ? mapCard(snap.id, snap.data()!) : null;
 }
@@ -104,7 +107,7 @@ const toCards = (snap: QuerySnapshot) => snap.docs.map((d) => listCard(d.id, d.d
 
 /** Cards by id, for a list: in the order given, each once, missing ones left out — read without their stories. */
 async function cardsByIds(db: Firestore, ids: string[]): Promise<ListCard[]> {
-  const unique = [...new Set(ids)].filter((id) => id && !id.includes('/'));
+  const unique = [...new Set(ids)].filter((id) => id && !id.includes('/') && !isReservedId(id));
   if (!unique.length) return [];
   const snaps = await db.getAll(...unique.map((id) => db.doc(`cards/${id}`)), { fieldMask: [...LIST_FIELDS] });
   const byId = new Map(snaps.filter((s) => s.exists).map((s) => [s.id, listCard(s.id, s.data()!)]));
@@ -131,7 +134,8 @@ async function cardsByKeys(db: Firestore, keys: string[]): Promise<ListCard[]> {
     const holder = slugHolder(docs);
     if (holder) named.set(slug, holder);
   }
-  const rest = unique.filter((k) => !named.has(k));
+  // An id Firestore keeps for itself names no card (reading it would throw).
+  const rest = unique.filter((k) => !named.has(k) && !isReservedId(k));
   const byId = rest.length ? await db.getAll(...rest.map((k) => db.doc(`cards/${k}`)), { fieldMask: [...LIST_FIELDS] }) : [];
   const ids = new Map(byId.filter((s) => s.exists).map((s) => [s.id, s]));
   const seen = new Set<string>();

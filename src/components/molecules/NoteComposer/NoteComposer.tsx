@@ -47,6 +47,7 @@ export function NoteComposer({
   variant = 'soft',
 }: NoteComposerProps) {
   const t = useTranslations('card.note');
+  const tCard = useTranslations('card');
   const tMessages = useTranslations('messages');
   const { data: me } = useMyProfile();
   const [text, setText] = useState(initialText ?? '');
@@ -76,8 +77,16 @@ export function NoteComposer({
         setSent(true);
         onSent?.();
       } catch (err) {
-        // Said in the reader's language, never the server's: a letter already full waits for its answer.
-        setError(err instanceof ApiError && err.code === 'conflict' ? t('waitForReply') : tMessages('sendError'));
+        // Said in the reader's language, never the server's: a letter already full waits for its answer, and a
+        // card gone (deleted, or hidden from the writer since — taking its notes with it) can't be written to:
+        // sending again won't help, so not "try again".
+        setError(
+          err instanceof ApiError && err.code === 'conflict'
+            ? t('waitForReply')
+            : err instanceof ApiError && err.status === 404
+              ? tCard('notFound.title')
+              : tMessages('sendError'),
+        );
       }
     });
   }

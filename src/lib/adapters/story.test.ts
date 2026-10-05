@@ -64,6 +64,20 @@ describe('cardToStory', () => {
     expect(story.excerpt).toBe('line one line two');
   });
 
+  // A whole story's excerpt is the one a list's summary would store (lib/markdown/plainText): prose, no
+  // Markdown, no bare address — what a signed-out reader's story card shows matches a signed-in one's.
+  it("shows a whole story's prose as the stored summaries do: no Markdown, no bare addresses", () => {
+    const card = makeCard({
+      story: '## 雨後\n\n我很喜歡 https://example.com，因為它很**好**。\n\nhttps://en.wikipedia.org/wiki/Jiufen_(town)\n\n寫信到 foo@www.example.com',
+    });
+    expect(cardToStory(card, author).excerpt).toBe('雨後 我很喜歡，因為它很好。 寫信到 foo@www.example.com');
+  });
+
+  it("shows a summary's excerpt as the server made it", () => {
+    const card = makeCard({ story: 'The first lines, as stored…', summary: { readMinutes: 2 } });
+    expect(cardToStory(card, author).excerpt).toBe('The first lines, as stored…');
+  });
+
   it('truncates long stories to 96 chars with an ellipsis', () => {
     const story = cardToStory(makeCard({ story: 'a'.repeat(200) }), author);
     expect(story.excerpt).toBe('a'.repeat(96) + '…');
@@ -124,6 +138,12 @@ describe('plainExcerpt', () => {
   it('strips markdown syntax down to prose', () => {
     const md = '# Title\n\n> a quote\n\nSome **bold** and _light_ text with a [link](https://x.y) and ![img](https://x.y/i.png).\n\n```js\ncode();\n```';
     expect(plainExcerpt(md, 200)).toBe('Title a quote Some bold and light text with a link and .');
+  });
+
+  it('leaves bare addresses out, keeping the words and punctuation after them', () => {
+    expect(plainExcerpt('他說「https://example.com/x」很好，見 <https://example.org> 與 www.example.net。', 200)).toBe(
+      '他說「」很好，見 與。',
+    );
   });
 
   it('truncates with an ellipsis at the limit', () => {

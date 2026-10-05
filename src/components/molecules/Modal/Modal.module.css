@@ -35,6 +35,12 @@
   z-index: 2;
 }
 
+/* A dialog's title is short: its lines even out, never leaving a lone character
+   on the last (「…共 / 振？」 on a phone). */
+.content :is(h2, h3) {
+  text-wrap: balance;
+}
+
 /* `closeButton`: the only thing at the foot, so in the middle of it. */
 .closeRow {
   display: flex;

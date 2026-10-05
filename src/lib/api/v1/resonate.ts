@@ -1,5 +1,6 @@
 import { FieldValue, type DocumentData, type DocumentSnapshot, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import { mapCard } from '@/lib/db/firestore/mapper';
+import { isReservedId } from '@/lib/db/firestore/reservedId';
 import type { Card } from '@/lib/db/types';
 import { cardPagePaths } from '@/lib/api/revalidate';
 import { hasPenName, noPenName, pairOf } from './conversations';
@@ -262,6 +263,8 @@ export async function resonateWith(db: Firestore, uid: string, targetId: string,
   const target = await visibleCardById(db, uid, targetId);
   if (!target.publishedAt) throw notFound();
   if (target.authorId === uid) throw new ApiFailure('invalid_request', 'You cannot resonate with your own card.');
+  // An id Firestore keeps for itself names no card of theirs (reading it would throw).
+  if (isReservedId(cardId)) throw notFound();
   const chosenRef = db.doc(`cards/${cardId}`);
   // "One per reader": any card of theirs already answering the target (a draft too — the button says 修改 then).
   const answering = db.collection('cards').where('authorId', '==', uid).where('referenceCardId', '==', targetId).limit(2);
@@ -318,6 +321,7 @@ export async function resonateWith(db: Firestore, uid: string, targetId: string,
  * false`); someone else's card is not_found.
  */
 export async function unresonate(db: Firestore, uid: string, targetId: string, cardId: string): Promise<{ changed: boolean; stale: string[] }> {
+  if (isReservedId(cardId)) throw notFound();
   const ref = db.doc(`cards/${cardId}`);
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);

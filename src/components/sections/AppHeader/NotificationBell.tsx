@@ -53,7 +53,7 @@ export function NotificationBell() {
     <>
       <button
         onClick={() => setOpen(true)}
-        aria-label="Notifications"
+        aria-label={tNav('notifications')}
         style={{
           position: 'relative',
           background: 'none',
@@ -108,7 +108,7 @@ export function NotificationBell() {
         maxWidth={400}
         seed={29}
         padding="24px 22px 22px"
-        ariaLabel="Notifications"
+        ariaLabel={tNav('notifications')}
         // A list with nothing to do at its foot: the close lies there.
         closeButton
       >
@@ -136,7 +136,7 @@ export function NotificationBell() {
                 else if (n.type === 'resonance') body = tApp('resonance', { handle });
                 else if (n.type === 'note') body = tApp('note', { handle });
                 else if (n.type === 'card_link') body = tApp('cardLink', { handle });
-                else if (n.type === 'invite_expired') body = 'Invite expired';
+                else if (n.type === 'invite_expired') body = tApp('inviteExpired');
                 const inner = (
                   <div
                     style={{

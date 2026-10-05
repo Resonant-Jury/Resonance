@@ -79,6 +79,18 @@ describe('NoteComposer', () => {
     expect(screen.queryByText('You cannot send a note to this person.')).not.toBeInTheDocument();
   });
 
+  // The card was deleted (its notes with it) or hidden from the writer since: no retry will reach it — even a
+  // retry of a note whose first answer was lost, which the deletion took too.
+  it('says the card can’t be found when it is gone, not to try again', async () => {
+    vi.mocked(sendNote).mockRejectedValueOnce(new ApiError(404, 'not_found', 'No such card.'));
+    renderWithIntl(<NoteComposer cardId="c1" />);
+    fireEvent.change(screen.getByPlaceholderText('Something you want to tell the author…'), { target: { value: 'Still thinking of it' } });
+    await user().click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText("This card can't be found")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't send — please try again.")).not.toBeInTheDocument();
+    expect(screen.queryByText('No such card.')).not.toBeInTheDocument();
+  });
+
   // A send whose answer was lost may still have left the note: sent again,
   // the server must be able to tell it is the same one (its clientId).
   it('retries the same words under the same clientId, and gives other words one of their own', async () => {

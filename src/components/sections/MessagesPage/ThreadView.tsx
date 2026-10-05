@@ -24,6 +24,7 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { useCardSummaries, useMyBlockedIds } from '@/lib/data/hooks';
 import { OLDER_PAGE, useChatThread } from '@/lib/data/thread';
 import { resonanceCardKey, threadCardKeys } from '@/lib/chat/cardLink';
+import { footComposes, threadFoot } from '@/lib/chat/foot';
 import { threadRows } from '@/lib/chat/rows';
 import type { TextRange } from '@/lib/chat/search';
 import { getUserByHandle, isConnected } from '@/lib/db/firestore/client/reads';
@@ -104,6 +105,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // Report / block the other participant from the header「⋯」menu. Blocking
   // ends the connection, so the thread freezes (see firestore.rules).
   const { data: blocked } = useMyBlockedIds();
+  const blockedOther = !!other && !!blocked?.has(other.id);
   const safety = useSafetyActions({
     report: {
       type: 'message',
@@ -112,17 +114,18 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
       handle: other?.handle,
       contextId: pairId,
     },
-    isBlocked: !!other && !!blocked?.has(other.id),
+    isBlocked: blockedOther,
     onBlockedChange: () => {
       void globalMutate(`connected:${pairId}`);
       if (user) void globalMutate(`conversations:${user.id}`);
     },
   });
 
-  // Whose turn it is between two people who aren't connected: the one who left notes (a letter) waits for the
-  // other, whose answer connects them.
-  const letter: 'mine' | 'theirs' | null =
-    connected !== false || !convo?.request ? null : convo.request.from === user?.id ? 'mine' : convo.request.from === other?.id ? 'theirs' : null;
+  // What the foot offers: whose turn it is between two people who aren't connected (the one who left notes —
+  // a letter — waits for the other, whose answer connects them), and nothing across the viewer's block.
+  const foot = threadFoot(connected, blockedOther, convo?.request?.from, user?.id, other?.id);
+  // A composer to write in, and so a message to reply to.
+  const composes = footComposes(foot);
 
   // Listen only once the conversation doc exists — the messages read rule
   // get()s the parent doc, so listening earlier would just error. The first
@@ -133,8 +136,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     listen: !!convo,
     onSent: () => {
       if (!convo) void mutateConvo();
-      // An answer to their letter connected the two: the thread is an ordinary one now.
-      if (connected === false) {
+      // An answer to their letter connected the two: the thread is an ordinary one now (asked again while
+      // the first read is still out too: it may answer from before the send).
+      if (connected !== true) {
         void globalMutate(`connected:${pairId}`);
         void mutateConvo();
       }
@@ -277,12 +281,13 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
 
   // Between two people who aren't connected, a new message is an answer to a letter (theirs to the viewer's,
   // or the viewer's own to theirs, which the thread may hear before the send's answer): it connected them, so
-  // whether they are is read again — and the conversation, whose letter is gone.
+  // whether they are is read again — and the conversation, whose letter is gone. Asked again while the first
+  // read is still out too, as onSent does: that one may answer from before the message.
   const seenLast = useRef(lastMessageId);
   useEffect(() => {
     const before = seenLast.current;
     seenLast.current = lastMessageId;
-    if (!before || before === lastMessageId || connected !== false || !pairId) return;
+    if (!before || before === lastMessageId || connected === true || !pairId) return;
     void globalMutate(`connected:${pairId}`);
     void mutateConvo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -428,12 +433,19 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   );
 
   // What every message can ask of the thread — the same functions for as long as the conversation is open.
-  const live = useRef({ thread, router, holdOlder });
-  live.current = { thread, router, holdOlder };
+  const live = useRef({ thread, router, holdOlder, composes });
+  live.current = { thread, router, holdOlder, composes };
+  // A reply picked while there was a composer never comes back with the next one: the foot gave way meanwhile.
+  useEffect(() => {
+    if (!composes) thread.cancelReply();
+    // Only as the composer goes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composes]);
   const actions = useMemo<ThreadActions>(
     () => ({
       viewerId: user?.id ?? '',
       otherHandle: other?.handle ?? '',
+      canWrite: composes,
       openLink: (link, e) => {
         // An address easy to mistake for another asks first, however it was opened.
         if (link.suspicious) {
@@ -452,6 +464,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
         }
       },
       reply: (message) => {
+        // Nothing to reply in without a composer (a letter waiting for its answer, not connected).
+        if (!live.current.composes) return;
         live.current.thread.reply(message);
         inputRef.current?.focus();
       },
@@ -481,7 +495,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
       },
       press: setPressed,
     }),
-    [user?.id, other?.handle],
+    [user?.id, other?.handle, composes],
   );
 
   // The note the thread was opened for: once the conversation's first messages are in (older ones read for it
@@ -772,14 +786,14 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               )}
             </div>
 
-            {connected === false && letter === 'mine' ? (
+            {foot === 'awaiting' ? (
               // Their answer is what connects the two: until it comes, nothing more to write here.
               <p className={styles.letterLine}>{t('awaitingReply')}</p>
-            ) : connected === false && letter !== 'theirs' ? (
+            ) : foot === 'closed' ? (
               notConnected
             ) : (
               <>
-                {letter === 'theirs' && <p className={styles.letterHint}>{t('replyToConnect', { handle: other.handle })}</p>}
+                {foot === 'answer' && <p className={styles.letterHint}>{t('replyToConnect', { handle: other.handle })}</p>}
                 <ThreadComposer
                   inputRef={inputRef}
                   otherHandle={other.handle}

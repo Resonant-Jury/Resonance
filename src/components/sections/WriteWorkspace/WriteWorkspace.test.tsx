@@ -11,6 +11,7 @@ import type { Card } from '@/lib/db/types';
 const editor = vi.hoisted(() => ({
   hasWork: vi.fn(() => false),
   saveNow: vi.fn(async () => {}),
+  cardId: vi.fn((): string | undefined => undefined),
 }));
 vi.mock('@/components/molecules/CardEditor/CardEditor', () => ({
   CardEditor: ({ ref }: { ref?: React.Ref<typeof editor> }) => {
@@ -69,6 +70,7 @@ afterEach(() => {
   window.matchMedia = realMatchMedia;
   vi.clearAllMocks();
   editor.hasWork.mockReturnValue(false);
+  editor.cardId.mockReturnValue(undefined);
   historyLength = 2;
 });
 
@@ -164,6 +166,54 @@ describe('a card opened from the map', () => {
     window.history.back();
     await waitFor(() => expect(screen.queryByText('opened: My older card')).toBeNull());
     expect(screen.getByRole('heading', { level: 1, name: en.write.title })).toBeInTheDocument();
+    expect(back).not.toHaveBeenCalled();
+  });
+
+  // The draft's own card on the map is the pane already: no step deeper in the tab's history, which the way
+  // out would then pop instead of leaving.
+  it('opens nothing deeper for the draft’s own card, and the way out leaves at once', async () => {
+    const push = vi.spyOn(window.history, 'pushState');
+    onTestFinished(() => push.mockRestore());
+    renderWithIntl(<WriteWorkspace title={en.write.editTitle} locale="en" initial={{ id: 'mine', story: 'x' }} />);
+    await userEvent.click(screen.getByRole('button', { name: 'open mine' }));
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'Draft' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: en.write.editTitle })).toBeInTheDocument();
+
+    await userEvent.click(backArrow());
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+  });
+
+  // A fresh /write's draft gets its id at its first save, in the editor: the route's `initial` never has one.
+  it('knows a fresh draft’s own card once its first save made it', async () => {
+    const push = vi.spyOn(window.history, 'pushState');
+    onTestFinished(() => push.mockRestore());
+    renderWithIntl(<WriteWorkspace title={en.write.title} locale="en" />);
+    editor.cardId.mockReturnValue('mine');
+    await userEvent.click(screen.getByRole('button', { name: 'open mine' }));
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.queryByText('opened: My older card')).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Draft' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: en.write.title })).toBeInTheDocument();
+
+    await userEvent.click(backArrow());
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+  });
+
+  it('folds a card opened over the draft back to it when the draft’s own card is opened', async () => {
+    const push = vi.spyOn(window.history, 'pushState');
+    onTestFinished(() => push.mockRestore());
+    renderWithIntl(<WriteWorkspace title={en.write.editTitle} locale="en" initial={{ id: 'mine', story: 'x' }} />);
+    await userEvent.click(screen.getByRole('button', { name: 'open theirs' }));
+    expect(screen.getByText('opened: Bob’s walk')).toBeInTheDocument();
+    expect(push).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByRole('button', { name: 'open mine' }));
+    // The entry pushed for Bob's card is stepped back out of: none is left for the way out to pop.
+    await waitFor(() => expect(screen.queryByText('opened: Bob’s walk')).toBeNull());
+    expect(window.history.state?.__writerOpened).toBeUndefined();
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('textbox', { name: 'Draft' })).toBeInTheDocument();
     expect(back).not.toHaveBeenCalled();
   });
 

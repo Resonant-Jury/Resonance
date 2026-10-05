@@ -35,6 +35,8 @@
   line-height: 1.2;
   letter-spacing: -0.015em;
   color: var(--color-text);
+  /* No lone character left on the last line (「…幾個網 / 頁」 beside the ⋯ on a phone). */
+  text-wrap: pretty;
 }
 
 /* Right rail: author intro on top, ToC below; sticks while the article scrolls. */

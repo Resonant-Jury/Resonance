@@ -27,17 +27,20 @@ const TILE = 48;
  * public ones not answering a card already (one card answers one card),
  * never the target itself nor the card the target answers (it would answer
  * its own answer). `hidden` counts the public cards left out for answering
- * another card — the picker says why they are missing.
+ * another card — the picker says why they are missing; `open` all the public
+ * cards there are to choose from, left out or not — none at all is when the
+ * viewer has "no public cards yet".
  */
 export function resonateChoices(
   cards: Card[],
   targetId: string,
   targetReferenceId?: string,
-): { cards: Card[]; hidden: number } {
+): { cards: Card[]; hidden: number; open: number } {
   const open = cards.filter((c) => c.visibility === 'public' && !!c.publishedAt && c.id !== targetId);
   return {
     cards: open.filter((c) => !c.referenceCardId && c.id !== targetReferenceId),
     hidden: open.filter((c) => c.referenceCardId && c.referenceCardId !== targetId).length,
+    open: open.length,
   };
 }
 
@@ -72,6 +75,9 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
 
   const loaded = data ? resonateChoices(data.cards, targetId, targetReferenceId) : null;
   const selected = loaded?.cards.find((c) => c.id === selectedId) ?? null;
+  // Public cards there are, only none may answer this one and none is left out for answering another (the only
+  // one is the card this one answers): nothing to pick and nothing to say, so no caption over an empty list.
+  const nothingToPick = !!loaded && loaded.open > 0 && loaded.cards.length === 0 && loaded.hidden === 0;
 
   function close() {
     if (!busy) onClose();
@@ -135,8 +141,12 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
         </span>
         <Icon name="arrow-right" size={18} className={styles.writeArrow} />
       </button>
-      <Divider seed={59} spacing={8} />
-      <p className={styles.pickHeading}>{t('pickHeading')}</p>
+      {!nothingToPick && (
+        <>
+          <Divider seed={59} spacing={8} />
+          <p className={styles.pickHeading}>{t('pickHeading')}</p>
+        </>
+      )}
     </>
   );
 
@@ -155,7 +165,9 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
         anonymousLabel={t('anonymous')}
         empty={
           loaded ? (
-            t('empty')
+            // Public cards there are, only none may answer this one: never "no public cards yet". Why
+            // they are missing, when it is that they answer another card; else the first row is the way.
+            loaded.open === 0 ? t('empty') : loaded.hidden > 0 ? t('hiddenNote') : null
           ) : readError ? (
             <div className={styles.readFailed} role="alert">
               <span>{tNative('loadError')}</span>
@@ -167,7 +179,7 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
             <PickSkeleton />
           )
         }
-        footnote={loaded && loaded.hidden > 0 ? t('hiddenNote') : undefined}
+        footnote={loaded && loaded.cards.length > 0 && loaded.hidden > 0 ? t('hiddenNote') : undefined}
       />
 
       {failure && (

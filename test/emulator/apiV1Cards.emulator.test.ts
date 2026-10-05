@@ -3,7 +3,10 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { deleteCard, updateCard } from '@/lib/api/v1/cards';
-import { getCardDetail, getProfileCards } from '@/lib/api/v1/reads';
+import { getCardDetail, getCardsByKeys, getProfileCards, getResonances } from '@/lib/api/v1/reads';
+import { applyCardEdit } from '@/lib/api/v1/edits';
+import { publishCard } from '@/lib/api/v1/publish';
+import { sendNote } from '@/lib/api/v1/conversations';
 import { CardDetail } from '@/lib/api/v1/schemas';
 import { tryReachResonance } from '@/lib/api/v1/resonate';
 import type { UpdateCardInput } from '@/lib/api/v1/schemas';
@@ -436,6 +439,24 @@ describe('deleteCard (DELETE /cards/{id})', () => {
       console.error = quiet;
     }
     expect((await db.doc('cards/live').get()).exists).toBe(false);
+  });
+});
+
+// Firestore keeps ids shaped `__name__` for itself: reading one throws (INVALID_ARGUMENT). The contract's
+// id rule lets them through, so every route that names a card by what the request said asks first — a
+// card that isn't there (404), never a server error.
+describe('a card id Firestore keeps for itself', () => {
+  it('is no such card to read, list, note, change, publish, apply an edit to or delete', async () => {
+    const missing = async (p: Promise<unknown>) => expect((await failure(p)).code).toBe('not_found');
+    await missing(getCardDetail(db, 'bob', '__x__'));
+    await missing(getResonances(db, 'bob', '__x__'));
+    await missing(sendNote(db, 'bob', { cardId: '__x__', text: 'hi' }));
+    await missing(updateCard(db, 'alice', '__x__', { visibility: 'private' }));
+    await missing(publishCard(db, 'alice', '__x__', async () => 'x'));
+    await missing(applyCardEdit(db, 'alice', '__x__'));
+    await missing(deleteCard(db, 'alice', '__x__', new FirestoreVectorStore(db)));
+    expect((await getCardsByKeys(db, 'bob', ['__x__', 'live'])).cards.map((c) => c.id)).toEqual(['live']);
+    expect((await card()).visibility).toBe('public');
   });
 });
 

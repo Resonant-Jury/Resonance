@@ -66,6 +66,7 @@ vi.mock('@/components/molecules/MarkdownEditor/InsertCardModal', () => ({ Insert
 import { callApi } from '@/lib/db/firestore/client/api';
 import { getCardById, getCardBySlugOrId, getUserByHandle, getUserById, isConnected } from '@/lib/db/firestore/client/reads';
 import { getConversation, getOlderMessages, sendMessage } from '@/lib/db/firestore/client/messages';
+import { blockUser, getMyBlockedIds, unblockUser } from '@/lib/db/firestore/client/blocks';
 import { forgetOutboxes } from '@/lib/data/thread';
 import { useConnectionRefresh } from '@/lib/data/resonate';
 import { SWR_DEFAULTS } from '@/components/providers/SWRProvider';
@@ -133,6 +134,7 @@ beforeEach(() => {
   vi.mocked(getUserByHandle).mockResolvedValue(alice);
   vi.mocked(getConversation).mockResolvedValue(conversation);
   vi.mocked(isConnected).mockResolvedValue(true);
+  vi.mocked(getMyBlockedIds).mockResolvedValue(new Set());
 });
 afterEach(() => {
   // Unmount first: emptying the outboxes under a thread still drawn would redraw it outside act().
@@ -700,6 +702,30 @@ describe('a letter: notes between two people who aren’t connected', () => {
     await waitFor(() => expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument());
   });
 
+  // The first read of whether they are connected may still be out when the answer comes — and answer from before
+  // it: the thread asks again all the same, and the later answer is the one it keeps.
+  it('reads again whether they are connected when the answer arrives while the first read is still out', async () => {
+    let firstRead: (connected: boolean) => void = () => {};
+    vi.mocked(isConnected).mockReturnValueOnce(new Promise((resolve) => (firstRead = resolve)));
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = notes;
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    expect(isConnected).toHaveBeenCalledTimes(1);
+
+    // Their answer connected the two; the read that went out before it still says they aren't.
+    vi.mocked(isConnected).mockResolvedValue(true);
+    vi.mocked(getConversation).mockResolvedValue(conversation);
+    deliver([...notes, text('r1', 'Thank you for writing.', { sentAt: new Date('2026-03-01T10:05:00Z') }, 'alice')]);
+    await waitFor(() => expect(isConnected).toHaveBeenCalledTimes(2));
+    await act(async () => firstRead(false));
+
+    expect(await screen.findByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
+    expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
+    expect(screen.queryByText("You can only message people you're connected with.")).not.toBeInTheDocument();
+  });
+
   // A letter can stay on the conversation while the two are connected (a resonance doesn't clear it, only its
   // recipient's answer does): connected, it is no one's turn.
   it.each([
@@ -766,6 +792,120 @@ describe('a letter: notes between two people who aren’t connected', () => {
     await new Promise((r) => setTimeout(r, 5));
     act(() => void window.dispatchEvent(new Event('focus')));
     expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+  });
+
+  // Before the connection read answers, the letter waiting says what the foot is (as the apps do): its writer
+  // never sees a composer flash up, nor writes in one the server would refuse.
+  it('lets a waiting letter decide the foot while whether they are connected is still being read', async () => {
+    vi.mocked(isConnected).mockReturnValue(new Promise(() => {}));
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = notes;
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    expect(screen.getByText('Your walk stayed with me.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
+  });
+
+  // Nothing reaches across a block, a letter neither: the viewer's own block closes the thread whoever's
+  // letter waits, as in the apps — no composer the server would refuse, no promise of an answer.
+  it.each([
+    ['theirs', 'alice'],
+    ['the viewer’s', 'me'],
+  ])('closes the thread to someone the viewer blocked, a letter of %s waiting or not', async (_whose, from) => {
+    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['alice']));
+    vi.mocked(isConnected).mockResolvedValue(false);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from, cardId: 'c1', count: 1 } });
+    server.messages = [{ ...notes[0], senderId: from }];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+
+    const line = (await screen.findByText("You can only message people you're connected with.")).parentElement!;
+    expect(within(line).getByRole('link', { name: 'View profile' })).toHaveAttribute('href', '/u/alice');
+    expect(screen.getByText('Your walk stayed with me.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument();
+    expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
+  });
+
+  // The block list is read again after a block or an unblock, and the thread follows it at once (it is a Set:
+  // SWR's own comparison would call any two of them the same and keep the old one).
+  it('closes the thread as soon as the viewer blocks them from its menu, and opens it again on unblocking', async () => {
+    vi.mocked(isConnected).mockResolvedValue(false);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'alice', cardId: 'c1', count: 1 } });
+    server.messages = [{ ...notes[0], senderId: 'alice' }];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+
+    vi.mocked(blockUser).mockImplementation(async () => {
+      vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['alice']));
+    });
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Block' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Block' }));
+    expect(await screen.findByText("You can only message people you're connected with.")).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
+
+    vi.mocked(unblockUser).mockImplementation(async () => {
+      vi.mocked(getMyBlockedIds).mockResolvedValue(new Set());
+    });
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Unblock' }));
+    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
+  });
+
+  // No composer, nothing to reply in: Reply is offered neither beside a message nor in its long-press menu.
+  it('offers no Reply while the thread has no composer', async () => {
+    vi.mocked(isConnected).mockResolvedValue(false);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = [text('m1', 'from before', { sentAt: new Date('2026-03-01T09:00:00Z') }), ...notes];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const { container } = renderWithIntl(thread());
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'More options' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument();
+
+    const held = container.querySelector<HTMLElement>('[data-message-id="m1"] div[class*="message"]')!;
+    fireEvent.pointerDown(held, { pointerType: 'touch', button: 0, clientX: 40, clientY: 40 });
+    const menu = await screen.findByRole('dialog', {}, { timeout: 1500 });
+    fireEvent.pointerUp(held, { pointerType: 'touch', button: 0 });
+    expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Copy']);
+  });
+
+  // A reply picked while connected doesn't wait for the composer to come back: the connection ending put it away.
+  it('lets go of a reply picked before the composer gave way', async () => {
+    vi.mocked(isConnected).mockResolvedValue(true);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = [text('m1', 'from before', { sentAt: new Date('2026-03-01T09:00:00Z') }), ...notes];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    let refreshed: () => void = () => {};
+    function TakeBack() {
+      const refresh = useConnectionRefresh();
+      refreshed = () => refresh();
+      return null;
+    }
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <ThreadView handle="alice" />
+        <TakeBack />
+      </SWRConfig>,
+    );
+    await screen.findByRole('textbox', { name: 'Conversation with alice' });
+    await user.click(screen.getAllByRole('button', { name: 'Reply' })[0]);
+    expect(screen.getByText('Replying to alice')).toBeInTheDocument();
+
+    vi.mocked(isConnected).mockResolvedValue(false);
+    act(() => refreshed());
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    vi.mocked(isConnected).mockResolvedValue(true);
+    act(() => refreshed());
+    expect(await screen.findByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
+    expect(screen.queryByText('Replying to alice')).not.toBeInTheDocument();
   });
 
   it('keeps the messages of a conversation that no longer connects them, with the way to their profile', async () => {

@@ -1,4 +1,5 @@
 import { getAdminDb } from '@/lib/db/firestore/admin';
+import { isReservedId } from '@/lib/db/firestore/reservedId';
 import { shareImageFallback, shareImageResponse } from '@/lib/api/shareImage';
 
 export const runtime = 'nodejs';
@@ -12,7 +13,8 @@ const DOC_ID = /^[A-Za-z0-9_-]{1,128}$/;
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!DOC_ID.test(id)) return shareImageFallback();
+  // An id Firestore keeps for itself (`__x__`) would make the read throw: it is no such person.
+  if (!DOC_ID.test(id) || isReservedId(id)) return shareImageFallback();
   const avatarUrl = (await getAdminDb().doc(`users/${id}`).get()).data()?.avatarUrl;
   return shareImageResponse(req, typeof avatarUrl === 'string' ? avatarUrl : null);
 }

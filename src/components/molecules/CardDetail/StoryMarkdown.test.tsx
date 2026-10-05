@@ -49,6 +49,29 @@ describe('StoryMarkdown', () => {
     expect(a.style.getPropertyValue('--wave-strong')).toContain('stroke-opacity');
     expect(b.style.getPropertyValue('--wave')).not.toBe(wa);
   });
+
+  // As a link card does: another site's page opens in a tab of its own, sending no referrer and vouching for
+  // nothing; our own pages, a heading's anchor and a mail address stay where they are.
+  it('opens a link to another site in a new tab, and keeps links to our pages in this one', () => {
+    renderWithIntl(
+      <StoryMarkdown
+        source={
+          'I walked [slowly](https://example.com/walk) to [her page](https://resonance.channel/zh-TW/u/ana), ' +
+          '[the top](#top), [a card](/card/rain-walk) and [mail](mailto:a@example.com), past https://www.example.org/x.'
+        }
+      />,
+    );
+    for (const name of ['slowly', 'https://www.example.org/x']) {
+      const away = screen.getByRole('link', { name });
+      expect(away).toHaveAttribute('target', '_blank');
+      expect(away.getAttribute('rel')!.split(' ').sort()).toEqual(['nofollow', 'noopener', 'noreferrer', 'ugc']);
+    }
+    for (const name of ['her page', 'the top', 'a card', 'mail']) {
+      const here = screen.getByRole('link', { name });
+      expect(here).not.toHaveAttribute('target');
+      expect(here).not.toHaveAttribute('rel');
+    }
+  });
 });
 
 const previewOf = (url: string, extra: Partial<LinkPreview> = {}): LinkPreview => ({ url, title: `Title of ${url}`, ...extra });

@@ -34,6 +34,33 @@ describe('summarize', () => {
     expect(byCharacters(story)).toBe(4);
   });
 
+  // A standalone link shows as its page's card in the story, an inline one as a link: in a list's excerpt an
+  // address is only characters in the prose's place.
+  it('leaves bare addresses out of the excerpt, keeping a link\'s words and the sentence\'s punctuation', () => {
+    const story = [
+      '收藏了很久的幾個網頁，終於回到熟悉的地方。',
+      '',
+      'https://en.wikipedia.org/wiki/Jiufen_(town)',
+      '',
+      '這篇寫的是九份：<https://www.taipei-101.com.tw/tw/> 還有 www.example.com/a_b~c。',
+      '',
+      '> https://developer.mozilla.org/en-US/docs/Web/HTML',
+      '',
+      'I [walked slowly](https://example.com/walk) — see https://example.com/x, then home (or www.example.org).',
+    ].join('\n');
+    expect(summarize(story).excerpt).toBe(
+      '收藏了很久的幾個網頁，終於回到熟悉的地方。 這篇寫的是九份： 還有。 I walked slowly — see, then home (or).',
+    );
+  });
+
+  // What is a link is the one link rule's word (lib/links/url, findLinks): the excerpt leaves out exactly that,
+  // never the writer's words after it.
+  it('leaves out exactly what the link rule reads as a link', () => {
+    expect(summarize('我很喜歡 https://example.com，因為它很好。').excerpt).toBe('我很喜歡，因為它很好。');
+    expect(summarize('他說「https://example.com/x」很好').excerpt).toBe('他說「」很好');
+    expect(summarize('寫信到 foo@www.example.com 就好').excerpt).toBe('寫信到 foo@www.example.com 就好');
+  });
+
   it('reads a missing or malformed story as empty, a minute long', () => {
     expect(summarize(undefined)).toEqual({ excerpt: '', readMinutes: 1 });
     expect(summarize({ text: 'x' })).toEqual({ excerpt: '', readMinutes: 1 });
