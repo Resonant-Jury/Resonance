@@ -24,6 +24,7 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { useCardSummaries, useMyBlockedIds } from '@/lib/data/hooks';
 import { OLDER_PAGE, useChatThread } from '@/lib/data/thread';
 import { resonanceCardKey, threadCardKeys } from '@/lib/chat/cardLink';
+import { threadFoot } from '@/lib/chat/foot';
 import { threadRows } from '@/lib/chat/rows';
 import type { TextRange } from '@/lib/chat/search';
 import { getUserByHandle, isConnected } from '@/lib/db/firestore/client/reads';
@@ -104,6 +105,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // Report / block the other participant from the header「⋯」menu. Blocking
   // ends the connection, so the thread freezes (see firestore.rules).
   const { data: blocked } = useMyBlockedIds();
+  const blockedOther = !!other && !!blocked?.has(other.id);
   const safety = useSafetyActions({
     report: {
       type: 'message',
@@ -112,17 +114,16 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
       handle: other?.handle,
       contextId: pairId,
     },
-    isBlocked: !!other && !!blocked?.has(other.id),
+    isBlocked: blockedOther,
     onBlockedChange: () => {
       void globalMutate(`connected:${pairId}`);
       if (user) void globalMutate(`conversations:${user.id}`);
     },
   });
 
-  // Whose turn it is between two people who aren't connected: the one who left notes (a letter) waits for the
-  // other, whose answer connects them.
-  const letter: 'mine' | 'theirs' | null =
-    connected !== false || !convo?.request ? null : convo.request.from === user?.id ? 'mine' : convo.request.from === other?.id ? 'theirs' : null;
+  // What the foot offers: whose turn it is between two people who aren't connected (the one who left notes —
+  // a letter — waits for the other, whose answer connects them), and nothing across the viewer's block.
+  const foot = threadFoot(connected, blockedOther, convo?.request?.from, user?.id, other?.id);
 
   // Listen only once the conversation doc exists — the messages read rule
   // get()s the parent doc, so listening earlier would just error. The first
@@ -133,8 +134,9 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
     listen: !!convo,
     onSent: () => {
       if (!convo) void mutateConvo();
-      // An answer to their letter connected the two: the thread is an ordinary one now.
-      if (connected === false) {
+      // An answer to their letter connected the two: the thread is an ordinary one now (asked again while
+      // the first read is still out too: it may answer from before the send).
+      if (connected !== true) {
         void globalMutate(`connected:${pairId}`);
         void mutateConvo();
       }
@@ -772,14 +774,14 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
               )}
             </div>
 
-            {connected === false && letter === 'mine' ? (
+            {foot === 'awaiting' ? (
               // Their answer is what connects the two: until it comes, nothing more to write here.
               <p className={styles.letterLine}>{t('awaitingReply')}</p>
-            ) : connected === false && letter !== 'theirs' ? (
+            ) : foot === 'closed' ? (
               notConnected
             ) : (
               <>
-                {letter === 'theirs' && <p className={styles.letterHint}>{t('replyToConnect', { handle: other.handle })}</p>}
+                {foot === 'answer' && <p className={styles.letterHint}>{t('replyToConnect', { handle: other.handle })}</p>}
                 <ThreadComposer
                   inputRef={inputRef}
                   otherHandle={other.handle}

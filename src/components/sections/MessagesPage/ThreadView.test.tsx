@@ -66,6 +66,7 @@ vi.mock('@/components/molecules/MarkdownEditor/InsertCardModal', () => ({ Insert
 import { callApi } from '@/lib/db/firestore/client/api';
 import { getCardById, getCardBySlugOrId, getUserByHandle, getUserById, isConnected } from '@/lib/db/firestore/client/reads';
 import { getConversation, getOlderMessages, sendMessage } from '@/lib/db/firestore/client/messages';
+import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
 import { forgetOutboxes } from '@/lib/data/thread';
 import { useConnectionRefresh } from '@/lib/data/resonate';
 import { SWR_DEFAULTS } from '@/components/providers/SWRProvider';
@@ -133,6 +134,7 @@ beforeEach(() => {
   vi.mocked(getUserByHandle).mockResolvedValue(alice);
   vi.mocked(getConversation).mockResolvedValue(conversation);
   vi.mocked(isConnected).mockResolvedValue(true);
+  vi.mocked(getMyBlockedIds).mockResolvedValue(new Set());
 });
 afterEach(() => {
   // Unmount first: emptying the outboxes under a thread still drawn would redraw it outside act().
@@ -766,6 +768,41 @@ describe('a letter: notes between two people who aren’t connected', () => {
     await new Promise((r) => setTimeout(r, 5));
     act(() => void window.dispatchEvent(new Event('focus')));
     expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+  });
+
+  // Before the connection read answers, the letter waiting says what the foot is (as the apps do): its writer
+  // never sees a composer flash up, nor writes in one the server would refuse.
+  it('lets a waiting letter decide the foot while whether they are connected is still being read', async () => {
+    vi.mocked(isConnected).mockReturnValue(new Promise(() => {}));
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = notes;
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    expect(screen.getByText('Your walk stayed with me.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
+  });
+
+  // Nothing reaches across a block, a letter neither: the viewer's own block closes the thread whoever's
+  // letter waits, as in the apps — no composer the server would refuse, no promise of an answer.
+  it.each([
+    ['theirs', 'alice'],
+    ['the viewer’s', 'me'],
+  ])('closes the thread to someone the viewer blocked, a letter of %s waiting or not', async (_whose, from) => {
+    vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['alice']));
+    vi.mocked(isConnected).mockResolvedValue(false);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from, cardId: 'c1', count: 1 } });
+    server.messages = [{ ...notes[0], senderId: from }];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+
+    const line = (await screen.findByText("You can only message people you're connected with.")).parentElement!;
+    expect(within(line).getByRole('link', { name: 'View profile' })).toHaveAttribute('href', '/u/alice');
+    expect(screen.getByText('Your walk stayed with me.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument();
+    expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
   });
 
   it('keeps the messages of a conversation that no longer connects them, with the way to their profile', async () => {
