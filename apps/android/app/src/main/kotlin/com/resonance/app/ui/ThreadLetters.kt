@@ -57,6 +57,17 @@ internal fun connectionOf(live: Set<String>?, other: String?, profile: Boolean?,
 }
 
 /**
+ * Whether two people are connected once a profile read made after a write (an answer, a block)
+ * has said: its "connected" stands even when the live list hasn't heard yet — so "not connected"
+ * never flashes — but its "not connected" never undoes a live list that already has [other] (a
+ * read that set out before the answer, or one the HTTP cache answered, landing after the live
+ * connection: nothing would correct it afterwards, the live list not changing again). Never
+ * across a block.
+ */
+internal fun connectionAfterRead(live: Set<String>?, other: String, profile: Boolean, blocked: Boolean): Boolean =
+    !blocked && (profile || live?.contains(other) == true)
+
+/**
  * Where a link to a note (a bell row, an older push: `?note=`) lands: the note itself when the
  * thread holds it — jumped to, flashed and set up to be replied to — or, for an older note the
  * thread never got, the chip that answers it. A note on an anonymous card gets no chip: an answer

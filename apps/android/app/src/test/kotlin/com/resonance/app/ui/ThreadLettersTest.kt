@@ -74,6 +74,27 @@ class ThreadLettersTest {
         assertEquals(ThreadFoot.Closed, foot(after))
     }
 
+    @Test fun aReReadLandingAfterTheLiveConnectionNeverClosesTheThread() {
+        // Carol's letter waits for alice's answer.
+        var connected: Boolean? = false
+        assertEquals(ThreadFoot.Answer, foot(connected, requestFrom = "carol"))
+        // Alice answers: the letter is let go and the connection begins; the live list hears it first…
+        connected = connectionOf(live = setOf("carol"), other = "carol", profile = connected, blocked = false)
+        assertEquals(ThreadFoot.Composer, foot(connected))
+        // …then the re-read lands with what the profile said before the answer: the composer stays.
+        connected = connectionAfterRead(live = setOf("carol"), other = "carol", profile = false, blocked = false)
+        assertEquals(ThreadFoot.Composer, foot(connected))
+    }
+
+    @Test fun aReReadAfterTheAnswerSaysConnectedBeforeTheLiveListHears() {
+        assertEquals(true, connectionAfterRead(live = emptySet(), other = "carol", profile = true, blocked = false))
+        assertEquals(true, connectionAfterRead(live = null, other = "carol", profile = true, blocked = false))
+        // Not connected on both counts (a take-back, an unblock): not connected. Never across a block.
+        assertEquals(false, connectionAfterRead(live = emptySet(), other = "carol", profile = false, blocked = false))
+        assertEquals(false, connectionAfterRead(live = null, other = "carol", profile = false, blocked = false))
+        assertEquals(false, connectionAfterRead(live = setOf("carol"), other = "carol", profile = true, blocked = true))
+    }
+
     @Test fun aBlockClosesTheThreadWhateverWaits() {
         assertEquals(ThreadFoot.Closed, foot(false, requestFrom = "carol", blocked = true))
         assertEquals(ThreadFoot.Closed, foot(null, blocked = true))

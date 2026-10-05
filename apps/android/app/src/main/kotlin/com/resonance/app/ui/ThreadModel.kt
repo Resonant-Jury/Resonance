@@ -257,9 +257,12 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
 
     /**
      * Re-reads whether you may still write (after a block, or an answer): a read made after the
-     * write, so the profile's word stands over a live list that may not have heard yet.
+     * write — from the server, never the profile the HTTP cache kept from before it — so its
+     * "connected" stands over a live list that may not have heard yet, and its "not connected"
+     * never over a live list that already has ([connectionAfterRead]).
      */
     suspend fun refreshConnection() {
+        session.readAfresh()
         val read = try {
             read(other?.handle ?: handle)
         } catch (e: CancellationException) {
@@ -269,7 +272,7 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
         }
         val profile = read?.takeIf { p -> otherId.let { it == null || it == p.author.id } } ?: return
         isBlocked = profile.isBlocked
-        connected = profile.isConnected && !profile.isBlocked
+        connected = connectionAfterRead(session.conversations.connectedIds.value, profile.author.id, profile.isConnected, profile.isBlocked)
     }
 
     /**
