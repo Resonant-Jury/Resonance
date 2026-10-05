@@ -48,6 +48,14 @@ class NotificationRoutesTest {
         assertEquals(Route.Thread("carol", uid = "c1"), notificationRoute(item("message", anonymous = true)))
     }
 
+    @Test fun tonightsCardAndAConnectionsNewCardOpenTheCard() {
+        // Neither has a bell row (no notificationId) nor a sender: `/card/{slug or id}` is the whole story.
+        var asked = false
+        assertEquals(Route.Card("rain-walk"), pushedRoute(Route.fromPath("/card/rain-walk"), null) { asked = true; null })
+        assertEquals(Route.Card("Xy12abCD"), pushedRoute(Route.fromPath("/card/Xy12abCD"), null) { asked = true; null })
+        assertFalse(asked)
+    }
+
     @Test fun itsPushRoutesByItsPathAndNeverFallsBackToAThread() {
         // The push of such a row carries `/card/{id}` and no `fromUserId`: the bell list isn't asked who sent it.
         var asked = false

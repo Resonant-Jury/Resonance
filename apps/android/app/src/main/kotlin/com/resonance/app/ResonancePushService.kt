@@ -4,11 +4,13 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.resonance.kit.chat.ChatPush
+import com.resonance.kit.push.PushPlacement
 
 /**
  * FCM's side of push (the twin of iOS's AppDelegate callbacks). A push that arrives while the app
- * is closed is shown by the system itself, from the message's `notification` and the "activity"
- * channel; one that arrives while it is open comes here, where the app posts the same notification.
+ * is closed is shown by the system itself, from the message's `notification` and the channel it
+ * names ("activity", or "picks" for the pushes the person turned on); one that arrives while it is
+ * open comes here, where the app posts the same notification in the same channel ([PushPlacement]).
  *
  * A chat message is different: this build tells the server it draws those itself (`chat-push`),
  * so they arrive as data-only pushes — in every state of the app — and become the conversation's
@@ -35,6 +37,8 @@ class ResonancePushService : FirebaseMessagingService() {
             route = message.data[PushCenter.EXTRA_ROUTE].orEmpty(),
             notificationId = message.data[PushCenter.EXTRA_NOTIFICATION_ID],
             fromUserId = message.data[PushCenter.EXTRA_FROM_USER_ID],
+            // Tonight's card and a connection's new card go where the system would have put them (the "picks" channel).
+            placement = PushPlacement.of(message.data),
         )
     }
 }
