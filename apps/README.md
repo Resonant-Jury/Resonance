@@ -175,7 +175,25 @@ Push: the server pushes every bell row through FCM (`src/lib/push`); the app
 registers its token with `PUT /api/v1/me/devices/{installationId}` after
 sign-in (see "Both apps" for when) and unregisters on sign-out. Real delivery needs the Apple team: an
 APNs auth key uploaded to Firebase (Project settings → Cloud Messaging), and
-`aps-environment` switched to `production` for release builds.
+`aps-environment` switched to `production` for release builds. The registration
+also names the phone's time zone (`TimeZone.current.identifier`), and a new
+one sends it again (`PushRegistration`).
+
+Settings → 通知 holds the two opt-in pushes ("a card for tonight" and new
+cards from connections; `GET/PATCH /api/v1/me/notifications` through
+`NotificationSettingsAPI`, both off until turned on). `NotificationSettingsModel`
+flips a switch at once and puts it back with `saveError` when the PATCH fails.
+Turning one on asks the system first (`PushCenter.askIfUndetermined`, the same
+question `reachedOut()` asks): never asked, the system's question; a no, or
+notifications already off in Settings, leaves the switch off and shows
+`permissionDenied` with a button to `UIApplication.openNotificationSettingsURLString`
+(the simulator opens Settings at its root; the app's page is under App →
+Resonance → 通知). Back in the foreground the section looks again. Both pushes
+are plain notifications (`threadId: picks`) whose `route` is the card's page, so
+a tap opens the card like any other push; `xcrun simctl push booted
+com.resonance.stories <file.apns>` with `type: pick`, `cardId` and `route:
+/card/<slug>` at the top level checks it. `simctl privacy` has no notifications
+service: reinstalling the app makes the permission undetermined again.
 
 ### Against the local backend
 
