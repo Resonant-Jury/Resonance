@@ -1,6 +1,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { ANONYMOUS_VISIBILITY_MESSAGE, anonymousForConnections, editedAudience } from '@/lib/db/firestore/cardContent';
 import { mapCard } from '@/lib/db/firestore/mapper';
+import { isReservedId } from '@/lib/db/firestore/reservedId';
 import { getVectorStore, type IVectorStore } from '@/lib/recommend/vectorStore';
 import { cardPagePaths, landingPagePaths, profilePagePaths } from '@/lib/api/revalidate';
 import { ApiFailure } from './http';
@@ -63,6 +64,7 @@ export async function updateCard(
   input: UpdateCardInput,
   vectors?: Pick<IVectorStore, 'setVisibility'>,
 ): Promise<UpdatedCard> {
+  if (isReservedId(id)) throw notFound();
   const ref = db.doc(`cards/${id}`);
   const editRef = db.doc(`cards/${id}/edits/current`);
   const { before, data, changed, author } = await db.runTransaction(async (tx) => {
@@ -129,6 +131,7 @@ export async function deleteCard(
   id: string,
   vectors?: Pick<IVectorStore, 'deleteByCard'>,
 ): Promise<{ stale: string[] }> {
+  if (isReservedId(id)) throw notFound();
   const ref = db.doc(`cards/${id}`);
   const data = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);

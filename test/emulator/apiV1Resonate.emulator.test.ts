@@ -313,6 +313,12 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
       expect(await bells()).toEqual([]);
     });
 
+    // Firestore keeps `__name__` ids for itself: reading one throws, so it is asked first — no such card, not a 500.
+    it('is not_found for an id Firestore keeps for itself, writing nothing', async () => {
+      expect((await failure(resonateWith(db, 'alice', 'orig', '__x__'))).code).toBe('not_found');
+      await nothingWritten();
+    });
+
     it('answers one card: one already answering another is a conflict', async () => {
       await db.doc('cards/mine').update({ referenceCardId: 'bobMasked' });
       expect((await failure(resonateWith(db, 'alice', 'orig', 'mine'))).code).toBe('conflict');
@@ -363,6 +369,11 @@ describe('resonateWith (POST /cards/{id}/resonances)', () => {
       for (const id of ['bobPrivate', 'bobDraft', 'bobCircle', 'nope']) {
         expect((await failure(resonateWith(db, 'alice', id, 'mine'))).code).toBe('not_found');
       }
+      await nothingWritten();
+    });
+
+    it('is not_found for an id Firestore keeps for itself', async () => {
+      expect((await failure(resonateWith(db, 'alice', '__x__', 'mine'))).code).toBe('not_found');
       await nothingWritten();
     });
 
@@ -422,6 +433,13 @@ describe('unresonate (DELETE /cards/{id}/resonances/{cardId})', () => {
     expect(after.thoughtCore).toBe('title mine');
     expect(await bells()).toHaveLength(1);
     expect((await getCardDetail(db, 'carol', 'orig', new Set(['resonances']))).resonances?.cards).toEqual([]);
+  });
+
+  it('is not_found for a card id Firestore keeps for itself, and asks nothing of an original id it never reads', async () => {
+    await resonateWith(db, 'alice', 'orig', 'mine');
+    expect((await failure(unresonate(db, 'alice', 'orig', '__x__'))).code).toBe('not_found');
+    expect(await unresonate(db, 'alice', '__x__', 'mine')).toEqual({ changed: false, stale: [] });
+    expect((await read('mine')).referenceCardId).toBe('orig');
   });
 
   describe('takes back the connection the resonance stands for', () => {

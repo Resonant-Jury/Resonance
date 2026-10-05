@@ -1,5 +1,6 @@
 import { FieldValue, type DocumentSnapshot, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import { mapCard } from '@/lib/db/firestore/mapper';
+import { isReservedId } from '@/lib/db/firestore/reservedId';
 import type { MessagePush } from '@/lib/push/chat';
 import { ApiFailure } from './http';
 import { addReason, answeredBy, connect, letterReason, originsRef } from './origins';
@@ -19,9 +20,6 @@ export const pairOf = (a: string, b: string) => (a < b ? `${a}_${b}` : `${b}_${a
 export const cut = (text: string, n: number) => Array.from(text).slice(0, n).join('');
 /** How much of the message it answers a reply quotes (code points). */
 export const REPLY_QUOTE_CHARS = 140;
-
-/** Firestore reserves ids shaped `__name__`; a `clientId` is the document's id. */
-const RESERVED_ID = /^__.*__$/;
 
 /** What a message is, beyond words and a card: `note` — a note (小紙條) left on the recipient's card, carried into the thread. */
 export const NOTE_MESSAGE_KIND = 'note';
@@ -190,7 +188,8 @@ export async function sendNote(
   uid: string,
   input: { cardId: string; text: string; clientId?: string | null },
 ): Promise<SentNote> {
-  if (input.clientId && RESERVED_ID.test(input.clientId)) throw new ApiFailure('invalid_request', 'Not a valid client id.');
+  // Firestore's own ids (`__name__`, see isReservedId): a `clientId` is the document's id.
+  if (input.clientId && isReservedId(input.clientId)) throw new ApiFailure('invalid_request', 'Not a valid client id.');
   const notes = db.collection('notes');
   const sent = input.clientId ? notes.doc(input.clientId) : null;
   // A resend first, before the card is read: one deleted or hidden since must not turn the answer into a 404.
@@ -409,13 +408,13 @@ export async function sendMessage(
   const other = input.to;
   if (other === uid) throw new ApiFailure('invalid_request', 'You cannot message yourself.');
   if (!input.text && !input.cardRef) throw new ApiFailure('invalid_request', 'A message needs text or a card.');
-  if (input.clientId && RESERVED_ID.test(input.clientId)) throw new ApiFailure('invalid_request', 'Not a valid client id.');
+  if (input.clientId && isReservedId(input.clientId)) throw new ApiFailure('invalid_request', 'Not a valid client id.');
   // An id Firestore keeps for itself names no message (and would throw if asked for as a document).
-  if (input.replyTo && RESERVED_ID.test(input.replyTo)) throw new ApiFailure('invalid_request', 'No such message to reply to.');
+  if (input.replyTo && isReservedId(input.replyTo)) throw new ApiFailure('invalid_request', 'No such message to reply to.');
   const card = input.cardRef ? await visibleCardById(db, uid, input.cardRef) : null;
   if (card && !card.publishedAt) throw new ApiFailure('not_found', 'No such card.');
   // A noteRef naming an id Firestore keeps for itself names no note: read as one that isn't there (one answer for all).
-  const noteRef = input.noteRef && !RESERVED_ID.test(input.noteRef.noteId) && !RESERVED_ID.test(input.noteRef.cardId) ? input.noteRef : null;
+  const noteRef = input.noteRef && !isReservedId(input.noteRef.noteId) && !isReservedId(input.noteRef.cardId) ? input.noteRef : null;
   const pair = pairOf(uid, other);
   const conversation = db.doc(`conversations/${pair}`);
   const messages = conversation.collection('messages');

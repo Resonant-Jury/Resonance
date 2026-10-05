@@ -1,4 +1,5 @@
 import { Timestamp, type Firestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { isReservedId } from './reservedId';
 
 /**
  * Which of several cards sharing a slug the slug names: the published one
@@ -24,6 +25,8 @@ export async function cardByKey(db: Firestore, key: string) {
   const bySlug = await db.collection('cards').where('slug', '==', key).limit(10).get();
   const holder = slugHolder(bySlug.docs);
   if (holder) return holder;
+  // An id Firestore keeps for itself names no card (reading it would throw).
+  if (isReservedId(key)) return null;
   const byId = await db.collection('cards').doc(key).get();
   return byId.exists ? byId : null;
 }

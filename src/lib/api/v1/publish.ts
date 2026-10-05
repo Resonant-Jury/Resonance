@@ -1,6 +1,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { assignSlug } from '@/lib/ai/assignSlug';
 import { ANONYMOUS_VISIBILITY_MESSAGE, anonymousForConnections } from '@/lib/db/firestore/cardContent';
+import { isReservedId } from '@/lib/db/firestore/reservedId';
 import { ApiFailure } from './http';
 import { reachable, tryReachResonance } from './resonate';
 import { summaryFields } from './summary';
@@ -62,6 +63,8 @@ export async function publishCard(
   slugBase?: (title: string) => Promise<string>,
   opts: { slugWaitMs?: number } = {},
 ): Promise<PublishResult> {
+  // Someone else's card is as absent as a missing one; so is an id Firestore keeps for itself.
+  if (isReservedId(id)) throw new ApiFailure('not_found', 'No such card.');
   const ref = db.doc(`cards/${id}`);
   const card = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);

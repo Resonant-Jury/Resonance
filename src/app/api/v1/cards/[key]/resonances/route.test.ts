@@ -108,6 +108,17 @@ describe('POST /api/v1/cards/{id}/resonances', () => {
     expect(resonateWith).not.toHaveBeenCalled();
   });
 
+  // Firestore keeps `__name__` ids for itself: they name no card, and cost none of the budget.
+  it('answers an id Firestore keeps for itself as no such card, before the budget', async () => {
+    for (const [body, key] of [[{ cardId: 'mine' }, '__x__'], [{ cardId: '__x__' }, 'orig']] as const) {
+      const res = await post(body, key);
+      expect(res.status).toBe(404);
+      expect((await res.json()).error).toEqual({ code: 'not_found', message: 'No such card.' });
+    }
+    expect(spend).not.toHaveBeenCalled();
+    expect(resonateWith).not.toHaveBeenCalled();
+  });
+
   it('is 401 for nobody signed in', async () => {
     getCurrentUser.mockResolvedValue(null);
     expect((await post({ cardId: 'mine' })).status).toBe(401);
