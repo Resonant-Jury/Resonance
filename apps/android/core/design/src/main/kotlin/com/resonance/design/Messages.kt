@@ -648,7 +648,8 @@ fun ColumnScope.SharedCardSkeleton() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Box(Modifier.size(14.dp))
+            // The wave's slot holds a dot of its size, so the bar beside it doesn't read as indented.
+            Skeleton(height = 14.dp, circle = true)
             Box(Modifier.weight(1f)) { SkeletonLines(AppFonts.body(12f, lineHeight = 1.3f), 11.dp, Modifier.width(56.dp)) }
         }
     }
