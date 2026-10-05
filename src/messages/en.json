@@ -404,7 +404,8 @@
       "q1": "What small moment recently changed how you see something?",
       "q2": "What is one thing you wish you could tell your past self?",
       "q3": "Which failure taught you something nobody else ever did?"
-    }
+    },
+    "removeTag": "Remove tag"
   },
   "me": {
     "joined": "Joined {date}",

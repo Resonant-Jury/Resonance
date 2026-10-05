@@ -748,6 +748,8 @@ public enum L10n {
             /// Which failure taught you something nobody else ever did?
             public static var q3: String { Strings.shared.string("write.firstCard.q3") }
         }
+        /// Remove tag
+        public static var removeTag: String { Strings.shared.string("write.removeTag") }
     }
     public enum Me {
         /// Joined {date}

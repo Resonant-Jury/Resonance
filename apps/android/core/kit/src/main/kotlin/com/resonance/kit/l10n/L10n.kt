@@ -750,6 +750,8 @@ object L10n {
             /** Which failure taught you something nobody else ever did? */
             val q3: String get() = Strings.string("write.firstCard.q3")
         }
+        /** Remove tag */
+        val removeTag: String get() = Strings.string("write.removeTag")
     }
     object Me {
         /** Joined {date} */
