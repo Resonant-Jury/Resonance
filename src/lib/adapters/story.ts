@@ -1,27 +1,16 @@
 import type { Card, User } from '@/lib/db/types';
 import type { Story } from '@/components/molecules/StoryCard/StoryCard';
+import { excerpt, plainText } from '@/lib/markdown/plainText';
 import { readMinutes } from '@/lib/readTime';
 
 /**
- * Adapt a Card (domain) to the Story shape used by the existing StoryCard
- * molecule.  The MVP uses the story card for Card rendering so the visual
- * identity stays consistent across marketing + app pages.
- */
-/**
- * Plain-text excerpt of a markdown story — markdown syntax stripped so card
- * surfaces (e.g. thought-map nodes) can preview the prose itself.
+ * Plain-text excerpt of a markdown story — markdown syntax and bare addresses
+ * left out, by the same rules as the excerpts the server stores for lists
+ * (lib/markdown/plainText) — so card surfaces (thought-map nodes, a shared
+ * card in a thread, the og:description) can preview the prose itself.
  */
 export function plainExcerpt(markdown: string, max = 80): string {
-  const text = markdown
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^>\s?/gm, '')
-    .replace(/[*_~`]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return text.length > max ? text.slice(0, max) + '…' : text;
+  return excerpt(plainText(markdown), max);
 }
 
 export interface CardToStoryOptions {
@@ -49,6 +38,10 @@ export function anonymousByline(card: Card, label: string) {
 }
 
 /**
+ * Adapt a Card (domain) to the Story shape used by the existing StoryCard
+ * molecule.  The MVP uses the story card for Card rendering so the visual
+ * identity stays consistent across marketing + app pages.
+ *
  * `author` may be missing only for an anonymous card shown anonymously — its
  * author is never fetched (see bylineAuthorIds in lib/data/hooks).
  */
@@ -59,7 +52,8 @@ export function cardToStory(
 ): Story {
   // A summary's story is only its excerpt: it brings the whole story's read time along.
   const minutes = card.summary?.readMinutes ?? readMinutes(card.story);
-  const excerpt = card.story.replace(/\n+/g, ' ').slice(0, 96) + (card.story.length > 96 ? '…' : '');
+  // A summary's story is the server's excerpt already; a whole story is cut down the way the server cuts it.
+  const shown = card.summary ? card.story : excerpt(plainText(card.story));
   const anonymized = (card.anonymous && !opts?.deanonymize) || !author;
   const byline = anonymized
     ? anonymousByline(card, opts?.anonymousLabel ?? '匿名')
@@ -71,7 +65,7 @@ export function cardToStory(
       };
   return {
     title: card.thoughtCore,
-    excerpt,
+    excerpt: shown,
     ...byline,
     readTime: `${minutes} min`,
     tags: card.tags,
