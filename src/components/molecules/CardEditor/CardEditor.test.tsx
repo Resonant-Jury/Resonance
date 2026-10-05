@@ -642,6 +642,21 @@ describe('CardEditor', () => {
       expect(buffered.current!.hasWork()).toBe(true);
     });
 
+    // The writer's map knows the draft's own card by it: a fresh draft's id is the one its first save made.
+    it('names the card it writes: the one it was opened on, or the draft its first save made', async () => {
+      const opened = createRef<CardEditorHandle>();
+      const { unmount } = renderWithIntl(<CardEditor locale="en" ref={opened} initial={{ id: 'draft-9' }} />);
+      expect(opened.current!.cardId()).toBe('draft-9');
+      unmount();
+
+      const fresh = createRef<CardEditorHandle>();
+      renderWithIntl(<CardEditor locale="en" ref={fresh} />);
+      expect(fresh.current!.cardId()).toBeUndefined();
+      fireEvent.change(screen.getByLabelText('One-line title'), { target: { value: 'Before I go' } });
+      await act(() => fresh.current!.saveNow());
+      expect(fresh.current!.cardId()).toBe('draft-1');
+    });
+
     it('writes what is not saved yet when asked, and nothing when it is', async () => {
       const editor = createRef<CardEditorHandle>();
       renderWithIntl(<CardEditor locale="en" ref={editor} />);

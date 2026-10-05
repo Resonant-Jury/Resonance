@@ -50,7 +50,7 @@ export function WriteWorkspace({
   const { data: hasWritten } = useHasWrittenCards();
   const [seed, setSeed] = useState<{ story: string; nonce: number } | null>(null);
   // A card opened from the map takes over the pane (in-memory Card → no
-  // loading); never the route's own draft, which keeps the live editor.
+  // loading); never the draft's own card, which keeps the live editor.
   const [openedCard, setOpenedCard] = useState<Card | null>(null);
   // The editor's own save state, lifted so it sits at the top of the pane.
   // At the bottom of a long form it was invisible to exactly the people who
@@ -101,8 +101,9 @@ export function WriteWorkspace({
   const openCard = (card: Card) => {
     // The draft's own card already fills the pane: opening it from the map is no step deeper (an entry pushed
     // for it would be all the way out pops, and the writer would stay) — it only folds a card opened over the
-    // draft back to it, by the same back as the arrow's.
-    if (card.id === initial?.id) {
+    // draft back to it, by the same back as the arrow's. Its own card is the editor's: a fresh /write's draft
+    // has its id from its first save on, which the route's `initial` never learns.
+    if (card.id === (editor.current?.cardId() ?? initial?.id)) {
       if (openedRef.current) window.history.back();
       return;
     }

@@ -109,6 +109,11 @@ export interface CardEditorHandle {
   hasWork(): boolean;
   /** Writes what is on screen now, if it isn't yet — leaving doesn't wait out the debounce. */
   saveNow(): Promise<void>;
+  /**
+   * The card this editor writes: the one it was opened on, or — a fresh
+   * /write — the draft its first save made; undefined before that.
+   */
+  cardId(): string | undefined;
 }
 
 // AI 寫作夥伴：暫時停用，未來會重新啟用
@@ -537,6 +542,9 @@ export function CardEditor({
     },
     async saveNow() {
       if (!closedRef.current && needsSave()) await saveDraft();
+    },
+    cardId() {
+      return draftIdRef.current;
     },
   }));
 
