@@ -10,6 +10,7 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Icon } from '@/components/atoms/Icon';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
+import { storyLinkWaveStyle } from '@/lib/design/storyLinkWave';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { uploadImageFile } from '@/lib/images/upload';
@@ -107,6 +108,8 @@ export function MarkdownEditor({
     editorProps: {
       attributes: {
         class: styles.content,
+        // The pen wave every link in the story wears (one for all of them here; the reader seeds one per link).
+        style: storyLinkWaveStyle('editor'),
         role: 'textbox',
         'aria-multiline': 'true',
         ...(ariaLabel ? { 'aria-label': ariaLabel } : {}),

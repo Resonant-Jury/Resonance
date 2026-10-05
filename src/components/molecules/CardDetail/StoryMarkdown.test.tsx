@@ -47,6 +47,7 @@ describe('StoryMarkdown', () => {
     const wa = a.style.getPropertyValue('--wave');
     expect(wa).toContain('data:image/svg+xml');
     expect(a.style.getPropertyValue('--wave-strong')).toContain('stroke-opacity');
+    expect(a.style.getPropertyValue('--wave-size')).toBe('36px 6px');
     expect(b.style.getPropertyValue('--wave')).not.toBe(wa);
   });
 

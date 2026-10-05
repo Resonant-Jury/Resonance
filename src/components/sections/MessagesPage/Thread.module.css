@@ -288,13 +288,15 @@
 }
 
 /* A link in a bubble: underlined, terracotta in theirs and a deeper
-   terracotta in your own (plain terracotta sinks into its wash). */
+   terracotta in your own (plain terracotta sinks into its wash). The line
+   runs whole under descenders, never cut around them. */
 .link {
   color: var(--color-terracotta);
   cursor: pointer;
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
   overflow-wrap: anywhere;
 }
 
@@ -930,6 +932,7 @@ span.pill {
   font-size: 13px;
   color: var(--color-terracotta);
   text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
 }
 
 .letterHint {

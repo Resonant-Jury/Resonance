@@ -21,6 +21,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { wavyVertical } from '../../../src/lib/design/wavyPath';
 import { wobRect } from '../../../src/lib/design/wobRect';
 import { seedFromString } from '../../../src/lib/design/prng';
+import { storyLinkWaveVars } from '../../../src/lib/design/storyLinkWave';
 import { BlockImage, CardEmbed, getMarkdown, storyExtensions } from '../../../src/lib/markdown/editorSchema';
 
 /** Which toolbar buttons show as on, and whether undo/redo can run — the web toolbar's activeStates. */
@@ -135,6 +136,8 @@ const params = new URLSearchParams(location.search);
 // ?embed=1: the story field of the writing screen — the host frames it, sizes
 // the view to the content (the 'height' message) and scrolls the page itself.
 if (params.get('embed') === '1') document.documentElement.classList.add('embed');
+// The pen wave every link in the story wears (island.css), as the web editor's.
+for (const [name, value] of Object.entries(storyLinkWaveVars('editor'))) document.documentElement.style.setProperty(name, value);
 const extensions = [
   ...storyExtensions({ blockquote: IslandBlockquote, image: IslandImage, cardEmbed: IslandCardEmbed }),
   Placeholder.configure({ placeholder: params.get('placeholder') ?? '寫下你的故事…' }),

@@ -62,17 +62,32 @@
 .prose .link {
   color: var(--color-terracotta);
   text-decoration: none;
-  /* The pen's wave repeats along the bottom of every line fragment of the link
-     (--wave is a 36x6 tile set per link in StoryMarkdown). The tile's centre
-     rides just under the letters; padding makes room without changing the line. */
+  /* The pen's wave repeats along the foot of every line fragment of the link
+     (--wave / --wave-size: lib/design/storyLinkWave, set per link). An inline
+     box paints its background only inside its own box, so the whole tile sits
+     inside it, on its bottom edge — never past it, or the wave's lower crests
+     are cut off. The padding puts the tile's centre WAVE_DEPTH_EM (0.29em)
+     under the baseline: the content area ends at the face's descent (DM Sans
+     0.31em, which the browser rounds to whole pixels), the padding reaches on
+     to 0.29em + 3px, and the centre is half the 6px tile above that. It fits
+     in the line's lower half-leading, so the line keeps its height. */
   background-image: var(--wave);
   background-repeat: repeat-x;
-  background-size: 36px 6px;
-  background-position: 0 calc(100% + 2px);
-  padding-bottom: 0.12em;
+  background-size: var(--wave-size);
+  background-position: 0 100%;
+  padding-bottom: calc(3px - 0.02em);
+  padding-bottom: calc(0.29em + 3px - round(0.31em, 1px));
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   transition: background-image 160ms ease;
+}
+
+/* A heading's face (Playfair Display) descends less (0.251em): more
+   padding keeps the same depth under its baseline. */
+.prose h2 .link,
+.prose h3 .link {
+  padding-bottom: calc(3px + 0.039em);
+  padding-bottom: calc(0.29em + 3px - round(0.251em, 1px));
 }
 
 .prose .link:hover,

@@ -328,6 +328,7 @@
   /* Said outright: a link that asks first has no address of its own to underline it. */
   text-decoration: underline;
   text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
   cursor: pointer;
 }
 

@@ -49,6 +49,36 @@ export function penWave(W: number, seed = 1, amp = 1.2, half = 4.5): string {
   return pointsToBezier(penWavePoints(W, seed, amp, half));
 }
 
+/**
+ * {@link penWavePoints} for a tile that repeats side by side: an even number
+ * of steps, and both ends on the same down crest (`amp` under the line,
+ * where the smoothing's horizontal handles make it a crest), so tile after
+ * tile the up-and-down rhythm carries across every seam with no flat step —
+ * the seam is just one more crest. Interior crests are penWavePoints' own.
+ */
+export function penWaveTilePoints(W: number, seed = 1, amp = 1.2, half = 4.5): [number, number][] {
+  const rnd = makePrng(seed);
+  let n = Math.max(2, Math.round(W / half));
+  if (n % 2 === 1) n += 1;
+  const step = W / n;
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= n; i++) {
+    if (i === 0 || i === n) {
+      pts.push([i * step, amp]);
+      continue;
+    }
+    const x = i * step + (rnd() - 0.5) * step * 0.3;
+    const y = (i % 2 === 1 ? -1 : 1) * amp * (0.65 + 0.7 * rnd());
+    pts.push([x, y]);
+  }
+  return pts;
+}
+
+/** {@link penWaveTilePoints} as a path from (0,amp) to (W,amp). */
+export function penWaveTile(W: number, seed = 1, amp = 1.2, half = 4.5): string {
+  return pointsToBezier(penWaveTilePoints(W, seed, amp, half));
+}
+
 // Vertical sibling of wavyLine: a wobbly line running down the y-axis, with x
 // jittering around 0. Endpoints stay on the axis so it tiles cleanly as a
 // divider between segments.

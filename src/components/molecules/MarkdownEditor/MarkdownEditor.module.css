@@ -54,6 +54,29 @@
   font-weight: 700;
 }
 
+/* Links wear the reader's pen wave (StoryMarkdown.module.css .link, which
+   explains the numbers), so the writer sees what the reader will: never the
+   browser's blue, straight underline that descenders cut. --wave and
+   --wave-size are set on the editable surface (MarkdownEditor). */
+.content a {
+  color: var(--color-terracotta);
+  text-decoration: none;
+  background-image: var(--wave);
+  background-repeat: repeat-x;
+  background-size: var(--wave-size);
+  background-position: 0 100%;
+  padding-bottom: calc(3px - 0.02em);
+  padding-bottom: calc(0.29em + 3px - round(0.31em, 1px));
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.content h2 a,
+.content h3 a {
+  padding-bottom: calc(3px + 0.039em);
+  padding-bottom: calc(0.29em + 3px - round(0.251em, 1px));
+}
+
 .content ul,
 .content ol {
   margin: 0 0 0.9em;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { penWave, penWavePoints, wavyLine, wavyVertical, wavyPoints, pointsToBezier } from './wavyPath';
+import { penWave, penWavePoints, penWaveTile, penWaveTilePoints, wavyLine, wavyVertical, wavyPoints, pointsToBezier } from './wavyPath';
 
 // Wavy paths are used as dividers and section edges. The contract that matters
 // downstream: deterministic per seed, endpoints pinned to the axis (so tiles
@@ -65,5 +65,32 @@ describe('penWave', () => {
       expect(Math.abs(y)).toBeGreaterThanOrEqual(1.2 * 0.65 - 1e-9);
       expect(Math.abs(y)).toBeLessThanOrEqual(1.2 * 1.35 + 1e-9);
     });
+  });
+});
+
+describe('penWaveTile', () => {
+  it('starts and ends on the same down crest, so tiles side by side join with no step', () => {
+    for (const seed of [1, 7, 42]) {
+      const pts = penWaveTilePoints(36, seed);
+      expect(pts[0]).toEqual([0, 1.2]);
+      expect(pts[pts.length - 1]).toEqual([36, 1.2]);
+      const d = penWaveTile(36, seed);
+      expect(d.startsWith('M 0,1.2')).toBe(true);
+      expect(d.endsWith('36,1.2')).toBe(true);
+    }
+  });
+
+  it('keeps the rhythm across the seam: an even count of steps, up crests on both sides of the joining down crest', () => {
+    for (const W of [36, 40, 31]) {
+      const pts = penWaveTilePoints(W, 5);
+      expect((pts.length - 1) % 2).toBe(0);
+      // Every point alternates, the ends (down) included: …up, down | down, up… reads as one down crest.
+      pts.forEach(([, y], i) => expect(Math.sign(y)).toBe(i % 2 === 0 ? 1 : -1));
+    }
+  });
+
+  it('is the same tile for the same seed, another for another', () => {
+    expect(penWaveTile(36, 3)).toBe(penWaveTile(36, 3));
+    expect(penWaveTile(36, 3)).not.toBe(penWaveTile(36, 4));
   });
 });
