@@ -38,8 +38,8 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
   (through `FirebaseBootstrap.db` / `AppFirebase.db` — never keep `Firestore.firestore()` around) before the
   next account's listeners start, and clears delivered notifications, the badge, the push memo and the
   profile mark. Android backup / device transfer keeps only `settings.xml`.
-- **Push**: the registration is sent again only when the uid, token, language or app version changes, or
-  after 24 h, never twice at once. Notification permission is asked after the first note, message or
+- **Push**: the registration (with the device's IANA time zone) is sent again only when the uid, token,
+  language, app version or time zone changes, or after 24 h, never twice at once. Notification permission is asked after the first note, message or
   published card (`PushCenter.reachedOut()`): before that nobody can reach the account. The iOS
   installation id is tied to the phone (`identifierForVendor`), so a restored backup gets its own.
 - **Live lists** use `LiveListeners`: a failed listener re-attaches on the next foreground or a retry
@@ -215,6 +215,8 @@ Firebase at the emulators (`10.0.2.2`) and the API at `http://10.0.2.2:3100`,
 `--es route /card/<slug>` (or `/u/<handle>`) opens that page,
 `--es writeTitle … --es writeStory …` start a new card with that text, and
 `--es threadDraft …` fills a conversation's composer (`--es route /messages/<handle>` opens one),
+`--es pushTitle … --es pushBody … --es pushRoute /card/<slug> --es pushType pick` (or `new_card` with
+`--es pushCardId …`) posts the notification such a push shows while the app is open,
 `--es route /me/thought-map` opens the thought map (the seed gives alice one: a region, three cards, a
 labelled arrow; `npx tsx scripts/seed-thought-map-bench.ts` swaps in a 100-card one, `seed-emulator.ts` puts hers back),
 and `--es pushToken <any>` registers a stand-in push token under the signed-in account
@@ -266,7 +268,14 @@ the bundled island; external links open in the in-app browser.
 
 Push: the server pushes every bell row through FCM (`src/lib/push`, on the "activity" channel); the app
 asks for the notification permission after the first note, message or publish (API 33+), registers its
-token with `PUT /api/v1/me/devices/{installationId}` (see "Both apps" for when) and unregisters on sign-out. Real delivery needs a build against production (not `--ez emulator true`)
+token with `PUT /api/v1/me/devices/{installationId}` (see "Both apps" for when) and unregisters on sign-out.
+Settings → Notifications holds the two pushes a person turns on (both off until then; `GET/PATCH
+/api/v1/me/notifications` through `NotificationSwitches`: a flip shows at once, is sent one at a time and
+undone with `saveError` when it fails). Turning one on while notifications can't show asks for the
+permission first (API 33+) and saves once it is given; refused, the switch stays off and `permissionDenied`
+offers the app's notification settings. Those pushes — tonight's card (`type: pick`) and a connection's new
+card (`type: new_card`) — come on the "picks" channel (`native.channelNewCards`), and a card route opens the
+card; one that arrives while the app is open is drawn in the same channel and tag (`PushPlacement`). Real delivery needs a build against production (not `--ez emulator true`)
 on a device with Google Play services.
 
 Chat: a thread keeps the newest 50 messages live and pages older ones in (`MessageHistory`, `ThreadModel.loadOlder()`;
