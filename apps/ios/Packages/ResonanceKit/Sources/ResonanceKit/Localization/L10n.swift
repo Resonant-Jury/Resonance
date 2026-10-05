@@ -175,6 +175,12 @@ public enum L10n {
             public static var unread: String { Strings.shared.string("app.notifications.unread") }
             /// An invite expired
             public static var inviteExpired: String { Strings.shared.string("app.notifications.inviteExpired") }
+            /// A card for tonight
+            public static var pickTitle: String { Strings.shared.string("app.notifications.pickTitle") }
+            /// A card that might resonate with you
+            public static var pickBody: String { Strings.shared.string("app.notifications.pickBody") }
+            /// {handle} wrote a new card
+            public static func newCard(handle: String) -> String { Strings.shared.format("app.notifications.newCard", ["handle": handle]) }
         }
         public enum SignOutConfirm {
             /// Sign out?
@@ -550,7 +556,7 @@ public enum L10n {
         public static var editTitle: String { Strings.shared.string("write.editTitle") }
         /// Edit a published card
         public static var editPublishedTitle: String { Strings.shared.string("write.editPublishedTitle") }
-        /// Close editor
+        /// Hide the editor
         public static var closeEditor: String { Strings.shared.string("write.closeEditor") }
         /// Leave for now?
         public static var leaveTitle: String { Strings.shared.string("write.leaveTitle") }
@@ -1113,14 +1119,20 @@ public enum L10n {
             public static var manageBlocks: String { Strings.shared.string("settings.privacy.manageBlocks") }
         }
         public enum Notifications {
-            /// Daily resonance summary
-            public static var resonance: String { Strings.shared.string("settings.notifications.resonance") }
-            /// Connection invites
-            public static var connection: String { Strings.shared.string("settings.notifications.connection") }
-            /// Direct messages
-            public static var dm: String { Strings.shared.string("settings.notifications.dm") }
-            /// Translation complete
-            public static var translation: String { Strings.shared.string("settings.notifications.translation") }
+            /// A card for you in the evening
+            public static var picks: String { Strings.shared.string("settings.notifications.picks") }
+            /// Up to three evenings a week, around 8 pm: one card picked for you that you haven't opened yet
+            public static var picksHint: String { Strings.shared.string("settings.notifications.picksHint") }
+            /// New cards from people you're connected with
+            public static var connectionCards: String { Strings.shared.string("settings.notifications.connectionCards") }
+            /// When someone you're connected with publishes a public card under their pen name
+            public static var connectionCardsHint: String { Strings.shared.string("settings.notifications.connectionCardsHint") }
+            /// Notifications for Resonance are off in your device settings. Turn them on there first.
+            public static var permissionDenied: String { Strings.shared.string("settings.notifications.permissionDenied") }
+            /// Open Settings
+            public static var openSettings: String { Strings.shared.string("settings.notifications.openSettings") }
+            /// Couldn't save that — try again
+            public static var saveError: String { Strings.shared.string("settings.notifications.saveError") }
         }
         public enum Language {
             /// UI language
@@ -1282,5 +1294,7 @@ public enum L10n {
         public static var refresh: String { Strings.shared.string("native.refresh") }
         /// Close
         public static var close: String { Strings.shared.string("native.close") }
+        /// New cards
+        public static var channelNewCards: String { Strings.shared.string("native.channelNewCards") }
     }
 }

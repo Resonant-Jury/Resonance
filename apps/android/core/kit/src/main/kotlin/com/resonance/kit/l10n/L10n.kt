@@ -177,6 +177,12 @@ object L10n {
             val unread: String get() = Strings.string("app.notifications.unread")
             /** An invite expired */
             val inviteExpired: String get() = Strings.string("app.notifications.inviteExpired")
+            /** A card for tonight */
+            val pickTitle: String get() = Strings.string("app.notifications.pickTitle")
+            /** A card that might resonate with you */
+            val pickBody: String get() = Strings.string("app.notifications.pickBody")
+            /** {handle} wrote a new card */
+            fun newCard(handle: String): String = Strings.format("app.notifications.newCard", mapOf("handle" to handle))
         }
         object SignOutConfirm {
             /** Sign out? */
@@ -552,7 +558,7 @@ object L10n {
         val editTitle: String get() = Strings.string("write.editTitle")
         /** Edit a published card */
         val editPublishedTitle: String get() = Strings.string("write.editPublishedTitle")
-        /** Close editor */
+        /** Hide the editor */
         val closeEditor: String get() = Strings.string("write.closeEditor")
         /** Leave for now? */
         val leaveTitle: String get() = Strings.string("write.leaveTitle")
@@ -1115,14 +1121,20 @@ object L10n {
             val manageBlocks: String get() = Strings.string("settings.privacy.manageBlocks")
         }
         object Notifications {
-            /** Daily resonance summary */
-            val resonance: String get() = Strings.string("settings.notifications.resonance")
-            /** Connection invites */
-            val connection: String get() = Strings.string("settings.notifications.connection")
-            /** Direct messages */
-            val dm: String get() = Strings.string("settings.notifications.dm")
-            /** Translation complete */
-            val translation: String get() = Strings.string("settings.notifications.translation")
+            /** A card for you in the evening */
+            val picks: String get() = Strings.string("settings.notifications.picks")
+            /** Up to three evenings a week, around 8 pm: one card picked for you that you haven't opened yet */
+            val picksHint: String get() = Strings.string("settings.notifications.picksHint")
+            /** New cards from people you're connected with */
+            val connectionCards: String get() = Strings.string("settings.notifications.connectionCards")
+            /** When someone you're connected with publishes a public card under their pen name */
+            val connectionCardsHint: String get() = Strings.string("settings.notifications.connectionCardsHint")
+            /** Notifications for Resonance are off in your device settings. Turn them on there first. */
+            val permissionDenied: String get() = Strings.string("settings.notifications.permissionDenied")
+            /** Open Settings */
+            val openSettings: String get() = Strings.string("settings.notifications.openSettings")
+            /** Couldn't save that — try again */
+            val saveError: String get() = Strings.string("settings.notifications.saveError")
         }
         object Language {
             /** UI language */
@@ -1284,5 +1296,7 @@ object L10n {
         val refresh: String get() = Strings.string("native.refresh")
         /** Close */
         val close: String get() = Strings.string("native.close")
+        /** New cards */
+        val channelNewCards: String get() = Strings.string("native.channelNewCards")
     }
 }

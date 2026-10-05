@@ -96,7 +96,7 @@ describe('the chrome around the panes', () => {
         <p>editor</p>
       </WorkspaceShell>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hide the editor' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -111,7 +111,7 @@ describe('the chrome around the panes', () => {
     );
     expect(screen.getByRole('heading', { level: 1, name: 'New card' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Leave' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Close editor' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
 
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(onBack).toHaveBeenCalledTimes(1);

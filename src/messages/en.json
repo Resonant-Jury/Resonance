@@ -93,7 +93,10 @@
       "message": "{handle} sent you a message",
       "messageCard": "Shared a card",
       "unread": "Unread",
-      "inviteExpired": "An invite expired"
+      "inviteExpired": "An invite expired",
+      "pickTitle": "A card for tonight",
+      "pickBody": "A card that might resonate with you",
+      "newCard": "{handle} wrote a new card"
     },
     "signOutConfirm": {
       "title": "Sign out?",
@@ -300,7 +303,7 @@
     "title": "New card",
     "editTitle": "Edit draft",
     "editPublishedTitle": "Edit a published card",
-    "closeEditor": "Close editor",
+    "closeEditor": "Hide the editor",
     "leaveTitle": "Leave for now?",
     "leaveBody": "What you've written is saved as a draft. You can pick it up again from My Card Box.",
     "leaveBodyRevision": "Your changes are saved, but not yet applied to the published card.",
@@ -601,10 +604,13 @@
       "manageBlocks": "Manage blocks"
     },
     "notifications": {
-      "resonance": "Daily resonance summary",
-      "connection": "Connection invites",
-      "dm": "Direct messages",
-      "translation": "Translation complete"
+      "picks": "A card for you in the evening",
+      "picksHint": "Up to three evenings a week, around 8 pm: one card picked for you that you haven't opened yet",
+      "connectionCards": "New cards from people you're connected with",
+      "connectionCardsHint": "When someone you're connected with publishes a public card under their pen name",
+      "permissionDenied": "Notifications for Resonance are off in your device settings. Turn them on there first.",
+      "openSettings": "Open Settings",
+      "saveError": "Couldn't save that — try again"
     },
     "language": {
       "ui": "UI language",
@@ -694,6 +700,7 @@
     "offline": "You're offline. What you've already opened is still here.",
     "tabFeed": "Feed",
     "refresh": "Refresh",
-    "close": "Close"
+    "close": "Close",
+    "channelNewCards": "New cards"
   }
 }

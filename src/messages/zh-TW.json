@@ -93,7 +93,10 @@
       "message": "{handle} 傳了一則訊息給你",
       "messageCard": "分享了一張卡片",
       "unread": "未讀",
-      "inviteExpired": "一則邀請已過期"
+      "inviteExpired": "一則邀請已過期",
+      "pickTitle": "今晚的一張卡片",
+      "pickBody": "一張可能與你共振的卡片",
+      "newCard": "{handle} 寫了一張新卡片"
     },
     "signOutConfirm": {
       "title": "確定要登出嗎？",
@@ -300,7 +303,7 @@
     "title": "寫一張新卡片",
     "editTitle": "編輯草稿",
     "editPublishedTitle": "編輯已發布的卡片",
-    "closeEditor": "關閉編輯區",
+    "closeEditor": "收起編輯區",
     "leaveTitle": "要先離開嗎？",
     "leaveBody": "寫下的內容已經存成草稿，之後可以在「我的卡片盒」接著寫",
     "leaveBodyRevision": "你的修改已經存起來了，還沒套用到已發布的卡片",
@@ -601,10 +604,13 @@
       "manageBlocks": "管理封鎖名單"
     },
     "notifications": {
-      "resonance": "共振摘要(每日)",
-      "connection": "連結邀請",
-      "dm": "私訊",
-      "translation": "翻譯完成"
+      "picks": "每晚一張推薦卡片",
+      "picksHint": "每週最多三次，晚上八點左右，送一張為你挑選、你還沒打開過的卡片",
+      "connectionCards": "有連結的人發表新卡片",
+      "connectionCardsHint": "和你有連結的人用筆名公開發表新卡片時通知你",
+      "permissionDenied": "Resonance 的通知在系統設定裡關閉了，請先到系統設定開啟",
+      "openSettings": "打開系統設定",
+      "saveError": "沒有存好，再試一次"
     },
     "language": {
       "ui": "介面語言",
@@ -694,6 +700,7 @@
     "offline": "目前離線，已經打開過的內容還在",
     "tabFeed": "共振 Feed",
     "refresh": "重新整理",
-    "close": "關閉"
+    "close": "關閉",
+    "channelNewCards": "新卡片"
   }
 }
