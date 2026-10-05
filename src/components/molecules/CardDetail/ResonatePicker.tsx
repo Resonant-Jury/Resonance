@@ -27,17 +27,20 @@ const TILE = 48;
  * public ones not answering a card already (one card answers one card),
  * never the target itself nor the card the target answers (it would answer
  * its own answer). `hidden` counts the public cards left out for answering
- * another card — the picker says why they are missing.
+ * another card — the picker says why they are missing; `open` all the public
+ * cards there are to choose from, left out or not — none at all is when the
+ * viewer has "no public cards yet".
  */
 export function resonateChoices(
   cards: Card[],
   targetId: string,
   targetReferenceId?: string,
-): { cards: Card[]; hidden: number } {
+): { cards: Card[]; hidden: number; open: number } {
   const open = cards.filter((c) => c.visibility === 'public' && !!c.publishedAt && c.id !== targetId);
   return {
     cards: open.filter((c) => !c.referenceCardId && c.id !== targetReferenceId),
     hidden: open.filter((c) => c.referenceCardId && c.referenceCardId !== targetId).length,
+    open: open.length,
   };
 }
 
@@ -155,7 +158,9 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
         anonymousLabel={t('anonymous')}
         empty={
           loaded ? (
-            t('empty')
+            // Public cards there are, only none may answer this one: never "no public cards yet". Why
+            // they are missing, when it is that they answer another card; else the first row is the way.
+            loaded.open === 0 ? t('empty') : loaded.hidden > 0 ? t('hiddenNote') : undefined
           ) : readError ? (
             <div className={styles.readFailed} role="alert">
               <span>{tNative('loadError')}</span>
@@ -167,7 +172,7 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
             <PickSkeleton />
           )
         }
-        footnote={loaded && loaded.hidden > 0 ? t('hiddenNote') : undefined}
+        footnote={loaded && loaded.cards.length > 0 && loaded.hidden > 0 ? t('hiddenNote') : undefined}
       />
 
       {failure && (

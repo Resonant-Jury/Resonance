@@ -197,6 +197,28 @@ describe('ResonatePicker', () => {
     expect(screen.getByRole('button', { name: 'Resonate' })).toBeDisabled();
   });
 
+  // Their public cards are there, only none may answer this one: never "no public cards yet".
+  it('says why none is listed when every public card answers another, once', async () => {
+    mockShelf.mockResolvedValue([card('answering', { referenceCardId: 'someone-elses' })]);
+    renderPicker();
+    expect(await screen.findByText("Cards already resonating with another card aren't listed.")).toBeInTheDocument();
+    expect(screen.getAllByText("Cards already resonating with another card aren't listed.")).toHaveLength(1);
+    expect(screen.queryByText('You have no public cards yet — write your first one above.')).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.getByRole('button', { name: /Write a new card/ })).toBeInTheDocument();
+  });
+
+  it('says nothing false when the only public card is the one this card answers', async () => {
+    mockShelf.mockResolvedValue([card('origin')]);
+    renderPicker();
+    // Read: the list is there, with nothing in it.
+    const choices = await screen.findByRole('radiogroup', { name: "Or pick one you've written" });
+    expect(within(choices).queryByRole('radio')).toBeNull();
+    expect(screen.queryByText('You have no public cards yet — write your first one above.')).toBeNull();
+    expect(screen.queryByText("Cards already resonating with another card aren't listed.")).toBeNull();
+    expect(screen.getByRole('button', { name: /Write a new card/ })).toBeInTheDocument();
+  });
+
   it('closes through its plain-text cancel', async () => {
     const { onClose } = renderPicker();
     const cancel = screen.getByRole('button', { name: 'Cancel' });
