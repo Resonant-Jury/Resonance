@@ -44,8 +44,9 @@ export function localDay(d: Date): string {
  * together — the twin of the apps' ThreadRows: consecutive messages from the
  * same sender, less than {@link RUN_GAP_MS} apart on the same day, with no
  * label between them, are one run; a reply opens a run (it leads with the
- * quote it answers) and a message that failed to send ends the run it is in
- * (its "not sent" line sits under it).
+ * quote it answers), so does a note (it leads with the card it was left on),
+ * and a message that failed to send ends the run it is in (its "not sent"
+ * line sits under it).
  *
  * `messages` oldest first, as the thread holds them; `dayOf` names a
  * message's calendar day (the reader's, by default).
@@ -63,8 +64,9 @@ export function threadRows(messages: readonly ChatMessage[], dayOf: (d: Date) =>
       !!before &&
       !day[i] &&
       !time[i] &&
-      // A reply opens with the quote it answers: it starts a run of its own.
+      // A reply opens with the quote it answers, a note with the card it was left on: each starts a run of its own.
       !m.replyTo &&
+      m.kind !== 'note' &&
       before.senderId === m.senderId &&
       before.delivery !== 'failed' &&
       // A message still on its way carries this browser's clock: a few seconds off the server's doesn't unstack it.
