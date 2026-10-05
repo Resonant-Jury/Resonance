@@ -309,7 +309,10 @@ internal enum class TurnOn {
     /** The system's permission first (API 33+, not granted): the switch is saved once it is given. */
     Ask,
 
-    /** Notifications are off in the system settings and the app can't ask: the switch stays off, and the notice says where to turn them on. */
+    /**
+     * Notifications are off in the system settings — the app's, or only the "picks" channel's — and
+     * the app can't ask: the switch stays off, and the notice says where to turn them on.
+     */
     Refused,
 }
 
@@ -331,38 +334,40 @@ internal fun showsPermissionNotice(settings: NotificationSettings?, canNotify: B
  * off until turned on (the web's NotificationsSection). A flip shows at once and is undone, with a
  * line saying so, when it doesn't save. Turning one on while notifications can't show asks for the
  * permission first (API 33+), and saves once it is given; refused — or switched off in the system
- * settings — the switch stays off and a notice leads to the app's notification settings.
+ * settings, the app's or only the "picks" channel these pushes come on ([PushCenter.picksBlock]) —
+ * the switch stays off and a notice leads to the app's notification settings (that channel's, when only it is off).
  */
 @Composable
 private fun NotificationSettings(session: Session) {
     val context = LocalContext.current
     val switches = remember(session.uid) { session.notificationSwitches() }
     val state by switches.state.collectAsStateWithLifecycle()
-    var canNotify by remember { mutableStateOf(PushCenter.canNotify) }
+    var block by remember { mutableStateOf(PushCenter.picksBlock) }
     var refused by rememberSaveable { mutableStateOf(false) }
     // The switch waiting on the permission dialog (by name: it outlives a recreated activity).
     var asking by rememberSaveable { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(switches, attempt) { switches.load() }
 
-    // Allowed at last (the dialog, or the system settings and back): this install registers now, not at the next launch.
-    fun allowed() {
-        refused = false
-        session.pushesAllowed()
+    // What holds these pushes back now. The app's notifications allowed at last (the dialog, or the
+    // system settings and back): this install registers now, not at the next launch.
+    fun update(now: PushCenter.PicksBlock) {
+        if (now != PushCenter.PicksBlock.App && block == PushCenter.PicksBlock.App) session.pushesAllowed()
+        if (now == PushCenter.PicksBlock.None) refused = false
+        block = now
     }
     // Back on screen — from the system settings, say: notifications may show now, or no longer.
     LifecycleResumeEffect(Unit) {
-        val now = PushCenter.canNotify
-        if (now && !canNotify) allowed()
-        canNotify = now
+        update(PushCenter.picksBlock)
         onPauseOrDispose {}
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         val switch = asking?.let { name -> NotificationSwitch.entries.firstOrNull { it.name == name } }
         asking = null
-        canNotify = PushCenter.canNotify
-        if (canNotify) {
-            allowed()
+        // Asked because the app's notifications were off (so a yes registers this install, whatever the channel says).
+        block = PushCenter.PicksBlock.App
+        update(PushCenter.picksBlock)
+        if (block == PushCenter.PicksBlock.None) {
             switch?.let { switches.set(it, true) }
         } else {
             refused = true
@@ -373,20 +378,17 @@ private fun NotificationSettings(session: Session) {
             switches.set(switch, false)
             return
         }
-        when (turnOn(PushCenter.canNotify, PushCenter.canAskPermission)) {
-            TurnOn.Save -> {
-                refused = false
-                switches.set(switch, true)
-            }
+        // Read afresh: the "picks" channel can be turned off from the shade with this screen still resumed.
+        val now = PushCenter.picksBlock
+        update(now)
+        when (turnOn(now == PushCenter.PicksBlock.None, PushCenter.canAskPermission)) {
+            TurnOn.Save -> switches.set(switch, true)
             TurnOn.Ask -> {
                 asking = switch.name
                 PushCenter.permissionAsked()
                 permission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
-            TurnOn.Refused -> {
-                canNotify = false
-                refused = true
-            }
+            TurnOn.Refused -> refused = true
         }
     }
 
@@ -412,11 +414,11 @@ private fun NotificationSettings(session: Session) {
                 }
             }
         }
-        if (showsPermissionNotice(settings, canNotify, refused)) {
+        if (showsPermissionNotice(settings, canNotify = block == PushCenter.PicksBlock.None, refused)) {
             Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 BasicText(L10n.Settings.Notifications.permissionDenied, style = AppFonts.body(14f, lineHeight = 1.55f, color = Tokens.TextMuted))
                 OrganicButton(L10n.Settings.Notifications.openSettings, variant = ButtonVariant.Outline, small = true) {
-                    runCatching { context.startActivity(PushCenter.notificationSettingsIntent(context)) }
+                    runCatching { context.startActivity(PushCenter.notificationSettingsIntent(context, block)) }
                 }
             }
         }

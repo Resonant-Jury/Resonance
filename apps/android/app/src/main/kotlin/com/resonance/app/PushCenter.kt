@@ -105,7 +105,10 @@ object PushCenter {
         manager.createNotificationChannel(NotificationChannel(PICKS_CHANNEL_ID, L10n.Native.channelNewCards, NotificationManager.IMPORTANCE_DEFAULT))
     }
 
-    /** False while the person has switched the app's notifications off (or, on API 33+, not granted the permission yet). */
+    /**
+     * False while the person has switched the app's notifications off (or, on API 33+, not granted
+     * the permission yet). A channel turned off alone doesn't count here: see [picksBlock].
+     */
     val canNotify: Boolean get() = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
     /**
@@ -123,11 +126,55 @@ object PushCenter {
         prefs.edit().putBoolean(ASKED_KEY, true).apply()
     }
 
-    /** The system's notification settings for this app, where a refused permission is turned back on. */
-    fun notificationSettingsIntent(context: Context): Intent =
-        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+    /** What keeps the pushes of Settings → Notifications (tonight's card, connections' new cards) off this phone, if anything. */
+    enum class PicksBlock {
+        /** Nothing: they show. */
+        None,
+
+        /** Every notification of the app is off ([canNotify]: switched off, or the permission not given). */
+        App,
+
+        /** Only their "picks" channel, turned off by itself in the system settings — the rest still show. */
+        Channel,
+    }
+
+    /**
+     * Which [PicksBlock] holds back the pushes of Settings → Notifications: the app's notifications
+     * off, or the "picks" channel's importance set to none ([picksImportance]; null while it isn't there).
+     */
+    internal fun picksBlock(appEnabled: Boolean, picksImportance: Int?): PicksBlock = when {
+        !appEnabled -> PicksBlock.App
+        picksImportance == NotificationManager.IMPORTANCE_NONE -> PicksBlock.Channel
+        else -> PicksBlock.None
+    }
+
+    /**
+     * This phone's [PicksBlock] now. Settings → Notifications reads this, not [canNotify]: a switch
+     * whose channel is off would send pushes nobody sees. (Messages and bells only need [canNotify].)
+     */
+    val picksBlock: PicksBlock
+        get() = picksBlock(
+            canNotify,
+            context.getSystemService(NotificationManager::class.java).getNotificationChannel(PICKS_CHANNEL_ID)?.importance,
+        )
+
+    /** A system settings page: its action, and the channel it opens at (none: the app's own page). */
+    internal data class SettingsPage(val action: String, val channelId: String? = null)
+
+    /** Where [block] is lifted: the "picks" channel's own page when only it is off, else the app's notification settings. */
+    internal fun settingsPage(block: PicksBlock): SettingsPage = when (block) {
+        PicksBlock.Channel -> SettingsPage(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS, PICKS_CHANNEL_ID)
+        PicksBlock.App, PicksBlock.None -> SettingsPage(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+    }
+
+    /** The system's notification settings for this app (or, for [PicksBlock.Channel], the "picks" channel's), where a refused permission is turned back on. */
+    fun notificationSettingsIntent(context: Context, block: PicksBlock = PicksBlock.App): Intent {
+        val page = settingsPage(block)
+        return Intent(page.action)
             .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .apply { page.channelId?.let { putExtra(Settings.EXTRA_CHANNEL_ID, it) } }
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
 
     /** The registration this install last sent (see [PushRegistration]); null once signed out. */
     var lastRegistration: String?
