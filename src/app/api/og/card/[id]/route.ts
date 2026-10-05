@@ -1,4 +1,5 @@
 import { getAdminDb } from '@/lib/db/firestore/admin';
+import { isReservedId } from '@/lib/db/firestore/reservedId';
 import { shareImageFallback, shareImageResponse } from '@/lib/api/shareImage';
 
 export const runtime = 'nodejs';
@@ -13,7 +14,8 @@ const DOC_ID = /^[A-Za-z0-9_-]{1,128}$/;
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!DOC_ID.test(id)) return shareImageFallback();
+  // An id Firestore keeps for itself (`__x__`) would make the read throw: it is no such card.
+  if (!DOC_ID.test(id) || isReservedId(id)) return shareImageFallback();
   const data = (await getAdminDb().doc(`cards/${id}`).get()).data();
   if (!data || data.visibility !== 'public' || data.publishedAt == null) return shareImageFallback();
   const media = data.media as { type?: unknown; url?: unknown } | undefined;

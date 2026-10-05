@@ -17,6 +17,8 @@ vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => db }));
 
 const { GET: view } = await import('@/app/api/cards/view/route');
 const { GET: latest } = await import('@/app/api/cards/latest/route');
+const { GET: cardImage } = await import('@/app/api/og/card/[id]/route');
+const { GET: userImage } = await import('@/app/api/og/user/[id]/route');
 
 beforeAll(() => {
   process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
@@ -119,5 +121,19 @@ describe('GET /api/cards/latest', () => {
   it('refuses a malformed page', async () => {
     expect((await get('?limit=500')).status).toBe(400);
     expect((await get('?cursor=yesterday')).status).toBe(400);
+  });
+});
+
+// The share images behind og:image take an id from the address: one Firestore keeps for itself (`__x__`)
+// throws when read, so it is answered as no such card or person — the platform cover — not a 500.
+describe('GET /api/og/card/{id} and /api/og/user/{id}', () => {
+  it('sends an id Firestore keeps for itself to the platform cover', async () => {
+    for (const res of [
+      await cardImage(new Request('http://localhost/api/og/card/__x__'), { params: Promise.resolve({ id: '__x__' }) }),
+      await userImage(new Request('http://localhost/api/og/user/__x__'), { params: Promise.resolve({ id: '__x__' }) }),
+    ]) {
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe('/og-cover.jpg');
+    }
   });
 });

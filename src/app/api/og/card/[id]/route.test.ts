@@ -133,6 +133,13 @@ describe('GET /api/og/card/{id}', () => {
     expectPlatformCover(await get('a/b'));
     expect(fake.reads).toEqual([]);
   });
+
+  // Firestore refuses to read a document id shaped `__x__` (it keeps them for itself): asked, it would throw — a 500.
+  it('sends an id Firestore keeps for itself to the platform cover without reading it', async () => {
+    expectPlatformCover(await get('__x__'));
+    expectPlatformCover(await get('__name__'));
+    expect(fake.reads).toEqual([]);
+  });
 });
 
 describe('GET /api/og/user/{id}', () => {
@@ -148,5 +155,10 @@ describe('GET /api/og/user/{id}', () => {
   it('sends someone without a photo, or gone, to the platform cover', async () => {
     expectPlatformCover(await user('no-photo'));
     expectPlatformCover(await user('nobody'));
+  });
+
+  it('sends an id Firestore keeps for itself to the platform cover without reading it', async () => {
+    expectPlatformCover(await user('__x__'));
+    expect(fake.reads).toEqual([]);
   });
 });
