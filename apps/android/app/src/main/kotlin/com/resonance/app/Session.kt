@@ -30,6 +30,7 @@ import com.resonance.kit.reading.CardCache
 import com.resonance.kit.reading.CardPageLoader
 import com.resonance.kit.reading.FeedLoader
 import java.time.OffsetDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -468,8 +469,8 @@ class Session(
     private var pushSending: PushRegistration? = null
 
     /**
-     * This install gets the signed-in person's pushes (again whenever the token, the language or
-     * the app's version changes — and once a day; not on every cold start, see [PushRegistration]).
+     * This install gets the signed-in person's pushes (again whenever the token, the language, the
+     * app's version or the time zone changes — and once a day; not on every cold start, see [PushRegistration]).
      */
     suspend fun registerPush() {
         val token = PushCenter.token
@@ -477,12 +478,13 @@ class Session(
         if (_phase.value != Phase.SignedIn || uid == null || token == null || !PushCenter.canNotify) return
         val wanted = PushRegistration(
             PushCenter.installationId, uid, token, Strings.language.tag, BuildConfig.VERSION_NAME, PushCenter.CAPABILITIES.joinToString(","),
+            timeZone = ZoneId.systemDefault().id,
         )
         // Nor twice at once (a new token and a sign-in arrive together; both run on the main thread).
         if (PushRegistration.isFresh(PushCenter.lastRegistration, wanted, System.currentTimeMillis()) || pushSending == wanted) return
         pushSending = wanted
         try {
-            pushApi.register(wanted.installationId, token, Strings.language, wanted.version, PushCenter.CAPABILITIES)
+            pushApi.register(wanted.installationId, token, Strings.language, wanted.version, PushCenter.CAPABILITIES, wanted.timeZone)
             if (this.uid == uid) PushCenter.lastRegistration = wanted.encode(System.currentTimeMillis())
         } catch (e: CancellationException) {
             throw e

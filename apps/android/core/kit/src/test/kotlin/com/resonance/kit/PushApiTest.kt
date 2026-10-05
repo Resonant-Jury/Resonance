@@ -6,6 +6,7 @@ import com.resonance.kit.api.PushApi
 import com.resonance.kit.l10n.Strings
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -16,6 +17,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 /** The push registration speaks the contract: the install id in the path, 204 back. */
 class PushApiTest {
@@ -44,6 +46,21 @@ class PushApiTest {
         api().register("3F2A-install", "fcm-token", Strings.Language.En, "2.0.0", capabilities = listOf("chat-push"))
         val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
         assertEquals(listOf("chat-push"), sent["capabilities"]!!.jsonArray.map { it.jsonPrimitive.content })
+    }
+
+    @Test fun registersTheDevicesTimeZone() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(204))
+        api().register("3F2A-install", "fcm-token", Strings.Language.ZhTW, "2.0.0", listOf("chat-push"), timeZone = "Asia/Taipei")
+        val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("Asia/Taipei", sent["timeZone"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun aTimeZoneTheContractWouldRefuseGoesAsNone() = runBlocking {
+        // Longer than the contract's 64 would have the whole registration refused (400).
+        server.enqueue(MockResponse().setResponseCode(204))
+        api().register("3F2A-install", "fcm-token", Strings.Language.En, "2.0.0", timeZone = "X".repeat(65))
+        val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertTrue(sent["timeZone"] == null || sent["timeZone"] == JsonNull)
     }
 
     @Test fun unregistersOnSignOutWithTheTokenItHolds() = runBlocking {
