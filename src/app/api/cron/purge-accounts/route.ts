@@ -4,6 +4,7 @@ import { getAdminDb } from '@/lib/db/firestore/admin';
 import { getStorageProvider } from '@/lib/storage';
 import { purgeDueAccounts } from '@/lib/account/deletion';
 import { revalidateLocalized } from '@/lib/api/revalidate';
+import { cronAuthorized } from '@/lib/api/cronAuth';
 
 export const maxDuration = 300;
 
@@ -20,10 +21,7 @@ const PURGE_BUDGET_MS = (maxDuration - 30) * 1000;
  * other caller is refused, and so is every caller when the secret is unset.
  */
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!cronAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const run = await purgeDueAccounts(
     {

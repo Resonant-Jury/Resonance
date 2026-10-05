@@ -338,6 +338,24 @@ export function buildOpenApi(): Json {
           responses: { '201': { description: 'Created', ...json(ref('SendMessageResponse')) }, ...errors(400, 401, 403, 404) },
         },
       },
+      '/me/notifications': {
+        get: {
+          operationId: 'getNotificationSettings',
+          summary: 'Which pushes beyond the ones answering you this account asked for',
+          description: 'Both switches are off until turned on (an account that never set them reads both off).',
+          responses: { '200': { description: 'OK', ...json(ref('NotificationSettings')) }, ...errors(401) },
+        },
+        patch: {
+          operationId: 'updateNotificationSettings',
+          summary: 'Turn "a card for tonight" or "new cards from your connections" on or off',
+          description:
+            'Only the switches sent change (`null` or absent leaves one as it is); turning one on records when. ' +
+            'Answers the settings as they are now. Ask for the OS permission before turning one on: the server ' +
+            'cannot tell whether this install may show notifications.',
+          requestBody: { required: true, ...json(ref('UpdateNotificationSettingsRequest')) },
+          responses: { '200': { description: 'OK', ...json(ref('NotificationSettings')) }, ...errors(400, 401) },
+        },
+      },
       '/me/devices/{installationId}': {
         put: {
           operationId: 'registerDevice',

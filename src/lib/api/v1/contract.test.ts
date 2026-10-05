@@ -197,3 +197,24 @@ describe('signing requests in (every route shares this)', () => {
     expect(await res.json()).toEqual({ error: { code: 'internal', message: expect.any(String) } });
   });
 });
+
+describe('round-4 request shapes', () => {
+  it("takes a device's time zone as an optional short string — the server decides whether it knows it", async () => {
+    const { RegisterDeviceRequest } = await import('./schemas');
+    const base = { token: 't', platform: 'android' };
+    expect(RegisterDeviceRequest.safeParse({ ...base, timeZone: 'Asia/Taipei' }).success).toBe(true);
+    // Kotlin sends null; an older build sends nothing; a zone the server can't place is still a registration.
+    expect(RegisterDeviceRequest.safeParse({ ...base, timeZone: null }).success).toBe(true);
+    expect(RegisterDeviceRequest.safeParse(base).success).toBe(true);
+    expect(RegisterDeviceRequest.safeParse({ ...base, timeZone: 'GMT+08:00' }).success).toBe(true);
+    expect(RegisterDeviceRequest.safeParse({ ...base, timeZone: 'x'.repeat(65) }).success).toBe(false);
+    expect(RegisterDeviceRequest.safeParse({ ...base, timeZone: 8 }).success).toBe(false);
+  });
+
+  it('takes each notification switch as a boolean, null or nothing', async () => {
+    const { UpdateNotificationSettingsRequest } = await import('./schemas');
+    expect(UpdateNotificationSettingsRequest.parse({ picks: true, connectionCards: null })).toEqual({ picks: true, connectionCards: null });
+    expect(UpdateNotificationSettingsRequest.parse({})).toEqual({});
+    expect(UpdateNotificationSettingsRequest.safeParse({ picks: 'on' }).success).toBe(false);
+  });
+});

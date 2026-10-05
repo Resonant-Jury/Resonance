@@ -1019,6 +1019,26 @@ describe('server-only records', () => {
     await assertFails(setDoc(doc(as('alice'), 'config', 'storage'), { host: 'tracker.example' }));
   });
 
+  // A person's push switches (and when they agreed), and what was pushed to
+  // them: the server's alone, the person's own included — the switches change
+  // through PATCH /api/v1/me/notifications only.
+  it("push switches and push logs are the server's alone, their owner's too", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'notificationSettings', 'alice'), { picks: true, connectionCards: false, picksConsentAt: null });
+      await setDoc(doc(db, 'pickPushes', 'alice'), { recent: [{ cardId: 'c1' }], sentAt: [] });
+      await setDoc(doc(db, 'connectionCardPushes', 'alice'), { day: '2026-10-05', cards: ['c1'] });
+    });
+    for (const name of ['notificationSettings', 'pickPushes', 'connectionCardPushes']) {
+      for (const uid of ['alice', 'bob']) {
+        await assertFails(getDoc(doc(as(uid), name, 'alice')));
+        await assertFails(setDoc(doc(as(uid), name, 'alice'), { picks: true, cards: [] }));
+        await assertFails(deleteDoc(doc(as(uid), name, 'alice')));
+      }
+      await assertFails(setDoc(doc(as('alice'), name, 'carol-new'), { picks: true }));
+      await assertFails(getDocs(collection(as('alice'), name)));
+    }
+  });
+
   // Why two people are connected names which card of whose made it — a
   // resonance its writer may have made anonymous since. Neither of them reads it.
   it("why two people are connected is the server's alone, theirs included", async () => {

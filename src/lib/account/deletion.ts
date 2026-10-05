@@ -123,6 +123,10 @@ async function collectAccountData(db: Firestore, uid: string) {
     db.collection('thoughtMaps').doc(uid),
     db.collection('userProfiles').doc(uid),
     db.collection('recommendations').doc(uid),
+    // Push switches and what was pushed (lib/push/settings, picks, connectionCards).
+    db.collection('notificationSettings').doc(uid),
+    db.collection('pickPushes').doc(uid),
+    db.collection('connectionCardPushes').doc(uid),
     db.collection('users').doc(uid), // profile + bookmarks + blocks
   ];
 
