@@ -805,6 +805,56 @@ describe('a letter: notes between two people who aren’t connected', () => {
     expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
   });
 
+  // No composer, nothing to reply in: Reply is offered neither beside a message nor in its long-press menu.
+  it('offers no Reply while the thread has no composer', async () => {
+    vi.mocked(isConnected).mockResolvedValue(false);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = [text('m1', 'from before', { sentAt: new Date('2026-03-01T09:00:00Z') }), ...notes];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const { container } = renderWithIntl(thread());
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'More options' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument();
+
+    const held = container.querySelector<HTMLElement>('[data-message-id="m1"] div[class*="message"]')!;
+    fireEvent.pointerDown(held, { pointerType: 'touch', button: 0, clientX: 40, clientY: 40 });
+    const menu = await screen.findByRole('dialog', {}, { timeout: 1500 });
+    fireEvent.pointerUp(held, { pointerType: 'touch', button: 0 });
+    expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Copy']);
+  });
+
+  // A reply picked while connected doesn't wait for the composer to come back: the connection ending put it away.
+  it('lets go of a reply picked before the composer gave way', async () => {
+    vi.mocked(isConnected).mockResolvedValue(true);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = [text('m1', 'from before', { sentAt: new Date('2026-03-01T09:00:00Z') }), ...notes];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    let refreshed: () => void = () => {};
+    function TakeBack() {
+      const refresh = useConnectionRefresh();
+      refreshed = () => refresh();
+      return null;
+    }
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <ThreadView handle="alice" />
+        <TakeBack />
+      </SWRConfig>,
+    );
+    await screen.findByRole('textbox', { name: 'Conversation with alice' });
+    await user.click(screen.getAllByRole('button', { name: 'Reply' })[0]);
+    expect(screen.getByText('Replying to alice')).toBeInTheDocument();
+
+    vi.mocked(isConnected).mockResolvedValue(false);
+    act(() => refreshed());
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    vi.mocked(isConnected).mockResolvedValue(true);
+    act(() => refreshed());
+    expect(await screen.findByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
+    expect(screen.queryByText('Replying to alice')).not.toBeInTheDocument();
+  });
+
   it('keeps the messages of a conversation that no longer connects them, with the way to their profile', async () => {
     vi.mocked(isConnected).mockResolvedValue(false);
     server.messages = [text('m1', 'from before')];

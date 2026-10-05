@@ -24,7 +24,7 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { useCardSummaries, useMyBlockedIds } from '@/lib/data/hooks';
 import { OLDER_PAGE, useChatThread } from '@/lib/data/thread';
 import { resonanceCardKey, threadCardKeys } from '@/lib/chat/cardLink';
-import { threadFoot } from '@/lib/chat/foot';
+import { footComposes, threadFoot } from '@/lib/chat/foot';
 import { threadRows } from '@/lib/chat/rows';
 import type { TextRange } from '@/lib/chat/search';
 import { getUserByHandle, isConnected } from '@/lib/db/firestore/client/reads';
@@ -124,6 +124,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   // What the foot offers: whose turn it is between two people who aren't connected (the one who left notes —
   // a letter — waits for the other, whose answer connects them), and nothing across the viewer's block.
   const foot = threadFoot(connected, blockedOther, convo?.request?.from, user?.id, other?.id);
+  // A composer to write in, and so a message to reply to.
+  const composes = footComposes(foot);
 
   // Listen only once the conversation doc exists — the messages read rule
   // get()s the parent doc, so listening earlier would just error. The first
@@ -430,12 +432,19 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   );
 
   // What every message can ask of the thread — the same functions for as long as the conversation is open.
-  const live = useRef({ thread, router, holdOlder });
-  live.current = { thread, router, holdOlder };
+  const live = useRef({ thread, router, holdOlder, composes });
+  live.current = { thread, router, holdOlder, composes };
+  // A reply picked while there was a composer never comes back with the next one: the foot gave way meanwhile.
+  useEffect(() => {
+    if (!composes) thread.cancelReply();
+    // Only as the composer goes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composes]);
   const actions = useMemo<ThreadActions>(
     () => ({
       viewerId: user?.id ?? '',
       otherHandle: other?.handle ?? '',
+      canWrite: composes,
       openLink: (link, e) => {
         // An address easy to mistake for another asks first, however it was opened.
         if (link.suspicious) {
@@ -454,6 +463,8 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
         }
       },
       reply: (message) => {
+        // Nothing to reply in without a composer (a letter waiting for its answer, not connected).
+        if (!live.current.composes) return;
         live.current.thread.reply(message);
         inputRef.current?.focus();
       },
@@ -483,7 +494,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
       },
       press: setPressed,
     }),
-    [user?.id, other?.handle],
+    [user?.id, other?.handle, composes],
   );
 
   // The note the thread was opened for: once the conversation's first messages are in (older ones read for it

@@ -56,7 +56,7 @@ export function MessageMenuOverlay({ pressed, own, fullTime, onClose }: MessageM
       retry: t('retry'),
       discard: t('discardFailed'),
     },
-    true,
+    actions.canWrite,
   );
 
   // The browser's bars dim with the window, as under a modal.

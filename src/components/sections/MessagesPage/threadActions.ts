@@ -26,6 +26,8 @@ export interface PressedMessage {
 export interface ThreadActions {
   viewerId: string;
   otherHandle: string;
+  /** The thread has a composer (not a letter waiting for its answer, nor "not connected"): Reply is offered. */
+  canWrite: boolean;
   /**
    * Follows a link by the thread's rules: a card of ours opens here; an
    * address easy to mistake for another (an IP, a punycode name) asks first;

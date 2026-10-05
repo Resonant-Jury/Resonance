@@ -215,7 +215,7 @@ export const MessageRow = memo(function MessageRow({
 
   const aside = (
     <span className={styles.actions} data-own={own || undefined} data-open={menuOpen || undefined}>
-      {canReply(m) && (
+      {actions.canWrite && canReply(m) && (
         <BareIconButton icon="reply" label={t('reply')} iconSize={18} seed={seedFromId(m.key, 29)} onClick={() => actions.reply(m)} />
       )}
       {items.length > 0 && (

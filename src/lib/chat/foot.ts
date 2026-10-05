@@ -40,3 +40,6 @@ export function threadFoot(
   if (connected === undefined) return 'composer';
   return 'closed';
 }
+
+/** Whether there is a composer to write in — and so a message to reply to. */
+export const footComposes = (foot: ThreadFoot) => foot === 'composer' || foot === 'answer';
