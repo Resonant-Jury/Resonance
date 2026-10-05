@@ -33,6 +33,9 @@ import kotlin.time.Duration.Companion.seconds
  * With a [FeedStore] for the reader, a first read starts from the feed as it
  * was last read (on a cold start too) instead of the skeleton, and keeps what
  * each read brings for the next time.
+ *
+ * A pull ([reload]) that brings nothing back — neither list — keeps the feed on
+ * screen and says why ([State.refreshFailure]) until the next answer.
  */
 class FeedLoader(
     private val api: ReadingApi,
@@ -55,9 +58,15 @@ class FeedLoader(
         /** Picks that arrived after the latest cards were shown: the hint offers them. */
         val waitingPicks: List<FeedCard> = emptyList(),
         val loadingMore: Boolean = false,
+        /** The last pull brought nothing back (and why): the feed on screen stayed as it was. Gone with the next answer. */
+        val refreshFailure: RefreshFailure? = null,
         internal val latestSettled: Boolean = false,
         internal val latestFailed: Boolean = false,
+        /** Why the latest cards' last read failed. */
+        internal val latestFailure: RefreshFailure? = null,
         internal val picksSettled: Boolean = false,
+        /** The picks' last read (its first try) failed. */
+        internal val picksFailed: Boolean = false,
     ) {
         /** With no picks there is nothing to hold back: the latest cards show at once. */
         val latestVisible: Boolean get() = recommended.isEmpty() || showLatest
@@ -130,12 +139,19 @@ class FeedLoader(
     /**
      * Reads the feed again now, asked for by hand (a pull): what is on screen stays until the new
      * lists arrive. Returns once both have answered or failed — picks asked for again a little
-     * later don't hold it — or after [limit] at most.
+     * later don't hold it — or after [limit] at most: with why, when neither came back while the
+     * feed showed cards (it stays, and [State.refreshFailure] says so); null otherwise — with
+     * nothing on screen, a failure is the page's own.
      */
-    suspend fun reload(now: Long = System.currentTimeMillis(), limit: Duration = RELOAD_LIMIT) {
+    suspend fun reload(now: Long = System.currentTimeMillis(), limit: Duration = RELOAD_LIMIT): RefreshFailure? {
         loadedAt = now
+        val showing = _state.value.let { it.phase == Phase.Loaded && it.cards.isNotEmpty() }
         load()
-        withTimeoutOrNull(limit) { _state.first { it.latestSettled && it.picksSettled } }
+        val settled = withTimeoutOrNull(limit) { _state.first { it.latestSettled && it.picksSettled } } ?: return null
+        if (!showing || !settled.latestFailed || !settled.picksFailed) return null
+        val failure = settled.latestFailure ?: RefreshFailure.Failed
+        _state.update { it.copy(refreshFailure = failure) }
+        return failure
     }
 
     /** A new reader's first read: the feed as they last saw it shows while it goes. */
@@ -163,7 +179,7 @@ class FeedLoader(
     }
 
     private fun reading() = _state.update { s ->
-        if (s.phase == Phase.Loaded) s.copy(latestSettled = false, latestFailed = false, picksSettled = false)
+        if (s.phase == Phase.Loaded) s.copy(latestSettled = false, latestFailed = false, latestFailure = null, picksSettled = false, picksFailed = false)
         else State()
     }
 
@@ -171,11 +187,13 @@ class FeedLoader(
         val keep = store
         coroutineScope {
             launch {
+                var failure: RefreshFailure? = null
                 val page = try {
                     api.feed()
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    failure = RefreshFailure.of(e)
                     null
                 }
                 // Picks answering a moment later still lead: a first read waits that moment for them (never longer).
@@ -183,20 +201,24 @@ class FeedLoader(
                     withTimeoutOrNull(picksGrace) { _state.first { it.picksSettled } }
                 }
                 _state.update { s ->
-                    if (page == null) s.copy(latestSettled = true, latestFailed = true).settled()
-                    else s.copy(latest = page.cards, next = page.next, latestSettled = true, latestFailed = false).settled()
+                    if (page == null) s.copy(latestSettled = true, latestFailed = true, latestFailure = failure).settled()
+                    else s.copy(latest = page.cards, next = page.next, latestSettled = true, latestFailed = false, refreshFailure = null).settled()
                 }
                 if (page != null) keep?.let { runCatching { it.saveLatest(page) } }
             }
             launch {
                 val picks = picks()
-                _state.update { s -> s.withPicks(picks.orEmpty()).copy(picksSettled = true).settled() }
+                _state.update { s ->
+                    // Picks that came are an answer: whatever a pull failed to bring before is behind it.
+                    val answered = if (picks == null) s.copy(picksFailed = true) else s.copy(picksFailed = false, refreshFailure = null)
+                    answered.withPicks(picks.orEmpty()).copy(picksSettled = true).settled()
+                }
                 if (picks != null) keep?.let { runCatching { it.savePicks(picks) } }
                 if (picks == null) {
                     delay(retryPicksAfter)
                     val again = picks() ?: return@launch
                     if (run == generation) {
-                        _state.update { s -> s.withPicks(again).settled() }
+                        _state.update { s -> s.withPicks(again).copy(refreshFailure = null).settled() }
                         keep?.let { runCatching { it.savePicks(again) } }
                     }
                 }
@@ -234,7 +256,7 @@ class FeedLoader(
             _state.update { st ->
                 if (page == null) return@update st.copy(loadingMore = false)
                 val known = st.latest.map { it.id }.toSet()
-                st.copy(latest = st.latest + page.cards.filter { it.id !in known }, next = page.next, loadingMore = false)
+                st.copy(latest = st.latest + page.cards.filter { it.id !in known }, next = page.next, loadingMore = false, refreshFailure = null)
             }
         }
     }
