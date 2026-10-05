@@ -27,10 +27,11 @@ public enum StoryLinks {
     /// Standard's `href` (`new URL(…).href`) of what the link rules take — or nil when the rules
     /// take no link there (`ChatLinks.parse`). Written as a browser writes it, not as Foundation
     /// does: scheme and host in lower case, a host written in other letters in punycode (an
-    /// explicit link's: the rules find no bare one), the default port dropped, `.` and `..`
-    /// segments resolved (`%2e` too), an empty path `/`, and each part percent-encoded with the
-    /// Standard's own set — `'` in the query (`?q=what%27s`) but `{ } | [ ]` left as written there,
-    /// `{ } ^` and the backtick in the path; an escape already written is kept as it is.
+    /// explicit link's: the rules find no bare one), the default port dropped (80 on https, or 443
+    /// on http, kept as the server keeps it), `.` and `..` segments resolved (`%2e` too), an empty
+    /// path `/`, and each part percent-encoded with the Standard's own set — `'` in the query
+    /// (`?q=what%27s`) but `{ } | [ ]` left as written there, `{ } ^` and the backtick in the path;
+    /// an escape already written is kept as it is.
     public static func serverKey(_ written: String) -> String? {
         var raw = written.lowercased().hasPrefix("www.") ? "https://" + written : written
         guard let schemeEnd = raw.range(of: "://") else { return nil }
@@ -44,6 +45,19 @@ public enum StoryLinks {
                 .host(percentEncoded: false), ascii.unicodeScalars.allSatisfy(\.isASCII) else { return nil }
             raw.replaceSubrange(authority.startIndex..<authority.endIndex, with: ascii + port)
         }
+        // The server follows 80 and 443 on either scheme and keeps the one that isn't the scheme's own
+        // (`https://host:80/`); the chat's rules take a scheme's own port only, so it is set aside for them.
+        var keptPort = ""
+        let hostStart = raw.range(of: "://")!.upperBound
+        let hostEnd = raw[hostStart...].firstIndex { "/?#".contains($0) } ?? raw.endIndex
+        if let colon = raw[hostStart..<hostEnd].lastIndex(of: ":"), raw[..<colon].last != "]" {
+            let port = raw[raw.index(after: colon)..<hostEnd]
+            let own = raw.lowercased().hasPrefix("https:") ? "443" : "80"
+            if port != own, port == "80" || port == "443" {
+                keptPort = ":" + port
+                raw.removeSubrange(colon..<hostEnd)
+            }
+        }
         guard let parsed = ChatLinks.parse(raw), let scheme = parsed.url.scheme?.lowercased() else { return nil }
         // What follows the host, as written: the path up to `?` or `#`, the query up to `#`, the fragment.
         let rest = raw[raw.range(of: "://")!.upperBound...].drop { !"/?#".contains($0) }
@@ -51,7 +65,7 @@ public enum StoryLinks {
         let beforeHash = rest[..<(hash ?? rest.endIndex)]
         let question = beforeHash.firstIndex(of: "?")
         let path = beforeHash[..<(question ?? beforeHash.endIndex)]
-        var key = "\(scheme)://\(parsed.host)\(Self.path(String(path)))"
+        var key = "\(scheme)://\(parsed.host)\(keptPort)\(Self.path(String(path)))"
         if let question { key += "?" + Self.encode(beforeHash[beforeHash.index(after: question)...], keeping: Self.queryKept) }
         if let hash { key += "#" + Self.encode(rest[rest.index(after: hash)...], keeping: Self.fragmentKept) }
         return key.utf16.count <= ChatLinks.maxLength ? key : nil
@@ -99,13 +113,20 @@ public enum StoryLinks {
     public static func previews(_ sent: [Components.Schemas.LinkPreview]?, origin: URL) -> [String: LinkPreview] {
         var out: [String: LinkPreview] = [:]
         for item in sent ?? [] {
-            guard let link = ChatLinks.parse(item.url), let key = serverKey(item.url), out[key] == nil,
+            guard let key = serverKey(item.url), out[key] == nil, let link = ChatLinks.parse(item.url) ?? opened(key),
                   let title = trimmed(item.title) else { continue }
             out[key] = LinkPreview(link: link, title: title, description: trimmed(item.description),
                                                        siteName: trimmed(item.siteName),
                                                        imageURL: ChatMessage.imageURL(item.image, origin: origin))
         }
         return out
+    }
+
+    /// What a key the rules took opens, when the chat's own reading of it refuses its port (80 on
+    /// https, 443 on http, which the server follows).
+    private static func opened(_ key: String) -> ChatLinks.Parsed? {
+        guard let url = URL(string: key), let host = url.host(percentEncoded: true) else { return nil }
+        return ChatLinks.Parsed(url: url, host: host, suspicious: ChatLinks.isSuspicious(host: host))
     }
 
     private static func trimmed(_ value: String?) -> String? {

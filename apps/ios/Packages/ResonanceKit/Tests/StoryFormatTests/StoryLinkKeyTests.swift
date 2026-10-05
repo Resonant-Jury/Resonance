@@ -32,6 +32,11 @@ import Testing
         // Scheme, host and port.
         ("HTTPS://Example.COM/Path", "https://example.com/Path"),
         ("https://EXAMPLE.com:443/x", "https://example.com/x"),
+        ("http://example.com:80/x", "http://example.com/x"),
+        ("https://example.com:/x", "https://example.com/x"),
+        // 80 and 443 the server follows on either scheme, keeping the one that isn't the scheme's own.
+        ("https://example.com:80/x", "https://example.com:80/x"),
+        ("http://example.com:443/x?q=1", "http://example.com:443/x?q=1"),
         ("https://例子.tw/x", "https://xn--fsqu00a.tw/x"),
         ("https://Bücher.de:443/", "https://xn--bcher-kva.de/"),
         ("www.example.org/notes", "https://www.example.org/notes"),
@@ -42,7 +47,8 @@ import Testing
         #expect(StoryLinks.serverKey(key) == key)
     }
 
-    @Test(arguments: ["http://localhost:3000/x", "https://user@example.com/", "https://example.com:8443/", "ftp://example.com/file",
+    @Test(arguments: ["http://localhost:3000/x", "https://user@example.com/", "https://example.com:8443/", "http://example.com:8080/",
+                      "ftp://example.com/file",
                       "https://127.1/x", "https://例子@example.com/", "https://"])
     func whatTheRulesRefuseHasNoKey(_ written: String) {
         #expect(StoryLinks.serverKey(written) == nil)
