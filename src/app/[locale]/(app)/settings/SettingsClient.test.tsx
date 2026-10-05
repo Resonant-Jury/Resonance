@@ -221,9 +221,12 @@ describe('SettingsClient account deletion', () => {
     renderWithIntl(<SettingsClient initial={initial} />);
 
     await u.click(screen.getByRole('tab', { name: 'Delete account' }));
-    // A quiet text action beside the delete verb: the section is the frame.
+    // Two filled pills side by side: the backup in the secondary tonal face,
+    // and the way into the deletion in its red tint — the dialog it opens
+    // asks with the solid red.
     const download = screen.getByRole('button', { name: 'Download my data' });
     expect(download).toHaveAttribute('data-variant', 'text');
+    expect(screen.getByRole('button', { name: 'Delete account' })).toHaveAttribute('data-variant', 'dangerTonal');
     await u.click(download);
     await waitFor(() => expect(downloadMyData).toHaveBeenCalledTimes(1));
   });

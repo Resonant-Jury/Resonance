@@ -11,29 +11,31 @@ import styles from './OrganicButton.module.css';
 // The button draws nothing until it is measured; give it a box.
 mockElementSize(120, 40);
 
-const FRAMED: OrganicButtonVariant[] = ['primary', 'ghost', 'outline'];
-const FRAMELESS: OrganicButtonVariant[] = ['solid', 'danger', 'ink', 'text', 'textAccent', 'paper'];
+const ALL: OrganicButtonVariant[] = [
+  'primary', 'secondary', 'ghost', 'outline', 'ctaLight', 'ctaGhost', 'secondaryOutline',
+  'solid', 'tonal', 'danger', 'dangerTonal', 'ink', 'text', 'textAccent', 'paper',
+];
 
 function renderVariant(variant: OrganicButtonVariant) {
   render(<OrganicButton variant={variant}>Press me</OrganicButton>);
   return screen.getByRole('button', { name: 'Press me' });
 }
 
-describe('OrganicButton variants', () => {
-  it.each(FRAMED)('%s draws its own pen outline', (variant) => {
-    expect(penLines(renderVariant(variant))).toHaveLength(1);
-  });
+// The face is the first shape drawn (fill only — its stroke is transparent).
+const face = (btn: HTMLElement) => btn.querySelector('svg path')?.getAttribute('fill');
 
-  // One frame per layer: inside a modal / panel / bar / toolbar a control adds
-  // no outline of its own — the container is the frame.
-  it.each(FRAMELESS)('%s draws no pen outline', (variant) => {
+describe('OrganicButton variants', () => {
+  // A button is a filled shape: the pen outline belongs to containers (cards,
+  // modals, panels, bars) and inputs, never to a control — on bare paper or
+  // inside a frame alike.
+  it.each(ALL)('%s draws no pen outline', (variant) => {
     const btn = renderVariant(variant);
     expect(btn).toHaveAttribute('data-variant', variant);
     expect(penLines(btn)).toHaveLength(0);
     expect(btn).toHaveTextContent('Press me');
   });
 
-  it.each(FRAMELESS)('%s keeps the hover ink, spreading from the pointer', (variant) => {
+  it.each(ALL)('%s keeps the hover ink, spreading from the pointer', (variant) => {
     const btn = renderVariant(variant);
     // The wash is a disc grown by transform under the button's outline.
     const ink = () => {
@@ -47,23 +49,52 @@ describe('OrganicButton variants', () => {
     expect(ink()).toBe(0);
   });
 
+  // What says "press me" is the fill, ranked: the verb deep terracotta,
+  // everything beside it the tonal tint, the final destructive confirm solid
+  // red and the button that opens that flow the red tint.
   it.each([
-    ['solid', 'var(--color-terracotta)'],
-    ['danger', 'var(--color-danger, oklch(58% 0.16 25))'],
-    ['ink', 'var(--color-text)'],
-    ['paper', 'var(--color-card-bg)'],
-    ['text', 'transparent'],
-    ['textAccent', 'transparent'],
-  ] as const)('%s wears the %s face', (variant, face) => {
+    ['solid', 'var(--button-fill)', 'var(--color-cream)'],
+    ['tonal', 'var(--button-tonal)', 'var(--button-on-tonal)'],
+    ['danger', 'color-mix(in oklch, var(--color-danger, oklch(58% 0.16 25)), black 8%)', 'var(--color-cream)'],
+    ['dangerTonal', 'var(--button-danger-tonal)', 'var(--button-on-danger-tonal)'],
+    ['ink', 'var(--color-text)', 'var(--color-cream)'],
+    ['paper', 'var(--color-card-bg)', 'var(--color-text)'],
+    ['ctaLight', 'var(--color-cream)', 'var(--button-on-tonal)'],
+    ['ctaGhost', 'color-mix(in oklch, var(--color-terracotta), black 18%)', 'var(--color-cream)'],
+  ] as const)('%s wears the %s face with a %s label', (variant, fill, label) => {
     const btn = renderVariant(variant);
-    // The face is the first shape drawn (fill only — its stroke is transparent).
-    expect(btn.querySelector('svg path')?.getAttribute('fill')).toBe(face);
+    expect(face(btn)).toBe(fill);
+    expect(btn.style.color).toBe(label);
   });
 
-  // With no pen line and the browser's ring switched off, a Tab-focused Cancel
-  // would be invisible. jsdom cannot evaluate :focus-visible, so pin the
-  // stylesheet contract and check the button is reachable by keyboard.
-  it.each(FRAMELESS)('%s is reachable by Tab and rings the focus colour', async (variant) => {
+  // The older names keep working and wear the rank they stood for, so call
+  // sites can move to the rank names at their own pace. Cancel / Close /
+  // Load more (`text`, `textAccent`) were bare words; a word alone did not
+  // read as a button beside a filled verb, so they wear the tonal pill.
+  it.each([
+    ['primary', 'solid'],
+    ['outline', 'tonal'],
+    ['ghost', 'tonal'],
+    ['secondary', 'tonal'],
+    ['secondaryOutline', 'tonal'],
+    ['text', 'tonal'],
+    ['textAccent', 'tonal'],
+  ] as const)('%s wears the %s face', (legacy, rank) => {
+    render(
+      <>
+        <OrganicButton variant={legacy}>Old name</OrganicButton>
+        <OrganicButton variant={rank}>Rank name</OrganicButton>
+      </>,
+    );
+    const legacyBtn = screen.getByRole('button', { name: 'Old name' });
+    const rankBtn = screen.getByRole('button', { name: 'Rank name' });
+    expect([face(legacyBtn), legacyBtn.style.color]).toEqual([face(rankBtn), rankBtn.style.color]);
+  });
+
+  // With no pen line and the browser's ring switched off, a Tab-focused
+  // button would be invisible. jsdom cannot evaluate :focus-visible, so pin
+  // the stylesheet contract and check the button is reachable by keyboard.
+  it.each(ALL)('%s is reachable by Tab and rings the focus colour', async (variant) => {
     const btn = renderVariant(variant);
     await userEvent.tab();
     expect(btn).toHaveFocus();
@@ -72,14 +103,50 @@ describe('OrganicButton variants', () => {
       join(process.cwd(), 'src/components/atoms/OrganicButton/OrganicButton.module.css'),
       'utf8',
     );
-    const [, selectors, body] = css.match(/\.btn:is\(([^)]*)\):focus-visible\s*\{([^}]*)\}/) ?? [];
-    expect(selectors).toContain(`[data-variant='${variant}']`);
+    const [, body] = css.match(/\.btn:focus-visible\s*\{([^}]*)\}/) ?? [];
     expect(body).toMatch(/outline:\s*2px solid var\(--field-border-focus\)/);
     expect(body).toMatch(/outline-offset:/);
   });
 
+  // On the terracotta band a terracotta ring would vanish into it.
+  it('rings the band\'s buttons in cream', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/components/atoms/OrganicButton/OrganicButton.module.css'),
+      'utf8',
+    );
+    const [, selectors, body] = css.match(/\.btn:is\(([^)]*)\):focus-visible\s*\{([^}]*)\}/) ?? [];
+    expect(selectors).toContain("[data-variant='ctaLight']");
+    expect(selectors).toContain("[data-variant='ctaGhost']");
+    expect(body).toMatch(/outline-color:\s*var\(--color-cream\)/);
+  });
+
+  // Every label clears 4.5:1 on its face: the fills are mixes defined once,
+  // beside the palette (a test can't evaluate color-mix; pin the recipe the
+  // contrast was measured on — cream 4.7:1 on the fill, the deep label 4.8:1
+  // on the tint and 6.1:1 on cream, the deep red 5.7:1 on its tint).
+  it('takes its faces from the button tokens', () => {
+    const tokens = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8');
+    expect(tokens).toMatch(/--button-fill:\s*color-mix\(in oklch, var\(--color-terracotta\), black 12%\);/);
+    expect(tokens).toMatch(/--button-tonal:\s*color-mix\(in oklch, var\(--color-terracotta-light\) 75%, var\(--color-cream-dark\)\);/);
+    expect(tokens).toMatch(/--button-on-tonal:\s*color-mix\(in oklch, var\(--color-terracotta\), black 22%\);/);
+    expect(tokens).toMatch(
+      /--button-danger-tonal:\s*color-mix\(in oklch, var\(--color-danger, oklch\(58% 0\.16 25\)\) 20%, oklch\(98% 0\.02 25\)\);/,
+    );
+    expect(tokens).toMatch(
+      /--button-on-danger-tonal:\s*color-mix\(in oklch, var\(--color-danger, oklch\(58% 0\.16 25\)\), black 22%\);/,
+    );
+  });
+
+  // No face is see-through: a button always shows the shape you press.
+  it.each(ALL)('%s has a fill', (variant) => {
+    const btn = renderVariant(variant);
+    expect(face(btn)).toBeTruthy();
+    expect(face(btn)).not.toBe('transparent');
+    expect(btn.style.getPropertyValue('--shape-fill')).not.toBe('transparent');
+  });
+
   // Sign in with Apple asks for a black button: the ink face with a cream
-  // label, as large as its neighbour and, like it, no pen line on the sheet.
+  // label, as large as its neighbour and, like it, no pen line.
   it('ink sets a cream label on the ink colour', () => {
     const btn = renderVariant('ink');
     expect(btn.style.color).toBe('var(--color-cream)');
@@ -146,22 +213,22 @@ describe('block', () => {
 
 // The server's HTML has no measured size, so no drawn shape: a primary's cream
 // label stood on the cream hero, invisible until the scripts ran (or forever
-// without them). Until measured the button is a plain pill of its own fill
-// and pen — `.res-shape-stand-in` in globals.css, which the drawn one replaces.
+// without them). Until measured the button is a plain pill of its own fill —
+// `.res-shape-stand-in` in globals.css, which the drawn one replaces.
 describe('before it is measured', () => {
-  it('stands in as a plain pill of its own fill and pen in the server HTML', () => {
+  it('stands in as a plain pill of its own fill in the server HTML', () => {
     const host = document.createElement('div');
     host.innerHTML = renderToString(<OrganicButton variant="primary">Explore</OrganicButton>);
     const btn = host.querySelector('button')!;
     expect(btn).toHaveAttribute('data-shape-pending');
     expect(btn.classList).toContain('res-shape-stand-in');
-    expect(btn.style.getPropertyValue('--shape-fill')).toBe('var(--color-terracotta)');
-    expect(btn.style.getPropertyValue('--shape-ink')).toContain('var(--color-terracotta)');
+    expect(btn.style.getPropertyValue('--shape-fill')).toBe('var(--button-fill)');
+    // No pen line to stand in for.
+    expect(btn.style.getPropertyValue('--shape-ink')).toBe('');
 
     const css = readFileSync(join(process.cwd(), 'src/styles/globals.css'), 'utf8');
     const [, rule] = css.match(/\.res-shape-stand-in\[data-shape-pending\]\s*\{([^}]*)\}/) ?? [];
     expect(rule).toMatch(/background-color:\s*var\(--shape-fill/);
-    expect(rule).toMatch(/box-shadow:\s*inset 0 0 0 var\(--shape-ink-width[^)]*\) var\(--shape-ink/);
   });
 
   it('drops the stand-in once drawn', () => {

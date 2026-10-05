@@ -160,8 +160,8 @@
 }
 
 /* Close (✕) pinned to the pane's top-right, above its scrolling content. A
-   proper bordered chip (not a bare hover-wash) so it clearly reads as a
-   button. Its right inset matches --page-pad-x — the same margin the Back
+   filled chip (not a bare hover-wash) so it clearly reads as a button — the
+   tonal face every secondary button wears, with no pen line of its own. Its right inset matches --page-pad-x — the same margin the Back
    control keeps on the left — and its top sits on the「編輯草稿」title's line
    (--editor-pad-top), matching the Back button and the map toolbar. */
 .paneClose {
@@ -174,18 +174,21 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border: 1px solid var(--field-border);
+  border: none;
   border-radius: 11px 13px 12px 14px;
-  background: var(--color-cream);
-  color: var(--color-text-muted);
+  background: var(--button-tonal);
+  color: var(--button-on-tonal);
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .paneClose:hover {
-  border-color: var(--field-border-hover);
-  background: var(--color-cream-dark);
-  color: var(--color-text);
+  background: color-mix(in oklch, var(--button-tonal), var(--color-terracotta) 14%);
+}
+
+.paneClose:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 2px;
 }
 
 /* Below the desktop split the open pane simply owns the viewport; the map

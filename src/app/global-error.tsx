@@ -52,9 +52,9 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
               style={{
                 padding: '12px 28px',
                 borderRadius: 16,
-                border: '1.5px solid var(--color-terracotta, #c2643f)',
-                background: 'transparent',
-                color: 'var(--color-terracotta, #c2643f)',
+                border: 'none',
+                background: 'var(--button-fill, #a9552c)',
+                color: 'var(--color-cream, #faf2e9)',
                 font: 'inherit',
                 fontWeight: 600,
                 cursor: 'pointer',

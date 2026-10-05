@@ -201,23 +201,20 @@ export function PublishPanel({
             {tVis('label')}
           </span>
           <div style={{ display: 'flex' }}>
+            {/* A segmented choice: the bar's pen line makes the two one
+                control, the chosen side wears the tonal peach with the deep
+                terracotta label (4.8:1), the other the muted ink (5.1:1 on
+                the bar's paper). */}
             <SegmentedActionBar
               segments={(['public', 'private'] as const).map((v) => {
                 const active = visibility === v;
+                const ink = active ? 'var(--button-on-tonal)' : 'var(--color-text-muted)';
                 return {
                   key: v,
-                  icon: (
-                    <Icon
-                      name={VISIBILITY_ICON[v]}
-                      size={16}
-                      color={active ? 'var(--color-terracotta)' : 'var(--color-text-muted)'}
-                    />
-                  ),
+                  icon: <Icon name={VISIBILITY_ICON[v]} size={16} color={ink} />,
                   label: tVis(v),
-                  fill: active
-                    ? 'color-mix(in oklch, var(--color-terracotta-light) 60%, transparent)'
-                    : 'transparent',
-                  textColor: active ? 'var(--color-terracotta)' : 'var(--color-text-muted)',
+                  fill: active ? 'var(--button-tonal)' : 'transparent',
+                  textColor: ink,
                   hoverOverlay: 'oklch(0% 0 0 / 0.05)',
                   ariaLabel: tVis(v),
                   onClick: () => setVisibility(v),

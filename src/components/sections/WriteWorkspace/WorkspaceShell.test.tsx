@@ -67,9 +67,9 @@ describe('the map behind the editor', () => {
 });
 
 describe('WorkspaceShell', () => {
-  // The Leave control floats over the map: paper to stay legible over the
-  // board, and no pen line of its own.
-  it('leaves through a paper button without a pen outline', async () => {
+  // The Leave control floats over the map: a tonal pill, opaque to stay
+  // legible over the board, and no pen line of its own.
+  it('leaves through a tonal button without a pen outline', async () => {
     renderWithIntl(
       <WorkspaceShell open={false} onClose={vi.fn()}>
         <p>editor</p>
@@ -77,7 +77,7 @@ describe('WorkspaceShell', () => {
     );
 
     const leave = screen.getByRole('button', { name: 'Leave' });
-    expect(leave).toHaveAttribute('data-variant', 'paper');
+    expect(leave).toHaveAttribute('data-variant', 'tonal');
     expect(penLines(leave)).toHaveLength(0);
 
     await userEvent.click(leave);

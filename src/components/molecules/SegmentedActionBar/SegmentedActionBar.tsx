@@ -23,9 +23,11 @@ export interface SegmentSpec {
 export interface SegmentedActionBarProps {
   segments: SegmentSpec[];
   seed?: number;
-  /** Outer container fill / stroke / divider colors. */
+  /** The bar's own face, under every segment that brings no fill of its own. */
   fill?: string;
+  /** The pen line round the bar: its frame is what makes the options one control. */
   stroke?: string;
+  /** The wavy divider between segments, in the same pen as the outline by default. */
   divider?: string;
 }
 
@@ -67,7 +69,12 @@ export const polyline = (pts: [number, number][]) =>
 /**
  * Three (or more) actions fused into one organic bar, split by hand-drawn
  * wavy dividers. Each segment keeps its own fill colour and icon — a compact
- * alternative to a row of separate buttons.
+ * alternative to a row of separate buttons. Unlike a lone button it keeps a
+ * pen line: the frame is what makes its options read as one control (a
+ * segmented control is a group, and an outline marks a group). Inside it the
+ * button tokens hold — the verb's segment in `--button-fill` (the pen's own
+ * colour, so the two read as one drawn shape), every other label in the deep
+ * `--button-on-tonal`, never plain terracotta (3.5:1 on the paper).
  */
 export function SegmentedActionBar({
   segments,
@@ -238,7 +245,7 @@ export function SegmentedActionBar({
           onBlur={() => setHovered((cur) => (cur === i ? null : cur))}
           aria-label={s.ariaLabel}
           className={styles.seg}
-          style={{ color: s.textColor ?? 'var(--color-terracotta)' }}
+          style={{ color: s.textColor ?? 'var(--button-on-tonal)' }}
         >
           {s.icon}
           <span>{s.label}</span>
