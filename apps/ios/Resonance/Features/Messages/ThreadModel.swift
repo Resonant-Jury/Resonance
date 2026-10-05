@@ -256,11 +256,15 @@ final class ThreadModel {
             MainActor.assumeIsolated {
                 guard let self, run == self.listening else { return }
                 if let error { return self.listenerFailed(error, pair: pairId) }
-                guard let snap, snap.exists else { return self.letterChanged(nil) }
+                guard let snap else { return }
+                // Deleted under the thread (a letter withdrawn or declined with it, an account purged): gone, as
+                // when reading it is refused — never a letter answered.
+                let letter = ThreadAccess.letter(exists: snap.exists, snap.data())
+                guard !letter.gone else { return self.conversationGone() }
                 self.conversationExists = true
                 self.refusals = 0
                 self.unreadForMe = ((snap.get("unread") as? [String: Any])?[self.me ?? ""] as? NSNumber)?.intValue ?? 0
-                self.letterChanged(ThreadAccess.requestFrom(snap.data()))
+                self.letterChanged(letter.from)
                 self.markReadIfNeeded()
             }
         })
@@ -299,9 +303,7 @@ final class ThreadModel {
             listenFailed = true
             return
         }
-        conversationExists = false
-        unreadForMe = 0
-        letterChanged(nil, conversationGone: true)
+        conversationGone()
         resetHistory()
         lookForOpenedNote()
         if refusals < 3, session.conversations.conversations.contains(where: { $0.id == pair }) {
@@ -310,20 +312,28 @@ final class ThreadModel {
         }
     }
 
+    /// There is no conversation (any more): reading it is refused (`listenerFailed`), or it was deleted
+    /// under the thread. Whatever letter it held went with it, answered by no one.
+    private func conversationGone() {
+        conversationExists = false
+        unreadForMe = 0
+        letterChanged(nil, conversationGone: true)
+    }
+
     /// The letter waiting here, as the conversation now says. One that is gone while the two weren't
     /// connected was answered (the answer connected them, in the same write) or taken back: who may
     /// write is asked again — and until the answer comes it is not known, so the composer stays (the
     /// one the answer was written in, with its focus and keyboard) rather than "not connected" for
-    /// the length of a request (Android's `noteRequest`). A conversation gone altogether (`listenerFailed`)
-    /// answered nothing: what was known stays while it is asked.
+    /// the length of a request (Android's `noteRequest`). A conversation gone altogether
+    /// (`conversationGone`) answered nothing: what was known stays while it is asked.
     private func letterChanged(_ from: String?, conversationGone: Bool = false) {
         conversationRead = true
         guard from != requestFrom else { return }
         let was = requestFrom
         requestFrom = from
-        let after = ThreadAccess.afterLetter(connected: connected, blocked: isBlocked, was: was, now: from)
+        let after = ThreadAccess.afterLetter(connected: connected, blocked: isBlocked, was: was, now: from, gone: conversationGone)
         guard after.reask else { return }
-        if !conversationGone { connected = after.connected }
+        connected = after.connected
         // Their answer is their write, not ours: a profile kept from a moment ago would still say "not connected".
         session.httpCache.freshness.invalidate()
         Task { await refreshConnection() }

@@ -70,6 +70,21 @@ import Testing
         #expect(ThreadAccess.afterLetter(connected: false, blocked: false, was: nil, now: nil) == (false, false))
     }
 
+    @Test func aConversationDeletedWithItsLetterAnsweredNothing() {
+        // Bob withdraws his letter (or Alice declines it): the conversation is deleted, the letter with it.
+        let snapshot = ThreadAccess.letter(exists: false, nil)
+        #expect(snapshot.gone)
+        #expect(snapshot.from == nil)
+        // Not an answer that connected the two: still not connected — no composer while it is asked again.
+        let after = ThreadAccess.afterLetter(connected: false, blocked: false, was: "bob", now: snapshot.from, gone: snapshot.gone)
+        #expect(after.reask)
+        #expect(after.connected == false)
+        #expect(ThreadAccess.of(connected: after.connected, blocked: false, requestFrom: nil, me: "alice") == .notConnected)
+        // While it is there, the letter it holds (or none).
+        #expect(ThreadAccess.letter(exists: true, ["request": ["from": "bob"]]) == ("bob", false))
+        #expect(ThreadAccess.letter(exists: true, ["unread": ["alice": 1]]) == (nil, false))
+    }
+
     @Test func theLiveConnectionsSpeakOverAKeptProfile() {
         // Connected a moment ago (an answered letter, a resonance): the live list knows before a kept profile does.
         #expect(ThreadAccess.connected(live: ["bob"], other: "bob", profile: false, blocked: false) == true)

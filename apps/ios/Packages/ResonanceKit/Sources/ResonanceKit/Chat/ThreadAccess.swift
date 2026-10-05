@@ -36,10 +36,20 @@ public enum ThreadAccess: Equatable, Sendable {
     /// answer connecting the two in the same write — or taken back: until the connection is asked
     /// again it is not known (nil), so the composer stays where it was (the answer's own, focus and
     /// keyboard with it) instead of a "not connected" the next moment takes back. Across a block
-    /// nothing was answered: it stays false (and is asked again all the same).
-    public static func afterLetter(connected: Bool?, blocked: Bool, was: String?, now: String?) -> (connected: Bool?, reask: Bool) {
+    /// nothing was answered: it stays false (and is asked again all the same). Nor when the
+    /// conversation is `gone` — deleted, the letter with it (withdrawn by its writer, declined, an
+    /// account purged): that answers nothing either.
+    public static func afterLetter(connected: Bool?, blocked: Bool, was: String?, now: String?,
+                                   gone: Bool = false) -> (connected: Bool?, reask: Bool) {
         guard was != nil, now == nil, connected == false else { return (connected, false) }
-        return (blocked ? false : nil, true)
+        return (blocked || gone ? false : nil, true)
+    }
+
+    /// What a snapshot of the conversation document says of its letter: the writer of the one
+    /// waiting (nil: none) while the document is there; `gone` once it isn't — deleted with
+    /// whatever letter it held (withdrawn, declined, an account purged), which answered nothing.
+    public static func letter(exists: Bool, _ conversation: [String: Any]?) -> (from: String?, gone: Bool) {
+        exists ? (requestFrom(conversation), false) : (nil, true)
     }
 
     /// Whether the two are connected: the live list of this account's connections (the listener's;
