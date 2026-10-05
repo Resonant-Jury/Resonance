@@ -6,7 +6,6 @@ import { BrushWash } from '@/components/atoms/BrushWash/BrushWash';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { Icon } from '@/components/atoms/Icon';
 import { seedFromString } from '@/lib/design/prng';
-import { INK_LIGHT } from '@/lib/design/strokes';
 import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
 import { wobRect } from '@/lib/design/wobRect';
 import type { LinkPreview } from '@/lib/db/types';
@@ -20,46 +19,26 @@ const R = 16;
  * the outline's outward swings (a few px at most) still land on picture.
  */
 const BLEED = 8;
-
-/**
- * - `outlined`: the card's light paper inside the pen line, which runs over
- *   the picture's top and side edges too — one frame, the picture flush to it.
- * - `filled`: no pen line; a block of the chat bubble's fill in the same
- *   wobbly outline, the picture running edge to edge across its top.
- */
-export type StoryLinkCardVariant = 'outlined' | 'filled';
-
-/** Each variant's paper, its hover wash and its pen (idle, pointed at), or none. */
-const LOOKS: Record<StoryLinkCardVariant, { fill: string; wash: string; ink: string | null; inkHover: string | null }> = {
-  outlined: {
-    fill: 'var(--color-card-bg)',
-    wash: 'var(--color-cream-dark)',
-    ink: 'var(--field-border)',
-    inkHover: 'var(--field-border-hover)',
-  },
-  filled: {
-    fill: 'var(--bubble-theirs)',
-    wash: 'var(--bubble-quote)',
-    ink: null,
-    inkHover: null,
-  },
-};
+/** The card's fill (the chat's card bubble's) and its hover wash. No pen line: the fill is its edge. */
+const FILL = 'var(--bubble-theirs)';
+const WASH = 'var(--bubble-quote)';
 
 export interface StoryLinkCardProps {
   preview: LinkPreview;
-  variant?: StoryLinkCardVariant;
 }
 
 /**
  * A link standing alone in a story, drawn as what its page says about itself
  * (the server's preview, lib/links/cardLinks): the page's picture when it has
  * one, its title, a line or two of description and the site's host — the
- * story-column sibling of a chat message's link preview.
+ * story-column sibling of a chat message's link preview, in the chat card
+ * bubble's language: a block of light fill in a seeded wobbly outline, with
+ * no pen line around it.
  *
  * The picture runs across the card's top edge to edge, cut by the card's own
- * wobbly outline (the same seeded path as its fill, wash and pen), so the
- * card has one edge, not a frame around a framed picture; its foot meets the
- * words directly.
+ * outline (the same seeded path as its fill and hover wash), so the card has
+ * one edge, not a frame around a framed picture; its foot meets the words
+ * directly. Without a picture: just the fill with the words.
  *
  * The whole card is one link to the address, opened in a new tab without
  * our page as its opener or referrer. Its host is always the real one, in
@@ -68,7 +47,7 @@ export interface StoryLinkCardProps {
  * server fetched it, never this browser), and a picture that fails to load
  * leaves no empty frame behind.
  */
-export function StoryLinkCard({ preview, variant = 'outlined' }: StoryLinkCardProps) {
+export function StoryLinkCard({ preview }: StoryLinkCardProps) {
   const t = useTranslations('card.linkPreview');
   const titleId = useId();
   const ref = useRef<HTMLAnchorElement>(null);
@@ -77,9 +56,8 @@ export function StoryLinkCard({ preview, variant = 'outlined' }: StoryLinkCardPr
   const [hovered, setHovered] = useState(false);
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const seed = seedFromString(preview.url);
-  const look = LOOKS[variant];
 
-  // The card's outline, measured: the fill, the hover wash, the picture's clip and the pen line all follow this one path.
+  // The card's outline, measured: the fill, the hover wash and the picture's clip all follow this one path.
   const shape = useMemo(() => {
     if (!w || !h) return null;
     const outline = { mag: autoMag(w, h), curve: autoCurve(w, h), segmentsH: autoSegments(w), segmentsV: autoSegments(h) };
@@ -100,14 +78,11 @@ export function StoryLinkCard({ preview, variant = 'outlined' }: StoryLinkCardPr
     <a
       ref={ref}
       className={`${styles.card} res-shape-stand-in`}
-      data-variant={variant}
-      // A plain card of the same paper and pen until measured (the server's HTML).
+      // A plain rounded block of the same fill until measured (the server's HTML).
       data-shape-pending={shape ? undefined : ''}
       style={
         {
-          '--shape-fill': look.fill,
-          '--shape-ink': look.ink ?? 'transparent',
-          '--shape-ink-width': look.ink ? `${INK_LIGHT}px` : '0px',
+          '--shape-fill': FILL,
           '--shape-radius': `${R}px`,
           '--picture-bleed': `${BLEED}px`,
         } as CSSProperties
@@ -128,8 +103,8 @@ export function StoryLinkCard({ preview, variant = 'outlined' }: StoryLinkCardPr
     >
       {shape && (
         <>
-          <HandDrawnBorder w={w} h={h} R={R} seed={seed} fillColor={look.fill} chalkSeed={seed + 1} {...shape.outline} />
-          <BrushWash w={w} h={h} d={shape.d} color={look.wash} x={pointer.x} y={pointer.y} on={hovered} duration={460} />
+          <HandDrawnBorder w={w} h={h} R={R} seed={seed} fillColor={FILL} chalkSeed={seed + 1} {...shape.outline} />
+          <BrushWash w={w} h={h} d={shape.d} color={WASH} x={pointer.x} y={pointer.y} on={hovered} duration={460} />
         </>
       )}
       {picture && (
@@ -161,20 +136,6 @@ export function StoryLinkCard({ preview, variant = 'outlined' }: StoryLinkCardPr
           <span className={styles.hostName}>{host}</span>
         </span>
       </span>
-      {shape && look.ink && (
-        // The pen goes over the picture: its line is the picture's edge, not a second frame beside it.
-        <span className={styles.pen} aria-hidden="true">
-          <HandDrawnBorder
-            w={w}
-            h={h}
-            R={R}
-            seed={seed}
-            strokeColor={hovered ? (look.inkHover ?? look.ink) : look.ink}
-            strokeWidth={INK_LIGHT}
-            {...shape.outline}
-          />
-        </span>
-      )}
     </a>
   );
 }

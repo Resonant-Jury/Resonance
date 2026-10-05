@@ -18,8 +18,7 @@ import { ResonanceCards } from '@/components/molecules/CardDetail/ResonanceCards
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { StoryMarkdown } from '@/components/molecules/CardDetail/StoryMarkdown';
 import { CardEmbedSourceContext } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
-import { StoryLinkCardVariantContext, StoryLinkPreviewsContext } from '@/components/molecules/StoryLinkCard/StoryLinkPreviews';
-import type { StoryLinkCardVariant } from '@/components/molecules/StoryLinkCard/StoryLinkCard';
+import { StoryLinkPreviewsContext } from '@/components/molecules/StoryLinkCard/StoryLinkPreviews';
 import { useSWRConfig } from 'swr';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -90,20 +89,6 @@ const subscribeNever = () => () => {};
 const isBrowser = () => true;
 const notBrowser = () => false;
 
-/**
- * PROTOTYPE (link-card look comparison): `?linkcard=filled` (or `outlined`)
- * switches the story's link cards, read from the address after hydration so
- * the server's HTML stays the default. Remove once a look is chosen.
- */
-function useLinkCardVariantParam(): StoryLinkCardVariant | undefined {
-  const [variant, setVariant] = useState<StoryLinkCardVariant | undefined>(undefined);
-  useEffect(() => {
-    const v = new URLSearchParams(window.location.search).get('linkcard');
-    if (v === 'filled' || v === 'outlined') setVariant(v);
-  }, []);
-  return variant;
-}
-
 export interface CardDetailClientProps {
   /** The URL segment: a slug, or a legacy doc id. */
   slug: string;
@@ -139,7 +124,6 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
   // public reads once the card is in hand.
   const lists = useCardPageLists(data?.card?.id ?? seed?.id ?? undefined, data?.card?.referenceCardId);
 
-  const linkCardVariant = useLinkCardVariantParam();
   const storyRef = useRef<HTMLDivElement>(null);
   const [headings, setHeadings] = useState<TocHeading[]>([]);
   const story = data?.card?.story;
@@ -325,9 +309,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
               {/* Signed in, the embedded cards came with the lists; the link previews come with the card. */}
               <CardEmbedSourceContext.Provider value={lists.embeds}>
                 <StoryLinkPreviewsContext.Provider value={card.linkPreviews ?? null}>
-                  <StoryLinkCardVariantContext.Provider value={linkCardVariant}>
-                    <StoryMarkdown source={card.story} />
-                  </StoryLinkCardVariantContext.Provider>
+                  <StoryMarkdown source={card.story} />
                 </StoryLinkPreviewsContext.Provider>
               </CardEmbedSourceContext.Provider>
             </div>

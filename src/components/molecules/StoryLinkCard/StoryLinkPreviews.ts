@@ -2,7 +2,6 @@
 
 import { createContext } from 'react';
 import type { LinkPreview } from '@/lib/db/types';
-import type { StoryLinkCardVariant } from './StoryLinkCard';
 
 /**
  * The previews of a story's standalone links (a card's `linkPreviews`, in
@@ -12,10 +11,3 @@ import type { StoryLinkCardVariant } from './StoryLinkCard';
  * for a link) every link is drawn as it always was.
  */
 export const StoryLinkPreviewsContext = createContext<readonly LinkPreview[] | null>(null);
-
-/**
- * PROTOTYPE: which look the story's link cards take (StoryLinkCard's
- * `variant`), so the card page can switch them for a side-by-side
- * comparison (`?linkcard=filled`). Without a provider, the default.
- */
-export const StoryLinkCardVariantContext = createContext<StoryLinkCardVariant | undefined>(undefined);
