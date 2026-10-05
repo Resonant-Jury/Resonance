@@ -113,6 +113,47 @@ import UIKit
         #expect(probe.runs == 1)
     }
 
+    @Test func furtherDownTheScreensRefreshInPlaceRunsAndAtTheTopThePulls() async throws {
+        let ax = AccessibilityOn()
+        defer { ax.restore() }
+        let probe = Probe(), inPlace = Probe()
+        let (window, scrollView, control) = try show(Screen(probe: probe).sketchRefreshInPlace { [inPlace] in
+            inPlace.began()
+            _ = await inPlace.gate.wait()
+        })
+        defer { window.isHidden = true }
+        let rest = scrollView.contentOffset.y
+
+        var actions: [UIAccessibilityCustomAction] = []
+        #expect(await eventually { actions = AccessibilityOn.actions(L10n.Native.refresh, in: window); return !actions.isEmpty })
+        let refresh = try #require(actions.first)
+        scrollView.setContentOffset(CGPoint(x: 0, y: 900), animated: false)
+        try await Task.sleep(for: .milliseconds(200))
+
+        // Away from the top: the refresh that keeps the reader's place, not the pull's.
+        #expect(AccessibilityOn.perform(refresh))
+        #expect(await eventually { inPlace.runs == 1 })
+        #expect(probe.runs == 0)
+        #expect(!control.isRefreshing)
+        #expect(scrollView.contentOffset.y == 900)
+        // Still one at a time: a pull meanwhile waits for it.
+        control.beginRefreshing()
+        control.sendActions(for: .valueChanged)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(probe.runs == 0 && inPlace.runs == 1)
+        await inPlace.gate.open(true)
+        #expect(await eventually { !control.isRefreshing })
+
+        // At the top it refreshes as a pull does.
+        scrollView.setContentOffset(CGPoint(x: 0, y: rest), animated: false)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(AccessibilityOn.perform(refresh))
+        #expect(await eventually { probe.runs == 1 })
+        #expect(inPlace.runs == 1)
+        await probe.gate.open(true)
+        #expect(await eventually { !control.isRefreshing })
+    }
+
     @Test func theSystemsRefreshableAloneOffersVoiceOverNoAction() async throws {
         // Why the list adds its own: a plain `.refreshable` list's rows carry no action, and its control is no element.
         let ax = AccessibilityOn()

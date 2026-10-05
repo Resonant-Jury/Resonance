@@ -226,6 +226,42 @@ import Testing
         #expect(ids(picksOnly.cards) == ["x"])
     }
 
+    @Test func refreshedFurtherDownTheReaderKeepsThePagesRead() async {
+        // VoiceOver's Refresh on a card of the third page of the latest: the cards round it stay.
+        let (a, b, c, x) = (a, b, c, x)
+        let n = Fixture.card("n"), y = Fixture.card("y")
+        let refreshed = Flag(), failing = Flag()
+        let model = FeedModel(feed: { after in
+            if failing.on { throw URLError(.notConnectedToInternet) }
+            switch after {
+            case nil: return refreshed.on ? Fixture.page([n, a], token: "t1") : Fixture.page([a], token: "t1")
+            case .token("t1"): return Fixture.page([b], token: "t2")
+            default: return Fixture.page([c])
+            }
+        }, recommended: {
+            if failing.on { throw URLError(.notConnectedToInternet) }
+            return refreshed.on ? [y] : [x]
+        }, patience: .seconds(5))
+        await model.load()
+        await model.loadMore()
+        await model.loadMore()
+        await model.loadMore()
+        #expect(ids(model.cards) == ["x", "a", "b", "c"])
+
+        refreshed.on = true
+        await model.refreshInPlace()
+        // The new card on top of the pages read, all of them still there; the latest still showing.
+        #expect(model.latestVisible)
+        #expect(ids(model.cards) == ["y", "n", "a", "b", "c"])
+        #expect(model.refreshFailure == nil)
+
+        // Nothing back: the feed as it was, and why, quietly.
+        failing.on = true
+        await model.refreshInPlace()
+        #expect(ids(model.cards) == ["y", "n", "a", "b", "c"])
+        #expect(model.refreshFailure == .offline)
+    }
+
     @Test func aPullWhileOfflineSaysSo() async {
         let a = a
         let offline = Flag()

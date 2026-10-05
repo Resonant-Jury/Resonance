@@ -29,6 +29,12 @@ struct FeedScreen: View {
             // Nothing came back: the feed stayed; the quiet line over it says so, and so does VoiceOver.
             if let failure = model?.refreshFailure { AccessibilityNotification.Announcement(failure.message).post() }
         }
+        // VoiceOver's Refresh further down the feed: the reader's place stays — the pages read with it, what's new above.
+        .sketchRefreshInPlace {
+            session.httpCache.freshness.invalidate()
+            await model?.refreshInPlace()
+            if let failure = model?.refreshFailure { AccessibilityNotification.Announcement(failure.message).post() }
+        }
         .task {
             if model == nil { model = makeModel() }
             if model?.phase == .idle { await model?.load() }
