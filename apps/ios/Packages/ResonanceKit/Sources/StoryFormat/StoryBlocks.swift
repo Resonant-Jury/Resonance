@@ -46,8 +46,11 @@ public nonisolated struct InlineRun: Hashable, Sendable {
 }
 
 public nonisolated enum StoryParser {
+    /// The story as CommonMark reads it, without "smart" punctuation — as the web's reader and the
+    /// server read it: `'` and `"` stay as written (a link's `?q=what's` stays one link), `--` and
+    /// `...` too.
     public static func parse(_ markdown: String) -> [StoryBlock] {
-        let document = Document(parsing: markdown, options: [])
+        let document = Document(parsing: markdown, options: [.disableSmartOpts])
         return document.children.compactMap(block)
     }
 

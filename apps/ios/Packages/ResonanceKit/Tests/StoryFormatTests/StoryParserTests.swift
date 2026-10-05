@@ -67,6 +67,13 @@ import Testing
         #expect(text(blocks("hard-break")[0]) == "第一行\n第二行")
     }
 
+    @Test func punctuationStaysAsItIsWritten() {
+        // No "smart" quotes, dashes or ellipses: the web and the server read the story as written.
+        let written = #"她說 "晚安" 而且 it's -- fine... 'ok'"#
+        guard case let .paragraph(runs) = StoryParser.parse(written).first else { return #expect(Bool(false)) }
+        #expect(runs.map(\.text).joined() == written)
+    }
+
     @Test func escapedSyntaxAndHTMLStayText() {
         #expect(text(blocks("escapes")[0]) == "*不是粗體*，1. 不是清單，# 不是標題，a_b_c。")
         #expect(text(blocks("html-is-text")[0]) == "<b>不是 HTML</b> 與 <script>x</script>")
