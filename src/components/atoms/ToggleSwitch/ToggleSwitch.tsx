@@ -9,6 +9,10 @@ export interface ToggleSwitchProps {
   checked: boolean;
   onChange: () => void;
   ariaLabel?: string;
+  /** The id of the text that explains the switch (a hint under its label). */
+  describedBy?: string;
+  /** Not to be flipped now (e.g. its value is still loading): dimmed, and clicks do nothing. */
+  disabled?: boolean;
   /** Seed so the wobble of track + knob is deterministic but per-instance. */
   seed?: number;
 }
@@ -23,7 +27,7 @@ const PAD = 4;
  * knob that slides across. Pairs with `role="switch"` semantics. Use anywhere
  * a boolean preference is flipped (settings rows, opt-ins).
  */
-export function ToggleSwitch({ checked, onChange, ariaLabel, seed = 9 }: ToggleSwitchProps) {
+export function ToggleSwitch({ checked, onChange, ariaLabel, describedBy, disabled = false, seed = 9 }: ToggleSwitchProps) {
   const track = useMemo(
     () =>
       wobRect(W, H, H / 2, seed, 1.1, {
@@ -53,12 +57,16 @@ export function ToggleSwitch({ checked, onChange, ariaLabel, seed = 9 }: ToggleS
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
+      aria-describedby={describedBy}
+      disabled={disabled}
       onClick={onChange}
       style={{
         border: 'none',
         background: 'none',
         padding: 0,
-        cursor: 'pointer',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: 'opacity 160ms',
         lineHeight: 0,
         flexShrink: 0,
       }}
