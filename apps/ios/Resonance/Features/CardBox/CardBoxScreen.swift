@@ -17,8 +17,9 @@ struct CardBoxScreen: View {
     /// Shelves on screen that the server hasn't answered for since they were
     /// kept, or since the app came back after a while: asked for again when shown.
     @State private var unconfirmed: Set<ReadingAPI.CardBoxShelf> = []
-    /// A pull to refresh that brought nothing back: the shelf shown stayed (and a quiet line says why).
-    @State private var refreshFailure: RefreshFailure?
+    /// A pull to refresh that brought nothing back, and the shelf it was for: that shelf stayed (and
+    /// a quiet line over it says why) — over that shelf only, never one chosen while it was on its way.
+    @State private var refreshFailure: ShelfFailure?
 
     private static let order: [ReadingAPI.CardBoxShelf] = [.published, ._private, .draft, .resonated, .linked, .bookmarks]
     /// The shelves of my own cards (OWNED_TABS): each card gets its ⋯.
@@ -34,14 +35,19 @@ struct CardBoxScreen: View {
             // Asked for by hand: the server answers, not the HTTP cache.
             session.httpCache.freshness.invalidate()
             await session.loadMe()
-            let showing = shelves[shelf] != nil
-            let failure = await load(shelf, force: true)
+            let refreshed = shelf
+            let showing = shelves[refreshed] != nil
+            let failure = await load(refreshed, force: true)
             // Nothing came back for a shelf on screen: it stays, a quiet line over it saying why (VoiceOver too).
-            withAnimation(.easeInOut(duration: 0.25)) { refreshFailure = showing ? failure : nil }
-            if showing, let failure { AccessibilityNotification.Announcement(failure.message).post() }
+            // Left for another shelf meanwhile: the answer isn't about what is on screen, and nothing is said.
+            guard let after = Self.afterRefresh(of: refreshed, showing: showing, failure: failure, shown: shelf) else { return }
+            withAnimation(.easeInOut(duration: 0.25)) { refreshFailure = after }
+            if let after { AccessibilityNotification.Announcement(after.failure.message).post() }
         }
         .task(id: shelf) {
             refreshFailure = nil
+            // Another shelf's failure isn't this one's: it shows its skeleton until its own answer.
+            failed = false
             await load(shelf)
         }
         // The writer or a card's ⋯ changed something: every shelf may have moved.
@@ -127,7 +133,7 @@ struct CardBoxScreen: View {
     }
 
     @ViewBuilder private var shelfContent: some View {
-        if let refreshFailure, shelves[shelf] != nil { RefreshNote(text: refreshFailure.message) }
+        if let note = refreshFailure?.over(shelf), shelves[shelf] != nil { RefreshNote(text: note.message) }
         if let cards = shelves[shelf] {
             if cards.isEmpty {
                 // An empty shelf is a line of muted text; the empty published
@@ -178,15 +184,36 @@ struct CardBoxScreen: View {
             }
             // The kept published shelf is the server's latest, whichever shelf asked for it.
             if let published = answered[.published], let uid = session.uid { session.kept.save(published, as: .published, uid: uid) }
-            failed = answered[s] == nil
-            if !failed, s == shelf { refreshFailure = nil }
-            return failed ? .failed : nil
+            let missing = answered[s] == nil
+            // The page-wide state is the shelf on screen's: a shelf left behind can't turn another's skeleton into an error.
+            if s == shelf { failed = missing }
+            if !missing, s == shelf { refreshFailure = nil }
+            return missing ? .failed : nil
         } catch {
             // Left for another shelf (its task cancelled): not a failure to show.
             guard !Task.isCancelled else { return nil }
-            failed = true
+            if s == shelf { failed = true }
             return RefreshFailure(error)
         }
+    }
+
+    /// A refresh's failure, with the shelf it was for.
+    struct ShelfFailure: Equatable {
+        let shelf: ReadingAPI.CardBoxShelf
+        let failure: RefreshFailure
+
+        /// What it says over the shelf on screen: nothing over another shelf.
+        func over(_ shown: ReadingAPI.CardBoxShelf) -> RefreshFailure? { shown == shelf ? failure : nil }
+    }
+
+    /// What a refresh of `refreshed` (on screen with cards when it began: `showing`) leaves once
+    /// answered, with `shown` on screen now: the line over the shelf, saying why nothing came back
+    /// (nil: none), and said to VoiceOver too. Nil when the reader has moved to another shelf
+    /// meanwhile: that shelf's own load owns what is said over it.
+    static func afterRefresh(of refreshed: ReadingAPI.CardBoxShelf, showing: Bool, failure: RefreshFailure?,
+                             shown: ReadingAPI.CardBoxShelf) -> ShelfFailure?? {
+        guard refreshed == shown else { return nil }
+        return .some(showing ? failure.map { ShelfFailure(shelf: refreshed, failure: $0) } : nil)
     }
 
     /// The shelves one request asks for to show `s`: my own cards' shelves come

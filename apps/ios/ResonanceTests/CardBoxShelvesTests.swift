@@ -35,4 +35,18 @@ import Testing
         #expect(asked(.draft, force: true, known: own) == own)
         #expect(asked(.linked, force: true, known: own.union([.linked])) == [.linked])
     }
+
+    @Test func aRefreshThatFailedSpeaksOnlyOverTheShelfItWasFor() throws {
+        // Pulled on the published shelf, then Bookmarks chosen while the request was on its way; it failed.
+        #expect(CardBoxScreen.afterRefresh(of: .published, showing: true, failure: .offline, shown: .bookmarks) == nil)
+        // Still on the shelf it was for: the line over it, and VoiceOver hears it.
+        let stayed = try #require(CardBoxScreen.afterRefresh(of: .published, showing: true, failure: .offline, shown: .published))
+        #expect(stayed == CardBoxScreen.ShelfFailure(shelf: .published, failure: .offline))
+        // Kept for the shelf it was for: never said over another one.
+        #expect(stayed?.over(.published) == .offline)
+        #expect(stayed?.over(.bookmarks) == nil)
+        // Answered, or nothing on screen to keep: no line.
+        #expect(CardBoxScreen.afterRefresh(of: .draft, showing: true, failure: nil, shown: .draft) == .some(nil))
+        #expect(CardBoxScreen.afterRefresh(of: .draft, showing: false, failure: .failed, shown: .draft) == .some(nil))
+    }
 }
