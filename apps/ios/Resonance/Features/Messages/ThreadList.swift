@@ -380,6 +380,29 @@ private struct TheirFace: View {
     }
 }
 
+/// A message's press-and-hold, for assistive tech: its menu as actions — Reply, only where
+/// the thread can answer it (as the menu and the swipe offer it: never in a thread with no
+/// composer, nor on a message still sending or failed); each link in its words (which a finger
+/// finds by where it lies and VoiceOver can't); and the whole menu.
+struct MessageActions: ViewModifier {
+    let reply: (() -> Void)?
+    let links: [(label: String, open: () -> Void)]
+    let more: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityActions {
+                if let reply { Button(L10n.Messages.reply, action: reply) }
+            }
+            .accessibilityActions {
+                ForEach(Array(links.enumerated()), id: \.offset) { _, link in
+                    Button(link.label, action: link.open)
+                }
+            }
+            .accessibilityAction(named: L10n.Messages.moreMenu, more)
+    }
+}
+
 /// The message itself — the quote it answers and its bubble with all it carries — which a
 /// long-press lifts: drawn again, without gestures, by the menu.
 struct MessageCore: View {
@@ -433,15 +456,10 @@ struct MessageCore: View {
                 .opacity(ctx.lifted == message.key ? 0 : 1)
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { ctx.frames.frames[message.key] = $0 }
                 .gesture(MessagePress { link in press(link, carried: carried) })
-                // The press-and-hold is the message's whole menu: assistive tech reaches it (and Reply) as actions —
-                // and each link in its words, which a finger finds by where it lies and VoiceOver can't.
-                .accessibilityAction(named: L10n.Messages.reply) { if ctx.model.canReply(message) { ctx.onReply(message) } }
-                .accessibilityActions {
-                    ForEach(Array(zip(found, Self.linkActionLabels(found)).enumerated()), id: \.offset) { _, pair in
-                        Button(pair.1) { ctx.openLink(pair.0.url) }
-                    }
-                }
-                .accessibilityAction(named: L10n.Messages.moreMenu) { press(nil, carried: carried) }
+                .modifier(MessageActions(
+                    reply: ctx.model.canReply(message) ? { ctx.onReply(message) } : nil,
+                    links: zip(found, Self.linkActionLabels(found)).map { link, label in (label, { ctx.openLink(link.url) }) },
+                    more: { press(nil, carried: carried) }))
         } else {
             core
         }
