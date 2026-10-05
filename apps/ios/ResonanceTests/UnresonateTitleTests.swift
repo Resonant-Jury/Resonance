@@ -42,9 +42,30 @@ import UIKit
         #expect(title.heading == L10n.Me.Actions.unresonate)
     }
 
+    /// The question as the menu holds it, in a box a lookup's task can reach.
+    @MainActor final class Question { var title = AnsweredTitle() }
+
+    @Test func aLookupLeftBehindNeverSettlesTheQuestionOpenedAgain() async {
+        let question = Question()
+        question.title.open(page: nil, kept: nil)
+        // Opened and closed at once: its lookup is cancelled while the read is on its way, and the read
+        // then fails as cancelled.
+        let gate = Gate<Bool>()
+        let left = Task { await AnsweredTitle.lookUp({ _ = await gate.wait(); throw CancellationError() }) { question.title.found($0) } }
+        left.cancel()
+        // Opened again meanwhile, the title still not known: held back until its own lookup answers.
+        question.title.open(page: nil, kept: nil)
+        await gate.open(true)
+        await left.value
+        #expect(question.title.looking)
+        await AnsweredTitle.lookUp({ "巷口那家二手書店" }) { question.title.found($0) }
+        #expect(!question.title.looking)
+        #expect(question.title.heading == L10n.Me.Actions.unresonateConfirmTitle(title: "巷口那家二手書店"))
+    }
+
     @Test func aPendingHeadingKeepsItsLineButIsNeitherShownNorRead() async throws {
-        func host(pending: Bool) throws -> (UIWindow, CGSize) {
-            let content = OrganicConfirmContent(title: "不再與〈書店〉共振？", message: "這張卡片會留著。", cancelLabel: "保留", confirmLabel: "取消共振",
+        func host(_ title: String, pending: Bool) throws -> (UIWindow, CGSize) {
+            let content = OrganicConfirmContent(title: title, message: "這張卡片會留著。", cancelLabel: "保留", confirmLabel: "取消共振",
                                                 titlePending: pending, onCancel: {}, onConfirm: {})
                 .frame(width: 340)
             let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
@@ -55,9 +76,13 @@ import UIKit
             window.makeKeyAndVisible()
             return (window, controller.sizeThatFits(in: CGSize(width: 340, height: 800)))
         }
+        // While the title is looked for, the menu hands the dialog the plain words (held back).
+        var looking = AnsweredTitle()
+        looking.open(page: nil, kept: nil)
+        let short = L10n.Me.Actions.unresonateConfirmTitle(title: "書店")
         let ax = AccessibilityOn()
         defer { ax.restore() }
-        let (pendingWindow, pendingSize) = try host(pending: true)
+        let (pendingWindow, pendingSize) = try host(looking.heading, pending: true)
         var headers: [String] = []
         _ = await eventually {
             let elements = AccessibilityOn.elements(in: pendingWindow)
@@ -65,14 +90,20 @@ import UIKit
             return elements.contains { $0.accessibilityLabel == "保留" }
         }
         pendingWindow.isHidden = true
-        #expect(!headers.contains("不再與〈書店〉共振？"))
-        let (shownWindow, shownSize) = try host(pending: false)
+        #expect(!headers.contains(looking.heading))
+        let (shownWindow, shownSize) = try host(short, pending: false)
         // Written once known, and read as the question's heading.
         #expect(await eventually {
-            AccessibilityOn.elements(in: shownWindow).contains { $0.accessibilityLabel == "不再與〈書店〉共振？" && $0.accessibilityTraits.contains(.header) }
+            AccessibilityOn.elements(in: shownWindow).contains { $0.accessibilityLabel == short && $0.accessibilityTraits.contains(.header) }
         })
         shownWindow.isHidden = true
-        // The same room either way: nothing moves when the words arrive.
+        // A title that fits its line arrives without moving anything: the held line is the same room.
         #expect(abs(pendingSize.height - shownSize.height) < 0.5)
+        // One long enough to wrap grows the dialog once, by its extra line (as on the web and Android).
+        let (longWindow, longSize) = try host(L10n.Me.Actions.unresonateConfirmTitle(title: "巷口那家二手書店的老闆娘"),
+                                              pending: false)
+        longWindow.isHidden = true
+        #expect(longSize.height > shownSize.height + 15)
+        #expect(longSize.height < shownSize.height + 40)
     }
 }

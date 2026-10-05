@@ -64,8 +64,9 @@ struct CardActionsMenu: View {
             }
             .task(id: unresonating) {
                 guard unresonating, asked.looking, let answering else { return }
-                let cards = try? await session.reading.cards(keys: [answering])
-                asked.found(cards?.first { $0.id == answering }?.title)
+                await AnsweredTitle.lookUp {
+                    try await session.reading.cards(keys: [answering]).first { $0.id == answering }?.title
+                } then: { asked.found($0) }
             }
     }
 
@@ -192,5 +193,15 @@ struct AnsweredTitle: Equatable {
 
     var heading: String {
         title.map { L10n.Me.Actions.unresonateConfirmTitle(title: $0) } ?? L10n.Me.Actions.unresonate
+    }
+
+    /// Reads the answered card's title (`read`) and hands it over (`found`) — unless the question was
+    /// closed meanwhile: the lookup left behind (its read refused as cancelled, which `try?` makes a
+    /// "none") must not settle the question opened again since, whose heading would then show the
+    /// plain words and change to the title under the reader.
+    static func lookUp(_ read: () async throws -> String?, then found: (String?) -> Void) async {
+        let title = try? await read()
+        guard !Task.isCancelled else { return }
+        found(title)
     }
 }
