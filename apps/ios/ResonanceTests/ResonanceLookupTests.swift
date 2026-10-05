@@ -48,12 +48,71 @@ import Testing
         #expect(lookup.state == .found(mine))
     }
 
-    @Test func lookingAgainKeepsTheAnswerOnScreen() async {
+    @Test func lookingAgainKeepsTheAnswerMeanwhileButNotOneItCouldntAskAgain() async {
         let lookup = ResonanceLookup(retries: [.milliseconds(5)])
         let mine = DraftService.Resonance(id: "r1", published: false)
         await lookup.look { mine }
-        // Asked again (after a change) and it fails: what was known stays.
-        await lookup.look { throw Refused() }
+        // Asked again (after a change): what was known stays on screen while it is asked.
+        let gate = Gate<Bool>()
+        let again = Task { await lookup.look { _ = await gate.wait(); throw Refused() } }
+        try? await Task.sleep(for: .milliseconds(30))
         #expect(lookup.state == .found(mine))
+        // It can't be asked: the draft may have been deleted by the change — never 修改 on a card that
+        // isn't there. 共振 instead, which asks again on a tap.
+        await gate.open(true)
+        await again.value
+        #expect(lookup.state == .failed)
+    }
+
+    /// A read that never answers — and doesn't hear that it is no longer wanted, as Firestore's
+    /// doesn't — the way a hung connection leaves it.
+    @MainActor final class Hung {
+        private(set) var asked = 0
+        private var waiting: [CheckedContinuation<DraftService.Resonance?, Never>] = []
+        func read() async -> DraftService.Resonance? {
+            asked += 1
+            return await withCheckedContinuation { waiting.append($0) }
+        }
+        func release() {
+            waiting.forEach { $0.resume(returning: nil) }
+            waiting = []
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1))) func aLookupThatHangsIsAFailureTooNeverADimmedButtonForGood() async {
+        let lookup = ResonanceLookup(retries: [.milliseconds(5)], patience: .milliseconds(60))
+        let hung = Hung()
+        defer { hung.release() }
+        await lookup.look { await hung.read() }
+        // Each try gave up after its patience, and was tried again: then there to tap.
+        #expect(hung.asked == 2)
+        #expect(lookup.state == .failed)
+
+        // A tap whose read hangs as well: the button stops inking, a quiet line says so.
+        #expect(await !lookup.askOnTap { await hung.read() })
+        #expect(!lookup.asking)
+        #expect(lookup.tapFailed)
+        #expect(lookup.state == .failed)
+
+        // The hung reads answering late change nothing; the next tap is answered.
+        hung.release()
+        try? await Task.sleep(for: .milliseconds(20))
+        #expect(lookup.state == .failed)
+        #expect(await lookup.askOnTap { nil })
+        #expect(lookup.state == .found(nil))
+    }
+
+    @Test(.timeLimit(.minutes(1))) func aLookupLeftBehindEndsAtOnceThoughItsReadHangs() async {
+        let lookup = ResonanceLookup(retries: [.seconds(60)], patience: .seconds(60))
+        let hung = Hung()
+        defer { hung.release() }
+        let ended = Flag()
+        // The page moved on (another card, a change): the lookup for the old one is cancelled, and
+        // ends then — not when its read finally answers.
+        let left = Task { await lookup.look { await hung.read() }; ended.on = true }
+        #expect(await eventually { hung.asked == 1 })
+        left.cancel()
+        #expect(await eventually(within: .seconds(2)) { ended.on })
+        #expect(lookup.state == .looking)
     }
 }
