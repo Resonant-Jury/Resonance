@@ -1125,7 +1125,7 @@ object L10n {
         object Notifications {
             /** A card for you in the evening */
             val picks: String get() = Strings.string("settings.notifications.picks")
-            /** Up to three evenings a week, around 8 pm: one card picked for you that you haven't opened yet */
+            /** Up to three evenings a week, around 8 pm Taiwan time: one card picked for you that we haven't sent you before */
             val picksHint: String get() = Strings.string("settings.notifications.picksHint")
             /** New cards from people you're connected with */
             val connectionCards: String get() = Strings.string("settings.notifications.connectionCards")
@@ -1137,6 +1137,8 @@ object L10n {
             val openSettings: String get() = Strings.string("settings.notifications.openSettings")
             /** Couldn't save that — try again */
             val saveError: String get() = Strings.string("settings.notifications.saveError")
+            /** These notifications go to the Resonance app on your phone */
+            val appsOnly: String get() = Strings.string("settings.notifications.appsOnly")
         }
         object Language {
             /** UI language */
