@@ -65,7 +65,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.state.ToggleableState
@@ -626,10 +625,10 @@ fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: S
     Box(
         Modifier
             .size(50.dp, 28.dp)
+            // Its state is the toggleable state's, which TalkBack reads in the reader's language (on / 開啟).
             .semantics {
                 contentDescription = label
                 toggleableState = ToggleableState(checked)
-                stateDescription = if (checked) "on" else "off"
             }
             // The knob's slide is the feedback; no wash over the track.
             .clickable(interactionSource = null, indication = null, role = Role.Switch) { onCheckedChange(!checked) }
