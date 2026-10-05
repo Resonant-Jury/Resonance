@@ -53,6 +53,14 @@ describe('summarize', () => {
     );
   });
 
+  // What is a link is the one link rule's word (lib/links/url, findLinks): the excerpt leaves out exactly that,
+  // never the writer's words after it.
+  it('leaves out exactly what the link rule reads as a link', () => {
+    expect(summarize('我很喜歡 https://example.com，因為它很好。').excerpt).toBe('我很喜歡，因為它很好。');
+    expect(summarize('他說「https://example.com/x」很好').excerpt).toBe('他說「」很好');
+    expect(summarize('寫信到 foo@www.example.com 就好').excerpt).toBe('寫信到 foo@www.example.com 就好');
+  });
+
   it('reads a missing or malformed story as empty, a minute long', () => {
     expect(summarize(undefined)).toEqual({ excerpt: '', readMinutes: 1 });
     expect(summarize({ text: 'x' })).toEqual({ excerpt: '', readMinutes: 1 });

@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp, type DocumentData, type Firestore } from 'firebase-admin/firestore';
 import { mapCard } from '@/lib/db/firestore/mapper';
 import type { Card } from '@/lib/db/types';
+import { excerpt, plainText } from '@/lib/markdown/plainText';
 import { readMinutes } from '@/lib/readTime';
 
 /**
@@ -15,58 +16,10 @@ import { readMinutes } from '@/lib/readTime';
  * write to the card that doesn't refresh the summary (the web editor still
  * applies an edit from the browser) moves `updatedAt` past `excerptAt`; the
  * stored summary is then ignored and the list reads that card's story
- * instead (withStories), as it does for a card that has none yet.
+ * instead (withStories), as it does for a card that has none yet. The
+ * excerpt's rules (plainText, excerpt) are lib/markdown/plainText's, shared
+ * with the web's own story cards.
  */
-
-/** StoryCard's excerpt length on the web (lib/adapters/story cardToStory). */
-const EXCERPT_CHARS = 96;
-
-/** A bare address in a story — `<https://…>`, `https://…`, `www.…` — up to the space (or `<`) after it, as GFM links it; with the space before it. */
-const BARE_LINK = /(\s*)<?((?:https?:\/\/|\bwww\.)[^\s<>]+)>?/gi;
-/** Sentence punctuation (CJK too): at the end of an address it is the sentence's, not the address's. */
-const SENTENCE_MARK = /[.,:;!?'"\]}。，、；：！？」』）]/;
-
-/**
- * What is left of the sentence when the address in it goes: the punctuation it ended with (and a `)` it
- * doesn't open — "(see https://…)"), else the space before it, so the words either side stay apart.
- */
-function withoutLink(_: string, space: string, link: string): string {
-  const opened = (text: string) => text.split('(').length - text.split(')').length;
-  let end = link.length;
-  while (end > 0 && (SENTENCE_MARK.test(link[end - 1]) || (link[end - 1] === ')' && opened(link.slice(0, end)) < 0))) end--;
-  return link.slice(end) || space;
-}
-
-/**
- * A story's prose without Markdown syntax (links keep their text). A bare
- * address is dropped: the story shows it as a link or its page's card, and
- * in an excerpt it is only a string of characters taking the prose's place.
- */
-export function plainText(markdown: string): string {
-  return markdown
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    // Before the emphasis marks go: an address's `_` and `~` are not emphasis.
-    .replace(BARE_LINK, withoutLink)
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^>\s?/gm, '')
-    .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
-    .replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, '')
-    .replace(/[*_~`]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * The first EXCERPT_CHARS characters, cut between code points: slicing UTF-16
- * units can leave half an emoji, a lone surrogate that Swift's JSONDecoder
- * rejects — failing the whole page.
- */
-export function excerpt(text: string, max = EXCERPT_CHARS): string {
-  const chars = Array.from(text);
-  return chars.length > max ? `${chars.slice(0, max).join('')}…` : text;
-}
 
 export interface StorySummary {
   excerpt: string;
