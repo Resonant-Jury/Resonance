@@ -104,8 +104,13 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
      */
     var requestFrom by mutableStateOf<String?>(null)
         private set
+    /**
+     * The conversation has answered once — the document, its absence or a refusal — so [requestFrom]
+     * says whether a note waits: until then "not connected" isn't said ([ThreadFoot.Pending]).
+     */
+    private var letterKnown by mutableStateOf(false)
     /** What the thread's foot shows: the composer, or why there is none ([ThreadFoot]). */
-    internal val foot: ThreadFoot get() = ThreadFoot.of(connected, isBlocked, requestFrom, me, otherId)
+    internal val foot: ThreadFoot get() = ThreadFoot.of(connected, isBlocked, requestFrom, me, otherId, letterKnown)
 
     /**
      * The conversation as the thread draws it, oldest first: every message held ([history]), then
@@ -323,11 +328,16 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
             ref.addSnapshotListener { doc, error ->
                 if (run != listening) return@addSnapshotListener
                 if (error != null) return@addSnapshotListener refused(pair, error)
-                if (doc == null || !doc.exists()) return@addSnapshotListener
+                if (doc == null || !doc.exists()) {
+                    // No conversation (yet): no note waits in it.
+                    letterKnown = true
+                    return@addSnapshotListener
+                }
                 conversationExists = true
                 refusals = 0
                 unreadForMe = ((doc.get("unread") as? Map<*, *>)?.get(me ?: "") as? Number)?.toInt() ?: 0
                 noteRequest((doc.get("request") as? Map<*, *>)?.get("from") as? String)
+                letterKnown = true
                 markReadIfNeeded()
             },
             ref.collection("messages").orderBy("sentAt", Query.Direction.DESCENDING).limit(MessageHistory.LIVE_LIMIT.toLong())
@@ -355,9 +365,11 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
         stop()
         if (error.code != FirebaseFirestoreException.Code.PERMISSION_DENIED) {
             // Not "no conversation" — offline for good, the backend busy: what was read stays, and the
-            // listeners attach again back in the foreground ([resumeIfFailed]).
+            // listeners attach again back in the foreground ([resumeIfFailed]). Whether a note waits can't
+            // be asked: the foot goes by what is known.
             listenFailed = true
             threadReady = true
+            letterKnown = true
             return
         }
         conversationExists = false
@@ -365,7 +377,11 @@ class ThreadModel(val handle: String, uid: String?, note: MessagingApi.Note?, pr
         resetHistory()
         threadReady = true
         if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED && pair in session.conversations.ids.value && refusals++ < 3) {
+            // The list has it (a creation racing this read): its answer is the next listener's.
             listen(pair)
+        } else {
+            // No conversation: no note waits.
+            letterKnown = true
         }
     }
 

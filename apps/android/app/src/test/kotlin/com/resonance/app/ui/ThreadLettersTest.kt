@@ -16,8 +16,24 @@ import java.util.Date
  * anonymous card's note.
  */
 class ThreadLettersTest {
-    private fun foot(connected: Boolean?, requestFrom: String? = null, blocked: Boolean = false) =
-        ThreadFoot.of(connected, blocked, requestFrom, me = "alice", other = "carol")
+    private fun foot(connected: Boolean?, requestFrom: String? = null, blocked: Boolean = false, letterKnown: Boolean = true) =
+        ThreadFoot.of(connected, blocked, requestFrom, me = "alice", other = "carol", letterKnown = letterKnown)
+
+    @Test fun aColdStartSaysNotConnectedOnlyOnceTheConversationHasSaidNoLetterWaits() {
+        // The live connections answer first: not connected. Whether alice's letter waits isn't heard yet —
+        // no foot, rather than "not connected" flashing before the awaiting line.
+        assertEquals(ThreadFoot.Pending, foot(false, letterKnown = false))
+        assertFalse(ThreadFoot.Pending.composes)
+        // The conversation answers: her letter waits…
+        assertEquals(ThreadFoot.Awaiting, foot(false, requestFrom = "alice", letterKnown = true))
+        // …or carol's does, or none does.
+        assertEquals(ThreadFoot.Answer, foot(false, requestFrom = "carol", letterKnown = true))
+        assertEquals(ThreadFoot.Closed, foot(false, letterKnown = true))
+        // Connected, blocked or not known yet need no word from the conversation.
+        assertEquals(ThreadFoot.Composer, foot(true, letterKnown = false))
+        assertEquals(ThreadFoot.Closed, foot(false, blocked = true, letterKnown = false))
+        assertEquals(ThreadFoot.Composer, foot(null, letterKnown = false))
+    }
 
     @Test fun connectedPeopleWriteAsAlwaysWhateverWaits() {
         assertEquals(ThreadFoot.Composer, foot(true))

@@ -20,7 +20,13 @@ internal enum class ThreadFoot {
     /** You left them a note: a calm line that they'll see it, instead of the composer. */
     Awaiting,
     /** Not connected, no note waiting (or a block between you): today's "not connected" and the way to their page. */
-    Closed;
+    Closed,
+    /**
+     * Not connected, and the conversation hasn't said yet whether a note waits (a cold start: the
+     * live connections answer before it): no foot until it does — never "not connected" flashing
+     * before the line a waiting letter brings.
+     */
+    Pending;
 
     /** Whether there is a composer to write in (and so a message to reply to). */
     val composes: Boolean get() = this == Composer || this == Answer
@@ -28,17 +34,19 @@ internal enum class ThreadFoot {
     companion object {
         /**
          * [connected] is null until known; [requestFrom] who left the note waiting, if one is ([me]
-         * or [other]). Connected, a waiting note is ignored. Not known yet, a waiting one says what
-         * the foot most likely is (a note mostly waits between people not connected; the live
-         * connections usually say before the thread draws, [connectionOf]); with none, the
-         * composer shows meanwhile.
+         * or [other]), as far as the conversation has said — [letterKnown]: it has answered once.
+         * Connected, a waiting note is ignored. Not known yet, a waiting one says what the foot
+         * most likely is (a note mostly waits between people not connected; the live connections
+         * usually say before the thread draws, [connectionOf]); with none, the composer shows
+         * meanwhile. Not connected, "not connected" waits for the conversation's word.
          */
-        fun of(connected: Boolean?, blocked: Boolean, requestFrom: String?, me: String?, other: String?): ThreadFoot = when {
+        fun of(connected: Boolean?, blocked: Boolean, requestFrom: String?, me: String?, other: String?, letterKnown: Boolean): ThreadFoot = when {
             blocked -> Closed
             connected == true -> Composer
             requestFrom != null && requestFrom == other -> Answer
             requestFrom != null && requestFrom == me -> Awaiting
             connected == null -> Composer
+            !letterKnown -> Pending
             else -> Closed
         }
     }
