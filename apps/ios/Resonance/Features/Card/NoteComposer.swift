@@ -21,14 +21,18 @@ struct NoteComposer: View {
     /// The note on its way, under one client id until it is left: Send pressed again on the same
     /// words after a failure is a retry the server can recognise, never a second note.
     @State private var attempt = NoteAttempt()
+    /// The words the server refused (three notes already wait, a block): the same words sent again
+    /// would only be refused again, so Send waits for an edit (and the refusal stays said until then).
+    @State private var refused: String?
     @FocusState private var focused: Bool
 
     static let maxLength = 2000
     static let upgradeThreshold = 200
 
     /// The web counts the trimmed text in UTF-16 units.
-    private var count: Int { text.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count }
-    private var valid: Bool { count > 0 && count <= Self.maxLength && session.me != nil }
+    private var count: Int { words.utf16.count }
+    private var words: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var valid: Bool { count > 0 && count <= Self.maxLength && session.me != nil && words != refused }
 
     var body: some View {
         if sent {
@@ -61,6 +65,11 @@ struct NoteComposer: View {
                 .modifier(FieldSurface(seed: 17, focused: focused))
                 .onChange(of: text) { _, new in
                     if new.utf16.count > Self.maxLength { text = String(new.utf16.prefix(Self.maxLength)) ?? new }
+                    // Other words: another note, which the server may take — the refusal is no longer theirs.
+                    if let refused, words != refused {
+                        self.refused = nil
+                        error = nil
+                    }
                 }
             HStack(alignment: .top, spacing: 12) {
                 if showsHint {
@@ -86,8 +95,10 @@ struct NoteComposer: View {
             HStack(spacing: 10) {
                 Spacer(minLength: 0)
                 OrganicButton(L10n.Card.Note.cancel, variant: .text, size: .sm, action: onClose)
-                OrganicButton(pending ? "…" : L10n.Card.Note.send, variant: .solid, size: .sm) { Task { await send() } }
-                    .opacity(valid && !pending ? 1 : 0.5)
+                // While the server answers, the pen inks where the word was (the resonate picker's way): one size throughout.
+                OrganicButton(L10n.Card.Note.send, variant: .solid, size: .sm) { Task { await send() } }
+                    .working(pending)
+                    .opacity(valid || pending ? 1 : 0.5)
                     .allowsHitTesting(valid && !pending)
             }
             .padding(.top, 18)
@@ -105,11 +116,26 @@ struct NoteComposer: View {
             _ = try await attempt.send(cardId: cardId, text: words) { try await session.messaging.sendNote(cardId: cardId, text: words, clientId: $0) }
             sent = true
             PushCenter.shared.reachedOut()
-        } catch let failure as APIFailure {
-            // Three notes left unanswered: the next waits for the author's reply (said in the reader's own words).
-            error = failure.status == 409 ? L10n.Card.Note.waitForReply : failure.status == 403 ? failure.message : L10n.Messages.sendError
         } catch {
-            self.error = L10n.Messages.sendError
+            let failure = NoteFailure(error)
+            self.error = failure.message
+            if failure.refused { refused = words }
         }
+    }
+}
+
+/// A note that didn't go, as the composer says it: in the app's words, never the server's (which
+/// are English, and for a block would say more than the web's composer does) — three notes left
+/// unanswered wait for the author's reply, anything else is the send error. `refused`: the server
+/// answered no to these words (three notes waiting, a block, no pen name, the card gone), which
+/// sending them again would only hear again; the rest (offline, the server's trouble) is a retry.
+struct NoteFailure: Equatable {
+    let message: String
+    let refused: Bool
+
+    init(_ error: Error) {
+        let failure = error as? APIFailure
+        message = failure?.status == 409 ? L10n.Card.Note.waitForReply : L10n.Messages.sendError
+        refused = [403, 404, 409].contains(failure?.status ?? 0)
     }
 }

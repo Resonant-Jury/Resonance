@@ -118,7 +118,8 @@ public struct OrganicButton: View {
     /// Working on the last tap, the web's way for a dialog's verb (the resonate picker's 共振): the
     /// pen keeps inking where the glyph was — a small SketchLoader in the label's ink — the words
     /// stay, and taps are ignored. Not dimmed: the loader is what says it is busy. The loader
-    /// takes the glyph's 16pt, so the button keeps its size.
+    /// takes the glyph's 16pt, so the button keeps its size. A verb without a glyph (the note's
+    /// 寄出) has the loader inking where its words were, which keep their room.
     var isWorking = false
 
     public func working(_ working: Bool) -> OrganicButton {
@@ -352,22 +353,30 @@ struct OrganicButtonStyle {
                 text(s).lineLimit(1)
             }
         }
+        // No glyph to stand in for: the loader takes the words' place, in their room.
+        let inkingWords = working && icon == nil && image == nil
         return HStack(spacing: image != nil ? 10 : 7) {
-            if working {
+            if working, !inkingWords {
                 SketchLoader(size: 16, color: textColor).accessibilityHidden(true)
             } else if let icon {
                 OrganicIcon(icon, size: 16)
             }
             if let image { mark(image, onDisc: onDisc) }
-            if let busyTitle {
-                ZStack(alignment: .leading) {
-                    oneLine(title).opacity(busy ? 0 : 1)
-                    oneLine(busyTitle).opacity(busy ? 1 : 0)
+            Group {
+                if let busyTitle {
+                    ZStack(alignment: .leading) {
+                        oneLine(title).opacity(busy ? 0 : 1)
+                        oneLine(busyTitle).opacity(busy ? 1 : 0)
+                    }
+                } else if size == .lg {
+                    oneLine(title)
+                } else {
+                    text(title)
                 }
-            } else if size == .lg {
-                oneLine(title)
-            } else {
-                text(title)
+            }
+            .opacity(inkingWords ? 0 : 1)
+            .overlay {
+                if inkingWords { SketchLoader(size: 16, color: textColor).accessibilityHidden(true) }
             }
         }
         .foregroundStyle(textColor)
