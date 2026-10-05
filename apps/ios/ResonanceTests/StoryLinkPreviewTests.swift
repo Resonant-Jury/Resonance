@@ -76,4 +76,13 @@ import Testing
         #expect(links.count == 3)
         #expect(links.compactMap { model.linkPreview(href: $0.href, text: $0.text)?.title } == ["What's up", "C", "例子"])
     }
+
+    @Test func aBareAddressWithoutItsPagesCardIsStillALink() async {
+        // No card for it (the page couldn't be read): its words open it, as the web's reader links them.
+        let model = await page(story: "https://no-such-host.invalid/page\n\n看 https://example.com/inline 這篇。", previews: [])
+        guard case let .soleLink(_, _, runs) = model.blocks.first, case let .paragraph(sentence) = model.blocks.last
+        else { return #expect(Bool(false)) }
+        #expect(runs.map(\.link) == ["https://no-such-host.invalid/page"])
+        #expect(sentence.map(\.link) == [nil, "https://example.com/inline", nil])
+    }
 }

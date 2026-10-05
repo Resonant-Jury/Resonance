@@ -129,7 +129,7 @@ import Testing
         guard case let .soleLink(href, text, runs) = blocks[1] else { return #expect(Bool(false)) }
         #expect(href == "https://blog.example.com/post/42" && text == "一篇好文章")
         #expect(runs == [InlineRun("一篇好文章", link: "https://blog.example.com/post/42")])
-        // A bare address is words to CommonMark (and to the reader, until it has the page's card).
+        // A bare address is words to CommonMark (the reader makes it a link: `StoryBlock.linkingAddresses`).
         guard case let .soleLink(nil, bare, bareRuns) = StoryParser.parse("https://example.com/rain").first else { return #expect(Bool(false)) }
         #expect(bare == "https://example.com/rain" && bareRuns.allSatisfy { $0.link == nil })
         // Words round a link, or marks on it, keep it in its sentence.

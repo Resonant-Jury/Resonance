@@ -17,8 +17,9 @@ public nonisolated indirect enum StoryBlock: Hashable, Sendable {
     /// `[words](https://…)`, `<https://…>` or a reference link with no picture inside (`href` is
     /// its address), or a bare address with nothing round it (`href` nil — CommonMark leaves it
     /// text; `text` is the address as written). Whether it is one, and which page it names, is the
-    /// link rules' to say (`StoryLinkKey` in ResonanceKit): the reader draws the page's preview
-    /// card when the story has one for it, and otherwise `runs`, the paragraph as it always was.
+    /// link rules' to say (`StoryLinks.key` in ResonanceKit): the reader draws the page's preview
+    /// card when the story has one for it, and otherwise `runs`, the paragraph as it always was
+    /// (its bare address a link, `linkingAddresses`).
     case soleLink(href: String?, text: String, runs: [InlineRun])
     case quote([StoryBlock])
     case list(ordered: Bool, start: Int, items: [[StoryBlock]])
@@ -172,6 +173,63 @@ public nonisolated enum StoryParser {
 }
 
 nonisolated extension StoryBlock {
+    /// The blocks with each web address written bare in their words made a link, as the web's
+    /// reader (GFM) makes one — which words are an address is the link rules' to say (`find`: each
+    /// link's UTF-16 range in a run's text and the address it opens; the reader's are ChatLinks,
+    /// the server's own). Words already in a link, and code, stay as they are; a paragraph standing
+    /// alone as a link (`soleLink`) keeps what keys its page's card and gets the link in its words,
+    /// for when there is no card.
+    public static func linkingAddresses(_ blocks: [StoryBlock], find: (String) -> [(range: NSRange, url: String)]) -> [StoryBlock] {
+        blocks.map { $0.linkingAddresses(find) }
+    }
+
+    private func linkingAddresses(_ find: (String) -> [(range: NSRange, url: String)]) -> StoryBlock {
+        func link(_ runs: [InlineRun]) -> [InlineRun] {
+            // CommonMark may hand one run of words over in pieces (at a `_` or `*` that marks nothing): an
+            // address is looked for in the words as they read, never in half of it.
+            var joined: [InlineRun] = []
+            for run in runs {
+                if var last = joined.last, last.bold == run.bold, last.italic == run.italic, last.strikethrough == run.strikethrough,
+                   last.code == run.code, last.link == run.link {
+                    last.text += run.text
+                    joined[joined.count - 1] = last
+                } else {
+                    joined.append(run)
+                }
+            }
+            return joined.flatMap { run -> [InlineRun] in
+                guard run.link == nil, !run.code else { return [run] }
+                let found = find(run.text)
+                guard !found.isEmpty else { return [run] }
+                let text = run.text as NSString
+                var pieces: [InlineRun] = []
+                var at = 0
+                func piece(_ range: NSRange, link: String?) {
+                    guard range.length > 0 else { return }
+                    var part = run
+                    part.text = text.substring(with: range)
+                    part.link = link
+                    pieces.append(part)
+                }
+                for (range, url) in found where range.location >= at && NSMaxRange(range) <= text.length {
+                    piece(NSRange(location: at, length: range.location - at), link: nil)
+                    piece(range, link: url)
+                    at = NSMaxRange(range)
+                }
+                piece(NSRange(location: at, length: text.length - at), link: nil)
+                return pieces
+            }
+        }
+        switch self {
+        case let .paragraph(runs): return .paragraph(link(runs))
+        case let .heading(level, runs): return .heading(level: level, link(runs))
+        case let .soleLink(href, text, runs): return .soleLink(href: href, text: text, runs: link(runs))
+        case let .quote(children): return .quote(Self.linkingAddresses(children, find: find))
+        case let .list(ordered, start, items): return .list(ordered: ordered, start: start, items: items.map { Self.linkingAddresses($0, find: find) })
+        case .blank, .image, .cardEmbed, .rule, .code: return self
+        }
+    }
+
     /// Plain text of a heading, for the table of contents.
     public var headingText: String? {
         if case let .heading(_, runs) = self { return runs.map(\.text).joined() }
