@@ -1,5 +1,6 @@
 package com.resonance.kit.story
 
+import com.resonance.kit.chat.Linkify
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
 import org.commonmark.ext.gfm.tables.TableBlock
@@ -33,7 +34,8 @@ import org.commonmark.parser.Parser
  * rules: a paragraph holding only a card link is an embedded card, only a
  * photo is an image block, only a link of the web is a standalone link (drawn
  * as its page's card when the card page brought a preview for it), only the
- * blank marker (U+00A0) is extra space. The twin of iOS's StoryFormat.
+ * blank marker (U+00A0) is extra space. A web address written bare in the text
+ * is a link, as remark-gfm makes it. The twin of iOS's StoryFormat.
  */
 sealed interface StoryBlock {
     data class Heading(val level: Int, val runs: List<InlineRun>) : StoryBlock
@@ -108,7 +110,7 @@ object StoryParser {
         val runs = ArrayList<InlineRun>()
         for (child in children(node)) {
             when (child) {
-                is Text -> runs += InlineRun(child.literal, bold, italic, strike, link = link)
+                is Text -> runs += textRuns(child.literal, bold, italic, strike, link)
                 is SoftLineBreak -> runs += InlineRun(" ", bold, italic, strike, link = link)
                 is HardLineBreak -> runs += InlineRun("\n", bold, italic, strike, link = link)
                 is Code -> runs += InlineRun(child.literal, bold, italic, strike, code = true, link = link)
@@ -123,6 +125,25 @@ object StoryParser {
                 else -> runs += inlines(child, bold, italic, strike, link)
             }
         }
+        return runs
+    }
+
+    /**
+     * A run of plain text, with the web addresses written bare in it as links — as the web's reader
+     * makes them (GFM's autolinks) — by the link rules the apps share with the server ([Linkify]):
+     * `https://…` and `www.…`, ending where a sentence goes on. Inside a link it is that link's.
+     */
+    private fun textRuns(text: String, bold: Boolean, italic: Boolean, strike: Boolean, link: String?): List<InlineRun> {
+        val found = if (link == null) Linkify.find(text) else emptyList()
+        if (found.isEmpty()) return listOf(InlineRun(text, bold, italic, strike, link = link))
+        val runs = ArrayList<InlineRun>()
+        var at = 0
+        for (bare in found) {
+            if (bare.range.first > at) runs += InlineRun(text.substring(at, bare.range.first), bold, italic, strike)
+            runs += InlineRun(text.substring(bare.range.first, bare.range.last + 1), bold, italic, strike, link = bare.url)
+            at = bare.range.last + 1
+        }
+        if (at < text.length) runs += InlineRun(text.substring(at), bold, italic, strike)
         return runs
     }
 

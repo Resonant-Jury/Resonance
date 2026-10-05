@@ -119,17 +119,43 @@ class StoryParserTest {
         for (case in linkCases.filter { it.inline.isNotEmpty() }) {
             val blocks = flatten(StoryParser.parse(case.markdown))
             assertTrue(blocks.none { it is StoryBlock.SoleLink }, case.id)
-            // Still the paragraph it was, its words all there (a link written in it stays tappable where the reader allows).
+            // Still the paragraph it was, its words all there, and each link in it tappable — a bare address too, as the web's reader makes it.
             assertTrue(blocks.any { it is StoryBlock.Paragraph }, case.id)
+            val links = blocks.flatMap(::runsOf).mapNotNull { it.link }
+            for (url in case.inline) assertTrue(url in links, "${case.id}: $url in $links")
         }
+    }
+
+    @Test fun anAddressWrittenBareInTheTextIsALink() {
+        val runs = runsOf(StoryParser.parse("我讀了 https://example.com/a 和 www.example.org/b。").single())
+        assertEquals(
+            listOf(
+                InlineRun("我讀了 "),
+                InlineRun("https://example.com/a", link = "https://example.com/a"),
+                InlineRun(" 和 "),
+                InlineRun("www.example.org/b", link = "https://www.example.org/b"),
+                InlineRun("。"),
+            ),
+            runs,
+        )
+        // Marked as the words around it are; inside a link, or in code, it is that link's (or none).
+        assertEquals(listOf(InlineRun("https://example.com/b", bold = true, link = "https://example.com/b")), runsOf(StoryParser.parse("**https://example.com/b**").single()))
+        assertEquals(listOf(InlineRun("see https://example.com/x", link = "https://example.com/y")), runsOf(StoryParser.parse("[see https://example.com/x](https://example.com/y)").single()))
+        assertEquals(listOf(InlineRun("https://example.com/c", code = true)), runsOf(StoryParser.parse("`https://example.com/c`").single()))
+        // Not an address by the link rules: plain text.
+        assertEquals(listOf(InlineRun("example.com 和 http://localhost/x")), runsOf(StoryParser.parse("example.com 和 http://localhost/x").single()))
     }
 
     @Test fun aStandaloneLinkKeepsItsWordsForWhenThereIsNoPreview() {
         val block = StoryParser.parse("前一段。\n\n[一篇好文章](https://blog.example.com/post/42)\n\n後一段。")[1]
         assertIs<StoryBlock.SoleLink>(block)
         assertEquals(listOf(InlineRun("一篇好文章", link = "https://blog.example.com/post/42")), runsOf(block))
-        val bare = StoryParser.parse("https://example.com/rain").single()
-        assertEquals(StoryBlock.SoleLink("https://example.com/rain", listOf(InlineRun("https://example.com/rain"))), bare)
+        // A bare one, with no preview, is still a link to tap (and to TalkBack), as on the web.
+        val bare = StoryParser.parse("https://no-such-host.invalid/page").single()
+        assertEquals(
+            StoryBlock.SoleLink("https://no-such-host.invalid/page", listOf(InlineRun("https://no-such-host.invalid/page", link = "https://no-such-host.invalid/page"))),
+            bare,
+        )
     }
 
     @Test fun anAddressInDisguiseIsReadAsTheDottedFourABrowserReads() {
