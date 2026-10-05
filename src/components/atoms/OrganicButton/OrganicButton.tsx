@@ -10,9 +10,9 @@ import styles from './OrganicButton.module.css';
 
 /**
  * A button is a filled shape and never draws a pen line: an outline marks a
- * container (a card, a modal, a panel), an input (a field, a select) or a
- * segmented control (SegmentedActionBar, whose frame makes its options one
- * control) — never a lone button. And every button has a fill: bare text does
+ * floating surface (a modal, a sheet, a menu), a container (a card, a panel)
+ * or an input (a field, a select) — never a button, segmented ones included
+ * (SegmentedActionBar is a filled bar too). And every button has a fill: bare text does
  * not read as something to press, so a Cancel beside a verb is a pill as
  * filled as the verb, only quieter. The same organic pill, coloured by rank:
  *  - `solid`       the verb: deep terracotta, cream label — Publish, Sign in,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderWithIntl, screen, fireEvent, userEvent, waitFor } from '@/../test/render';
+import { act, renderWithIntl, screen, fireEvent, userEvent, waitFor, within } from '@/../test/render';
 import { ReadAfterArea } from './ReadAfterArea';
 
 // Boundary mocks: auth, navigation, data hooks, write modules, hints. The
@@ -63,15 +63,21 @@ afterEach(() => vi.clearAllMocks());
 const user = () => userEvent.setup({ pointerEventsCheck: 0 });
 
 describe('ReadAfterArea', () => {
-  it('renders the three-action hierarchy: resonate button, note link, bookmark icon', () => {
+  // One bar at every width (a phone's too, in one row): the verb solid, the
+  // note and the bookmark tonal. The note's short words are for a phone's
+  // row; its full words stay its name.
+  it('renders the three actions once, in one bar: resonate, the note, the bookmark', async () => {
     renderWithIntl(
       <ReadAfterArea cardId="c1" cardTitle="Title" author={author} coreInsight="ins" />,
     );
-    expect(screen.getAllByRole('button', { name: /Resonate/ })[0]).toBeInTheDocument();
-    expect(
-      screen.getAllByRole('button', { name: 'Send the author a little note' })[0],
-    ).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Bookmark' })[0]).toBeInTheDocument();
+    const bar = screen.getByRole('group');
+    expect(within(bar).getAllByRole('button')).toHaveLength(3);
+    expect(within(bar).getByRole('button', { name: /Resonate/ })).toBeInTheDocument();
+    const note = within(bar).getByRole('button', { name: 'Send the author a little note' });
+    expect(note).toHaveTextContent('Send a note');
+    expect(within(bar).getByRole('button', { name: 'Bookmark' })).toBeInTheDocument();
+    // The bookmark's state is read once the bar is up.
+    await act(async () => {});
   });
 
   it('renders nothing at all for the card author', () => {
@@ -83,7 +89,7 @@ describe('ReadAfterArea', () => {
   it('sends signed-out visitors to /signin instead of opening the note composer', async () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
-    await user().click(screen.getAllByRole('button', { name: 'Send the author a little note' })[0]);
+    await user().click(screen.getByRole('button', { name: 'Send the author a little note' }));
     expect(mockPush).toHaveBeenCalledWith('/signin');
     expect(screen.queryByPlaceholderText('Something you want to tell the author…')).not.toBeInTheDocument();
   });
@@ -130,7 +136,7 @@ describe('ReadAfterArea', () => {
 
   it('upgrades a long note by navigating to the write page with the text in searchParams', async () => {
     renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
-    await user().click(screen.getAllByRole('button', { name: 'Send the author a little note' })[0]);
+    await user().click(screen.getByRole('button', { name: 'Send the author a little note' }));
 
     const long = 'b'.repeat(220);
     fireEvent.change(screen.getByPlaceholderText('Something you want to tell the author…'), {

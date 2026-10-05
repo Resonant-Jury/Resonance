@@ -4,6 +4,7 @@ import { MouseEvent, ReactNode, useCallback, useEffect, useId, useLayoutEffect, 
 import { wobRect } from '@/lib/design/wobRect';
 import { makePrng } from '@/lib/design/prng';
 import { INK } from '@/lib/design/strokes';
+import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import styles from './SegmentedActionBar.module.css';
 
 export interface SegmentSpec {
@@ -18,6 +19,13 @@ export interface SegmentSpec {
   hoverOverlay?: string;
   onClick?: () => void;
   ariaLabel?: string;
+  /**
+   * This segment drops its visible label — its icon is the affordance, the
+   * words stay for a screen reader — once every label no longer fits the
+   * bar's container in one row (the card page's Bookmark beside Resonate and
+   * Send a note on a narrow phone).
+   */
+  collapsible?: boolean;
 }
 
 export interface SegmentedActionBarProps {
@@ -25,15 +33,32 @@ export interface SegmentedActionBarProps {
   seed?: number;
   /** The bar's own face, under every segment that brings no fill of its own. */
   fill?: string;
-  /** The pen line round the bar: its frame is what makes the options one control. */
-  stroke?: string;
-  /** The wavy divider between segments, in the same pen as the outline by default. */
+  /** A pen line round the bar — none by default: like OrganicButton, the bar is a filled shape. */
+  stroke?: string | null;
+  /** The wavy seam between segments: by default a cut in the paper, not an ink line. */
   divider?: string;
 }
 
 interface Bound {
   left: number;
   width: number;
+}
+
+/**
+ * A segment's width with every label shown: its padding, its icon, its label
+ * at its own width (read even while the label is visually hidden: an element
+ * that clips its overflow still reports its content's width) and the gap
+ * between them.
+ */
+function naturalWidth(seg: HTMLElement): number {
+  const cs = getComputedStyle(seg);
+  const px = (v: string) => parseFloat(v) || 0;
+  const kids = Array.from(seg.children) as HTMLElement[];
+  const content = kids.reduce(
+    (sum, k) => sum + (k.hasAttribute('data-label') ? k.scrollWidth : k.getBoundingClientRect().width),
+    0,
+  );
+  return px(cs.paddingLeft) + px(cs.paddingRight) + content + px(cs.columnGap) * Math.max(0, kids.length - 1);
 }
 
 // A gently wobbly vertical boundary, returned as a point list so the fill edge
@@ -68,21 +93,19 @@ export const polyline = (pts: [number, number][]) =>
 
 /**
  * Three (or more) actions fused into one organic bar, split by hand-drawn
- * wavy dividers. Each segment keeps its own fill colour and icon — a compact
- * alternative to a row of separate buttons. Unlike a lone button it keeps a
- * pen line: the frame is what makes its options read as one control (a
- * segmented control is a group, and an outline marks a group). Inside it the
- * button tokens hold — the verb's segment in `--button-fill` (the pen's own
- * colour, so the two read as one drawn shape), every other label in the deep
- * `--button-on-tonal`, never plain terracotta (3.5:1 on the paper).
+ * wavy seams. Each segment keeps its own fill colour and icon — a compact
+ * alternative to a row of separate buttons. Its segments are buttons, so
+ * like every button it is a filled shape with no pen line (an outline marks a
+ * floating surface, a container or an input): the bar wears the secondary
+ * (tonal) face, a segment may bring its own (the verb's `--button-fill`), and
+ * the seams between them are cut in the paper's colour.
  */
 export function SegmentedActionBar({
   segments,
   seed = 71,
-  fill = 'oklch(97% 0.016 70 / 0.72)',
-  stroke = 'color-mix(in oklch, var(--color-terracotta), black 12%)',
-  // match the divider to the outer border so the bar reads as one drawn shape
-  divider = 'color-mix(in oklch, var(--color-terracotta), black 12%)',
+  fill = 'var(--button-tonal)',
+  stroke = null,
+  divider = 'var(--color-cream)',
 }: SegmentedActionBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const segRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -94,6 +117,22 @@ export function SegmentedActionBar({
   const [hovered, setHovered] = useState<number | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const maskId = useId().replace(/:/g, '');
+  // Too narrow for every label: the collapsible segments show their icon alone.
+  const [tight, setTight] = useState(false);
+  const collapsible = segments.some((s) => s.collapsible);
+
+  const fit = useCallback(() => {
+    const bar = barRef.current;
+    const box = bar?.parentElement;
+    if (!bar || !box || !collapsible) return;
+    // The room is the container's (the bar spans it on a phone), never the
+    // bar's own width, which shrinks with the words it hides.
+    const cs = getComputedStyle(box);
+    const room = box.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    const need = segRefs.current.reduce((sum, el) => sum + (el ? naturalWidth(el) : 0), 0);
+    const next = room > 0 && need > room + 0.5;
+    setTight((cur) => (cur === next ? cur : next));
+  }, [collapsible]);
 
   const recompute = useCallback(() => {
     const bar = barRef.current;
@@ -102,7 +141,12 @@ export function SegmentedActionBar({
     setBounds(
       segRefs.current.map((el) => ({ left: el?.offsetLeft ?? 0, width: el?.offsetWidth ?? 0 }))
     );
-  }, []);
+    fit();
+  }, [fit]);
+
+  // A label changed under a hidden one (Bookmark ⇄ Remove bookmark) resizes
+  // nothing the observer sees: weigh the room again after every render.
+  useLayoutEffect(() => fit());
 
   useLayoutEffect(() => {
     recompute();
@@ -221,10 +265,12 @@ export function SegmentedActionBar({
               clipPath={`url(#sab-clip-${seed})`}
             />
           ))}
-          {/* outer stroke — the house pen (INK), matched across all frames */}
-          <path d={outerPath} fill="none" stroke={stroke} strokeWidth={INK} strokeLinejoin="round" />
+          {/* an outer pen line only when a caller asks for one — the house pen (INK) */}
+          {stroke && <path d={outerPath} fill="none" stroke={stroke} strokeWidth={INK} strokeLinejoin="round" />}
         </svg>
       )}
+      {/* The buttons' own grain over the whole face, so the bar and a lone OrganicButton feel cut from the same paper. */}
+      <ShapeGrain w={w} h={h} d={outerPath} seed={seed} opacity={0.38} frequency={1.1} />
 
       {segments.map((s, i) => (
         <button
@@ -245,10 +291,13 @@ export function SegmentedActionBar({
           onBlur={() => setHovered((cur) => (cur === i ? null : cur))}
           aria-label={s.ariaLabel}
           className={styles.seg}
+          data-icon-only={(s.collapsible && tight) || undefined}
           style={{ color: s.textColor ?? 'var(--button-on-tonal)' }}
         >
           {s.icon}
-          <span>{s.label}</span>
+          <span data-label className={styles.label}>
+            {s.label}
+          </span>
         </button>
       ))}
     </div>

@@ -4,9 +4,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import useSWR from 'swr';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Icon } from '@/components/atoms/Icon';
-import { BookmarkButton } from '@/components/atoms/BookmarkButton/BookmarkButton';
 import { SegmentedActionBar, type SegmentSpec } from '@/components/molecules/SegmentedActionBar/SegmentedActionBar';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -45,9 +43,11 @@ export interface CardViewerActionsProps {
 }
 
 /**
- * The response action bar on the card detail page.
- * Uses SegmentedActionBar for a fused horizontal layout on desktop,
- * and falls back to a clean, vertically stacked layout on mobile screens.
+ * The response action bar on the card detail page: one SegmentedActionBar at
+ * every width — 共振 (the verb, solid), the note and the bookmark (tonal). On
+ * a phone it spans the column in one row: the note reads 寄小紙條 (its full
+ * words stay its accessible name), and the bookmark drops its words for its
+ * icon when the row has no room for them.
  */
 export function CardViewerActions({
   cardId,
@@ -115,7 +115,6 @@ export function CardViewerActions({
     );
   }
 
-  // Segment specifications for SegmentedActionBar (desktop layout)
   const segments: SegmentSpec[] = [
     {
       key: 'resonate',
@@ -129,7 +128,13 @@ export function CardViewerActions({
     {
       key: 'note',
       icon: <Icon name="note" size={16} />,
-      label: tNote('entry'),
+      label: (
+        <>
+          <span className={styles.wide}>{tNote('entry')}</span>
+          <span className={styles.narrow}>{tNote('entryShort')}</span>
+        </>
+      ),
+      ariaLabel: tNote('entry'),
       hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)',
       onClick: onOpenNote,
     },
@@ -146,35 +151,14 @@ export function CardViewerActions({
       label: activeBookmark ? tBookmark('remove') : tBookmark('add'),
       hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)',
       onClick: handleBookmarkClick,
+      collapsible: true,
     },
   ];
 
   return (
     <div className={styles.container}>
-      {/* Desktop view: Unified segmented action bar */}
-      <div className={styles.desktopOnly} style={{ opacity: loadingMine ? 0.6 : 1, pointerEvents: loadingMine ? 'none' : 'auto' }}>
+      <div className={styles.bar} data-waiting={loadingMine || undefined}>
         <SegmentedActionBar segments={segments} />
-      </div>
-
-      {/* Mobile view: the verb across the width, then the note as a tonal
-          pill of the same height (a bare word did not read as a button)
-          beside the bookmark, whose icon is its own affordance. */}
-      <div className={styles.mobileOnly}>
-        <div style={{ opacity: loadingMine ? 0.6 : 1, pointerEvents: loadingMine ? 'none' : 'auto' }}>
-          <OrganicButton variant={hasResonance ? 'tonal' : 'solid'} block onClick={onTrigger}>
-            <Icon name={glyph} size={16} style={{ marginTop: 1 }} />
-            {label}
-          </OrganicButton>
-        </div>
-        <div className={styles.mobileActionsRow}>
-          <div className={styles.mobileNote}>
-            <OrganicButton variant="tonal" block onClick={onOpenNote}>
-              <Icon name="note" size={16} />
-              {tNote('entry')}
-            </OrganicButton>
-          </div>
-          <BookmarkButton cardId={cardId} />
-        </div>
       </div>
 
       {picking && (
