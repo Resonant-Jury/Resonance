@@ -34,6 +34,8 @@ vi.mock('@/lib/api/v1/publish', () => ({ publishCard: (...a: unknown[]) => publi
 vi.mock('@/lib/api/rateLimit', () => ({ spend: async () => {} }));
 const ringAfter = vi.fn();
 vi.mock('@/lib/push/ring', () => ({ ringAfter: (...a: unknown[]) => ringAfter(...a) }));
+const announceNewCard = vi.fn(async (..._a: unknown[]) => {});
+vi.mock('@/lib/push/connectionCards', () => ({ announceNewCard: (...a: unknown[]) => announceNewCard(...a) }));
 const tryReachResonance = vi.fn(async (..._a: unknown[]) => 'resonance_alice_orig' as string | null);
 vi.mock('@/lib/api/v1/resonate', () => ({ tryReachResonance: (...a: unknown[]) => tryReachResonance(...a) }));
 
@@ -200,6 +202,28 @@ describe('POST /api/v1/cards/{id}/publish', () => {
     expect(await settled()).toEqual(['/en/card/c1', '/zh-TW/card/c1', '/en/card/a-walk', '/zh-TW/card/a-walk']);
     expect(unfurlCardLinks).toHaveBeenCalledWith({}, 'c1');
     expect(indexCard).toHaveBeenCalledWith('c1');
+  });
+
+  // The author's connections who asked hear of a new card once — never of one published again.
+  it('announces a first publish to the connections (after the response, with its late slug), never a republish', async () => {
+    const pendingSlug = Promise.resolve('a-walk');
+    publishCard.mockResolvedValue({ id: 'c1', slug: null, firstPublish: true, notificationId: null, pendingSlug });
+    await post();
+    await settled();
+    expect(announceNewCard).toHaveBeenCalledTimes(1);
+    expect(announceNewCard).toHaveBeenCalledWith({}, 'c1', pendingSlug);
+
+    announceNewCard.mockClear();
+    publishCard.mockResolvedValue({ id: 'c1', slug: 'a-walk', firstPublish: true, notificationId: null, pendingSlug: null });
+    await post();
+    await settled();
+    expect(announceNewCard).toHaveBeenCalledWith({}, 'c1', 'a-walk');
+
+    announceNewCard.mockClear();
+    publishCard.mockResolvedValue({ id: 'c1', slug: 'a-walk', firstPublish: false, notificationId: null, pendingSlug: null });
+    await post();
+    await settled();
+    expect(announceNewCard).not.toHaveBeenCalled();
   });
 
   it('never fails or holds back the page for the previews', async () => {
