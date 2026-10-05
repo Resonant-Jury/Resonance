@@ -44,7 +44,8 @@ function card(id: string, over: Partial<Card> = {}): Card {
     originalLocale: 'en',
     translations: {},
     visibility: 'public',
-    publishedAt: new Date('2026-09-01'),
+    // 1 September of this year, at noon wherever the test runs: its row reads "Sep 1".
+    publishedAt: new Date(new Date().getFullYear(), 8, 1, 12),
     readCount: 0,
     resonanceCount: 0,
     inviteCount: 0,
@@ -113,25 +114,43 @@ describe('resonateChoices', () => {
 });
 
 describe('ResonatePicker', () => {
+  // A quiet list: the title alone (no subtitle, no caption over the cards), the
+  // way to write a new card as one line, then rows of a title on one line and
+  // one muted line under it — when it came out, 匿名 · first for an anonymous card.
   it('leads with writing a new card, then lists the cards that may resonate, saying why some are missing', async () => {
     renderPicker();
-    expect(screen.getByRole('dialog', { name: 'Resonate with this card' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Write a new card/ })).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Resonate with this card' });
+    expect(within(dialog).getByRole('heading', { name: 'Resonate with this card' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Write a new card' })).toBeInTheDocument();
 
-    const choices = await screen.findByRole('radiogroup', { name: "Or pick one you've written" });
+    const choices = await screen.findByRole('radiogroup', { name: 'Resonate with this card' });
     const rows = within(choices).getAllByRole('radio');
-    expect(rows.map((r) => r.textContent)).toEqual(['Card walk', 'A day at the seaAnonymous']);
+    expect(rows.map((r) => r.textContent)).toEqual(['Card walkSep 1', 'A day at the seaAnonymous · Sep 1']);
+    // Each row is named by its title and described by its meta line.
+    expect(rows[1]).toHaveAccessibleName('A day at the sea');
+    expect(rows[1]).toHaveAccessibleDescription('Anonymous · Sep 1');
     expect(mockShelf).toHaveBeenCalledWith('me', 'published');
     // The card answering another, the connections-only card and the target's own original are not offered.
     expect(screen.queryByText('Card answering')).toBeNull();
     expect(screen.queryByText('Card friends-only')).toBeNull();
     expect(screen.queryByText('Card origin')).toBeNull();
     expect(screen.getByText("Cards already resonating with another card aren't listed")).toBeInTheDocument();
+    // The round-3 chrome is gone: no subtitle, no hint under "write a new card", no caption over the cards.
+    expect(screen.queryByText("Write a new card, or pick one you've written about something similar")).toBeNull();
+    expect(screen.queryByText('Start from this card and put your own experience into words')).toBeNull();
+    expect(screen.queryByText("Or pick one you've written")).toBeNull();
+  });
+
+  it('notes why cards are missing only when some are', async () => {
+    mockShelf.mockResolvedValue([card('walk'), card('sea')]);
+    renderPicker();
+    await screen.findByRole('radio', { name: 'Card walk' });
+    expect(screen.queryByText("Cards already resonating with another card aren't listed")).toBeNull();
   });
 
   it('opens the writer for a new card from the first row', async () => {
     const { onClose } = renderPicker();
-    await user().click(screen.getByRole('button', { name: /Write a new card/ }));
+    await user().click(screen.getByRole('button', { name: 'Write a new card' }));
     expect(onClose).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/write?referenceCardId=target');
     expect(mockCallApi).not.toHaveBeenCalled();
@@ -176,6 +195,23 @@ describe('ResonatePicker', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('This card already resonates with another card');
     expect(onClose).not.toHaveBeenCalled();
     await waitFor(() => expect(mockShelf).toHaveBeenCalledTimes(2));
+    // The mark goes with what it was based on (as in the apps): nothing is chosen until a card is again.
+    expect(screen.getByRole('radio', { name: 'Card walk' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('button', { name: 'Resonate' })).toBeDisabled();
+  });
+
+  // While the choice is on its way, cancel is visibly out of reach (as in the apps), and nothing closes the picker.
+  it('disables cancel while resonating', async () => {
+    let answer!: (v: unknown) => void;
+    mockCallApi.mockReturnValue(new Promise((r) => (answer = r)));
+    const { onClose } = renderPicker();
+    await user().click(await screen.findByRole('radio', { name: 'Card walk' }));
+    await user().click(screen.getByRole('button', { name: 'Resonate' }));
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    await waitFor(() => expect(cancel).toBeDisabled());
+    expect(onClose).not.toHaveBeenCalled();
+    answer({ card: {}, changed: true });
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
   it('asks to try again when anything else goes wrong', async () => {
@@ -192,7 +228,6 @@ describe('ResonatePicker', () => {
     mockShelf.mockResolvedValue([card('friends-only', { visibility: 'connections' })]);
     renderPicker();
     expect(await screen.findByText('You have no public cards yet — write your first one above')).toBeInTheDocument();
-    expect(screen.getByText("Or pick one you've written")).toBeInTheDocument();
     expect(screen.queryByRole('radio')).toBeNull();
     expect(screen.queryByText("Cards already resonating with another card aren't listed")).toBeNull();
     expect(screen.getByRole('button', { name: 'Resonate' })).toBeDisabled();
@@ -206,23 +241,24 @@ describe('ResonatePicker', () => {
     expect(screen.getAllByText("Cards already resonating with another card aren't listed")).toHaveLength(1);
     expect(screen.queryByText('You have no public cards yet — write your first one above')).toBeNull();
     expect(screen.queryByRole('radio')).toBeNull();
-    expect(screen.getByText("Or pick one you've written")).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Write a new card/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Write a new card' })).toBeInTheDocument();
   });
 
-  // Nothing to pick and nothing to say: no caption over an empty list, only the way to write one.
+  // Nothing to pick and nothing to say: no rule over an empty list, only the way to write one.
   it('says nothing, and draws no empty list, when the only public card is the one this card answers', async () => {
     mockShelf.mockResolvedValue([card('origin')]);
     renderPicker();
-    // While the shelf is read the caption stands over the rows' footprint; read, it goes with the list.
-    expect(screen.getByText("Or pick one you've written")).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByText("Or pick one you've written")).toBeNull());
+    // While the shelf is read the wavy rule stands under the first row, over the rows' footprint;
+    // read, it goes with the list.
+    const write = screen.getByRole('button', { name: 'Write a new card' });
+    expect(write.nextElementSibling).not.toBeNull();
+    await waitFor(() => expect(write.nextElementSibling).toBeNull());
     expect(mockShelf).toHaveBeenCalled();
     expect(screen.queryByRole('radiogroup')).toBeNull();
     expect(screen.queryByRole('list')).toBeNull();
     expect(screen.queryByText('You have no public cards yet — write your first one above')).toBeNull();
     expect(screen.queryByText("Cards already resonating with another card aren't listed")).toBeNull();
-    expect(screen.getByRole('button', { name: /Write a new card/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Write a new card' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resonate' })).toBeDisabled();
   });
 

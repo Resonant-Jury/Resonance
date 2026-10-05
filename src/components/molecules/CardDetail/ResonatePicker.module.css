@@ -1,42 +1,46 @@
+/* The title alone: the two ways below say what they are. */
 .title {
   font-family: var(--font-heading);
   font-size: 20px;
   font-weight: 700;
   color: var(--color-text);
-  margin: 0 0 4px;
-}
-
-.subtitle {
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--color-text-muted);
   margin: 0 0 12px;
 }
 
 /* ── Row 0: write a new card ─────────────────────────────────────────
-   Shaped like a card row (thumb + words) so it reads as the first choice,
-   its thumb a blank tile with the pen: a card not written yet. */
+   One line, the pen and the words in terracotta: a way, not a card. The
+   words take the deep terracotta (6.3:1 on the modal's paper; plain
+   terracotta is 3.5:1), the pen the plain one. */
 .writeNew {
   width: 100%;
+  min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 10px 6px;
   border: none;
   background: transparent;
   cursor: pointer;
   text-align: left;
-  color: inherit;
+  color: var(--button-on-tonal);
 }
 
-@media (hover: hover) {
-  .writeNew:hover:not(:disabled) .writeTitle,
-  .writeNew:hover:not(:disabled) .writeArrow {
-    color: var(--color-terracotta);
-  }
+.writeTitle {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: underline transparent;
+  text-underline-offset: 4px;
+  transition:
+    color 120ms ease,
+    text-decoration-color 120ms ease;
+}
 
-  .writeNew:hover:not(:disabled) .writeArrow {
-    transform: translateX(2px);
+/* The ink answers, as the rows' does: deeper, and underlined. */
+@media (hover: hover) {
+  .writeNew:hover:not(:disabled) .writeTitle {
+    color: color-mix(in oklch, var(--color-terracotta), black 34%);
+    text-decoration-color: currentColor;
   }
 }
 
@@ -51,74 +55,26 @@
   opacity: 0.5;
 }
 
-.writeTile {
-  position: relative;
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-}
-
-.writeTile > svg {
-  position: absolute;
-  inset: 0;
-}
-
-.writeGlyph {
-  position: absolute;
-  inset: 0;
-}
-
-.writeText {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.writeTitle {
-  font-family: var(--font-body);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text);
-  transition: color 120ms ease;
-}
-
-.writeHint {
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--color-text-muted);
-}
-
-.writeArrow {
-  flex-shrink: 0;
-  color: var(--color-text-muted);
-  transition:
-    color 120ms ease,
-    transform 160ms ease;
-}
-
-.pickHeading {
-  margin: 4px 6px 2px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--color-text-muted);
-}
-
 /* ── While the shelf is read: the rows' footprint in plain CSS ─────── */
 .skeleton {
   display: flex;
   flex-direction: column;
-  /* a row's 48px thumb + its 10px above and below, as the rows will stand */
+  /* a row's 40px thumb + its 10px above and below, as the rows will stand */
   gap: 20px;
-  padding-bottom: 6px;
+  padding: 10px 6px 6px;
 }
 
 .skeletonRow {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.skeletonText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .readFailed {
