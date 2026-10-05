@@ -1,17 +1,19 @@
 /* A standalone link in a story as its page's card: picture, title,
    description, host — in the story column, at most a comfortable reading
-   width, inside a lightly inked hand-drawn card (the fill, the hover wash and
-   the pen line are absolutely placed layers under the content). */
+   width. The fill and the hover wash are absolutely placed layers under the
+   content; the picture runs across the top edge to edge, cut by the card's
+   outline; an outlined card's pen line lies over everything, the picture's
+   edge included. */
 .card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   width: 100%;
   max-width: 520px;
   box-sizing: border-box;
-  padding: 10px 10px 14px;
   color: inherit;
+  /* A card inside a quote reads upright, like the quote's own card embeds. */
+  font-style: normal;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -22,18 +24,59 @@
   border-radius: var(--radius-md);
 }
 
+/* The picture at 1.91:1 (the share-image ratio), flush with the card's top
+   and sides. Measured, the card's outline cuts it and the image reaches a few
+   px past the box on those three sides, so the outline's outward swings land
+   on picture; its foot is straight and meets the words. Until then (the
+   server's HTML) it keeps inside the stand-in's rounded top corners. */
 .picture {
   position: relative;
   z-index: 1;
   display: block;
+  aspect-ratio: 1.91;
+  background: color-mix(in oklch, var(--color-text) 6%, transparent);
+}
+
+.picture:not([data-clipped]) {
+  overflow: hidden;
+  border-radius: var(--shape-radius) var(--shape-radius) 0 0;
 }
 
 .image {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.picture[data-clipped] .image {
+  top: calc(-1 * var(--picture-bleed));
+  left: calc(-1 * var(--picture-bleed));
+  width: calc(100% + 2 * var(--picture-bleed));
+  height: calc(100% + var(--picture-bleed));
+}
+
+/* The outlined card's pen, over the picture. */
+.pen {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* The stand-in's pen (an inset ring) would sit under the picture: an outlined
+   card draws it over the content until its own pen line arrives. */
+.card[data-variant='outlined'][data-shape-pending]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 var(--shape-ink-width) var(--shape-ink);
+  pointer-events: none;
 }
 
 .text {
@@ -43,7 +86,11 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  padding: 2px 8px 0;
+  padding: 16px 18px 16px;
+}
+
+.picture + .text {
+  padding-top: 12px;
 }
 
 .title {

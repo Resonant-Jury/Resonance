@@ -9,7 +9,7 @@ import { Divider } from '@/components/atoms/Divider/Divider';
 import { OrganicStoryImage } from '@/components/atoms/OrganicImage/OrganicStoryImage';
 import { CardEmbedLink } from '@/components/molecules/EmbedStoryCard/CardEmbedLink';
 import { StoryLinkCard } from '@/components/molecules/StoryLinkCard/StoryLinkCard';
-import { StoryLinkPreviewsContext } from '@/components/molecules/StoryLinkCard/StoryLinkPreviews';
+import { StoryLinkCardVariantContext, StoryLinkPreviewsContext } from '@/components/molecules/StoryLinkCard/StoryLinkPreviews';
 import type { LinkPreview } from '@/lib/db/types';
 import { isBlankParagraph } from '@/lib/markdown/blankLines';
 import { soleLinkParagraphs } from '@/lib/links/storyLinks';
@@ -93,6 +93,7 @@ const components: Components = {
  */
 function StoryParagraph({ node, children }: { children?: ReactNode } & ExtraProps) {
   const cards = useContext(StoryLinkCardsContext);
+  const linkCardVariant = useContext(StoryLinkCardVariantContext);
   const sole = soleElementChild(node);
   if (sole?.tagName === 'a') {
     const href = String(sole.properties?.href ?? '');
@@ -113,7 +114,7 @@ function StoryParagraph({ node, children }: { children?: ReactNode } & ExtraProp
   if (preview) {
     return (
       <div className={styles.embedBlock}>
-        <StoryLinkCard preview={preview} />
+        <StoryLinkCard preview={preview} variant={linkCardVariant} />
       </div>
     );
   }
