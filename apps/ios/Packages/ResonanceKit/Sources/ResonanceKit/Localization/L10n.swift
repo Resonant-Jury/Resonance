@@ -265,6 +265,8 @@ public enum L10n {
         public enum Note {
             /// Send the author a little note
             public static var entry: String { Strings.shared.string("card.note.entry") }
+            /// Send a note
+            public static var entryShort: String { Strings.shared.string("card.note.entryShort") }
             /// A little note
             public static var label: String { Strings.shared.string("card.note.label") }
             /// Something you want to tell the author…

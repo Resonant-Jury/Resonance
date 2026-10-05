@@ -147,6 +147,7 @@
     },
     "note": {
       "entry": "Send the author a little note",
+      "entryShort": "Send a note",
       "label": "A little note",
       "placeholder": "Something you want to tell the author…",
       "hint": "Only the author can see this",

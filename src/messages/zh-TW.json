@@ -147,6 +147,7 @@
     },
     "note": {
       "entry": "寄一張小紙條給作者",
+      "entryShort": "寄小紙條",
       "label": "小紙條",
       "placeholder": "想對作者說的話⋯",
       "hint": "這段話只有作者看得到",

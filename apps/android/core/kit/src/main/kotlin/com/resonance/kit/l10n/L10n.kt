@@ -267,6 +267,8 @@ object L10n {
         object Note {
             /** Send the author a little note */
             val entry: String get() = Strings.string("card.note.entry")
+            /** Send a note */
+            val entryShort: String get() = Strings.string("card.note.entryShort")
             /** A little note */
             val label: String get() = Strings.string("card.note.label")
             /** Something you want to tell the author… */
