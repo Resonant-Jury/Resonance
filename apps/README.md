@@ -176,8 +176,9 @@ registers its token with `PUT /api/v1/me/devices/{installationId}` after
 sign-in (see "Both apps" for when) and unregisters on sign-out. Real delivery needs the Apple team: an
 APNs auth key uploaded to Firebase (Project settings → Cloud Messaging), and
 `aps-environment` switched to `production` for release builds. The registration
-also names the phone's time zone (`TimeZone.current.identifier`), and a new
-one sends it again (`PushRegistration`).
+also names the phone's time zone (`TimeZone.current.identifier`; `PushAPI`
+sends none rather than one over the contract's 64 characters, as Android does),
+and a new one sends it again (`PushRegistration`).
 
 Settings → 通知 holds the two opt-in pushes ("a card for tonight" and new
 cards from connections; `GET/PATCH /api/v1/me/notifications` through
