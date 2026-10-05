@@ -43,4 +43,37 @@ import Testing
         #expect(choices.cards.map(\.id) == ["walk"])
         #expect(choices.hidden == 0)
     }
+
+    @Test func noPublicCardsAtAllIsTheOnlyNoPublicCardsYet() {
+        let none = ResonateChoices.of([card("diary", visibility: ._private), card("draft", published: false)],
+                                      target: "target", targetReference: nil)
+        #expect(none.emptyNote == L10n.Card.ResonatePicker.empty)
+        #expect(none.footnote == nil)
+        #expect(!none.nothingToPick)
+    }
+
+    // Their public cards are there, only none may answer this one: never "no public cards yet".
+    @Test func everyPublicCardAnsweringAnotherSaysWhyNoneIsListedOnce() {
+        let answering = ResonateChoices.of([card("reply", answering: "someone-elses")], target: "target", targetReference: nil)
+        #expect(answering.cards.isEmpty)
+        #expect(answering.emptyNote == L10n.Card.ResonatePicker.hiddenNote)
+        // Said once, in the list's place — not again under it.
+        #expect(answering.footnote == nil)
+        #expect(!answering.nothingToPick)
+        // Beside cards that are listed, it is the line under them.
+        let some = ResonateChoices.of([card("walk"), card("reply", answering: "someone-elses")], target: "target", targetReference: nil)
+        #expect(some.emptyNote == nil)
+        #expect(some.footnote == L10n.Card.ResonatePicker.hiddenNote)
+    }
+
+    // Nothing to pick and nothing to say: no heading over an empty list, only the way to write one.
+    @Test func theOnlyPublicCardBeingTheOneThisAnswersSaysNothing() {
+        let origin = ResonateChoices.of([card("origin")], target: "target", targetReference: "origin")
+        #expect(origin.cards.isEmpty)
+        #expect(origin.nothingToPick)
+        #expect(origin.emptyNote == nil)
+        #expect(origin.footnote == nil)
+        // A card listed: the heading and the list, as ever.
+        #expect(!ResonateChoices.of([card("origin"), card("walk")], target: "target", targetReference: "origin").nothingToPick)
+    }
 }
