@@ -6,8 +6,11 @@ import UIKit
 import UserNotifications
 
 /// Push notifications: permission, this install's FCM token, and the pushes
-/// the person taps. The server writes every push from a bell row (the same
-/// copy, in the app's language) with `data.route`, a site path the app opens.
+/// the person taps. The server writes a push from each bell row (the same
+/// copy, in the app's language) with `data.route`, a site path the app opens;
+/// the two it sends only to those who turned them on in settings — tonight's
+/// card (`type: "pick"`) and a connection's new card (`"new_card"`), grouped
+/// under `threadId` `picks` — have no bell row and name the card's page.
 ///
 /// Chat messages are pushed one by one (`type: "message"`), grouped by the
 /// system under their conversation (`threadId`, its pair id). The conversation
@@ -92,12 +95,34 @@ final class PushCenter {
 
     private static let registrationKey = "pushRegistration"
 
+    /// What the system lets this app do with notifications.
+    enum Permission: Equatable, Sendable {
+        /// They show (provisional and ephemeral authorizations count: they deliver too).
+        case allowed
+        /// Never asked: asking shows the system's question.
+        case undetermined
+        /// Turned off (by the person, in the system's question or in Settings): only Settings can
+        /// turn them on again — the app can't ask twice.
+        case denied
+
+        init(_ status: UNAuthorizationStatus) {
+            switch status {
+            case .authorized, .provisional, .ephemeral: self = .allowed
+            case .notDetermined: self = .undetermined
+            default: self = .denied
+            }
+        }
+    }
+
+    func permission() async -> Permission {
+        Permission(await UNUserNotificationCenter.current().notificationSettings().authorizationStatus)
+    }
+
     /// Signed in: with notifications already allowed, registers with APNs (each
     /// launch; FCM hands back its token through `tokenChanged`). It doesn't ask —
-    /// that waits for `reachedOut()`.
+    /// that waits for `reachedOut()`, or a switch turned on in settings.
     func registerIfAllowed() async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        guard [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus) else { return }
+        guard await permission() == .allowed else { return }
         UIApplication.shared.registerForRemoteNotifications()
     }
 
@@ -106,12 +131,20 @@ final class PushCenter {
     /// so the moment to ask (once; the system remembers the answer) — not on
     /// first opening the app, before there is anything to be notified about.
     func reachedOut() {
-        Task {
-            let center = UNUserNotificationCenter.current()
-            guard await center.notificationSettings().authorizationStatus == .notDetermined else { return }
-            let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-            guard granted else { return }
-            UIApplication.shared.registerForRemoteNotifications()
+        Task { _ = await askIfUndetermined() }
+    }
+
+    /// Asks the system's question when it was never asked (a switch turned on in settings, or
+    /// `reachedOut`), registering with APNs on a yes. Whether notifications may show now; asked
+    /// before, the earlier answer stands (a no can only be undone in Settings).
+    func askIfUndetermined() async -> Bool {
+        switch await permission() {
+        case .allowed: return true
+        case .denied: return false
+        case .undetermined:
+            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            if granted { UIApplication.shared.registerForRemoteNotifications() }
+            return granted
         }
     }
 

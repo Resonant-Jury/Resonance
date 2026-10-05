@@ -5,13 +5,14 @@ import SwiftUI
 
 /// The settings sections that apply to the app, in the web's order.
 enum SettingsSection: Hashable, CaseIterable {
-    case profile, account, privacy, language, terms, delete
+    case profile, account, privacy, notifications, language, terms, delete
 
     var title: String {
         switch self {
         case .profile: L10n.Settings.Sections.profile
         case .account: L10n.Settings.Sections.account
         case .privacy: L10n.Settings.Sections.privacy
+        case .notifications: L10n.Settings.Sections.notifications
         case .language: L10n.Settings.Sections.language
         case .terms: L10n.Settings.Sections.terms
         case .delete: L10n.Settings.Sections.delete
@@ -24,6 +25,7 @@ enum SettingsSection: Hashable, CaseIterable {
         case .profile: .user
         case .account: .key
         case .privacy: .lock
+        case .notifications: .bell
         case .language: .globe
         case .terms: .document
         case .delete: .trash
@@ -36,9 +38,10 @@ enum SettingsSection: Hashable, CaseIterable {
         case .profile: 0
         case .account: 1
         case .privacy: 2
-        case .language: 3
-        case .terms: 5
-        case .delete: 6
+        case .notifications: 3
+        case .language: 4
+        case .terms: 6
+        case .delete: 7
         }
     }
 }
@@ -106,6 +109,7 @@ struct SettingsSectionScreen: View {
                 case .profile: ProfileSettings()
                 case .account: AccountSettings()
                 case .privacy: PrivacySettings()
+                case .notifications: NotificationSettings()
                 case .language: LanguageSettings()
                 case .terms: TermsSettings()
                 case .delete: DeleteAccountSettings()
@@ -245,6 +249,89 @@ private struct PrivacySettings: View {
             .organicModal(isPresented: $showingBlocks, seed: 97, closeLabel: L10n.Safety.BlockedList.close) {
                 BlockedListContent { showingBlocks = false }
             }
+    }
+}
+
+/// Notifications (NotificationsSection): the two pushes beyond the ones answering you, each a
+/// label with its hint under it and the switch at the row's end, between wavy rules — both off
+/// until turned on (NotificationSettingsModel). When the system keeps the app's notifications
+/// off, a line says so with the way to them in Settings; back from there, it looks again.
+private struct NotificationSettings: View {
+    @Environment(SessionStore.self) private var session
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var model: NotificationSettingsModel?
+
+    /// In the interface's language of the moment (a static list would keep the first one's).
+    private var rows: [(name: NotificationSettingsModel.Switch, label: String, hint: String, seed: Double)] {
+        [(.picks, L10n.Settings.Notifications.picks, L10n.Settings.Notifications.picksHint, 83),
+         (.connectionCards, L10n.Settings.Notifications.connectionCards, L10n.Settings.Notifications.connectionCardsHint, 89)]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.name) { i, row in
+                if i > 0 { WavyDivider(seed: row.seed + 2).padding(.vertical, 2) }
+                switchRow(row.name, label: row.label, hint: row.hint, seed: row.seed)
+                    .padding(.top, i == 0 ? 0 : 14)
+                    .padding(.bottom, 14)
+            }
+            if let model {
+                if model.permissionDenied { denied.padding(.top, 10) }
+                if model.saveFailed {
+                    ModalError(L10n.Settings.Notifications.saveError).padding(.top, 14)
+                } else if model.loadFailed {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ModalError(L10n.Native.loadError)
+                        OrganicButton(L10n.Native.retry, variant: .textAccent, size: .sm) { Task { await model.load() } }
+                    }
+                    .padding(.top, 14)
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: model?.permissionDenied)
+        .task {
+            if model == nil { model = NotificationSettingsModel(api: session.notificationSettings, push: session.push) }
+            await model?.load()
+        }
+        // Back from Settings, where notifications may have been turned on (or off).
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, let model else { return }
+            Task { await model.checkPermission() }
+        }
+    }
+
+    private func switchRow(_ name: NotificationSettingsModel.Switch, label: String, hint: String, seed: Double) -> some View {
+        let enabled = model?.canFlip ?? false
+        return HStack(alignment: .top, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(label).font(AppFonts.body(16)).foregroundStyle(Tokens.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                CSSText(hint, font: AppFonts.scaledUIFont(.body, size: Tokens.hintSize), lineHeight: 1.55, color: UIColor(Tokens.textMuted))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityHidden(true)
+            OrganicToggle(isOn: Binding(get: { model?.isOn(name) ?? false },
+                                        set: { on in Task { await model?.set(name, on) } }),
+                          label: label, seed: seed)
+                .accessibilityHint(hint)
+                .padding(.top, 1)
+                .disabled(!enabled)
+                .opacity(enabled || model?.pending == name ? 1 : 0.5)
+                .animation(.easeOut(duration: 0.16), value: enabled)
+        }
+    }
+
+    /// The system keeps notifications off: only Settings can turn them on again.
+    private var denied: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            CSSText(L10n.Settings.Notifications.permissionDenied, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.55,
+                    color: UIColor(Tokens.textMuted))
+            OrganicButton(L10n.Settings.Notifications.openSettings, variant: .outline, size: .sm) {
+                if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
+            }
+        }
+        .transition(.opacity)
     }
 }
 
