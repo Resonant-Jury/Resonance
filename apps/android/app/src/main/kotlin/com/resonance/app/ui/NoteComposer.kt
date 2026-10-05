@@ -142,15 +142,8 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
                             PushCenter.reachedOut()
                         } catch (e: CancellationException) {
                             throw e
-                        } catch (e: ApiFailure) {
-                            error = when {
-                                // Notes waiting unanswered: the next one waits for their reply (in the app's words, never the server's).
-                                e.isConflict -> L10n.Card.Note.waitForReply
-                                e.status == 403 -> e.message
-                                else -> L10n.Messages.sendError
-                            }
                         } catch (e: Exception) {
-                            error = L10n.Messages.sendError
+                            error = noteSendError(e)
                         } finally {
                             pending = false
                         }
@@ -159,6 +152,19 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
             }
         }
     }
+}
+
+/**
+ * Why a note didn't go, in the app's words — never the server's English: notes waiting
+ * unanswered, that the next one waits for their reply; a card gone (deleted, or hidden from the
+ * writer since — a note resent after a deletion too, which took its notes with it), that it can't
+ * be found, since sending again won't help; anything else (a refusal, a block either way — which
+ * it doesn't tell apart — the network), that it didn't send. As the web's composer says.
+ */
+internal fun noteSendError(e: Exception): String = when {
+    e is ApiFailure && e.isConflict -> L10n.Card.Note.waitForReply
+    e is ApiFailure && e.status == 404 -> L10n.Card.NotFound.title
+    else -> L10n.Messages.sendError
 }
 
 /** Text held to `max` UTF-16 units (the field's maxLength), never cutting a surrogate pair in two. */

@@ -16,8 +16,24 @@ import java.util.Date
  * anonymous card's note.
  */
 class ThreadLettersTest {
-    private fun foot(connected: Boolean?, requestFrom: String? = null, blocked: Boolean = false) =
-        ThreadFoot.of(connected, blocked, requestFrom, me = "alice", other = "carol")
+    private fun foot(connected: Boolean?, requestFrom: String? = null, blocked: Boolean = false, letterKnown: Boolean = true) =
+        ThreadFoot.of(connected, blocked, requestFrom, me = "alice", other = "carol", letterKnown = letterKnown)
+
+    @Test fun aColdStartSaysNotConnectedOnlyOnceTheConversationHasSaidNoLetterWaits() {
+        // The live connections answer first: not connected. Whether alice's letter waits isn't heard yet —
+        // no foot, rather than "not connected" flashing before the awaiting line.
+        assertEquals(ThreadFoot.Pending, foot(false, letterKnown = false))
+        assertFalse(ThreadFoot.Pending.composes)
+        // The conversation answers: her letter waits…
+        assertEquals(ThreadFoot.Awaiting, foot(false, requestFrom = "alice", letterKnown = true))
+        // …or carol's does, or none does.
+        assertEquals(ThreadFoot.Answer, foot(false, requestFrom = "carol", letterKnown = true))
+        assertEquals(ThreadFoot.Closed, foot(false, letterKnown = true))
+        // Connected, blocked or not known yet need no word from the conversation.
+        assertEquals(ThreadFoot.Composer, foot(true, letterKnown = false))
+        assertEquals(ThreadFoot.Closed, foot(false, blocked = true, letterKnown = false))
+        assertEquals(ThreadFoot.Composer, foot(null, letterKnown = false))
+    }
 
     @Test fun connectedPeopleWriteAsAlwaysWhateverWaits() {
         assertEquals(ThreadFoot.Composer, foot(true))
@@ -72,6 +88,27 @@ class ThreadLettersTest {
         assertEquals(ThreadFoot.Answer, foot(after, requestFrom = "carol"))
         // With no letter between them, "not connected".
         assertEquals(ThreadFoot.Closed, foot(after))
+    }
+
+    @Test fun aReReadLandingAfterTheLiveConnectionNeverClosesTheThread() {
+        // Carol's letter waits for alice's answer.
+        var connected: Boolean? = false
+        assertEquals(ThreadFoot.Answer, foot(connected, requestFrom = "carol"))
+        // Alice answers: the letter is let go and the connection begins; the live list hears it first…
+        connected = connectionOf(live = setOf("carol"), other = "carol", profile = connected, blocked = false)
+        assertEquals(ThreadFoot.Composer, foot(connected))
+        // …then the re-read lands with what the profile said before the answer: the composer stays.
+        connected = connectionAfterRead(live = setOf("carol"), other = "carol", profile = false, blocked = false)
+        assertEquals(ThreadFoot.Composer, foot(connected))
+    }
+
+    @Test fun aReReadAfterTheAnswerSaysConnectedBeforeTheLiveListHears() {
+        assertEquals(true, connectionAfterRead(live = emptySet(), other = "carol", profile = true, blocked = false))
+        assertEquals(true, connectionAfterRead(live = null, other = "carol", profile = true, blocked = false))
+        // Not connected on both counts (a take-back, an unblock): not connected. Never across a block.
+        assertEquals(false, connectionAfterRead(live = emptySet(), other = "carol", profile = false, blocked = false))
+        assertEquals(false, connectionAfterRead(live = null, other = "carol", profile = false, blocked = false))
+        assertEquals(false, connectionAfterRead(live = setOf("carol"), other = "carol", profile = true, blocked = true))
     }
 
     @Test fun aBlockClosesTheThreadWhateverWaits() {

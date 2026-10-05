@@ -95,7 +95,7 @@ fun SafetyMenu(
             scope.launch { runCatching { session.safety?.block(person) }.onSuccess { onChange() }.onFailure { failed = true } }
         },
     )
-    if (failed) OrganicAlert(L10n.Safety.actionError, "OK") { failed = false }
+    if (failed) OrganicAlert(L10n.Safety.actionError) { failed = false }
 }
 
 /**
@@ -219,5 +219,5 @@ fun AccountDeletionBanner(session: Session, date: OffsetDateTime) {
             }
         }
     }
-    if (failed) OrganicAlert(L10n.AccountDeletion.error, "OK") { failed = false }
+    if (failed) OrganicAlert(L10n.AccountDeletion.error) { failed = false }
 }

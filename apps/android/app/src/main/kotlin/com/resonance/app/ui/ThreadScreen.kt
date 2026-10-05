@@ -258,6 +258,8 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
                                     .plainClickable(role = Role.Button) { open(Route.Author(model.other?.handle ?: handle)) },
                             )
                         }
+                        // Whether a note waits not heard yet: no foot, rather than one that changes as it arrives.
+                        ThreadFoot.Pending -> {}
                     }
                 }
             }

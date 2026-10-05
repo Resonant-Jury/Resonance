@@ -185,7 +185,7 @@ fun TagPill(
                 .padding(start = 2.dp)
                 .size(10.dp)
                 .alpha(0.55f)
-                .plainClickable(role = Role.Button, onClickLabel = "Remove tag", onClick = onRemove),
+                .plainClickable(role = Role.Button, onClickLabel = L10n.Write.removeTag, onClick = onRemove),
         ) {
             val k = this.size.width / 10f
             val x = Path().apply {

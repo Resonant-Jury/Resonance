@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,15 +73,16 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
     // Never a card by someone blocked — not even one kept from before the block.
     val blocked by session.blocked.collectAsStateWithLifecycle()
     val cards = remember(state.cards, blocked) { state.cards.withoutAuthors(blocked) }
+    val view = LocalView.current
 
     TabScreen(
         L10n.Home.heading,
         subtitle = L10n.Home.subheading,
         list = list,
-        // Pulled down: read again now, from the server rather than the HTTP cache.
+        // Pulled down: read again now, from the server rather than the HTTP cache. Nothing back: the feed stays, and says why.
         onRefresh = {
             session.readAfresh()
-            feed.reload()
+            feed.reload()?.let { view.announce(it.message) }
         },
         refreshEnabled = state.phase != FeedLoader.Phase.Loading,
         overlay = {
@@ -108,6 +110,7 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
                         OrganicEmptyState(L10n.Home.Empty.subtitle, L10n.Home.Empty.cta, { open(Route.Write()) }, title = L10n.Home.Empty.title)
                     }
                 } else {
+                    refreshNote(state.refreshFailure)
                     storyCards(cards, open)
                     item {
                         Column(Modifier.fillMaxWidth().padding(top = 48.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {

@@ -15,10 +15,9 @@ import com.resonance.api.models.LinkPreview as ApiLinkPreview
  *  - an http(s) link (`[text](url)`, `<url>`, a resolved reference link) with no picture inside, or
  *  - a run of plain text that is, trimmed, exactly one link ([Linkify.find]) from end to end.
  *
- * Its key is the URL as the server writes it, so a preview is found by the address it was made
- * for: what [Linkify.normalize] makes of it — with the server's two extra refusals (a port other
- * than the scheme's own) and readings (an address in disguise, `127.1`, is the dotted four a
- * browser reads it as). A key with no preview is a paragraph like any other.
+ * Its key is the URL as the server writes it — `new URL(link).href`, the WHATWG URL serializer —
+ * so a preview is found by the address it was made for, and the same links become cards on every
+ * platform ([key]). A key with no preview is a paragraph like any other.
  */
 object StoryLinks {
     private val HTTP = Regex("^https?://", RegexOption.IGNORE_CASE)
@@ -26,9 +25,7 @@ object StoryLinks {
     /** The key of a link written explicitly (`[text](href)`, `<href>`), or null when it isn't a standalone link's. */
     fun keyOf(href: String): String? {
         if (!HTTP.containsMatchIn(href)) return null
-        val url = Linkify.normalize(href) ?: withDottedQuad(href)?.let(Linkify::normalize) ?: return null
-        // The server follows a link only on its scheme's own port (`:8443` is no link of a story's).
-        return url.takeUnless { Linkify.displayHost(it).orEmpty().contains(':') }
+        return key(href)
     }
 
     /** The key of a run of plain text that is one link and nothing else (trimmed), or null. */
@@ -36,7 +33,98 @@ object StoryLinks {
         val trimmed = text.trim()
         val found = Linkify.find(trimmed).singleOrNull() ?: return null
         if (found.range.first != 0 || found.range.last + 1 != trimmed.length) return null
-        return keyOf(found.url)
+        // In running text the server takes a host written in ASCII only (an IDN there is the homograph trick).
+        if (authorityOf(trimmed).any { it.code > 127 }) return null
+        return key(trimmed)
+    }
+
+    /**
+     * The server's key for a link as written: the link rules decide whether it is one at all
+     * ([Linkify.normalize] — with the server's own readings: an address in disguise, `127.1`, is the
+     * dotted four a browser reads it as; and its own port rule: the scheme's own, or the other of
+     * 80 and 443, which it keeps as written), and the rest is WHATWG's serialization of what
+     * follows the host ([afterHost]): dot segments resolved, and each part percent-encoded with its
+     * own set — so `?q=what's` is `?q=what%27s`, and `{ }` are encoded in the path but not in the
+     * query or the fragment.
+     */
+    private fun key(written: String): String? {
+        val url = Linkify.normalize(written) ?: withDottedQuad(written)?.let(Linkify::normalize) ?: return null
+        val port = Linkify.displayHost(url)?.substringAfter(':', "").orEmpty()
+        if (port.isNotEmpty() && port != "80" && port != "443") return null
+        val hostAt = url.indexOf("://") + 3
+        val origin = url.substring(0, url.indexOf('/', hostAt).takeIf { it >= 0 } ?: url.length)
+        return (origin + afterHost(written.substring(authorityEnd(written)))).takeIf { it.length <= Linkify.MAX_LENGTH }
+    }
+
+    /** Where a written link's host (and port) begins: past `scheme://`, or at once for a `www.` link. */
+    private fun authorityStart(written: String): Int =
+        if (written.regionMatches(0, "www.", 0, 4, ignoreCase = true)) 0 else written.indexOf("://") + 3
+
+    /** Where a written link's host (and port) ends: its path, query or fragment, or the end. */
+    private fun authorityEnd(written: String): Int {
+        val from = authorityStart(written)
+        return written.indexOfAny(charArrayOf('/', '?', '#'), from).takeIf { it >= 0 } ?: written.length
+    }
+
+    private fun authorityOf(written: String): String = written.substring(authorityStart(written), authorityEnd(written))
+
+    /**
+     * What follows the host of an http(s) URL as WHATWG serializes it ([rest]: the path, query and
+     * fragment as written, empty or starting with `/`, `?` or `#`): the path's `.` and `..` segments
+     * (also as `%2e`) resolved; then the path, the query (a special scheme's) and the fragment each
+     * percent-encoded with their own sets, UTF-8 with upper-case hex; a `%` written stays as it is.
+     */
+    internal fun afterHost(rest: String): String {
+        val hash = rest.indexOf('#')
+        val beforeHash = if (hash < 0) rest else rest.substring(0, hash)
+        val question = beforeHash.indexOf('?')
+        val path = if (question < 0) beforeHash else beforeHash.substring(0, question)
+        val out = StringBuilder(serializedPath(path))
+        if (question >= 0) out.append('?').append(encoded(beforeHash.substring(question + 1), QUERY))
+        if (hash >= 0) out.append('#').append(encoded(rest.substring(hash + 1), FRAGMENT))
+        return out.toString()
+    }
+
+    private fun serializedPath(path: String): String {
+        val segments = ArrayList<String>()
+        val parts = path.removePrefix("/").split('/')
+        parts.forEachIndexed { i, raw ->
+            val last = i == parts.lastIndex
+            val segment = encoded(raw, PATH)
+            when (segment.lowercase()) {
+                // `..` goes up a level; ending the path, it leaves it ending in a slash, as `.` does.
+                "..", ".%2e", "%2e.", "%2e%2e" -> {
+                    segments.removeLastOrNull()
+                    if (last) segments += ""
+                }
+                ".", "%2e" -> if (last) segments += ""
+                else -> segments += segment
+            }
+        }
+        return "/" + segments.joinToString("/")
+    }
+
+    /** WHATWG's percent-encode sets past the C0 controls (and everything past `~`, encoded always). */
+    private const val FRAGMENT = " \"<>`"
+    private const val QUERY = " \"#<>'"
+    private const val PATH = " \"#<>?^`{}"
+
+    private fun encoded(part: String, set: String): String {
+        if (part.all { it.code in 0x20..0x7E && it !in set }) return part
+        val out = StringBuilder()
+        var i = 0
+        while (i < part.length) {
+            val cp = part.codePointAt(i)
+            if (cp in 0x20..0x7E && cp.toChar() !in set) {
+                out.append(cp.toChar())
+            } else {
+                // A lone surrogate is no text: the URL parser writes it as U+FFFD (the link rules refuse it first).
+                val text = if (cp in 0xD800..0xDFFF) "\uFFFD" else String(Character.toChars(cp))
+                text.toByteArray(Charsets.UTF_8).forEach { out.append('%').append("%02X".format(it.toInt() and 0xFF)) }
+            }
+            i += Character.charCount(cp)
+        }
+        return out.toString()
     }
 
     /**
@@ -48,10 +136,13 @@ object StoryLinks {
         if (previews.isNullOrEmpty()) return emptyMap()
         val byKey = LinkedHashMap<String, LinkPreview>()
         for (p in previews) {
-            // Keyed by the address as the server wrote it (the key a paragraph derives); opened as the link rules read it.
-            if (Linkify.normalize(p.url) == null || byKey.containsKey(p.url)) continue
+            // Keyed by the address as the server wrote it, read as a paragraph's key is (the same, for what the server
+            // writes: it is that key already); opened as the link rules read it.
+            if (Linkify.normalize(p.url) == null) continue
+            val key = keyOf(p.url) ?: p.url
+            if (byKey.containsKey(key)) continue
             val title = p.title.trim().takeIf { it.isNotEmpty() } ?: continue
-            byKey[p.url] = LinkPreview(
+            byKey[key] = LinkPreview(
                 url = p.url,
                 title = title,
                 description = p.description?.trim()?.takeIf { it.isNotEmpty() },

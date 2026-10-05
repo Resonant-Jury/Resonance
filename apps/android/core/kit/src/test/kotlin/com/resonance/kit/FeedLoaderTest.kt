@@ -2,7 +2,9 @@ package com.resonance.kit
 
 import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ReadingApi
+import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.reading.FeedLoader
+import com.resonance.kit.reading.RefreshFailure
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -11,16 +13,24 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -227,16 +237,73 @@ class FeedLoaderTest {
         assertEquals(listOf("a"), patient.state.value.cards.map { it.id })
     }
 
-    @Test fun aPullThatFailsLeavesTheFeedAsItWas() = runBlocking {
+    @Test fun aPullThatFailsLeavesTheFeedAsItWasAndSaysSoUntilTheNextAnswer() = runBlocking {
+        routes.on("/feed") { json(pageJson("a")) }
+        routes.on("/feed/recommended") { json(listJson()) }
+        loader.load()
+        until { it.phase == FeedLoader.Phase.Loaded }
+        assertNull(loader.state.value.refreshFailure)
+        routes.on("/feed") { MockResponse().setResponseCode(500) }
+        routes.on("/feed/recommended") { MockResponse().setResponseCode(500) }
+        // The server's trouble: the feed stays, with the quiet line saying it couldn't load.
+        assertEquals(RefreshFailure.Failed, withTimeout(4_000) { loader.reload() })
+        assertEquals(FeedLoader.Phase.Loaded, loader.state.value.phase)
+        assertEquals(listOf("a"), loader.state.value.cards.map { it.id })
+        assertEquals(RefreshFailure.Failed, loader.state.value.refreshFailure)
+        // The next pull that brings the feed back: the line goes.
+        routes.on("/feed") { json(pageJson("new", "a")) }
+        routes.on("/feed/recommended") { json(listJson()) }
+        assertNull(withTimeout(4_000) { loader.reload() })
+        assertEquals(listOf("new", "a"), loader.state.value.cards.map { it.id })
+        assertNull(loader.state.value.refreshFailure)
+    }
+
+    @Test fun aPullWithNoNetworkSaysTheReaderIsOffline() = runBlocking {
+        val offline = AtomicBoolean(false)
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            if (offline.get()) throw UnknownHostException("no network")
+            chain.proceed(chain.request())
+        }.build()
+        val feed = FeedLoader(ReadingApi(ApiConfiguration(server.url("/").toString()) { "token" }, http), scope, retryPicksAfter = 30.seconds)
+        routes.on("/feed") { json(pageJson("a")) }
+        routes.on("/feed/recommended") { json(listJson()) }
+        feed.load()
+        withTimeout(4_000) { feed.state.first { it.phase == FeedLoader.Phase.Loaded } }
+        offline.set(true)
+        assertEquals(RefreshFailure.Offline, withTimeout(4_000) { feed.reload() })
+        assertEquals(listOf("a"), feed.state.value.cards.map { it.id })
+        assertEquals(RefreshFailure.Offline, feed.state.value.refreshFailure)
+    }
+
+    @Test fun aPullWhosePicksCameIsNoFailure() = runBlocking {
         routes.on("/feed") { json(pageJson("a")) }
         routes.on("/feed/recommended") { json(listJson()) }
         loader.load()
         until { it.phase == FeedLoader.Phase.Loaded }
         routes.on("/feed") { MockResponse().setResponseCode(500) }
+        routes.on("/feed/recommended") { json(listJson("p1")) }
+        assertNull(withTimeout(4_000) { loader.reload() })
+        assertNull(loader.state.value.refreshFailure)
+    }
+
+    @Test fun withNothingOnScreenAFailedPullIsThePagesOwnFailure() = runBlocking {
+        routes.on("/feed") { MockResponse().setResponseCode(500) }
         routes.on("/feed/recommended") { MockResponse().setResponseCode(500) }
-        withTimeout(4_000) { loader.reload() }
-        assertEquals(FeedLoader.Phase.Loaded, loader.state.value.phase)
-        assertEquals(listOf("a"), loader.state.value.cards.map { it.id })
+        loader.load()
+        until { it.phase == FeedLoader.Phase.Failed }
+        assertNull(withTimeout(4_000) { loader.reload() })
+        assertEquals(FeedLoader.Phase.Failed, loader.state.value.phase)
+        assertNull(loader.state.value.refreshFailure)
+    }
+
+    @Test fun onlyTheNetworkGoneIsOffline() {
+        assertEquals(RefreshFailure.Offline, RefreshFailure.of(UnknownHostException("api.example")))
+        assertEquals(RefreshFailure.Offline, RefreshFailure.of(ConnectException("Failed to connect")))
+        assertEquals(RefreshFailure.Offline, RefreshFailure.of(IOException("wrapped", SocketException("Connection reset"))))
+        // A server that answered, or took too long, is not.
+        assertEquals(RefreshFailure.Failed, RefreshFailure.of(SocketTimeoutException("timeout")))
+        assertEquals(RefreshFailure.Failed, RefreshFailure.of(ApiFailure("internal", "HTTP 500", 500)))
+        assertEquals(RefreshFailure.Failed, RefreshFailure.of(null))
     }
 
     @Test fun nothingAnsweringIsAFailureAndATryAgainLoads() = runBlocking {

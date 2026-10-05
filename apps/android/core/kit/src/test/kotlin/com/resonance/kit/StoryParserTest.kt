@@ -119,17 +119,51 @@ class StoryParserTest {
         for (case in linkCases.filter { it.inline.isNotEmpty() }) {
             val blocks = flatten(StoryParser.parse(case.markdown))
             assertTrue(blocks.none { it is StoryBlock.SoleLink }, case.id)
-            // Still the paragraph it was, its words all there (a link written in it stays tappable where the reader allows).
+            // Still the paragraph it was, its words all there, and each link in it tappable — a bare address too, as the web's reader makes it.
             assertTrue(blocks.any { it is StoryBlock.Paragraph }, case.id)
+            // The fixture names each by the server's key (its URL parser's), so each run's link is compared as that key too:
+            // a link as written (`?q=what's`) and its key (`?q=what%27s`) are the same link.
+            val links = blocks.flatMap(::runsOf).mapNotNull { run -> run.link?.let { StoryLinks.keyOf(it) ?: it } }
+            for (url in case.inline) assertTrue(url in links, "${case.id}: $url in $links")
         }
+    }
+
+    @Test fun anAddressWrittenBareInTheTextIsALink() {
+        val runs = runsOf(StoryParser.parse("我讀了 https://example.com/a 和 www.example.org/b。").single())
+        assertEquals(
+            listOf(
+                InlineRun("我讀了 "),
+                InlineRun("https://example.com/a", link = "https://example.com/a"),
+                InlineRun(" 和 "),
+                InlineRun("www.example.org/b", link = "https://www.example.org/b"),
+                InlineRun("。"),
+            ),
+            runs,
+        )
+        // Marked as the words around it are; inside a link, or in code, it is that link's (or none).
+        assertEquals(listOf(InlineRun("https://example.com/b", bold = true, link = "https://example.com/b")), runsOf(StoryParser.parse("**https://example.com/b**").single()))
+        assertEquals(listOf(InlineRun("see https://example.com/x", link = "https://example.com/y")), runsOf(StoryParser.parse("[see https://example.com/x](https://example.com/y)").single()))
+        // A link the reader can't open is plain words — and still a link's words, which GFM never links on their own.
+        assertEquals(listOf(InlineRun("https://example.com/a")), runsOf(StoryParser.parse("[https://example.com/a](tel:1)").single()))
+        assertEquals(
+            listOf(InlineRun("call "), InlineRun("www.example.com", bold = true), InlineRun(" now")),
+            runsOf(StoryParser.parse("[call **www.example.com** now](tel:+886212345678)").single()),
+        )
+        assertEquals(listOf(InlineRun("https://example.com/c", code = true)), runsOf(StoryParser.parse("`https://example.com/c`").single()))
+        // Not an address by the link rules: plain text.
+        assertEquals(listOf(InlineRun("example.com 和 http://localhost/x")), runsOf(StoryParser.parse("example.com 和 http://localhost/x").single()))
     }
 
     @Test fun aStandaloneLinkKeepsItsWordsForWhenThereIsNoPreview() {
         val block = StoryParser.parse("前一段。\n\n[一篇好文章](https://blog.example.com/post/42)\n\n後一段。")[1]
         assertIs<StoryBlock.SoleLink>(block)
         assertEquals(listOf(InlineRun("一篇好文章", link = "https://blog.example.com/post/42")), runsOf(block))
-        val bare = StoryParser.parse("https://example.com/rain").single()
-        assertEquals(StoryBlock.SoleLink("https://example.com/rain", listOf(InlineRun("https://example.com/rain"))), bare)
+        // A bare one, with no preview, is still a link to tap (and to TalkBack), as on the web.
+        val bare = StoryParser.parse("https://no-such-host.invalid/page").single()
+        assertEquals(
+            StoryBlock.SoleLink("https://no-such-host.invalid/page", listOf(InlineRun("https://no-such-host.invalid/page", link = "https://no-such-host.invalid/page"))),
+            bare,
+        )
     }
 
     @Test fun anAddressInDisguiseIsReadAsTheDottedFourABrowserReads() {
@@ -148,6 +182,62 @@ class StoryParserTest {
         assertEquals("https://example.com/", StoryLinks.keyOf("https://example.com:443/"))
         assertNull(StoryLinks.keyOf("https://user@127.1/"))
         assertNull(StoryLinks.keyOf("www.example.com"))
+    }
+
+    @Test fun aKeyIsTheAddressAsTheServersUrlParserWritesIt() {
+        // Each pinned against node's `new URL(link).href`, which the server keys a preview by (normalizeLink).
+        val cases = mapOf(
+            // Each part with its own percent-encode set: `'` in the query only, `{ }` in the path only.
+            "https://example.com/search?q=what's+up" to "https://example.com/search?q=what%27s+up",
+            "https://example.com/p'q" to "https://example.com/p'q",
+            "https://example.com/q?a'b#c'd" to "https://example.com/q?a%27b#c'd",
+            "https://example.com/p{1}?x={1}#{f}" to "https://example.com/p%7B1%7D?x={1}#{f}",
+            "https://example.com/a\"b" to "https://example.com/a%22b",
+            "https://example.com/a`b?c`d#e`f" to "https://example.com/a%60b?c`d#e%60f",
+            "https://example.com/a<b>?c<d>#e<f>" to "https://example.com/a%3Cb%3E?c%3Cd%3E#e%3Cf%3E",
+            "https://example.com/a^b" to "https://example.com/a%5Eb",
+            "https://example.com/a|b?c|d#e|f" to "https://example.com/a|b?c|d#e|f",
+            "https://example.com/a[b]?c[d]#e[f]" to "https://example.com/a[b]?c[d]#e[f]",
+            "https://example.com/中文?q=中#中" to "https://example.com/%E4%B8%AD%E6%96%87?q=%E4%B8%AD#%E4%B8%AD",
+            "https://example.com/%zz?%" to "https://example.com/%zz?%",
+            // Dot segments resolved (`%2e` is a dot too); one ending the path leaves its slash.
+            "https://example.com/a/./b/../c" to "https://example.com/a/c",
+            "https://example.com/a/b/.." to "https://example.com/a/",
+            "https://example.com/a/." to "https://example.com/a/",
+            "https://example.com/.." to "https://example.com/",
+            "https://example.com/a/%2e%2E/b" to "https://example.com/b",
+            "https://example.com/a/%2e/b" to "https://example.com/a/b",
+            "https://example.com//x" to "https://example.com//x",
+            // No path: the empty path is `/`.
+            "https://example.com?x" to "https://example.com/?x",
+            "https://example.com#f" to "https://example.com/#f",
+            // The scheme's own port goes; the other of 80 and 443 stays, as written.
+            "https://example.com:80/x" to "https://example.com:80/x",
+            "http://example.com:443/x" to "http://example.com:443/x",
+            "https://EXAMPLE.com:0443/x" to "https://example.com/x",
+            "https://example.com:080/x" to "https://example.com:80/x",
+            // A host in Unicode, written as a link's address, is its punycode.
+            "https://例子.tw/x" to "https://xn--fsqu00a.tw/x",
+        )
+        for ((written, key) in cases) {
+            assertEquals(key, StoryLinks.keyOf(written), written)
+            // A key is its own key: the previews (the server's addresses) are found under what a paragraph derives.
+            assertEquals(key, StoryLinks.keyOf(key), key)
+        }
+        // In running text: the same keys, but a host in Unicode is no link of the server's there.
+        assertEquals("https://example.com/a'b?c%27d", StoryLinks.bareKey("https://example.com/a'b?c'd"))
+        assertEquals("https://www.example.org/q?x=%271%27x", StoryLinks.bareKey("www.example.org/q?x='1'x"))
+        assertNull(StoryLinks.bareKey("https://例子.tw/x"))
+    }
+
+    @Test fun aPreviewIsFoundUnderTheKeyItsParagraphDerives() {
+        val previews = StoryLinks.previews(
+            listOf(ApiLinkPreview("https://example.com/search?q=what%27s+up", "What's up", null, null, null)),
+            "https://resonance.channel",
+        )
+        val block = StoryParser.parse("https://example.com/search?q=what's+up").single()
+        assertIs<StoryBlock.SoleLink>(block)
+        assertEquals("What's up", previews[block.key]?.title)
     }
 
     @Test fun thePreviewsAreFoundByTheirAddressWithAPictureOnlyFromTheProxy() {

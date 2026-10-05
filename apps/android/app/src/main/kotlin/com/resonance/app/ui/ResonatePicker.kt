@@ -57,15 +57,46 @@ import kotlinx.coroutines.launch
  * Which of the viewer's published cards may resonate with a card (the web's `resonateChoices`): the
  * public ones not answering a card already — a card answers one card — never the card itself nor
  * the card it answers (that would answer its own answer). [hidden] counts the public cards left out
- * for answering another card, so the picker can say why they are missing.
+ * for answering another card, so the picker can say why they are missing; [open] all the public
+ * cards there are to choose from, left out or not — none at all is when the viewer has "no public
+ * cards yet".
  */
-internal data class ResonateChoices(val cards: List<FeedCard>, val hidden: Int) {
+internal data class ResonateChoices(val cards: List<FeedCard>, val hidden: Int, val open: Int) {
+    /** What stands where the rows would be, there being none to offer. */
+    enum class Empty {
+        /** No public card at all: "no public cards yet — write your first one above". */
+        NoPublicCards,
+        /** Every public card answers another card: why none is listed, once, in the rows' place. */
+        AllAnswerAnother,
+        /**
+         * The only ones are the card this one answers (or answer this one already): nothing — no
+         * heading over an empty list either; writing a new card is the way.
+         */
+        Nothing,
+    }
+
+    /** Null while there are rows to offer. Public cards there are, only none may answer this one: never "no public cards yet". */
+    val empty: Empty?
+        get() = when {
+            cards.isNotEmpty() -> null
+            open == 0 -> Empty.NoPublicCards
+            hidden > 0 -> Empty.AllAnswerAnother
+            else -> Empty.Nothing
+        }
+
+    /** The quiet line under the rows saying why some aren't listed — under rows only: with none, it stands in their place ([empty]). */
+    val footnote: Boolean get() = cards.isNotEmpty() && hidden > 0
+
+    /** Whether the list shows at all — its heading, and its rows or what stands for them. */
+    val listed: Boolean get() = empty != Empty.Nothing
+
     companion object {
         fun of(cards: List<FeedCard>, targetId: String, targetReferenceId: String?): ResonateChoices {
             val open = cards.filter { it.visibility == FeedCard.Visibility.`public` && it.publishedAt != null && it.id != targetId }
             return ResonateChoices(
                 cards = open.filter { it.referenceCardId == null && it.id != targetReferenceId },
                 hidden = open.count { it.referenceCardId != null && it.referenceCardId != targetId },
+                open = open.size,
             )
         }
     }
@@ -127,12 +158,15 @@ fun ResonatePicker(
                     onDismiss()
                     onWriteNew()
                 }
-                WavyDivider(seed = 59.0, modifier = Modifier.padding(vertical = 8.dp))
-                BasicText(
-                    L10n.Card.ResonatePicker.pickHeading,
-                    style = AppFonts.body(13f, 600, lineHeight = 1.4f, color = Tokens.TextMuted).copy(letterSpacing = 0.02.em),
-                    modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 2.dp),
-                )
+                // Nothing of theirs to pick, and nothing to say about it: no heading over an empty list.
+                if (choices?.listed != false) {
+                    WavyDivider(seed = 59.0, modifier = Modifier.padding(vertical = 8.dp))
+                    BasicText(
+                        L10n.Card.ResonatePicker.pickHeading,
+                        style = AppFonts.body(13f, 600, lineHeight = 1.4f, color = Tokens.TextMuted).copy(letterSpacing = 0.02.em),
+                        modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 2.dp),
+                    )
+                }
             },
             choosing = true,
             selectedId = selectedId,
@@ -140,7 +174,13 @@ fun ResonatePicker(
             anonymousLabel = L10n.Card.ResonatePicker.anonymous,
             empty = {
                 when {
-                    choices != null -> PickNote(L10n.Card.ResonatePicker.empty)
+                    // Public cards there are, only none may answer this one: never "no public cards yet". Why they
+                    // are missing, when it is that they answer another card; else the first row is the way.
+                    choices != null -> when (choices.empty) {
+                        ResonateChoices.Empty.NoPublicCards -> PickNote(L10n.Card.ResonatePicker.empty)
+                        ResonateChoices.Empty.AllAnswerAnother -> PickNote(L10n.Card.ResonatePicker.hiddenNote)
+                        ResonateChoices.Empty.Nothing, null -> {}
+                    }
                     readFailed -> Row(
                         Modifier.padding(start = 6.dp, top = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -152,7 +192,7 @@ fun ResonatePicker(
                     else -> PickSkeleton()
                 }
             },
-            footnote = if ((choices?.hidden ?: 0) > 0) L10n.Card.ResonatePicker.hiddenNote else null,
+            footnote = if (choices?.footnote == true) L10n.Card.ResonatePicker.hiddenNote else null,
         )
         failure?.let { BasicText(it, style = AppFonts.body(13f, lineHeight = 1.5f, color = Mixes.Danger)) }
         ModalActions {

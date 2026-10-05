@@ -81,7 +81,7 @@ private fun NotificationRow(item: NotificationsStore.Item, session: Session, ope
                 modifier = Modifier.weight(1f, fill = false),
             )
             if (item.isUnread) Box(
-                Modifier.size(6.dp).semantics { contentDescription = "unread" }.drawBehind { drawCircle(Tokens.Terracotta) },
+                Modifier.size(6.dp).semantics { contentDescription = L10n.App.Notifications.unread }.drawBehind { drawCircle(Tokens.Terracotta) },
             )
         }
         if (item.type == "note" && !item.preview.isNullOrEmpty()) {

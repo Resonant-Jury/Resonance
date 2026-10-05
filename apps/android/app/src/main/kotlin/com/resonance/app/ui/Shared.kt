@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -36,6 +37,9 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.text.style.TextAlign
+import android.view.View
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -63,6 +67,7 @@ import com.resonance.design.plainClickable
 import com.resonance.design.fade
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
+import com.resonance.kit.reading.RefreshFailure
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -121,6 +126,35 @@ fun LazyListScope.storyCards(cards: List<FeedCard>, open: (Route) -> Unit, onLas
         if (i == cards.lastIndex) onLast?.invoke()
     }
 }
+
+/**
+ * A refresh by hand that brought nothing back, said quietly over what stayed on screen (never the
+ * page's load error): a muted line, centred, tucked under the heading above it, gone with the next
+ * answer — iOS's RefreshNote. TalkBack hears it from [announce], wherever the list is scrolled.
+ */
+fun LazyListScope.refreshNote(failure: RefreshFailure?) {
+    if (failure == null) return
+    item(key = "refresh-note") {
+        BasicText(
+            failure.message,
+            style = AppFonts.body(13f, lineHeight = 1.6f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
+            modifier = Modifier
+                .animateItem()
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp)
+                .layout { measurable, constraints ->
+                    // 12 closer to what is above it than the list's own gap (iOS's −12).
+                    val placeable = measurable.measure(constraints)
+                    val tuck = 12.dp.roundToPx()
+                    layout(placeable.width, (placeable.height - tuck).coerceAtLeast(0)) { placeable.place(0, -tuck) }
+                },
+        )
+    }
+}
+
+/** Says [text] to TalkBack now (a refresh asked for away from the list's top has nothing in view to say it). */
+@Suppress("DEPRECATION")
+internal fun View.announce(text: String) = announceForAccessibility(text)
 
 /** MiniCardGrid on a phone: the resonance and linked-cards lists, as pared-back bands. */
 fun LazyListScope.miniCards(cards: List<FeedCard>, open: (Route) -> Unit, keyPrefix: String) {

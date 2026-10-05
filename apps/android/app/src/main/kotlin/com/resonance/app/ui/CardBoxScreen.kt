@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -60,8 +61,11 @@ import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.reading.ApiCache
 import com.resonance.kit.reading.FeedLoader
+import com.resonance.kit.reading.RefreshFailure
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -72,30 +76,68 @@ import kotlinx.coroutines.launch
  * again, the one in view at once, still showing meanwhile; so does a shelf read long ago. My own
  * shelves (published, private, drafts) are read together, in one request (GET /me/cardbox), so
  * moving between them shows each at once. The published shelf is also kept on the device, so a
- * cold start draws it at once.
+ * cold start draws it at once. A refresh asked for by hand that brings nothing back for the shelf
+ * on screen keeps it, and says why over that shelf only ([refreshFailure]).
  */
-class CardBoxModel(private val session: Session) : ViewModel() {
+class CardBoxModel internal constructor(
+    private val uid: String?,
+    /** Reads shelves (GET /me/cardbox, or /me/cards for one of others' cards). */
+    private val readShelves: suspend (List<TabGetCardBox>) -> Map<TabGetCardBox, List<FeedCard>>,
+    /** Where the account's published shelf is kept between launches (null: nowhere). */
+    private val kept: () -> ApiCache.Account?,
+    scope: CoroutineScope?,
+) : ViewModel() {
+    constructor(session: Session) : this(session.uid, { session.reading.cardBox(it) }, { session.uid?.let(session::kept) }, null)
+
+    /** A pull of [shelf] that brought nothing back while it showed, and why. */
+    data class ShelfFailure(val shelf: TabGetCardBox, val failure: RefreshFailure)
+
+    private val scope: CoroutineScope = scope ?: viewModelScope
     val shelves = mutableStateMapOf<TabGetCardBox, List<FeedCard>>()
     var failed by mutableStateOf(false)
         private set
+    /** The last refresh by hand that brought nothing back for the shelf it was asked for while that showed: gone with its next answer, or another shelf shown. */
+    var refreshFailure by mutableStateOf<ShelfFailure?>(null)
+        private set
+    /** The shelf on screen ([shelfShown]): a pull's failure is said only while the shelf it was for still is. */
+    private var shown: TabGetCardBox? = null
     private val readAt = HashMap<TabGetCardBox, Long>()
     /** The read each shelf waits for: one that answers after a newer one began doesn't overwrite it. */
     private val readBy = HashMap<TabGetCardBox, Int>()
     private var reads = 0
     private var seenChanges: Int? = null
-    private val uid = session.uid
 
     init {
-        if (uid != null) viewModelScope.launch {
-            val kept = session.kept(uid)?.published() ?: return@launch
+        if (uid != null) this.scope.launch {
+            val kept = kept()?.published() ?: return@launch
             if (!shelves.containsKey(TabGetCardBox.published)) shelves[TabGetCardBox.published] = kept
         }
+    }
+
+    /** Why the last refresh of [shelf] by hand brought nothing back — said over that shelf only, while it shows. */
+    fun failureOver(shelf: TabGetCardBox): RefreshFailure? =
+        refreshFailure?.takeIf { it.shelf == shelf && shown == shelf && shelves[shelf] != null }?.failure
+
+    /** [shelf] is the one on screen: what a refresh of the one before couldn't bring is no longer said. */
+    fun shelfShown(shelf: TabGetCardBox) {
+        shown = shelf
+        if (refreshFailure?.shelf != shelf) refreshFailure = null
+    }
+
+    /**
+     * A pull of [shelf] brought nothing back: said over it — unless another shelf was chosen while
+     * the pull was on its way (that one isn't what failed, and coming back to this one later, the
+     * line would speak of a pull long over).
+     */
+    private fun pullFailed(shelf: TabGetCardBox, failure: RefreshFailure) {
+        if (shown == shelf) refreshFailure = ShelfFailure(shelf, failure)
     }
 
     /**
      * Reads `shelf` unless it was read since the last change (`changes`) and lately; `retry` always
      * does. One of my own shelves brings the others of them that are due too. Returns the read
-     * (null: none was needed), for a pull to wait on.
+     * (null: none was needed), for a pull to wait on. A `retry` while the shelf shows (a pull, the
+     * Refresh action) that brings nothing back for it keeps it, and says why ([failureOver]).
      */
     fun refresh(shelf: TabGetCardBox, changes: Int, retry: Boolean = false, now: Long = System.currentTimeMillis()): Job? {
         if (changes != seenChanges) {
@@ -106,13 +148,14 @@ class CardBoxModel(private val session: Session) : ViewModel() {
         if (!retry && current(shelf)) return null
         val asked = shelvesToRead(shelf, current)
         val read = ++reads
+        val pulled = retry && shelves[shelf] != null
         for (s in asked) {
             readAt[s] = now
             readBy[s] = read
         }
-        return viewModelScope.launch {
+        return scope.launch {
             try {
-                val answered = session.reading.cardBox(asked)
+                val answered = readShelves(asked)
                 failed = false
                 for (s in asked) {
                     if (readBy[s] != read) continue
@@ -120,16 +163,19 @@ class CardBoxModel(private val session: Session) : ViewModel() {
                     if (cards == null) {
                         // Not in the answer: asked for again when next shown.
                         readAt.remove(s)
+                        if (pulled && s == shelf) pullFailed(shelf, RefreshFailure.Failed)
                         continue
                     }
                     shelves[s] = cards
-                    if (s == TabGetCardBox.published && uid != null) session.kept(uid)?.savePublished(cards)
+                    if (refreshFailure?.shelf == s) refreshFailure = null
+                    if (s == TabGetCardBox.published && uid != null) kept()?.savePublished(cards)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 failed = true
                 for (s in asked) if (readBy[s] == read) readAt.remove(s)
+                if (pulled && readBy[shelf] == read) pullFailed(shelf, RefreshFailure.of(e))
             }
         }
     }
@@ -159,18 +205,25 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     val shelves = model.shelves
     val failed = model.failed
     val scope = rememberCoroutineScope()
+    // Another shelf: what a refresh of the one before couldn't bring isn't said over this one.
+    LaunchedEffect(shelf) { model.shelfShown(shelf) }
     LaunchedEffect(shelf, changes, foregrounded) { model.refresh(shelf, changes) }
+    val view = LocalView.current
 
     TabScreen(
         L10n.App.Nav.me,
         titleInBar = true,
         // Pulled down: who I am and the shelf in view, read again now from the server rather than the HTTP cache.
+        // Nothing back for the shelf: it stays, and says why — read out only while that shelf is still the one
+        // on screen (another chosen meanwhile, the failure isn't about what is shown).
         onRefresh = {
             session.readAfresh()
+            val asked = shelf
             coroutineScope {
                 launch { session.loadMe() }
-                model.refresh(shelf, changes, retry = true)?.join()
+                model.refresh(asked, changes, retry = true)?.join()
             }
+            if (shelf == asked) model.failureOver(asked)?.let { view.announce(it.message) }
         },
     ) {
         item {
@@ -199,6 +252,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
             }
         }
         item { ShelfTabs(shelf, openMap = { open(Route.ThoughtMap) }) { shelf = it } }
+        refreshNote(model.failureOver(shelf))
         val cards = shelves[shelf]
         when {
             cards == null && failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { model.refresh(shelf, changes, retry = true) }, action = EmptyAction.Outline) }

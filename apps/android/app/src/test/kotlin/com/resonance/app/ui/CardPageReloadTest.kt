@@ -42,6 +42,13 @@ class CardPageReloadTest {
         assertFalse(current(changes = 5, last = Session.CardChange()))
     }
 
+    @Test fun aResonanceMadePrivateDeletedOrLetGoFromItsMenuReadsTheOriginalAgain() {
+        // The ⋯ on "reply" (answering "page"): the original's page lists it among its resonances.
+        assertFalse(current(changes = 5, last = menuChange("reply", "page")))
+        // A card answering nothing concerns no other page.
+        assertTrue(current(changes = 5, last = menuChange("reply", null)))
+    }
+
     @Test fun whenItCantTellItReadsAgain() {
         // Several changes since: only the latest is known.
         assertFalse(current(changes = 6, last = Session.CardChange("draft")))

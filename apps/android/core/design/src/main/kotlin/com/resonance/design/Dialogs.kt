@@ -65,7 +65,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.state.ToggleableState
@@ -626,10 +625,10 @@ fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: S
     Box(
         Modifier
             .size(50.dp, 28.dp)
+            // Its state is the toggleable state's, which TalkBack reads in the reader's language (on / 開啟).
             .semantics {
                 contentDescription = label
                 toggleableState = ToggleableState(checked)
-                stateDescription = if (checked) "on" else "off"
             }
             // The knob's slide is the feedback; no wash over the track.
             .clickable(interactionSource = null, indication = null, role = Role.Switch) { onCheckedChange(!checked) }
@@ -660,11 +659,15 @@ fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: S
     }
 }
 
-/** A one-button notice (an action that didn't go through), in the web's Modal. */
+/**
+ * A notice with nothing to choose (an action that didn't go through), in the web's Modal: its
+ * words, then the one way out — the quiet close, centred under them ([ModalCloseButton]), in the
+ * reader's language, as every one-exit modal ends.
+ */
 @Composable
-fun OrganicAlert(title: String, okLabel: String, seed: Double = 71.0, onDismiss: () -> Unit) {
+fun OrganicAlert(title: String, seed: Double = 71.0, closeLabel: String = L10n.Native.close, onDismiss: () -> Unit) {
     OrganicModal(onDismiss, title, seed) {
         ModalTitle(title)
-        ModalActions { OrganicButton(okLabel, variant = ButtonVariant.Solid, small = true, onClick = onDismiss) }
+        ModalCloseButton(closeLabel, onDismiss)
     }
 }

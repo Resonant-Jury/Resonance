@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -74,6 +75,7 @@ import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -596,7 +598,7 @@ fun ColumnScope.SharedCardSection(
         } else {
             val palette = CardPalette(accentHue, 0)
             Box(
-                Modifier.fillMaxWidth().height(96.dp).bleedSides(PictureBleed).background(palette.fill).grainOverlay(0.04f),
+                Modifier.fillMaxWidth().height(SharedCardBand).bleedSides(PictureBleed).background(palette.fill).grainOverlay(0.04f),
                 contentAlignment = Alignment.Center,
             ) { OrganicIcon(IconName.Wave, size = 40.dp, color = palette.border.copy(alpha = 0.32f)) }
         }
@@ -617,24 +619,53 @@ fun ColumnScope.SharedCardSection(
     }
 }
 
-/** [SharedCardSection] while the card is read: its footprint in plain shimmering blocks (no wobble, nothing measured). */
+/** The band a shared card without a cover draws where the cover would be. */
+private val SharedCardBand = 96.dp
+
+/**
+ * [SharedCardSection] while the card is read: its footprint in plain shimmering blocks (no wobble),
+ * laid out on the loaded card's own lines — the byline's two, a title's one, an excerpt's two, the
+ * source line — so the card takes their place without a jump. Whether it has a cover isn't known
+ * yet: the band of one without (most cards a note is left on); one with a cover grows into it.
+ */
 @Composable
 fun ColumnScope.SharedCardSkeleton() {
     Column(Modifier.fillMaxWidth().semantics { contentDescription = L10n.Home.moreLoading }) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Skeleton(height = 32.dp, circle = true)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Skeleton(Modifier.width(88.dp), height = 12.dp)
-                Skeleton(Modifier.width(64.dp), height = 10.dp)
+            Column(Modifier.weight(1f)) {
+                SkeletonLines(AppFonts.body(14f, 600, lineHeight = 1.3f), 12.dp, Modifier.width(88.dp))
+                SkeletonLines(AppFonts.body(12f, lineHeight = 1.35f), 10.dp, Modifier.width(64.dp))
             }
         }
-        Box(Modifier.fillMaxWidth().aspectRatio(1.91f).background(Tokens.Text.copy(alpha = 0.06f)))
-        Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Skeleton(Modifier.fillMaxWidth(0.85f), height = 15.dp)
-            Skeleton(Modifier.fillMaxWidth(0.6f), height = 15.dp)
-            Skeleton(Modifier.fillMaxWidth(0.9f), height = 11.dp)
+        Box(Modifier.fillMaxWidth().height(SharedCardBand).bleedSides(PictureBleed).background(Tokens.Text.copy(alpha = 0.06f)))
+        Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            SkeletonLines(AppFonts.heading(16f, 700, lineHeight = 1.3f), 15.dp, Modifier.fillMaxWidth(0.85f))
+            SkeletonLines(AppFonts.body(13f, lineHeight = 1.45f), 11.dp, Modifier.fillMaxWidth(0.9f), Modifier.fillMaxWidth(0.6f))
         }
-        Box(Modifier.padding(start = 12.dp, top = 12.dp, bottom = 14.dp)) { Skeleton(Modifier.width(56.dp), height = 11.dp) }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            // The wave's slot holds a dot of its size, so the bar beside it doesn't read as indented.
+            Skeleton(height = 14.dp, circle = true)
+            Box(Modifier.weight(1f)) { SkeletonLines(AppFonts.body(12f, lineHeight = 1.3f), 11.dp, Modifier.width(56.dp)) }
+        }
+    }
+}
+
+/**
+ * As tall as one line of [style] for each of [bars] — measured on unseen words in both scripts, so
+ * as tall as the loaded card's words, Latin or CJK — with a bar [height] tall centred on each.
+ */
+@Composable
+private fun SkeletonLines(style: TextStyle, height: Dp, vararg bars: Modifier) {
+    Box(Modifier.fillMaxWidth()) {
+        BasicText("Aa字", style = style, minLines = bars.size, maxLines = bars.size, modifier = Modifier.alpha(0f).clearAndSetSemantics { })
+        Column(Modifier.matchParentSize()) {
+            bars.forEach { bar -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) { Skeleton(bar, height = height) } }
+        }
     }
 }
 
