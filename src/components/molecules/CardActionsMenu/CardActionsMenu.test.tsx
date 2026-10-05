@@ -224,7 +224,7 @@ describe('CardActionsMenu', () => {
     await userEvent.click(screen.getByText('Stop resonating'));
     await userEvent.click(screen.getByRole('button', { name: 'Stop resonating' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent("That didn't work. Try again.");
+    expect(await screen.findByRole('alert')).toHaveTextContent("That didn't work — try again");
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
@@ -267,7 +267,7 @@ describe('CardActionsMenu', () => {
     await userEvent.click(screen.getByText('Delete'));
     await userEvent.click(screen.getByRole('button', { name: 'Delete card' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent("That didn't work. Try again.");
+    expect(await screen.findByRole('alert')).toHaveTextContent("That didn't work — try again");
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(onDeleted).not.toHaveBeenCalled();
     expect(boxReads).toHaveBeenCalledTimes(1);
@@ -282,7 +282,7 @@ describe('CardActionsMenu', () => {
     await userEvent.click(screen.getByText('Make private'));
 
     const notice = await screen.findByRole('dialog', { name: 'Make private' });
-    expect(notice).toHaveTextContent("That didn't work. Try again.");
+    expect(notice).toHaveTextContent("That didn't work — try again");
     expect(onChanged).not.toHaveBeenCalled();
     expect(boxReads).toHaveBeenCalledTimes(1);
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));

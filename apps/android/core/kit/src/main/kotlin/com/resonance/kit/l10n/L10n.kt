@@ -605,7 +605,7 @@ object L10n {
             val insertImage: String get() = Strings.string("write.editor.insertImage")
             /** Uploading image… */
             val imageUploading: String get() = Strings.string("write.editor.imageUploading")
-            /** Image upload failed. Please try again. */
+            /** Couldn’t upload the image — please try again */
             val imageUploadError: String get() = Strings.string("write.editor.imageUploadError")
             /** Remove image */
             val removeImage: String get() = Strings.string("write.editor.removeImage")
@@ -628,7 +628,7 @@ object L10n {
         val tagsSuggest: String get() = Strings.string("write.tagsSuggest")
         /** Thinking… */
         val tagsSuggesting: String get() = Strings.string("write.tagsSuggesting")
-        /** Couldn’t suggest tags. Please try again. */
+        /** Couldn’t suggest tags — please try again */
         val tagsSuggestError: String get() = Strings.string("write.tagsSuggestError")
         /** Type a tag… */
         val tagsPlaceholder: String get() = Strings.string("write.tagsPlaceholder")
@@ -644,7 +644,7 @@ object L10n {
         val mediaPlaceholder: String get() = Strings.string("write.mediaPlaceholder")
         /** PNG, JPG, WebP · up to 5MB */
         val mediaHint: String get() = Strings.string("write.mediaHint")
-        /** Image upload failed. Please try again. */
+        /** Couldn’t upload the image — please try again */
         val mediaUploadError: String get() = Strings.string("write.mediaUploadError")
         /** Sketching it in… */
         val mediaUploading: String get() = Strings.string("write.mediaUploading")
@@ -656,7 +656,7 @@ object L10n {
         val mediaGenerateNeedStory: String get() = Strings.string("write.mediaGenerateNeedStory")
         /** Imagining a scene… */
         val mediaGenerating: String get() = Strings.string("write.mediaGenerating")
-        /** Couldn’t generate an image. Please try again. */
+        /** Couldn’t generate an image — please try again */
         val mediaGenerateError: String get() = Strings.string("write.mediaGenerateError")
         /** AI-generated illustration */
         val mediaGeneratedLabel: String get() = Strings.string("write.mediaGeneratedLabel")
@@ -936,7 +936,7 @@ object L10n {
         val messagePlaceholder: String get() = Strings.string("invite.messagePlaceholder")
         /** {n} invites left today */
         fun quota(n: Int): String = Strings.format("invite.quota", mapOf("n" to n))
-        /** Daily invite quota used up. Try tomorrow. */
+        /** Today's invites are used up — try again tomorrow */
         val quotaFull: String get() = Strings.string("invite.quotaFull")
         /** Send invite */
         val send: String get() = Strings.string("invite.send")
@@ -972,7 +972,7 @@ object L10n {
         val emptyMessage: String get() = Strings.string("inviteInbox.emptyMessage")
         /** This invite has closed — it can't be accepted any more */
         val closed: String get() = Strings.string("inviteInbox.closed")
-        /** That didn't go through. Try again. */
+        /** That didn't go through — try again */
         val error: String get() = Strings.string("inviteInbox.error")
     }
     object Auth {
@@ -1002,9 +1002,9 @@ object L10n {
         val googleIntro: String get() = Strings.string("auth.googleIntro")
         /** We use Apple or Google to sign you in. We never see your password. */
         val appleGoogleIntro: String get() = Strings.string("auth.appleGoogleIntro")
-        /** Sign in failed. Please try again. */
+        /** Couldn’t sign in — please try again */
         val signInError: String get() = Strings.string("auth.signInError")
-        /** Could not create the account. Please try again. */
+        /** Couldn’t create the account — please try again */
         val signUpError: String get() = Strings.string("auth.signUpError")
         /** No account yet? */
         val switchToSignUp: String get() = Strings.string("auth.switchToSignUp")
@@ -1097,7 +1097,7 @@ object L10n {
             val avatarChange: String get() = Strings.string("settings.profile.avatarChange")
             /** Sketching it in… */
             val avatarUploading: String get() = Strings.string("settings.profile.avatarUploading")
-            /** Upload failed. Please try again. */
+            /** Couldn’t upload it — please try again */
             val avatarError: String get() = Strings.string("settings.profile.avatarError")
         }
         object Account {
@@ -1175,7 +1175,7 @@ object L10n {
             val confirm: String get() = Strings.string("settings.delete.confirm")
             /** Keep my account */
             val cancel: String get() = Strings.string("settings.delete.cancel")
-            /** That didn't go through. Try again. */
+            /** That didn't go through — try again */
             val error: String get() = Strings.string("settings.delete.error")
         }
     }
@@ -1204,7 +1204,7 @@ object L10n {
         val blockConfirm: String get() = Strings.string("safety.blockConfirm")
         /** Cancel */
         val cancel: String get() = Strings.string("safety.cancel")
-        /** That didn't work. Try again. */
+        /** That didn't work — try again */
         val actionError: String get() = Strings.string("safety.actionError")
         /** this author */
         val anonymousAuthor: String get() = Strings.string("safety.anonymousAuthor")
@@ -1276,7 +1276,7 @@ object L10n {
         fun banner(date: String): String = Strings.format("accountDeletion.banner", mapOf("date" to date))
         /** Cancel deletion */
         val cancel: String get() = Strings.string("accountDeletion.cancel")
-        /** Couldn't cancel. Try again. */
+        /** Couldn't cancel — try again */
         val error: String get() = Strings.string("accountDeletion.error")
     }
     object Native {

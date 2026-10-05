@@ -603,7 +603,7 @@ public enum L10n {
             public static var insertImage: String { Strings.shared.string("write.editor.insertImage") }
             /// Uploading image…
             public static var imageUploading: String { Strings.shared.string("write.editor.imageUploading") }
-            /// Image upload failed. Please try again.
+            /// Couldn’t upload the image — please try again
             public static var imageUploadError: String { Strings.shared.string("write.editor.imageUploadError") }
             /// Remove image
             public static var removeImage: String { Strings.shared.string("write.editor.removeImage") }
@@ -626,7 +626,7 @@ public enum L10n {
         public static var tagsSuggest: String { Strings.shared.string("write.tagsSuggest") }
         /// Thinking…
         public static var tagsSuggesting: String { Strings.shared.string("write.tagsSuggesting") }
-        /// Couldn’t suggest tags. Please try again.
+        /// Couldn’t suggest tags — please try again
         public static var tagsSuggestError: String { Strings.shared.string("write.tagsSuggestError") }
         /// Type a tag…
         public static var tagsPlaceholder: String { Strings.shared.string("write.tagsPlaceholder") }
@@ -642,7 +642,7 @@ public enum L10n {
         public static var mediaPlaceholder: String { Strings.shared.string("write.mediaPlaceholder") }
         /// PNG, JPG, WebP · up to 5MB
         public static var mediaHint: String { Strings.shared.string("write.mediaHint") }
-        /// Image upload failed. Please try again.
+        /// Couldn’t upload the image — please try again
         public static var mediaUploadError: String { Strings.shared.string("write.mediaUploadError") }
         /// Sketching it in…
         public static var mediaUploading: String { Strings.shared.string("write.mediaUploading") }
@@ -654,7 +654,7 @@ public enum L10n {
         public static var mediaGenerateNeedStory: String { Strings.shared.string("write.mediaGenerateNeedStory") }
         /// Imagining a scene…
         public static var mediaGenerating: String { Strings.shared.string("write.mediaGenerating") }
-        /// Couldn’t generate an image. Please try again.
+        /// Couldn’t generate an image — please try again
         public static var mediaGenerateError: String { Strings.shared.string("write.mediaGenerateError") }
         /// AI-generated illustration
         public static var mediaGeneratedLabel: String { Strings.shared.string("write.mediaGeneratedLabel") }
@@ -934,7 +934,7 @@ public enum L10n {
         public static var messagePlaceholder: String { Strings.shared.string("invite.messagePlaceholder") }
         /// {n} invites left today
         public static func quota(n: Int) -> String { Strings.shared.format("invite.quota", ["n": n]) }
-        /// Daily invite quota used up. Try tomorrow.
+        /// Today's invites are used up — try again tomorrow
         public static var quotaFull: String { Strings.shared.string("invite.quotaFull") }
         /// Send invite
         public static var send: String { Strings.shared.string("invite.send") }
@@ -970,7 +970,7 @@ public enum L10n {
         public static var emptyMessage: String { Strings.shared.string("inviteInbox.emptyMessage") }
         /// This invite has closed — it can't be accepted any more
         public static var closed: String { Strings.shared.string("inviteInbox.closed") }
-        /// That didn't go through. Try again.
+        /// That didn't go through — try again
         public static var error: String { Strings.shared.string("inviteInbox.error") }
     }
     public enum Auth {
@@ -1000,9 +1000,9 @@ public enum L10n {
         public static var googleIntro: String { Strings.shared.string("auth.googleIntro") }
         /// We use Apple or Google to sign you in. We never see your password.
         public static var appleGoogleIntro: String { Strings.shared.string("auth.appleGoogleIntro") }
-        /// Sign in failed. Please try again.
+        /// Couldn’t sign in — please try again
         public static var signInError: String { Strings.shared.string("auth.signInError") }
-        /// Could not create the account. Please try again.
+        /// Couldn’t create the account — please try again
         public static var signUpError: String { Strings.shared.string("auth.signUpError") }
         /// No account yet?
         public static var switchToSignUp: String { Strings.shared.string("auth.switchToSignUp") }
@@ -1095,7 +1095,7 @@ public enum L10n {
             public static var avatarChange: String { Strings.shared.string("settings.profile.avatarChange") }
             /// Sketching it in…
             public static var avatarUploading: String { Strings.shared.string("settings.profile.avatarUploading") }
-            /// Upload failed. Please try again.
+            /// Couldn’t upload it — please try again
             public static var avatarError: String { Strings.shared.string("settings.profile.avatarError") }
         }
         public enum Account {
@@ -1173,7 +1173,7 @@ public enum L10n {
             public static var confirm: String { Strings.shared.string("settings.delete.confirm") }
             /// Keep my account
             public static var cancel: String { Strings.shared.string("settings.delete.cancel") }
-            /// That didn't go through. Try again.
+            /// That didn't go through — try again
             public static var error: String { Strings.shared.string("settings.delete.error") }
         }
     }
@@ -1202,7 +1202,7 @@ public enum L10n {
         public static var blockConfirm: String { Strings.shared.string("safety.blockConfirm") }
         /// Cancel
         public static var cancel: String { Strings.shared.string("safety.cancel") }
-        /// That didn't work. Try again.
+        /// That didn't work — try again
         public static var actionError: String { Strings.shared.string("safety.actionError") }
         /// this author
         public static var anonymousAuthor: String { Strings.shared.string("safety.anonymousAuthor") }
@@ -1274,7 +1274,7 @@ public enum L10n {
         public static func banner(date: String) -> String { Strings.shared.format("accountDeletion.banner", ["date": date]) }
         /// Cancel deletion
         public static var cancel: String { Strings.shared.string("accountDeletion.cancel") }
-        /// Couldn't cancel. Try again.
+        /// Couldn't cancel — try again
         public static var error: String { Strings.shared.string("accountDeletion.error") }
     }
     public enum Native {

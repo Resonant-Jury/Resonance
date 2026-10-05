@@ -92,7 +92,7 @@ describe('InvitesInbox', () => {
     Object.assign(auth, { user: { id: 'alice' }, loading: false });
     renderWithIntl(<InvitesInbox />);
     await userEvent.click((await screen.findAllByRole('button', { name: 'Accept' }))[0]);
-    expect(await screen.findByRole('status')).toHaveTextContent("That didn't go through. Try again.");
+    expect(await screen.findByRole('status')).toHaveTextContent("That didn't go through — try again");
     expect(screen.getByText('Loved your walk card')).toBeInTheDocument();
     expect(screen.queryByText('Something broke.')).not.toBeInTheDocument();
   });

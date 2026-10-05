@@ -29,7 +29,7 @@ describe('AvatarUpload', () => {
     await userEvent.upload(input, photo);
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith('https://img.example/me.webp'));
     expect(uploadImageFile).toHaveBeenCalledWith(photo, { purpose: 'avatar' });
-    expect(screen.queryByText('Upload failed. Please try again.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Couldn’t upload it — please try again')).not.toBeInTheDocument();
   });
 
   it('shows the error when the picture is refused', async () => {
@@ -37,7 +37,7 @@ describe('AvatarUpload', () => {
     const { onUploaded, input } = setup();
 
     await userEvent.upload(input, new File([new Uint8Array(10)], 'huge.gif', { type: 'image/gif' }));
-    expect(await screen.findByText('Upload failed. Please try again.')).toBeInTheDocument();
+    expect(await screen.findByText('Couldn’t upload it — please try again')).toBeInTheDocument();
     expect(onUploaded).not.toHaveBeenCalled();
   });
 });

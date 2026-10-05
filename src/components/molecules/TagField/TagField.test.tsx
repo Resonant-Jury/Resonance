@@ -134,8 +134,8 @@ describe('TagField', () => {
     const { rerender } = renderWithIntl(<Harness />);
     expect(screen.getByText('Press Enter to add one, or let AI suggest from your story')).toBeInTheDocument();
 
-    rerender(<Harness error="Couldn’t suggest tags. Please try again." />);
-    expect(screen.getByText('Couldn’t suggest tags. Please try again.')).toBeInTheDocument();
+    rerender(<Harness error="Couldn’t suggest tags — please try again" />);
+    expect(screen.getByText('Couldn’t suggest tags — please try again')).toBeInTheDocument();
     expect(screen.queryByText(/Press Enter/)).not.toBeInTheDocument();
   });
 

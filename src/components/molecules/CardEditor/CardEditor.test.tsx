@@ -186,7 +186,7 @@ describe('CardEditor', () => {
     try {
       renderWithIntl(<CardEditor locale="en" />);
       await userEvent.click(screen.getByRole('button', { name: 'Suggest with AI' }));
-      expect(await screen.findByText('Couldn’t suggest tags. Please try again.')).toBeInTheDocument();
+      expect(await screen.findByText('Couldn’t suggest tags — please try again')).toBeInTheDocument();
       expect(screen.queryByText('Press Enter to add one, or let AI suggest from your story')).not.toBeInTheDocument();
     } finally {
       vi.unstubAllGlobals();
