@@ -66,7 +66,7 @@ vi.mock('@/components/molecules/MarkdownEditor/InsertCardModal', () => ({ Insert
 import { callApi } from '@/lib/db/firestore/client/api';
 import { getCardById, getCardBySlugOrId, getUserByHandle, getUserById, isConnected } from '@/lib/db/firestore/client/reads';
 import { getConversation, getOlderMessages, sendMessage } from '@/lib/db/firestore/client/messages';
-import { getMyBlockedIds } from '@/lib/db/firestore/client/blocks';
+import { blockUser, getMyBlockedIds, unblockUser } from '@/lib/db/firestore/client/blocks';
 import { forgetOutboxes } from '@/lib/data/thread';
 import { useConnectionRefresh } from '@/lib/data/resonate';
 import { SWR_DEFAULTS } from '@/components/providers/SWRProvider';
@@ -803,6 +803,38 @@ describe('a letter: notes between two people who aren’t connected', () => {
     expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
     expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument();
     expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
+  });
+
+  // The block list is read again after a block or an unblock, and the thread follows it at once (it is a Set:
+  // SWR's own comparison would call any two of them the same and keep the old one).
+  it('closes the thread as soon as the viewer blocks them from its menu, and opens it again on unblocking', async () => {
+    vi.mocked(isConnected).mockResolvedValue(false);
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'alice', cardId: 'c1', count: 1 } });
+    server.messages = [{ ...notes[0], senderId: 'alice' }];
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithIntl(thread());
+    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+
+    vi.mocked(blockUser).mockImplementation(async () => {
+      vi.mocked(getMyBlockedIds).mockResolvedValue(new Set(['alice']));
+    });
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Block' }));
+    const before = vi.mocked(getMyBlockedIds).mock.calls.length;
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Block' }));
+    await new Promise((r) => setTimeout(r, 500));
+    console.log('DBG calls', before, vi.mocked(getMyBlockedIds).mock.calls.length, vi.mocked(blockUser).mock.calls.length);
+    expect(await screen.findByText("You can only message people you're connected with.")).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Conversation with alice' })).not.toBeInTheDocument();
+
+    vi.mocked(unblockUser).mockImplementation(async () => {
+      vi.mocked(getMyBlockedIds).mockResolvedValue(new Set());
+    });
+    await user.click(screen.getByRole('button', { name: 'Conversation options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Unblock' }));
+    expect(await screen.findByText('Reply to start talking with alice.')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
   });
 
   // No composer, nothing to reply in: Reply is offered neither beside a message nor in its long-press menu.

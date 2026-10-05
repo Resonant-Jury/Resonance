@@ -410,10 +410,21 @@ export function useHasWrittenCards() {
   );
 }
 
+/**
+ * Two block lists hold the same people. SWR compares what a fetcher answers
+ * with dequal/lite, to which any two Sets are equal (they have no keys of
+ * their own): read again after a block, the list would never reach the page.
+ */
+const sameIds = (a?: Set<string>, b?: Set<string>) =>
+  a === b || (!!a && !!b && a.size === b.size && [...a].every((id) => b.has(id)));
+
 /** The uids the signed-in viewer has blocked (empty set when signed out). */
 export function useMyBlockedIds() {
   const { user, loading } = useAuth();
-  return useSWR<Set<string>>(user && !loading ? `blocks:${user.id}` : null, () => getMyBlockedIds(), LIVE_ON_FOCUS);
+  return useSWR<Set<string>>(user && !loading ? `blocks:${user.id}` : null, () => getMyBlockedIds(), {
+    ...LIVE_ON_FOCUS,
+    compare: sameIds,
+  });
 }
 
 /** The signed-in viewer's own profile. */
