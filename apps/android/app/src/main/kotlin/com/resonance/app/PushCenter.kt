@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
@@ -106,6 +107,27 @@ object PushCenter {
 
     /** False while the person has switched the app's notifications off (or, on API 33+, not granted the permission yet). */
     val canNotify: Boolean get() = NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+    /**
+     * Whether asking for the notification permission can still show the system's dialog: API 33+,
+     * and not granted. (After two refusals the system answers "no" without asking — the request's
+     * result says so.) Below 33 there is nothing to ask: notifications are on unless switched off
+     * in the system settings.
+     */
+    val canAskPermission: Boolean
+        get() = Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+
+    /** The app asks for the permission itself (Settings → Notifications): the prompt after reaching someone needn't ask again. */
+    fun permissionAsked() {
+        prefs.edit().putBoolean(ASKED_KEY, true).apply()
+    }
+
+    /** The system's notification settings for this app, where a refused permission is turned back on. */
+    fun notificationSettingsIntent(context: Context): Intent =
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     /** The registration this install last sent (see [PushRegistration]); null once signed out. */
     var lastRegistration: String?

@@ -1,5 +1,6 @@
 package com.resonance.app.ui
 
+import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ScrollState
@@ -39,7 +40,10 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.resonance.api.models.NotificationSettings
+import com.resonance.app.PushCenter
 import com.resonance.app.SafetyService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
@@ -64,6 +68,7 @@ import com.resonance.design.OrganicModal
 import com.resonance.design.OrganicRadio
 import com.resonance.design.SquareFlag
 import com.resonance.design.OrganicTextField
+import com.resonance.design.OrganicToggle
 import com.resonance.design.SketchLoader
 import com.resonance.design.WavyDivider
 import com.resonance.design.cream
@@ -75,6 +80,8 @@ import com.resonance.kit.PolicyPage
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
+import com.resonance.kit.push.NotificationSwitch
+import com.resonance.kit.push.get
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -95,15 +102,17 @@ enum class SettingsSection(
     Profile(IconName.User, 0),
     Account(IconName.Key, 1),
     Privacy(IconName.Lock, 2),
-    Language(IconName.Globe, 3),
-    Terms(IconName.Document, 5),
-    Delete(IconName.Trash, 6);
+    Notifications(IconName.Bell, 3),
+    Language(IconName.Globe, 4),
+    Terms(IconName.Document, 6),
+    Delete(IconName.Trash, 7);
 
     val title: String
         get() = when (this) {
             Profile -> L10n.Settings.Sections.profile
             Account -> L10n.Settings.Sections.account
             Privacy -> L10n.Settings.Sections.privacy
+            Notifications -> L10n.Settings.Sections.notifications
             Language -> L10n.Settings.Sections.language
             Terms -> L10n.Settings.Sections.terms
             Delete -> L10n.Settings.Sections.delete
@@ -168,6 +177,7 @@ fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -
                 SettingsSection.Profile -> ProfileSettings(session)
                 SettingsSection.Account -> AccountSettings(session)
                 SettingsSection.Privacy -> PrivacySettings(session)
+                SettingsSection.Notifications -> NotificationSettings(session)
                 SettingsSection.Language -> LanguageSettings(session)
                 SettingsSection.Terms -> TermsSettings(session)
                 SettingsSection.Delete -> DeleteAccountSettings(session)
@@ -279,6 +289,140 @@ private fun PrivacySettings(session: Session) {
     OrganicButton(L10n.Settings.Privacy.manageBlocks, variant = ButtonVariant.Outline) { showingBlocks = true }
     if (showingBlocks) OrganicModal({ showingBlocks = false }, L10n.Safety.BlockedList.title, seed = 97.0, closeLabel = L10n.Safety.BlockedList.close) {
         BlockedListContent(session) { showingBlocks = false }
+    }
+}
+
+/** A push switch of Settings → Notifications, as the web's NotificationsSection lists them. */
+private data class PushSwitchRow(val switch: NotificationSwitch, val label: String, val hint: String, val seed: Double)
+
+private val pushSwitchRows: List<PushSwitchRow>
+    get() = listOf(
+        PushSwitchRow(NotificationSwitch.Picks, L10n.Settings.Notifications.picks, L10n.Settings.Notifications.picksHint, 83.0),
+        PushSwitchRow(NotificationSwitch.ConnectionCards, L10n.Settings.Notifications.connectionCards, L10n.Settings.Notifications.connectionCardsHint, 89.0),
+    )
+
+/** What turning a push switch on takes ([turnOn]). */
+internal enum class TurnOn {
+    /** Notifications can show: the switch is saved. */
+    Save,
+
+    /** The system's permission first (API 33+, not granted): the switch is saved once it is given. */
+    Ask,
+
+    /** Notifications are off in the system settings and the app can't ask: the switch stays off, and the notice says where to turn them on. */
+    Refused,
+}
+
+internal fun turnOn(canNotify: Boolean, canAskPermission: Boolean): TurnOn = when {
+    canNotify -> TurnOn.Save
+    canAskPermission -> TurnOn.Ask
+    else -> TurnOn.Refused
+}
+
+/**
+ * Whether the notice that notifications are off in the system settings shows: while they are, after
+ * a switch was refused for it — or with a switch on whose pushes can't reach this phone.
+ */
+internal fun showsPermissionNotice(settings: NotificationSettings?, canNotify: Boolean, refused: Boolean): Boolean =
+    !canNotify && (refused || (settings != null && (settings.picks || settings.connectionCards)))
+
+/**
+ * Notifications: the pushes beyond the ones answering you, each its own switch with its hint, both
+ * off until turned on (the web's NotificationsSection). A flip shows at once and is undone, with a
+ * line saying so, when it doesn't save. Turning one on while notifications can't show asks for the
+ * permission first (API 33+), and saves once it is given; refused — or switched off in the system
+ * settings — the switch stays off and a notice leads to the app's notification settings.
+ */
+@Composable
+private fun NotificationSettings(session: Session) {
+    val context = LocalContext.current
+    val switches = remember(session.uid) { session.notificationSwitches() }
+    val state by switches.state.collectAsStateWithLifecycle()
+    var canNotify by remember { mutableStateOf(PushCenter.canNotify) }
+    var refused by rememberSaveable { mutableStateOf(false) }
+    // The switch waiting on the permission dialog (by name: it outlives a recreated activity).
+    var asking by rememberSaveable { mutableStateOf<String?>(null) }
+    var attempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(switches, attempt) { switches.load() }
+
+    // Allowed at last (the dialog, or the system settings and back): this install registers now, not at the next launch.
+    fun allowed() {
+        refused = false
+        session.pushesAllowed()
+    }
+    // Back on screen — from the system settings, say: notifications may show now, or no longer.
+    LifecycleResumeEffect(Unit) {
+        val now = PushCenter.canNotify
+        if (now && !canNotify) allowed()
+        canNotify = now
+        onPauseOrDispose {}
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        val switch = asking?.let { name -> NotificationSwitch.entries.firstOrNull { it.name == name } }
+        asking = null
+        canNotify = PushCenter.canNotify
+        if (canNotify) {
+            allowed()
+            switch?.let { switches.set(it, true) }
+        } else {
+            refused = true
+        }
+    }
+    fun flip(switch: NotificationSwitch, on: Boolean) {
+        if (!on) {
+            switches.set(switch, false)
+            return
+        }
+        when (turnOn(PushCenter.canNotify, PushCenter.canAskPermission)) {
+            TurnOn.Save -> {
+                refused = false
+                switches.set(switch, true)
+            }
+            TurnOn.Ask -> {
+                asking = switch.name
+                PushCenter.permissionAsked()
+                permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            TurnOn.Refused -> {
+                canNotify = false
+                refused = true
+            }
+        }
+    }
+
+    if (state.loadFailed) {
+        OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { attempt++ }, action = EmptyAction.Outline, verticalPadding = 24.dp)
+        return
+    }
+    val settings = state.settings
+    Column {
+        pushSwitchRows.forEachIndexed { i, row ->
+            if (i > 0) WavyDivider(seed = row.seed + 2, modifier = Modifier.padding(vertical = 2.dp))
+            Row(
+                Modifier.fillMaxWidth().padding(top = if (i == 0) 0.dp else 14.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    BasicText(row.label, style = AppFonts.body(16f, lineHeight = 1.45f))
+                    BasicText(row.hint, style = AppFonts.body(Tokens.HintSize, lineHeight = 1.55f, color = Tokens.TextMuted))
+                }
+                // Level with the label's first line; dimmed until the switches are read.
+                Box(Modifier.padding(top = 1.dp)) {
+                    OrganicToggle(settings?.get(row.switch) ?: false, { flip(row.switch, it) }, row.label, seed = row.seed, enabled = settings != null)
+                }
+            }
+        }
+        if (showsPermissionNotice(settings, canNotify, refused)) {
+            Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                BasicText(L10n.Settings.Notifications.permissionDenied, style = AppFonts.body(14f, lineHeight = 1.55f, color = Tokens.TextMuted))
+                OrganicButton(L10n.Settings.Notifications.openSettings, variant = ButtonVariant.Outline, small = true) {
+                    runCatching { context.startActivity(PushCenter.notificationSettingsIntent(context)) }
+                }
+            }
+        }
+        if (state.saveFailed) {
+            BasicText(L10n.Settings.Notifications.saveError, style = AppFonts.body(13f, color = Mixes.Danger), modifier = Modifier.padding(top = 14.dp))
+        }
     }
 }
 

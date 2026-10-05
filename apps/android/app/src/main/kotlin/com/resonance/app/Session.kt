@@ -18,6 +18,7 @@ import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.HttpCaching
 import com.resonance.kit.api.MessagingApi
+import com.resonance.kit.api.NotificationSettingsApi
 import com.resonance.kit.api.ProfileApi
 import com.resonance.kit.api.PushApi
 import com.resonance.kit.api.ReadingApi
@@ -25,6 +26,7 @@ import com.resonance.kit.api.SafetyApi
 import com.resonance.kit.api.WritingApi
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
+import com.resonance.kit.push.NotificationSwitches
 import com.resonance.kit.reading.ApiCache
 import com.resonance.kit.reading.CardCache
 import com.resonance.kit.reading.CardPageLoader
@@ -113,6 +115,7 @@ class Session(
     val writing = WritingApi(api, http)
     val messaging = MessagingApi(api, http)
     val pushApi = PushApi(api, http)
+    private val notificationSettings = NotificationSettingsApi(api, http)
     val profiles = ProfileApi(api, http)
     private val safetyApi = SafetyApi(api, http)
     val notifications = NotificationsStore()
@@ -494,6 +497,22 @@ class Session(
             pushSending = null
         }
     }
+
+    /**
+     * The person let the app notify — the permission given, or notifications turned on in the
+     * system settings and back: this install registers now, rather than at the next launch
+     * ([registerPush] skips while notifications can't show).
+     */
+    fun pushesAllowed() {
+        scope.launch { registerPush() }
+    }
+
+    /**
+     * Settings → Notifications' switches, read afresh each time the section opens. A flip is sent on
+     * the session's scope, so leaving the section right after it doesn't drop it.
+     */
+    fun notificationSwitches(): NotificationSwitches =
+        NotificationSwitches(scope, notificationSettings::get, notificationSettings::set)
 
     // Account deletion
 
