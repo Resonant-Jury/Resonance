@@ -301,7 +301,7 @@ final class ThreadModel {
         }
         conversationExists = false
         unreadForMe = 0
-        letterChanged(nil)
+        letterChanged(nil, conversationGone: true)
         resetHistory()
         lookForOpenedNote()
         if refusals < 3, session.conversations.conversations.contains(where: { $0.id == pair }) {
@@ -311,16 +311,30 @@ final class ThreadModel {
     }
 
     /// The letter waiting here, as the conversation now says. One that is gone while the two weren't
-    /// connected was answered (the answer connected them) or taken back: who may write is asked again.
-    private func letterChanged(_ from: String?) {
+    /// connected was answered (the answer connected them, in the same write) or taken back: who may
+    /// write is asked again — and until the answer comes it is not known, so the composer stays (the
+    /// one the answer was written in, with its focus and keyboard) rather than "not connected" for
+    /// the length of a request (Android's `noteRequest`). A conversation gone altogether (`listenerFailed`)
+    /// answered nothing: what was known stays while it is asked.
+    private func letterChanged(_ from: String?, conversationGone: Bool = false) {
         conversationRead = true
         guard from != requestFrom else { return }
-        let settled = requestFrom != nil && from == nil
+        let was = requestFrom
         requestFrom = from
-        guard settled, connected == false else { return }
+        let after = ThreadAccess.afterLetter(connected: connected, blocked: isBlocked, was: was, now: from)
+        guard after.reask else { return }
+        if !conversationGone { connected = after.connected }
         // Their answer is their write, not ours: a profile kept from a moment ago would still say "not connected".
         session.httpCache.freshness.invalidate()
         Task { await refreshConnection() }
+    }
+
+    /// This account's connections began or ended with someone, live (the conversation list's
+    /// listener): with them, the foot follows the list at once — connected the moment an answered
+    /// letter or a resonance connects you, not after a request — and their profile is asked again.
+    func connectionsMoved(live: Set<String>?) async {
+        connected = ThreadAccess.connected(live: live, other: otherId, profile: connected, blocked: isBlocked)
+        await refreshConnection()
     }
 
     /// The note the thread was opened for, once the thread has been read: in the thread (a note the

@@ -44,6 +44,8 @@ final class ConversationsStore {
     /// shown is as last read until the app is back in the foreground (`resume`).
     private(set) var failed = false
     var unreadTotal: Int { conversations.reduce(0) { $0 + $1.unread } }
+    /// The people this account is connected with, live (nil until the first read of the list).
+    var connectedIds: Set<String>? { ready.contains("connections") ? Set(connectionUids) : nil }
     /// The people this account has blocked, live (nil until the first read of the list).
     private(set) var blockedIds: Set<String>?
     /// Called when the block list changes (not for the first read of it at sign-in).
