@@ -6,13 +6,36 @@ import SwiftUI
 /// `resonateChoices`): the public ones not answering a card already (one card answers one card),
 /// never the target itself nor the card the target answers (it would answer its own answer).
 /// `hidden` counts the public cards left out for answering another card — the picker says why
-/// they are missing.
-enum ResonateChoices {
-    static func of(_ cards: [FeedCard], target: String, targetReference: String?) -> (cards: [FeedCard], hidden: Int) {
+/// they are missing; `open` all the public cards there are to choose from, left out or not — none
+/// at all is when the viewer has "no public cards yet".
+struct ResonateChoices {
+    let cards: [FeedCard]
+    let hidden: Int
+    let open: Int
+
+    static func of(_ cards: [FeedCard], target: String, targetReference: String?) -> ResonateChoices {
         let open = cards.filter { $0.visibility == ._public && $0.publishedAt != nil && $0.id != target }
-        return (open.filter { $0.referenceCardId == nil && $0.id != targetReference },
-                open.filter { $0.referenceCardId != nil && $0.referenceCardId != target }.count)
+        return ResonateChoices(cards: open.filter { $0.referenceCardId == nil && $0.id != targetReference },
+                               hidden: open.filter { $0.referenceCardId != nil && $0.referenceCardId != target }.count,
+                               open: open.count)
     }
+
+    /// What stands in the list's place when none is listed: "no public cards yet" only when there
+    /// are none; when every one answers another card already, why they aren't listed (once — no
+    /// footnote under it); otherwise nothing.
+    var emptyNote: String? {
+        guard cards.isEmpty else { return nil }
+        if open == 0 { return L10n.Card.ResonatePicker.empty }
+        return hidden > 0 ? L10n.Card.ResonatePicker.hiddenNote : nil
+    }
+
+    /// The quiet line under the cards listed: some were left out for answering another card.
+    var footnote: String? { !cards.isEmpty && hidden > 0 ? L10n.Card.ResonatePicker.hiddenNote : nil }
+
+    /// Public cards there are, but none may answer this one and none was left out for answering
+    /// another (the only one is the card this one answers): nothing to pick and nothing to say, so
+    /// no rule and no "Or pick one you've written" over an empty list — only the way to write one.
+    var nothingToPick: Bool { open > 0 && cards.isEmpty && hidden == 0 }
 }
 
 /// 共振 opens this (ResonatePicker.tsx): write a new card in answer — the writer, as before — or
@@ -44,20 +67,24 @@ struct ResonatePickerContent: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 12)
             CardPickList(cards: choices?.cards ?? [], choosing: true, selectedId: selectedId, disabled: busy,
-                         anonymousLabel: L10n.Card.ResonatePicker.anonymous,
-                         footnote: (choices?.hidden ?? 0) > 0 ? L10n.Card.ResonatePicker.hiddenNote : nil,
+                         anonymousLabel: L10n.Card.ResonatePicker.anonymous, footnote: choices?.footnote,
                          onPick: choose) {
                 WriteNewRow(action: onWriteNew).disabled(busy).opacity(busy ? 0.5 : 1)
-                WavyDivider(seed: 59).padding(.vertical, 8)
-                Text(L10n.Card.ResonatePicker.pickHeading)
-                    .font(AppFonts.body(13, weight: .semibold)).tracking(13 * 0.02).foregroundStyle(Tokens.textMuted)
-                    .padding(.horizontal, 6).padding(.top, 4).padding(.bottom, 2)
+                if choices?.nothingToPick != true {
+                    WavyDivider(seed: 59).padding(.vertical, 8)
+                    Text(L10n.Card.ResonatePicker.pickHeading)
+                        .font(AppFonts.body(13, weight: .semibold)).tracking(13 * 0.02).foregroundStyle(Tokens.textMuted)
+                        .padding(.horizontal, 6).padding(.top, 4).padding(.bottom, 2)
+                }
             } empty: {
-                if choices != nil {
-                    Text(L10n.Card.ResonatePicker.empty)
-                        .font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted).lineSpacing(14 * 0.5)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 6).padding(.top, 10).padding(.bottom, 4)
+                if let choices {
+                    // Public cards there are, only none may answer this one: never "no public cards yet".
+                    if let note = choices.emptyNote {
+                        Text(note)
+                            .font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted).lineSpacing(14 * 0.5)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 6).padding(.top, 10).padding(.bottom, 4)
+                    }
                 } else if readFailed {
                     HStack(spacing: 10) {
                         Text(L10n.Native.loadError).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)

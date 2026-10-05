@@ -36,33 +36,11 @@ struct NotificationsScreen: View {
             session.notifications.markRead(item)
             if let route = Self.route(for: item) { openRoute(route) }
         } label: {
-            // Read and unread differ by ink alone; the unread dot follows the
-            // last line (after a note's words), as the web's inline dot does.
-            let preview = item.type == "note" ? item.preview.flatMap { $0.isEmpty ? nil : $0 } : nil
-            VStack(alignment: .leading, spacing: 5) {
-                withDot(Text(Self.text(for: item)), if: item.isUnread && preview == nil)
-                    .font(AppFonts.body(14))
-                    .foregroundStyle(item.isUnread ? Tokens.text : Tokens.textMuted)
-                if let preview {
-                    withDot(Text("「\(preview)」"), if: item.isUnread)
-                        .font(AppFonts.body(13))
-                        .foregroundStyle(Tokens.textMuted)
-                }
-            }
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 13)
-            .contentShape(Rectangle())
+            NotificationRowLabel(text: Self.text(for: item),
+                                 preview: item.type == "note" ? item.preview.flatMap { $0.isEmpty ? nil : $0 } : nil,
+                                 unread: item.isUnread)
         }
         .buttonStyle(.plain)
-    }
-
-    /// The terracotta dot, 8 after the text on its last line.
-    private func withDot(_ text: Text, if unread: Bool) -> Text {
-        guard unread else { return text }
-        let dot = Text(verbatim: "\u{25CF}").font(.system(size: 7)).foregroundStyle(Tokens.terracotta).baselineOffset(1.5)
-        return Text("\(text)\u{2009}\u{2009}\(dot)")
     }
 
     static func text(for item: NotificationsStore.Item) -> String {
@@ -97,5 +75,45 @@ struct NotificationsScreen: View {
         case "invite_accepted", "message", "resonance": return item.fromHandle.map { Route.thread(handle: $0, uid: item.fromUserId, note: nil) }
         default: return nil
         }
+    }
+}
+
+/// A bell row's words: who did what, and under a note the note's own words. Read and unread differ
+/// by ink alone, and the unread dot ends the first line, beside who it is from — on a note's row
+/// too, never after the note's words, where it would read as a mark on the note (the web's
+/// NotificationBell, Android's NotificationRow). The words are drawn as written (`verbatim`) and the
+/// dot apart from them, so their 「，」「。」 sit as in every other line of the app — a localized
+/// `Text` interpolation around them set them the zh-TW way, centred, while the row was unread.
+/// VoiceOver hears "Unread" as the row's value, never the glyph (the web hides it, Android names it).
+struct NotificationRowLabel: View {
+    let text: String
+    let preview: String?
+    let unread: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(verbatim: text)
+                    .font(AppFonts.body(14))
+                    .foregroundStyle(unread ? Tokens.text : Tokens.textMuted)
+                if unread {
+                    // The web's 6px dot, 8 after the words, on their middle.
+                    Circle().fill(Tokens.terracotta).frame(width: 6, height: 6)
+                        .accessibilityHidden(true)
+                }
+            }
+            if let preview {
+                Text(verbatim: "「\(preview)」")
+                    .font(AppFonts.body(13))
+                    .foregroundStyle(Tokens.textMuted)
+            }
+        }
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(unread ? L10n.App.Notifications.unread : "")
     }
 }

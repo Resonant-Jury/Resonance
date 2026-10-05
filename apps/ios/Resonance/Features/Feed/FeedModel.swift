@@ -244,6 +244,38 @@ final class FeedModel {
         await latest.value
     }
 
+    /// Refreshed where the reader is, away from the list's top (VoiceOver's Refresh further down):
+    /// both are asked for again and each answer takes its part's place as `revalidate`'s do — the
+    /// new latest cards on top of the pages read (all of them kept), the latest left showing, picks
+    /// for a feed the latest cards lead waiting behind the hint — so the cards round the reader's
+    /// place stay. When nothing comes back the feed stays as it is and `refreshFailure` says why.
+    /// Nothing on screen yet: an ordinary refresh.
+    func refreshInPlace() async {
+        guard phase == .loaded else { return await refresh() }
+        generation += 1
+        let asked = generation
+        // Unstructured on purpose, as in `load`: leaving the screen doesn't abandon them.
+        let (fetchFeed, fetchRecommended) = (fetchFeed, fetchRecommended)
+        let picks = Task { [weak self] () -> Bool in
+            guard let picks = try? await fetchRecommended() else { return false }
+            self?.freshPicks(picks, for: asked)
+            return true
+        }
+        let latest = Task { [weak self] () -> Error? in
+            do {
+                let page = try await fetchFeed(nil)
+                self?.freshLatest(page, for: asked)
+                return nil
+            } catch {
+                return error
+            }
+        }
+        let pickedUp = await picks.value
+        let failure = await latest.value
+        guard asked == generation, !pickedUp, let failure else { return }
+        refreshFailure = RefreshFailure(failure)
+    }
+
     /// The hint's tap: the held picks head the feed, over the cards already read.
     func revealPicks() {
         guard !heldPicks.isEmpty else { return }

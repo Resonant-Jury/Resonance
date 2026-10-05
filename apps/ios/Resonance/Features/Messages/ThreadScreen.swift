@@ -111,7 +111,7 @@ struct ThreadScreen: View {
             // foot offers is asked again; a letter left waiting applies again once the connection is gone.
             .onChange(of: session.connectionsMoved) { _, moved in
                 guard let model, moved.concerns(model.otherId) else { return }
-                Task { await model.refreshConnection() }
+                Task { await model.connectionsMoved(live: session.conversations.connectedIds) }
             }
             // Opened for a note that is in the thread: there, flashed, and the reply to it set up.
             .onChange(of: model?.noteToShow) { _, id in

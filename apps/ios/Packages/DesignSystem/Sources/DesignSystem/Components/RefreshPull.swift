@@ -105,11 +105,26 @@ extension View {
     public func sketchRefreshAction(named label: String) -> some View {
         modifier(SketchRefreshActionModifier(label: label))
     }
+
+    /// The refresh `sketchRefreshAction` runs away from the list's top, where the reader's place is
+    /// to stay: one that keeps what has been read (a feed's later pages) and puts what is new
+    /// above it, instead of the pull's, which starts the list afresh. Set like `.refreshable`, on
+    /// the screen around the scroll view; without one, the pull's own runs there too.
+    public func sketchRefreshInPlace(_ action: @escaping @MainActor @Sendable () async -> Void) -> some View {
+        environment(\.sketchRefreshInPlace, SketchInPlaceRefresh(action: action))
+    }
+}
+
+/// A refresh that keeps the reader's place (`sketchRefreshInPlace`).
+public struct SketchInPlaceRefresh: Sendable {
+    let action: @MainActor @Sendable () async -> Void
 }
 
 extension EnvironmentValues {
     /// The refresh of the scroll view this content is in (`sketchRefreshable`), for `sketchRefreshAction`.
     @Entry var sketchRefreshRun: SketchRefreshRun? = nil
+    /// The screen's refresh in place, for `sketchRefreshAction` away from the top.
+    @Entry var sketchRefreshInPlace: SketchInPlaceRefresh? = nil
 }
 
 /// A list's refresh, pulled or asked for, one at a time: a pull while an asked-for refresh runs (or
@@ -117,6 +132,8 @@ extension EnvironmentValues {
 @MainActor final class SketchRefreshRun {
     /// The screen's refresh, as its `.refreshable` gave it last.
     var action: RefreshAction?
+    /// The screen's refresh in place (`sketchRefreshInPlace`), if it has one: the action's away from the top.
+    var inPlace: SketchInPlaceRefresh?
     /// The list rests at its top (or is pulled past it), where an asked-for refresh shows as a pull's does.
     var atTop = true
     /// The system's refresh control beside the list, which an asked-for refresh at the top starts as a pull would.
@@ -132,21 +149,30 @@ extension EnvironmentValues {
 
     /// The accessibility action: at the top, the system's refresh started as a pull let go past the
     /// threshold starts it (the list drawn down, the loader docked, the screen's `.refreshable` run
-    /// through `run`); further down — or with no control to start — the same refresh, in place.
+    /// through `run`); further down — or with no control to start — the screen's refresh in place
+    /// (`sketchRefreshInPlace`: the pages read stay), else the same refresh, in place.
     func ask() {
         guard running == nil, system?.isRefreshing != true else { return }
         if atTop, system?.pull() == true { return }
-        start()
+        if let inPlace {
+            start { await inPlace.action() }
+        } else {
+            start()
+        }
     }
 
     @discardableResult private func start() -> Task<Void, Never>? {
+        guard let action else { return running }
+        return start { await action() }
+    }
+
+    @discardableResult private func start(_ refresh: @escaping @MainActor () async -> Void) -> Task<Void, Never>? {
         if let running { return running }
-        guard let action else { return nil }
         started += 1
         let mine = started
         // Not the caller's task: SwiftUI cancels the refresh it started as soon as the screen redraws.
         let task = Task { [weak self] in
-            await action()
+            await refresh()
             if self?.started == mine { self?.running = nil }
         }
         running = task
@@ -168,6 +194,7 @@ private struct SketchRefreshActionModifier: ViewModifier {
 
 private struct SketchRefresh: ViewModifier {
     let action: RefreshAction
+    @Environment(\.sketchRefreshInPlace) private var inPlace
     /// The refresh itself, shared with the content's accessibility action (`sketchRefreshAction`).
     @State private var run = SketchRefreshRun()
     /// The scroll view's content offset, and its top safe area: where the list rests.
@@ -185,6 +212,7 @@ private struct SketchRefresh: ViewModifier {
     func body(content: Content) -> some View {
         let pull = RefreshPull(gap: -(offset + top), pulling: pulling, refreshing: refreshing, holding: holding, ending: ending)
         let _ = run.action = action
+        let _ = run.inPlace = inPlace
         content
             .refreshable {
                 refreshing = true

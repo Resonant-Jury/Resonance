@@ -208,6 +208,13 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     @State private var scrolled = false
     /// How far the brand bar has slid up (0…`travel`).
     @State private var hidden: CGFloat = 0
+    /// The list's offset near its top (clamped: further down it doesn't matter), and the top it rests
+    /// at — `RefreshPull`'s own measure of the gap a pull opens (`drawnDown`).
+    @State private var nearTop: CGFloat = 0
+    @State private var restingTop: CGFloat = 0
+    /// How far the list is drawn down past its top (a pull, or the room a refresh keeps): the banner
+    /// rides on the list, below the loader in that gap, never over it.
+    private var drawnDown: CGFloat { max(0, -(nearTop + restingTop)) }
     /// The bar's row above its wavy edge: 4 of air and the 44 lockup.
     private let travel: CGFloat = 48
 
@@ -251,8 +258,10 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
         }
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
+        .onScrollGeometryChange(for: CGFloat.self) { min($0.contentOffset.y, 0) } action: { _, y in nearTop = y }
+        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { restingTop = $0 }
         .sketchRefreshable(refresh)
-        .overlay(alignment: .top) { banner.offset(y: -hidden) }
+        .overlay(alignment: .top) { banner.offset(y: drawnDown - hidden) }
         .safeAreaInset(edge: .top, spacing: 0) {
             OrganicBrandBar(title: titleInBar ? title : nil, scrolled: scrolled) { if titleInBar { trailing } }
                 .offset(y: -hidden)

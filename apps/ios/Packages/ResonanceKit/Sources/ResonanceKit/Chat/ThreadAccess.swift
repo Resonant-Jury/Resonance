@@ -30,6 +30,37 @@ public enum ThreadAccess: Equatable, Sendable {
         return requestFrom == me ? .awaitingReply : .replyToConnect
     }
 
+    /// Whether the two are connected once the conversation's letter goes from the one written by
+    /// `was` to the one by `now` (nil: none waits), and whether that is to be asked again. A letter
+    /// that stops waiting while they weren't connected was answered — most likely just now, the
+    /// answer connecting the two in the same write — or taken back: until the connection is asked
+    /// again it is not known (nil), so the composer stays where it was (the answer's own, focus and
+    /// keyboard with it) instead of a "not connected" the next moment takes back. Across a block
+    /// nothing was answered: it stays false (and is asked again all the same). Nor when the
+    /// conversation is `gone` — deleted, the letter with it (withdrawn by its writer, declined, an
+    /// account purged): that answers nothing either.
+    public static func afterLetter(connected: Bool?, blocked: Bool, was: String?, now: String?,
+                                   gone: Bool = false) -> (connected: Bool?, reask: Bool) {
+        guard was != nil, now == nil, connected == false else { return (connected, false) }
+        return (blocked || gone ? false : nil, true)
+    }
+
+    /// What a snapshot of the conversation document says of its letter: the writer of the one
+    /// waiting (nil: none) while the document is there; `gone` once it isn't — deleted with
+    /// whatever letter it held (withdrawn, declined, an account purged), which answered nothing.
+    public static func letter(exists: Bool, _ conversation: [String: Any]?) -> (from: String?, gone: Bool) {
+        exists ? (requestFrom(conversation), false) : (nil, true)
+    }
+
+    /// Whether the two are connected: the live list of this account's connections (the listener's;
+    /// nil until it has been read) over what a profile said (`profile`, which the HTTP cache may
+    /// have kept a while). Across a block, never.
+    public static func connected(live: Set<String>?, other: String?, profile: Bool?, blocked: Bool) -> Bool? {
+        if blocked { return false }
+        if let live, let other { return live.contains(other) }
+        return profile
+    }
+
     /// The writer of the letter waiting in a conversation document's fields (`request.from`), if any.
     public static func requestFrom(_ conversation: [String: Any]?) -> String? {
         guard let request = conversation?["request"] as? [String: Any], let from = request["from"] as? String, !from.isEmpty

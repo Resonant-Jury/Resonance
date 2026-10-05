@@ -61,4 +61,31 @@ import Testing
         let model = await page(story: "https://example.com/rain", previews: nil)
         #expect(model.linkPreviews.isEmpty)
     }
+
+    @Test func aLinkTheServerWritesDifferentlyStillFindsItsPage() async throws {
+        // The server keys each page by the link as a browser writes it (`new URL(…).href`): an apostrophe in the
+        // query encoded, dot segments resolved, an international host in punycode.
+        let model = await page(
+            story: "https://example.com/search?q=what's+up\n\nhttps://example.com/a/./b/../c\n\n[例子](https://例子.tw/x)\n\n[八十](https://example.com:80/x)",
+            previews: [
+                .init(url: "https://example.com/search?q=what%27s+up", title: "What's up"),
+                .init(url: "https://example.com/a/c", title: "C"),
+                .init(url: "https://xn--fsqu00a.tw/x", title: "例子"),
+                // A port the server follows on either scheme, and keeps.
+                .init(url: "https://example.com:80/x", title: "Eighty"),
+            ])
+        let links = soleLinks(model.blocks)
+        #expect(links.count == 4)
+        #expect(links.compactMap { model.linkPreview(href: $0.href, text: $0.text)?.title } == ["What's up", "C", "例子", "Eighty"])
+        #expect(model.linkPreview(href: links[3].href, text: links[3].text)?.url.absoluteString == "https://example.com:80/x")
+    }
+
+    @Test func aBareAddressWithoutItsPagesCardIsStillALink() async {
+        // No card for it (the page couldn't be read): its words open it, as the web's reader links them.
+        let model = await page(story: "https://no-such-host.invalid/page\n\n看 https://example.com/inline 這篇。", previews: [])
+        guard case let .soleLink(_, _, runs) = model.blocks.first, case let .paragraph(sentence) = model.blocks.last
+        else { return #expect(Bool(false)) }
+        #expect(runs.map(\.link) == ["https://no-such-host.invalid/page"])
+        #expect(sentence.map(\.link) == [nil, "https://example.com/inline", nil])
+    }
 }

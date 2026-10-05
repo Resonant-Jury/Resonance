@@ -16,9 +16,8 @@ struct CardViewerActions: View {
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.openRoute) private var openRoute
     @State private var shown = false
-    /// Your card answering this one; nil while looking (`looked` false) or when there is none.
-    @State private var mine: DraftService.Resonance?
-    @State private var looked = false
+    /// Your card answering this one, as far as it is known (`.found(nil)`: none).
+    @State private var lookup = ResonanceLookup()
     @State private var writingNote = false
     @State private var picking = false
     @State private var resonating = false
@@ -26,21 +25,32 @@ struct CardViewerActions: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
-                if let mine, mine.published {
+                if case let .found(mine?) = lookup.state, mine.published {
                     // Done: it says so, and opens the card that answers.
                     OrganicButton(L10n.Card.resonated, icon: .check, variant: .outline) { openRoute(.card(mine.id)) }
-                } else if let mine {
+                } else if case let .found(mine?) = lookup.state {
                     OrganicButton(L10n.Card.modify, icon: .pen, variant: .outline) { writer.edit(mine.id) }
                 } else {
                     OrganicButton(L10n.Card.resonate, icon: .wave) {
                         // Signed out there is nothing to pick from: the writer, as before.
-                        if session.drafts == nil { writer.open(.init(referenceCardId: cardId)) } else { picking = true }
+                        guard let drafts = session.drafts else { return writer.open(.init(referenceCardId: cardId)) }
+                        if lookup.state == .failed {
+                            // Not known whether this card is answered already: asked now, the picker once it isn't.
+                            Task { if await lookup.askOnTap({ try await drafts.myResonance(to: cardId) }) { picking = true } }
+                        } else {
+                            picking = true
+                        }
                     }
+                    .working(lookup.asking)
                 }
             }
-            // Wait for the lookup, so a second resonance can't be started by accident.
-            .opacity(looked ? 1 : 0.6)
-            .allowsHitTesting(looked)
+            // Wait for the lookup, so a second resonance can't be started by accident (one that failed is a tap away).
+            .opacity(lookup.state == .looking ? 0.6 : 1)
+            .allowsHitTesting(lookup.state != .looking)
+            if lookup.tapFailed {
+                Text(L10n.Native.loadError).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+                    .padding(.top, -6)
+            }
             HStack {
                 // The web's secondaryOutline with its frame hidden: a link.
                 Button { writingNote = true } label: {
@@ -80,19 +90,10 @@ struct CardViewerActions: View {
             }
         }
         .task(id: "\(cardId)#\(writer.changes)") {
-            // Signed out: nothing to find. A failed lookup stays dimmed, as on the web —
-            // better than risking a second resonance.
-            guard let drafts = session.drafts else {
-                mine = nil
-                looked = true
-                return
-            }
-            do {
-                mine = try await drafts.myResonance(to: cardId)
-                looked = true
-            } catch {
-                looked = false
-            }
+            // Signed out: nothing to find. A failed lookup is tried again, then left to a tap — never
+            // a button dimmed for good (nor one that could begin a second resonance unasked).
+            guard let drafts = session.drafts else { return await lookup.look { nil } }
+            await lookup.look { try await drafts.myResonance(to: cardId) }
         }
         .onScrollVisibilityChange(threshold: 0.08) { visible in
             guard visible, !shown else { return }

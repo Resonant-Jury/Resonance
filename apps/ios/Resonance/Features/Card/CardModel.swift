@@ -20,7 +20,7 @@ final class CardModel {
     private(set) var detail: CardDetail?
     /// The list's copy of the card, drawn until the card arrives; never trusted beyond that.
     private(set) var placeholder: FeedCard?
-    /// The story, parsed once when it arrives.
+    /// The story, parsed once when it arrives, its bare web addresses made links.
     private(set) var blocks: [StoryBlock] = []
     private(set) var resonances: [FeedCard] = []
     private(set) var related: [FeedCard] = []
@@ -81,7 +81,10 @@ final class CardModel {
         do {
             let detail = try await fetch(key)
             self.detail = detail
-            blocks = StoryParser.parse(detail.story)
+            // Addresses written bare are links, as on the web (where the link rules find one).
+            blocks = StoryBlock.linkingAddresses(StoryParser.parse(detail.story)) { words in
+                ChatLinks.links(in: words).map { (range: $0.range, url: $0.url.absoluteString) }
+            }
             resonances = detail.resonances?.cards ?? []
             related = detail.related?.cards ?? []
             links = detail.links?.cards ?? []

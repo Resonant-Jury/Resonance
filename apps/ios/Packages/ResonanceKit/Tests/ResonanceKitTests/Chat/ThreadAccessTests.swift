@@ -42,6 +42,61 @@ import Testing
         #expect(!ThreadAccess.notConnected.canWrite)
     }
 
+    @Test func anAnsweredLetterKeepsTheComposerUntilTheConnectionIsAskedAgain() {
+        // Bob's letter waits; Alice answers it from the composer. The server connects the two and clears
+        // the letter in one write, and the conversation says so before anything says they are connected.
+        let before = ThreadAccess.of(connected: false, blocked: false, requestFrom: "bob", me: "alice")
+        #expect(before == .replyToConnect)
+        let after = ThreadAccess.afterLetter(connected: false, blocked: false, was: "bob", now: nil)
+        #expect(after.reask)
+        #expect(after.connected == nil)
+        // Not "not connected" (which takes the composer away, and the keyboard with it): the composer stays.
+        let access = ThreadAccess.of(connected: after.connected, blocked: false, requestFrom: nil, me: "alice")
+        #expect(access != .notConnected)
+        #expect(access.canWrite)
+        // Bob's side of it: his letter answered, his composer comes while the connection is asked for.
+        let writer = ThreadAccess.afterLetter(connected: false, blocked: false, was: "bob", now: nil)
+        #expect(ThreadAccess.of(connected: writer.connected, blocked: false, requestFrom: nil, me: "bob") == .open)
+    }
+
+    @Test func otherLetterChangesLeaveWhatIsKnownAsItIs() {
+        // Across a block nothing was answered: still nothing to write, asked again all the same.
+        let blocked = ThreadAccess.afterLetter(connected: false, blocked: true, was: "bob", now: nil)
+        #expect(blocked.connected == false && blocked.reask)
+        // A letter arriving, or one waiting while they are connected (or not known yet): nothing to ask.
+        #expect(ThreadAccess.afterLetter(connected: false, blocked: false, was: nil, now: "bob") == (false, false))
+        #expect(ThreadAccess.afterLetter(connected: true, blocked: false, was: "bob", now: nil) == (true, false))
+        #expect(ThreadAccess.afterLetter(connected: nil, blocked: false, was: "bob", now: nil) == (nil, false))
+        #expect(ThreadAccess.afterLetter(connected: false, blocked: false, was: nil, now: nil) == (false, false))
+    }
+
+    @Test func aConversationDeletedWithItsLetterAnsweredNothing() {
+        // Bob withdraws his letter (or Alice declines it): the conversation is deleted, the letter with it.
+        let snapshot = ThreadAccess.letter(exists: false, nil)
+        #expect(snapshot.gone)
+        #expect(snapshot.from == nil)
+        // Not an answer that connected the two: still not connected — no composer while it is asked again.
+        let after = ThreadAccess.afterLetter(connected: false, blocked: false, was: "bob", now: snapshot.from, gone: snapshot.gone)
+        #expect(after.reask)
+        #expect(after.connected == false)
+        #expect(ThreadAccess.of(connected: after.connected, blocked: false, requestFrom: nil, me: "alice") == .notConnected)
+        // While it is there, the letter it holds (or none).
+        #expect(ThreadAccess.letter(exists: true, ["request": ["from": "bob"]]) == ("bob", false))
+        #expect(ThreadAccess.letter(exists: true, ["unread": ["alice": 1]]) == (nil, false))
+    }
+
+    @Test func theLiveConnectionsSpeakOverAKeptProfile() {
+        // Connected a moment ago (an answered letter, a resonance): the live list knows before a kept profile does.
+        #expect(ThreadAccess.connected(live: ["bob"], other: "bob", profile: false, blocked: false) == true)
+        // A take-back: gone from the list, whatever the profile said.
+        #expect(ThreadAccess.connected(live: [], other: "bob", profile: true, blocked: false) == false)
+        // The list not read yet, or whom it is with not known: the profile's word.
+        #expect(ThreadAccess.connected(live: nil, other: "bob", profile: true, blocked: false) == true)
+        #expect(ThreadAccess.connected(live: ["bob"], other: nil, profile: nil, blocked: false) == nil)
+        // Across a block, never.
+        #expect(ThreadAccess.connected(live: ["bob"], other: "bob", profile: true, blocked: true) == false)
+    }
+
     @Test func theLettersWriterIsReadFromTheConversation() {
         #expect(ThreadAccess.requestFrom(["request": ["from": "bob", "cardId": "walk", "count": 1]]) == "bob")
         #expect(ThreadAccess.requestFrom(["request": ["cardId": "walk"]]) == nil)
