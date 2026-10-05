@@ -117,7 +117,7 @@ import Testing
     @Test func writesThatChangeNothingReadLeaveTheCacheTrusted() async throws {
         _ = try await reading.feed()
         // The push registration on every launch, and a write the server refused.
-        try await PushAPI(client: client).register(installationId: "i1", token: "t", language: .en, appVersion: nil)
+        try await PushAPI(client: client).register(installationId: "i1", token: "t", language: .en, appVersion: nil, timeZone: nil)
         _ = try? await MessagingAPI(client: client).sendMessage(to: "bob", text: "Hi")
         _ = try await reading.feed()
 
