@@ -37,6 +37,11 @@ class NoteComposerTest {
         assertEquals("你留的紙條對方還沒回覆，先等等對方吧。", noteSendError(ApiFailure("conflict", "Wait for a reply.", 409)))
     }
 
+    @Test fun aCardGoneSaysItCantBeFoundNotToTryAgain() {
+        // Deleted (its notes with it, so a resend is refused too) or hidden from the writer since.
+        assertEquals("找不到這張卡片", noteSendError(ApiFailure("not_found", "No such card.", 404)))
+    }
+
     @Test fun theServersTroubleOrTheNetworksIsTheSendError() {
         assertEquals("沒送出去，再試一次。", noteSendError(ApiFailure("internal", "HTTP 500", 500)))
         assertEquals("沒送出去，再試一次。", noteSendError(IOException("offline")))
