@@ -54,6 +54,7 @@ import com.resonance.design.SketchPullIndicator
 import com.resonance.design.pulledDown
 import com.resonance.design.rememberSketchPull
 import com.resonance.design.sketchPull
+import com.resonance.design.sketchPullAction
 import com.resonance.design.StoryCard
 import com.resonance.design.StoryCardContent
 import com.resonance.design.cream
@@ -148,7 +149,8 @@ fun LazyListState.scrolledPast20(): Boolean {
  *
  * With [onRefresh], the list can be pulled down past its top to run it: the gap
  * that opens under the bar draws the Resonance loader (SketchPullIndicator),
- * never Material's spinner.
+ * never Material's spinner — and the list offers it as a "Refresh"
+ * accessibility action too (sketchPullAction).
  */
 @Composable
 fun TabScreen(
@@ -173,7 +175,9 @@ fun TabScreen(
     val pulling = Modifier.sketchPull(pull, enabled = onRefresh != null && (refreshEnabled || pull.refreshing))
     Box(Modifier.fillMaxSize().cream().then(pulling).nestedScroll(quickReturn.connection)) {
         // Without the title block, the first row still starts clear of the bar's line.
-        LazyColumn(Modifier.fillMaxSize().pulledDown(pull), state = list, contentPadding = PaddingValues(top = if (titleInBar) top + TitledBarGap else top, bottom = 120.dp)) {
+        // For whoever can't pull, the same refresh is the list's "Refresh" action (in TalkBack's Actions on any of its rows).
+        val refreshAction = Modifier.sketchPullAction(pull, L10n.Native.refresh, enabled = onRefresh != null && refreshEnabled) { !list.canScrollBackward }
+        LazyColumn(Modifier.fillMaxSize().pulledDown(pull).then(refreshAction), state = list, contentPadding = PaddingValues(top = if (titleInBar) top + TitledBarGap else top, bottom = 120.dp)) {
             if (!titleInBar) item {
                 // The web's page padding: 40 under the header, the title block 40 above the content (home's header).
                 Column(

@@ -689,6 +689,7 @@
     "saveError": "沒存成，再試一次。",
     "retry": "再試一次",
     "offline": "目前離線，已經打開過的內容還在。",
-    "tabFeed": "共振 Feed"
+    "tabFeed": "共振 Feed",
+    "refresh": "重新整理"
   }
 }

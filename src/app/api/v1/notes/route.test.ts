@@ -28,7 +28,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getCurrentUser.mockResolvedValue({ id: 'alice' });
   spend.mockResolvedValue(undefined);
-  sendNote.mockResolvedValue({ id: 'n1', notificationId: 'bell1', push });
+  sendNote.mockResolvedValue({ id: 'n1', notificationId: 'bell1', push, duplicate: false });
 });
 
 describe('POST /api/v1/notes', () => {
@@ -44,12 +44,33 @@ describe('POST /api/v1/notes', () => {
   });
 
   it('rings the bell row of a note on an anonymous card, which stays out of every thread', async () => {
-    sendNote.mockResolvedValue({ id: 'n2', notificationId: 'bell2', push: null });
+    sendNote.mockResolvedValue({ id: 'n2', notificationId: 'bell2', push: null, duplicate: false });
     const res = await post({ cardId: 'masked', text: 'hi' });
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ id: 'n2' });
     expect(ringAfter).toHaveBeenCalledWith({}, 'bell2');
     expect(afterNoteSent).not.toHaveBeenCalled();
+  });
+
+  // A retry after a lost answer: the note was left and rang the first time.
+  it('answers a resend of a clientId as the first send was answered, ringing no one', async () => {
+    const clientId = 'client-0123456789abcdef';
+    sendNote.mockResolvedValue({ id: clientId, notificationId: null, push: null, duplicate: true });
+    const res = await post({ cardId: 'walk', text: 'hi', clientId });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ id: clientId });
+    expect(sendNote).toHaveBeenCalledWith({}, 'alice', { cardId: 'walk', text: 'hi', clientId });
+    expect(afterNoteSent).not.toHaveBeenCalled();
+    expect(ringAfter).not.toHaveBeenCalled();
+  });
+
+  it('refuses a clientId the contract does not take, sending nothing', async () => {
+    for (const clientId of ['short', 'has/slash-0123456789', 'x'.repeat(65), 7]) {
+      expect((await post({ cardId: 'walk', text: 'hi', clientId })).status).toBe(400);
+    }
+    // Older builds send none; Kotlin clients send null.
+    for (const clientId of [undefined, null]) expect((await post({ cardId: 'walk', text: 'hi', clientId })).status).toBe(201);
+    expect(sendNote).toHaveBeenCalledTimes(2);
   });
 
   it('is 429 over budget, sending nothing', async () => {

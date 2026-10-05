@@ -35,6 +35,19 @@ class MessagingApiTest {
         val sent = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
         assertEquals("walk", sent["cardId"]!!.jsonPrimitive.content)
         assertEquals("thank you", sent["text"]!!.jsonPrimitive.content)
+        // No id given: the server makes one (an older build's send).
+        assertTrue(sent["clientId"] == null || sent["clientId"] is JsonNull)
+    }
+
+    @Test fun aNoteGoesUnderTheWritersOwnId() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(201).setHeader("Content-Type", "application/json")
+                // A resend is answered with the note already left, and says so: unknown fields are tolerated.
+                .setBody("""{"id":"AbCdEfGhIjKlMnOpQrSt","duplicate":true}"""),
+        )
+        assertEquals("AbCdEfGhIjKlMnOpQrSt", api().sendNote("walk", "thank you", clientId = "AbCdEfGhIjKlMnOpQrSt"))
+        val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("AbCdEfGhIjKlMnOpQrSt", sent["clientId"]!!.jsonPrimitive.content)
     }
 
     @Test fun sendsAMessageAndAnswersItsConversation() = runBlocking {

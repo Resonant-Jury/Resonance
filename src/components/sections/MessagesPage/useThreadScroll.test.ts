@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { centerRow, useThreadScroll } from './useThreadScroll';
 
 /** A scroller `height` tall over `content` of rows, and a row `rowTop` down the content, 40 tall. */
@@ -111,7 +111,7 @@ describe('where the browser doesn’t anchor scrolling by itself (Safari)', () =
     renderHook(() => useThreadScroll({ current: t.scroller }, { firstKey: 'm0', lastKey: 'm5', lastIsOwn: false }));
     // The reader scrolls to the third row (its top half off the window).
     t.scroller.scrollTop = 250;
-    t.scroller.dispatchEvent(new Event('scroll'));
+    act(() => void t.scroller.dispatchEvent(new Event('scroll')));
     // A shared card's stand-in above becomes the card, 60 shorter.
     t.heights[1] = 40;
     for (const cb of observed) cb([], {} as ResizeObserver);
@@ -166,7 +166,14 @@ describe('a stretch drawn further up', () => {
       scrollHeight: { value: 3000 },
       scrollTop: { get: () => top, set: (v: number) => (top = v) },
     });
-    return { el, top: () => top, move: (to: number) => ((top = to), el.dispatchEvent(new Event('scroll'))) };
+    return {
+      el,
+      top: () => top,
+      move: (to: number) => {
+        top = to;
+        act(() => void el.dispatchEvent(new Event('scroll')));
+      },
+    };
   }
 
   it('follows nothing at its foot, holds no one there, and asks for the next newer page near it', () => {

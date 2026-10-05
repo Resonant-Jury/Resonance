@@ -18,7 +18,8 @@ import org.junit.Test
 /**
  * A pull let go past its threshold runs the screen's refresh once, keeps the loader docked while
  * it runs (and for a moment at least, so a quick answer doesn't just flicker), and lets go of it
- * whether the refresh worked or not. The loader fades and grows in with the pull.
+ * whether the refresh worked or not. The loader fades and grows in with the pull. Whoever can't
+ * pull asks for the same refresh with the list's accessibility action.
  */
 class PullRefreshTest {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -59,6 +60,54 @@ class PullRefreshTest {
         // …and the next pull runs again.
         pull.refresh()
         assertTrue(pull.refreshing)
+    }
+
+    private suspend fun untilDone(pull: SketchPull) = withTimeout(4_000) { while (pull.running) delay(5) }
+
+    @Test fun theRefreshActionAtTheTopRefreshesAsAPullDoes() = runBlocking {
+        var runs = 0
+        val answer = CompletableDeferred<Unit>()
+        val pull = SketchPull(scope, 64.dp, 64f) { { runs++; answer.await() } }
+        val action = pull.refreshAction("Refresh") { true }
+        assertEquals("Refresh", action.label)
+        assertTrue(action.action())
+        // Docked as a pull's would be, and asked again meanwhile: still the one refresh.
+        assertTrue(pull.refreshing)
+        assertTrue(pull.docked)
+        assertTrue(action.action())
+        answer.complete(Unit)
+        untilLetGo(pull)
+        assertEquals(1, runs)
+        // …and the next one runs again.
+        action.action()
+        untilLetGo(pull)
+        assertEquals(2, runs)
+    }
+
+    @Test fun theRefreshActionFurtherDownLeavesTheListWhereItIs() = runBlocking {
+        var runs = 0
+        val answer = CompletableDeferred<Unit>()
+        val pull = SketchPull(scope, 64.dp, 64f) { { runs++; answer.await() } }
+        var top = false
+        val action = pull.refreshAction("Refresh") { top }
+        assertTrue(action.action())
+        assertTrue(pull.running)
+        // No gap, no loader over the stories in view.
+        assertFalse(pull.refreshing)
+        assertFalse(pull.docked)
+        // A pull (or the action back at the top) meanwhile is answered by the refresh already running.
+        pull.refresh()
+        top = true
+        action.action()
+        assertFalse(pull.refreshing)
+        answer.complete(Unit)
+        untilDone(pull)
+        assertEquals(1, runs)
+        // Nothing to show for: it ends as soon as the refresh does, and the next pull runs again.
+        pull.refresh()
+        assertTrue(pull.refreshing)
+        untilLetGo(pull)
+        assertEquals(2, runs)
     }
 
     @Test fun theLoaderFadesAndGrowsInWithThePull() {

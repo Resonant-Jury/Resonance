@@ -87,15 +87,89 @@ extension View {
     /// `.refreshable(action)` on a scroll view, drawn with the Resonance loader
     /// (`RefreshPull`) instead of the system's spinner. The system's refresh
     /// still runs it — the pull that starts it, the room it keeps open while it
-    /// runs, VoiceOver's way to it — with its own drawing faded out. Nothing
-    /// without an action.
+    /// runs, VoiceOver's three-finger scroll at the top — with its own drawing
+    /// faded out. Its content offers the same refresh as an accessibility
+    /// action with `sketchRefreshAction(named:)`. Nothing without an action.
     @ViewBuilder public func sketchRefreshable(_ action: RefreshAction?) -> some View {
         if let action { modifier(SketchRefresh(action: action)) } else { self }
+    }
+
+    /// The pull for whoever can't pull (VoiceOver, Switch Control, Voice Control): an accessibility
+    /// action named `label` on everything in the content of a scroll view that has
+    /// `sketchRefreshable`, so VoiceOver offers it among the actions of whichever row has its focus.
+    /// (The system's `.refreshable` offers none: its control is no accessibility element.) At the
+    /// list's top it refreshes as a pull let go past the threshold does — the list drawn down and
+    /// the loader docked while it runs; further down the list stays where it is (a docked loader
+    /// would sit over the stories in view, and the reader's place would move). Asked for while a
+    /// refresh runs, that refresh is the answer. Nothing outside such a scroll view.
+    public func sketchRefreshAction(named label: String) -> some View {
+        modifier(SketchRefreshActionModifier(label: label))
+    }
+}
+
+extension EnvironmentValues {
+    /// The refresh of the scroll view this content is in (`sketchRefreshable`), for `sketchRefreshAction`.
+    @Entry var sketchRefreshRun: SketchRefreshRun? = nil
+}
+
+/// A list's refresh, pulled or asked for, one at a time: a pull while an asked-for refresh runs (or
+/// the action while a pulled one does) is answered by the refresh already running, never a second.
+@MainActor final class SketchRefreshRun {
+    /// The screen's refresh, as its `.refreshable` gave it last.
+    var action: RefreshAction?
+    /// The list rests at its top (or is pulled past it), where an asked-for refresh shows as a pull's does.
+    var atTop = true
+    /// The system's refresh control beside the list, which an asked-for refresh at the top starts as a pull would.
+    weak var system: SystemSpinnerFade.Finder?
+    private var running: Task<Void, Never>?
+    /// Which refresh `running` is, so the one that ends clears only itself.
+    private var started = 0
+
+    /// The refresh running, or a new one: what a pull runs, and awaits.
+    func run() async {
+        await start()?.value
+    }
+
+    /// The accessibility action: at the top, the system's refresh started as a pull let go past the
+    /// threshold starts it (the list drawn down, the loader docked, the screen's `.refreshable` run
+    /// through `run`); further down — or with no control to start — the same refresh, in place.
+    func ask() {
+        guard running == nil, system?.isRefreshing != true else { return }
+        if atTop, system?.pull() == true { return }
+        start()
+    }
+
+    @discardableResult private func start() -> Task<Void, Never>? {
+        if let running { return running }
+        guard let action else { return nil }
+        started += 1
+        let mine = started
+        // Not the caller's task: SwiftUI cancels the refresh it started as soon as the screen redraws.
+        let task = Task { [weak self] in
+            await action()
+            if self?.started == mine { self?.running = nil }
+        }
+        running = task
+        return task
+    }
+}
+
+/// `sketchRefreshAction(named:)`: the action, wherever a `sketchRefreshable` scroll view is around.
+private struct SketchRefreshActionModifier: ViewModifier {
+    let label: String
+    @Environment(\.sketchRefreshRun) private var run
+
+    func body(content: Content) -> some View {
+        content.accessibilityActions {
+            if let run { Button(label) { run.ask() } }
+        }
     }
 }
 
 private struct SketchRefresh: ViewModifier {
     let action: RefreshAction
+    /// The refresh itself, shared with the content's accessibility action (`sketchRefreshAction`).
+    @State private var run = SketchRefreshRun()
     /// The scroll view's content offset, and its top safe area: where the list rests.
     @State private var offset: CGFloat = 0
     @State private var top: CGFloat = 0
@@ -110,25 +184,32 @@ private struct SketchRefresh: ViewModifier {
 
     func body(content: Content) -> some View {
         let pull = RefreshPull(gap: -(offset + top), pulling: pulling, refreshing: refreshing, holding: holding, ending: ending)
+        let _ = run.action = action
         content
             .refreshable {
                 refreshing = true
                 // In a task of its own: SwiftUI cancels the refresh it started as soon as the screen
                 // redraws (the feed puts up its skeleton), and a feed cancelled halfway through its
-                // load is left waiting for a screen that never comes back.
-                let shortest = shortest
+                // load is left waiting for a screen that never comes back. (`run` keeps it one: a pull
+                // while the accessibility action's refresh runs waits for that one.)
+                let shortest = shortest, run = run
                 await Task {
                     let started = ContinuousClock.now
-                    await action()
+                    await run.run()
                     try? await Task.sleep(until: started + shortest)
                 }.value
                 refreshing = false
                 ending = true
                 settle()
             }
-            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { top = $0 }
+            .environment(\.sketchRefreshRun, run)
+            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: {
+                top = $0
+                run.atTop = -(offset + top) > -1
+            }
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
                 offset = y
+                run.atTop = -(offset + top) > -1
                 settle()
             }
             .onScrollPhaseChange { _, phase in
@@ -141,7 +222,7 @@ private struct SketchRefresh: ViewModifier {
                 settle()
             }
             .overlay(alignment: .top) { PullLoader(pull: pull) }
-            .background(SystemSpinnerFade(pulls: pulls))
+            .background(SystemSpinnerFade(pulls: pulls, run: run))
             .sensoryFeedback(.impact(weight: .light), trigger: refreshing) { was, now in !was && now }
     }
 
@@ -183,12 +264,17 @@ private struct PullLoader: View {
 /// control, or clearing its tint, stops it starting). Done as the view
 /// arrives and again as each pull begins, should SwiftUI have made a new
 /// control since. Were UIKit ever to draw it otherwise, the system's spinner
-/// would simply show again beside the loader.
-private struct SystemSpinnerFade: UIViewRepresentable {
+/// would simply show again beside the loader. It is also how the accessibility
+/// action reaches the control (`Finder.pull`).
+struct SystemSpinnerFade: UIViewRepresentable {
     let pulls: Int
+    let run: SketchRefreshRun
 
     func makeUIView(context: Context) -> Finder { Finder() }
-    func updateUIView(_ finder: Finder, context: Context) { finder.fade() }
+    func updateUIView(_ finder: Finder, context: Context) {
+        run.system = finder
+        finder.fade()
+    }
 
     final class Finder: UIView {
         override init(frame: CGRect) {
@@ -207,23 +293,43 @@ private struct SystemSpinnerFade: UIViewRepresentable {
 
         /// The nearest refresh controls up the hierarchy: the scroll view this background belongs to.
         func fade() {
+            for (_, control) in nearest() { control.subviews.forEach { $0.alpha = 0 } }
+        }
+
+        /// The system's refresh is running (pulled, or started by `pull`).
+        var isRefreshing: Bool { nearest().contains { $0.control.isRefreshing } }
+
+        /// Starts the system's refresh as a pull let go past its threshold does: the control
+        /// refreshing, the list eased down to the room it keeps open, and the scroll view's
+        /// `.refreshable` run (SwiftUI's own handler, which ends the control once it returns).
+        /// False when there is no control to start.
+        func pull() -> Bool {
+            guard let (scrollView, control) = nearest().first else { return false }
+            if control.isRefreshing { return true }
+            fade()
+            control.beginRefreshing()
+            // The room the control keeps open is in the inset now: the list goes down to meet it.
+            scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: -scrollView.adjustedContentInset.top), animated: true)
+            control.sendActions(for: .valueChanged)
+            return true
+        }
+
+        private func nearest() -> [(scrollView: UIScrollView, control: UIRefreshControl)] {
             var level = superview
             while let ancestor = level {
                 let controls = Self.refreshControls(in: ancestor)
-                if !controls.isEmpty {
-                    for control in controls { control.subviews.forEach { $0.alpha = 0 } }
-                    return
-                }
+                if !controls.isEmpty { return controls }
                 level = ancestor.superview
             }
+            return []
         }
 
-        private static func refreshControls(in view: UIView) -> [UIRefreshControl] {
-            var found: [UIRefreshControl] = []
+        private static func refreshControls(in view: UIView) -> [(scrollView: UIScrollView, control: UIRefreshControl)] {
+            var found: [(scrollView: UIScrollView, control: UIRefreshControl)] = []
             var queue = [view]
             while !queue.isEmpty {
                 let next = queue.removeFirst()
-                if let control = (next as? UIScrollView)?.refreshControl { found.append(control) }
+                if let scrollView = next as? UIScrollView, let control = scrollView.refreshControl { found.append((scrollView, control)) }
                 queue.append(contentsOf: next.subviews)
             }
             return found

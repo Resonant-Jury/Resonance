@@ -18,6 +18,9 @@ struct NoteComposer: View {
     @State private var sent = false
     @State private var error: String?
     @State private var showsHint = false
+    /// The note on its way, under one client id until it is left: Send pressed again on the same
+    /// words after a failure is a retry the server can recognise, never a second note.
+    @State private var attempt = NoteAttempt()
     @FocusState private var focused: Bool
 
     static let maxLength = 2000
@@ -97,8 +100,9 @@ struct NoteComposer: View {
         pending = true
         error = nil
         defer { pending = false }
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            _ = try await session.messaging.sendNote(cardId: cardId, text: text.trimmingCharacters(in: .whitespacesAndNewlines))
+            _ = try await attempt.send(cardId: cardId, text: words) { try await session.messaging.sendNote(cardId: cardId, text: words, clientId: $0) }
             sent = true
             PushCenter.shared.reachedOut()
         } catch let failure as APIFailure {

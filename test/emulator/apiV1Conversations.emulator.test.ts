@@ -6,7 +6,7 @@ import { NOTE_REQUEST_MAX, sendMessage, sendNote } from '@/lib/api/v1/conversati
 import { deleteCard } from '@/lib/api/v1/cards';
 import { acceptInvite } from '@/lib/api/v1/invites';
 import { resonateWith } from '@/lib/api/v1/resonate';
-import { SendMessageRequest } from '@/lib/api/v1/schemas';
+import { SendMessageRequest, SendNoteRequest } from '@/lib/api/v1/schemas';
 
 // Notes and messages through the v1 API against the Firestore emulator — what
 // the web's sendNote() and openConversation() + sendMessage() write from the
@@ -265,7 +265,7 @@ describe('sendNote', () => {
       for (const [blocker, blocked] of [['alice', 'bob'], ['bob', 'alice']]) {
         await db.doc(`users/${blocker}/blocks/${blocked}`).set({ blockedUid: blocked });
         const sent = await sendNote(db, 'alice', { cardId: 'masked', text: 'about your anonymous card' });
-        expect(sent).toEqual({ id: expect.stringMatching(/^[A-Za-z0-9]{20}$/), notificationId: null, push: null });
+        expect(sent).toEqual({ id: expect.stringMatching(/^[A-Za-z0-9]{20}$/), notificationId: null, push: null, duplicate: false });
         const note = (await db.doc(`notes/${sent.id}`).get()).data()!;
         // Withheld from Bob, the card's author: it goes with his account, as a delivered note would.
         expect(note).toMatchObject({ cardId: 'masked', fromUserId: 'alice', toUserId: null, withheldFor: 'bob', text: 'about your anonymous card', readAt: null });
@@ -321,6 +321,133 @@ describe('sendNote', () => {
     await db.doc('cards/walk').set({ slug: 'a-rainy-walk' }, { merge: true });
     expect((await failure(sendNote(db, 'alice', { cardId: 'a-rainy-walk', text: 'hi' }))).code).toBe('not_found');
     expect(await docs('notes')).toHaveLength(0);
+  });
+
+  // A retry after a lost answer (an app's, or a send the first compile held
+  // up) must not leave the note twice: that would ring the author twice and
+  // spend one of the writer's NOTE_REQUEST_MAX letters.
+  describe('clientId', () => {
+    const clientId = 'note-0123456789abcdef';
+    const letter = async () => (await db.doc('letters/alice_bob').get()).data();
+    const thread = async () => (await db.doc('conversations/alice_bob').get()).data();
+
+    it('must be well-formed to get past the contract, as a message\'s: 16 to 64 letters, digits, - or _', () => {
+      const accepted = (value: unknown) => SendNoteRequest.safeParse({ cardId: 'walk', text: 'x', clientId: value }).success;
+      expect([clientId, 'A_b-C_d-E_f-G_h-', 'x'.repeat(64), null, undefined].every(accepted)).toBe(true);
+      expect(['x'.repeat(15), 'x'.repeat(65), 'has/slash-0123456789', 'has space 0123456789', 42].some(accepted)).toBe(false);
+    });
+
+    it("becomes the note's id, and its message's in the thread", async () => {
+      const sent = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi', clientId });
+      expect(sent).toMatchObject({ id: clientId, duplicate: false, push: { messageId: clientId } });
+      expect((await db.doc(`notes/${clientId}`).get()).data()).toMatchObject({ fromUserId: 'alice', toUserId: 'bob', text: 'hi' });
+      expect((await db.doc(`conversations/alice_bob/messages/${clientId}`).get()).data()).toMatchObject({ senderId: 'alice', kind: 'note' });
+      expect((await docs('notifications'))[0]).toMatchObject({ payload: { noteId: clientId } });
+    });
+
+    it('makes sending retry-safe: the resend finds the note, writing, counting and ringing nothing', async () => {
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'hi', clientId });
+      const [convoBefore, letterBefore] = [await thread(), await letter()];
+      expect(letterBefore).toMatchObject({ count: 1 });
+      const again = await sendNote(db, 'alice', { cardId: 'walk', text: 'hi', clientId });
+      expect(again).toEqual({ id: clientId, notificationId: null, push: null, duplicate: true });
+      expect(await docs('notes')).toHaveLength(1);
+      expect(await docs('notifications')).toHaveLength(1);
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(1);
+      expect(await thread()).toEqual(convoBefore);
+      expect(await letter()).toEqual(letterBefore);
+    });
+
+    it('answers a resend of a letter\'s last note as sent, never "Wait for them to reply."', async () => {
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'one' });
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'two' });
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'three', clientId });
+      expect(await sendNote(db, 'alice', { cardId: 'walk', text: 'three', clientId })).toMatchObject({ id: clientId, duplicate: true });
+      expect(await letter()).toMatchObject({ count: 3 });
+      expect(await docs('notifications')).toHaveLength(3);
+    });
+
+    it('answers a resend with the note as it was left, whatever the resend says or has become of the blocks or the card', async () => {
+      await sendNote(db, 'alice', { cardId: 'walk', text: 'original words', clientId });
+      const changes = [
+        () => db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' }),
+        () => db.doc('users/alice').set({ handle: '' }),
+        () => db.doc('cards/walk').update({ visibility: 'private' }),
+        () => db.doc('cards/walk').delete(),
+      ];
+      for (const change of changes) {
+        await change();
+        const again = await sendNote(db, 'alice', { cardId: 'walk', text: 'different words', clientId });
+        expect(again).toEqual({ id: clientId, notificationId: null, push: null, duplicate: true });
+      }
+      expect((await db.doc(`notes/${clientId}`).get()).get('text')).toBe('original words');
+      expect(await docs('notifications')).toHaveLength(1);
+    });
+
+    it('writes one note when the same send arrives twice at once', async () => {
+      const results = await Promise.all([1, 2, 3].map(() => sendNote(db, 'alice', { cardId: 'walk', text: 'racing', clientId })));
+      expect(results.filter((r) => !r.duplicate)).toHaveLength(1);
+      expect(new Set(results.map((r) => r.id))).toEqual(new Set([clientId]));
+      expect(await docs('notes')).toHaveLength(1);
+      expect(await docs('notifications')).toHaveLength(1);
+      expect(await docs('conversations/alice_bob/messages')).toHaveLength(1);
+      expect(await letter()).toMatchObject({ count: 1 });
+      expect((await thread())!.unread).toEqual({ alice: 0, bob: 1 });
+    });
+
+    it("refuses an id that is someone else's note, leaving it as it was", async () => {
+      await sendNote(db, 'carol', { cardId: 'walk', text: 'carol wrote this', clientId });
+      const refused = await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'overwrite', clientId }));
+      expect([refused.code, refused.message]).toEqual(['invalid_request', 'Not a valid client id.']);
+      expect((await db.doc(`notes/${clientId}`).get()).data()).toMatchObject({ fromUserId: 'carol', text: 'carol wrote this' });
+      expect(await docs('notifications')).toHaveLength(1);
+      expect((await db.doc('conversations/alice_bob').get()).exists).toBe(false);
+    });
+
+    it("refuses an id that is a message in the two people's thread on a named card — never on an anonymous one, which would name its author", async () => {
+      await db.doc('connections/alice_bob').set({ userIds: ['alice', 'bob'], establishedAt: Timestamp.now() });
+      await sendMessage(db, 'bob', { to: 'alice', text: 'bob wrote this', clientId });
+      const refused = await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'overwrite', clientId }));
+      expect([refused.code, refused.message]).toEqual(['invalid_request', 'Not a valid client id.']);
+      expect((await db.doc(`conversations/alice_bob/messages/${clientId}`).get()).data()).toMatchObject({ senderId: 'bob', text: 'bob wrote this' });
+      expect((await db.doc(`notes/${clientId}`).get()).exists).toBe(false);
+      // On his anonymous card the id is free, as it would be on anyone else's: the note stays out of the thread.
+      const masked = await sendNote(db, 'alice', { cardId: 'masked', text: 'on the anonymous card', clientId });
+      expect(masked).toMatchObject({ id: clientId, duplicate: false });
+      expect((await db.doc(`conversations/alice_bob/messages/${clientId}`).get()).get('text')).toBe('bob wrote this');
+    });
+
+    it('answers the resend of a note withheld across a block as delivered, as the first send was — and delivers nothing, the block gone or not', async () => {
+      const delivered = 'delivered-0123456789';
+      await sendNote(db, 'alice', { cardId: 'masked', text: 'whose is this?', clientId: delivered });
+      const deliveredAgain = await sendNote(db, 'alice', { cardId: 'masked', text: 'whose is this?', clientId: delivered });
+
+      await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+      const first = await sendNote(db, 'alice', { cardId: 'masked', text: 'whose is this?', clientId });
+      expect(first).toEqual({ id: clientId, notificationId: null, push: null, duplicate: false });
+      const again = await sendNote(db, 'alice', { cardId: 'masked', text: 'whose is this?', clientId });
+      // The same answer a delivered note's resend gets: nothing tells the two apart.
+      expect({ ...again, id: '' }).toEqual({ ...deliveredAgain, id: '' });
+      await db.doc('users/bob/blocks/alice').delete();
+      expect(await sendNote(db, 'alice', { cardId: 'masked', text: 'whose is this?', clientId })).toEqual(again);
+
+      expect((await db.doc(`notes/${clientId}`).get()).data()).toMatchObject({ toUserId: null, withheldFor: 'bob' });
+      expect((await db.collection('notifications').get()).docs.map((b) => b.get('payload.noteId'))).toEqual([delivered]);
+    });
+
+    it('leaves a refused first send nothing to find: the same id goes through once the note can be left', async () => {
+      expect((await failure(sendNote(db, 'alice', { cardId: 'secret', text: 'hi', clientId }))).code).toBe('not_found');
+      await db.doc('users/bob/blocks/alice').set({ blockedUid: 'alice' });
+      expect((await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'hi', clientId }))).code).toBe('blocked');
+      await db.doc('users/bob/blocks/alice').delete();
+      expect(await docs('notes')).toHaveLength(0);
+      expect(await sendNote(db, 'alice', { cardId: 'walk', text: 'hi', clientId })).toMatchObject({ id: clientId, duplicate: false });
+    });
+
+    it('refuses ids Firestore keeps for itself', async () => {
+      expect((await failure(sendNote(db, 'alice', { cardId: 'walk', text: 'hi', clientId: '__reserved_id_12345__' }))).code).toBe('invalid_request');
+      expect(await docs('notes')).toHaveLength(0);
+    });
   });
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { Field, Textarea, CharCount } from '@/components/atoms/Field/Field';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
@@ -10,6 +10,7 @@ import { useMyProfile } from '@/lib/data/hooks';
 import { ApiError } from '@/lib/db/firestore/client/api';
 import { sendNote, NOTE_MAX_LENGTH } from '@/lib/db/firestore/client/notes';
 import { useHint } from '@/lib/hints';
+import { newClientId } from '@/lib/chat/outbox';
 
 /** Past this length the quiet「寫成一張共振卡？」upgrade line appears. */
 export const NOTE_UPGRADE_THRESHOLD = 200;
@@ -53,6 +54,11 @@ export function NoteComposer({
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const privacyHint = useHint('note-privacy');
+  // The send in flight or failed: its words and its clientId. Pressing Send
+  // again on the same words is a retry and reuses the id — the server then
+  // finds a note whose answer was lost instead of leaving it twice. Other
+  // words (or another card) are another note, with an id of their own.
+  const attempt = useRef<{ cardId: string; text: string; clientId: string } | null>(null);
 
   const trimmed = text.trim();
   const valid = trimmed.length > 0 && trimmed.length <= NOTE_MAX_LENGTH && !!me;
@@ -60,9 +66,13 @@ export function NoteComposer({
   function submit() {
     if (!valid || pending) return;
     setError(null);
+    const same = attempt.current?.cardId === cardId && attempt.current.text === trimmed;
+    if (!same) attempt.current = { cardId, text: trimmed, clientId: newClientId() };
+    const { clientId } = attempt.current!;
     start(async () => {
       try {
-        await sendNote({ cardId, text: trimmed });
+        await sendNote({ cardId, text: trimmed, clientId });
+        attempt.current = null;
         setSent(true);
         onSent?.();
       } catch (err) {

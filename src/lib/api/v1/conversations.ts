@@ -20,6 +20,9 @@ export const cut = (text: string, n: number) => Array.from(text).slice(0, n).joi
 /** How much of the message it answers a reply quotes (code points). */
 export const REPLY_QUOTE_CHARS = 140;
 
+/** Firestore reserves ids shaped `__name__`; a `clientId` is the document's id. */
+const RESERVED_ID = /^__.*__$/;
+
 /** What a message is, beyond words and a card: `note` — a note (小紙條) left on the recipient's card, carried into the thread. */
 export const NOTE_MESSAGE_KIND = 'note';
 
@@ -154,16 +157,47 @@ export const noPenName = () => new ApiFailure('forbidden', 'Choose a pen name fi
  * client nor exported), so it goes with that account as a delivered note
  * goes with its recipient's. The pen name is asked first, so its refusal
  * says nothing either.
+ *
+ * `clientId` makes sending retry-safe, as it does a message's: it becomes the
+ * note's id (and, in the thread, its message's), and sending the same one
+ * again — the answer was lost — finds the note already left and answers with
+ * it as the first send did (`duplicate`): nothing written, no bell, no
+ * letter counted, no push. That holds whatever has become of the card or the
+ * blocks since — it is asked before either — and for a note withheld across
+ * a block alike, so a retry tells the sender nothing the first answer
+ * didn't. A `clientId` naming someone else's note is refused; so is one
+ * naming a message already in the two people's thread (the note's message
+ * would overwrite it), asked only on a named card, where the thread is theirs.
  */
 export interface SentNote {
   id: string;
-  /** The author's bell row, for its push (never returned to the client); null when nothing rings (withheld across a block). */
+  /** The author's bell row, for its push (never returned to the client); null when nothing rings (withheld across a block, or a resend). */
   notificationId: string | null;
-  /** What `pushMessage` needs, when the note went into the thread — null on an anonymous card (its bell row rings). */
+  /** What `pushMessage` needs, when the note went into the thread — null on an anonymous card (its bell row rings), or for a resend. */
   push: MessagePush | null;
+  /** The sender had already left this note (same `clientId`): nothing was written, so nothing is to ring. */
+  duplicate: boolean;
 }
 
-export async function sendNote(db: Firestore, uid: string, input: { cardId: string; text: string }): Promise<SentNote> {
+/** A note found under the sender's clientId: theirs, answered as it was sent; anyone else's, refused. */
+function resentNote(existing: DocumentSnapshot, uid: string): SentNote {
+  if (existing.get('fromUserId') !== uid) throw new ApiFailure('invalid_request', 'Not a valid client id.');
+  return { id: existing.id, notificationId: null, push: null, duplicate: true };
+}
+
+export async function sendNote(
+  db: Firestore,
+  uid: string,
+  input: { cardId: string; text: string; clientId?: string | null },
+): Promise<SentNote> {
+  if (input.clientId && RESERVED_ID.test(input.clientId)) throw new ApiFailure('invalid_request', 'Not a valid client id.');
+  const notes = db.collection('notes');
+  const sent = input.clientId ? notes.doc(input.clientId) : null;
+  // A resend first, before the card is read: one deleted or hidden since must not turn the answer into a 404.
+  if (sent) {
+    const existing = await sent.get();
+    if (existing.exists) return resentNote(existing, uid);
+  }
   const card = await visibleCardById(db, uid, input.cardId);
   if (!card.publishedAt) throw new ApiFailure('not_found', 'No such card.');
   const author = card.authorId;
@@ -175,7 +209,7 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
   const letter = letterRef(db, uid, author);
 
   return db.runTransaction(async (tx) => {
-    const [now, me, blockOut, blockIn, connected, convo, mine, origins] = await Promise.all([
+    const [now, me, blockOut, blockIn, connected, convo, mine, origins, existing, inThread] = await Promise.all([
       tx.get(db.doc(`cards/${card.id}`)),
       tx.get(db.doc(`users/${uid}`)),
       tx.get(db.doc(`users/${uid}/blocks/${author}`)),
@@ -184,7 +218,11 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
       tx.get(conversation),
       tx.get(letter),
       tx.get(originsRef(db, uid, author)),
+      sent ? tx.get(sent) : Promise.resolve(null),
+      sent ? tx.get(conversation.collection('messages').doc(sent.id)) : Promise.resolve(null),
     ]);
+    // The same note again (two sends at once, the first just written): what the first send wrote is the answer.
+    if (existing?.exists) return resentNote(existing, uid);
     // The card as it is now: one deleted or hidden from the sender since the read above takes no note.
     const current = now.exists ? mapCard(now.id, now.data()!) : null;
     if (!current || current.authorId !== author || !current.publishedAt || !cardVisible(current, uid, () => connected.exists)) {
@@ -198,7 +236,7 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
       // One answer for both directions: the sender must not learn they were blocked.
       if (threaded) throw new ApiFailure('blocked', 'You cannot send a note to this person.');
       // An anonymous card: answered as delivered, delivering nothing (see SentNote).
-      const withheld = db.collection('notes').doc();
+      const withheld = sent ?? notes.doc();
       tx.set(withheld, {
         cardId: card.id,
         fromUserId: uid,
@@ -208,7 +246,7 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
         readAt: null,
         createdAt: FieldValue.serverTimestamp(),
       });
-      return { id: withheld.id, notificationId: null, push: null };
+      return { id: withheld.id, notificationId: null, push: null, duplicate: false };
     }
     // Not connected, on a named card: a letter, waiting for its answer.
     const writing = threaded && !connected.exists;
@@ -217,8 +255,11 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
     const answers = threaded && openRequest(convo)?.from === author;
     const left = writing ? lettersLeft(mine) : 0;
     if (writing && !answers && left >= NOTE_REQUEST_MAX) throw new ApiFailure('conflict', 'Wait for them to reply.');
+    // The note's message takes its id in the thread: one there already is not this note's to overwrite.
+    // Asked of a named card only — on an anonymous one, whether that thread holds it would name the author.
+    if (threaded && inThread?.exists) throw new ApiFailure('invalid_request', 'Not a valid client id.');
 
-    const note = db.collection('notes').doc();
+    const note = sent ?? notes.doc();
     tx.set(note, {
       cardId: card.id,
       fromUserId: uid,
@@ -245,7 +286,7 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
       ...(threaded ? { pushedAt: FieldValue.serverTimestamp() } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
-    if (!threaded) return { id: note.id, notificationId: bell.id, push: null };
+    if (!threaded) return { id: note.id, notificationId: bell.id, push: null, duplicate: false };
 
     if (writing) {
       // Their letter answered: the two connected by it. Else this one waits.
@@ -285,7 +326,12 @@ export async function sendNote(db: Firestore, uid: string, input: { cardId: stri
         ? { request: { from: uid, cardId: card.id, at: FieldValue.serverTimestamp(), count: left + 1 } }
         : answers && holdsRequest(convo) ? { request: FieldValue.delete() } : {}),
     }, { merge: true });
-    return { id: note.id, notificationId: bell.id, push: { conversationId: pair, messageId: note.id, from: uid, to: author } };
+    return {
+      id: note.id,
+      notificationId: bell.id,
+      push: { conversationId: pair, messageId: note.id, from: uid, to: author },
+      duplicate: false,
+    };
   });
 }
 
@@ -302,9 +348,6 @@ export interface SentMessage {
   /** What `pushMessage` needs to ring the recipient — null for a duplicate. */
   push: MessagePush | null;
 }
-
-/** Firestore reserves ids shaped `__name__`; a `clientId` is the document's id. */
-const RESERVED_ID = /^__.*__$/;
 
 /**
  * Send a message to someone you're connected with: the web's openConversation

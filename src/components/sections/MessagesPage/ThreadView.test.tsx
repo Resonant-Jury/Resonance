@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
 import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
-import { act, fireEvent, renderWithIntl, screen, waitFor, within } from '@/../test/render';
+import { act, cleanup, fireEvent, renderWithIntl, screen, waitFor, within } from '@/../test/render';
 import type { FeedCardBody } from '@/lib/api/v1/schemas';
 import type { Conversation, Message, User } from '@/lib/db/types';
 
@@ -59,6 +59,8 @@ vi.mock('@/lib/db/firestore/client/messages', () => ({
 }));
 /** The thread's listener hears these messages now. */
 const deliver = (messages: Message[]) => act(() => server.emit!(server.windowOf(messages)));
+/** Wait inside act(), so what settles meanwhile (a glide coming to its end) draws as it would for a reader. */
+const settle = (ms: number) => act(() => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 vi.mock('@/components/molecules/MarkdownEditor/InsertCardModal', () => ({ InsertCardModal: () => null }));
 
 import { callApi } from '@/lib/db/firestore/client/api';
@@ -133,6 +135,8 @@ beforeEach(() => {
   vi.mocked(isConnected).mockResolvedValue(true);
 });
 afterEach(() => {
+  // Unmount first: emptying the outboxes under a thread still drawn would redraw it outside act().
+  cleanup();
   vi.clearAllMocks();
   forgetOutboxes();
   server.messages = [];
@@ -249,7 +253,7 @@ describe('replies, links and link previews in a thread', () => {
     scrollTo.mockClear();
     // Not in this conversation, which is all here (fewer than a window): nothing to scroll to.
     await user.click(screen.getByRole('button', { name: 'much earlier' }));
-    await new Promise((r) => setTimeout(r, 10));
+    await settle(10);
     expect(scrollTo).not.toHaveBeenCalled();
   });
 
@@ -943,7 +947,7 @@ describe('a long conversation searched', () => {
 
     await user.click(screen.getByRole('button', { name: 'Close search' }));
     // The glide to the match over, the reader near the top of the stretch.
-    await new Promise((r) => setTimeout(r, 750));
+    await settle(750);
     place.top = 300;
     fireEvent.change(screen.getByRole('textbox', { name: 'Conversation with alice' }), { target: { value: 'back to now' } });
     await user.click(screen.getByRole('button', { name: 'Send' }));

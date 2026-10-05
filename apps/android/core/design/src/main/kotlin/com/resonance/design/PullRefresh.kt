@@ -31,6 +31,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -74,15 +77,30 @@ class SketchPull internal constructor(
     /** How far the list is drawn down, in px: the pull as it is, docked at [threshold] while refreshing. */
     val offsetPx: Float get() = state.distanceFraction * thresholdPx
 
+    /** A refresh is running, shown or not (see [refreshInPlace]): another waits for it to end. */
+    internal var running = false
+        private set
+
     /**
      * Let go past the threshold: the refresh runs, shown for at least [MIN_REFRESH_MILLIS] so it
      * never just flickers. One that fails leaves the list as it was (the screen says what it says
      * of a failed read); the loader goes either way.
      */
-    internal fun refresh() {
-        if (refreshing) return
-        refreshing = true
-        docked = true
+    internal fun refresh() = start(shown = true)
+
+    /**
+     * The same refresh with the list left where it is, for one asked for away from the list's top
+     * (the accessibility action): no gap opens and no loader docks over the stories in view.
+     */
+    internal fun refreshInPlace() = start(shown = false)
+
+    private fun start(shown: Boolean) {
+        if (running) return
+        running = true
+        if (shown) {
+            refreshing = true
+            docked = true
+        }
         scope.launch {
             val started = System.currentTimeMillis()
             try {
@@ -94,8 +112,9 @@ class SketchPull internal constructor(
                     // Nothing to add: what was on screen stays.
                 }
                 val left = MIN_REFRESH_MILLIS - (System.currentTimeMillis() - started)
-                if (left > 0) delay(left)
+                if (shown && left > 0) delay(left)
             } finally {
+                running = false
                 refreshing = false
             }
         }
@@ -135,6 +154,23 @@ fun rememberSketchPull(onRefresh: suspend () -> Unit, threshold: Dp = PullThresh
 @OptIn(ExperimentalMaterial3Api::class)
 fun Modifier.sketchPull(pull: SketchPull, enabled: Boolean = true): Modifier =
     pullToRefresh(isRefreshing = pull.refreshing, state = pull.state, enabled = enabled, threshold = pull.threshold, onRefresh = pull::refresh)
+
+/**
+ * The pull for whoever can't pull (TalkBack, Switch Access, Voice Access): a custom accessibility
+ * action named [label] on the list, which TalkBack offers among the Actions of whatever in the
+ * list has its focus. At the list's top ([atTop]) it refreshes as a pull let go past the threshold
+ * does — the list drawn down and the loader docked while it runs; further down the list stays
+ * where it is (a docked loader would sit over the stories in view, and the reader's place would
+ * move). Put it on the list the pull refreshes, with the pull's own [enabled].
+ */
+fun Modifier.sketchPullAction(pull: SketchPull, label: String, enabled: Boolean = true, atTop: () -> Boolean = { true }): Modifier =
+    if (enabled) semantics { customActions = listOf(pull.refreshAction(label, atTop)) } else this
+
+/** The action [sketchPullAction] offers: asked for while a refresh runs, that refresh is the answer. */
+internal fun SketchPull.refreshAction(label: String, atTop: () -> Boolean = { true }) = CustomAccessibilityAction(label) {
+    if (atTop()) refresh() else refreshInPlace()
+    true
+}
 
 /** The list, drawn down by the pull (only its drawing moves: nothing is laid out again). */
 fun Modifier.pulledDown(pull: SketchPull): Modifier = graphicsLayer { translationY = pull.offsetPx }

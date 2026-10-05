@@ -147,6 +147,23 @@ export function NotificationBell() {
                     }}
                   >
                     {body}
+                    {/* The unread dot ends the row's first line, beside who it is from — on a note
+                        row too, never under the note's words below it. */}
+                    {isUnread && (
+                      <span
+                        aria-hidden
+                        data-unread-dot
+                        style={{
+                          display: 'inline-block',
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          background: 'var(--color-terracotta)',
+                          marginLeft: 8,
+                          verticalAlign: 'middle',
+                        }}
+                      />
+                    )}
                     {/* A note's content IS the notification — the reader wrote to
                         the author, so show the words right here (truncated). */}
                     {n.type === 'note' && !!n.payload.preview && (
@@ -160,20 +177,6 @@ export function NotificationBell() {
                       >
                         「{String(n.payload.preview)}」
                       </div>
-                    )}
-                    {isUnread && (
-                      <span
-                        aria-hidden
-                        style={{
-                          display: 'inline-block',
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: 'var(--color-terracotta)',
-                          marginLeft: 8,
-                          verticalAlign: 'middle',
-                        }}
-                      />
                     )}
                   </div>
                 );

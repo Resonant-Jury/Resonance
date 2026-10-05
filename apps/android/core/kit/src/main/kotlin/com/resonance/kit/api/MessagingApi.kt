@@ -21,8 +21,14 @@ class MessagingApi(private val api: DefaultApi) {
     /** The note a message answers. */
     data class Note(val cardId: String, val noteId: String)
 
-    /** A note to a card's author (the server finds the author); returns its id. */
-    suspend fun sendNote(cardId: String, text: String): String = call { api.sendNote(SendNoteRequest(cardId = cardId, text = text)).id }
+    /**
+     * A note to a card's author (the server finds the author); returns its id. [clientId] is the
+     * writer's own id for it (see [com.resonance.kit.chat.NoteAttempt]), which the server makes the
+     * note's id — sending the same one again after an answer was lost is answered with the note
+     * already left, instead of leaving it twice.
+     */
+    suspend fun sendNote(cardId: String, text: String, clientId: String? = null): String =
+        call { api.sendNote(SendNoteRequest(cardId = cardId, text = text, clientId = clientId)).id }
 
     /** What the server answers a message with: the conversation, and the message's document id in it. */
     data class Sent(val conversationId: String, val id: String)
