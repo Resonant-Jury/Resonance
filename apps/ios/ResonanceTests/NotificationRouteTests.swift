@@ -1,6 +1,7 @@
 import Foundation
 import ResonanceKit
 import Testing
+import UserNotifications
 @testable import Resonance
 
 /// Where a bell row leads. A note or resonance on one of your anonymous cards opens that card and
@@ -56,5 +57,31 @@ import Testing
         let route = try #require(Route(url: url, origin: origin))
         // Even with the bell row at hand (it names the writer), the card is what opens.
         #expect(MainTabView.withSender(route, uid: opened.fromUserId, of: row("note", anonymous: true)) == .card("walk"))
+    }
+}
+
+/// "A card for tonight" and a connection's new card arrive as plain pushes (`threadId: picks`)
+/// whose data names the card's page and no bell row: a tap opens the card.
+@MainActor @Suite struct PickPushTests {
+    let origin = AppConfig.production.origin
+
+    @Test(arguments: [
+        ["type": "pick", "cardId": "c1", "route": "/card/a-walk-at-dusk"],
+        ["type": "new_card", "cardId": "c1", "route": "/card/a-walk-at-dusk"],
+    ])
+    func aTapOpensTheCard(data: [String: String]) throws {
+        let center = PushCenter()
+        var info: [AnyHashable: Any] = data
+        info["aps"] = ["alert": ["title": "今晚的一張卡片", "body": "A walk at dusk"], "thread-id": "picks"]
+        // Shown while the app is open, as with the app closed.
+        #expect(center.presentation(for: info) == [.banner, .list, .sound])
+        center.open(userInfo: info)
+        let opened = try #require(center.opened)
+        #expect(opened.notificationId == nil && opened.fromUserId == nil && opened.chat == nil)
+        // Not a chat push: whoever is signed in follows it.
+        #expect(opened.isFor("anyone"))
+        let url = try #require(URL(string: opened.route, relativeTo: origin)?.absoluteURL)
+        let route = try #require(Route(url: url, origin: origin))
+        #expect(MainTabView.withSender(route, uid: opened.fromUserId, of: nil) == .card("a-walk-at-dusk"))
     }
 }
