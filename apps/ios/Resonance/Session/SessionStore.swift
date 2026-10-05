@@ -207,6 +207,7 @@ final class SessionStore {
     func registerPush() async {
         guard phase == .signedIn, let uid, let token = push.token else { return }
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        // PushAPI sends none in place of a zone over the contract's 64 characters.
         let timeZone = TimeZone.current.identifier
         let wanted = PushRegistration(installationId: PushCenter.installationId, uid: uid, token: token,
                                       language: Strings.shared.language.rawValue, version: version, timeZone: timeZone)

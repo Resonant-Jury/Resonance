@@ -27,6 +27,21 @@ struct PushAPITests {
         #expect(sent["timeZone"] as? String == "Asia/Taipei")
     }
 
+    @Test func aTimeZoneTheContractWouldRefuseGoesAsNone() async throws {
+        // Longer than the contract's 64 would have the whole registration refused (400); the rest still goes.
+        let transport = StubTransport(status: .noContent, body: "")
+        try await api(transport).register(installationId: "3F2A-install", token: "fcm-token", language: .en, appVersion: "2.0.0",
+                                          timeZone: String(repeating: "X", count: 65))
+        let sent = try #require(transport.sentJSON.first ?? nil)
+        #expect(sent["timeZone"] == nil)
+        #expect(sent["token"] as? String == "fcm-token")
+        // Exactly at the limit goes as it is; empty goes as none.
+        let atLimit = String(repeating: "X", count: PushAPI.timeZoneMax)
+        #expect(PushAPI.sendable(timeZone: atLimit) == atLimit)
+        #expect(PushAPI.sendable(timeZone: "") == nil)
+        #expect(PushAPI.sendable(timeZone: nil) == nil)
+    }
+
     @Test func unregistersOnSignOut() async throws {
         let transport = StubTransport(status: .noContent, body: "")
         try await api(transport).unregister(installationId: "3F2A-install")
