@@ -191,7 +191,8 @@ struct MainTabView: View {
 /// comes back on the way up (settling shown or hidden when the scroll stops).
 /// A `banner` floats just under the bar, over the content, and moves with it.
 /// A `.refreshable` given to it is pulled with the Resonance loader
-/// (`sketchRefreshable`), never the system's spinner.
+/// (`sketchRefreshable`), never the system's spinner, and offered to VoiceOver
+/// as a "Refresh" action on everything in the list (`sketchRefreshAction`).
 /// Home keeps its title in the page; every other tab (`titleInBar`) names
 /// itself in the bar where "Resonance" stood, with any `trailing` control at the
 /// bar's end, and the content starts just under the bar's line.
@@ -232,6 +233,8 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
             // --page-pad-top on a phone; with the title in the bar, 16 of air under its line.
             .padding(.top, titleInBar ? 16 : 40)
             .padding(.bottom, 110)
+            // For whoever can't pull, the same refresh is the list's "Refresh" action (among VoiceOver's actions on any of its rows).
+            .sketchRefreshAction(named: L10n.Native.refresh)
         }
         .onHeaderScroll($scrolled)
         // The offset within the scrollable range only: a rubber-band past either end must not move the bar.
