@@ -121,7 +121,9 @@ class StoryParserTest {
             assertTrue(blocks.none { it is StoryBlock.SoleLink }, case.id)
             // Still the paragraph it was, its words all there, and each link in it tappable — a bare address too, as the web's reader makes it.
             assertTrue(blocks.any { it is StoryBlock.Paragraph }, case.id)
-            val links = blocks.flatMap(::runsOf).mapNotNull { it.link }
+            // The fixture names each by the server's key (its URL parser's), so each run's link is compared as that key too:
+            // a link as written (`?q=what's`) and its key (`?q=what%27s`) are the same link.
+            val links = blocks.flatMap(::runsOf).mapNotNull { run -> run.link?.let { StoryLinks.keyOf(it) ?: it } }
             for (url in case.inline) assertTrue(url in links, "${case.id}: $url in $links")
         }
     }
@@ -141,6 +143,12 @@ class StoryParserTest {
         // Marked as the words around it are; inside a link, or in code, it is that link's (or none).
         assertEquals(listOf(InlineRun("https://example.com/b", bold = true, link = "https://example.com/b")), runsOf(StoryParser.parse("**https://example.com/b**").single()))
         assertEquals(listOf(InlineRun("see https://example.com/x", link = "https://example.com/y")), runsOf(StoryParser.parse("[see https://example.com/x](https://example.com/y)").single()))
+        // A link the reader can't open is plain words — and still a link's words, which GFM never links on their own.
+        assertEquals(listOf(InlineRun("https://example.com/a")), runsOf(StoryParser.parse("[https://example.com/a](tel:1)").single()))
+        assertEquals(
+            listOf(InlineRun("call "), InlineRun("www.example.com", bold = true), InlineRun(" now")),
+            runsOf(StoryParser.parse("[call **www.example.com** now](tel:+886212345678)").single()),
+        )
         assertEquals(listOf(InlineRun("https://example.com/c", code = true)), runsOf(StoryParser.parse("`https://example.com/c`").single()))
         // Not an address by the link rules: plain text.
         assertEquals(listOf(InlineRun("example.com 和 http://localhost/x")), runsOf(StoryParser.parse("example.com 和 http://localhost/x").single()))

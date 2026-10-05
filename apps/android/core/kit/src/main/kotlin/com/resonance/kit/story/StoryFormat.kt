@@ -106,23 +106,35 @@ object StoryParser {
         return StoryBlock.Paragraph(runs)
     }
 
-    private fun inlines(node: Node, bold: Boolean = false, italic: Boolean = false, strike: Boolean = false, link: String? = null): List<InlineRun> {
+    /**
+     * The runs of [node]'s children. [link] is where a tap on them goes (null: nowhere); [inLink]
+     * whether they are a link's words at all — a link the reader can't open among them, whose words
+     * are plain text but still never hold a link of their own.
+     */
+    private fun inlines(
+        node: Node,
+        bold: Boolean = false,
+        italic: Boolean = false,
+        strike: Boolean = false,
+        link: String? = null,
+        inLink: Boolean = false,
+    ): List<InlineRun> {
         val runs = ArrayList<InlineRun>()
         for (child in children(node)) {
             when (child) {
-                is Text -> runs += textRuns(child.literal, bold, italic, strike, link)
+                is Text -> runs += textRuns(child.literal, bold, italic, strike, link, inLink)
                 is SoftLineBreak -> runs += InlineRun(" ", bold, italic, strike, link = link)
                 is HardLineBreak -> runs += InlineRun("\n", bold, italic, strike, link = link)
                 is Code -> runs += InlineRun(child.literal, bold, italic, strike, code = true, link = link)
-                is StrongEmphasis -> runs += inlines(child, true, italic, strike, link)
-                is Emphasis -> runs += inlines(child, bold, true, strike, link)
-                is Strikethrough -> runs += inlines(child, bold, italic, true, link)
-                // A link the reader can't open (tel:, another app's scheme…) is plain text (StoryLink).
-                is Link -> runs += inlines(child, bold, italic, strike, child.destination.takeIf(StoryLink::isTappable))
+                is StrongEmphasis -> runs += inlines(child, true, italic, strike, link, inLink)
+                is Emphasis -> runs += inlines(child, bold, true, strike, link, inLink)
+                is Strikethrough -> runs += inlines(child, bold, italic, true, link, inLink)
+                // A link the reader can't open (tel:, another app's scheme…) is plain text (StoryLink) — a link's words all the same.
+                is Link -> runs += inlines(child, bold, italic, strike, child.destination.takeIf(StoryLink::isTappable), inLink = true)
                 // An image inside running text keeps its alt text in the line.
                 is Image -> runs += InlineRun(plain(child), bold, italic, strike, link = link)
                 is HtmlInline -> runs += InlineRun(child.literal, bold, italic, strike, link = link)
-                else -> runs += inlines(child, bold, italic, strike, link)
+                else -> runs += inlines(child, bold, italic, strike, link, inLink)
             }
         }
         return runs
@@ -131,10 +143,12 @@ object StoryParser {
     /**
      * A run of plain text, with the web addresses written bare in it as links — as the web's reader
      * makes them (GFM's autolinks) — by the link rules the apps share with the server ([Linkify]):
-     * `https://…` and `www.…`, ending where a sentence goes on. Inside a link it is that link's.
+     * `https://…` and `www.…`, ending where a sentence goes on. A link's words ([inLink]) are that
+     * link's, tappable or not: GFM never makes a link inside a link (`[https://a.com](tel:1)` reads
+     * as plain words).
      */
-    private fun textRuns(text: String, bold: Boolean, italic: Boolean, strike: Boolean, link: String?): List<InlineRun> {
-        val found = if (link == null) Linkify.find(text) else emptyList()
+    private fun textRuns(text: String, bold: Boolean, italic: Boolean, strike: Boolean, link: String?, inLink: Boolean): List<InlineRun> {
+        val found = if (!inLink) Linkify.find(text) else emptyList()
         if (found.isEmpty()) return listOf(InlineRun(text, bold, italic, strike, link = link))
         val runs = ArrayList<InlineRun>()
         var at = 0
