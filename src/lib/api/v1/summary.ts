@@ -21,12 +21,34 @@ import { readMinutes } from '@/lib/readTime';
 /** StoryCard's excerpt length on the web (lib/adapters/story cardToStory). */
 const EXCERPT_CHARS = 96;
 
-/** A story's prose without Markdown syntax (links keep their text). */
+/** A bare address in a story — `<https://…>`, `https://…`, `www.…` — up to the space (or `<`) after it, as GFM links it; with the space before it. */
+const BARE_LINK = /(\s*)<?((?:https?:\/\/|\bwww\.)[^\s<>]+)>?/gi;
+/** Sentence punctuation (CJK too): at the end of an address it is the sentence's, not the address's. */
+const SENTENCE_MARK = /[.,:;!?'"\]}。，、；：！？」』）]/;
+
+/**
+ * What is left of the sentence when the address in it goes: the punctuation it ended with (and a `)` it
+ * doesn't open — "(see https://…)"), else the space before it, so the words either side stay apart.
+ */
+function withoutLink(_: string, space: string, link: string): string {
+  const opened = (text: string) => text.split('(').length - text.split(')').length;
+  let end = link.length;
+  while (end > 0 && (SENTENCE_MARK.test(link[end - 1]) || (link[end - 1] === ')' && opened(link.slice(0, end)) < 0))) end--;
+  return link.slice(end) || space;
+}
+
+/**
+ * A story's prose without Markdown syntax (links keep their text). A bare
+ * address is dropped: the story shows it as a link or its page's card, and
+ * in an excerpt it is only a string of characters taking the prose's place.
+ */
 export function plainText(markdown: string): string {
   return markdown
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // Before the emphasis marks go: an address's `_` and `~` are not emphasis.
+    .replace(BARE_LINK, withoutLink)
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/^>\s?/gm, '')
     .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
