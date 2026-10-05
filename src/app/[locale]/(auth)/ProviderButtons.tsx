@@ -48,10 +48,11 @@ function ProviderMark({ disc = false, children }: { disc?: boolean; children: Re
 
 /**
  * The sign-in and sign-up pages' provider buttons. Both sets are in the
- * HTML and the width shows one: the desktop card keeps its outline buttons;
- * the phone's sheet is itself the frame, so its buttons draw none — Google
- * is its verb, and Apple (iOS shell only; first, as large) the black button
- * Apple asks for.
+ * HTML and the width shows one: the desktop card's sit at their own width,
+ * the phone sheet's span it. Either way they wear the same faces and no pen
+ * line (a button is a filled shape; the card or the sheet is the frame) —
+ * Google is the verb, and Apple (iOS shell only; first, as large) the black
+ * button Apple asks for.
  */
 export function ProviderButtons({
   showApple,
@@ -68,20 +69,24 @@ export function ProviderButtons({
   return (
     <>
       <div className={styles.cardButtons} data-layout="card">
-        <OrganicButton variant="outline" onClick={() => onPick('google')}>
-          <span className={styles.markLabel}>
-            <GoogleMark size={18} />
-            {busyLabel(t('continueWithGoogle'))}
-          </span>
-        </OrganicButton>
         {showApple && (
-          <OrganicButton variant="outline" onClick={() => onPick('apple')}>
+          <OrganicButton variant="ink" onClick={() => onPick('apple')}>
             <span className={styles.markLabel}>
-              <AppleMark size={18} />
+              <ProviderMark>
+                <AppleMark size={18} />
+              </ProviderMark>
               {busyLabel(t('continueWithApple'))}
             </span>
           </OrganicButton>
         )}
+        <OrganicButton variant="solid" onClick={() => onPick('google')}>
+          <span className={styles.markLabel}>
+            <ProviderMark disc>
+              <GoogleMark size={18} />
+            </ProviderMark>
+            {busyLabel(t('continueWithGoogle'))}
+          </span>
+        </OrganicButton>
       </div>
       <div className={styles.sheetButtons} data-layout="sheet">
         {showApple && (

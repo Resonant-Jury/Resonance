@@ -27,13 +27,13 @@
   min-height: 0 !important;
   width: auto !important;
   text-decoration: none;
-  color: var(--color-terracotta) !important;
+  color: var(--button-on-tonal) !important;
   box-shadow: none !important;
   transition: color 0.2s ease;
 }
 
 .mobileNoteButton:hover {
-  color: color-mix(in oklch, var(--color-terracotta), black 15%) !important;
+  color: color-mix(in oklch, var(--color-terracotta), black 32%) !important;
   text-decoration: none;
 }
 

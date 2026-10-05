@@ -25,8 +25,9 @@ When building UI in this repo, **always reach for these primitives before writin
 | Group related controls into a side panel | one `<Panel>` with `<Divider />` between sub-sections |
 | Show a status icon | `<Icon name="…" size=… />` — full name list lives in `src/components/atoms/Icon/registry.ts` (don't trust any hand-copied list here; it goes stale) |
 | Show a tag / chip | `<TagPill size="sm|md|lg|xl" outlined? onRemove? onClick?>` — sm/md are a bare fill; lg/xl (and `outlined`, for a small pill on bare page paper) carry the ink rim |
-| Primary action on the page | `<OrganicButton variant="primary|outline|ghost">` |
-| A button **inside** a modal / panel / bar / toolbar | `<OrganicButton variant="text|textAccent|solid|danger|paper">` — see rule 14 |
+| The verb (Publish, Sign in, Confirm, the page's call to action) | `<OrganicButton variant="solid">` — anywhere, on bare paper or inside a frame |
+| A secondary action (Share, Sign out, Retry, Edit profile) | `<OrganicButton variant="tonal">` |
+| Cancel / Close / a quiet accent / the irreversible / over busy content | `<OrganicButton variant="text|textAccent|danger|paper">` — see rule 14 |
 | Vertical/horizontal separator | `<Divider seed={N} />` |
 | Wrap something in a hand-drawn surface | `<HandDrawnDashedSurface seed={N} state="idle|hover|focus">` |
 | Emphasize a word with a curvy underline | `<Emphasis color="…">…</Emphasis>` |
@@ -46,7 +47,7 @@ When building UI in this repo, **always reach for these primitives before writin
 11. **Table of Contents (ToC) vertical rules:** The vertical curve line running down the left of the headings list is generated via `wavyVertical` (with amplitude `5` and stroke `3`). It is rendered in a fixed-width `div.rail` with explicit inline pixel dimensions (`width: ${railW}px`, `height: ${listH}px`) to prevent browsers from collapsing it to 0 height/width in flex layouts, and the SVG itself uses inline pixel style matching these dimensions.
 12. **SegmentedActionBar hover wash animations:** Instead of using a single shared reveal circle that teleports when hovering between options, each segment owns its own reveal circle (radius grows to max for the hovered one, stays at 0 for others). This allows the hover wash to shrink/grow independently per segment during pointer movement.
 13. **Card design on mobile/phones:** On mobile screens, cards (such as story cards, login cards, settings cards) must not be rendered with wobbly borders. Instead, they degrade to a full-bleed block/section styled with an interior background color (using the card's specific theme/fill color), a grain texture overlay (`<GrainOverlay>`), and framed by wavy divider rules at the top and bottom (matching the card's border color). They should bleed to the edge of the screen (typically using negative horizontal margins matching the layout padding), rather than being simple uncolored sections separated by dividers.
-14. **One frame per layer.** A pen outline marks a *container* (Modal, Panel, card, bar, floating toolbar) or an *input* (Field, Select, the writer's `lg` tag) — a control inside a frame draws none. So `primary` / `outline` / `ghost` / `cta*` are for buttons standing on bare page paper; inside a frame use the frame-free variants: `text` (Cancel / Keep / Close / a secondary action), `textAccent` (an accent secondary: Unblock, "load more"), `solid` (the verb — Publish, Sign in, Confirm), `danger` (the irreversible: delete a card or the account), `paper` (a control floating over busy content, e.g. the thought map's toolbar). `TagPill` follows it too: unoutlined at `sm` / `md`, outlined at `lg` / `xl` or with `outlined` when it sits on bare page paper. Dropdown rows (`Select`, `OrganicMenu`, the avatar menu) have no boxed hover region either: the active row takes the same spreading ink as a button's hover (`RowInk`).
+14. **One frame per layer — and a button is never a frame.** A pen outline marks a *container* (Modal, Panel, card, bar, floating toolbar) or an *input* (Field, Select, the writer's `lg` tag). A button draws none, on bare paper or inside a frame: what says "press me" is its fill, ranked — `solid` (the verb: deep terracotta `--button-fill`, cream label), `tonal` (a secondary action: the peach `--button-tonal`, deep terracotta `--button-on-tonal` label), `text` (Cancel / Keep / Close), `textAccent` (a quiet accent: Unblock, "load more"), `danger` (the irreversible), `ink` (Sign in with Apple), `paper` (over busy content, e.g. the thought map's toolbar), `ctaLight` / `ctaGhost` (the two ranks on the terracotta CTA band). The older names still render: `primary` = `solid`; `outline` / `ghost` / `secondary` / `secondaryOutline` = `tonal` — prefer the rank names in new code. Never put a label in plain `--color-terracotta` on cream or cream on it (3.5:1); the button tokens clear 4.5:1. `SegmentedActionBar` follows the same rule (no outer line, tonal face, paper-coloured seams). The few pen lines that stay near controls are not button faces: the editor's × over a picture, the dashed "write new" tile, the thought map's link handle. `TagPill` follows it too: unoutlined at `sm` / `md`, outlined at `lg` / `xl` or with `outlined` when it sits on bare page paper. Dropdown rows (`Select`, `OrganicMenu`, the avatar menu) have no boxed hover region either: the active row takes the same spreading ink as a button's hover (`RowInk`).
 
 ## Common props quick reference
 
@@ -114,10 +115,10 @@ When building UI in this repo, **always reach for these primitives before writin
 // Curve underline for emphasis
 <Emphasis color="var(--color-terracotta)">記憶</Emphasis>
 
-// Buttons — standalone (draw their own pen line)
-<OrganicButton variant="primary|outline|ghost|ctaLight|ctaGhost">…</OrganicButton>
-// Buttons — inside a frame (no pen line; focus-visible rings them)
-<OrganicButton variant="text|textAccent|solid|danger|paper">…</OrganicButton>
+// Buttons — filled, never outlined (focus-visible rings every one)
+<OrganicButton variant="solid">Publish</OrganicButton>        // the verb
+<OrganicButton variant="tonal">Sign out</OrganicButton>       // a secondary action
+<OrganicButton variant="text|textAccent|danger|ink|paper|ctaLight|ctaGhost">…</OrganicButton>
 ```
 
 ## When extending the system
