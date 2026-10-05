@@ -81,8 +81,10 @@ struct NotificationsScreen: View {
 /// A bell row's words: who did what, and under a note the note's own words. Read and unread differ
 /// by ink alone, and the unread dot ends the first line, beside who it is from — on a note's row
 /// too, never after the note's words, where it would read as a mark on the note (the web's
-/// NotificationBell, Android's NotificationRow). The note is drawn as written (`verbatim`), so its
-/// punctuation sits as it does in every other line of the app.
+/// NotificationBell, Android's NotificationRow). The words are drawn as written (`verbatim`) and the
+/// dot apart from them, so their 「，」「。」 sit as in every other line of the app — a localized
+/// `Text` interpolation around them set them the zh-TW way, centred, while the row was unread.
+/// VoiceOver hears "Unread" as the row's value, never the glyph (the web hides it, Android names it).
 struct NotificationRowLabel: View {
     let text: String
     let preview: String?
@@ -90,9 +92,16 @@ struct NotificationRowLabel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            withDot(Text(verbatim: text), if: unread)
-                .font(AppFonts.body(14))
-                .foregroundStyle(unread ? Tokens.text : Tokens.textMuted)
+            HStack(alignment: .center, spacing: 8) {
+                Text(verbatim: text)
+                    .font(AppFonts.body(14))
+                    .foregroundStyle(unread ? Tokens.text : Tokens.textMuted)
+                if unread {
+                    // The web's 6px dot, 8 after the words, on their middle.
+                    Circle().fill(Tokens.terracotta).frame(width: 6, height: 6)
+                        .accessibilityHidden(true)
+                }
+            }
             if let preview {
                 Text(verbatim: "「\(preview)」")
                     .font(AppFonts.body(13))
@@ -104,12 +113,7 @@ struct NotificationRowLabel: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 13)
         .contentShape(Rectangle())
-    }
-
-    /// The terracotta dot, 8 after the text on its last line.
-    private func withDot(_ text: Text, if unread: Bool) -> Text {
-        guard unread else { return text }
-        let dot = Text(verbatim: "\u{25CF}").font(.system(size: 7)).foregroundStyle(Tokens.terracotta).baselineOffset(1.5)
-        return Text("\(text)\u{2009}\u{2009}\(dot)")
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(unread ? L10n.App.Notifications.unread : "")
     }
 }
