@@ -281,12 +281,13 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
 
   // Between two people who aren't connected, a new message is an answer to a letter (theirs to the viewer's,
   // or the viewer's own to theirs, which the thread may hear before the send's answer): it connected them, so
-  // whether they are is read again — and the conversation, whose letter is gone.
+  // whether they are is read again — and the conversation, whose letter is gone. Asked again while the first
+  // read is still out too, as onSent does: that one may answer from before the message.
   const seenLast = useRef(lastMessageId);
   useEffect(() => {
     const before = seenLast.current;
     seenLast.current = lastMessageId;
-    if (!before || before === lastMessageId || connected !== false || !pairId) return;
+    if (!before || before === lastMessageId || connected === true || !pairId) return;
     void globalMutate(`connected:${pairId}`);
     void mutateConvo();
     // eslint-disable-next-line react-hooks/exhaustive-deps

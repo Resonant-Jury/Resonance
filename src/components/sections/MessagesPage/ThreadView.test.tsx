@@ -702,6 +702,30 @@ describe('a letter: notes between two people who aren’t connected', () => {
     await waitFor(() => expect(screen.queryByText('Reply to start talking with alice.')).not.toBeInTheDocument());
   });
 
+  // The first read of whether they are connected may still be out when the answer comes — and answer from before
+  // it: the thread asks again all the same, and the later answer is the one it keeps.
+  it('reads again whether they are connected when the answer arrives while the first read is still out', async () => {
+    let firstRead: (connected: boolean) => void = () => {};
+    vi.mocked(isConnected).mockReturnValueOnce(new Promise((resolve) => (firstRead = resolve)));
+    vi.mocked(getConversation).mockResolvedValue({ ...conversation, request: { from: 'me', cardId: 'c1', count: 1 } });
+    server.messages = notes;
+    vi.mocked(callApi).mockResolvedValue({ cards: [] });
+    renderWithIntl(thread());
+    expect(await screen.findByText("They'll see your note. Once they reply, you can keep talking.")).toBeInTheDocument();
+    expect(isConnected).toHaveBeenCalledTimes(1);
+
+    // Their answer connected the two; the read that went out before it still says they aren't.
+    vi.mocked(isConnected).mockResolvedValue(true);
+    vi.mocked(getConversation).mockResolvedValue(conversation);
+    deliver([...notes, text('r1', 'Thank you for writing.', { sentAt: new Date('2026-03-01T10:05:00Z') }, 'alice')]);
+    await waitFor(() => expect(isConnected).toHaveBeenCalledTimes(2));
+    await act(async () => firstRead(false));
+
+    expect(await screen.findByRole('textbox', { name: 'Conversation with alice' })).toBeInTheDocument();
+    expect(screen.queryByText("They'll see your note. Once they reply, you can keep talking.")).not.toBeInTheDocument();
+    expect(screen.queryByText("You can only message people you're connected with.")).not.toBeInTheDocument();
+  });
+
   // A letter can stay on the conversation while the two are connected (a resonance doesn't clear it, only its
   // recipient's answer does): connected, it is no one's turn.
   it.each([
