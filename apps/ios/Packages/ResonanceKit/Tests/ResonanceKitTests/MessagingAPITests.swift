@@ -17,6 +17,19 @@ struct MessagingAPITests {
         let request = try #require(transport.requests.first)
         #expect(request.method == .post)
         #expect(request.path?.hasSuffix("/notes") == true)
+        let json = try #require(transport.sentJSON.first ?? nil)
+        #expect(json["cardId"] as? String == "walk")
+        #expect(json["text"] as? String == "thank you")
+        // No id given: the server makes one (an older build's send).
+        #expect(json["clientId"] == nil)
+    }
+
+    @Test func aNoteGoesUnderTheWritersOwnId() async throws {
+        // A resend is answered with the note already left, and says so: unknown fields are tolerated.
+        let transport = StubTransport(status: .created, body: #"{"id":"AbCdEfGhIjKlMnOpQrSt","duplicate":true}"#)
+        #expect(try await api(transport).sendNote(cardId: "walk", text: "thank you", clientId: "AbCdEfGhIjKlMnOpQrSt") == "AbCdEfGhIjKlMnOpQrSt")
+        let json = try #require(transport.sentJSON.first ?? nil)
+        #expect(json["clientId"] as? String == "AbCdEfGhIjKlMnOpQrSt")
     }
 
     @Test func sendsAMessageAndAnswersItsConversationAndId() async throws {

@@ -13,9 +13,11 @@ public struct MessagingAPI: Sendable {
     }
 
     /// A note to a card's author (the server finds the author); returns its id. Notes still waiting for the
-    /// author's answer, three of them, throw `conflict` (wait for their reply).
-    public func sendNote(cardId: String, text: String) async throws -> String {
-        switch try await client.sendNote(body: .json(.init(cardId: cardId, text: text))) {
+    /// author's answer, three of them, throw `conflict` (wait for their reply). `clientId` is the writer's
+    /// own id for it (see `NoteAttempt`), which the server makes the note's id — sending the same one again
+    /// after an answer was lost is answered with the note already left, instead of leaving it twice.
+    public func sendNote(cardId: String, text: String, clientId: String? = nil) async throws -> String {
+        switch try await client.sendNote(body: .json(.init(cardId: cardId, text: text, clientId: clientId))) {
         case let .created(r): return try r.body.json.id
         case let .badRequest(r): throw APIFailure(try r.body.json, status: 400)
         case let .unauthorized(r): throw APIFailure(try r.body.json, status: 401)
