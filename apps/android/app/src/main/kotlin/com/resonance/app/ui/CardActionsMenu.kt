@@ -93,7 +93,7 @@ fun CardActionsMenu(
             scope.launch {
                 try {
                     session.writing.updateCard(cardId, visibility = if (isPrivate) "public" else "private")
-                    session.noteCardChange(Session.CardChange(cardId))
+                    session.noteCardChange(menuChange(cardId, referenceCardId))
                     onChanged()
                 } catch (e: CancellationException) {
                     throw e
@@ -148,7 +148,7 @@ fun CardActionsMenu(
                             try {
                                 session.writing.deleteCard(cardId)
                                 confirming = false
-                                session.noteCardChange(Session.CardChange(cardId))
+                                session.noteCardChange(menuChange(cardId, referenceCardId))
                                 onDeleted()
                             } catch (e: CancellationException) {
                                 throw e
@@ -174,6 +174,13 @@ fun CardActionsMenu(
         onCancel = { unresonating = false },
     )
 }
+
+/**
+ * What a change made from the ⋯ is about: the card — and, for a resonance, the card it answers,
+ * whose page lists it among its resonances and so reads them again (made private, deleted or let
+ * go of, it leaves that list), as on iOS.
+ */
+internal fun menuChange(cardId: String, referenceCardId: String?) = Session.CardChange(cardId, referenceCardId)
 
 /**
  * "Stop resonating with 〈title〉?" — the card stays, answering nothing; the server lets go of its
@@ -222,7 +229,7 @@ private fun UnresonateDialog(
                 try {
                     session.writing.unresonate(original, cardId)
                     // The card's page, the original's resonances, the box's shelves and the thought map.
-                    session.noteCardChange(Session.CardChange(cardId, original))
+                    session.noteCardChange(menuChange(cardId, original))
                     onDone()
                 } catch (e: CancellationException) {
                     throw e
