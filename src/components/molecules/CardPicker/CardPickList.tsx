@@ -30,7 +30,7 @@ export interface CardPickListProps {
   disabled?: boolean;
   /** Shown on an anonymous card's row; without it nothing marks one. */
   anonymousLabel?: string;
-  /** Drawn in place of the rows when there are no cards. */
+  /** Drawn in place of the rows when there are no cards; without it, no cards draw nothing (no empty list). */
   empty?: ReactNode;
   /** A quiet line under the rows (why some cards are not listed). */
   footnote?: ReactNode;
@@ -61,8 +61,10 @@ export function CardPickList({
     <div className={styles.listArea}>
       <div ref={scrollRef} className={styles.scroll}>
         {lead}
-        {cards.length === 0 && empty ? (
-          <div className={styles.empty}>{empty}</div>
+        {cards.length === 0 ? (
+          empty ? (
+            <div className={styles.empty}>{empty}</div>
+          ) : null
         ) : (
           <ul
             className={styles.list}

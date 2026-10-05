@@ -75,6 +75,9 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
 
   const loaded = data ? resonateChoices(data.cards, targetId, targetReferenceId) : null;
   const selected = loaded?.cards.find((c) => c.id === selectedId) ?? null;
+  // Public cards there are, only none may answer this one and none is left out for answering another (the only
+  // one is the card this one answers): nothing to pick and nothing to say, so no caption over an empty list.
+  const nothingToPick = !!loaded && loaded.open > 0 && loaded.cards.length === 0 && loaded.hidden === 0;
 
   function close() {
     if (!busy) onClose();
@@ -138,8 +141,12 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
         </span>
         <Icon name="arrow-right" size={18} className={styles.writeArrow} />
       </button>
-      <Divider seed={59} spacing={8} />
-      <p className={styles.pickHeading}>{t('pickHeading')}</p>
+      {!nothingToPick && (
+        <>
+          <Divider seed={59} spacing={8} />
+          <p className={styles.pickHeading}>{t('pickHeading')}</p>
+        </>
+      )}
     </>
   );
 
@@ -160,7 +167,7 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
           loaded ? (
             // Public cards there are, only none may answer this one: never "no public cards yet". Why
             // they are missing, when it is that they answer another card; else the first row is the way.
-            loaded.open === 0 ? t('empty') : loaded.hidden > 0 ? t('hiddenNote') : undefined
+            loaded.open === 0 ? t('empty') : loaded.hidden > 0 ? t('hiddenNote') : null
           ) : readError ? (
             <div className={styles.readFailed} role="alert">
               <span>{tNative('loadError')}</span>
