@@ -40,17 +40,34 @@ final class ProfileModel {
 
     func load() async {
         do {
-            let profile = try await fetchProfile(handle)
-            self.profile = profile
-            cards = profile.cards?.cards ?? []
-            nextPage = profile.cards?.next
-            linked = profile.links?.cards ?? []
-            phase = .loaded
+            show(try await fetchProfile(handle))
         } catch let failure as APIFailure where failure.isNotFound {
             phase = .notFound
         } catch {
             phase = .failed((error as? APIFailure)?.message ?? error.localizedDescription)
         }
+    }
+
+    /// Asks again behind the page on screen — who is connected changed (the way into the
+    /// conversation, their cards for connections only): the answer takes its place, the first page
+    /// of cards again; a failure leaves the page as it was. Nothing on screen: an ordinary load.
+    func revalidate() async {
+        guard phase == .loaded else { return await load() }
+        do {
+            show(try await fetchProfile(handle))
+        } catch let failure as APIFailure where failure.isNotFound {
+            phase = .notFound
+        } catch {
+            // Offline or a server error: the page stays.
+        }
+    }
+
+    private func show(_ profile: Profile) {
+        self.profile = profile
+        cards = profile.cards?.cards ?? []
+        nextPage = profile.cards?.next
+        linked = profile.links?.cards ?? []
+        phase = .loaded
     }
 
     func loadMore() async {

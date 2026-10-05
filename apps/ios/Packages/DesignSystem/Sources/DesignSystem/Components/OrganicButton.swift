@@ -115,7 +115,21 @@ public struct OrganicButton: View {
         return copy
     }
 
+    /// Working on the last tap, the web's way for a dialog's verb (the resonate picker's 共振): the
+    /// pen keeps inking where the glyph was — a small SketchLoader in the label's ink — the words
+    /// stay, and taps are ignored. Not dimmed: the loader is what says it is busy. The loader
+    /// takes the glyph's 16pt, so the button keeps its size.
+    var isWorking = false
+
+    public func working(_ working: Bool) -> OrganicButton {
+        var copy = self
+        copy.isWorking = working
+        return copy
+    }
+
     private var active: Bool { isEnabled && !isBusy }
+    /// Takes a tap now.
+    private var tappable: Bool { active && !isWorking }
 
     @State private var pressPoint: CGPoint? = nil
     @State private var revealed = false
@@ -164,12 +178,12 @@ public struct OrganicButton: View {
                 DragGesture(minimumDistance: 0)
                     .updating($touching) { _, state, _ in state = true }
                     .onChanged { g in
-                        guard active, !pressed else { return }
+                        guard tappable, !pressed else { return }
                         press(at: g.startLocation)
                     }
                     .onEnded { g in
                         // A real button's rule: lifting the finger off it (with a little slop) cancels.
-                        guard active, CGRect(origin: .zero, size: bounds).insetBy(dx: -16, dy: -16).contains(g.location) else { return }
+                        guard tappable, CGRect(origin: .zero, size: bounds).insetBy(dx: -16, dy: -16).contains(g.location) else { return }
                         action()
                     }
             )
@@ -180,7 +194,8 @@ public struct OrganicButton: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(isBusy ? busyTitle ?? title : title)
             .accessibilityAddTraits(.isButton)
-            .accessibilityAction { if active { action() } }
+            .accessibilityAddTraits(isWorking ? .updatesFrequently : [])
+            .accessibilityAction { if tappable { action() } }
     }
 
     private func press(at point: CGPoint) {
@@ -219,7 +234,7 @@ extension OrganicButton {
                 .padding(.horizontal, roomyIcon ? (size == .sm ? 18 : 32) : 11)
                 .padding(.vertical, roomyIcon ? (size == .sm ? 9 : 14) : 9)
         } else {
-            style.label(title, icon: icon, image: image, onDisc: marksOnDisc, busyTitle: busyTitle, busy: isBusy)
+            style.label(title, icon: icon, image: image, onDisc: marksOnDisc, busyTitle: busyTitle, busy: isBusy, working: isWorking)
         }
     }
 }
@@ -314,7 +329,7 @@ struct OrganicButtonStyle {
     /// With a `busyTitle`, both labels share one spot (the one not showing is
     /// clear), so the button is as wide in either state.
     func label(_ title: String, icon: IconName?, image: String?, onDisc: Bool = false, busyTitle: String? = nil,
-               busy: Bool = false) -> some View {
+               busy: Bool = false, working: Bool = false) -> some View {
         let fontSize: CGFloat = switch size { case .sm: 14; case .md: 15; case .lg: 16 }
         let padX: CGFloat = switch size { case .sm: 18; case .md: 32; case .lg: 16 }
         let padY: CGFloat = switch size { case .sm: 9; case .md: 14; case .lg: 12 }
@@ -338,7 +353,11 @@ struct OrganicButtonStyle {
             }
         }
         return HStack(spacing: image != nil ? 10 : 7) {
-            if let icon { OrganicIcon(icon, size: 16) }
+            if working {
+                SketchLoader(size: 16, color: textColor).accessibilityHidden(true)
+            } else if let icon {
+                OrganicIcon(icon, size: 16)
+            }
             if let image { mark(image, onDisc: onDisc) }
             if let busyTitle {
                 ZStack(alignment: .leading) {

@@ -20,11 +20,14 @@ struct FeedScreen: View {
                 content.id(Self.listTop)
             }
             .animation(.easeInOut(duration: 0.25), value: model?.picksReady ?? false)
+            .animation(.easeInOut(duration: 0.25), value: model?.refreshFailure)
         }
         .refreshable {
             // Asked for by hand: the server answers, not the HTTP cache.
             session.httpCache.freshness.invalidate()
             await model?.refresh()
+            // Nothing came back: the feed stayed; the quiet line over it says so, and so does VoiceOver.
+            if let failure = model?.refreshFailure { AccessibilityNotification.Announcement(failure.message).post() }
         }
         .task {
             if model == nil { model = makeModel() }
@@ -82,6 +85,10 @@ struct FeedScreen: View {
                 OrganicEmptyState(title: L10n.Home.Empty.title, message: L10n.Home.Empty.subtitle,
                                   actionTitle: L10n.Home.Empty.cta) { writer.open() }
             } else if let model {
+                if let failure = model.refreshFailure {
+                    // A pull that brought nothing back: the feed stays, and a quiet line over it says why.
+                    RefreshNote(text: failure.message)
+                }
                 StoryCardList(cards: model.cards)
                 footer(model)
             }
@@ -105,5 +112,19 @@ struct FeedScreen: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 64)
         .padding(.horizontal, 20)
+    }
+}
+
+/// A pull to refresh that brought nothing back, said quietly over what stayed on screen (never the
+/// page's load error): a muted line, centred, gone with the next answer.
+struct RefreshNote: View {
+    let text: String
+
+    var body: some View {
+        EmptyNote(text, size: 13, centered: true)
+            .padding(.horizontal, 20)
+            .padding(.top, -12)
+            .padding(.bottom, 24)
+            .transition(.opacity)
     }
 }

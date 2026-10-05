@@ -48,6 +48,12 @@ struct AuthorScreen: View {
             if model == nil { model = ProfileModel(handle: handle, api: session.reading) }
             if let model, model.profile == nil { await model.load() }
         }
+        // Connected to them, or no longer (a resonance, a take-back — from anywhere): the way into the
+        // conversation and their cards for connections only are asked again, the page kept meanwhile.
+        .onChange(of: session.connectionsMoved) { _, moved in
+            guard let model, moved.concerns(model.profile?.author.id) else { return }
+            Task { await model.revalidate() }
+        }
     }
 
     private func page(_ model: ProfileModel, _ profile: Profile) -> some View {

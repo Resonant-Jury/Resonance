@@ -1,3 +1,4 @@
+import Foundation
 import ResonanceKit
 import Testing
 @testable import Resonance
@@ -140,25 +141,138 @@ import Testing
         #expect(await asked.all == [nil, .cursor("2026-09-01T08:00:00.000Z")])
     }
 
-    @Test func aRefreshIgnoresTheLastLoadsLatePicks() async {
-        let (a, x, b) = (a, x, b)
-        let first = Gate<[FeedCard]>()
-        let asked = Calls<Int>()
-        let model = FeedModel(feed: { _ in Fixture.page([a]) }, recommended: {
-            await asked.record(1)
-            // The first load's picks hang; the refresh's come at once.
-            if await asked.all.count == 1 { return await first.wait() }
+    @Test func aPullKeepsTheFeedOnScreenAndTakesItsOwnPicks() async {
+        let (a, x, b, c) = (a, x, b, c)
+        let first = Gate<[FeedCard]>(), latest = Gate<FeedPage>()
+        let pages = Calls<Int>(), picks = Calls<Int>()
+        let model = FeedModel(feed: { _ in
+            await pages.record(1)
+            // The load's page at once; the pull's when the test says.
+            if await pages.all.count == 1 { return Fixture.page([a]) }
+            return await latest.wait()
+        }, recommended: {
+            await picks.record(1)
+            // The first load's picks hang; the pull's come at once.
+            if await picks.all.count == 1 { return await first.wait() }
             return [b]
         }, patience: .milliseconds(200))
 
         await model.load()
         #expect(ids(model.cards) == ["a"])
-        await model.refresh()
-        #expect(ids(model.cards) == ["b"])
+        let pulling = Task { await model.refresh() }
+        #expect(await eventually {
+            let (asked, picked) = (await pages.all.count, await picks.all.count)
+            return asked == 2 && picked == 2
+        })
+        // While the server thinks, the feed stays: never the skeleton (a full load's `.loading`).
+        #expect(model.phase == .loaded)
+        #expect(ids(model.cards) == ["a"])
 
+        await latest.open(Fixture.page([c, a]))
+        await pulling.value
+        // As after a fresh load: the pull's picks head the feed, the latest behind "load more".
+        #expect(ids(model.cards) == ["b"])
+        #expect(model.refreshFailure == nil)
+        await model.loadMore()
+        #expect(ids(model.cards) == ["b", "c", "a"])
+
+        // The first load's picks, late: moot.
         await first.open([x])
         try? await Task.sleep(for: .milliseconds(50))
         #expect(!model.picksReady)
-        #expect(ids(model.cards) == ["b"])
+        #expect(ids(model.cards) == ["b", "c", "a"])
+    }
+
+    @Test func aPullThatBringsNothingBackKeepsTheFeedAndSaysSoQuietly() async {
+        let (a, b, x) = (a, b, x)
+        let failing = Flag()
+        let model = FeedModel(feed: { _ in
+            if failing.on { throw APIFailure.unexpected(status: 502) }
+            return Fixture.page([a, b])
+        }, recommended: {
+            if failing.on { throw APIFailure.unexpected(status: 502) }
+            return []
+        }, patience: .milliseconds(10))
+        await model.load()
+        #expect(ids(model.cards) == ["a", "b"])
+
+        failing.on = true
+        await model.refresh()
+        // Not the page's load error: the cards stay, and the failure is the feed's quiet line.
+        #expect(model.phase == .loaded)
+        #expect(ids(model.cards) == ["a", "b"])
+        #expect(model.refreshFailure == .failed)
+        #expect(model.refreshFailure?.message == L10n.Native.loadError)
+
+        // The next pull that brings something clears it.
+        failing.on = false
+        await model.refresh()
+        #expect(model.refreshFailure == nil)
+        // So does any later answer (the app back after a while asks again behind the feed).
+        failing.on = true
+        await model.refresh()
+        #expect(model.refreshFailure == .failed)
+        failing.on = false
+        await model.revalidate()
+        #expect(model.refreshFailure == nil)
+
+        // Picks alone still count as something.
+        let picksOnly = FeedModel(feed: { _ in throw APIFailure.unexpected(status: 502) }, recommended: { [x] },
+                                  patience: .milliseconds(10))
+        await picksOnly.load()
+        #expect(await eventually { picksOnly.phase == .loaded })
+        await picksOnly.refresh()
+        #expect(picksOnly.refreshFailure == nil)
+        #expect(ids(picksOnly.cards) == ["x"])
+    }
+
+    @Test func aPullWhileOfflineSaysSo() async {
+        let a = a
+        let offline = Flag()
+        let model = FeedModel(feed: { _ in
+            if offline.on { throw URLError(.notConnectedToInternet) }
+            return Fixture.page([a])
+        }, recommended: {
+            if offline.on { throw URLError(.notConnectedToInternet) }
+            return []
+        }, patience: .milliseconds(10))
+        await model.load()
+        offline.on = true
+        await model.refresh()
+        #expect(ids(model.cards) == ["a"])
+        #expect(model.refreshFailure == .offline)
+        #expect(model.refreshFailure?.message == L10n.Native.offline)
+    }
+
+    @Test func aPullWithNothingOnScreenIsAnOrdinaryLoad() async {
+        let model = FeedModel(feed: { _ in throw APIFailure.unexpected(status: 502) },
+                              recommended: { throw APIFailure.unexpected(status: 502) }, patience: .milliseconds(10))
+        await model.load()
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(model.phase == .failed("HTTP 502"))
+        // Nothing to keep: the page's own error and retry, not the quiet line.
+        await model.refresh()
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(model.phase == .failed("HTTP 502"))
+        #expect(model.refreshFailure == nil)
+    }
+
+    @Test func picksThatMissThePullsPatienceWaitBehindTheHint() async {
+        let (a, b, x) = (a, b, x)
+        let pulled = Gate<[FeedCard]>()
+        let asked = Calls<Int>()
+        let model = FeedModel(feed: { _ in Fixture.page([a]) }, recommended: {
+            await asked.record(1)
+            return await asked.all.count == 1 ? [] : await pulled.wait()
+        }, patience: .milliseconds(20))
+        await model.load()
+        #expect(ids(model.cards) == ["a"])
+
+        await model.refresh()
+        // The latest came and the picks didn't in time: the feed is the latest's.
+        #expect(model.refreshFailure == nil)
+        await pulled.open([x, b])
+        #expect(await eventually { model.picksReady })
+        #expect(ids(model.cards) == ["a"])
     }
 }

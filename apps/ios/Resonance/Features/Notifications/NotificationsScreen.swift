@@ -80,9 +80,14 @@ struct NotificationsScreen: View {
         }
     }
 
-    /// Where a notification leads (the web's hrefs). Conversations arrive in
-    /// M4; until then the person's page stands in for them.
+    /// Where a notification leads (the web's hrefs).
+    ///
+    /// A note or resonance on one of your anonymous cards opens that card and nothing else: opening
+    /// the writer's thread would read it (zeroing an unread count they can watch) and set up a reply
+    /// that answers the anonymous card under your name. No card to open is nowhere to go — never the
+    /// thread instead.
     static func route(for item: NotificationsStore.Item) -> Route? {
+        if item.anonymous, ["note", "resonance"].contains(item.type) { return item.cardId.map(Route.card) }
         switch item.type {
         case "translation_done", "card_link": return item.cardId.map(Route.card)
         // NotificationBell: these open the conversation with that person; a note arrives quoted, ready to answer.

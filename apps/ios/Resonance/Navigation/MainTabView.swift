@@ -91,7 +91,14 @@ struct MainTabView: View {
         .animation(.easeOut(duration: 0.12), value: paths[tab]?.isEmpty ?? true)
         .background(Tokens.cream)
         .environment(writer)
-        .onAppear { writer.onChange = { [session] in session.noteOwnWrite() } }
+        .onAppear {
+            writer.onChange = { [session] in
+                session.noteOwnWrite()
+                // A resonance made, changed or taken back can begin or end a connection: the live list says
+                // so (`connectionsMoved`), so it should be listening — a failed listener listens again.
+                session.conversations.resume()
+            }
+        }
         // The writer is a page on the current tab's stack, like the others.
         .onChange(of: writer.requested) { _, request in
             guard let request else { return }

@@ -17,6 +17,8 @@ struct CardBoxScreen: View {
     /// Shelves on screen that the server hasn't answered for since they were
     /// kept, or since the app came back after a while: asked for again when shown.
     @State private var unconfirmed: Set<ReadingAPI.CardBoxShelf> = []
+    /// A pull to refresh that brought nothing back: the shelf shown stayed (and a quiet line says why).
+    @State private var refreshFailure: RefreshFailure?
 
     private static let order: [ReadingAPI.CardBoxShelf] = [.published, ._private, .draft, .resonated, .linked, .bookmarks]
     /// The shelves of my own cards (OWNED_TABS): each card gets its ⋯.
@@ -32,9 +34,16 @@ struct CardBoxScreen: View {
             // Asked for by hand: the server answers, not the HTTP cache.
             session.httpCache.freshness.invalidate()
             await session.loadMe()
-            await load(shelf, force: true)
+            let showing = shelves[shelf] != nil
+            let failure = await load(shelf, force: true)
+            // Nothing came back for a shelf on screen: it stays, a quiet line over it saying why (VoiceOver too).
+            withAnimation(.easeInOut(duration: 0.25)) { refreshFailure = showing ? failure : nil }
+            if showing, let failure { AccessibilityNotification.Announcement(failure.message).post() }
         }
-        .task(id: shelf) { await load(shelf) }
+        .task(id: shelf) {
+            refreshFailure = nil
+            await load(shelf)
+        }
         // The writer or a card's ⋯ changed something: every shelf may have moved.
         .onChange(of: writer.changes) {
             shelves = [:]
@@ -118,6 +127,7 @@ struct CardBoxScreen: View {
     }
 
     @ViewBuilder private var shelfContent: some View {
+        if let refreshFailure, shelves[shelf] != nil { RefreshNote(text: refreshFailure.message) }
         if let cards = shelves[shelf] {
             if cards.isEmpty {
                 // An empty shelf is a line of muted text; the empty published
@@ -146,7 +156,10 @@ struct CardBoxScreen: View {
         }
     }
 
-    private func load(_ s: ReadingAPI.CardBoxShelf, force: Bool = false) async {
+    /// Shows shelf `s` — from what is known, else as the server answers (always, `force`d). Answers
+    /// why it couldn't (nil when it could, or there was nothing to ask).
+    @discardableResult
+    private func load(_ s: ReadingAPI.CardBoxShelf, force: Bool = false) async -> RefreshFailure? {
         // A cold start: the published shelf as the last run kept it, at once — then the server's.
         if s == .published, shelves[s] == nil, !drewKept, let uid = session.uid {
             drewKept = true
@@ -155,7 +168,7 @@ struct CardBoxScreen: View {
                 unconfirmed.insert(s)
             }
         }
-        guard force || shelves[s] == nil || unconfirmed.contains(s) else { return }
+        guard force || shelves[s] == nil || unconfirmed.contains(s) else { return nil }
         let asked = Self.asked(with: s, force: force, known: Set(shelves.keys), unconfirmed: unconfirmed)
         do {
             let answered = try await session.reading.cardBox(shelves: asked)
@@ -166,9 +179,13 @@ struct CardBoxScreen: View {
             // The kept published shelf is the server's latest, whichever shelf asked for it.
             if let published = answered[.published], let uid = session.uid { session.kept.save(published, as: .published, uid: uid) }
             failed = answered[s] == nil
+            if !failed, s == shelf { refreshFailure = nil }
+            return failed ? .failed : nil
         } catch {
             // Left for another shelf (its task cancelled): not a failure to show.
-            if !Task.isCancelled { failed = true }
+            guard !Task.isCancelled else { return nil }
+            failed = true
+            return RefreshFailure(error)
         }
     }
 
