@@ -1,5 +1,7 @@
 # Resonance（共振）
 
+> 這份是專案原本的中文架構說明，從根目錄的 README 搬到這裡，內容保持原樣（只修正了搬家後的相對連結），部分細節可能比程式碼舊。最新、最完整的說明在 [CLAUDE.md](../CLAUDE.md)（英文）；專案介紹見 [README](../README.md)，中文摘要見 [README.zh-TW](../README.zh-TW.md)。
+
 一個以「故事卡片」為核心的多語社交書寫平台。使用者撰寫故事卡片、透過「共振」（撰寫一張回應卡片，而非按讚）與他人連結。視覺識別建立在執行期程序化生成的手繪風 SVG 之上。
 
 ## 技術棧
@@ -158,7 +160,7 @@ docs/                        # PRD（共振_產品需求書）、開發計畫、
 
 ## 相關文件
 
-- [CLAUDE.md](CLAUDE.md) — AI 協作指引（指令、慣例摘要）
-- [docs/共振_產品需求書_v0.1.md](docs/共振_產品需求書_v0.1.md) — 產品需求書
-- [docs/development_plan.md](docs/development_plan.md) — 開發計畫
-- [docs/TODO.md](docs/TODO.md) — 待辦清單
+- [CLAUDE.md](../CLAUDE.md) — AI 協作指引（指令、慣例摘要）
+- [docs/共振_產品需求書_v0.1.md](共振_產品需求書_v0.1.md) — 產品需求書
+- [docs/development_plan.md](development_plan.md) — 開發計畫
+- [docs/TODO.md](TODO.md) — 待辦清單
