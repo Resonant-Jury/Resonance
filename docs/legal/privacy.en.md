@@ -1,7 +1,7 @@
 ---
 title: Privacy Policy
 description: What Resonance collects, why, who processes it, and how to download or delete it.
-updated: 2026-10-05
+updated: 2026-10-09
 ---
 
 Resonance is a place to share stories as cards, made up of the website resonance.channel and the iOS and Android apps. It is built and run by the Resonance team ("we"). This policy explains what we collect, why, who processes it for us, and how you can manage or delete it.
@@ -28,7 +28,7 @@ Each card can be **public**, **connections only** or **only me**. Public cards c
 ## How we use it
 
 - **To run the service**: signing in, storing and showing your content, delivering messages and notifications.
-- **Notifications you turn on**: under Settings → Notifications you can ask for a card picked for you on up to three evenings a week, and for a notification when someone you're connected with publishes a new public card under their pen name. Both are off until you turn them on; we keep your choice and when you made it, and you can turn either off there at any time.
+- **Notifications you turn on**: under Settings → Notifications you can ask for a card picked for you on up to three evenings a week, and for a notification when someone you're connected with publishes a new public card under their pen name. Both are off until you turn them on; we keep your choice and when you made it, and you can turn either off there at any time. To keep to their limits we also note which cards we've sent you this way and when, and the day you last opened the stories picked for you: an evening card is never sent to you twice within 30 days, no more than three notifications of new cards come in a day, and no evening card comes on a day you've already looked at your picks.
 - **AI features**: an English web address for each card, suggested tags, the "core insight" shown before you publish, illustrations drawn from a story, and the index behind recommendations. That index includes your private cards, but only to recommend cards to you; nobody else sees private content through it.
 - **Safety**: handling reports, enforcing blocks, preventing abuse and spam.
 
@@ -49,7 +49,7 @@ These providers may process data outside Taiwan (for example in the United State
 
 We keep your data until you delete it or delete your account.
 
-You can delete your account at any time under Settings → Delete account (on the website and in the apps). You're signed out right away, and signing back in within 7 days cancels it. After 7 days your account, profile, cards and drafts, resonances, notes, every conversation you took part in (including the other person's messages in it), connections, notifications and notification settings, thought map, push devices and uploaded images are deleted for good.
+You can delete your account at any time under Settings → Delete account (on the website and in the apps). You're signed out right away, and signing back in within 7 days cancels it. After 7 days your account, profile, cards and drafts, resonances, notes, every conversation you took part in (including the other person's messages in it), connections, notifications, notification settings and the record of what we've sent you, thought map, push devices and uploaded images are deleted for good.
 
 We keep reports other people made about you (safety and moderation records). Cards other people wrote in response to yours belong to them and stay, but no longer link to your card.
 
