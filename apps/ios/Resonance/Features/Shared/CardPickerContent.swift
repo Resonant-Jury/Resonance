@@ -4,7 +4,7 @@ import SwiftUI
 
 /// InsertCardModal: one of your public cards — dropped into a story as an
 /// embedded card, or shared in a conversation. Rows carry a small cover
-/// (the card's hue when it has none) and the title on two lines; a tap is the pick.
+/// (the card's hue when it has none), the title and when it came out; a tap is the pick.
 struct CardPickerContent: View {
     let title: String
     let subtitle: String
@@ -23,7 +23,7 @@ struct CardPickerContent: View {
                 Text(cards == nil ? "…" : L10n.Write.Editor.CardModal.empty)
                     .font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted).padding(.vertical, 12)
             }
-            // A list to pick from: its one way out, centred under it (its rows carry their own 10).
+            // A list to pick from: its one way out, centred under it.
             ModalCloseButton(L10n.Write.Editor.CardModal.cancel, action: onCancel)
         }
         // getCardsByAuthor(me, 'published'), public ones only.
@@ -31,20 +31,23 @@ struct CardPickerContent: View {
     }
 }
 
-/// The author's own cards as a list to pick from (CardPickList.tsx): a cover thumb and the title on
-/// each row, rows parted by a wavy pen rule — no boxed press region; the ink answers instead. What
-/// comes first (`lead`) scrolls with the rows; `empty` stands in for rows when there are none, and
-/// `footnote` is a quiet line under them (why some cards aren't listed).
+/// The author's own cards as a list to pick from (CardPickList.tsx), quiet enough to scan: on each
+/// row a 40pt cover thumb (the card's hue when it has none), the title on one line and one muted
+/// line under it — when it came out, led by 匿名 for an anonymous card (`anonymousLabel`). Rows are
+/// parted by a wavy pen rule — no boxed press region; the ink answers instead. What comes first
+/// (`lead`) scrolls with the rows; `empty` stands in for rows when there are none, and `footnote`
+/// is a quiet line under them (why some cards aren't listed).
 ///
-/// As a choice (`choosing`), a tap marks a row instead of being the pick — its cover washed in the
-/// accent with a cream tick, its title in the accent — so the pick reads before the modal's verb
-/// confirms it (VoiceOver hears which is chosen). `disabled` rests the rows while a request
-/// is on its way (the chosen one stays as it was). An anonymous card carries `anonymousLabel`.
+/// As a choice (`choosing`, named `label` for VoiceOver), a tap marks a row instead of being the
+/// pick — its cover washed in the accent with a cream tick, its title in the accent — so the pick
+/// reads before the modal's verb confirms it (VoiceOver hears which is chosen). `disabled` rests
+/// the rows while a request is on its way (the chosen one stays as it was).
 struct CardPickList<Lead: View, Empty: View>: View {
     let cards: [FeedCard]
     var choosing = false
     var selectedId: String?
     var disabled = false
+    var label: String?
     var anonymousLabel: String?
     var footnote: String?
     let onPick: (FeedCard) -> Void
@@ -58,10 +61,14 @@ struct CardPickList<Lead: View, Empty: View>: View {
                 if cards.isEmpty {
                     empty
                 } else {
-                    ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
-                        if i > 0 { WavyDivider(seed: Double(67 + i * 31)) }
-                        row(card, at: i)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
+                            if i > 0 { WavyDivider(seed: Double(67 + i * 31)) }
+                            row(card, at: i)
+                        }
                     }
+                    // As a choice, its rows are one group, named by the modal's title.
+                    .modifier(ChoiceGroup(label: choosing ? label : nil))
                 }
                 if let footnote {
                     Text(footnote)
@@ -78,8 +85,23 @@ struct CardPickList<Lead: View, Empty: View>: View {
         .padding(.bottom, choosing ? 18 : 0)
     }
 
+    /// A row's muted line: when the card came out (「10月5日」/ "Oct 5", the year too before this
+    /// one), led by 「匿名 · 」/ "Anonymous · " for an anonymous card when the list marks them.
+    static func meta(_ card: FeedCard, anonymousLabel: String?, now: Date = .now,
+                     language: Strings.Language = Strings.shared.language) -> String {
+        let locale = Locale(identifier: language == .zhTW ? "zh-Hant-TW" : "en")
+        let date = card.publishedAt.flatMap(ISO8601.date).map { day in
+            let thisYear = Calendar.current.component(.year, from: day) == Calendar.current.component(.year, from: now)
+            return thisYear
+                ? day.formatted(Date.FormatStyle(locale: locale).month(.abbreviated).day())
+                : day.formatted(Date.FormatStyle(locale: locale).year().month(.abbreviated).day())
+        }
+        return [card.anonymous ? anonymousLabel : nil, date].compactMap { $0 }.joined(separator: " · ")
+    }
+
     private func row(_ card: FeedCard, at i: Int) -> some View {
         let chosen = choosing && card.id == selectedId
+        let meta = Self.meta(card, anonymousLabel: anonymousLabel)
         return Button { onPick(card) } label: {
             HStack(spacing: 12) {
                 OrganicImage(url: card.imageUrl.flatMap(URL.init(string:)), seed: Double(i * 7 + 3),
@@ -89,18 +111,20 @@ struct CardPickList<Lead: View, Empty: View>: View {
                             // Washed in the accent inside the thumb's own outline, with the tick on it.
                             ZStack {
                                 OrganicImage(url: nil, seed: Double(i * 7 + 3), fill: Tokens.terracotta.opacity(0.82))
-                                OrganicIcon(.check, size: 24, color: Tokens.cream)
+                                OrganicIcon(.check, size: 20, color: Tokens.cream)
                             }
                             .transition(.opacity)
                         }
                     }
-                    .frame(width: 48, height: 48)
-                VStack(alignment: .leading, spacing: 4) {
+                    .frame(width: 40, height: 40)
+                VStack(alignment: .leading, spacing: 3) {
+                    // One line: a long title ends in an ellipsis rather than making its row taller.
                     Text(card.title).font(AppFonts.body(15, weight: .semibold))
                         .foregroundStyle(chosen ? Tokens.terracotta : Tokens.text)
-                        .lineLimit(2).multilineTextAlignment(.leading)
-                    if card.anonymous, let anonymousLabel {
-                        TagPill(anonymousLabel, fill: Tokens.creamDark, size: .sm)
+                        .lineLimit(1).truncationMode(.tail)
+                    if !meta.isEmpty {
+                        Text(meta).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+                            .lineLimit(1).truncationMode(.tail)
                     }
                 }
                 Spacer(minLength: 0)
@@ -112,6 +136,22 @@ struct CardPickList<Lead: View, Empty: View>: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .opacity(disabled && !chosen ? 0.5 : 1)
+        // Named by its title, described by its line.
+        .accessibilityLabel(card.title)
+        .accessibilityValue(meta)
         .accessibilityAddTraits(choosing && chosen ? .isSelected : [])
+    }
+}
+
+/// A choice's rows as one group VoiceOver names (the web's radiogroup `aria-label`).
+private struct ChoiceGroup: ViewModifier {
+    let label: String?
+
+    func body(content: Content) -> some View {
+        if let label {
+            content.accessibilityElement(children: .contain).accessibilityLabel(label)
+        } else {
+            content
+        }
     }
 }
