@@ -10,6 +10,8 @@ vi.mock('@/lib/auth', () => ({ getCurrentUser: (...a: unknown[]) => getCurrentUs
 vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => ({}) }));
 const sendNote = vi.fn();
 vi.mock('@/lib/api/v1/conversations', () => ({ sendNote: (...a: unknown[]) => sendNote(...a) }));
+const refusalForPreLetterBuild = vi.fn();
+vi.mock('@/lib/api/v1/preLetter', () => ({ refusalForPreLetterBuild: (...a: unknown[]) => refusalForPreLetterBuild(...a) }));
 const afterNoteSent = vi.fn();
 vi.mock('@/lib/api/v1/afterMessage', () => ({ afterNoteSent: (...a: unknown[]) => afterNoteSent(...a) }));
 const ringAfter = vi.fn();
@@ -19,8 +21,8 @@ vi.mock('@/lib/api/rateLimit', () => ({ spend: (...a: unknown[]) => spend(...a) 
 
 const { POST } = await import('./route');
 const { ApiFailure } = await import('@/lib/api/v1/http');
-const post = (body: unknown) =>
-  POST(new Request('http://localhost/api/v1/notes', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }));
+const post = (body: unknown, headers: Record<string, string> = {}) =>
+  POST(new Request('http://localhost/api/v1/notes', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', ...headers } }));
 
 const push = { conversationId: 'alice_bob', messageId: 'n1', from: 'alice', to: 'bob' };
 
@@ -29,6 +31,8 @@ beforeEach(() => {
   getCurrentUser.mockResolvedValue({ id: 'alice' });
   spend.mockResolvedValue(undefined);
   sendNote.mockResolvedValue({ id: 'n1', notificationId: 'bell1', push, duplicate: false });
+  // Every refusal as it is, unless the request comes from a build before letters (preLetter.test.ts).
+  refusalForPreLetterBuild.mockImplementation(async (_db: unknown, _uid: unknown, _req: unknown, e: unknown) => e);
 });
 
 describe('POST /api/v1/notes', () => {
@@ -84,6 +88,21 @@ describe('POST /api/v1/notes', () => {
       sendNote.mockRejectedValueOnce(new ApiFailure(code, 'no'));
       expect((await post({ cardId: 'walk', text: 'hi' })).status).toBe(status);
     }
+    expect(afterNoteSent).not.toHaveBeenCalled();
+    expect(ringAfter).not.toHaveBeenCalled();
+  });
+
+  // Builds before letters know no 409 here, but show a 403's message (lib/api/v1/preLetter; apiV1PreLetter.emulator.test.ts).
+  it('answers each refusal as a build before letters is to get it, ringing nothing', async () => {
+    const limit = new ApiFailure('conflict', 'Wait for them to reply.');
+    sendNote.mockRejectedValue(limit);
+    refusalForPreLetterBuild.mockResolvedValueOnce(new ApiFailure('forbidden', '你留的紙條對方還沒回覆，先等等對方吧'));
+    const res = await post({ cardId: 'walk', text: 'hi' }, { 'User-Agent': 'Resonance/2.0.0 (Android 15; build 7)' });
+    expect([res.status, await res.json()]).toEqual([403, { error: { code: 'forbidden', message: '你留的紙條對方還沒回覆，先等等對方吧' } }]);
+    expect(refusalForPreLetterBuild).toHaveBeenCalledWith({}, 'alice', expect.any(Request), limit);
+    expect(refusalForPreLetterBuild.mock.calls[0][2].headers.get('user-agent')).toBe('Resonance/2.0.0 (Android 15; build 7)');
+    // As it is otherwise.
+    expect((await post({ cardId: 'walk', text: 'hi' })).status).toBe(409);
     expect(afterNoteSent).not.toHaveBeenCalled();
     expect(ringAfter).not.toHaveBeenCalled();
   });

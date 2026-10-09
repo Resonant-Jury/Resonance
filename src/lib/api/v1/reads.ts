@@ -7,6 +7,8 @@ import type { Card, RecommendationItem } from '@/lib/db/types';
 import { embeddedCardKeys } from './embeds';
 import { ApiFailure } from './http';
 import { pageEnd, pageQuery, type PageStart } from './paging';
+import { pairOf } from './conversations';
+import { letterReadsAsConnection } from './preLetter';
 import { blockedByViewer, blockHides, canView, connected, loadAuthors, presentLinkPreviews, toAuthor, toFeedCard, visibilityOf, visibleTo } from './present';
 import { properlyPublished } from './service';
 import {
@@ -331,19 +333,24 @@ const profileCards = (db: Firestore, authorId: string, start?: PageStart) =>
  * what GET /users/{handle}/cards (its first page, of `limit` cards) and
  * /links answer. The first page comes out of the query that counts their
  * cards, and one read of the viewer's blocks serves the profile and its links.
+ *
+ * `preLetterBuild`: the request comes from an app build made before letters
+ * (./clientBuild), which is told it is connected to someone whose letter
+ * waits for its answer (letterReadsAsConnection) — the two's conversation
+ * read beside the rest, for those builds only.
  */
 export async function getProfile(
   db: Firestore,
   viewerId: string,
   handle: string,
-  opts: { include?: ReadonlySet<ProfileInclude>; limit?: number } = {},
+  opts: { include?: ReadonlySet<ProfileInclude>; limit?: number; preLetterBuild?: boolean } = {},
 ): Promise<ProfileBody> {
   const include = opts.include ?? new Set();
   // The count's query holds the page, so a page is never longer than it.
   const limit = Math.min(opts.limit ?? DEFAULT_PAGE, PROFILE_COUNT_LIMIT);
   const user = await userByHandle(db, handle);
   const isSelf = user.id === viewerId;
-  const [blocks, isConnected, published, linking] = await Promise.all([
+  const [blocks, isConnected, published, linking, conversation] = await Promise.all([
     // The whole block list when the links need it (it answers isBlocked too), else the one document.
     include.has('links')
       ? blockedByViewer(db, viewerId)
@@ -353,15 +360,18 @@ export async function getProfile(
     isSelf ? Promise.resolve(false) : connected(db, viewerId, user.id),
     profileCards(db, user.id).limit(PROFILE_COUNT_LIMIT).get(),
     include.has('links') ? cardsLinkingToAuthor(db, user.id, viewerId) : [],
+    opts.preLetterBuild && !isSelf ? db.doc(`conversations/${pairOf(viewerId, user.id)}`).get() : null,
   ]);
   const blocked = !isSelf && !!blocks?.has(user.id);
   // Over the same query as the page: named cards only, so the count says nothing of anonymous ones.
   const cardCount = published.docs.filter((d) => properlyPublished(d.get('publishedAt'))).length;
   const u = user.data();
   const joined = u.joinedAt instanceof Timestamp ? u.joinedAt.toDate() : new Date(0);
-  const [cards, links] = await Promise.all([
+  const [cards, links, answerable] = await Promise.all([
     include.has('cards') && !blocked ? profilePage(db, published.docs.slice(0, limit), u, limit) : EMPTY_PAGE,
     include.has('links') ? present(db, viewerId, linking, { blocked: blocks ?? new Set() }) : [],
+    // A build before letters: a letter of theirs waiting for the viewer's answer reads as a connection.
+    !isConnected && !blocked && conversation ? letterReadsAsConnection(db, viewerId, user.id, conversation) : false,
   ]);
   return {
     author: toAuthor(user.id, u),
@@ -369,7 +379,7 @@ export async function getProfile(
     joinedAt: joined.toISOString(),
     cardCount: blocked ? 0 : cardCount,
     isSelf,
-    isConnected,
+    isConnected: isConnected || answerable,
     isBlocked: blocked,
     ...(include.has('cards') ? { cards } : {}),
     ...(include.has('links') ? { links: { cards: links } } : {}),

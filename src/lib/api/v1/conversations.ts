@@ -48,6 +48,17 @@ export interface NoteRequest {
   count: number;
 }
 
+/**
+ * The refusal of a note past NOTE_REQUEST_MAX unanswered ones: a conflict,
+ * "Wait for them to reply." Its own class so a build before letters, which
+ * knows no 409 here, can be told the same in words it shows (./preLetter).
+ */
+export class NoteLimitReached extends ApiFailure {
+  constructor() {
+    super('conflict', 'Wait for them to reply.');
+  }
+}
+
 /** A count the server can't read counts as full: the writer waits for an answer, as they would anyway. */
 const countOf = (count: unknown) => (typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : NOTE_REQUEST_MAX);
 
@@ -257,7 +268,7 @@ export async function sendNote(
     // (crossing letters when we aren't connected; connected, it is a reason we are).
     const answers = threaded && openRequest(convo)?.from === author;
     const left = writing ? lettersLeft(mine) : 0;
-    if (writing && !answers && left >= NOTE_REQUEST_MAX) throw new ApiFailure('conflict', 'Wait for them to reply.');
+    if (writing && !answers && left >= NOTE_REQUEST_MAX) throw new NoteLimitReached();
     // The note's message takes its id in the thread: one there already is not this note's to overwrite.
     // Asked of a named card only — on an anonymous one, whether that thread holds it would name the author.
     if (threaded && inThread?.exists) throw new ApiFailure('invalid_request', 'Not a valid client id.');

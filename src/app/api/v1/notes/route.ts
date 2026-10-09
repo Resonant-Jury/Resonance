@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ApiFailure, parse, withUser } from '@/lib/api/v1/http';
 import { sendNote } from '@/lib/api/v1/conversations';
+import { refusalForPreLetterBuild } from '@/lib/api/v1/preLetter';
 import { afterNoteSent } from '@/lib/api/v1/afterMessage';
 import { SendNoteRequest } from '@/lib/api/v1/schemas';
 import { getAdminDb } from '@/lib/db/firestore/admin';
@@ -14,7 +15,9 @@ export const dynamic = 'force-dynamic';
  * the response the author's phone rings once: through the chat push when the
  * note went into the two people's thread, through its bell row when the card
  * is anonymous (no thread). Answers 201 with the note's id, also when
- * `clientId` named one already left — and that resend rings no one.
+ * `clientId` named one already left — and that resend rings no one. Past
+ * the unanswered notes a writer may leave it is a 409 — a 403 to an app
+ * build made before letters (lib/api/v1/preLetter).
  */
 export const POST = withUser(async (user, req) => {
   const body = await req.json().catch(() => {
@@ -23,7 +26,10 @@ export const POST = withUser(async (user, req) => {
   const input = parse(SendNoteRequest, body);
   const db = getAdminDb();
   await spend(db, user.id, 'note');
-  const { id, notificationId, push, duplicate } = await sendNote(db, user.id, input);
+  const { id, notificationId, push, duplicate } = await sendNote(db, user.id, input).catch(async (e: unknown) => {
+    // A build before letters knows no 409 here: it is told the same with a 403, whose words it shows.
+    throw await refusalForPreLetterBuild(db, user.id, req, e);
+  });
   if (!duplicate) {
     if (push) afterNoteSent(db, push);
     else ringAfter(db, notificationId);
