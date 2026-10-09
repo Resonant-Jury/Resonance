@@ -6,26 +6,83 @@ import UIKit
 
 // MARK: - What a card on the map says
 
-/// plainExcerpt (src/lib/adapters/story.ts): the story's prose with the Markdown
-/// stripped, cut at `max` UTF-16 units like the web's `slice`.
+/// The story's prose as a node shows it — src/lib/markdown/plainText.ts, the one rule the server
+/// (a list's stored excerpt), the web's story cards and thought-map nodes share: the Markdown
+/// stripped (a link keeps its words), every bare address the link rules find left out (`withoutLinks`),
+/// then cut after `max` code points (`excerpt`) — never inside an emoji.
 func plainExcerpt(_ markdown: String, max: Int = 80) -> String {
-    var t = markdown
-    let rules: [(String, String, NSRegularExpression.Options)] = [
-        ("```[\\s\\S]*?```", " ", []),
-        ("!\\[[^\\]]*\\]\\([^)]*\\)", " ", []),
-        ("\\[([^\\]]*)\\]\\([^)]*\\)", "$1", []),
-        ("^#{1,6}\\s+", "", [.anchorsMatchLines]),
-        ("^>\\s?", "", [.anchorsMatchLines]),
-        ("[*_~`]+", "", []),
-        ("\\s+", " ", []),
-    ]
-    for (pattern, template, options) in rules {
-        let re = try! NSRegularExpression(pattern: pattern, options: options)
-        t = re.stringByReplacingMatches(in: t, range: NSRange(t.startIndex..., in: t), withTemplate: template)
+    StoryProse.excerpt(StoryProse.plainText(markdown), max: max)
+}
+
+/// plainText.ts, line for line.
+enum StoryProse {
+    /// The text without its bare addresses: exactly the links the link rules find (ChatLinks, the
+    /// server's findLinks), each with the `<…>` of an autolink round it. Everything else stays: the
+    /// words either side, the punctuation after the address (with no space left hanging before it),
+    /// an address the rules don't read as a link (`foo@www.…`, `localhost`).
+    static func withoutLinks(_ text: String) -> String {
+        let ns = text as NSString
+        var out = ""
+        var at = 0
+        for link in ChatLinks.links(in: text) {
+            var start = link.range.location, end = NSMaxRange(link.range)
+            if start > 0, end < ns.length, ns.character(at: start - 1) == 0x3C, ns.character(at: end) == 0x3E {
+                start -= 1
+                end += 1
+            }
+            let before = ns.substring(with: NSRange(location: at, length: start - at))
+            // "see https://…, then" reads "see, then"; "see https://… then" keeps its space.
+            let next = ns.substring(with: NSRange(location: end, length: min(2, ns.length - end)))
+            out += closes(next) ? trimmingTrailingSpace(before) : before
+            at = end
+        }
+        return out + ns.substring(from: at)
     }
-    t = t.trimmingCharacters(in: .whitespacesAndNewlines)
-    let ns = t as NSString
-    return ns.length > max ? ns.substring(to: max) + "…" : t
+
+    /// A closing mark — sentence punctuation, a closing bracket or quote, CJK ones too — leads `text`
+    /// (the sentence's, never the link's).
+    private static func closes(_ text: String) -> Bool {
+        guard let first = text.unicodeScalars.first else { return false }
+        switch first.properties.generalCategory {
+        case .otherPunctuation, .closePunctuation, .finalPunctuation: return true
+        default: return false
+        }
+    }
+
+    private static func trimmingTrailingSpace(_ text: String) -> String {
+        var scalars = Array(text.unicodeScalars)
+        while let last = scalars.last, last.properties.isWhitespace { scalars.removeLast() }
+        return String(String.UnicodeScalarView(scalars))
+    }
+
+    /// A story's prose without Markdown syntax (links keep their words), its bare addresses left out.
+    static func plainText(_ markdown: String) -> String {
+        func replace(_ text: String, _ pattern: String, _ template: String, lines: Bool = false) -> String {
+            let re = try! NSRegularExpression(pattern: pattern, options: lines ? [.anchorsMatchLines] : [])
+            return re.stringByReplacingMatches(in: text, range: NSRange(location: 0, length: (text as NSString).length),
+                                               withTemplate: template)
+        }
+        var t = markdown
+        t = replace(t, "```[\\s\\S]*?```", " ")
+        t = replace(t, "!\\[[^\\]]*\\]\\([^)]*\\)", " ")
+        t = replace(t, "\\[([^\\]]*)\\]\\([^)]*\\)", "$1")
+        // After the addresses go: an address's `_`, `~` and `*` are not emphasis.
+        t = withoutLinks(t)
+        t = replace(t, "^#{1,6}\\s+", "", lines: true)
+        t = replace(t, "^>\\s?", "", lines: true)
+        t = replace(t, "^\\s*(?:[-*+]|[0-9]+\\.)\\s+", "", lines: true)
+        t = replace(t, "^\\s*(?:-{3,}|\\*{3,}|_{3,})\\s*$", "", lines: true)
+        t = replace(t, "[*_~`]+", "")
+        t = replace(t, "\\s+", " ")
+        return t.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The first `max` code points, then "…": cut between code points, never inside an emoji.
+    static func excerpt(_ text: String, max: Int) -> String {
+        let scalars = Array(text.unicodeScalars)
+        guard scalars.count > max else { return text }
+        return String(String.UnicodeScalarView(scalars.prefix(max))) + "…"
+    }
 }
 
 /// The card's little picture: its cover, else the story's first inline image.
