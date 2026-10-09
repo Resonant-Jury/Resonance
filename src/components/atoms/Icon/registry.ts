@@ -37,6 +37,7 @@ import { SendIcon } from './icons/send';
 import { ReplyIcon } from './icons/reply';
 import { CopyIcon } from './icons/copy';
 import { LinkIcon } from './icons/link';
+import { CollapseRightIcon } from './icons/collapse-right';
 import type { IconRenderer } from './types';
 
 /**
@@ -93,6 +94,7 @@ export const ICONS = {
   reply: ReplyIcon,
   copy: CopyIcon,
   link: LinkIcon,
+  'collapse-right': CollapseRightIcon,
 } satisfies Record<string, IconRenderer>;
 
 export type IconName = keyof typeof ICONS;

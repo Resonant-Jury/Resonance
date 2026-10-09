@@ -42,6 +42,7 @@ public enum IconName: String, CaseIterable, Sendable {
     case reply
     case copy
     case link
+    case collapseRight = "collapse-right"
     case verified
 }
 
@@ -237,6 +238,11 @@ extension IconName {
         case .link: IconGlyph(viewBox: 24, fillable: false, strokes: [
             IconStroke(filled: false, width: 1, commands: [0, 10.6, 13.4, 2, 9.4, 12, 9.6, 10, 10.9, 8.7, 2, 11.8, 7.8, 12.7, 6.9, 13.6, 6, 2, 15, 4.6, 17.3, 4.7, 18.6, 6, 2, 20, 7.4, 19.9, 9.6, 18.5, 11, 2, 18, 11.5, 17.5, 12, 17, 12.4]),
             IconStroke(filled: false, width: 1, commands: [0, 13.4, 10.7, 2, 14.6, 12, 14.4, 14, 13.1, 15.3, 2, 12.2, 16.2, 11.3, 17.1, 10.4, 18, 2, 9, 19.4, 6.7, 19.3, 5.4, 18, 2, 4, 16.6, 4.1, 14.4, 5.5, 13, 2, 6, 12.5, 6.5, 12, 7, 11.6]),
+        ])
+        case .collapseRight: IconGlyph(viewBox: 24, fillable: false, strokes: [
+            IconStroke(filled: false, width: 1, commands: [0, 3.4, 12.1, 2, 6.9, 13.5, 11.2, 10.9, 15.1, 12.2]),
+            IconStroke(filled: false, width: 1, commands: [0, 10.4, 7.3, 2, 12.3, 8.8, 14.1, 10.6, 15.2, 12.1, 2, 14.3, 13.4, 13, 14.9, 10.5, 16.8]),
+            IconStroke(filled: false, width: 1, commands: [0, 19.6, 4.9, 2, 19.2, 9.4, 19.8, 14.6, 19.3, 19.2]),
         ])
         case .verified: IconGlyph(viewBox: 16, fillable: false, strokes: [
             IconStroke(filled: false, width: 1, commands: [0, 2.2, 8.4, 2, 3.3, 8.8, 4.6, 10.2, 5.9, 12, 2, 7.4, 9.2, 9.6, 5.4, 13.6, 2.9]),
