@@ -45,6 +45,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -617,21 +618,23 @@ private fun MenuPanel(
 
 /**
  * ToggleSwitch.tsx: a wobbly pill track (50×28) and a slightly irregular knob
- * that slides across; terracotta when on.
+ * that slides across; terracotta when on. Not [enabled] (its value is still
+ * loading, say), it is dimmed to half and a tap does nothing — the web's `disabled`.
  */
 @Composable
-fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String, seed: Double = 9.0) {
+fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String, seed: Double = 9.0, enabled: Boolean = true) {
     val knobX by animateDpAsState(if (checked) 26.dp else 4.dp, spring(dampingRatio = 0.75f, stiffness = 700f), label = "knob")
     Box(
         Modifier
             .size(50.dp, 28.dp)
+            .alpha(if (enabled) 1f else 0.5f)
             // Its state is the toggleable state's, which TalkBack reads in the reader's language (on / 開啟).
             .semantics {
                 contentDescription = label
                 toggleableState = ToggleableState(checked)
             }
             // The knob's slide is the feedback; no wash over the track.
-            .clickable(interactionSource = null, indication = null, role = Role.Switch) { onCheckedChange(!checked) }
+            .clickable(interactionSource = null, indication = null, enabled = enabled, role = Role.Switch) { onCheckedChange(!checked) }
             .drawWithCache {
                 val track = wobRect(50.0, 28.0, 14.0, seed, 1.1, WobRectOptions(
                     curve = 1.5, cornerJitter = 0.6, segmentsH = SegValue.Range(1, 2), segmentsV = SegValue.Range(3, 4),

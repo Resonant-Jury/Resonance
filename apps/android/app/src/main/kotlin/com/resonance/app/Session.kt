@@ -18,6 +18,7 @@ import com.resonance.kit.api.ApiConfiguration
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.api.HttpCaching
 import com.resonance.kit.api.MessagingApi
+import com.resonance.kit.api.NotificationSettingsApi
 import com.resonance.kit.api.ProfileApi
 import com.resonance.kit.api.PushApi
 import com.resonance.kit.api.ReadingApi
@@ -25,11 +26,13 @@ import com.resonance.kit.api.SafetyApi
 import com.resonance.kit.api.WritingApi
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
+import com.resonance.kit.push.NotificationSwitches
 import com.resonance.kit.reading.ApiCache
 import com.resonance.kit.reading.CardCache
 import com.resonance.kit.reading.CardPageLoader
 import com.resonance.kit.reading.FeedLoader
 import java.time.OffsetDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -112,6 +115,7 @@ class Session(
     val writing = WritingApi(api, http)
     val messaging = MessagingApi(api, http)
     val pushApi = PushApi(api, http)
+    private val notificationSettings = NotificationSettingsApi(api, http)
     val profiles = ProfileApi(api, http)
     private val safetyApi = SafetyApi(api, http)
     val notifications = NotificationsStore()
@@ -468,8 +472,8 @@ class Session(
     private var pushSending: PushRegistration? = null
 
     /**
-     * This install gets the signed-in person's pushes (again whenever the token, the language or
-     * the app's version changes — and once a day; not on every cold start, see [PushRegistration]).
+     * This install gets the signed-in person's pushes (again whenever the token, the language, the
+     * app's version or the time zone changes — and once a day; not on every cold start, see [PushRegistration]).
      */
     suspend fun registerPush() {
         val token = PushCenter.token
@@ -477,12 +481,13 @@ class Session(
         if (_phase.value != Phase.SignedIn || uid == null || token == null || !PushCenter.canNotify) return
         val wanted = PushRegistration(
             PushCenter.installationId, uid, token, Strings.language.tag, BuildConfig.VERSION_NAME, PushCenter.CAPABILITIES.joinToString(","),
+            timeZone = ZoneId.systemDefault().id,
         )
         // Nor twice at once (a new token and a sign-in arrive together; both run on the main thread).
         if (PushRegistration.isFresh(PushCenter.lastRegistration, wanted, System.currentTimeMillis()) || pushSending == wanted) return
         pushSending = wanted
         try {
-            pushApi.register(wanted.installationId, token, Strings.language, wanted.version, PushCenter.CAPABILITIES)
+            pushApi.register(wanted.installationId, token, Strings.language, wanted.version, PushCenter.CAPABILITIES, wanted.timeZone)
             if (this.uid == uid) PushCenter.lastRegistration = wanted.encode(System.currentTimeMillis())
         } catch (e: CancellationException) {
             throw e
@@ -492,6 +497,22 @@ class Session(
             pushSending = null
         }
     }
+
+    /**
+     * The person let the app notify — the permission given, or notifications turned on in the
+     * system settings and back: this install registers now, rather than at the next launch
+     * ([registerPush] skips while notifications can't show).
+     */
+    fun pushesAllowed() {
+        scope.launch { registerPush() }
+    }
+
+    /**
+     * Settings → Notifications' switches, read afresh each time the section opens. A flip is sent on
+     * the session's scope, so leaving the section right after it doesn't drop it.
+     */
+    fun notificationSwitches(): NotificationSwitches =
+        NotificationSwitches(scope, notificationSettings::get, notificationSettings::set)
 
     // Account deletion
 

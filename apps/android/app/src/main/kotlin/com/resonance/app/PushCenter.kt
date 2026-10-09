@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
@@ -17,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import com.resonance.kit.chat.ChatPush
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.push.PushPlacement
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
@@ -35,10 +37,12 @@ import java.util.UUID
  * ([viewingConversation]) and clears when it opens.
  */
 object PushCenter {
-    /** The channel the server names in every push (`android.notification.channelId`). */
-    const val CHANNEL_ID = "activity"
+    /** The channel the server names in every bell row's push (`android.notification.channelId`). */
+    const val CHANNEL_ID = PushPlacement.ACTIVITY_CHANNEL
     /** The channel of chat messages (the server names it in the message pushes it sends as notifications, too). */
     const val MESSAGES_CHANNEL_ID = "messages"
+    /** The channel of the pushes the person turned on in Settings → Notifications: tonight's card, connections' new cards. */
+    const val PICKS_CHANNEL_ID = PushPlacement.PICKS_CHANNEL
     /**
      * What this build does with a push beyond showing it, told to the server with the device:
      * `chat-push` — it draws a conversation's messages itself, so the server sends those as data.
@@ -88,18 +92,89 @@ object PushCenter {
         }
 
     /**
-     * The "activity" and "messages" channels, named in the app's language (created again when the
-     * language changes, which renames them). Messages are the louder one: a person writing to you
-     * is worth a heads-up, a resonance can wait in the shade.
+     * The "activity", "messages" and "picks" channels, named in the app's language (created again
+     * when the language changes, which renames them). Messages are the louder one: a person writing
+     * to you is worth a heads-up, a resonance can wait in the shade — and so can the pushes the
+     * person asked for (tonight's card, a connection's new card), in a channel of their own that
+     * can be silenced apart from the rest. A build without "picks" got those in "activity".
      */
     fun createChannel() {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, L10n.App.Nav.notifications, NotificationManager.IMPORTANCE_DEFAULT))
         manager.createNotificationChannel(NotificationChannel(MESSAGES_CHANNEL_ID, L10n.App.Nav.messages, NotificationManager.IMPORTANCE_HIGH))
+        manager.createNotificationChannel(NotificationChannel(PICKS_CHANNEL_ID, L10n.Native.channelNewCards, NotificationManager.IMPORTANCE_DEFAULT))
     }
 
-    /** False while the person has switched the app's notifications off (or, on API 33+, not granted the permission yet). */
+    /**
+     * False while the person has switched the app's notifications off (or, on API 33+, not granted
+     * the permission yet). A channel turned off alone doesn't count here: see [picksBlock].
+     */
     val canNotify: Boolean get() = NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+    /**
+     * Whether asking for the notification permission can still show the system's dialog: API 33+,
+     * and not granted. (After two refusals the system answers "no" without asking — the request's
+     * result says so.) Below 33 there is nothing to ask: notifications are on unless switched off
+     * in the system settings.
+     */
+    val canAskPermission: Boolean
+        get() = Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+
+    /** The app asks for the permission itself (Settings → Notifications): the prompt after reaching someone needn't ask again. */
+    fun permissionAsked() {
+        prefs.edit().putBoolean(ASKED_KEY, true).apply()
+    }
+
+    /** What keeps the pushes of Settings → Notifications (tonight's card, connections' new cards) off this phone, if anything. */
+    enum class PicksBlock {
+        /** Nothing: they show. */
+        None,
+
+        /** Every notification of the app is off ([canNotify]: switched off, or the permission not given). */
+        App,
+
+        /** Only their "picks" channel, turned off by itself in the system settings — the rest still show. */
+        Channel,
+    }
+
+    /**
+     * Which [PicksBlock] holds back the pushes of Settings → Notifications: the app's notifications
+     * off, or the "picks" channel's importance set to none ([picksImportance]; null while it isn't there).
+     */
+    internal fun picksBlock(appEnabled: Boolean, picksImportance: Int?): PicksBlock = when {
+        !appEnabled -> PicksBlock.App
+        picksImportance == NotificationManager.IMPORTANCE_NONE -> PicksBlock.Channel
+        else -> PicksBlock.None
+    }
+
+    /**
+     * This phone's [PicksBlock] now. Settings → Notifications reads this, not [canNotify]: a switch
+     * whose channel is off would send pushes nobody sees. (Messages and bells only need [canNotify].)
+     */
+    val picksBlock: PicksBlock
+        get() = picksBlock(
+            canNotify,
+            context.getSystemService(NotificationManager::class.java).getNotificationChannel(PICKS_CHANNEL_ID)?.importance,
+        )
+
+    /** A system settings page: its action, and the channel it opens at (none: the app's own page). */
+    internal data class SettingsPage(val action: String, val channelId: String? = null)
+
+    /** Where [block] is lifted: the "picks" channel's own page when only it is off, else the app's notification settings. */
+    internal fun settingsPage(block: PicksBlock): SettingsPage = when (block) {
+        PicksBlock.Channel -> SettingsPage(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS, PICKS_CHANNEL_ID)
+        PicksBlock.App, PicksBlock.None -> SettingsPage(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+    }
+
+    /** The system's notification settings for this app (or, for [PicksBlock.Channel], the "picks" channel's), where a refused permission is turned back on. */
+    fun notificationSettingsIntent(context: Context, block: PicksBlock = PicksBlock.App): Intent {
+        val page = settingsPage(block)
+        return Intent(page.action)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .apply { page.channelId?.let { putExtra(Settings.EXTRA_CHANNEL_ID, it) } }
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
 
     /** The registration this install last sent (see [PushRegistration]); null once signed out. */
     var lastRegistration: String?
@@ -168,17 +243,28 @@ object PushCenter {
 
     /**
      * The notification for a push that arrived while the app is open (FCM only shows the ones
-     * that arrive while it is closed): the same channel and glyph, and a tap starts the app with
-     * the push's `route`, `notificationId` and `fromUserId` as extras, as it does for the system's own.
+     * that arrive while it is closed): the same channel ([placement]) and glyph, the whole body
+     * when expanded (as FCM's own shows it — tonight's card is a title and a line under it), and a
+     * tap starts the app with the push's `route`, `notificationId` and `fromUserId` as extras, as it
+     * does for the system's own.
      */
-    fun notification(context: Context, title: String, body: String?, route: String, notificationId: String?, fromUserId: String? = null): Notification =
-        NotificationCompat.Builder(context, CHANNEL_ID)
+    fun notification(
+        context: Context,
+        title: String,
+        body: String?,
+        route: String,
+        notificationId: String?,
+        fromUserId: String? = null,
+        placement: PushPlacement = PushPlacement(CHANNEL_ID, notificationId),
+    ): Notification =
+        NotificationCompat.Builder(context, placement.channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.notification_accent))
             .setContentTitle(title)
             .setContentText(body)
+            .apply { if (!body.isNullOrEmpty()) setStyle(NotificationCompat.BigTextStyle().bigText(body)) }
             .setAutoCancel(true)
-            .setContentIntent(tapIntent(context, route, notificationId, fromUserId, notificationId))
+            .setContentIntent(tapIntent(context, route, notificationId, fromUserId, placement.tag))
             .build()
 
     /** What a tap on a notification starts: the app, with the push's keys as extras. */
@@ -281,13 +367,24 @@ object PushCenter {
         if (::context.isInitialized) NotificationManagerCompat.from(context).cancelAll()
     }
 
-    /** Posts [notification] (tagged by the bell row, so the same push never shows twice). */
-    fun show(context: Context, title: String, body: String?, route: String, notificationId: String?, fromUserId: String? = null) {
+    /**
+     * Posts [notification] in [placement]'s channel under its tag: a bell row's push by the row, so
+     * the same push never shows twice; tonight's card in place of the last one; a new card by its id.
+     */
+    fun show(
+        context: Context,
+        title: String,
+        body: String?,
+        route: String,
+        notificationId: String?,
+        fromUserId: String? = null,
+        placement: PushPlacement = PushPlacement(CHANNEL_ID, notificationId),
+    ) {
         if (!canNotify) return
         val manager = NotificationManagerCompat.from(context)
         // canNotify covers the permission check the lint rule wants to see.
         @Suppress("MissingPermission")
-        manager.notify(notificationId, 0, notification(context, title, body, route, notificationId, fromUserId))
+        manager.notify(placement.tag, 0, notification(context, title, body, route, notificationId, fromUserId, placement))
     }
 
     /** A conversation's notification: its pair id is the tag, and this the id. */

@@ -14,6 +14,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.resonance.app.ui.ResonanceRoot
 import com.resonance.kit.chat.ChatPush
+import com.resonance.kit.push.PushPlacement
 import kotlinx.coroutines.launch
 
 /**
@@ -24,7 +25,7 @@ import kotlinx.coroutines.launch
  *   --es writeTitle … --es writeStory … --es writeCover <url>   a new card starts with them
  *   --es threadDraft …             fills a conversation's composer (--es route /messages/<handle> opens one)
  *   --es pushToken …               registers that stand-in push token under the signed-in account
- *   --es pushTitle … [--es pushBody … --es pushRoute … --es pushId … --es pushFromUserId …]   posts the notification a push received while open shows
+ *   --es pushTitle … [--es pushBody … --es pushRoute … --es pushId … --es pushFromUserId … --es pushType pick|new_card --es pushCardId …]   posts the notification a push received while open shows
  *   --ez avifDecoder true          reads AVIF with the app's own decoder (Android 10–11's path) on any version
  */
 class MainActivity : ComponentActivity() {
@@ -140,9 +141,15 @@ class MainActivity : ComponentActivity() {
         if (BuildConfig.DEBUG) {
             intent.getStringExtra("pushToken")?.let(PushCenter::tokenChanged)
             intent.getStringExtra("pushTitle")?.let {
+                // `pushType` pick / new_card (with `pushCardId`) lands in the "picks" channel, as those pushes do.
+                val data = listOfNotNull(
+                    intent.getStringExtra("pushType")?.let { type -> "type" to type },
+                    intent.getStringExtra("pushCardId")?.let { id -> "cardId" to id },
+                    intent.getStringExtra("pushId")?.let { id -> PushCenter.EXTRA_NOTIFICATION_ID to id },
+                ).toMap()
                 PushCenter.show(
                     this, it, intent.getStringExtra("pushBody"), intent.getStringExtra("pushRoute").orEmpty(), intent.getStringExtra("pushId"),
-                    intent.getStringExtra("pushFromUserId"),
+                    intent.getStringExtra("pushFromUserId"), PushPlacement.of(data),
                 )
             }
             // A chat message as the push service would show it (`pushChatConversation` is the pair id; screen checks of its notification).

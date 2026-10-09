@@ -6,11 +6,11 @@ import org.junit.Test
 
 /**
  * A cold start doesn't send the same push registration again: only a change (who, the token, the
- * language, the version, the install) or a day gone by sends it — and nothing kept (signed out,
- * a first run) always does.
+ * language, the version, the install, the time zone) or a day gone by sends it — and nothing kept
+ * (signed out, a first run) always does.
  */
 class PushRegistrationTest {
-    private val sent = PushRegistration("install-1", "alice", "fcm-token", "zh-TW", "2.0.0", "chat-push")
+    private val sent = PushRegistration("install-1", "alice", "fcm-token", "zh-TW", "2.0.0", "chat-push", "Asia/Taipei")
     private val at = 1_000_000_000_000L
     private val kept = sent.encode(at)
 
@@ -35,11 +35,19 @@ class PushRegistrationTest {
             sent.copy(version = "2.0.1"),
             // What the build does with a push is told to the server too, so a build that changes it says so.
             sent.copy(capabilities = ""),
+            // A trip to another zone tells the server where the evening is now.
+            sent.copy(timeZone = "Europe/London"),
         ).forEach { changed -> assertFalse(changed.toString(), PushRegistration.isFresh(kept, changed, now)) }
     }
 
     @Test fun aRegistrationKeptBeforeCapabilitiesExistedIsSentAgain() {
         val kept = listOf("install-1", "alice", "fcm-token", "zh-TW", "2.0.0", at.toString()).joinToString("\n")
+        assertFalse(PushRegistration.isFresh(kept, sent, at + 60_000))
+    }
+
+    @Test fun aRegistrationKeptBeforeTheTimeZoneIsSentAgain() {
+        // A build before the time zone kept seven parts: the server hasn't heard the zone yet.
+        val kept = listOf("install-1", "alice", "fcm-token", "zh-TW", "2.0.0", "chat-push", at.toString()).joinToString("\n")
         assertFalse(PushRegistration.isFresh(kept, sent, at + 60_000))
     }
 
