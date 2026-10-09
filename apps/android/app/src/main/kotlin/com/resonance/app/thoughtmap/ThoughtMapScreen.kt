@@ -136,19 +136,19 @@ private fun BoxScope.Chrome(store: ThoughtMapStore, session: Session, leave: () 
     val scope = rememberCoroutineScope()
 
     // The controls float over the map's boxes and arrows, so none is framed in a pen line
-    // that would tangle with theirs: the tools are paper, the one verb (add a card) solid.
+    // that would tangle with theirs: the tools are tonal pills, the one verb (add a card) solid.
     // Leave: the web's back control, arrow-right mirrored (icon only on a phone).
     OrganicButton(
         L10n.Me.ThoughtMap.leave,
         Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = top),
-        variant = ButtonVariant.Paper, icon = IconName.ArrowRight, small = true, iconOnly = true, iconSize = 15.dp, mirrorIcon = true, roomy = true,
+        variant = ButtonVariant.Tonal, icon = IconName.ArrowRight, small = true, iconOnly = true, iconSize = 15.dp, mirrorIcon = true, roomy = true,
     ) {
         store.commitEditors()
         leave()
     }
 
     Row(Modifier.align(Alignment.TopEnd).padding(end = 20.dp, top = top), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        OrganicButton(L10n.Me.ThoughtMap.addGroupShort, variant = ButtonVariant.Paper, icon = IconName.Frame, small = true, iconSize = 15.dp) {
+        OrganicButton(L10n.Me.ThoughtMap.addGroupShort, variant = ButtonVariant.Tonal, icon = IconName.Frame, small = true, iconSize = 15.dp) {
             // The web's blur commits a title being typed before the new region takes over the editor.
             store.commitEditors()
             addGroup()

@@ -317,17 +317,17 @@ fun OrganicLink(
 }
 
 /**
- * OrganicButton: a wobbly pill; primary is filled terracotta with grain. A
- * press spreads the web's hover wash from the touch point ([OrganicIndication],
- * the same ink every control uses); a disabled or busy button fades as a whole
- * (the web's 0.6). Its content sits in the middle of the pill, however wide
- * the caller makes it.
+ * OrganicButton: a filled wobbly pill with the buttons' grain, and never a pen line — an outline
+ * marks a floating surface, a container or an input, not a button ([ButtonVariant] says which
+ * face). A press spreads the web's hover wash from the touch point ([OrganicIndication], the same
+ * ink every control uses); a disabled button fades to the web's 0.45, a busy one to 0.6. Its
+ * content sits in the middle of the pill, however wide the caller makes it.
  */
 @Composable
 fun OrganicButton(
     title: String,
     modifier: Modifier = Modifier,
-    variant: ButtonVariant = ButtonVariant.Primary,
+    variant: ButtonVariant = ButtonVariant.Solid,
     icon: IconName? = null,
     /** A brand mark (Google's) drawn as it is, instead of a hand-drawn glyph. */
     image: Painter? = null,
@@ -366,27 +366,10 @@ fun OrganicButton(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val haptic = LocalHapticFeedback.current
-    val (fill, stroke, text) = when (variant) {
-        ButtonVariant.Primary -> Triple(Tokens.Terracotta, Tokens.TerracottaInk, Tokens.Cream)
-        ButtonVariant.Ghost -> Triple(Color.Transparent, Tokens.GhostStroke, Tokens.Text)
-        ButtonVariant.Outline -> Triple(Color.Transparent, Mixes.TerracottaOutline, Tokens.Terracotta)
-        ButtonVariant.Solid -> Triple(Tokens.Terracotta, Color.Transparent, Tokens.Cream)
-        ButtonVariant.Ink -> Triple(Tokens.Text, Color.Transparent, Tokens.Cream)
-        ButtonVariant.Danger -> Triple(Mixes.Danger, Color.Transparent, Tokens.Cream)
-        ButtonVariant.Paper -> Triple(Tokens.CardBg, Color.Transparent, Tokens.Text)
-        ButtonVariant.Text -> Triple(Color.Transparent, Color.Transparent, Tokens.TextMuted)
-        ButtonVariant.TextAccent -> Triple(Color.Transparent, Color.Transparent, Tokens.Terracotta)
-    }
-    val filled = variant == ButtonVariant.Primary || variant == ButtonVariant.Solid || variant == ButtonVariant.Ink || variant == ButtonVariant.Danger
-    val overlay = if (filled) OrganicIndication.OnFill else OrganicIndication.Wash
-    // The web's BTN_SEEDS, so each variant wobbles like its web twin.
-    val shape = remember(variant) {
-        OrganicButtonShape(when (variant) {
-            ButtonVariant.Primary, ButtonVariant.Solid, ButtonVariant.Ink, ButtonVariant.Danger -> 3.0
-            ButtonVariant.Ghost, ButtonVariant.Text, ButtonVariant.Paper -> 401.0
-            ButtonVariant.Outline, ButtonVariant.TextAccent -> 601.0
-        })
-    }
+    val face = ButtonFace.of(variant)
+    val text = face.label
+    val overlay = face.press
+    val shape = remember(variant) { OrganicButtonShape(face.seed) }
     val padding = when {
         iconOnly && roomy -> if (small) PaddingValues(horizontal = 18.dp, vertical = 9.dp) else PaddingValues(horizontal = 32.dp, vertical = 14.dp)
         iconOnly -> PaddingValues(horizontal = 11.dp, vertical = 9.dp)
@@ -397,22 +380,14 @@ fun OrganicButton(
     Row(
         modifier
             .then(if (block) Modifier.fillMaxWidth().heightIn(min = 52.dp) else Modifier)
-            .fade(if (active) 1f else 0.6f)
+            .fade(if (!enabled) ButtonFace.DISABLED_ALPHA else if (busy) ButtonFace.BUSY_ALPHA else 1f)
             .scale(if (pressed) 0.97f else 1f)
             .drawWithCache {
                 val o = shape.createOutline(size, layoutDirection, this)
-                // Ink grain darkens a terracotta face; paper carries the cards' own tile.
-                val grainOpacity = if (variant == ButtonVariant.Paper) 0.3f else 0.38f
-                val grain = when {
-                    filled -> Grain.brush(GrainMode.Tile, "grain-button", size, density, grainOpacity)
-                    variant == ButtonVariant.Paper -> Grain.brush(GrainMode.Tile, "grain-card", size, density, grainOpacity)
-                    else -> null
-                }
-                val ink = Stroke(Tokens.Ink.toPx(), join = StrokeJoin.Round)
+                val grain = Grain.brush(GrainMode.Tile, face.grainTile, size, density, face.grainAlpha)
                 onDrawBehind {
-                    drawOutline(o, fill)
-                    grain?.let { drawOutline(o, it, alpha = grainOpacity) }
-                    if (stroke != Color.Transparent) drawOutline(o, stroke, style = ink)
+                    drawOutline(o, face.fill)
+                    grain?.let { drawOutline(o, it, alpha = face.grainAlpha) }
                 }
             }
             // The web's hover brush as a press: ink spreading from the finger, inside the pill.
@@ -485,18 +460,57 @@ fun Modifier.fade(alpha: Float): Modifier =
     if (alpha >= 1f) this else graphicsLayer { this.alpha = alpha; compositingStrategy = CompositingStrategy.ModulateAlpha }
 
 /**
- * Primary, Ghost and Outline are the web's; the rest keep a control from
- * adding a pen line inside something already framed (a modal, a card, a bar):
- * Solid is primary without its rim, Danger the same in red for what can't be
- * undone, and Text / TextAccent draw no frame at all — only the organic wash
- * while pressed (Cancel beside a confirm, "load more" under a list). Paper is
- * for a control floating over busy content (the thought map's toolbar): the
- * cards' paper with their grain, no rim, in the ink colour, so it stays
- * legible over whatever passes under it without a frame of its own. Ink is
- * Solid in the ink colour, for a brand that asks for a black button (Sign in
- * with Apple).
+ * A button's rank, as the web's OrganicButton names them — every one a fill, none a pen line, and
+ * none see-through (a bare word does not read as something to press):
+ *  - [Solid] the verb: deep terracotta, cream label — Publish, Send, Confirm, the page's one call
+ *    to action. [Primary] is its older name.
+ *  - [Tonal] everything beside it: a soft peach face with a deep terracotta label — a secondary
+ *    action (Sign out, Retry), Cancel / Keep / Close, Download, Load more, Unblock. [Ghost],
+ *    [Outline], [Text] and [TextAccent] (the names those call sites carry) wear it too.
+ *  - [Danger] solid in red: the final confirm of what can't be undone.
+ *  - [DangerTonal] the peach's red twin: a button that opens a destructive flow (Settings' Delete
+ *    account), whose dialog then asks with [Danger].
+ *  - [Ink] solid in the ink colour, for a brand that asks for a black button (Sign in with Apple).
+ *  - [Paper] the cards' paper with their grain, for a control that has to match a paper surface.
+ * Bare text is left to a link in running text and to icon-only header and toolbar glyphs.
  */
-enum class ButtonVariant { Primary, Ghost, Outline, Solid, Ink, Danger, Paper, Text, TextAccent }
+enum class ButtonVariant { Primary, Ghost, Outline, Solid, Ink, Danger, Paper, Text, TextAccent, Tonal, DangerTonal }
+
+/**
+ * How a [ButtonVariant] is drawn (OrganicButton.tsx's BTN_VARIANTS): its [fill], its [label]
+ * colour, the ink a press spreads ([press]: a filled face darkens, a tinted one takes a wash of
+ * its own hue), the grain tile over it and the seed it wobbles by (the web's BTN_SEEDS — each rank
+ * keeps the wobble of the variant it grew out of).
+ */
+class ButtonFace private constructor(
+    val fill: Color,
+    val label: Color,
+    val press: Color,
+    val seed: Double,
+    val grainTile: String = "grain-button",
+    val grainAlpha: Float = 0.38f,
+) {
+    companion object {
+        /** Not pressable yet: the face stays, faded (the web's `:disabled`). */
+        const val DISABLED_ALPHA = 0.45f
+        /** Working on the last tap (the web's busy row). */
+        const val BUSY_ALPHA = 0.6f
+
+        private val Solid = ButtonFace(Mixes.ButtonFill, Tokens.Cream, OrganicIndication.OnFill, 3.0)
+        private fun tonal(seed: Double) = ButtonFace(Mixes.ButtonTonal, Mixes.ButtonOnTonal, OrganicIndication.Wash, seed)
+
+        fun of(variant: ButtonVariant): ButtonFace = when (variant) {
+            ButtonVariant.Primary, ButtonVariant.Solid -> Solid
+            ButtonVariant.Ghost, ButtonVariant.Text -> tonal(401.0)
+            ButtonVariant.Outline, ButtonVariant.TextAccent, ButtonVariant.Tonal -> tonal(601.0)
+            ButtonVariant.Danger -> ButtonFace(Mixes.DangerFill, Tokens.Cream, OrganicIndication.OnFill, 3.0)
+            ButtonVariant.DangerTonal -> ButtonFace(Mixes.ButtonDangerTonal, Mixes.ButtonOnDangerTonal, Mixes.Danger.copy(alpha = 0.14f), 601.0)
+            ButtonVariant.Ink -> ButtonFace(Tokens.Text, Tokens.Cream, OrganicIndication.OnFill, 3.0)
+            // Paper carries the cards' own grain (the Modal's).
+            ButtonVariant.Paper -> ButtonFace(Tokens.CardBg, Tokens.Text, OrganicIndication.Wash, 401.0, grainTile = "grain-card", grainAlpha = 0.3f)
+        }
+    }
+}
 
 /**
  * OrganicButton.tsx's outline: a calm pill — radius 16, two or three gentle
@@ -593,7 +607,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.loaderPen(size: Dp)
 /** The whole loop at rest (the web's reduced-motion sketch), and a pull drawing it. */
 private const val LOOP_AT_REST = 0.7f
 
-/** How an empty state's action reads: the web's filled CTA, an outline, or a plain terracotta link (not-found "back"). */
+/**
+ * How an empty state's action reads: the verb's solid pill, the tonal one (Retry: `Outline`, its
+ * older name), or a link (not-found "back", a link on the web's not-found pages too) in the deep
+ * terracotta label (6:1 on cream; plain terracotta is 3.5:1).
+ */
 enum class EmptyAction { Primary, Outline, Link }
 
 /**
@@ -629,11 +647,11 @@ fun OrganicEmptyState(
             when (action) {
                 EmptyAction.Link -> BasicText(
                     actionTitle,
-                    style = AppFonts.body(16f, lineHeight = 1.6f, color = Tokens.Terracotta),
+                    style = AppFonts.body(16f, lineHeight = 1.6f, color = Mixes.ButtonOnTonal),
                     modifier = Modifier.clickable(role = Role.Button, onClick = onAction).padding(vertical = 8.dp),
                 )
                 EmptyAction.Primary -> OrganicButton(actionTitle, onClick = onAction)
-                EmptyAction.Outline -> OrganicButton(actionTitle, variant = ButtonVariant.Outline, onClick = onAction)
+                EmptyAction.Outline -> OrganicButton(actionTitle, variant = ButtonVariant.Tonal, onClick = onAction)
             }
         }
     }

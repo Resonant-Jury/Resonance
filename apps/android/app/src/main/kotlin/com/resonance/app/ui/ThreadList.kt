@@ -339,7 +339,7 @@ private fun OlderRow(model: ThreadModel) {
             }
             model.olderError -> {
                 BasicText(L10n.Messages.loadOlderError, style = note)
-                OrganicButton(L10n.Native.retry, variant = ButtonVariant.TextAccent, small = true) { model.loadOlder() }
+                OrganicButton(L10n.Native.retry, variant = ButtonVariant.Tonal, small = true) { model.loadOlder() }
             }
             !model.hasOlder -> BasicText(L10n.Messages.beginning, style = note)
         }

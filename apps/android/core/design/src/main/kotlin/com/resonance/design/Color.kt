@@ -97,6 +97,18 @@ object Mixes {
     val Danger = OklchColor.parse("oklch(58% 0.16 25)") ?: Tokens.Terracotta
     /** OrganicButton outline's pen: color-mix(terracotta, black 15%) — darker than its label. */
     val TerracottaOutline = OklchColor.parse("oklch(52.7% 0.119 45)") ?: Tokens.Terracotta
+    /** `--button-fill`, color-mix(terracotta, black 12%): the verb's face (solid, primary); a cream label on it 4.7:1. */
+    val ButtonFill = OklchColor.parse("oklch(54.56% 0.1232 45)") ?: Tokens.Terracotta
+    /** `--button-tonal`, color-mix(terracotta-light 75%, cream-dark): every other button's face (Cancel, Close, Retry, Load more…). */
+    val ButtonTonal = OklchColor.parse("oklch(89.25% 0.0645 60)") ?: Tokens.TerracottaLight
+    /** `--button-on-tonal`, color-mix(terracotta, black 22%): the tonal face's label (4.8:1 on it, 6.1:1 on cream). */
+    val ButtonOnTonal = OklchColor.parse("oklch(48.36% 0.1092 45)") ?: Tokens.TerracottaDeep
+    /** The danger face, color-mix(danger, black 8%): the final confirm of what can't be undone; cream on it 5.1:1. Error lines keep [Danger]. */
+    val DangerFill = OklchColor.parse("oklch(53.36% 0.1472 25)") ?: Danger
+    /** `--button-danger-tonal`, color-mix(danger 20%, oklch(98% 0.02 25)): a rose paper of the red's own hue, for a way into a destructive flow. */
+    val ButtonDangerTonal = OklchColor.parse("oklch(90% 0.048 25)") ?: Tokens.CardFill5
+    /** `--button-on-danger-tonal`, color-mix(danger, black 22%): its label and glyph, 5.7:1 on the rose. */
+    val ButtonOnDangerTonal = OklchColor.parse("oklch(45.24% 0.1248 25)") ?: Danger
     /** HandDrawnImage's ✕ chip: a dark translucent pebble with a pale rim. */
     val ImageRemoveFill = OklchColor.parse("oklch(30% 0.02 70 / 0.7)") ?: Tokens.Text
     val ImageRemoveStroke = OklchColor.parse("oklch(96% 0.02 75 / 0.75)") ?: Tokens.Cream
