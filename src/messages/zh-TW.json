@@ -34,6 +34,13 @@
     "start": "開始分享",
     "create": "建立故事"
   },
+  "download": {
+    "title": "下載 App",
+    "scan": "用手機掃描下載",
+    "appStore": "在 App Store 下載",
+    "googlePlay": "在 Google Play 下載",
+    "qr": "用手機掃描，前往 Resonance 的 App 商店頁面"
+  },
   "footer": {
     "tagline": "讓生命影響生命",
     "about": "關於我們",

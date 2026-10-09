@@ -65,6 +65,18 @@ object L10n {
         /** Create a story */
         val create: String get() = Strings.string("cta.create")
     }
+    object Download {
+        /** Get the app */
+        val title: String get() = Strings.string("download.title")
+        /** Scan with your phone to download */
+        val scan: String get() = Strings.string("download.scan")
+        /** Download on the App Store */
+        val appStore: String get() = Strings.string("download.appStore")
+        /** Get it on Google Play */
+        val googlePlay: String get() = Strings.string("download.googlePlay")
+        /** QR code that opens Resonance in your phone’s app store */
+        val qr: String get() = Strings.string("download.qr")
+    }
     object Footer {
         /** Let lives influence lives */
         val tagline: String get() = Strings.string("footer.tagline")

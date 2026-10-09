@@ -34,6 +34,13 @@
     "start": "Start sharing",
     "create": "Create a story"
   },
+  "download": {
+    "title": "Get the app",
+    "scan": "Scan with your phone to download",
+    "appStore": "Download on the App Store",
+    "googlePlay": "Get it on Google Play",
+    "qr": "QR code that opens Resonance in your phone’s app store"
+  },
   "footer": {
     "tagline": "Let lives influence lives",
     "about": "About",

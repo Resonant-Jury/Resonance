@@ -63,6 +63,18 @@ public enum L10n {
         /// Create a story
         public static var create: String { Strings.shared.string("cta.create") }
     }
+    public enum Download {
+        /// Get the app
+        public static var title: String { Strings.shared.string("download.title") }
+        /// Scan with your phone to download
+        public static var scan: String { Strings.shared.string("download.scan") }
+        /// Download on the App Store
+        public static var appStore: String { Strings.shared.string("download.appStore") }
+        /// Get it on Google Play
+        public static var googlePlay: String { Strings.shared.string("download.googlePlay") }
+        /// QR code that opens Resonance in your phone’s app store
+        public static var qr: String { Strings.shared.string("download.qr") }
+    }
     public enum Footer {
         /// Let lives influence lives
         public static var tagline: String { Strings.shared.string("footer.tagline") }
