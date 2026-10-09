@@ -221,16 +221,23 @@ export type WarmOutcome = 'built' | 'skipped' | 'failed';
  * one of theirs, and none is tried again within the hour after a failure.
  * `skipped` when no build is due (today's picks are there, a build holds the
  * lease, or one failed within the hour). Stored as `warm`, without `askedOn`:
- * the reader didn't open anything. Never throws.
+ * the reader didn't open anything. With `deadline` (ms on `now`), the build
+ * must be done by then — the cron's own end — or it fails like any other
+ * (each LLM step gets what is left, none starts too late). Never throws.
  */
-export async function warmRecommendations(db: Firestore, uid: string, deps: Pick<DailyDeps, 'build' | 'now'> = {}): Promise<WarmOutcome> {
+export async function warmRecommendations(
+  db: Firestore,
+  uid: string,
+  deps: Pick<DailyDeps, 'build' | 'now'> & { deadline?: number } = {},
+): Promise<WarmOutcome> {
   const build = deps.build ?? recommendFeed;
   const now = deps.now ?? Date.now;
   const ref = db.collection(RECOMMENDATIONS).doc(uid);
   const leased = await takeLease(ref, now).catch((e) => (console.error('[recommend] lease', e), false));
   if (!leased) return 'skipped';
+  const opts: FunnelOptions = deps.deadline === undefined ? { now } : { now, deadline: deps.deadline };
   try {
-    await store(ref, recommendationDay(new Date(now())), await build(uid, { now }), { warm: true });
+    await store(ref, recommendationDay(new Date(now())), await build(uid, opts), { warm: true });
     return 'built';
   } catch (e) {
     await recordFailure(ref, now, e);

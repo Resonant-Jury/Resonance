@@ -21,7 +21,8 @@ import { RECOMMENDATIONS, readStored, recommendationDay } from './stored';
  *
  * and only when a build is due (planServe: not today's picks already, no
  * build under way, none failed within the hour). Each goes through the
- * reader's own lease (warmRecommendations), stored as `warm`.
+ * reader's own lease (warmRecommendations), stored as `warm`, and must be
+ * done by the run's `buildDeadline`.
  */
 
 /** A reader counts as active for this long after their app last registered. */
@@ -34,8 +35,12 @@ const millis = (v: unknown) => (v instanceof Timestamp ? v.toMillis() : 0);
 
 export type WarmReaderOutcome = WarmOutcome | 'inactive' | 'opened-today' | 'not-tonight' | 'fresh';
 
-/** Warm one reader's picks if they need it (see the top of this file). */
-export async function warmReader(db: Firestore, uid: string, opts: { now: number; build?: BuildFeed; clock?: () => number }): Promise<WarmReaderOutcome> {
+/** Warm one reader's picks if they need it (see the top of this file); a build must be done by `buildDeadline` (ms on `clock`). */
+export async function warmReader(
+  db: Firestore,
+  uid: string,
+  opts: { now: number; build?: BuildFeed; clock?: () => number; buildDeadline?: number },
+): Promise<WarmReaderOutcome> {
   const { now } = opts;
   const [devices, stored, log] = await Promise.all([
     db.collection('devices').where('userId', '==', uid).select('token', 'updatedAt').get(),
@@ -48,7 +53,7 @@ export async function warmReader(db: Firestore, uid: string, opts: { now: number
   if (picks?.askedOn === recommendationDay(new Date(now))) return 'opened-today';
   if (pickGate(readPickLog(log.data()), now) !== 'ok') return 'not-tonight';
   if (planServe(picks, now).kind === 'fresh') return 'fresh';
-  return warmRecommendations(db, uid, { build: opts.build, now: opts.clock });
+  return warmRecommendations(db, uid, { build: opts.build, now: opts.clock, deadline: opts.buildDeadline });
 }
 
 export interface WarmRun {
@@ -58,15 +63,20 @@ export interface WarmRun {
   deferred: number;
 }
 
-/** Warm every opted-in reader who needs it, a few builds at a time, starting none past `deadline` (ms on `clock`). */
+/**
+ * Warm every opted-in reader who needs it, a few builds at a time, starting
+ * none past `deadline` and finishing each by `buildDeadline` (both ms on
+ * `clock`).
+ */
 export async function warmPicks(
   db: Firestore,
-  opts: { deadline?: number; clock?: () => number; build?: BuildFeed } = {},
+  opts: { deadline?: number; buildDeadline?: number; clock?: () => number; build?: BuildFeed } = {},
 ): Promise<WarmRun> {
   const clock = opts.clock ?? Date.now;
   const stop = () => opts.deadline !== undefined && clock() >= opts.deadline;
   const run: WarmRun = { readers: 0, outcomes: {}, deferred: 0 };
   const tally = (o: WarmReaderOutcome | 'error') => (run.outcomes[o] = (run.outcomes[o] ?? 0) + 1);
+  const reader = { build: opts.build, clock, buildDeadline: opts.buildDeadline };
   for await (const uids of optedIn(db, 'picks')) {
     if (stop()) {
       run.deferred += uids.length;
@@ -75,7 +85,7 @@ export async function warmPicks(
     const { notStarted } = await runPool(
       uids,
       CONCURRENCY,
-      (uid) => warmReader(db, uid, { now: clock(), build: opts.build, clock }).then(tally, (e) => (tally('error'), Promise.reject(e))),
+      (uid) => warmReader(db, uid, { ...reader, now: clock() }).then(tally, (e) => (tally('error'), Promise.reject(e))),
       { stop, tag: '[warm-picks]' },
     );
     run.readers += uids.length - notStarted;

@@ -345,12 +345,15 @@ describe('the warm-up', () => {
     expect((await db.doc('recommendations/bob').get()).get('warm')).toBeUndefined();
   });
 
-  it('warms every opted-in reader who needs it, and starts none past its deadline', async () => {
+  it('warms every opted-in reader who needs it, starts none past its deadline, and gives each build the run\'s end', async () => {
     await aliceOptedIn();
     await updateNotificationSettings(db, 'carol', { picks: true });
     await picks('alice', ['x']);
     const build = vi.fn(async () => built(['y']));
-    expect(await warmPicks(db, { build, clock: () => NOW })).toEqual({ readers: 2, outcomes: { built: 1, inactive: 1 }, deferred: 0 });
+    const buildDeadline = NOW + 295_000;
+    expect(await warmPicks(db, { build, clock: () => NOW, buildDeadline })).toEqual({ readers: 2, outcomes: { built: 1, inactive: 1 }, deferred: 0 });
+    // Review: a build started at 239 s had no deadline of its own, only its LLM steps' timeouts.
+    expect(build).toHaveBeenCalledWith('alice', { now: expect.any(Function), deadline: buildDeadline });
     expect(await warmPicks(db, { build, clock: () => NOW, deadline: NOW })).toEqual({ readers: 0, outcomes: {}, deferred: 2 });
     expect(build).toHaveBeenCalledTimes(1);
   });

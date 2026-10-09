@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe('/api/cron/warm-picks', () => {
-  it('warms the picks for Vercel Cron, starting no build in the last minute of its 300 s', async () => {
+  it('warms the picks for Vercel Cron, starting no build in the last minute of its 300 s and finishing every one before it ends', async () => {
     vi.stubEnv('CRON_SECRET', 's3cret');
     const before = Date.now();
     const res = await call('Bearer s3cret');
@@ -28,6 +28,9 @@ describe('/api/cron/warm-picks', () => {
     const [, opts] = vi.mocked(warmPicks).mock.calls[0];
     expect(opts!.deadline! - before).toBeGreaterThanOrEqual(240_000);
     expect(opts!.deadline! - Date.now()).toBeLessThanOrEqual(240_000);
+    // A build started at 239 s still has to be done by then.
+    expect(opts!.buildDeadline! - before).toBeGreaterThanOrEqual(295_000);
+    expect(opts!.buildDeadline! - Date.now()).toBeLessThanOrEqual(295_000);
   });
 
   it('refuses a wrong or missing secret, and everyone while none is configured', async () => {

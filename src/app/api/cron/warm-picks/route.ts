@@ -13,6 +13,12 @@ export const maxDuration = 300;
  * off half way. Readers not reached are built when they next ask.
  */
 const WARM_BUDGET_MS = (maxDuration - 60) * 1000;
+/**
+ * When every build must be done, whenever it started: maxDuration less a few
+ * seconds to store the last ones and answer. A build that can't finish by
+ * then fails like any other (and the reader's picks are built when they ask).
+ */
+const BUILD_DEADLINE_MS = (maxDuration - 5) * 1000;
 
 /**
  * Daily warm-up of tonight's picks (vercel.json: 11:00 UTC, an hour before
@@ -22,7 +28,8 @@ const WARM_BUDGET_MS = (maxDuration - 60) * 1000;
  */
 export async function GET(req: Request) {
   if (!cronAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const run = await warmPicks(getAdminDb(), { deadline: Date.now() + WARM_BUDGET_MS });
+  const started = Date.now();
+  const run = await warmPicks(getAdminDb(), { deadline: started + WARM_BUDGET_MS, buildDeadline: started + BUILD_DEADLINE_MS });
   console.log('[warm-picks]', JSON.stringify(run));
   return NextResponse.json(run);
 }
