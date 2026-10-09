@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawOutline
@@ -72,6 +73,7 @@ import com.resonance.design.ButtonVariant
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.Mixes
 import com.resonance.design.ModalActions
+import com.resonance.design.ModalError
 import com.resonance.design.ModalBody
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
@@ -83,9 +85,10 @@ import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicImage
 import com.resonance.design.OrganicListEmpty
 import com.resonance.design.OrganicModal
-import com.resonance.design.OrganicRadio
 import com.resonance.design.OrganicTextField
 import com.resonance.design.OrganicToggle
+import com.resonance.design.Segment
+import com.resonance.design.SegmentedActionBar
 import com.resonance.design.SketchLoader
 import com.resonance.design.WavyDivider
 import com.resonance.design.WobRectShape
@@ -285,8 +288,8 @@ private fun WriteForm(
                 }
             },
             secondary = when {
-                model.isPublished && model.hasPendingEdit -> ({
-                    OrganicButton(L10n.Write.discardChanges, variant = ButtonVariant.Text, enabled = !discarding) {
+                model.isPublished && model.hasPendingEdit -> ({ modifier ->
+                    OrganicButton(L10n.Write.discardChanges, modifier, variant = ButtonVariant.Tonal, enabled = !discarding) {
                         if (discarding) return@OrganicButton
                         discarding = true
                         actionError = null
@@ -303,7 +306,7 @@ private fun WriteForm(
                         }
                     }
                 })
-                !model.isPublished -> ({ OrganicButton(L10n.Write.saveDraftAndLeave, variant = ButtonVariant.Text, onClick = leave) })
+                !model.isPublished -> ({ modifier -> OrganicButton(L10n.Write.saveDraftAndLeave, modifier, variant = ButtonVariant.Tonal, onClick = leave) })
                 else -> null
             },
         )
@@ -376,9 +379,10 @@ private fun Tags(model: WriteModel) {
 }
 
 /**
- * The writer's closing actions. On a phone (anything under [WIDE_SCREEN_DP]) one centred column: the
- * verb across the width, the quiet way out (Save draft and leave / Discard changes) on its own row
- * under it, the error centred under both; a wide screen keeps them in a row. The web's `.actionsStack`.
+ * The writer's closing actions: the verb (solid) and the way out (Save draft and leave / Discard
+ * changes, tonal), one height and shape. On a phone (anything under [WIDE_SCREEN_DP]) they don't
+ * fit one row, so they stack at one width — the verb over the way out, 10 apart — the error centred
+ * under both; a wide screen keeps them in a row. The web's `.actionsStack`.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -386,20 +390,20 @@ private fun WriteActions(
     compact: Boolean,
     error: String?,
     primary: @Composable (Modifier) -> Unit,
-    secondary: (@Composable () -> Unit)?,
+    secondary: (@Composable (Modifier) -> Unit)?,
 ) {
     Column(
         Modifier.padding(top = 6.dp),
         horizontalAlignment = if (compact) Alignment.CenterHorizontally else Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 8.dp),
     ) {
         if (compact) {
             primary(Modifier.fillMaxWidth())
-            secondary?.invoke()
+            secondary?.invoke(Modifier.fillMaxWidth())
         } else {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 primary(Modifier)
-                secondary?.invoke()
+                secondary?.invoke(Modifier)
             }
         }
         error?.let {
@@ -505,11 +509,23 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel(L10n.Write.Visibility.label)
-            Column {
-                VisibilityRow(L10n.Write.Visibility.public, IconName.Globe, 71.0, visibility == "public") { visibility = "public" }
-                WavyDivider(seed = 49.0, modifier = Modifier.padding(vertical = 2.dp))
-                VisibilityRow(L10n.Write.Visibility.private, IconName.Lock, 73.0, visibility == "private") { visibility = "private" }
-            }
+            // A segmented choice with no pen line (its options are buttons): a quiet paper-dark track shows
+            // the control's extent, the chosen side wears the tonal peach with the deep label (4.8:1), the
+            // other a muted ink deep enough to read on the track. A connections card shows neither chosen.
+            SegmentedActionBar(
+                listOf("public" to IconName.Globe, "private" to IconName.Lock).map { (v, icon) ->
+                    val chosen = visibility == v
+                    Segment(
+                        v, if (v == "public") L10n.Write.Visibility.public else L10n.Write.Visibility.private, icon,
+                        fill = if (chosen) Mixes.ButtonTonal else null,
+                        textColor = if (chosen) Mixes.ButtonOnTonal else VisibilityInk,
+                        press = Color.Black.copy(alpha = 0.05f),
+                        selected = chosen,
+                    ) { visibility = v }
+                },
+                fill = Tokens.CreamDark,
+                enabled = !pending,
+            )
             // Never for connections only while anonymous (who could read it would say who wrote it): say so.
             if (anonymous) {
                 BasicText(L10n.Write.PublishPanel.anonymousVisibility, style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted))
@@ -537,18 +553,19 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
             if (showsAnonymousHint) BasicText(L10n.Write.PublishPanel.anonymousHint, style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted))
         }
         WavyDivider(seed = 47.0)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            val label = if (updating) {
-                if (pending) L10n.Write.PublishPanel.updating else L10n.Write.PublishPanel.update
-            } else {
-                if (pending) L10n.Write.PublishPanel.publishing else L10n.Write.PublishPanel.publish
-            }
-            OrganicButton(label, variant = ButtonVariant.Solid, small = true, enabled = !pending) {
-                // The server refuses a card without a title; say so in the writer's words.
-                if (model.values.title.isBlank()) {
-                    error = L10n.Write.titleRequired
-                    return@OrganicButton
-                }
+        // The foot every dialog shares: why the last try failed right above it, then 再想想 the tonal way
+        // out and the verb solid and rightmost; the row rests while it publishes.
+        error?.let { ModalError(it) }
+        val label = if (updating) {
+            if (pending) L10n.Write.PublishPanel.updating else L10n.Write.PublishPanel.update
+        } else {
+            if (pending) L10n.Write.PublishPanel.publishing else L10n.Write.PublishPanel.publish
+        }
+        ModalActions(L10n.Write.PublishPanel.cancel, onCancel, label, busy = pending, topPadding = 0.dp, onVerb = {
+            // The server refuses a card without a title; say so in the writer's words.
+            if (model.values.title.isBlank()) {
+                error = L10n.Write.titleRequired
+            } else if (!pending) {
                 pending = true
                 error = null
                 scope.launch {
@@ -557,18 +574,30 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
                         onPublished(if (updating) model.applyEdit(audience, anonymous) else model.publish(audience, anonymous))
                     } catch (e: CancellationException) {
                         throw e
-                    } catch (e: ApiFailure) {
-                        error = e.message
                     } catch (e: Exception) {
-                        error = e.message
+                        error = publishError(e, updating)
                     }
                     pending = false
                 }
             }
-            OrganicButton(L10n.Write.PublishPanel.cancel, variant = ButtonVariant.Text, small = true, enabled = !pending, onClick = onCancel)
-        }
-        error?.let { BasicText(it, style = AppFonts.body(12f, color = Tokens.Terracotta)) }
+        })
     }
+}
+
+/** The visibility choice's other side: color-mix(text-muted, black 10%), deep enough to read on the paper-dark track. */
+private val VisibilityInk = OklchColor.parse("oklch(46.8% 0.036 70)") ?: Tokens.TextMuted
+
+/**
+ * Why publishing (or saving the changes to a published card, [updating]) didn't go through, in the
+ * reader's words — never the server's English: a card gone (deleted elsewhere) can't be found, so
+ * trying again won't help; anything else — a refusal, the server's trouble, the network, the
+ * changes that didn't save first — that it didn't work, to try again (an update: that it didn't
+ * save).
+ */
+internal fun publishError(e: Exception, updating: Boolean): String = when {
+    e is ApiFailure && (e.isNotFound || e.status == 404) -> L10n.Card.NotFound.title
+    updating -> L10n.Native.saveError
+    else -> L10n.Safety.actionError
 }
 
 /**
@@ -578,21 +607,3 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
  */
 internal fun anonymousVisibility(visibility: String, anonymous: Boolean): String =
     if (anonymous && visibility == "connections") "public" else visibility
-
-@Composable
-private fun VisibilityRow(label: String, icon: IconName, seed: Double, selected: Boolean, onClick: () -> Unit) {
-    val color = if (selected) Tokens.Terracotta else Tokens.Text
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 44.dp)
-            .plainClickable(role = Role.RadioButton, onClick = onClick)
-            .semantics { this.selected = selected },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        OrganicIcon(icon, size = 16.dp, color = if (selected) Tokens.Terracotta else Tokens.TextMuted)
-        BasicText(label, style = AppFonts.body(15f, if (selected) 600 else 400, color = color), modifier = Modifier.weight(1f))
-        OrganicRadio(selected, seed)
-    }
-}
