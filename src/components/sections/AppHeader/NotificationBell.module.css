@@ -1,6 +1,6 @@
 /* Scrollable notification list inside the bell modal — same language as the
-   thread's「卡片與連結」modal: capped height, hidden native scrollbar, the
-   hand-drawn rail alongside. */
+   thread's「卡片與連結」modal: capped height, and the drawn bar
+   (OrganicScrollbar) in the gutter on its right in place of the native one. */
 .scrollArea {
   position: relative;
 }
@@ -8,18 +8,13 @@
 .scrollBody {
   max-height: min(420px, 60vh);
   overflow-y: auto;
-  scrollbar-width: none;
-  padding-right: 16px;
+  padding-right: var(--sb-hit);
 }
 
-.scrollBody::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-
-/* The gutter is the rail's: while there is no rail (nothing to scroll, or a
-   phone or touch screen, which never shows one) the rows and their rules run
-   to the dialog's edge, square with its buttons. */
+/* The gutter is the drawn bar's 14px column (--sb-hit), and only while the
+   bar is there: with nothing to scroll, or on a phone or touch screen (which
+   never shows one), the rows and their rules run to the dialog's edge, square
+   with its buttons. */
 .scrollArea:has(> [data-hidden]) .scrollBody {
   padding-right: 0;
 }

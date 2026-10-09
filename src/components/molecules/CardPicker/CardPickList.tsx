@@ -5,7 +5,7 @@ import { useLocale } from 'next-intl';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
-import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
+import { OrganicScrollbar, organicScrollTarget } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import type { Card } from '@/lib/db/types';
 import styles from './CardPickList.module.css';
 
@@ -75,7 +75,7 @@ export function CardPickList({
 
   return (
     <div className={styles.listArea}>
-      <div ref={scrollRef} className={styles.scroll}>
+      <div ref={scrollRef} className={`${styles.scroll} ${organicScrollTarget}`}>
         {lead}
         {cards.length === 0 ? (
           empty ? (

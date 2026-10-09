@@ -29,21 +29,68 @@ textarea::placeholder {
   font-style: italic;
 }
 
-/* ── Scrollbar ───────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--color-cream-dark); }
-::-webkit-scrollbar-thumb { background: var(--color-terracotta-light); border-radius: 99px; }
+/* ── Scrollbars ──────────────────────────────────────────────────
+   One family: a 6px ink capsule at rest (10px pointed at, terracotta while
+   dragged) in a 14px column the pointer can hit, on no track, never shorter
+   than 36px. The native bars take it here; the modal lists' drawn bar
+   (OrganicScrollbar, lib/design/scrollbarGeometry SB) shares the tokens.
+   They live here, not in tokens.css, which the apps' token generator reads. */
+:root {
+  --sb-hit: 14px;
+  --sb-rest: 6px;
+  --sb-active: 10px;
+  --sb-min: 36px;
+  --sb-thumb: color-mix(in oklch, var(--color-text) 30%, transparent);
+  /* The drawn bar only: its column pointed at, the thumb not yet. */
+  --sb-thumb-near: color-mix(in oklch, var(--color-text) 45%, transparent);
+  --sb-thumb-hover: color-mix(in oklch, var(--color-text) 55%, transparent);
+  --sb-thumb-active: var(--color-terracotta);
+  --sb-track-hover: color-mix(in oklch, var(--color-text) 6%, transparent);
+}
 
-/* OrganicScrollbar replaces the native bar with a hand-drawn rail; while it's
-   mounted in page mode the native one is hidden (scrolling stays native). */
-html.res-hide-scrollbar { scrollbar-width: none; }
-html.res-hide-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
+/* Forced colours keep the system's bars. */
+@media not (forced-colors: active) {
+  ::-webkit-scrollbar {
+    width: var(--sb-hit);
+    height: var(--sb-hit);
+    background: transparent;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  /* The transparent border insets the 6px capsule in its 14px column. */
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--sb-thumb);
+    background-clip: padding-box;
+    border: calc((var(--sb-hit) - var(--sb-rest)) / 2) solid transparent;
+    border-radius: 999px;
+    min-height: var(--sb-min);
+    min-width: var(--sb-min);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    border-width: calc((var(--sb-hit) - var(--sb-active)) / 2);
+    background-color: var(--sb-thumb-hover);
+  }
+  ::-webkit-scrollbar-thumb:active {
+    border-width: calc((var(--sb-hit) - var(--sb-active)) / 2);
+    background-color: var(--sb-thumb-active);
+  }
+  /* Firefox has no ::-webkit-scrollbar: its thin bar in the same ink. (Set
+     where the pseudo-elements exist, these would switch them off.) */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--sb-thumb) transparent;
+    }
+  }
+}
 
 /* Phones and touch screens show no scrollbar anywhere (scrolling stays
-   native): the bars styled above would otherwise stand as classic 6px bars
-   in every pane (Chromium gives up its overlay bars for a styled one). The
+   native): the bars styled above would otherwise stand as classic bars in
+   every pane (Chromium gives up its overlay bars for a styled one). The
    !important outranks a component's own scrollbar rules. Desktop keeps its
-   bars. OrganicScrollbar's hand-drawn rail steps aside there too. */
+   bars. OrganicScrollbar's drawn bar steps aside there too. */
 @media (max-width: 720px), (hover: none) and (pointer: coarse) {
   * { scrollbar-width: none !important; }
   *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }

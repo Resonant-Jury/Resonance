@@ -7,7 +7,7 @@ import { Modal } from '@/components/molecules/Modal/Modal';
 import { Icon } from '@/components/atoms/Icon';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
-import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
+import { OrganicScrollbar, organicScrollTarget } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import styles from './NotificationBell.module.css';
 import type { Notification } from '@/lib/db/types';
 import { useNotifications } from '@/lib/data/hooks';
@@ -119,7 +119,7 @@ export function NotificationBell() {
           <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>{tApp('empty')}</p>
         )}
         <div className={styles.scrollArea}>
-          <div ref={scrollRef} className={styles.scrollBody}>
+          <div ref={scrollRef} className={`${styles.scrollBody} ${organicScrollTarget}`}>
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
               {items.map((n, i) => {
                 const isUnread = n.readAt === null;

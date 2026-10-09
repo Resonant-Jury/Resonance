@@ -6,18 +6,6 @@
   box-sizing: border-box;
 }
 
-/* Custom scrollbar styling to match the hand-drawn, soft UI look */
-.panel::-webkit-scrollbar {
-  width: 8px;
-}
-.panel::-webkit-scrollbar-track {
-  background: transparent;
-}
-.panel::-webkit-scrollbar-thumb {
-  background: var(--field-border);
-  border-radius: 4px;
-}
-
 .loading {
   height: 100%;
   display: flex;

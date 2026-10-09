@@ -6,20 +6,14 @@
 .scroll {
   max-height: 50vh;
   overflow-y: auto;
-  /* the hand-drawn rail replaces the native bar */
-  scrollbar-width: none;
-  /* keep rows clear of the rail */
-  padding-right: 18px;
+  /* keep rows clear of the drawn bar (OrganicScrollbar), which replaces the native one */
+  padding-right: var(--sb-hit);
 }
 
-.scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-
-/* The gutter is the rail's: while there is no rail (nothing to scroll, or a
-   phone or touch screen, which never shows one) the rows and their rules run
-   to the dialog's edge, square with its buttons. */
+/* The gutter is the drawn bar's 14px column (--sb-hit), and only while the
+   bar is there: with nothing to scroll, or on a phone or touch screen (which
+   never shows one), the rows and their rules run to the dialog's edge, square
+   with its buttons. */
 .listArea:has(> [data-hidden]) .scroll {
   padding-right: 0;
 }

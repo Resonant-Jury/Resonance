@@ -251,8 +251,8 @@
   margin: 0 0 18px;
 }
 
-/* Scrollable divider-row list (notification modal language) with the
-   hand-drawn rail in place of the native scrollbar. */
+/* Scrollable divider-row list (notification modal language) with the drawn
+   bar (OrganicScrollbar) in the gutter on its right in place of the native one. */
 .mediaArea {
   position: relative;
 }
@@ -263,18 +263,13 @@
   gap: 18px;
   max-height: min(420px, 55vh);
   overflow-y: auto;
-  scrollbar-width: none;
-  padding-right: 18px;
+  padding-right: var(--sb-hit);
 }
 
-.mediaBody::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-
-/* The gutter is the rail's: while there is no rail (nothing to scroll, or a
-   phone or touch screen, which never shows one) the rows and their rules run
-   to the dialog's edge, square with its buttons. */
+/* The gutter is the drawn bar's 14px column (--sb-hit), and only while the
+   bar is there: with nothing to scroll, or on a phone or touch screen (which
+   never shows one), the rows and their rules run to the dialog's edge, square
+   with its buttons. */
 .mediaArea:has(> [data-hidden]) .mediaBody {
   padding-right: 0;
 }
@@ -341,6 +336,7 @@
   /* Said outright: a link that asks first has no address of its own to underline it. */
   text-decoration: underline;
   text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
   cursor: pointer;
 }
 

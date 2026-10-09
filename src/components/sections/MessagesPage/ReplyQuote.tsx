@@ -2,7 +2,6 @@
 
 import { useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { Icon } from '@/components/atoms/Icon';
 import { QUOTE_RADIUS, bubbleStandInRadius, seedFromId } from '@/lib/design/bubble';
 import type { MessageReplyQuote } from '@/lib/db/types';
 import { useBubbleClip } from './MessageBubble';
@@ -19,11 +18,14 @@ export interface ReplyQuoteProps {
 }
 
 /**
- * What a reply answers, over it (Messenger's): a caption — who answered whom —
- * inset from the bubble's outer edge, then the quoted words as a quieter
+ * What a reply answers, over it (Messenger's): the quoted words as a quieter
  * bubble of their own (`--bubble-quote`, two lines at most) whose foot the
  * reply's bubble lies over. A card-only original reads「一張卡片」. A click
  * goes to the original, reading older pages for it when it isn't loaded.
+ *
+ * Who answered whom goes without saying in a one-to-one thread (the reply
+ * stands on its sender's side), so it is not shown — only read out, before
+ * the quote, as it always was (「{handle} 回覆了你」, …).
  */
 export function ReplyQuote({ quote, own, viewerId, otherHandle, onJump }: ReplyQuoteProps) {
   const t = useTranslations('messages');
@@ -41,10 +43,7 @@ export function ReplyQuote({ quote, own, viewerId, otherHandle, onJump }: ReplyQ
 
   return (
     <div className={styles.quote} data-own={own || undefined}>
-      <span className={styles.quoteCaption}>
-        <Icon name="reply" size={12} />
-        {caption}
-      </span>
+      <span className={styles.quoteSpoken}>{caption}</span>
       <button
         ref={ref}
         type="button"

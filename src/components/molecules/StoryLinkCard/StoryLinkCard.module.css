@@ -1,16 +1,16 @@
 /* A standalone link in a story as its page's card: picture, title,
    description, host — in the story column, at most a comfortable reading
-   width, inside a lightly inked hand-drawn card (the fill, the hover wash and
-   the pen line are absolutely placed layers under the content). */
+   width. A block of light fill (the chat card bubble's) in a wobbly outline,
+   no pen line: the fill and the hover wash are absolutely placed layers
+   under the content, and the picture runs across the top edge to edge, cut
+   by the card's outline. */
 .card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   width: 100%;
   max-width: 520px;
   box-sizing: border-box;
-  padding: 10px 10px 14px;
   color: inherit;
   /* Upright wherever it stands — a story's quote sets its words in italics, not the card quoted in it. */
   font-style: normal;
@@ -24,18 +24,39 @@
   border-radius: var(--radius-md);
 }
 
+/* The picture at 1.91:1 (the share-image ratio), flush with the card's top
+   and sides. Measured, the card's outline cuts it and the image reaches a few
+   px past the box on those three sides, so the outline's outward swings land
+   on picture; its foot is straight and meets the words. Until then (the
+   server's HTML) it keeps inside the stand-in's rounded top corners. */
 .picture {
   position: relative;
   z-index: 1;
   display: block;
+  aspect-ratio: 1.91;
+  background: color-mix(in oklch, var(--color-text) 6%, transparent);
+}
+
+.picture:not([data-clipped]) {
+  overflow: hidden;
+  border-radius: var(--shape-radius) var(--shape-radius) 0 0;
 }
 
 .image {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.picture[data-clipped] .image {
+  top: calc(-1 * var(--picture-bleed));
+  left: calc(-1 * var(--picture-bleed));
+  width: calc(100% + 2 * var(--picture-bleed));
+  height: calc(100% + var(--picture-bleed));
 }
 
 .text {
@@ -45,7 +66,11 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  padding: 2px 8px 0;
+  padding: 16px 18px 16px;
+}
+
+.picture + .text {
+  padding-top: 12px;
 }
 
 .title {

@@ -20,7 +20,10 @@ html, body { margin: 0; background: var(--cream); color: var(--text); -webkit-te
 .ProseMirror code { font-family: ui-monospace, monospace; font-size: 0.9em; background: rgb(0 0 0 / 5%); border-radius: 4px; padding: 0 0.25em; }
 .ProseMirror pre { background: rgb(0 0 0 / 5%); border-radius: 10px; padding: 10px 14px; overflow-x: auto; }
 .ProseMirror hr { border: none; border-top: 1.2px solid var(--text-muted); opacity: 0.5; margin: 1.4em 0; }
-.ProseMirror a { color: #c96736; }
+/* Links wear the web reader's pen wave (StoryMarkdown.module.css .link explains the numbers: the 6px tile's
+   centre 0.29em under the baseline, never cut); --wave / --wave-size are set on the root by island.ts. */
+.ProseMirror a { color: #c96736; text-decoration: none; background-image: var(--wave); background-repeat: repeat-x; background-size: var(--wave-size); background-position: 0 100%; padding-bottom: calc(3px - 0.02em); padding-bottom: calc(0.29em + 3px - round(0.31em, 1px)); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.ProseMirror h1 a, .ProseMirror h2 a, .ProseMirror h3 a { padding-bottom: calc(3px + 0.039em); padding-bottom: calc(0.29em + 3px - round(0.251em, 1px)); }
 .quote { display: flex; align-items: stretch; gap: 1em; margin: 0 0 0.9em; color: var(--text-muted); font-style: italic; }
 .quote-rail { position: relative; width: 8px; flex: none; }
 .quote-curve { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; fill: none; stroke: var(--terracotta-light); stroke-width: 1.8; stroke-linecap: round; }

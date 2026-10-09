@@ -242,6 +242,8 @@ export const MessageRow = memo(function MessageRow({
       data-message-key={m.key}
       data-run={position}
       data-gap={label ? 'label' : joinsAbove ? 'run' : 'runs'}
+      // It leads with what it answers (a reply's quote, a note's card): a little more air above, where a caption once stood.
+      data-quoted={m.replyTo || m.kind === 'note' ? '' : undefined}
       data-delivery={m.delivery}
       data-flash={flash || undefined}
       data-lifted={lifted || undefined}

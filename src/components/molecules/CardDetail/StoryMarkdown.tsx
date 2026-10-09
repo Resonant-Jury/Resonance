@@ -14,7 +14,7 @@ import type { LinkPreview } from '@/lib/db/types';
 import { isBlankParagraph } from '@/lib/markdown/blankLines';
 import { SITE_HOSTS, soleLinkParagraphs } from '@/lib/links/storyLinks';
 import { seedFromString } from '@/lib/design/prng';
-import { storyLinkWave } from '@/lib/design/storyLinkWave';
+import { storyLinkWaveVars } from '@/lib/design/storyLinkWave';
 import styles from './StoryMarkdown.module.css';
 
 /**
@@ -75,14 +75,13 @@ const components: Components = {
   // positioned svg can't follow a wrapped inline box). One to another site
   // opens in a tab of its own; one to our pages stays in this one.
   a: ({ node: _node, href, children, ...rest }) => {
-    const wave = storyLinkWave(href ?? '');
     return (
       <a
         {...rest}
         href={href}
         {...(toOtherSite(href) ? AWAY : {})}
         className={styles.link}
-        style={{ '--wave': wave.rest, '--wave-strong': wave.strong } as CSSProperties}
+        style={storyLinkWaveVars(href ?? '') as CSSProperties}
       >
         {children}
       </a>
