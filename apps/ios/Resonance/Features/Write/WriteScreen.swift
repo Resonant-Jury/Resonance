@@ -414,11 +414,12 @@ private struct PublishPanel: View {
                     .font(AppFonts.body(Tokens.labelSize, weight: .semibold))
                     .tracking(Tokens.labelSize * 0.06)
                     .foregroundStyle(Tokens.textMuted)
-                VStack(spacing: 0) {
-                    visibilityRow("public", L10n.Write.Visibility.`public`, icon: .globe, seed: 71)
-                    WavyDivider(seed: 49).padding(.vertical, 2)
-                    visibilityRow("private", L10n.Write.Visibility.`private`, icon: .lock, seed: 73)
-                }
+                // A segmented choice with no pen line (its options are buttons): a quiet paper-dark track
+                // shows the control's extent, the chosen side wears the tonal peach with the deep label.
+                SegmentedActionBar([
+                    visibilityOption("public", L10n.Write.Visibility.`public`, icon: .globe),
+                    visibilityOption("private", L10n.Write.Visibility.`private`, icon: .lock),
+                ], fill: Tokens.creamDark)
                 // Why there is no other audience for it (a connections card made anonymous has just gone public).
                 if anonymous {
                     Text(L10n.Write.PublishPanel.anonymousVisibility)
@@ -483,21 +484,15 @@ private struct PublishPanel: View {
         }
     }
 
-    private func visibilityRow(_ value: String, _ label: String, icon: IconName, seed: Double) -> some View {
-        let selected = visibility == value
-        return Button { visibility = value } label: {
-            HStack(spacing: 12) {
-                OrganicIcon(icon, size: 16, color: selected ? Tokens.terracotta : Tokens.textMuted)
-                Text(label).font(AppFonts.body(15, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? Tokens.terracotta : Tokens.text)
-                Spacer(minLength: 0)
-                OrganicRadio(isOn: selected, seed: seed)
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+    private func visibilityOption(_ value: String, _ label: String, icon: IconName) -> SegmentSpec {
+        let chosen = visibility == value
+        // The other side's ink stays deep enough to read on the track: color-mix(text-muted, black 10%).
+        return SegmentSpec(id: value, icon: icon, label: label,
+                           fill: chosen ? Tokens.buttonTonal : nil,
+                           ink: chosen ? Tokens.buttonOnTonal : OKLCHColor.color(0.52 * 0.9, 0.04 * 0.9, 70),
+                           pressInk: .black.opacity(0.05), selected: chosen) {
+            visibility = value
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func publish() async {

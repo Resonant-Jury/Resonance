@@ -2,12 +2,12 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// The reader's actions under a story (ReadAfterArea → CardViewerActions, the
-/// phone layout): 共振 as the one primary button — opening the picker: write a
-/// new card in answer, or pick one already written — or, once you have
-/// answered this card, 已共振 opening your published resonance (修改 in
-/// outline while it is a draft, back to the writer); then the note as a quiet
-/// text link and the bookmark as a bare glyph. Fades in once scrolled to.
+/// The reader's actions under a story (ReadAfterArea → CardViewerActions): one segmented bar,
+/// spanning the column in one row — 共振 (the verb, solid), opening the picker: write a new card in
+/// answer, or pick one already written — or, once you have answered this card, 已共振 opening your
+/// published resonance (修改 while it is a draft, back to the writer); then the note (寄小紙條, its
+/// full words its name for VoiceOver) and the bookmark (tonal), which drops its words for its glyph
+/// when the row has no room for them. Fades in once scrolled to.
 struct CardViewerActions: View {
     let cardId: String
     /// The card this one answers itself: never offered in the picker.
@@ -21,50 +21,17 @@ struct CardViewerActions: View {
     @State private var writingNote = false
     @State private var picking = false
     @State private var resonating = false
+    @State private var bookmark = BookmarkState()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Group {
-                if case let .found(mine?) = lookup.state, mine.published {
-                    // Done: it says so, and opens the card that answers.
-                    OrganicButton(L10n.Card.resonated, icon: .check, variant: .outline) { openRoute(.card(mine.id)) }
-                } else if case let .found(mine?) = lookup.state {
-                    OrganicButton(L10n.Card.modify, icon: .pen, variant: .outline) { writer.edit(mine.id) }
-                } else {
-                    OrganicButton(L10n.Card.resonate, icon: .wave) {
-                        // Signed out there is nothing to pick from: the writer, as before.
-                        guard let drafts = session.drafts else { return writer.open(.init(referenceCardId: cardId)) }
-                        if lookup.state == .failed {
-                            // Not known whether this card is answered already: asked now, the picker once it isn't.
-                            Task { if await lookup.askOnTap({ try await drafts.myResonance(to: cardId) }) { picking = true } }
-                        } else {
-                            picking = true
-                        }
-                    }
-                    .working(lookup.asking)
-                }
-            }
-            // Wait for the lookup, so a second resonance can't be started by accident (one that failed is a tap away).
-            .opacity(lookup.state == .looking ? 0.6 : 1)
-            .allowsHitTesting(lookup.state != .looking)
+        VStack(alignment: .leading, spacing: 10) {
+            SegmentedActionBar([resonateSegment, noteSegment, bookmarkSegment])
+                // Wait for the lookup, so a second resonance can't be started by accident (one that failed is a tap away).
+                .opacity(lookup.state == .looking ? 0.6 : 1)
+                .allowsHitTesting(lookup.state != .looking)
+                .sensoryFeedback(.selection, trigger: bookmark.active)
             if lookup.tapFailed {
                 Text(L10n.Native.loadError).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
-                    .padding(.top, -6)
-            }
-            HStack {
-                // The web's secondaryOutline with its frame hidden: a link.
-                Button { writingNote = true } label: {
-                    HStack(spacing: 7) {
-                        OrganicIcon(.note, size: 16)
-                        Text(L10n.Card.Note.entry).font(AppFonts.body(15, weight: .semibold)).tracking(15 * 0.02)
-                    }
-                    .foregroundStyle(Tokens.terracotta)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                Spacer(minLength: 12)
-                BookmarkButton(cardId: cardId)
             }
         }
         .opacity(shown ? 1 : 0)
@@ -95,65 +62,67 @@ struct CardViewerActions: View {
             guard let drafts = session.drafts else { return await lookup.look { nil } }
             await lookup.look { try await drafts.myResonance(to: cardId) }
         }
+        .task(id: cardId) {
+            bookmark.found((try? await session.bookmarks?.isBookmarked(cardId)) ?? false)
+        }
         .onScrollVisibilityChange(threshold: 0.08) { visible in
             guard visible, !shown else { return }
             withAnimation(.easeOut(duration: 0.6)) { shown = true }
         }
     }
-}
 
-/// BookmarkButton.tsx: the ribbon alone — muted and outlined when off,
-/// filled terracotta when on — and a brief "Saved" beside it after saving.
-struct BookmarkButton: View {
-    let cardId: String
-    @Environment(SessionStore.self) private var session
-    @State private var active = false
-    @State private var justSaved = false
-    @State private var savedTimer: Task<Void, Never>?
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Button(action: toggle) {
-                OrganicIcon(.bookmark, size: 20, color: active ? Tokens.terracotta : Tokens.textMuted,
-                            strokeWidth: active ? 2 : 1.6, fill: active ? Tokens.terracotta : nil)
-                    .padding(6)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(active ? L10n.Card.Bookmark.remove : L10n.Card.Bookmark.add)
-            .accessibilityAddTraits(active ? .isSelected : [])
-            .sensoryFeedback(.selection, trigger: active)
-            if justSaved && active {
-                Text(L10n.Card.Bookmark.saved)
-                    .font(AppFonts.body(13))
-                    .foregroundStyle(Tokens.terracotta)
-                    .transition(.opacity)
-            }
+    /// 共振 — or what answers this card already: 已共振 opens it, 修改 takes its draft back to the writer.
+    private var resonateSegment: SegmentSpec {
+        if case let .found(mine?) = lookup.state, mine.published {
+            return .verb(id: "resonate", icon: .check, label: L10n.Card.resonated) { openRoute(.card(mine.id)) }
         }
-        // The glyph's own 6pt pad on the web, not the 44pt hit box, meets the edge.
-        .padding(.trailing, -6)
-        .animation(.easeInOut(duration: 0.4), value: justSaved && active)
-        .task(id: cardId) {
-            active = (try? await session.bookmarks?.isBookmarked(cardId)) ?? false
+        if case let .found(mine?) = lookup.state {
+            return .verb(id: "resonate", icon: .pen, label: L10n.Card.modify) { writer.edit(mine.id) }
+        }
+        return .verb(id: "resonate", icon: .wave, label: L10n.Card.resonate, working: lookup.asking) {
+            // Signed out there is nothing to pick from: the writer, as before.
+            guard let drafts = session.drafts else { return writer.open(.init(referenceCardId: cardId)) }
+            if lookup.state == .failed {
+                // Not known whether this card is answered already: asked now, the picker once it isn't.
+                Task { if await lookup.askOnTap({ try await drafts.myResonance(to: cardId) }) { picking = true } }
+            } else {
+                picking = true
+            }
         }
     }
 
-    /// Optimistic, then reconciled with what the write returns.
-    private func toggle() {
-        guard let bookmarks = session.bookmarks else { return }
-        let saving = !active
-        active = saving
-        justSaved = saving
-        savedTimer?.cancel()
-        if saving {
-            savedTimer = Task {
-                try? await Task.sleep(for: .seconds(3))
-                if !Task.isCancelled { justSaved = false }
-            }
+    private var noteSegment: SegmentSpec {
+        SegmentSpec(id: "note", icon: .note, label: L10n.Card.Note.entryShort, accessibilityLabel: L10n.Card.Note.entry) {
+            writingNote = true
         }
-        Task {
-            if let result = try? await bookmarks.toggle(cardId) { active = result } else { active = !saving }
+    }
+
+    /// Saved or not, optimistic, then reconciled with what the write returns.
+    private var bookmarkSegment: SegmentSpec {
+        SegmentSpec(id: "bookmark", icon: .bookmark, iconFilled: bookmark.active,
+                    label: bookmark.active ? L10n.Card.Bookmark.remove : L10n.Card.Bookmark.add, collapsible: true) {
+            guard let bookmarks = session.bookmarks else { return }
+            let saving = bookmark.flip()
+            Task { bookmark.settled(saving: saving, result: try? await bookmarks.toggle(cardId)) }
         }
+    }
+}
+
+/// Whether the reader keeps this card: flipped at once on a tap, then set to what the write
+/// returns (back as it was when it failed).
+struct BookmarkState: Equatable {
+    private(set) var active = false
+
+    mutating func found(_ saved: Bool) { active = saved }
+
+    /// The tap: shown flipped at once. Returns whether it is saving.
+    mutating func flip() -> Bool {
+        active.toggle()
+        return active
+    }
+
+    /// The write's answer (`nil`: it failed, so it goes back).
+    mutating func settled(saving: Bool, result: Bool?) {
+        active = result ?? !saving
     }
 }
