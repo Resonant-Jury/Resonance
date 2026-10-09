@@ -104,7 +104,7 @@ body  { font-family: var(--font-body); background: var(--color-cream); color: va
 
 **File:** [`src/components/atoms/OrganicButton/OrganicButton.tsx`](../src/components/atoms/OrganicButton/OrganicButton.tsx)
 
-Renders a button with a wobbled SVG border via `HandDrawnBorder`, a grain overlay, and a radial hover reveal.
+Renders a button as a filled wobbled pill (`HandDrawnBorder` fill only — **no pen line**), a grain overlay, and a radial hover reveal.
 
 **CSS base** ([`OrganicButton.module.css`](../src/components/atoms/OrganicButton/OrganicButton.module.css)):
 ```css
@@ -125,41 +125,38 @@ R: height / 2   (pill shape)
 
 **Hover reveal:** radial mask expanding from cursor, `transition: r 340ms linear`
 
-**Variant tokens:**
+**An outline marks a floating surface, a container or an input; a fill marks a button (segmented included).** A pen outline goes round a *floating surface* (a modal, a sheet, an `OrganicMenu` popover, a select list), a *container* (Panel, StoryCard) or an *input* (Field, Select, the writer's `lg` tag) — never round a button, a lone one or a segmented one, on bare page paper or inside a frame. And a word alone does not read as something to press, so no button is bare text either: a Cancel beside a verb is a pill as filled as the verb, only quieter. What says "press me" is the fill, ranked:
 
-| Variant | fill | text | stroke | stroke2 | hoverOverlay |
-|---|---|---|---|---|---|
-| `primary` | `var(--color-terracotta)` | `var(--color-cream)` | `oklch(40% 0.16 45)` | `oklch(30% 0.14 45)` | `oklch(0% 0 0 / 0.14)` |
-| `secondary` | `var(--color-lavender)` | `var(--color-cream)` | `oklch(50% 0.10 290)` | `oklch(40% 0.09 290)` | `oklch(0% 0 0 / 0.12)` |
-| `ghost` | `transparent` | `var(--color-text)` | `oklch(44% 0.04 70)` | `oklch(34% 0.04 70)` | `oklch(60% 0.10 45 / 0.14)` |
-| `outline` | `transparent` | `var(--color-terracotta)` | `oklch(52% 0.13 45)` | `oklch(40% 0.11 45)` | `oklch(62% 0.14 45 / 0.14)` |
-| `ctaLight` | `var(--color-cream)` | `var(--color-terracotta)` | `oklch(80% 0.04 75)` | `oklch(70% 0.04 75)` | `oklch(0% 0 0 / 0.08)` |
-| `ctaGhost` | `transparent` | `var(--color-cream)` | `oklch(88% 0.02 75 / 0.65)` | `oklch(80% 0.02 75 / 0.38)` | `oklch(96% 0.015 75 / 0.18)` |
-| `solid` | `var(--color-terracotta)` | `var(--color-cream)` | — | — | `oklch(0% 0 0 / 0.14)` |
-| `danger` | `var(--color-danger, oklch(58% 0.16 25))` | `var(--color-cream)` | — | — | `oklch(0% 0 0 / 0.14)` |
-| `ink` | `var(--color-text)` | `var(--color-cream)` | — | — | `oklch(0% 0 0 / 0.14)` |
-| `text` | `transparent` | `var(--color-text-muted)` | — | — | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
-| `textAccent` | `transparent` | `var(--color-terracotta)` | — | — | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
-| `paper` | `var(--color-card-bg)` | `var(--color-text)` | — | — | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
+| Rank | Variant | fill | label | hoverOverlay |
+|---|---|---|---|---|
+| The verb (Publish, Sign in, Confirm, the page's one call to action) | `solid` | `var(--button-fill)` | `var(--color-cream)` (4.7:1) | `oklch(0% 0 0 / 0.14)` |
+| Everything beside it: a secondary action (Share your story, Sign out, Retry, Edit profile), Cancel / Keep / Close, Download, Load more, Unblock | `tonal` | `var(--button-tonal)` | `var(--button-on-tonal)` (4.8:1) | `color-mix(in oklch, var(--color-terracotta) 14%, transparent)` |
+| The final confirm of what can't be undone (delete a card, the account) | `danger` | `color-mix(in oklch, var(--color-danger, oklch(58% 0.16 25)), black 8%)` | `var(--color-cream)` (5.1:1) | `oklch(0% 0 0 / 0.14)` |
+| A button that *opens* a destructive flow (Settings' Delete account) | `dangerTonal` | `var(--button-danger-tonal)` | `var(--button-on-danger-tonal)` (5.7:1) | `color-mix(in oklch, var(--color-danger, …) 14%, transparent)` |
+| A brand's own black button (Sign in with Apple) | `ink` | `var(--color-text)` | `var(--color-cream)` | `oklch(0% 0 0 / 0.14)` |
+| A control that must match a paper surface (no call site now) | `paper` | `var(--color-card-bg)` | `var(--color-text)` | same wash |
+| The verb on the terracotta CTA band | `ctaLight` | `var(--color-cream)` | `var(--button-on-tonal)` (6.1:1) | `oklch(0% 0 0 / 0.08)` |
+| The second action on the band | `ctaGhost` | `color-mix(in oklch, var(--color-terracotta), black 18%)` | `var(--color-cream)` (5.5:1) | `oklch(96% 0.015 75 / 0.14)` |
 
-`—` = no pen line is drawn. `paper` takes the cards' own grain (`opacity: 0.3`, `frequency: 0.88`, as the Modal) instead of the button grain.
+Buttons side by side all have fills, one height and one shape: a dialog's foot is `Cancel` tonal | the verb solid (or danger); a modal whose only exit is Close (`Modal closeButton`: the notifications, the blocked list) centres a small tonal pill.
 
-**Seeds per variant:** primary=3, secondary=201, ghost=401, outline=601, ctaLight=801, ctaGhost=1001; the frame-free ones borrow the seed of the variant they replace: solid=danger=ink=3, text=paper=401, textAccent=601
+**A dialog's foot** is one of two things, shared by every dialog (`src/components/molecules/Modal/ModalActions.tsx`; the apps' `ModalActions` / `ModalCloseButton` match):
+- **A choice — `<ModalActions busy?>`**: right-aligned, in scanning order — the way out (`tonal`, `sm`) then the verb (`solid`, or `danger` when it can't be undone), the verb rightmost at every width; 10px apart. A pair too wide for one row ("Keep my account | Delete account" on a 320px phone) wraps in reverse (`flex-wrap: wrap-reverse`): the verb on top, the way out under it, both still at the right — never a label broken inside its pill (`white-space: nowrap`). Under a coarse pointer each button is at least 44px tall. `busy` dims the row (0.6) and takes its pointer. Why the last try failed (`ConfirmModal error`, the publish panel's error) is one danger-red line (13px) right above the row. `ConfirmModal` is the one confirm (sign out, delete a card or a conversation, take a resonance back, open an odd link, block, leave the writer, delete the account); `titlePending` keeps its title's line empty while the words it names are read. The publish panel ends the same way: 再想想 | 發布 (儲存修改).
+- **Nothing left but leaving — the centred close** (`Modal closeButton`, or `<ModalCloseRow>` for content that ends inside the modal): one small tonal Close, centred, 14px under the content — a list or a picker (notifications, the blocked list, insert a card, a thread's shared things) and a one-exit notice ("thanks" after a report, a refused change, "your note is on its way"). Where a pair does not fit one row on a phone (the editor's Publish | Save draft, Settings' Download | Delete account), the pills stack at one width. Bare text is left to a link inside running text (an `<a>`, not an `OrganicButton`) and to icon-only header and toolbar buttons (⋯, back, the header's icons, the zoom cluster, the thought map pane's collapse), whose icon is the affordance.
 
-**`block`** stretches a button to its container's width (the face is measured and drawn at that width, the label stays centred): the provider buttons on the phone's sign-in sheet.
+The button tokens live in `tokens.css` as mixes of the palette: `--button-fill` = terracotta + 12% black, `--button-tonal` = terracotta-light 75% into cream-dark (the selected tab's peach, made solid), `--button-on-tonal` = terracotta + 22% black; `--button-danger-tonal` = the danger red 20% into a rose paper of its own hue (`oklch(98% 0.02 25)`, so the tint stays red rather than drifting to the cream's yellow), `--button-on-danger-tonal` = the red + 22% black. Plain `--color-terracotta` is 3.5:1 against cream either way, so it never carries a label or sits under one.
 
-**One frame per layer.** A pen outline marks a *container* (Modal, Panel, StoryCard, a bar, a floating toolbar) or an *input* (Field, Select, the writer's `lg` tag). A control inside a frame draws none — a second outline is clutter. The standalone variants (`primary`, `outline`, `ghost`, `cta*`, `secondary*`) sit on bare page paper and keep their own pen line. Inside a frame:
+The older names still work and wear the rank they stood for — `primary` is `solid`; `outline`, `ghost`, `secondary`, `secondaryOutline`, `text` and `textAccent` are `tonal` — so call sites can move to the rank names at their own pace. `paper` takes the cards' own grain (`opacity: 0.3`, `frequency: 0.88`, as the Modal) instead of the button grain.
 
-| You want… | Variant |
-|---|---|
-| Cancel / Keep / Close / Export — a secondary action beside a verb | `text` |
-| A secondary action in accent (Unblock, "load more") | `textAccent` |
-| The verb of the dialog, panel or bar (Publish, Sign in, Confirm) | `solid` |
-| The verb that can't be undone (delete a card, the account) | `danger` |
-| A brand's own button that has to be black (Sign in with Apple) | `ink` |
-| A control floating over busy content (the thought map's toolbar and back button) | `paper` |
+**Seeds per variant:** primary=3, secondary=201, ghost=401, outline=601, ctaLight=801, ctaGhost=1001, secondaryOutline=1201; the rank names borrow the seed of the variant they grew out of: solid=danger=ink=3, tonal=dangerTonal=textAccent=601, text=paper=401
 
-The hover brush is the same for every variant (`r 340ms linear`, spreading from the pointer). The frame-free variants have no pen line to show focus, so `:focus-visible` rings them (`2px var(--field-border-focus)`, offset 2px). The dropdown rows (`Select`, `OrganicMenu`, the avatar menu) follow the same rule: no boxed hover region, the active row takes the same spreading ink (`RowInk`) along its wavy region. A row's icon and label share one centre line (the label at `line-height: 1`, the icon in a box of its own).
+**`block`** stretches a button to its container's width (the face is measured and drawn at that width, the label stays centred): the provider buttons on the phone's sign-in sheet, and the stacked pairs above.
+
+**Segmented buttons are buttons: no outline.** `SegmentedActionBar` (the card page's Resonate / Send a note / Bookmark, the inline resonance editor's Publish / Save draft, the publish panel's Public / Only me) is a filled shape like any button: no pen line round the bar, the tonal face (`--button-tonal`) under every segment that brings none, the verb's segment in `--button-fill` with a cream label, the other labels in `--button-on-tonal`, and the seams between segments cut in `--color-cream` (a wavy cut in the paper, not an ink line); the buttons' grain (0.38 / 1.1) over the whole face. A segmented *choice* (the publish panel's visibility) sits on a `--color-cream-dark` track instead, the chosen side in `--button-tonal` with the deep label, the other in muted ink + 10% black. The card page's bar is one row at every width: on a phone (≤ 560px) it spans the column and its segments share it evenly; the note reads its short words there (寄小紙條 / Send a note, its full words still its accessible name), and the bookmark is `collapsible` — when the three labels no longer fit the row it shows its icon alone (its words kept for a screen reader) and takes only its own room (16px a side).
+
+**Where else a pen line stays** (none of them a button face): containers and inputs; floating surfaces (`OrganicMenu` popovers, select lists, modals, sheets); the editor's small × over a story picture (`NodeRemoveButton`: a cream disc over a busy photo needs its rim to separate from it); the thought map's dashed link handle (a drag handle on the canvas, not a button).
+
+The hover brush is the same for every variant (`r 340ms linear`, spreading from the pointer). No variant has a pen line to show focus, so `:focus-visible` rings every one (`2px var(--field-border-focus)`, offset 2px; cream on the CTA band). The dropdown rows (`Select`, `OrganicMenu`, the avatar menu) follow the same rule: no boxed hover region, the active row takes the same spreading ink (`RowInk`) along its wavy region. A row's icon and label share one centre line (the label at `line-height: 1`, the icon in a box of its own).
 
 A「⋯」has two forms. Laid over a picture (a card's cover in the card box) it keeps its paper chip. On the page's own paper (`OrganicMenu bare`: the profile, the card page's title row) it has no chip: solid dots in muted ink, a soft disc of ink under them on hover, focus and while open, and a tooltip that says what the menu holds ("Report or block", "Manage card"). With no frame, its place tells you what it is for: on a profile it hangs off the end of the pen name (the name stays centred, a long name wraps before reaching it), not in the hero's corner, where it read as a stray mark.
 

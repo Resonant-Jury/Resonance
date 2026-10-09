@@ -1,33 +1,13 @@
 /* ── CardActionsMenu ────────────────────────────────────────────────
-   The「⋯」owner-actions affordance on a card. The trigger + dropped panel now
-   come from <OrganicMenu>; only the delete-confirm dialog is styled here. */
-.confirmTitle {
+   The「⋯」owner-actions affordance on a card. The trigger + dropped panel come
+   from <OrganicMenu> and its confirms from <ConfirmModal>; only the notice of
+   a refused change is styled here. */
+.noticeTitle {
   font-family: var(--font-heading);
   font-size: 20px;
   font-weight: 700;
   color: var(--color-text);
-  margin: 0 0 10px;
-}
-.confirmTitle[data-pending] {
-  visibility: hidden;
-}
-.confirmBody {
-  font-family: var(--font-body);
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--color-text-muted);
-  margin: 0 0 24px;
-}
-.confirmError {
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--color-danger, oklch(58% 0.16 25));
-  margin: -12px 0 16px;
-}
-.confirmActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  margin: 0 0 8px;
 }
 /* A change the server refused, said on its own (the visibility switch has no dialog of its own to say it in). */
 .notice {

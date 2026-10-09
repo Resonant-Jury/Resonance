@@ -2,54 +2,24 @@
   margin-bottom: 40px;
 }
 
-.desktopOnly {
-  display: inline-flex;
+/* The viewer's own answer is still being read: nothing to press yet, so a
+   second answer can't be started in passing. */
+.bar[data-waiting] {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
-.mobileOnly {
+/* The note's words: in full where the bar stands at its own width, the short
+   form where it spans a phone's column in one row with the other two. */
+.narrow {
   display: none;
 }
 
-.mobileActionsRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  margin-top: 16px; /* Suitable margin below the "共振" button */
-}
-
-/* Make the Send Note button look like a hyperlink on mobile */
-.mobileNoteButton {
-  background: transparent !important;
-  border: none !important;
-  padding: 0 !important;
-  height: auto !important;
-  min-height: 0 !important;
-  width: auto !important;
-  text-decoration: none;
-  color: var(--color-terracotta) !important;
-  box-shadow: none !important;
-  transition: color 0.2s ease;
-}
-
-.mobileNoteButton:hover {
-  color: color-mix(in oklch, var(--color-terracotta), black 15%) !important;
-  text-decoration: none;
-}
-
-/* Hide wobbly hand-drawn borders, ShapeGrain, the hover wash and other decorations inside it */
-.mobileNoteButton > svg,
-.mobileNoteButton > [data-brush-wash] {
-  display: none !important;
-}
-
 @media (max-width: 640px) {
-  .desktopOnly {
+  .wide {
     display: none;
   }
-  .mobileOnly {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
+  .narrow {
+    display: inline;
   }
 }

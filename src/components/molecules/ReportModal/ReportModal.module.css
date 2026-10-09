@@ -33,14 +33,6 @@
   margin: 0;
 }
 
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+.foot {
   margin-top: 4px;
-}
-
-.actions[data-busy] {
-  opacity: 0.6;
-  pointer-events: none;
 }

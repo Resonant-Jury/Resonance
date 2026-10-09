@@ -392,7 +392,7 @@ describe('MessagesPage thread safety menu', () => {
     await waitFor(() => expect(mockBlockUser).toHaveBeenCalledWith('alice'));
   });
 
-  it('deletes the conversation only from a red verb, and keeps it on a plain-text cancel', async () => {
+  it('deletes the conversation only from a red verb, and keeps it on a tonal cancel', async () => {
     const u = userEvent.setup({ pointerEventsCheck: 0 });
     renderPage(<MessagesPage activeHandle="alice" />);
     await u.click(await screen.findByRole('button', { name: 'Conversation options' }));
@@ -401,8 +401,10 @@ describe('MessagesPage thread safety menu', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Delete this conversation?' });
     const keep = within(dialog).getByRole('button', { name: 'Keep it' });
     const del = within(dialog).getByRole('button', { name: 'Delete' });
-    expect(keep).toHaveAttribute('data-variant', 'text');
+    expect(keep).toHaveAttribute('data-variant', 'tonal');
     expect(del).toHaveAttribute('data-variant', 'danger');
+    // The one confirm row: the way out, then the verb, rightmost.
+    expect(Array.from(del.parentElement!.children)).toEqual([keep, del]);
 
     await u.click(keep);
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete this conversation?' })).toBeNull());
@@ -428,9 +430,11 @@ describe('MessagesPage thread safety menu', () => {
       target: { value: 'Keeps sending links' },
     });
     const submit = screen.getByRole('button', { name: 'Send report' });
-    // Inside the modal the verb is solid and cancel plain text: no pen lines.
+    // Inside the modal the verb is solid and cancel the tonal pill before it.
     expect(submit).toHaveAttribute('data-variant', 'solid');
-    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveAttribute('data-variant', 'text');
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancel).toHaveAttribute('data-variant', 'tonal');
+    expect(Array.from(submit.parentElement!.children)).toEqual([cancel, submit]);
     await u.click(submit);
 
     await waitFor(() =>
@@ -444,9 +448,11 @@ describe('MessagesPage thread safety menu', () => {
       }),
     );
     expect(await screen.findByText('Thanks for telling us')).toBeInTheDocument();
-    // The thank-you's Close (the modal's own ✕ shares its name) is the verb: solid.
+    // The thank-you's Close (the modal's hidden close shares its name) is its
+    // one way out, not a verb: the one-exit notice's close, alone in its row.
     const close = screen.getAllByRole('button', { name: 'Close' }).find((b) => b.hasAttribute('data-variant'));
-    expect(close).toHaveAttribute('data-variant', 'solid');
+    expect(close).toHaveAttribute('data-variant', 'tonal');
+    expect(close!.parentElement!.children).toHaveLength(1);
     // Not blocked unless the "also block" switch was turned on.
     expect(mockBlockUser).not.toHaveBeenCalled();
   });

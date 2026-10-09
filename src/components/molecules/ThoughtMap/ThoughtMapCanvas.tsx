@@ -1247,11 +1247,11 @@ export function ThoughtMapCanvas({
       </div>
 
       {/* toolbar — phones drop to one-word labels so the pair fits beside the
-          zoom cluster without crowding the board. It floats over the board, so
-          the tools are paper (no pen line) and the one verb — add a card — the
-          only terracotta thing, like the apps' toolbar. */}
+          zoom cluster without crowding the board. Two pills of one height, no
+          pen line: the second tool in the tonal peach (opaque, so it reads over
+          the board's dots), the one verb — add a card — the solid terracotta. */}
       <div className={styles.toolbar}>
-        <OrganicButton variant="paper" size="sm" onClick={() => void addGroup()}>
+        <OrganicButton variant="tonal" size="sm" onClick={() => void addGroup()}>
           <Icon name="frame" size={15} /> {isMobile ? t('addGroupShort') : t('addGroup')}
         </OrganicButton>
         <OrganicButton variant="solid" size="sm" onClick={() => setTrayOpen((v) => !v)}>

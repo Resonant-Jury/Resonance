@@ -67,8 +67,11 @@ describe('the buttons on the phone sheet', () => {
     expect(google.classList).toContain(buttonStyles.block);
     expect(google.querySelector('path[fill="#FFFFFF"]')).not.toBeNull();
 
+    // The desktop card's wears the same face at its own width — a button is
+    // a filled shape there too, never an outline inside the card's frame.
     const onCard = card(container).getByRole('button', { name: en.auth.continueWithGoogle });
-    expect(onCard).toHaveAttribute('data-variant', 'outline');
+    expect(onCard).toHaveAttribute('data-variant', 'solid');
+    expect(onCard.querySelector('path[fill="#FFFFFF"]')).not.toBeNull();
     expect(onCard.classList).not.toContain(buttonStyles.block);
   });
 

@@ -13,6 +13,7 @@ import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScr
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Modal } from '@/components/molecules/Modal/Modal';
+import { ConfirmModal } from '@/components/molecules/ConfirmModal/ConfirmModal';
 import { OrganicMenu } from '@/components/molecules/OrganicMenu/OrganicMenu';
 import { CardEmbedSourceContext, useCardEmbed } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
 import { useSafetyActions } from '@/components/molecules/SafetyActions/useSafetyActions';
@@ -865,53 +866,32 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
             </Modal>
 
             {/* Before a link to an IP address or a punycode name opens. */}
-            <Modal
+            <ConfirmModal
               open={!!linkToConfirm}
-              onClose={() => setLinkToConfirm(null)}
+              title={t('linkConfirmTitle')}
+              body={t('linkConfirmBody', { host: linkToConfirm?.host ?? '' })}
+              cancelLabel={t('linkConfirmCancel')}
+              confirmLabel={t('linkConfirmOpen')}
+              onCancel={() => setLinkToConfirm(null)}
+              onConfirm={() => {
+                if (linkToConfirm) window.open(linkToConfirm.url, '_blank', 'noopener,noreferrer');
+                setLinkToConfirm(null);
+              }}
               seed={61}
-              maxWidth={400}
-              ariaLabel={t('linkConfirmTitle')}
-            >
-              <h3 className={pageStyles.mediaTitle}>{t('linkConfirmTitle')}</h3>
-              <p className={pageStyles.mediaSubtitle}>{t('linkConfirmBody', { host: linkToConfirm?.host ?? '' })}</p>
-              <div className={pageStyles.confirmActions}>
-                <OrganicButton variant="text" size="sm" onClick={() => setLinkToConfirm(null)}>
-                  {t('linkConfirmCancel')}
-                </OrganicButton>
-                <OrganicButton
-                  variant="solid"
-                  size="sm"
-                  onClick={() => {
-                    if (linkToConfirm) window.open(linkToConfirm.url, '_blank', 'noopener,noreferrer');
-                    setLinkToConfirm(null);
-                  }}
-                >
-                  {t('linkConfirmOpen')}
-                </OrganicButton>
-              </div>
-            </Modal>
+            />
 
-            <Modal
+            <ConfirmModal
               open={confirmingDelete}
-              onClose={() => (deleting ? undefined : setConfirmingDelete(false))}
+              title={t('deleteConfirmTitle')}
+              body={t('deleteConfirmBody')}
+              cancelLabel={t('deleteCancel')}
+              confirmLabel={t('deleteConfirm')}
+              onCancel={() => setConfirmingDelete(false)}
+              onConfirm={confirmDelete}
+              busy={deleting}
+              destructive
               seed={59}
-              maxWidth={400}
-              ariaLabel={t('deleteConfirmTitle')}
-            >
-              <h3 className={pageStyles.mediaTitle}>{t('deleteConfirmTitle')}</h3>
-              <p className={pageStyles.mediaSubtitle}>{t('deleteConfirmBody')}</p>
-              <div
-                className={pageStyles.confirmActions}
-                style={deleting ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
-              >
-                <OrganicButton variant="text" size="sm" onClick={() => setConfirmingDelete(false)}>
-                  {t('deleteCancel')}
-                </OrganicButton>
-                <OrganicButton variant="danger" size="sm" onClick={confirmDelete}>
-                  {deleting ? '…' : t('deleteConfirm')}
-                </OrganicButton>
-              </div>
-            </Modal>
+            />
             {safety.modals}
           </>
         )}

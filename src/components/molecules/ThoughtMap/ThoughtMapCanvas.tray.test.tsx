@@ -63,12 +63,13 @@ function mapData(): MyThoughtMap {
 afterEach(() => vi.clearAllMocks());
 
 describe('ThoughtMapCanvas toolbar', () => {
-  // The toolbar floats over the board, so its tools are paper with no pen line
-  // and the one verb — adding a card — is the only terracotta thing.
-  it('floats paper tools around a single solid verb', () => {
+  // The toolbar floats over the board: every tool is a filled pill with no
+  // pen line — the second tool tonal, opaque over the dots — and the one verb,
+  // adding a card, the only solid terracotta.
+  it('floats a tonal tool beside a single solid verb', () => {
     renderWithIntl(<ThoughtMapCanvas data={mapData()} style={{ height: 480 }} />);
 
-    expect(screen.getByRole('button', { name: /New group/i })).toHaveAttribute('data-variant', 'paper');
+    expect(screen.getByRole('button', { name: /New group/i })).toHaveAttribute('data-variant', 'tonal');
     // The empty-state CTA is also "Add card"; the toolbar's is the first.
     expect(screen.getAllByRole('button', { name: /Add card/i })[0]).toHaveAttribute('data-variant', 'solid');
   });

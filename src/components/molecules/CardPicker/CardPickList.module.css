@@ -17,6 +17,19 @@
   height: 0;
 }
 
+/* The gutter is the rail's: while there is no rail (nothing to scroll, or a
+   phone or touch screen, which never shows one) the rows and their rules run
+   to the dialog's edge, square with its buttons. */
+.listArea:has(> [data-hidden]) .scroll {
+  padding-right: 0;
+}
+
+@media (max-width: 720px), (hover: none) and (pointer: coarse) {
+  .scroll {
+    padding-right: 0;
+  }
+}
+
 .list {
   position: relative;
   list-style: none;
@@ -68,8 +81,8 @@
 }
 
 .thumb {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
 }
 
@@ -110,25 +123,31 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  gap: 3px;
 }
 
+/* One line: a long title ends in an ellipsis rather than making a row taller than its neighbours. */
 .cardTitle {
-  max-width: 100%;
   font-family: var(--font-body);
   font-size: 15px;
   font-weight: 600;
+  line-height: 1.35;
   color: var(--color-text);
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   transition: color 120ms ease;
 }
 
-.marker {
-  display: inline-flex;
+/* When it came out, led by 匿名 for an anonymous card: one muted line. */
+.meta {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .empty {

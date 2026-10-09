@@ -15,7 +15,7 @@ afterEach(() => vi.clearAllMocks());
 describe('InsertCardModal', () => {
   // (The pick list itself needs real layout for its scrollbar; the picker's
   // chrome — the one button it adds — is what this pins.)
-  it('leaves through a plain-text cancel', async () => {
+  it('leaves through a tonal cancel', async () => {
     vi.mocked(getCardsByAuthor).mockResolvedValue([]);
     const onClose = vi.fn();
     renderWithIntl(<InsertCardModal open onClose={onClose} onPick={vi.fn()} />);
@@ -24,7 +24,7 @@ describe('InsertCardModal', () => {
 
     // The modal is the frame, so the only button it adds draws no outline.
     const cancel = screen.getByRole('button', { name: 'Cancel' });
-    expect(cancel).toHaveAttribute('data-variant', 'text');
+    expect(cancel).toHaveAttribute('data-variant', 'tonal');
     await userEvent.click(cancel);
     expect(onClose).toHaveBeenCalledTimes(1);
   });

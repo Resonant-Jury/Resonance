@@ -793,13 +793,13 @@ export function CardEditor({
                   icon: <Icon name="wave" size={16} color="var(--color-cream)" />,
                   label: pending ? t('publishing') : tCard('publishResonance'),
                   textColor: 'var(--color-cream)',
-                  fill: 'var(--color-terracotta)',
+                  fill: 'var(--button-fill)',
                   hoverOverlay: 'oklch(0% 0 0 / 0.14)',
                   onClick: () => void submit(),
                 },
                 {
                   key: 'draft',
-                  icon: <Icon name="pen" size={16} color="var(--color-terracotta)" />,
+                  icon: <Icon name="pen" size={16} />,
                   label: tCard('saveResonanceDraft'),
                   onClick: () => {
                     if (pending) return;

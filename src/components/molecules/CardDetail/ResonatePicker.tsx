@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
+import { ModalActions } from '@/components/molecules/Modal/ModalActions';
 import { CardPickList } from '@/components/molecules/CardPicker/CardPickList';
 import { Divider } from '@/components/atoms/Divider/Divider';
-import { HandDrawnDashedBorder } from '@/components/atoms/HandDrawnDashedBorder/HandDrawnDashedBorder';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
@@ -15,12 +15,8 @@ import { useMyCardBox } from '@/lib/data/hooks';
 import { useResonanceRefresh } from '@/lib/data/resonate';
 import { ApiError } from '@/lib/db/firestore/client/api';
 import { resonateWith } from '@/lib/db/firestore/client/cards';
-import { INK_LIGHT } from '@/lib/design/strokes';
 import type { Card } from '@/lib/db/types';
 import styles from './ResonatePicker.module.css';
-
-/** The write-new tile's size: fixed, so its outline is drawn at once (no measuring). */
-const TILE = 48;
 
 /**
  * Which of the viewer's published cards may resonate with `targetId`: the
@@ -61,6 +57,12 @@ export interface ResonatePickerProps {
  * the server then points at this card (POST /api/v1/cards/{id}/resonances).
  * A tap marks a card and 共振 confirms it — the choice rings someone's
  * phone, so a stray tap in a scrolling list must not send it.
+ *
+ * A quiet list (round 4, variant A): the title alone; "write a new card" as
+ * one terracotta line with the pen; one wavy rule; rows of a 40px thumb, the
+ * title on one line and one muted line under it (when it came out, 匿名 ·
+ * first for an anonymous card); why some cards are missing only when some
+ * are; the error line; then cancel | 共振.
  */
 export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onResonated }: ResonatePickerProps) {
   const t = useTranslations('card.resonatePicker');
@@ -107,10 +109,14 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
     } catch (err) {
       const conflict = err instanceof ApiError && err.status === 409;
       setFailure(conflict ? 'alreadyAnswering' : 'failed');
-      // What this browser holds may be out of date (the card answers another
-      // by now, or another of yours answers this one): read it again — the
-      // shelf this list comes from among it.
-      if (conflict) refresh(targetId, selected);
+      // What this browser holds is out of date (the card answers another by
+      // now, or another of yours answers this one): the mark goes, as in the
+      // apps, and everything is read again — the shelf this list comes from
+      // among it.
+      if (conflict) {
+        setSelectedId(null);
+        refresh(targetId, selected);
+      }
     } finally {
       setBusy(false);
     }
@@ -119,47 +125,23 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
   const lead = (
     <>
       <button type="button" className={styles.writeNew} onClick={writeNew} disabled={busy}>
-        <span className={styles.writeTile} aria-hidden>
-          <HandDrawnDashedBorder
-            w={TILE}
-            h={TILE}
-            R={14}
-            seed={29}
-            mag={1.6}
-            curve={1.2}
-            segmentsH={2}
-            segmentsV={2}
-            strokeColor="color-mix(in oklch, var(--color-terracotta) 70%, transparent)"
-            strokeWidth={INK_LIGHT}
-            fillColor="color-mix(in oklch, var(--color-terracotta) 10%, transparent)"
-          />
-          <Icon name="pen" size={22} color="var(--color-terracotta)" className={styles.writeGlyph} />
-        </span>
-        <span className={styles.writeText}>
-          <span className={styles.writeTitle}>{t('writeNew')}</span>
-          <span className={styles.writeHint}>{t('writeNewHint')}</span>
-        </span>
-        <Icon name="arrow-right" size={18} className={styles.writeArrow} />
+        <Icon name="pen" size={18} color="var(--color-terracotta)" />
+        <span className={styles.writeTitle}>{t('writeNew')}</span>
       </button>
-      {!nothingToPick && (
-        <>
-          <Divider seed={59} spacing={8} />
-          <p className={styles.pickHeading}>{t('pickHeading')}</p>
-        </>
-      )}
+      {/* Nothing to pick and nothing to say: no rule over an empty list. */}
+      {!nothingToPick && <Divider seed={59} spacing={8} />}
     </>
   );
 
   return (
     <Modal open={open} onClose={close} maxWidth={480} seed={53} padding="26px 24px 22px" ariaLabel={t('title')}>
       <h3 className={styles.title}>{t('title')}</h3>
-      <p className={styles.subtitle}>{t('subtitle')}</p>
 
       <CardPickList
         cards={loaded?.cards ?? []}
         lead={lead}
         selectedId={selectedId}
-        label={t('pickHeading')}
+        label={t('title')}
         onPick={choose}
         disabled={busy}
         anonymousLabel={t('anonymous')}
@@ -171,7 +153,7 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
           ) : readError ? (
             <div className={styles.readFailed} role="alert">
               <span>{tNative('loadError')}</span>
-              <OrganicButton variant="textAccent" size="sm" onClick={() => void readAgain()}>
+              <OrganicButton variant="tonal" size="sm" onClick={() => void readAgain()}>
                 {tNative('retry')}
               </OrganicButton>
             </div>
@@ -188,9 +170,10 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
         </p>
       )}
 
-      <div className={styles.actions}>
-        {/* The modal is the frame: cancel is plain text, the verb a solid fill. */}
-        <OrganicButton variant="text" size="sm" onClick={close}>
+      <ModalActions>
+        {/* The modal is the frame: cancel is the tonal pill, the verb a solid fill, rightmost. While the
+            choice is on its way cancel is visibly out of reach and the verb's pen keeps inking. */}
+        <OrganicButton variant="tonal" size="sm" onClick={close} disabled={busy}>
           {t('cancel')}
         </OrganicButton>
         <OrganicButton variant="solid" size="sm" onClick={() => void confirm()} disabled={!selected}>
@@ -202,7 +185,7 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
           )}
           {t('confirm')}
         </OrganicButton>
-      </div>
+      </ModalActions>
     </Modal>
   );
 }
@@ -213,8 +196,11 @@ function PickSkeleton() {
     <div className={styles.skeleton} aria-hidden>
       {[0, 1, 2].map((i) => (
         <div key={i} className={styles.skeletonRow}>
-          <Skeleton width={48} height={48} radius={14} />
-          <Skeleton width={`${62 - i * 12}%`} height={14} />
+          <Skeleton width={40} height={40} radius={12} />
+          <div className={styles.skeletonText}>
+            <Skeleton width={`${70 - i * 12}%`} height={14} />
+            <Skeleton width={64} height={11} />
+          </div>
         </div>
       ))}
     </div>

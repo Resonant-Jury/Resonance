@@ -2,7 +2,9 @@
 
 import type { ReactNode } from 'react';
 import { Modal } from '@/components/molecules/Modal/Modal';
+import { ModalActions } from '@/components/molecules/Modal/ModalActions';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import modalStyles from '@/components/molecules/Modal/Modal.module.css';
 import styles from './ConfirmModal.module.css';
 
 export interface ConfirmModalProps {
@@ -18,17 +20,25 @@ export interface ConfirmModalProps {
   busy?: boolean;
   /** A permanent loss (delete a card, a conversation, the account): the verb in red. */
   destructive?: boolean;
+  /** Why the last try didn't go through, said right above the buttons (the dialog stays to try again). */
+  error?: string | null;
+  /**
+   * The title's words are still on their way (they name something being
+   * read): its line keeps its place, empty, rather than changing its words
+   * under the reader.
+   */
+  titlePending?: boolean;
   seed?: number;
 }
 
 /**
- * The one confirm-dialog layout for the whole app (sign out, discard draft, …):
- * left-aligned title + body like any reading surface, actions bottom-right in
- * scanning order (cancel, then the verb), standard Modal padding. The modal is
- * the frame, so neither button draws one: cancel is plain text, the verb a
- * solid fill — red when it can't be undone (`destructive`), as in the apps'
- * confirm dialogs. Keeping every confirm on this single component is what
- * stops the layouts from drifting apart again.
+ * The one confirm-dialog layout for the whole app (sign out, delete a card,
+ * leave the writer, block, …): left-aligned title + body like any reading
+ * surface, then `ModalActions` — right-aligned, cancel then the verb, the
+ * verb rightmost. The modal is the frame, so neither button draws one: cancel
+ * is the tonal pill, the verb a solid fill — red when it can't be undone
+ * (`destructive`), as in the apps' confirm dialogs. Keeping every confirm on
+ * this single component is what stops the layouts from drifting apart again.
  */
 export function ConfirmModal({
   open,
@@ -40,6 +50,8 @@ export function ConfirmModal({
   onConfirm,
   busy = false,
   destructive = false,
+  error,
+  titlePending = false,
   seed = 67,
 }: ConfirmModalProps) {
   return (
@@ -50,16 +62,23 @@ export function ConfirmModal({
       seed={seed}
       ariaLabel={title}
     >
-      <h3 className={styles.title}>{title}</h3>
+      <h3 className={styles.title} data-pending={titlePending || undefined}>
+        {title}
+      </h3>
       <p className={styles.body}>{body}</p>
-      <div className={styles.actions} data-busy={busy || undefined}>
-        <OrganicButton variant="text" size="sm" onClick={onCancel}>
+      {error && (
+        <p className={modalStyles.error} role="alert">
+          {error}
+        </p>
+      )}
+      <ModalActions busy={busy}>
+        <OrganicButton variant="tonal" size="sm" onClick={onCancel}>
           {cancelLabel}
         </OrganicButton>
         <OrganicButton variant={destructive ? 'danger' : 'solid'} size="sm" onClick={onConfirm}>
           {busy ? '…' : confirmLabel}
         </OrganicButton>
-      </div>
+      </ModalActions>
     </Modal>
   );
 }

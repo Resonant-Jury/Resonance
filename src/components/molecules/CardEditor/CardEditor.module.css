@@ -116,23 +116,21 @@
 }
 
 /* On a phone the two do not sit side by side: Publish (or Save changes)
-   takes the width, and the ghost way out (Save draft and leave, Discard
-   changes) is centred on its own row under it, the error line centred
-   under both — one balanced column instead of a button and a stray word. */
+   takes the width, and the tonal way out (Save draft and leave, Discard
+   changes) takes it too on its own row under it, the error line centred
+   under both — one balanced column of two pills of one size. */
 @media (max-width: 640px) {
   .actionsStack {
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
+    gap: 10px;
   }
   /* The button's own face (.btn) is inline-flex and measures itself, so a
      full-width wrapper needs the face stretched too: it redraws at that width. */
-  .primaryAction > button {
+  .primaryAction > button,
+  .secondaryAction > button {
     display: flex;
     width: 100%;
-  }
-  .secondaryAction {
-    align-self: center;
   }
   .actionError {
     align-self: center;

@@ -5,20 +5,14 @@
   margin: 0 0 8px;
 }
 
+/* Its words are on their way: the line keeps its place, empty. */
+.title[data-pending] {
+  visibility: hidden;
+}
+
 .body {
   font-size: 14px;
   line-height: 1.6;
   color: var(--color-text-muted);
   margin: 0 0 18px;
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.actions[data-busy] {
-  opacity: 0.6;
-  pointer-events: none;
 }

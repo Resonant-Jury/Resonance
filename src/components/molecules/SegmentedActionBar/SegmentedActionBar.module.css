@@ -43,6 +43,17 @@
   opacity: 0.82;
 }
 
+/* A collapsible segment with no room for its words: the icon alone, the
+   words kept for a screen reader (SegmentedActionBar measures them still). */
+.seg[data-icon-only] .label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* mobile: let the bar fill the width and segments share it evenly */
 @media (max-width: 560px) {
   .bar {
@@ -53,5 +64,11 @@
   .seg {
     flex: 1;
     padding-inline: clamp(8px, 2vw, 14px);
+  }
+
+  /* An icon alone takes only its own room, the words beside it the rest. */
+  .seg[data-icon-only] {
+    flex: none;
+    padding-inline: 16px;
   }
 }

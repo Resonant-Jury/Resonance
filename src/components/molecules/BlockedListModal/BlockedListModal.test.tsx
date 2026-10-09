@@ -42,13 +42,13 @@ describe('BlockedListModal', () => {
     await waitFor(() => expect(unblockUser).toHaveBeenCalledWith('alice'));
   });
 
-  // Close sits beside the modal's own ✕: plain text, not a second frame.
-  it('closes through a plain-text button beside the ✕', async () => {
+  // A list's one way out: the small tonal Close at its foot, no frame of its own.
+  it('closes through the tonal Close at its foot', async () => {
     const onClose = renderModal();
     await screen.findByRole('button', { name: 'Unblock' });
 
     const close = screen.getAllByRole('button', { name: 'Close' }).find((b) => b.hasAttribute('data-variant'));
-    expect(close).toHaveAttribute('data-variant', 'text');
+    expect(close).toHaveAttribute('data-variant', 'tonal');
     await userEvent.click(close!);
     expect(onClose).toHaveBeenCalledTimes(1);
   });

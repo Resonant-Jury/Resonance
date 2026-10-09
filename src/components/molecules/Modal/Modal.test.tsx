@@ -100,7 +100,7 @@ describe('Modal', () => {
   });
 
   // A list or a picker has nothing else at its foot: its close is drawn there.
-  it('shows the close as a quiet text button at its foot with closeButton', async () => {
+  it('shows the close as a small tonal pill, alone at its foot, with closeButton', async () => {
     const onClose = vi.fn();
     render(
       <Modal open onClose={onClose} closeButton>
@@ -109,7 +109,8 @@ describe('Modal', () => {
     );
     const closes = screen.getAllByRole('button', { name: 'Close' });
     expect(closes).toHaveLength(1);
-    expect(closes[0]).toHaveAttribute('data-variant', 'text');
+    expect(closes[0]).toHaveAttribute('data-variant', 'tonal');
+    expect(closes[0].parentElement!.children).toHaveLength(1);
     await userEvent.click(closes[0]);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
