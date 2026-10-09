@@ -55,6 +55,7 @@ vi.mock('@/components/molecules/MarkdownEditor/MarkdownEditor', () => ({
 }));
 
 import { createCardDraft, updateCardDraft, publishCard } from '@/lib/db/firestore/client/cards';
+import { ApiError } from '@/lib/db/firestore/client/api';
 import {
   applyPendingCardEdit,
   discardPendingCardEdit,
@@ -237,6 +238,7 @@ describe('CardEditor', () => {
     vi.stubGlobal('fetch', fetchMock);
     try {
       renderWithIntl(<CardEditor locale="en" />);
+      fireEvent.change(screen.getByLabelText('One-line title'), { target: { value: 'Unsigned' } });
       fireEvent.change(screen.getByLabelText('Story'), {
         target: { value: 'A story I would rather not sign.' },
       });
@@ -268,6 +270,48 @@ describe('CardEditor', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  describe('a publish that does not go through', () => {
+    /** Write a card and confirm Publish in the panel. */
+    async function publish(title = 'A quiet thought') {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+      renderWithIntl(<CardEditor locale="en" />);
+      fireEvent.change(screen.getByLabelText('One-line title'), { target: { value: title } });
+      fireEvent.change(screen.getByLabelText('Story'), { target: { value: 'A story long enough to publish.' } });
+      await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+      await screen.findByText(en.write.publishPanel.title);
+      const buttons = screen.getAllByRole('button', { name: 'Publish' });
+      await userEvent.click(buttons[buttons.length - 1]);
+    }
+    beforeEach(() => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    // The day's publishing is used up: trying again won't help today, so the
+    // panel says so instead of "try again".
+    it('says the day’s limit is reached when the server answers 429', async () => {
+      vi.mocked(publishCard).mockRejectedValue(new ApiError(429, 'rate_limited', 'Too many requests.'));
+      await publish();
+      expect(await screen.findByRole('alert')).toHaveTextContent(en.write.publishPanel.rateLimited);
+      expect(screen.queryByText('Too many requests.')).not.toBeInTheDocument();
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    // Anything else says it didn't publish in the writer's words — never the server's English.
+    it('says it didn’t publish, in the writer’s words, for any other failure', async () => {
+      vi.mocked(publishCard).mockRejectedValue(new ApiError(500, 'internal', 'Something went wrong.'));
+      await publish();
+      expect(await screen.findByRole('alert')).toHaveTextContent(en.write.publishPanel.failed);
+      expect(screen.queryByText('Something went wrong.')).not.toBeInTheDocument();
+    });
+
+    it('asks for a title instead of sending an untitled card to be refused', async () => {
+      await publish('   ');
+      expect(await screen.findByRole('alert')).toHaveTextContent(en.write.titleRequired);
+      expect(publishCard).not.toHaveBeenCalled();
+    });
   });
 
   describe('Autosave', () => {
@@ -525,7 +569,9 @@ describe('CardEditor', () => {
       });
       await saveChanges();
 
-      expect(await screen.findByText('The edit does not fit a card.')).toBeInTheDocument();
+      // In the writer's words, never the server's.
+      expect(await screen.findByText(en.native.saveError)).toBeInTheDocument();
+      expect(screen.queryByText('The edit does not fit a card.')).not.toBeInTheDocument();
       expect(push).not.toHaveBeenCalled();
       expect(screen.getByLabelText('Story')).toHaveValue('A rewrite the server turns down.');
       // The text is in the buffer, so leaving loses nothing — and there is
@@ -547,7 +593,7 @@ describe('CardEditor', () => {
       });
       await saveChanges();
 
-      expect(await screen.findByText('Changes were not applied')).toBeInTheDocument();
+      expect(await screen.findByText(en.native.saveError)).toBeInTheDocument();
       expect(push).not.toHaveBeenCalled();
       const saves = vi.mocked(savePendingCardEdit).mock.calls.length;
       unmount();

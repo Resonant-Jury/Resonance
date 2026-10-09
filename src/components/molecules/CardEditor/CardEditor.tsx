@@ -33,6 +33,7 @@ import type { Card, CardMedia, Visibility, Locale } from '@/lib/db/types';
 import type { GenerateImageEvent } from '@/app/api/generate-image/route';
 import { ndjsonValues } from '@/lib/streams/ndjson';
 import { useRouter } from '@/i18n/navigation';
+import { ApiError } from '@/lib/db/firestore/client/api';
 import { useLeaveWriter } from '@/lib/hooks/useLeaveWriter';
 import { useConnectionRefresh } from '@/lib/data/resonate';
 import styles from './CardEditor.module.css';
@@ -168,6 +169,8 @@ export function CardEditor({
 }: CardEditorProps) {
   const t = useTranslations('write');
   const tCard = useTranslations('card');
+  const tNative = useTranslations('native');
+  const tSafety = useTranslations('safety');
   // const tAi = useTranslations('write.ai'); // AI 寫作夥伴：暫時停用
   const router = useRouter();
   const refreshConnections = useConnectionRefresh();
@@ -407,8 +410,27 @@ export function CardEditor({
     };
   }, [inline]);
 
+  /**
+   * Why publishing, saving or discarding didn't go through, in the writer's
+   * language — never the server's or Firestore's English: the day's
+   * publishing used up says so (trying again today won't help), a card gone
+   * can't be found, anything else is `fallback` (didn't publish, didn't
+   * save… — try again).
+   */
+  const failure = (err: unknown, fallback: string) =>
+    err instanceof ApiError && (err.status === 429 || err.code === 'rate_limited')
+      ? t('publishPanel.rateLimited')
+      : err instanceof ApiError && err.status === 404
+        ? tCard('notFound.title')
+        : fallback;
+
   async function submit(choices?: PublishChoices) {
     if (pending) return;
+    // The server refuses a card without a title; say so in the writer's words.
+    if (!valuesRef.current.thoughtCore.trim()) {
+      setPublishError(t('titleRequired'));
+      return;
+    }
     setPending(true);
     setPublishError(null);
     try {
@@ -432,7 +454,7 @@ export function CardEditor({
       }
     } catch (err) {
       console.error('Publish failed:', err);
-      setPublishError(err instanceof Error ? err.message : String(err));
+      setPublishError(failure(err, t('publishPanel.failed')));
     } finally {
       setPending(false);
     }
@@ -483,7 +505,7 @@ export function CardEditor({
     } catch (err) {
       console.error('Save changes failed:', err);
       closedRef.current = false;
-      setPublishError(err instanceof Error ? err.message : String(err));
+      setPublishError(failure(err, tNative('saveError')));
     } finally {
       setPending(false);
     }
@@ -505,7 +527,7 @@ export function CardEditor({
     } catch (err) {
       console.error('Discard edits failed:', err);
       closedRef.current = false;
-      setPublishError(err instanceof Error ? err.message : String(err));
+      setPublishError(failure(err, tSafety('actionError')));
     } finally {
       setPending(false);
     }
@@ -527,7 +549,7 @@ export function CardEditor({
     } catch (err) {
       console.error('Save draft failed:', err);
       closedRef.current = false;
-      setPublishError(err instanceof Error ? err.message : String(err));
+      setPublishError(failure(err, tNative('saveError')));
     } finally {
       setPending(false);
     }
@@ -809,7 +831,7 @@ export function CardEditor({
                       .then((card) => card && onSavedDraft?.(card))
                       .catch((err) => {
                         console.error('Save draft failed:', err);
-                        setPublishError(err instanceof Error ? err.message : String(err));
+                        setPublishError(failure(err, tNative('saveError')));
                       })
                       .finally(() => setPending(false));
                   },
