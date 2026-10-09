@@ -74,6 +74,8 @@ const OLD_IOS = 'Resonance/2.0.0 (iOS 18.5; build 6)';
 const OLD_ANDROID = 'Resonance/2.0.0 (Android 15; build 7)';
 const NEW_IOS = 'Resonance/2.0.0 (iOS 26.0; build 7)';
 const NEW_ANDROID = 'Resonance/2.0.0 (Android 16; build 8)';
+// A later version may start its build numbers over; it is no build before letters.
+const NEXT_VERSION_IOS = 'Resonance/2.1.0 (iOS 26.0; build 1)';
 const WEB = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36';
 
 type Headers = Record<string, string>;
@@ -105,7 +107,7 @@ describe('a letter, to a build before letters', () => {
     await aliceWritesToBob();
     for (const agent of [OLD_IOS, OLD_ANDROID]) expect((await profile('alice', agent)).isConnected).toBe(true);
     // Everyone else is told how things stand: not connected.
-    for (const agent of [NEW_IOS, NEW_ANDROID, WEB]) expect((await profile('alice', agent)).isConnected).toBe(false);
+    for (const agent of [NEW_IOS, NEW_ANDROID, NEXT_VERSION_IOS, WEB]) expect((await profile('alice', agent)).isConnected).toBe(false);
 
     // The thread and its composer open; the reply goes as the old app sends it.
     const res = await message('alice', '也謝謝你', OLD_ANDROID);

@@ -34,8 +34,9 @@ native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by
   `Resonance/<version> (<OS>; build <n>)`, 30 s read/request timeout (15 s connect on Android); the
   illustration stream keeps 150 s. Android API calls run through `blocking`, which cancels the OkHttp
   call when its coroutine is cancelled: a new direct OkHttp call uses `blocking` and `apiClient`. The
-  server tells the store builds before letters (iOS ≤ 6, Android ≤ 7) by that User-Agent
-  (`src/lib/api/v1/clientBuild.ts`): keep its shape, and never number a build that low again.
+  server tells the store builds before letters (2.0.0, build ≤ 6 on iOS / ≤ 7 on Android) by that
+  User-Agent (`src/lib/api/v1/clientBuild.ts`): keep its shape, and never number a 2.0.0 build that low
+  again (another version may start its build numbers over).
 - **Sign-out / account switch** stops the listeners, then terminates Firestore and clears its local data
   (through `FirebaseBootstrap.db` / `AppFirebase.db` — never keep `Firestore.firestore()` around) before the
   next account's listeners start, and clears delivered notifications, the badge, the push memo and the

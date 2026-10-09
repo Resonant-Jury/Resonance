@@ -32,10 +32,19 @@ export function clientBuild(userAgent: string | null | undefined): ClientBuild |
 }
 
 /**
+ * The marketing version of every build made before letters: TestFlight 2.0.0
+ * (1)–(6), Play versionCodes 3–7 named 2.0.0. A build number is unique only
+ * within its version (App Store Connect lets a new version start again at 1),
+ * so the version is part of what makes a build old.
+ */
+export const PRE_LETTER_VERSION = '2.0.0';
+
+/**
  * The last builds made before letters (a note connects no one until its
  * card's author answers it; a writer may leave 3 unanswered): iOS 2.0.0 (6)
- * and Android versionCode 7, both from 7136d72 — the store builds, and the
- * tester builds before them. Every build after them is iOS ≥ 7, Android ≥ 8.
+ * and Android 2.0.0 versionCode 7, both from 7136d72 — the store builds, and
+ * the tester builds before them. Every 2.0.0 build after them is iOS ≥ 7,
+ * Android ≥ 8; any other version is never old, whatever its build number.
  */
 export const LAST_PRE_LETTER_BUILD: Readonly<Record<AppPlatform, number>> = { ios: 6, android: 7 };
 
@@ -43,7 +52,7 @@ export const LAST_PRE_LETTER_BUILD: Readonly<Record<AppPlatform, number>> = { io
 export function isPreLetterBuild(from: Request | string | null | undefined): boolean {
   const agent = typeof from === 'string' || from == null ? from : from.headers.get('user-agent');
   const build = clientBuild(agent);
-  return build !== null && build.build <= LAST_PRE_LETTER_BUILD[build.platform];
+  return build !== null && build.version === PRE_LETTER_VERSION && build.build <= LAST_PRE_LETTER_BUILD[build.platform];
 }
 
 /**

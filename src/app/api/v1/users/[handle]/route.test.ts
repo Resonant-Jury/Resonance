@@ -31,12 +31,13 @@ describe('GET /api/v1/users/{handle}', () => {
   });
 
   // They are told a letter waiting for their answer is a connection (lib/api/v1/preLetter; apiV1PreLetter.emulator.test.ts).
-  it('says when the request comes from an app build made before letters (iOS ≤ 6, Android ≤ 7)', async () => {
+  it('says when the request comes from an app build made before letters (2.0.0: iOS ≤ 6, Android ≤ 7)', async () => {
     for (const [agent, old] of [
       ['Resonance/2.0.0 (iOS 18.5; build 6)', true],
       ['Resonance/2.0.0 (Android 15; build 7)', true],
       ['Resonance/2.0.0 (iOS 26.0; build 7)', false],
       ['Resonance/2.0.0 (Android 16; build 8)', false],
+      ['Resonance/2.1.0 (iOS 26.0; build 1)', false],
       ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', false],
     ] as const) {
       getProfile.mockClear();

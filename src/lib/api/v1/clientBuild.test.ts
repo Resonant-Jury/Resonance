@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clientBuild, isPreLetterBuild, LAST_PRE_LETTER_BUILD, preferredLanguage } from './clientBuild';
+import { clientBuild, isPreLetterBuild, LAST_PRE_LETTER_BUILD, PRE_LETTER_VERSION, preferredLanguage } from './clientBuild';
 
 // Which app build a request comes from, by the User-Agent both apps send
 // (iOS AppHTTP, Android AppHttp: the same at 7136d72, the store builds) —
@@ -40,7 +40,8 @@ describe('clientBuild', () => {
 });
 
 describe('isPreLetterBuild', () => {
-  it('is the store builds and every tester build before them: iOS ≤ 6, Android ≤ 7', () => {
+  it('is the store builds and every tester build before them: 2.0.0, iOS ≤ 6, Android ≤ 7', () => {
+    expect(PRE_LETTER_VERSION).toBe('2.0.0');
     expect(LAST_PRE_LETTER_BUILD).toEqual({ ios: 6, android: 7 });
     for (const build of [1, 2, 3, 4, 5, 6]) expect(isPreLetterBuild(ios(build))).toBe(true);
     for (const build of [3, 4, 5, 6, 7]) expect(isPreLetterBuild(android(build))).toBe(true);
@@ -55,6 +56,16 @@ describe('isPreLetterBuild', () => {
     expect(isPreLetterBuild(ios(7, '26.0'))).toBe(false);
     expect(isPreLetterBuild(null)).toBe(false);
     expect(isPreLetterBuild('Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Mobile Safari/537.36')).toBe(false);
+  });
+
+  it('is never another version, even one whose build numbers start again from 1', () => {
+    // App Store Connect lets a new version reuse build numbers, so 2.1.0 (1) is not 2.0.0 (1).
+    expect(isPreLetterBuild('Resonance/2.1.0 (iOS 26.0; build 1)')).toBe(false);
+    expect(isPreLetterBuild('Resonance/2.0.1 (Android 16; build 5)')).toBe(false);
+    expect(isPreLetterBuild('Resonance/3.0.0 (iOS 26.0; build 6)')).toBe(false);
+    expect(isPreLetterBuild('Resonance/2.0 (Android 15; build 7)')).toBe(false);
+    expect(isPreLetterBuild('Resonance/2.0.0-debug (Android 15; build 7)')).toBe(false);
+    expect(isPreLetterBuild('Resonance/0 (iOS 18.5; build 0)')).toBe(false);
   });
 
   it("reads a request's User-Agent header", () => {
