@@ -451,17 +451,22 @@ private struct PublishPanel: View {
                 }
             }
             WavyDivider(seed: 47)
-            HStack(spacing: 12) {
-                OrganicButton(updating
-                              ? (pending ? L10n.Write.PublishPanel.updating : L10n.Write.PublishPanel.update)
-                              : (pending ? L10n.Write.PublishPanel.publishing : L10n.Write.PublishPanel.publish), variant: .solid, size: .sm) {
-                    Task { await publish() }
+            // The foot every dialog shares: right-aligned, 再想想 the tonal way out, the verb solid and rightmost;
+            // why the last try failed right above it.
+            VStack(alignment: .leading, spacing: 12) {
+                if let error { ModalError(error) }
+                ModalActions {
+                    OrganicButton(L10n.Write.PublishPanel.cancel, variant: .tonal, size: .sm, action: onCancel)
+                } verb: {
+                    OrganicButton(updating
+                                  ? (pending ? L10n.Write.PublishPanel.updating : L10n.Write.PublishPanel.update)
+                                  : (pending ? L10n.Write.PublishPanel.publishing : L10n.Write.PublishPanel.publish),
+                                  variant: .solid, size: .sm) {
+                        Task { await publish() }
+                    }
                 }
                 .disabled(pending)
-                OrganicButton(L10n.Write.PublishPanel.cancel, variant: .text, size: .sm, action: onCancel)
-                    .disabled(pending)
             }
-            if let error { Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta) }
         }
         // Anonymous is public or yours alone: a card for connections turns public as it goes anonymous.
         .onChange(of: anonymous) { _, on in visibility = WriteModel.visibility(visibility, anonymous: on) }
@@ -507,11 +512,19 @@ private struct PublishPanel: View {
             onPublished(model.isPublished
                         ? try await model.applyEdit(visibility: visibility, anonymous: anonymous)
                         : try await model.publish(visibility: visibility, anonymous: anonymous))
-        } catch let failure as APIFailure {
-            error = failure.message
         } catch {
-            self.error = error.localizedDescription
+            self.error = PublishFailure.message(error)
         }
         pending = false
+    }
+}
+
+/// Why a publish (or a published card's saved changes) didn't go through, in the app's words —
+/// never the server's, which are English (nor the system's): the card gone (deleted elsewhere) is
+/// that it can't be found; anything else — offline, the server's trouble, a refusal the panel can't
+/// name — is the save error, a retry. (A card without a title is said before anything is sent.)
+enum PublishFailure {
+    static func message(_ error: Error) -> String {
+        (error as? APIFailure)?.isNotFound == true ? L10n.Card.NotFound.title : L10n.Native.saveError
     }
 }

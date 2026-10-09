@@ -99,16 +99,16 @@ struct ResonatePickerContent: View {
                 ModalError(failure).padding(.bottom, 12)
             }
             ModalActions {
-                // The modal is the frame: cancel is plain text, the verb a solid fill.
-                OrganicButton(L10n.Card.ResonatePicker.cancel, variant: .text, size: .sm, action: onCancel)
+                // The modal is the frame: cancel is the tonal pill, out of reach while the choice is on its way.
+                OrganicButton(L10n.Card.ResonatePicker.cancel, variant: .tonal, size: .sm, action: onCancel)
                     .disabled(busy)
+            } verb: {
                 // While the server answers, the pen keeps inking where the wave was (the web's SketchLoader).
                 OrganicButton(L10n.Card.ResonatePicker.confirm, icon: .wave, variant: .solid, size: .sm) {
                     Task { await confirm() }
                 }
                 .working(busy)
                 .disabled(selectedId == nil)
-                .opacity(selectedId == nil ? 0.5 : 1)
             }
         }
         .task { await load() }

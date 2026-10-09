@@ -18,9 +18,9 @@ extension View {
     }
 
     /// ConfirmModal: title, a line of explanation, then cancel and the verb at
-    /// the bottom right. The modal is the frame, so neither button draws one:
-    /// cancel is plain text, the verb a solid fill — red when it can't be
-    /// undone (`destructive`). `error` shows under the text in the danger ink
+    /// the bottom right (``ModalActions``). No button draws a pen line: cancel
+    /// is the tonal pill, the verb a solid fill — red when it can't be undone
+    /// (`destructive`). `error` shows under the text in the danger ink
     /// when the action didn't go through. `titlePending`: the title's words are
     /// still being looked for — its line is kept, unwritten, rather than words
     /// that change under the reader (the web's `data-pending`).
@@ -77,7 +77,8 @@ public struct OrganicConfirmContent: View {
                 ModalError(error).padding(.bottom, 14)
             }
             ModalActions {
-                OrganicButton(cancelLabel, variant: .text, size: .sm, action: onCancel)
+                OrganicButton(cancelLabel, variant: .tonal, size: .sm, action: onCancel)
+            } verb: {
                 OrganicButton(busy ? "…" : confirmLabel, variant: destructive ? .danger : .solid, size: .sm, action: onConfirm)
             }
             .disabled(busy)
@@ -124,21 +125,46 @@ public struct ModalError: View {
     }
 }
 
-/// Dialog actions: bottom right, 10 apart; dimmed together while busy.
-public struct ModalActions<Content: View>: View {
-    let content: Content
-    public init(@ViewBuilder content: () -> Content) { self.content = content() }
+/// A dialog's foot when it asks for a choice (ModalActions.tsx): right-aligned in scanning order —
+/// the way out (`cancel`, the tonal pill) then the verb (solid, or danger), 10 apart — at every
+/// width. A pair too wide for one row (a narrow phone, long English words, a large text size)
+/// stacks rather than squeezing its labels: the verb on top, the way out under it, both still at
+/// the right (Material's stacked dialog buttons, iOS's stacked alerts). Each button is at least
+/// 44pt tall, a finger's. Dimmed together while busy (`.disabled` on the row).
+public struct ModalActions<Cancel: View, Verb: View>: View {
+    let cancel: Cancel
+    let verb: Verb
+
+    public init(@ViewBuilder cancel: () -> Cancel, @ViewBuilder verb: () -> Verb) {
+        self.cancel = cancel()
+        self.verb = verb()
+    }
+
     public var body: some View {
-        HStack(spacing: 10) { content }
-            .frame(maxWidth: .infinity, alignment: .trailing)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                cancel
+                verb
+            }
+            VStack(alignment: .trailing, spacing: 10) {
+                verb
+                cancel
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .environment(\.organicButtonMinHeight, ModalMetrics.minButtonHeight)
     }
 }
 
-/// The way out of a modal with nothing else at its foot (a list to look
-/// through, a note just sent): its close words as a quiet text button,
-/// centred under the content. Where there is a choice (cancel and a verb)
-/// the two sit at the bottom right instead, in ``ModalActions``. Android's
-/// ModalCloseButton.
+public enum ModalMetrics {
+    /// A dialog's buttons are never shorter than a finger needs (the small pills are about 38pt).
+    public static let minButtonHeight: CGFloat = 44
+}
+
+/// The way out of a modal with nothing else at its foot (a list to look through, a note just
+/// sent, a thank-you, "that didn't go through"): its close words as a small tonal pill, centred
+/// under the content (ModalCloseRow). Where there is a choice (cancel and a verb) the two sit at
+/// the bottom right instead, in ``ModalActions``. Android's ModalCloseButton.
 public struct ModalCloseButton: View {
     let label: String
     let action: () -> Void
@@ -149,9 +175,10 @@ public struct ModalCloseButton: View {
     }
 
     public var body: some View {
-        OrganicButton(label, variant: .text, size: .sm, action: action)
+        OrganicButton(label, variant: .tonal, size: .sm, action: action)
+            .environment(\.organicButtonMinHeight, ModalMetrics.minButtonHeight)
             .frame(maxWidth: .infinity)
-            .padding(.top, 4)
+            .padding(.top, 14)
     }
 }
 

@@ -408,7 +408,6 @@ private struct BlockedListContent: View {
                 SketchLoader(size: 44).frame(maxWidth: .infinity).padding(.vertical, 18)
             }
             ModalCloseButton(L10n.Safety.BlockedList.close, action: onClose)
-                .padding(.top, 12)
         }
         .task { people = (try? await session.safety?.blocked()) ?? [] }
     }

@@ -36,13 +36,13 @@ struct NoteComposer: View {
 
     var body: some View {
         if sent {
-            VStack(spacing: 14) {
+            VStack(spacing: 0) {
                 HStack(spacing: 10) {
                     OrganicIcon(.note, size: 18, color: Tokens.text)
                     Text(L10n.Card.Note.sent).font(AppFonts.body(14)).foregroundStyle(Tokens.text)
                     Spacer(minLength: 0)
                 }
-                // Said and done: the one way out, under the confirmation (a modal keeps no ✕ in its corner).
+                // Said and done: the one-exit notice's close, centred under the confirmation (a modal keeps no ✕).
                 ModalCloseButton(L10n.Card.Note.close, action: onClose)
             }
         } else {
@@ -92,14 +92,14 @@ struct NoteComposer: View {
             if let error {
                 Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta).padding(.bottom, 10)
             }
-            HStack(spacing: 10) {
-                Spacer(minLength: 0)
-                OrganicButton(L10n.Card.Note.cancel, variant: .text, size: .sm, action: onClose)
+            // The foot every dialog shares: cancel the tonal pill, Send the solid verb, rightmost.
+            ModalActions {
+                OrganicButton(L10n.Card.Note.cancel, variant: .tonal, size: .sm, action: onClose)
+            } verb: {
                 // While the server answers, the pen inks where the word was (the resonate picker's way): one size throughout.
                 OrganicButton(L10n.Card.Note.send, variant: .solid, size: .sm) { Task { await send() } }
                     .working(pending)
-                    .opacity(valid || pending ? 1 : 0.5)
-                    .allowsHitTesting(valid && !pending)
+                    .disabled(!valid && !pending)
             }
             .padding(.top, 18)
         }

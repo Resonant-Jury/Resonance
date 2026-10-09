@@ -583,7 +583,6 @@ private struct SharedMediaContent: View {
             .scrollIndicators(.hidden)
             // Nothing to choose here, only to look through: the way out is under the list.
             ModalCloseButton(L10n.Safety.Report.close, action: onClose)
-                .padding(.top, 14)
         }
     }
 
