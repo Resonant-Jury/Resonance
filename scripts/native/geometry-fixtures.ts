@@ -74,7 +74,14 @@ for (const [w, h] of [[150, 48], [212, 52], [96, 38]] as const) {
     segmentsH: [2, 3], segmentsV: 1, curve: 1.3, cornerJitter: 1.3, cornerOffset: Math.min(w, h) * 0.03,
   }); // OrganicButton
 }
-addRect(50, 28, 14, 9, 1.1, { curve: 1.5, segmentsH: [1, 2], segmentsV: [3, 4], cornerJitter: 0.6 }); // ToggleSwitch
+addRect(50, 28, 14, 9, 1.1, { curve: 1.5, segmentsH: [1, 2], segmentsV: [3, 4], cornerJitter: 0.6 }); // ToggleSwitch (before round 4)
+// ToggleSwitch: the track and its second pen pass (seed + 1) for the seeds the apps use —
+// publish 57, report 91, the notification switches 83 and 89, the default 9.
+for (const seed of [9, 57, 83, 89, 91]) {
+  for (const s of [seed, seed + 1]) {
+    addRect(50, 28, 12.5, s, 2.4, { curve: 2.8, segmentsH: 2, segmentsV: 1, cornerJitter: 2, cornerOffset: 1.4 });
+  }
+}
 for (const [w, h, seed] of [[320, 420, 42], [680, 240, 7], [1080, 360, 11]] as const) {
   addRect(w, h, 22, seed, autoMag(w, h), { segmentsH: autoSegments(w), segmentsV: autoSegments(h), curve: autoCurve(w, h) }); // HandDrawnBorder
 }
@@ -117,6 +124,10 @@ for (let i = 0; i < 220; i++) {
 // --- wobCircle ---------------------------------------------------------------
 const wobCircleCases: Case[] = [];
 wobCircleCases.push({ args: [10, 10, 10, 14, { segments: 8, mag: 0.5, cpJitter: 0.3 }], out: wobCircle(10, 10, 10, 14, { segments: 8, mag: 0.5, cpJitter: 0.3 }) });
+// ToggleSwitch's knob (seed + 5).
+for (const seed of [14, 62, 88, 94, 96]) {
+  wobCircleCases.push({ args: [10, 10, 10, seed, { segments: 6, mag: 1, cpJitter: 0.5 }], out: wobCircle(10, 10, 10, seed, { segments: 6, mag: 1, cpJitter: 0.5 }) });
+}
 for (let i = 0; i < 80; i++) {
   const r = range(2, 200);
   const cx = range(-50, 300);
