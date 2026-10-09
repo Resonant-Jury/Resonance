@@ -47,7 +47,8 @@
     "contact": "聯絡我們",
     "privacy": "隱私政策",
     "terms": "服務條款",
-    "copyright": "© 2026 Resonance 版權所有"
+    "copyright": "© 2026 Resonance 版權所有",
+    "trademarks": "Apple 與 App Store 是 Apple Inc. 的商標。Google Play 與 Google Play 標誌是 Google LLC 的商標。"
   },
   "tweaks": {
     "title": "微調",
@@ -407,7 +408,9 @@
       "updateHint": "按下之後，讀者看到的就會是這個版本。發布時間不會改變。",
       "update": "儲存修改",
       "updating": "儲存中⋯",
-      "anonymousVisibility": "匿名卡片只能公開，或設為只有自己看得到"
+      "anonymousVisibility": "匿名卡片只能公開，或設為只有自己看得到",
+      "failed": "沒發布成功，再試一次",
+      "rateLimited": "今天的次數用完了，明天再試"
     },
     "firstCard": {
       "title": "寫下你的第一張卡片",

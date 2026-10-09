@@ -88,6 +88,8 @@ public enum L10n {
         public static var terms: String { Strings.shared.string("footer.terms") }
         /// © 2026 Resonance. All rights reserved.
         public static var copyright: String { Strings.shared.string("footer.copyright") }
+        /// Apple and App Store are trademarks of Apple Inc. Google Play and the Google Play logo are trademarks of Google LLC.
+        public static var trademarks: String { Strings.shared.string("footer.trademarks") }
     }
     public enum Tweaks {
         /// Tweaks
@@ -755,6 +757,10 @@ public enum L10n {
             public static var updating: String { Strings.shared.string("write.publishPanel.updating") }
             /// An anonymous card is either public or only for you
             public static var anonymousVisibility: String { Strings.shared.string("write.publishPanel.anonymousVisibility") }
+            /// Couldn't publish — try again
+            public static var failed: String { Strings.shared.string("write.publishPanel.failed") }
+            /// That's the limit for today — try again tomorrow
+            public static var rateLimited: String { Strings.shared.string("write.publishPanel.rateLimited") }
         }
         public enum FirstCard {
             /// Write your first card

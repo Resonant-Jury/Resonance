@@ -90,6 +90,8 @@ object L10n {
         val terms: String get() = Strings.string("footer.terms")
         /** © 2026 Resonance. All rights reserved. */
         val copyright: String get() = Strings.string("footer.copyright")
+        /** Apple and App Store are trademarks of Apple Inc. Google Play and the Google Play logo are trademarks of Google LLC. */
+        val trademarks: String get() = Strings.string("footer.trademarks")
     }
     object Tweaks {
         /** Tweaks */
@@ -757,6 +759,10 @@ object L10n {
             val updating: String get() = Strings.string("write.publishPanel.updating")
             /** An anonymous card is either public or only for you */
             val anonymousVisibility: String get() = Strings.string("write.publishPanel.anonymousVisibility")
+            /** Couldn't publish — try again */
+            val failed: String get() = Strings.string("write.publishPanel.failed")
+            /** That's the limit for today — try again tomorrow */
+            val rateLimited: String get() = Strings.string("write.publishPanel.rateLimited")
         }
         object FirstCard {
             /** Write your first card */

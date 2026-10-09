@@ -47,7 +47,8 @@
     "contact": "Contact",
     "privacy": "Privacy",
     "terms": "Terms",
-    "copyright": "© 2026 Resonance. All rights reserved."
+    "copyright": "© 2026 Resonance. All rights reserved.",
+    "trademarks": "Apple and App Store are trademarks of Apple Inc. Google Play and the Google Play logo are trademarks of Google LLC."
   },
   "tweaks": {
     "title": "Tweaks",
@@ -407,7 +408,9 @@
       "updateHint": "After this, readers see this version. The publish date stays as it was.",
       "update": "Save changes",
       "updating": "Saving…",
-      "anonymousVisibility": "An anonymous card is either public or only for you"
+      "anonymousVisibility": "An anonymous card is either public or only for you",
+      "failed": "Couldn't publish — try again",
+      "rateLimited": "That's the limit for today — try again tomorrow"
     },
     "firstCard": {
       "title": "Write your first card",
