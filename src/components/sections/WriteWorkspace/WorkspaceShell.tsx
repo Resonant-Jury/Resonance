@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -18,6 +19,7 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { useRouter } from '@/i18n/navigation';
 import type { Card } from '@/lib/db/types';
+import { PaneHeader } from './PaneHeader';
 import styles from './WriteWorkspace.module.css';
 
 /* The editor pane may shrink to a comfortable reading column and grow at most
@@ -29,8 +31,13 @@ const MAX_EDITOR_FRAC = 0.5;
 export interface WorkspaceShellProps {
   /** Whether the right (editor) pane is open; closed = full-bleed map. */
   open: boolean;
-  /** The pane's ✕ (the thought-map page; the writer's bar has the way back instead). */
+  /**
+   * Hides the pane (the thought-map page; the writer's bar has the way back
+   * instead): the pane's header row carries the control, and Escape does it.
+   */
   onClose?: () => void;
+  /** What the pane shows, named in its header row (with `onClose` and no `bar`). */
+  paneTitle?: ReactNode;
   /** Host override for the map's「開啟卡片」. */
   onOpenCard?: (card: Card) => void;
   /** Replaces the map entirely (resonance writing shows the original card). */
@@ -39,7 +46,7 @@ export interface WorkspaceShellProps {
    * The writer's bar, as on the apps' writer page: the back arrow and the
    * title of what the pane shows, in the app header's likeness across both
    * panes, what scrolls passing under its pen line. It takes the place of
-   * the Leave floating over the map and of the pane's ✕.
+   * the Leave floating over the map and of the pane's own header row.
    */
   bar?: { title: ReactNode; onBack: () => void };
   children: ReactNode;
@@ -55,6 +62,7 @@ export interface WorkspaceShellProps {
 export function WorkspaceShell({
   open,
   onClose,
+  paneTitle,
   onOpenCard,
   leftOverride,
   bar,
@@ -107,6 +115,52 @@ export function WorkspaceShell({
     setScrolled([...scrolledUnder.current].some((x) => x.isConnected));
   };
 
+  // The thought-map page's pane: a header row of its own (no writer's bar),
+  // whose pen line inks in whole while anything under it has scrolled (the
+  // editor, or the reading panel's own scroller).
+  const headed = open && !bar && !!onClose;
+  const paneScrolledUnder = useRef(new Set<Element>());
+  const [paneScrolled, setPaneScrolled] = useState(false);
+  const onPaneScroll = (e: UIEvent<HTMLDivElement>) => {
+    const el = e.target as Element;
+    if (el.scrollTop > 4) paneScrolledUnder.current.add(el);
+    else paneScrolledUnder.current.delete(el);
+    setPaneScrolled([...paneScrolledUnder.current].some((x) => x.isConnected));
+  };
+  const mapRef = useRef<HTMLDivElement>(null);
+  // A pane opened again starts at its top, its line at rest.
+  useEffect(() => {
+    if (open) return;
+    paneScrolledUnder.current.clear();
+    setPaneScrolled(false);
+  }, [open]);
+
+  // Escape hides the pane, as its →| does — unless something over it is the
+  // one to close (a dialog, a menu, an open list: they stand on the page), the
+  // key ends an input method's composition (a Chinese IME's Escape only drops
+  // its candidates), or it is the map's own (an edge label being named lets
+  // Escape cancel it). Typing in a field, Escape first steps out of it to the
+  // →| (whose tooltip says what the next Escape does), so a stray press never
+  // folds away the card being written. Heard on the way down, as the story
+  // editor keeps every Escape to itself.
+  const paneRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!headed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
+      if (document.querySelector('[role="menu"], [role="listbox"], [aria-modal="true"]')) return;
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (target && mapRef.current?.contains(target)) return;
+      if (target && (target.isContentEditable || target.matches('input, textarea, select'))) {
+        paneRef.current?.querySelector<HTMLButtonElement>('header button')?.focus();
+        return;
+      }
+      onClose?.();
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [headed, onClose]);
+
   return (
     <div
       ref={shellRef}
@@ -123,7 +177,7 @@ export function WorkspaceShell({
       }
     >
       {bar && <HeaderBar title={bar.title} backLabel={tNav('back')} onBack={bar.onBack} scrolled={scrolled} heading />}
-      <div className={leftOverride ? `${styles.mapPane} ${styles.mapPaneDoc}` : styles.mapPane}>
+      <div ref={mapRef} className={leftOverride ? `${styles.mapPane} ${styles.mapPaneDoc}` : styles.mapPane}>
         {leftOverride ??
           (mapShown.current && (
             <ThoughtMapBoard
@@ -171,17 +225,22 @@ export function WorkspaceShell({
           </div>
 
           <section className={styles.editorPane}>
-            <div className={styles.paneScroll}>{children}</div>
-            {!bar && onClose && (
-              <button
-                type="button"
-                className={styles.paneClose}
-                aria-label={t('closeEditor')}
-                title={t('closeEditor')}
-                onClick={onClose}
-              >
-                <Icon name="close" size={17} />
-              </button>
+            {headed ? (
+              // The header stands over what the pane shows, which scrolls
+              // (and keeps its sticky toolbar) under the header's pen line.
+              <div ref={paneRef} className={styles.paneHeaded}>
+                <PaneHeader
+                  title={paneTitle}
+                  hideLabel={t('closeEditor')}
+                  onHide={onClose!}
+                  scrolled={paneScrolled}
+                />
+                <div className={styles.paneBody} onScrollCapture={onPaneScroll}>
+                  {children}
+                </div>
+              </div>
+            ) : (
+              <div className={styles.paneScroll}>{children}</div>
             )}
           </section>
         </>

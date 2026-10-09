@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { renderWithIntl, screen, userEvent } from '@/../test/render';
+import { fireEvent, renderWithIntl, screen, userEvent, within } from '@/../test/render';
 import { mockElementSize, penLines } from '@/../test/organic';
 
 const mockBack = vi.fn();
@@ -50,7 +50,7 @@ describe('the map behind the editor', () => {
 
     rerender(shell(false));
     expect(screen.getByTestId('map')).toBeInTheDocument();
-    // A card opened from the map covers it again; ✕ hands it back as it was.
+    // A card opened from the map covers it again; hiding the pane hands it back as it was.
     rerender(shell(true));
     expect(screen.getByTestId('map')).toBeInTheDocument();
   });
@@ -87,17 +87,132 @@ describe('WorkspaceShell', () => {
 
 describe('the chrome around the panes', () => {
   beforeEach(() => mockBack.mockClear());
+  afterEach(() => {
+    window.matchMedia = realMatchMedia;
+  });
 
-  // The thought-map page: the pane a card opened into closes on its ✕.
-  it('closes the pane on its ✕ when there is no bar', async () => {
+  // The thought-map page: the pane a card opened into has a header row of its
+  // own — what it shows on the left, a borderless →| that hides it on the
+  // right (hides, never discards: no ✕ — the edits are saved as they are made).
+  it('names what the pane shows in its header and hides the pane through its →|', async () => {
     const onClose = vi.fn();
     renderWithIntl(
-      <WorkspaceShell open onClose={onClose}>
+      <WorkspaceShell open onClose={onClose} paneTitle="Edit published card">
         <p>editor</p>
       </WorkspaceShell>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Hide the editor' }));
+    const header = screen.getByRole('heading', { level: 2, name: 'Edit published card' }).closest('header')!;
+    const hide = within(header).getByRole('button', { name: 'Hide the editor' });
+    // A glyph on the pane's paper: no pill, no pen line round it.
+    expect(hide).not.toHaveAttribute('data-variant');
+    expect(penLines(hide)).toHaveLength(0);
+    // The header stands over what the pane shows, outside what scrolls (the
+    // editor's sticky toolbar keeps to the top of its own scroller, under the header).
+    const body = screen.getByText('editor').parentElement!;
+    expect(header.nextElementSibling).toBe(body);
+    expect(body).not.toContainElement(header);
+    await userEvent.click(hide);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the pane on Escape — not while a dialog over it, or the map, takes the key', async () => {
+    // A desktop: the map stands beside the pane.
+    screenWidth(1440);
+    const onClose = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open onClose={onClose} paneTitle="Edit draft">
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    // A dialog over the page is the one Escape closes.
+    const dialog = document.createElement('div');
+    dialog.setAttribute('aria-modal', 'true');
+    document.body.appendChild(dialog);
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+    dialog.remove();
+
+    // The map's own Escape (an edge label being named) stays the map's.
+    const map = screen.getByTestId('map');
+    map.tabIndex = -1;
+    map.focus();
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+
+    (document.activeElement as HTMLElement | null)?.blur();
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // Typing in the card, Escape never folds it away at once: the first press
+  // steps out of the field to the →| (an IME's Escape is the IME's), the next hides.
+  it('steps out of a field on the first Escape and hides on the next — even from an editor that keeps Escape', async () => {
+    const onClose = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open onClose={onClose} paneTitle="Edit draft">
+        <input aria-label="Title" />
+        {/* The story editor (ProseMirror) prevents the default of every Escape it hears. */}
+        <div
+          role="textbox"
+          aria-label="Story"
+          contentEditable
+          suppressContentEditableWarning
+          onKeyDown={(e) => e.key === 'Escape' && e.preventDefault()}
+        />
+      </WorkspaceShell>,
+    );
+    const hide = screen.getByRole('button', { name: 'Hide the editor' });
+
+    const title = screen.getByRole('textbox', { name: 'Title' });
+    title.focus();
+    fireEvent.keyDown(title, { key: 'Escape', isComposing: true });
+    fireEvent.keyDown(title, { key: 'Escape', keyCode: 229 });
+    expect(title).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(hide).toHaveFocus();
+    expect(onClose).not.toHaveBeenCalled();
+
+    const story = screen.getByRole('textbox', { name: 'Story' });
+    // jsdom has no isContentEditable: the browser's answer.
+    Object.defineProperty(story, 'isContentEditable', { value: true });
+    story.focus();
+    await userEvent.keyboard('{Escape}');
+    expect(hide).toHaveFocus();
+    expect(onClose).not.toHaveBeenCalled();
+
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // Its pen line inks in whole while anything under it has scrolled — the
+  // editor's column, or the reading panel's own scroller (another author's card).
+  it('inks its pen line while what the pane shows has scrolled under it', () => {
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()} paneTitle="Original">
+        <div data-testid="panel" />
+      </WorkspaceShell>,
+    );
+    const header = screen.getByRole('heading', { level: 2, name: 'Original' }).closest('header')!;
+    expect(header).not.toHaveAttribute('data-scrolled');
+    const panel = screen.getByTestId('panel');
+    panel.scrollTop = 120;
+    fireEvent.scroll(panel);
+    expect(header).toHaveAttribute('data-scrolled');
+    panel.scrollTop = 0;
+    fireEvent.scroll(panel);
+    expect(header).not.toHaveAttribute('data-scrolled');
+  });
+
+  it('has no header row, and Escape does nothing, while the pane is closed', async () => {
+    const onClose = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open={false} onClose={onClose} paneTitle="Edit draft">
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   // The writer: one bar over both panes, as on the apps' writer page — its
@@ -112,6 +227,9 @@ describe('the chrome around the panes', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'New card' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Leave' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    // Its back arrow is the way out: Escape leaves the writer to it.
+    await userEvent.keyboard('{Escape}');
+    expect(onBack).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(onBack).toHaveBeenCalledTimes(1);

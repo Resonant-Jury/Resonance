@@ -24,7 +24,8 @@ import styles from './WriteWorkspace.module.css';
  * the editor reads `initial` exactly once — so the pane waits for it rather
  * than mounting an editor that would write straight through to readers.
  *
- * `titled={false}` leaves the title to the host's bar (the writer's).
+ * `titled={false}` leaves the title to the host: the writer's bar, or the
+ * thought map pane's own header row.
  */
 export function OpenedCardPane({ card, titled = true }: { card: Card; titled?: boolean }) {
   const t = useTranslations('write');

@@ -11,8 +11,8 @@
   display: flex;
   --app-header-h: 0px;
   /* The editor column's top padding — the whitespace above its「編輯草稿」title.
-     Shared so the floating chrome (Back, map toolbar, ✕) can sit on the same
-     top line as that title. */
+     Shared so the floating chrome (Back, map toolbar, the pane's header row)
+     can sit on the same top line as that title. */
   --editor-pad-top: clamp(28px, 5vh, 48px);
   background: var(--color-cream);
 }
@@ -159,40 +159,103 @@
   overflow-y: auto;
 }
 
-/* Close (✕) pinned to the pane's top-right, above its scrolling content. A
-   filled chip (not a bare hover-wash) so it clearly reads as a button — the
-   tonal face every secondary button wears, with no pen line of its own. Its right inset matches --page-pad-x — the same margin the Back
-   control keeps on the left — and its top sits on the「編輯草稿」title's line
-   (--editor-pad-top), matching the Back button and the map toolbar. */
-.paneClose {
+/* The thought map's pane with its header row (PaneHeader): the header over
+   a body that scrolls on its own, so what the pane shows (the editor with its
+   sticky toolbar, or the reading panel with its own scroller) passes under
+   the header's pen line — never under a floating button. */
+.paneHeaded {
   position: absolute;
-  top: calc(var(--editor-pad-top) + 8px);
-  right: calc(var(--page-pad-x) + 12px);
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.paneBody {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Under its own header the pane's first line needs no page-sized gap above it. */
+.paneBody .editorCol {
+  padding-top: clamp(16px, 2.5vh, 24px);
+}
+
+/* The header: on the pane's paper, above the body (its wave hangs over the
+   body's top). Its row lines up with the editor column (the same max width
+   and side padding) and, beside the map, sits on the line of the map's
+   floating chrome — Leave and the toolbar, whose top is --editor-pad-top and
+   whose pills are 38px tall. */
+.paneHeader {
+  position: relative;
   z-index: 8;
+  flex: none;
+  padding: var(--editor-pad-top) 0 12px;
+  background: var(--color-cream);
+}
+
+.paneHeaderRow {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 11px 13px 12px 14px;
-  background: var(--button-tonal);
-  color: var(--button-on-tonal);
-  cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: var(--page-max-w-narrow);
+  min-height: 38px;
+  margin: 0 auto;
+  padding: 0 var(--page-pad-x);
 }
 
-.paneClose:hover {
-  background: color-mix(in oklch, var(--button-tonal), var(--color-terracotta) 14%);
+.paneTitle {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-heading);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.paneClose:focus-visible {
-  outline: 2px solid var(--field-border-focus);
-  outline-offset: 2px;
+/* The glyph's ink lands on the column's right edge, as the title's on its left. */
+.paneHide {
+  margin-right: -8px;
+}
+
+/* The pen line hangs across the header's foot (the paper above it follows the
+   wave), so what scrolls passes beneath a drawn edge, not a straight cut. */
+.paneWave {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  width: 100%;
+  height: 14px;
+  margin-top: -7px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.panePaper {
+  fill: var(--color-cream);
+}
+
+/* Half ink at rest, whole once something has scrolled under it (the writer's bar's rule). */
+.paneLine {
+  stroke: var(--field-border-hover);
+  opacity: 0.5;
+  transition: opacity 300ms ease;
+}
+
+.paneHeader[data-scrolled] .paneLine {
+  opacity: 1;
 }
 
 /* Below the desktop split the open pane simply owns the viewport; the map
-   waits (mounted) underneath and returns on ✕. */
+   waits (mounted) underneath and returns on the header's →|. */
 @media (max-width: 1199px) {
   .rail {
     display: none;
@@ -210,12 +273,13 @@
     display: none;
   }
 
-  /* Single pane: the desktop nudges (+8px down to sit on the wider layout's
-     title line, +12px in from the divider) have nothing to align with here —
-     the ✕ sits square on the title line and the text column's right edge,
-     mirroring the Back control's insets on the left. */
-  .paneClose {
-    top: var(--editor-pad-top);
-    right: var(--page-pad-x);
+  /* Covering the map, nothing floats beside the header to line up with: it
+     is the writer's bar's height (its row is that bar's, to the pen line). */
+  .paneHeader {
+    padding: 0;
+  }
+
+  .paneHeaderRow {
+    min-height: var(--pane-bar-h, 73px);
   }
 }
