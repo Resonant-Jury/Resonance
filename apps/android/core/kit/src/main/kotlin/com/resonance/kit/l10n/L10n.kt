@@ -303,8 +303,6 @@ object L10n {
             val close: String get() = Strings.string("card.note.close")
         }
         object Bookmark {
-            /** Saved */
-            val saved: String get() = Strings.string("card.bookmark.saved")
             /** Bookmark */
             val add: String get() = Strings.string("card.bookmark.add")
             /** Remove bookmark */
@@ -345,14 +343,8 @@ object L10n {
         object ResonatePicker {
             /** Resonate with this card */
             val title: String get() = Strings.string("card.resonatePicker.title")
-            /** Write a new card, or pick one you've written about something similar */
-            val subtitle: String get() = Strings.string("card.resonatePicker.subtitle")
             /** Write a new card */
             val writeNew: String get() = Strings.string("card.resonatePicker.writeNew")
-            /** Start from this card and put your own experience into words */
-            val writeNewHint: String get() = Strings.string("card.resonatePicker.writeNewHint")
-            /** Or pick one you've written */
-            val pickHeading: String get() = Strings.string("card.resonatePicker.pickHeading")
             /** You have no public cards yet — write your first one above */
             val empty: String get() = Strings.string("card.resonatePicker.empty")
             /** Cards already resonating with another card aren't listed */

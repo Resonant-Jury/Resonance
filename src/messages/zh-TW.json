@@ -167,7 +167,6 @@
       "close": "關閉"
     },
     "bookmark": {
-      "saved": "已收藏",
       "add": "收藏",
       "remove": "取消收藏"
     },
@@ -193,10 +192,7 @@
     },
     "resonatePicker": {
       "title": "與這張卡片共振",
-      "subtitle": "寫一張新卡片回應，或選一張你寫過、有類似經驗的卡片",
       "writeNew": "寫一張新卡片",
-      "writeNewHint": "從這篇出發，寫下你的經驗",
-      "pickHeading": "或選一張你寫過的卡片",
       "empty": "你還沒有公開發表的卡片，從上面寫第一張吧",
       "hiddenNote": "已與其他卡片共振的卡片不會列在這裡",
       "confirm": "共振",

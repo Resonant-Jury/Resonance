@@ -301,8 +301,6 @@ public enum L10n {
             public static var close: String { Strings.shared.string("card.note.close") }
         }
         public enum Bookmark {
-            /// Saved
-            public static var saved: String { Strings.shared.string("card.bookmark.saved") }
             /// Bookmark
             public static var add: String { Strings.shared.string("card.bookmark.add") }
             /// Remove bookmark
@@ -343,14 +341,8 @@ public enum L10n {
         public enum ResonatePicker {
             /// Resonate with this card
             public static var title: String { Strings.shared.string("card.resonatePicker.title") }
-            /// Write a new card, or pick one you've written about something similar
-            public static var subtitle: String { Strings.shared.string("card.resonatePicker.subtitle") }
             /// Write a new card
             public static var writeNew: String { Strings.shared.string("card.resonatePicker.writeNew") }
-            /// Start from this card and put your own experience into words
-            public static var writeNewHint: String { Strings.shared.string("card.resonatePicker.writeNewHint") }
-            /// Or pick one you've written
-            public static var pickHeading: String { Strings.shared.string("card.resonatePicker.pickHeading") }
             /// You have no public cards yet — write your first one above
             public static var empty: String { Strings.shared.string("card.resonatePicker.empty") }
             /// Cards already resonating with another card aren't listed
