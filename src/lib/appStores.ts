@@ -1,7 +1,8 @@
 /**
  * The apps in the stores, and which store a visitor's device belongs to: the
  * website's download badges (GetTheApp), the /download link its QR code
- * encodes (src/app/download/route.ts) and the iPhone Smart App Banner.
+ * encodes (src/app/download/route.ts) and the iPhone Smart App Banner on the
+ * public pages (smartAppBanner).
  */
 
 /** The iOS app's App Store id (App Store Connect → Resonance). */
@@ -10,6 +11,19 @@ export const APP_STORE_ID = '6817604797';
 export const APP_STORE_URL = `https://apps.apple.com/tw/app/resonance/id${APP_STORE_ID}`;
 
 export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.resonance.stories';
+
+/**
+ * Safari's Smart App Banner (`<meta name="apple-itunes-app">`) for a public
+ * page — the landing page, a card, a profile: on an iPhone or iPad it offers
+ * the app, or once installed opens it at `url` (the app opens a card's or a
+ * profile's address on that card or profile). Never on the policy pages (the
+ * apps show those in an in-app browser), the sign-in pages or the signed-in
+ * app's own pages, where a banner over the editor or a thread only pushes it
+ * down.
+ */
+export function smartAppBanner(url?: string): { appId: string; appArgument?: string } {
+  return url ? { appId: APP_STORE_ID, appArgument: url } : { appId: APP_STORE_ID };
+}
 
 /** The landing page's download block, where /download sends a computer. */
 export const DOWNLOAD_ANCHOR = 'download';

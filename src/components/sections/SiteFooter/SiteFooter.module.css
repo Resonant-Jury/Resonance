@@ -37,6 +37,25 @@
   font-style: italic;
 }
 
+/* The badges and, close under them, the stores' trademark line. */
+.download {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Small print, but readable: 5.0:1 on the footer's ink. */
+.trademarks {
+  max-width: 34em;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  color: oklch(85% 0.015 75 / 0.65);
+}
+
 .links {
   display: flex;
   gap: 28px;

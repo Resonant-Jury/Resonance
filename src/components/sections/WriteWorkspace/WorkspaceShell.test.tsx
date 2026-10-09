@@ -1,15 +1,31 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { fireEvent, renderWithIntl, screen, userEvent, within } from '@/../test/render';
 import { mockElementSize, penLines } from '@/../test/organic';
+import type { Card } from '@/lib/db/types';
 
 const mockBack = vi.fn();
 vi.mock('@/i18n/navigation', () => ({
   useRouter: () => ({ back: mockBack, push: vi.fn(), replace: vi.fn() }),
 }));
-// The shell is about the chrome around the map; the map itself is swapped out.
+// The shell is about the chrome around the map; the map itself is swapped out
+// for a card (its tab's 開啟卡片 shown while `map.tabShown`) and an arrow's label field.
+const map = { tabShown: true };
 vi.mock('@/components/molecules/ThoughtMap/ThoughtMapBoard', () => ({
-  ThoughtMapBoard: () => <div data-testid="map" />,
+  ThoughtMapBoard: ({ onOpenCard, paneOpen }: { onOpenCard?: (card: Card) => void; paneOpen?: boolean }) => (
+    <div data-testid="map">
+      <div role="button" tabIndex={-1} data-card-id="c1" onDoubleClick={() => onOpenCard?.({ id: 'c1' } as Card)}>
+        A card
+      </div>
+      {(map.tabShown || !paneOpen) && (
+        <button type="button" onClick={() => onOpenCard?.({ id: 'c1' } as Card)}>
+          Open card
+        </button>
+      )}
+      <input aria-label="Arrow label" />
+    </div>
+  ),
 }));
 
 import { WorkspaceShell } from './WorkspaceShell';
@@ -115,7 +131,7 @@ describe('the chrome around the panes', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('hides the pane on Escape — not while a dialog over it, or the map, takes the key', async () => {
+  it('hides the pane on Escape — not while a dialog over it, or a field on the map, takes the key', async () => {
     // A desktop: the map stands beside the pane.
     screenWidth(1440);
     const onClose = vi.fn();
@@ -132,16 +148,33 @@ describe('the chrome around the panes', () => {
     expect(onClose).not.toHaveBeenCalled();
     dialog.remove();
 
-    // The map's own Escape (an edge label being named) stays the map's.
-    const map = screen.getByTestId('map');
-    map.tabIndex = -1;
-    map.focus();
+    // A field on the map keeps its own Escape (an arrow's label being named: it cancels).
+    screen.getByRole('textbox', { name: 'Arrow label' }).focus();
     await userEvent.keyboard('{Escape}');
     expect(onClose).not.toHaveBeenCalled();
 
     (document.activeElement as HTMLElement | null)?.blur();
     await userEvent.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // Opening a card leaves the focus on its 開啟卡片 (or on the card, double-
+  // clicked): the next Escape is the pane's, not swallowed by the map.
+  it('hides the pane on Escape with the focus still on the map’s 開啟卡片 or on the card', async () => {
+    screenWidth(1440);
+    const onClose = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open onClose={onClose} paneTitle="Edit draft">
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    screen.getByRole('button', { name: 'Open card' }).focus();
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    screen.getByRole('button', { name: 'A card' }).focus();
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(2);
   });
 
   // Typing in the card, Escape never folds it away at once: the first press
@@ -234,5 +267,101 @@ describe('the chrome around the panes', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(mockBack).not.toHaveBeenCalled();
+  });
+});
+
+/** The thought-map page in small: a card opened from the map shows in the pane until it is hidden. */
+function MapPage() {
+  const [card, setCard] = useState<Card | null>(null);
+  return (
+    <WorkspaceShell
+      open={card != null}
+      onClose={() => setCard(null)}
+      paneTitle="Edit draft"
+      paneKey={card?.id}
+      onOpenCard={setCard}
+    >
+      <input aria-label="Title" />
+    </WorkspaceShell>
+  );
+}
+
+describe('the map while the pane is open', () => {
+  afterEach(() => {
+    window.matchMedia = realMatchMedia;
+    map.tabShown = true;
+  });
+
+  // Below the split the pane covers the map: Tab must not walk controls no one
+  // sees, nor the focus stay on one.
+  it('is inert while the pane covers it, and only then', async () => {
+    screenWidth(390);
+    const shell = (open: boolean) => (
+      <WorkspaceShell open={open} onClose={vi.fn()} paneTitle="Edit draft">
+        <p>editor</p>
+      </WorkspaceShell>
+    );
+    const { rerender } = renderWithIntl(shell(false));
+    const mapPane = screen.getByTestId('map').parentElement!;
+    expect(mapPane).not.toHaveAttribute('inert');
+    rerender(shell(true));
+    expect(mapPane).toHaveAttribute('inert');
+    rerender(shell(false));
+    expect(mapPane).not.toHaveAttribute('inert');
+
+    // Beside the pane on a desktop, it stays in reach.
+    window.matchMedia = realMatchMedia;
+    screenWidth(1440);
+    rerender(shell(true));
+    expect(screen.getByTestId('map').parentElement).not.toHaveAttribute('inert');
+  });
+
+  // Hiding the pane unmounts what had the focus (its →|, the field being
+  // written in): the focus goes back to what opened the card, not to the page.
+  it('hands the focus back to the 開啟卡片 that opened the card when the pane hides', async () => {
+    screenWidth(1440);
+    renderWithIntl(<MapPage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hide the editor' }));
+    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open card' })).toHaveFocus();
+
+    // And by Escape, from the field being written in (out of it, then hidden).
+    await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
+    await userEvent.click(screen.getByRole('textbox', { name: 'Title' }));
+    await userEvent.keyboard('{Escape}{Escape}');
+    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open card' })).toHaveFocus();
+  });
+
+  it('hands the focus to the card itself when what opened it is gone', async () => {
+    screenWidth(1440);
+    map.tabShown = false;
+    renderWithIntl(<MapPage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
+    // The tab went away with the pane open; hiding the pane brings a new one.
+    await userEvent.click(screen.getByRole('button', { name: 'Hide the editor' }));
+    expect(screen.getByRole('button', { name: 'A card' })).toHaveFocus();
+  });
+
+  // Another card opened while the pane is open starts at its top, the
+  // header's line at rest — not where the last card was left.
+  it('starts another card at its top, its header line at rest', () => {
+    screenWidth(1440);
+    const shell = (key: string) => (
+      <WorkspaceShell open onClose={vi.fn()} paneTitle="Original" paneKey={key}>
+        <div data-testid={`panel-${key}`} />
+      </WorkspaceShell>
+    );
+    const { rerender } = renderWithIntl(shell('a'));
+    const header = screen.getByRole('heading', { level: 2, name: 'Original' }).closest('header')!;
+    const body = header.nextElementSibling as HTMLElement;
+    body.scrollTop = 300;
+    fireEvent.scroll(body);
+    expect(header).toHaveAttribute('data-scrolled');
+
+    rerender(shell('b'));
+    expect(header).not.toHaveAttribute('data-scrolled');
+    expect(body.scrollTop).toBe(0);
   });
 });

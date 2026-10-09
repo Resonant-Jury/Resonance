@@ -1,7 +1,22 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderWithIntl, screen, fireEvent, userEvent, waitFor, within } from '@/../test/render';
 import { ReadAfterArea } from './ReadAfterArea';
+import actionStyles from './CardViewerActions.module.css';
+
+/**
+ * The note's words as a screen this wide shows them (jsdom applies no CSS
+ * modules: the rule CardViewerActions.module.css sets at 640px, written out).
+ */
+function screenIs(width: 'phone' | 'desktop') {
+  document.getElementById('note-words')?.remove();
+  const style = document.createElement('style');
+  style.id = 'note-words';
+  style.textContent = `.${width === 'phone' ? actionStyles.wide : actionStyles.narrow} { display: none; }`;
+  document.head.appendChild(style);
+}
 
 // Boundary mocks: auth, navigation, data hooks, write modules, hints. The
 // CardEditor itself (Tiptap-based) is stubbed — these tests exercise the
@@ -55,6 +70,7 @@ vi.mock('@/components/molecules/CardEditor/CardEditor', () => ({
 const author = { id: 'author-1', handle: '@a', initials: 'A', accentColor: 'var(--accent)' };
 
 beforeEach(() => {
+  screenIs('desktop');
   mockUseAuth.mockReturnValue({ user: { id: 'viewer' }, loading: false });
   mockUseMyResonance.mockReturnValue({ data: null, mutate: vi.fn() });
 });
@@ -64,8 +80,7 @@ const user = () => userEvent.setup({ pointerEventsCheck: 0 });
 
 describe('ReadAfterArea', () => {
   // One bar at every width (a phone's too, in one row): the verb solid, the
-  // note and the bookmark tonal. The note's short words are for a phone's
-  // row; its full words stay its name.
+  // note and the bookmark tonal.
   it('renders the three actions once, in one bar: resonate, the note, the bookmark', async () => {
     renderWithIntl(
       <ReadAfterArea cardId="c1" cardTitle="Title" author={author} coreInsight="ins" />,
@@ -73,11 +88,37 @@ describe('ReadAfterArea', () => {
     const bar = screen.getByRole('group');
     expect(within(bar).getAllByRole('button')).toHaveLength(3);
     expect(within(bar).getByRole('button', { name: /Resonate/ })).toBeInTheDocument();
-    const note = within(bar).getByRole('button', { name: 'Send the author a little note' });
-    expect(note).toHaveTextContent('Send a note');
+    expect(within(bar).getByRole('button', { name: 'Send the author a little note' })).toBeInTheDocument();
     expect(within(bar).getByRole('button', { name: 'Bookmark' })).toBeInTheDocument();
     // The bookmark's state is read once the bar is up.
     await act(async () => {});
+  });
+
+  // WCAG 2.5.3 (label in name): a phone's row shows the note's short words,
+  // and its name is those words — a voice control user says what they see.
+  it('names the note by the words it shows: in full on a desktop, short on a phone', async () => {
+    screenIs('phone');
+    const { unmount } = renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
+    expect(screen.getByRole('button', { name: 'Send a note' })).toBeInTheDocument();
+    await act(async () => {});
+    unmount();
+
+    screenIs('desktop');
+    renderWithIntl(<ReadAfterArea cardId="c1" cardTitle="Title" author={author} />);
+    expect(screen.getByRole('button', { name: 'Send the author a little note' })).toBeInTheDocument();
+    await act(async () => {});
+  });
+
+  // The short words belong to the row that spans a phone's column: below the
+  // width the bar spreads at, never in a bar standing at its own width.
+  it('switches to the short words at the width the bar spreads across the column', () => {
+    const css = (path: string) => readFileSync(join(process.cwd(), path), 'utf8');
+    const widthOf = (text: string, rule: RegExp) =>
+      [...text.matchAll(/@media \(max-width: (\d+)px\)\s*\{([\s\S]*?)\n\}/g)].find(([, , body]) => rule.test(body))?.[1];
+    const short = widthOf(css('src/components/molecules/CardDetail/CardViewerActions.module.css'), /\.narrow\s*\{\s*display: inline/);
+    const spread = widthOf(css('src/components/molecules/SegmentedActionBar/SegmentedActionBar.module.css'), /\.bar\s*\{[^}]*width: 100%/);
+    expect(short).toBeDefined();
+    expect(short).toBe(spread);
   });
 
   it('renders nothing at all for the card author', () => {

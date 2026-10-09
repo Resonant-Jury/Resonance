@@ -228,7 +228,7 @@ describe('SettingsClient account deletion', () => {
     // and the way into the deletion in its red tint — the dialog it opens
     // asks with the solid red.
     const download = screen.getByRole('button', { name: 'Download my data' });
-    expect(download).toHaveAttribute('data-variant', 'text');
+    expect(download).toHaveAttribute('data-variant', 'tonal');
     expect(screen.getByRole('button', { name: 'Delete account' })).toHaveAttribute('data-variant', 'dangerTonal');
     await u.click(download);
     await waitFor(() => expect(downloadMyData).toHaveBeenCalledTimes(1));

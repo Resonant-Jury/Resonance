@@ -104,6 +104,7 @@ export const ThoughtMapNode = memo(function ThoughtMapNode({
   return (
     <div
       className={styles.node}
+      data-card-id={card.id}
       data-selected={selected || undefined}
       data-dragging={dragging || undefined}
       style={{ left: x, top: y, width: NODE_W, height: NODE_H, '--node-hue': hue } as CSSProperties}

@@ -48,15 +48,16 @@
 
 /* No boxed hover wash — rows are divider-separated (notification modal
    language); hover answers through the title ink instead (under a pointer
-   only: a tap must not leave a row looking chosen). */
+   only: a tap must not leave a row looking chosen). The deep terracotta of
+   the buttons' labels (4.8:1): plain terracotta is 3.5:1 on the paper. */
 @media (hover: hover) {
   .cardRow:hover:not(:disabled) .cardTitle {
-    color: var(--color-terracotta);
+    color: var(--button-on-tonal);
   }
 }
 
 .cardRow[data-chosen] .cardTitle {
-  color: var(--color-terracotta);
+  color: var(--button-on-tonal);
 }
 
 .cardRow:focus-visible {

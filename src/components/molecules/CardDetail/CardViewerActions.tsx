@@ -45,9 +45,10 @@ export interface CardViewerActionsProps {
 /**
  * The response action bar on the card detail page: one SegmentedActionBar at
  * every width — 共振 (the verb, solid), the note and the bookmark (tonal). On
- * a phone it spans the column in one row: the note reads 寄小紙條 (its full
- * words stay its accessible name), and the bookmark drops its words for its
- * icon when the row has no room for them.
+ * a phone it spans the column in one row: the note reads 寄小紙條 (and is
+ * named so there: its name is always the words it shows), and the bookmark
+ * drops its words for its icon when the row has no room for them (its words
+ * stay its name).
  */
 export function CardViewerActions({
   cardId,
@@ -128,13 +129,14 @@ export function CardViewerActions({
     {
       key: 'note',
       icon: <Icon name="note" size={16} />,
+      // Its name is the words on screen (the hidden form is left out of it):
+      // someone speaking to a voice control says what they see.
       label: (
         <>
           <span className={styles.wide}>{tNote('entry')}</span>
           <span className={styles.narrow}>{tNote('entryShort')}</span>
         </>
       ),
-      ariaLabel: tNote('entry'),
       hoverOverlay: 'color-mix(in oklch, var(--color-terracotta) 14%, transparent)',
       onClick: onOpenNote,
     },

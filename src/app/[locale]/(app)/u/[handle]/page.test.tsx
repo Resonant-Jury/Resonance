@@ -2,12 +2,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
-import { renderWithIntl, screen } from '@/../test/render';
+import { renderWithIntl, screen, userEvent } from '@/../test/render';
 import type { Card, User } from '@/lib/db/types';
 
 // The public profile page on its real data hooks; the client read layer, the
 // v1 API (callApi), the viewer's blocks and auth are the module boundary.
 const mockUseAuth = vi.fn();
+const mockPush = vi.fn();
 vi.mock('@/components/providers/AuthProvider', () => ({ useAuth: () => mockUseAuth() }));
 vi.mock('next/navigation', () => ({ useParams: () => ({ handle: 'bob' }) }));
 vi.mock('@/i18n/navigation', () => ({
@@ -16,7 +17,7 @@ vi.mock('@/i18n/navigation', () => ({
       {children}
     </a>
   ),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
 }));
 vi.mock('@/lib/db/firestore/client/reads', () => ({
   getUserByHandle: vi.fn(),
@@ -126,6 +127,11 @@ describe('public profile page, signed out', () => {
     renderPage();
     expect(await screen.findByText("This person can't be found")).toBeInTheDocument();
     expect(getPublicCardsByAuthor).not.toHaveBeenCalled();
+    // The way home is a button, filled as every button is: the tonal pill.
+    const home = screen.getByRole('button', { name: 'Back to home' });
+    expect(home).toHaveAttribute('data-variant', 'tonal');
+    await userEvent.click(home);
+    expect(mockPush).toHaveBeenCalledWith('/home');
   });
 });
 

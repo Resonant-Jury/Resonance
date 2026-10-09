@@ -88,11 +88,13 @@ body  { font-family: var(--font-body); background: var(--color-cream); color: va
 | Footer background | `var(--color-text)` |
 | Primary text | `var(--color-text)` |
 | Muted text | `var(--color-text-muted)` |
+| A link card's description and host (a story's link card, a chat link's preview) | `var(--link-card-muted)` = `oklch(45% 0.04 70)` — 5.8:1 on `--bubble-theirs`, 5.7:1 on `--bubble-mine`, 5.3:1 on `--bubble-quote` (the muted ink is 4.3:1 there); the host under a pointer `var(--button-on-tonal)`. The apps take the same (`Tokens.linkCardMuted`) |
 | Accent / highlight word | `var(--color-terracotta)` |
 | Header bg (scrolled) | `oklch(96% 0.015 75 / 0.92)` + `backdrop-filter: blur(12px)` |
 | Footer tagline | `oklch(85% 0.015 75 / 0.5)` |
 | Footer links | `oklch(85% 0.015 75 / 0.55)` → hover `oklch(85% 0.015 75 / 0.9)` |
 | Footer divider | `oklch(85% 0.015 75 / 0.1)` |
+| Footer trademark line (under the store badges) | `oklch(85% 0.015 75 / 0.65)` (5.0:1), 12px |
 | Footer copyright | `oklch(85% 0.015 75 / 0.3)` |
 | CTA description text | `oklch(96% 0.015 75 / 0.8)` |
 
@@ -152,7 +154,7 @@ The older names still work and wear the rank they stood for — `primary` is `so
 
 **`block`** stretches a button to its container's width (the face is measured and drawn at that width, the label stays centred): the provider buttons on the phone's sign-in sheet, and the stacked pairs above.
 
-**Segmented buttons are buttons: no outline.** `SegmentedActionBar` (the card page's Resonate / Send a note / Bookmark, the inline resonance editor's Publish / Save draft, the publish panel's Public / Only me) is a filled shape like any button: no pen line round the bar, the tonal face (`--button-tonal`) under every segment that brings none, the verb's segment in `--button-fill` with a cream label, the other labels in `--button-on-tonal`, and the seams between segments cut in `--color-cream` (a wavy cut in the paper, not an ink line); the buttons' grain (0.38 / 1.1) over the whole face. A segmented *choice* (the publish panel's visibility) sits on a `--color-cream-dark` track instead, the chosen side in `--button-tonal` with the deep label, the other in muted ink + 10% black. The card page's bar is one row at every width: on a phone (≤ 560px) it spans the column and its segments share it evenly; the note reads its short words there (寄小紙條 / Send a note, its full words still its accessible name), and the bookmark is `collapsible` — when the three labels no longer fit the row it shows its icon alone (its words kept for a screen reader) and takes only its own room (16px a side).
+**Segmented buttons are buttons: no outline.** `SegmentedActionBar` (the card page's Resonate / Send a note / Bookmark, the inline resonance editor's Publish / Save draft, the publish panel's Public / Only me) is a filled shape like any button: no pen line round the bar, the tonal face (`--button-tonal`) under every segment that brings none, the verb's segment in `--button-fill` with a cream label, the other labels in `--button-on-tonal`, and the seams between segments cut in `--color-cream` (a wavy cut in the paper, not an ink line); the buttons' grain (0.38 / 1.1) over the whole face. A segmented *choice* (the publish panel's visibility) sits on a `--color-cream-dark` track instead, the chosen side in `--button-tonal` with the deep label, the other in muted ink + 10% black. The card page's bar is one row at every width: on a phone (≤ 560px) it spans the column and its segments share it evenly; the note reads its short words there (寄小紙條 / Send a note, its full words still its accessible name), and the bookmark is `collapsible` — when the three labels no longer fit the row it shows its icon alone (its words kept for a screen reader) and takes only its own room (16px a side). A Tab-focused segment is ringed inside its own edge in its label's ink (`outline: 2px solid currentColor`, offset -4px): cream on the verb's segment, where the terracotta focus colour would vanish, the deep terracotta on the tonal ones. A segmented choice tells a screen reader which side is chosen (`aria-pressed`, `SegmentSpec.pressed`).
 
 **Where else a pen line stays** (none of them a button face): containers and inputs; floating surfaces (`OrganicMenu` popovers, select lists, modals, sheets); the editor's small × over a story picture (`NodeRemoveButton`: a cream disc over a busy photo needs its rim to separate from it); the thought map's dashed link handle (a drag handle on the canvas, not a button).
 

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { setRequestLocale } from 'next-intl/server';
 import { SiteHeader } from '@/components/sections/SiteHeader/SiteHeader';
 import { HeroSection } from '@/components/sections/HeroSection/HeroSection';
@@ -6,8 +7,16 @@ import { CTASection } from '@/components/sections/CTASection/CTASection';
 import { SiteFooter } from '@/components/sections/SiteFooter/SiteFooter';
 import { repos } from '@/lib/db';
 import type { User } from '@/lib/db/types';
+import { smartAppBanner } from '@/lib/appStores';
+import { siteUrl } from '@/lib/site';
 
 export const revalidate = 3600;
+
+/** The rest of the head is the locale layout's; this public page also offers the iOS app. */
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  return { itunes: smartAppBanner(`${siteUrl()}/${locale}`) };
+}
 
 export default async function LandingPage({
   params,

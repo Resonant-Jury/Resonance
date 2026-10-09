@@ -90,7 +90,7 @@
   font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.5;
-  color: var(--color-text-muted);
+  color: var(--link-card-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -107,7 +107,7 @@
   font-family: var(--font-body);
   font-size: 13px;
   line-height: 1.3;
-  color: var(--color-text-muted);
+  color: var(--link-card-muted);
 }
 
 .host > :first-child {
@@ -121,8 +121,9 @@
   white-space: nowrap;
 }
 
-/* The host turns to the link colour when the card is pointed at. */
+/* The host turns to the link colour when the card is pointed at: the deep
+   terracotta (4.8:1 on the hover wash; the plain one is 2.7:1 there). */
 .card:hover .hostName,
 .card:focus-visible .hostName {
-  color: var(--color-terracotta);
+  color: var(--button-on-tonal);
 }

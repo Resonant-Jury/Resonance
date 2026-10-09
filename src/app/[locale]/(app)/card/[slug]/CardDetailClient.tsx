@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
+import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { CardDetailSkeleton } from '@/components/molecules/CardDetail/CardDetailSkeleton';
@@ -167,12 +168,13 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
   if (!data || !data.card || !data.author || gate === 'blocked') {
     return (
       <div style={{ ...wrapStyle, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--color-text)', marginBottom: 12 }}>
+        <p style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--color-text)', marginBottom: 20 }}>
           {t('notFound.title')}
         </p>
-        <Link href="/home" style={{ textDecoration: 'none' }}>
-          <span style={{ color: 'var(--color-terracotta)' }}>{t('notFound.back')}</span>
-        </Link>
+        {/* The way on is a button, and every button has a fill: the tonal pill. */}
+        <OrganicButton variant="tonal" onClick={() => router.push('/home')}>
+          {t('notFound.back')}
+        </OrganicButton>
       </div>
     );
   }

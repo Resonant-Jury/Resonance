@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { FirestoreUserRepository } from '@/lib/db/firestore/user';
 import type { Locale } from '@/lib/db/types';
+import { smartAppBanner } from '@/lib/appStores';
 import { buildProfileMetadata } from '@/lib/og';
 import { siteUrl } from '@/lib/site';
 import { publicBases } from '@/lib/storage/publicUrl';
@@ -42,22 +43,28 @@ export async function generateMetadata({
     /* keep raw */
   }
 
+  // Safari offers the app on a profile, and opens it on this profile.
+  const base = siteUrl();
+  const itunes = smartAppBanner(`${base}/${locale}/u/${encodeURIComponent(handle)}`);
   const user = await new FirestoreUserRepository().findByHandle(handle);
-  if (!user) return {};
+  if (!user) return { itunes };
 
   const t = await getTranslations({ locale, namespace: 'profile' });
   const title = t('shareTitle', { handle: user.handle });
   // Prefer the user's own bio; fall back to a localized default.
   const description = user.bio?.trim() || t('shareDescription', { handle: user.handle });
 
-  return buildProfileMetadata({
-    user,
-    locale: locale as Locale,
-    base: siteUrl(),
-    title,
-    description,
-    storageBases: publicBases(),
-  });
+  return {
+    ...buildProfileMetadata({
+      user,
+      locale: locale as Locale,
+      base,
+      title,
+      description,
+      storageBases: publicBases(),
+    }),
+    itunes,
+  };
 }
 
 export default function ProfileLayout({ children }: { children: React.ReactNode }) {

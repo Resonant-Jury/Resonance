@@ -11,9 +11,12 @@ vi.mock('@/styles/fonts', () => ({ fontVariables: '' }));
 import { generateMetadata } from './layout';
 
 describe('the locale layout’s metadata', () => {
-  // <meta name="apple-itunes-app" content="app-id=6817604797">: Safari's Smart App Banner.
-  it('offers the iOS app to Safari on every page', async () => {
+  // <meta name="apple-itunes-app">, Safari's Smart App Banner, is the public
+  // pages' own (the landing page, a card, a profile): not every page's — not
+  // the policy pages the apps show in an in-app browser, the sign-in pages or
+  // the signed-in app's pages, where it pushes the editor or a thread down.
+  it('offers the iOS app on no page by default', async () => {
     const meta = await generateMetadata({ params: Promise.resolve({ locale: 'zh-TW' }) });
-    expect(meta.itunes).toEqual({ appId: '6817604797' });
+    expect(meta.itunes).toBeUndefined();
   });
 });

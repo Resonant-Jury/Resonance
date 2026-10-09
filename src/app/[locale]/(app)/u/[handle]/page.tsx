@@ -10,7 +10,7 @@ import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { PageShell } from '@/components/molecules/PageShell/PageShell';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import type { User } from '@/lib/db/types';
 import { useProfilePage } from '@/lib/data/hooks';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -34,6 +34,7 @@ export default function PublicProfilePage() {
   const handle = decodeHandle(params?.handle);
   const locale = useLocale();
   const t = useTranslations('profile');
+  const router = useRouter();
   const tMsg = useTranslations('messages');
   const { user: viewer } = useAuth();
   // The person, the viewer's standing with them (blocks + connection), their
@@ -65,9 +66,10 @@ export default function PublicProfilePage() {
       <PageShell width="wide">
         <div className={styles.notFound}>
           <p className={styles.notFoundTitle}>{t('notFound')}</p>
-          <Link href="/home" className={styles.backLink}>
+          {/* The way on is a button, and every button has a fill: the tonal pill. */}
+          <OrganicButton variant="tonal" onClick={() => router.push('/home')}>
             {t('backHome')}
-          </Link>
+          </OrganicButton>
         </div>
       </PageShell>
     );

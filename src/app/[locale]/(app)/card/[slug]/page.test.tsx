@@ -34,6 +34,8 @@ vi.mock('@/lib/db/firestore/client/blocks', () => ({}));
 
 import CardPage from './page';
 import { generateMetadata } from './layout';
+import { APP_STORE_ID } from '@/lib/appStores';
+import { siteUrl } from '@/lib/site';
 import { CardDetailClient } from './CardDetailClient';
 import { CARD_HOLD_SCRIPT } from './cardHold';
 
@@ -190,8 +192,10 @@ describe('card page server render', () => {
     expect(payload).not.toContain(story);
     expect(html).not.toContain('quiet-walker');
     expect(script).toBeFalsy();
-    // Nor in the share metadata.
-    expect(await generateMetadata({ params: Promise.resolve({ locale: 'en', slug: key }) })).toEqual({});
+    // Nor in the share metadata: only Safari's app banner, opening the app at the address asked for.
+    expect(await generateMetadata({ params: Promise.resolve({ locale: 'en', slug: key }) })).toEqual({
+      itunes: { appId: APP_STORE_ID, appArgument: `${siteUrl()}/en/card/${key}` },
+    });
   });
 
   it('says there is no card for a URL that names none, and nothing when the server read fails', async () => {
@@ -212,6 +216,20 @@ describe('card page server render', () => {
     const meta = await generateMetadata({ params: Promise.resolve({ locale: 'en', slug: 'a-quiet-morning' }) });
     expect(meta.title).toBe('A quiet morning');
     expect(meta.openGraph).toMatchObject({ authors: ['quiet-walker'] });
+  });
+
+  // A card page is a public page: Safari on an iPhone offers the app, and
+  // once it is installed opens it on this card (the app opens /card/{key}).
+  it('offers the iOS app on the card page, opening it on this card', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://resonance.example');
+    const meta = await generateMetadata({ params: Promise.resolve({ locale: 'zh-TW', slug: 'a-quiet-morning' }) });
+    expect(meta.itunes).toEqual({
+      appId: APP_STORE_ID,
+      appArgument: 'https://resonance.example/zh-TW/card/a-quiet-morning',
+    });
+    // A card that isn't there still offers the app, at the address asked for (a comma can't split the banner's list).
+    const none = await generateMetadata({ params: Promise.resolve({ locale: 'en', slug: 'never%2Cwas' }) });
+    expect(none.itunes?.appArgument).toBe('https://resonance.example/en/card/never%2Cwas');
   });
 
   it("shares a stored cover as a JPEG from /api/og — never the AVIF, nor its storage path (which names the author)", async () => {
