@@ -18,7 +18,7 @@ When building UI in this repo, **always reach for these primitives before writin
 | Render account/profile menu actions in desktop header | `<Subnavbar>` (from `sections/AppHeader/Subnavbar`) — wobbly organic dropdown hanging off the user avatar with wavy dividers and a radial-reveal hover wash |
 | Add a label / hint / char counter | `<Field label hint trailing={<CharCount/>}>` |
 | Switch between tabs / nav sections | `<OrganicTabs orientation="horizontal|vertical">` (from `molecules/OrganicTabs`) |
-| Flip a boolean preference (on/off switch) | `<ToggleSwitch checked onChange>` (from `atoms/ToggleSwitch`) — wobbly track + knob |
+| Flip a boolean preference (on/off switch) | `<ToggleSwitch checked onChange>` (from `atoms/ToggleSwitch`) — hand-bowed track in a double pen line + lumpy knob |
 | Pick a number on a range (slider) | `<OrganicSlider value onChange min max step>` (from `atoms/OrganicSlider`) — wobbly track + terracotta fill + hand-drawn knob over a transparent native range |
 | Show a busy / loading state (e.g. while uploading) | `<SketchLoader>` (from `atoms/SketchLoader`) — wobbly rings that continuously re-sketch themselves |
 | Separate stacked rows/sections | `<Divider seed={N} spacing={6} />` — wavy pen rule, never a flat 1px border |
@@ -80,9 +80,13 @@ When building UI in this repo, **always reach for these primitives before writin
   active={active} onChange={setActive}
 />
 
-// Toggle (atoms/ToggleSwitch): organic wobbly pill track + slightly irregular
-// knob. Fixed 50×28 — NOT size-configurable, and self-contained (no
-// useElementSize), so it draws correctly on first paint.
+// Toggle (atoms/ToggleSwitch): a hand-bowed pill (each long edge turns up to
+// 2.5px in or out) in a chalky double pen line at INK_LIGHT — soft ink off,
+// deep terracotta on — with the buttons' grain and a lumpy knob. Fixed 50×28 —
+// NOT size-configurable, and self-contained (no useElementSize), so it draws
+// correctly on first paint. Its numbers (`TOGGLE`) are the apps' OrganicToggle's
+// too: change them on all three platforms together.
+//  - `disabled` fades it like a disabled button; `describedBy` names the hint.
 //  - `onChange` is a bare `() => void` toggle callback — it gets NO event, so
 //    flip the state yourself: onChange={() => setOn(!on)}.
 //  - Renders a real <button role="switch" aria-checked>; always pass ariaLabel
