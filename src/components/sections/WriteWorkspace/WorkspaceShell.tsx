@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -38,6 +39,12 @@ export interface WorkspaceShellProps {
   onClose?: () => void;
   /** What the pane shows, named in its header row (with `onClose` and no `bar`). */
   paneTitle?: ReactNode;
+  /**
+   * Which card the pane shows (its id): another card opened while the pane is
+   * open starts at its top, the header's line at rest; and hiding the pane
+   * hands focus back to that card on the map when what opened it is gone.
+   */
+  paneKey?: string;
   /** Host override for the map's「開啟卡片」. */
   onOpenCard?: (card: Card) => void;
   /** Replaces the map entirely (resonance writing shows the original card). */
@@ -63,6 +70,7 @@ export function WorkspaceShell({
   open,
   onClose,
   paneTitle,
+  paneKey,
   onOpenCard,
   leftOverride,
   bar,
@@ -128,21 +136,63 @@ export function WorkspaceShell({
     setPaneScrolled([...paneScrolledUnder.current].some((x) => x.isConnected));
   };
   const mapRef = useRef<HTMLDivElement>(null);
-  // A pane opened again starts at its top, its line at rest.
-  useEffect(() => {
-    if (open) return;
+  const paneBodyRef = useRef<HTMLDivElement>(null);
+  // A pane opened again, or showing another card, starts at its top, its line
+  // at rest (before it paints: never a frame of the last card's scroll).
+  useLayoutEffect(() => {
     paneScrolledUnder.current.clear();
     setPaneScrolled(false);
-  }, [open]);
+    if (paneBodyRef.current) paneBodyRef.current.scrollTop = 0;
+  }, [open, paneKey]);
+
+  // Below the split the open pane covers the map: nothing on it can be
+  // reached (Tab would walk controls no one sees) or keep the focus.
+  const mapCovered = open && split === false;
+
+  // Hiding the pane unmounts what had the focus (its →|, the field being
+  // written in): hand it back to what opened the card — the card's 開啟卡片
+  // on the map, or the card itself — rather than drop it to the page.
+  const openerRef = useRef<HTMLElement | null>(null);
+  const openFromMap = onOpenCard
+    ? (card: Card) => {
+        const active = document.activeElement;
+        openerRef.current = active instanceof HTMLElement && mapRef.current?.contains(active) ? active : null;
+        onOpenCard(card);
+      }
+    : undefined;
+  const shownKey = useRef<string | undefined>(undefined);
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    const closing = wasOpen.current && !open;
+    wasOpen.current = open;
+    if (open) {
+      shownKey.current = paneKey;
+      return;
+    }
+    if (!closing || bar || !onClose) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && map.contains(active)) return;
+    const opener = openerRef.current;
+    const node = Array.from(map.querySelectorAll<HTMLElement>('[data-card-id]')).find(
+      (el) => el.dataset.cardId === shownKey.current,
+    );
+    const back = opener?.isConnected && map.contains(opener) ? opener : node;
+    back?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, paneKey]);
 
   // Escape hides the pane, as its →| does — unless something over it is the
   // one to close (a dialog, a menu, an open list: they stand on the page), the
   // key ends an input method's composition (a Chinese IME's Escape only drops
-  // its candidates), or it is the map's own (an edge label being named lets
-  // Escape cancel it). Typing in a field, Escape first steps out of it to the
-  // →| (whose tooltip says what the next Escape does), so a stray press never
-  // folds away the card being written. Heard on the way down, as the story
-  // editor keeps every Escape to itself.
+  // its candidates), or it is a field on the map's own (an edge label being
+  // named lets Escape cancel it). A card just opened from the map leaves the
+  // focus on its 開啟卡片 (or on the card): Escape hides the pane from there
+  // too. Typing in a field, Escape first steps out of it to the →| (whose
+  // tooltip says what the next Escape does), so a stray press never folds
+  // away the card being written. Heard on the way down, as the story editor
+  // keeps every Escape to itself.
   const paneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!headed) return;
@@ -150,8 +200,11 @@ export function WorkspaceShell({
       if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
       if (document.querySelector('[role="menu"], [role="listbox"], [aria-modal="true"]')) return;
       const target = e.target instanceof HTMLElement ? e.target : null;
-      if (target && mapRef.current?.contains(target)) return;
-      if (target && (target.isContentEditable || target.matches('input, textarea, select'))) {
+      const editable = !!target && (target.isContentEditable || target.matches('input, textarea, select'));
+      // A field on the map (an arrow's label, a region's title being named)
+      // keeps its Escape, which cancels it; its buttons and cards do not.
+      if (editable && mapRef.current?.contains(target)) return;
+      if (editable) {
         paneRef.current?.querySelector<HTMLButtonElement>('header button')?.focus();
         return;
       }
@@ -177,13 +230,17 @@ export function WorkspaceShell({
       }
     >
       {bar && <HeaderBar title={bar.title} backLabel={tNav('back')} onBack={bar.onBack} scrolled={scrolled} heading />}
-      <div ref={mapRef} className={leftOverride ? `${styles.mapPane} ${styles.mapPaneDoc}` : styles.mapPane}>
+      <div
+        ref={mapRef}
+        className={leftOverride ? `${styles.mapPane} ${styles.mapPaneDoc}` : styles.mapPane}
+        inert={mapCovered}
+      >
         {leftOverride ??
           (mapShown.current && (
             <ThoughtMapBoard
               height="100%"
               flush
-              onOpenCard={onOpenCard}
+              onOpenCard={openFromMap}
               paneOpen={open}
             />
           ))}
@@ -235,7 +292,7 @@ export function WorkspaceShell({
                   onHide={onClose!}
                   scrolled={paneScrolled}
                 />
-                <div className={styles.paneBody} onScrollCapture={onPaneScroll}>
+                <div ref={paneBodyRef} className={styles.paneBody} onScrollCapture={onPaneScroll}>
                   {children}
                 </div>
               </div>

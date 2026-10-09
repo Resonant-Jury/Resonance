@@ -46,6 +46,7 @@ export function ThoughtMapPage() {
       open={openedCard != null}
       onClose={() => setOpenedCard(null)}
       paneTitle={paneTitle}
+      paneKey={openedCard?.id}
       onOpenCard={setOpenedCard}
     >
       {openedCard && <OpenedCardPane key={openedCard.id} card={openedCard} titled={false} />}
