@@ -16,17 +16,25 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.seedFromString
@@ -35,9 +43,14 @@ import com.resonance.kit.chat.LinkPreview
 /**
  * A link standing alone in a story, drawn as what its page says about itself (StoryLinkCard.tsx):
  * the server's preview — the page's picture when it has one (a picture that won't load takes its
- * frame with it), its title, a line or two of description and the host — the story-column
- * sibling of a message's link preview, in the lightly inked hand-drawn card of an embedded
- * story card. At most 520 wide.
+ * frame with it), its title, a line or two of description and the host — the story-column sibling
+ * of a message's link preview, in the chat card bubble's language: a block of light fill
+ * ([Tokens.BubbleTheirs]) in a seeded wobbly outline, with no pen line around it. At most 520 wide.
+ *
+ * The picture runs across the card's top edge to edge, cut by the card's own outline (the same
+ * seeded path as its fill and its press wash), so the card has one edge, not a frame around a
+ * framed picture; its foot meets the words directly. Without a picture: just the fill with the
+ * words. Upright wherever it stands (a story's quote slants its words, not the card quoted in it).
  *
  * The whole card is one press: [onOpen] takes it to the link's own safe way out (the in-app
  * browser, asking first where the address isn't what it seems). The host is the real one in ASCII
@@ -47,39 +60,50 @@ import com.resonance.kit.chat.LinkPreview
 @Composable
 fun StoryLinkCard(preview: LinkPreview, host: String, label: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val seed = remember(preview.url) { seedFromString(preview.url).toDouble() }
-    val shape = remember(seed) { WobRectShape(16.0, seed) }
+    val shape = remember(seed) { WobRectShape(StoryLinkCardLook.RADIUS, seed) }
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
+    val picture = preview.imageUrl
+    // One that failed before is left out at once (FailedPictures), not drawn as a box and dropped again.
+    var showsPicture by remember(picture) { mutableStateOf(picture != null && !FailedPictures.shared.has(picture)) }
     Column(
         modifier
             .widthIn(max = 520.dp)
             .fillMaxWidth()
+            // The fill, then everything on it — the press wash, the picture, the words — cut by the same outline.
             .drawWithCache {
-                val o = shape.createOutline(size, layoutDirection, this)
-                onDrawBehind { drawOutline(o, Tokens.CardBg) }
-            }
-            // The wash spreads from the finger over the paper, under the words and the pen line.
-            .clickable(source, indication = remember(shape) { OrganicIndication(Tokens.CreamDark, shape = shape) }, role = Role.Button, onClickLabel = label, onClick = onOpen)
-            .drawWithCache {
-                val o = shape.createOutline(size, layoutDirection, this)
-                val pen = Stroke(Tokens.InkLight.toPx())
+                val outline = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
                 onDrawWithContent {
-                    drawContent()
-                    drawOutline(o, if (pressed) Tokens.FieldBorderHover else Tokens.FieldBorder, style = pen)
+                    drawPath(outline, StoryLinkCardLook.fill)
+                    clipPath(outline) { this@onDrawWithContent.drawContent() }
                 }
             }
-            .semantics { contentDescription = label }
-            .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            // The wash spreads from the finger over the fill, under the picture and the words.
+            .clickable(source, indication = remember(shape) { OrganicIndication(StoryLinkCardLook.wash, shape = shape) }, role = Role.Button, onClickLabel = label, onClick = onOpen)
+            .semantics { contentDescription = label },
     ) {
-        val picture = preview.imageUrl
-        // One that failed before is left out at once (FailedPictures), not drawn as a box and dropped again.
-        if (picture != null && !FailedPictures.shared.has(picture)) {
-            OrganicImage(picture, seed + 3, Modifier.fillMaxWidth().aspectRatio(1.91f), radius = 12.0, onError = { FailedPictures.shared.note(picture) }) {
-                Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
+        if (picture != null && showsPicture) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1.91f)
+                    // Past the card's top and sides by the outline's widest swing: the outline, not the picture, ends it.
+                    .bleedTopAndSides(StoryLinkCardLook.BLEED.dp)
+                    .background(Tokens.Text.copy(alpha = 0.06f)),
+            ) {
+                AsyncImage(
+                    model = picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                    onError = {
+                        FailedPictures.shared.note(picture)
+                        showsPicture = false
+                    },
+                )
             }
         }
-        Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            Modifier.padding(start = 18.dp, end = 18.dp, top = if (picture != null && showsPicture) 12.dp else 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             BasicText(preview.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(16f, 600, lineHeight = 1.4f))
             preview.description?.let {
                 BasicText(it, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14f, lineHeight = 1.5f, color = Tokens.TextMuted))
@@ -94,4 +118,21 @@ fun StoryLinkCard(preview: LinkPreview, host: String, label: String, onOpen: () 
             }
         }
     }
+}
+
+/** The card's look (StoryLinkCard.tsx): radius 16, the chat card bubble's fill, its quote's fill as the press wash, and how far the picture reaches past the card's box. */
+object StoryLinkCardLook {
+    const val RADIUS = 16.0
+    const val BLEED = 8f
+    val fill get() = Tokens.BubbleTheirs
+    val wash get() = Tokens.BubbleQuote
+}
+
+/** As tall as its box, but [by] wider on each side and [by] higher, placed so it reaches past the box's top and sides. */
+private fun Modifier.bleedTopAndSides(by: Dp): Modifier = layout { measurable, constraints ->
+    val extra = by.roundToPx()
+    val w = constraints.maxWidth
+    val h = constraints.maxHeight.takeIf { it != Constraints.Infinity } ?: constraints.minHeight
+    val placeable = measurable.measure(Constraints.fixed(w + 2 * extra, h + extra))
+    layout(w, h) { placeable.place(-extra, -extra) }
 }
