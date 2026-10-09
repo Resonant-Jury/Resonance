@@ -73,10 +73,10 @@ struct AuthorScreen: View {
                     .lineSpacing(15 * 0.6)
                 meta(profile, author: author)
                 if !profile.isBlocked, profile.isSelf {
-                    OrganicButton(L10n.Profile.editProfile, variant: .ghost) { openRoute(.settings) }
+                    OrganicButton(L10n.Profile.editProfile, variant: .tonal) { openRoute(.settings) }
                 } else if !profile.isBlocked, profile.isConnected {
                     // Connected: a way into the conversation (the web's small ghost button with the chat glyph).
-                    OrganicButton(L10n.Messages.messageLink, icon: .chat, variant: .ghost, size: .sm) {
+                    OrganicButton(L10n.Messages.messageLink, icon: .chat, variant: .tonal, size: .sm) {
                         openRoute(.thread(handle: author.handle, uid: author.id, note: nil))
                     }
                     .padding(.top, 4)
@@ -119,7 +119,7 @@ struct AuthorScreen: View {
             Text(L10n.Safety.blockedNotice(handle: author.handle)).font(AppFonts.heading(20)).foregroundStyle(Tokens.text)
             Text(L10n.Safety.blockedNoticeBody).font(AppFonts.body(14.5)).foregroundStyle(Tokens.textMuted)
                 .padding(.bottom, 8)
-            OrganicButton(unblocking ? "…" : L10n.Safety.unblock, variant: .textAccent, size: .sm) {
+            OrganicButton(unblocking ? "…" : L10n.Safety.unblock, variant: .tonal, size: .sm) {
                 Task { await unblock(author.id) }
             }
             .disabled(unblocking)

@@ -42,6 +42,11 @@ struct ResonateChoices {
 /// pick one of your published public cards about something similar, which the server then points
 /// at this card (POST /api/v1/cards/{id}/resonances). A tap marks a card and 共振 confirms it: the
 /// choice rings someone's phone, so a stray tap in a scrolling list must not send it.
+///
+/// A quiet list (round 4, variant A): the title alone; "write a new card" as one terracotta line
+/// with the pen; one wavy rule; rows of a 40pt thumb, the title on one line and one muted line
+/// (when it came out, 匿名 · first for an anonymous card); why some cards are missing only when
+/// some are; the error line; then cancel | 共振.
 struct ResonatePickerContent: View {
     /// The card being answered, and the card it answers itself (never offered).
     let targetId: String
@@ -61,20 +66,15 @@ struct ResonatePickerContent: View {
     var body: some View {
         let choices = cards.map { ResonateChoices.of($0, target: targetId, targetReference: targetReferenceId) }
         VStack(alignment: .leading, spacing: 0) {
-            ModalTitle(L10n.Card.ResonatePicker.title).padding(.bottom, 4)
-            Text(L10n.Card.ResonatePicker.subtitle)
-                .font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted).lineSpacing(14 * 0.4)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, 12)
+            // The title alone: the two ways below say what they are.
+            ModalTitle(L10n.Card.ResonatePicker.title).padding(.bottom, 12)
             CardPickList(cards: choices?.cards ?? [], choosing: true, selectedId: selectedId, disabled: busy,
-                         anonymousLabel: L10n.Card.ResonatePicker.anonymous, footnote: choices?.footnote,
-                         onPick: choose) {
-                WriteNewRow(action: onWriteNew).disabled(busy).opacity(busy ? 0.5 : 1)
+                         label: L10n.Card.ResonatePicker.title, anonymousLabel: L10n.Card.ResonatePicker.anonymous,
+                         footnote: choices?.footnote, onPick: choose) {
+                WriteNewRow(action: onWriteNew).disabled(busy)
+                // Nothing to pick and nothing to say: no rule over an empty list.
                 if choices?.nothingToPick != true {
                     WavyDivider(seed: 59).padding(.vertical, 8)
-                    Text(L10n.Card.ResonatePicker.pickHeading)
-                        .font(AppFonts.body(13, weight: .semibold)).tracking(13 * 0.02).foregroundStyle(Tokens.textMuted)
-                        .padding(.horizontal, 6).padding(.top, 4).padding(.bottom, 2)
                 }
             } empty: {
                 if let choices {
@@ -88,7 +88,7 @@ struct ResonatePickerContent: View {
                 } else if readFailed {
                     HStack(spacing: 10) {
                         Text(L10n.Native.loadError).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
-                        OrganicButton(L10n.Native.retry, variant: .textAccent, size: .sm) { Task { await load() } }
+                        OrganicButton(L10n.Native.retry, variant: .tonal, size: .sm) { Task { await load() } }
                     }
                     .padding(.horizontal, 6).padding(.top, 6)
                 } else {
@@ -99,16 +99,16 @@ struct ResonatePickerContent: View {
                 ModalError(failure).padding(.bottom, 12)
             }
             ModalActions {
-                // The modal is the frame: cancel is plain text, the verb a solid fill.
-                OrganicButton(L10n.Card.ResonatePicker.cancel, variant: .text, size: .sm, action: onCancel)
+                // The modal is the frame: cancel is the tonal pill, out of reach while the choice is on its way.
+                OrganicButton(L10n.Card.ResonatePicker.cancel, variant: .tonal, size: .sm, action: onCancel)
                     .disabled(busy)
+            } verb: {
                 // While the server answers, the pen keeps inking where the wave was (the web's SketchLoader).
                 OrganicButton(L10n.Card.ResonatePicker.confirm, icon: .wave, variant: .solid, size: .sm) {
                     Task { await confirm() }
                 }
                 .working(busy)
                 .disabled(selectedId == nil)
-                .opacity(selectedId == nil ? 0.5 : 1)
             }
         }
         .task { await load() }
@@ -150,37 +150,39 @@ struct ResonatePickerContent: View {
     }
 }
 
-/// Row 0: write a new card in answer — shaped like a card row so it reads as the first choice, its
-/// thumb a blank tile drawn in dashes with the pen: a card not written yet.
+/// Row 0: write a new card in answer — one line, a way rather than a card: the pen in terracotta
+/// and the words in the deep terracotta (6.3:1 on the modal's paper), 44pt tall; pressed, the
+/// words darken and underline, as a row's ink answers.
 private struct WriteNewRow: View {
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                let tile = WobRectShape(radius: 14, seed: 29, mag: 1.6, options: WobRectOptions(
-                    curve: 1.2, segmentsH: .count(2), segmentsV: .count(2)))
-                OrganicIcon(.pen, size: 22, color: Tokens.terracotta)
-                    .frame(width: 48, height: 48)
-                    .background {
-                        tile.fill(Tokens.terracotta.opacity(0.1))
-                        tile.stroke(Tokens.terracotta.opacity(0.7),
-                                    style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round, dash: [4, 3.5]))
-                    }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(L10n.Card.ResonatePicker.writeNew).font(AppFonts.body(15, weight: .semibold)).foregroundStyle(Tokens.text)
-                    Text(L10n.Card.ResonatePicker.writeNewHint)
-                        .font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted).lineSpacing(13 * 0.3)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            HStack(spacing: 10) {
+                OrganicIcon(.pen, size: 18, color: Tokens.terracotta)
+                Text(L10n.Card.ResonatePicker.writeNew).font(AppFonts.body(15, weight: .semibold))
                 Spacer(minLength: 0)
-                OrganicIcon(.arrowRight, size: 18, color: Tokens.textMuted)
             }
             .padding(.vertical, 10).padding(.horizontal, 6)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(WriteNewStyle())
     }
+}
+
+private struct WriteNewStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(configuration.isPressed ? WriteNewStyle.pressedInk : Tokens.buttonOnTonal)
+            .underline(configuration.isPressed)
+            .opacity(isEnabled ? 1 : 0.5)
+    }
+
+    /// color-mix(in oklch, terracotta, black 34%): the words' ink under a finger.
+    static let pressedInk = OKLCHColor.color(0.62 * 0.66, 0.14 * 0.66, 45)
 }
 
 /// The rows' footprint while the shelf is read: plain blocks, nothing drawn before it is measured.
@@ -189,8 +191,11 @@ private struct PickSkeleton: View {
         VStack(alignment: .leading, spacing: 20) {
             ForEach(0..<3, id: \.self) { i in
                 HStack(spacing: 12) {
-                    SkeletonBlock(width: 48, height: 48, radius: 14)
-                    SkeletonBlock(fraction: 0.62 - Double(i) * 0.12, height: 14)
+                    SkeletonBlock(width: 40, height: 40, radius: 12)
+                    VStack(alignment: .leading, spacing: 7) {
+                        SkeletonBlock(fraction: 0.7 - Double(i) * 0.12, height: 14)
+                        SkeletonBlock(width: 64, height: 11)
+                    }
                 }
             }
         }

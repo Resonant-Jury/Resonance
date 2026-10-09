@@ -45,9 +45,13 @@ struct CardActionsMenu: View {
     var body: some View {
         OrganicMenu(items: items, label: L10n.Me.Actions.menuLabel, seed: seed, hue: hue, trigger: trigger)
             .opacity(busy && !confirming ? 0.6 : 1)
-            .organicModal(isPresented: $confirming, seed: seed + 5, maxWidth: 400, closeLabel: L10n.Me.Actions.deleteCancel,
-                          dismissible: !busy) {
-                confirm
+            // Deleting can't be undone: the verb in red. A refusal is said in the dialog (offline, or refused: the
+            // card stays, in the list too), which stays to try again.
+            .organicConfirm(isPresented: $confirming, title: L10n.Me.Actions.deleteConfirmTitle,
+                            message: L10n.Me.Actions.deleteConfirmBody, cancelLabel: L10n.Me.Actions.deleteCancel,
+                            confirmLabel: L10n.Me.Actions.deleteConfirm, closeLabel: L10n.Me.Actions.deleteCancel, busy: busy,
+                            error: failed ? L10n.Safety.actionError : nil, destructive: true, seed: seed + 5) {
+                Task { await delete() }
             }
             // The card stays: nothing here can't be undone, so the verb is the plain solid fill.
             .organicConfirm(isPresented: $unresonating, title: unresonateTitle, message: L10n.Me.Actions.unresonateConfirmBody,
@@ -97,30 +101,6 @@ struct CardActionsMenu: View {
 
     /// What changed: this card, and on a resonance the card it answers (its page lists it).
     private var change: WriteLauncher.Change { .init(cardId: cardId, referenceCardId: answering) }
-
-    /// The delete confirmation: 20pt heading, the muted note, then Keep it / Delete card on the right.
-    private var confirm: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            CSSText(L10n.Me.Actions.deleteConfirmTitle, font: AppFonts.scaledUIFont(.heading, size: 20, weight: .bold), lineHeight: 1.3)
-                .accessibilityAddTraits(.isHeader)
-                .padding(.bottom, 10)
-            CSSText(L10n.Me.Actions.deleteConfirmBody, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.6,
-                    color: UIColor(Tokens.textMuted))
-                .padding(.bottom, failed ? 10 : 24)
-            if failed {
-                // Not deleted (offline, or refused): the card stays, in the list too.
-                ModalError(L10n.Safety.actionError).padding(.bottom, 14)
-            }
-            HStack(spacing: 10) {
-                Spacer(minLength: 0)
-                // The modal is the frame: "keep it" is plain text, and deleting — which can't be undone — is red.
-                OrganicButton(L10n.Me.Actions.deleteCancel, variant: .text, size: .sm) { confirming = false }
-                OrganicButton(busy ? "…" : L10n.Me.Actions.deleteConfirm, variant: .danger, size: .sm) { Task { await delete() } }
-            }
-            .opacity(busy ? 0.6 : 1)
-            .allowsHitTesting(!busy)
-        }
-    }
 
     private func toggleVisibility() async {
         guard !busy else { return }

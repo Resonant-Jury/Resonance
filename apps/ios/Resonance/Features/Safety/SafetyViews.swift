@@ -30,7 +30,8 @@ struct ReportForm: View {
                 ModalTitle(L10n.Safety.Report.doneTitle)
                 ModalBody(L10n.Safety.Report.doneBody)
                 if blocked { ModalBody(L10n.Safety.Report.doneBlocked(handle: name)) }
-                ModalActions { OrganicButton(L10n.Safety.Report.close, variant: .solid, size: .sm, action: onClose) }
+                // Nothing left to do but leave: the one-exit notice's centred close, not a verb.
+                ModalCloseButton(L10n.Safety.Report.close, action: onClose).padding(.top, -14)
             } else {
                 ModalTitle(title)
                 ModalBody(L10n.Safety.Report.intro)
@@ -69,7 +70,8 @@ struct ReportForm: View {
                 }
                 if let error { ModalError(error) }
                 ModalActions {
-                    OrganicButton(L10n.Safety.cancel, variant: .text, size: .sm, action: onClose)
+                    OrganicButton(L10n.Safety.cancel, variant: .tonal, size: .sm, action: onClose)
+                } verb: {
                     OrganicButton(sending ? "…" : L10n.Safety.Report.submit, variant: .solid, size: .sm) { Task { await submit() } }
                         .disabled(reason == nil)
                 }
@@ -215,7 +217,7 @@ struct AccountDeletionBanner: View {
                 .lineSpacing(14.5 * 0.5)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            OrganicButton(busy ? "…" : L10n.AccountDeletion.cancel, variant: .textAccent, size: .sm) { Task { await cancel() } }
+            OrganicButton(busy ? "…" : L10n.AccountDeletion.cancel, variant: .tonal, size: .sm) { Task { await cancel() } }
                 .disabled(busy)
         }
         .frame(maxWidth: .infinity)

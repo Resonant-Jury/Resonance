@@ -140,8 +140,9 @@ public struct OrganicTextArea: View {
 }
 
 /// A page-level empty, not-found or error state as the web sets them: a
-/// Playfair line, the muted explanation, then one way forward — a filled
-/// button for "start writing", or a plain terracotta link for "back".
+/// Playfair line, the muted explanation, then one way forward — the solid
+/// button for "start writing", the tonal pill for a retry or "back"
+/// (`outline` and `link` both wear it now: every button has a fill).
 /// (No blob: the web keeps OrganiBlob for its landing page.)
 public struct OrganicEmptyState: View {
     public enum ActionStyle: Sendable { case primary, outline, link }
@@ -181,12 +182,9 @@ public struct OrganicEmptyState: View {
             if let actionTitle, let action {
                 switch actionStyle {
                 case .primary: OrganicButton(actionTitle, action: action)
-                case .outline: OrganicButton(actionTitle, variant: .outline, action: action)
-                case .link:
-                    Button(actionTitle, action: action)
-                        .font(AppFonts.body(16))
-                        .foregroundStyle(Tokens.terracotta)
-                        .buttonStyle(.plain)
+                // A retry, or the page's only way out (Back home): every button has a fill — a lone
+                // terracotta word (3.5:1) did not read as one.
+                case .outline, .link: OrganicButton(actionTitle, variant: .tonal, action: action)
                 }
             }
         }

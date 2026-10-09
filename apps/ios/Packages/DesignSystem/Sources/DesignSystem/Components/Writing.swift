@@ -142,8 +142,8 @@ private nonisolated struct InsetShape<Base: Shape>: Shape {
     func path(in rect: CGRect) -> Path { base.path(in: rect.insetBy(dx: inset, dy: inset)) }
 }
 
-/// The writer's ✕ (WriteWorkspace's paneClose): a 36pt chip with a thin
-/// field-border line on slightly uneven corners — a proper bordered button,
+/// The writer's ✕ (WriteWorkspace's paneClose): a 36pt chip on slightly uneven
+/// corners in the tonal face — a button has a fill, never a line of its own —
 /// pinned above the scrolling page.
 public struct OrganicCloseChip: View {
     let label: String
@@ -158,10 +158,9 @@ public struct OrganicCloseChip: View {
         Button(action: action) {
             // border-radius: 11px 13px 12px 14px
             let shape = UnevenRoundedRectangle(topLeadingRadius: 11, bottomLeadingRadius: 14, bottomTrailingRadius: 12, topTrailingRadius: 13)
-            OrganicIcon(.close, size: 17, color: Tokens.textMuted)
+            OrganicIcon(.close, size: 17, color: Tokens.buttonOnTonal)
                 .frame(width: 36, height: 36)
-                .background { shape.fill(Tokens.cream) }
-                .overlay { shape.strokeBorder(Tokens.fieldBorder, lineWidth: 1) }
+                .background { shape.fill(Tokens.buttonTonal) }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

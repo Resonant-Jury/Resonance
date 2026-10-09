@@ -34,15 +34,22 @@ public nonisolated struct InlineRun: Hashable, Sendable {
     public var italic = false
     public var strikethrough = false
     public var code = false
+    /// Where a tap on it goes (nil: nowhere).
     public var link: String?
+    /// Its words are a link's — one that opens (`link`), or one the reader can't open (`tel:`, another
+    /// app's scheme), which reads as plain words but is still a link's: GFM never links an address
+    /// written inside a link on its own (`[https://a.com](tel:1)` stays words). Android's `inLink`.
+    public var inLink: Bool
 
-    public init(_ text: String, bold: Bool = false, italic: Bool = false, strikethrough: Bool = false, code: Bool = false, link: String? = nil) {
+    public init(_ text: String, bold: Bool = false, italic: Bool = false, strikethrough: Bool = false, code: Bool = false,
+                link: String? = nil, inLink: Bool? = nil) {
         self.text = text
         self.bold = bold
         self.italic = italic
         self.strikethrough = strikethrough
         self.code = code
         self.link = link
+        self.inLink = inLink ?? (link != nil)
     }
 }
 
@@ -138,34 +145,42 @@ public nonisolated enum StoryParser {
         return lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("www.") ? trimmed : nil
     }
 
-    static func inlines(_ node: Markup, bold: Bool = false, italic: Bool = false, strike: Bool = false, link: String? = nil) -> [InlineRun] {
+    /// The runs of `node`'s children. `link` is where a tap on them goes (nil: nowhere); `inLink`
+    /// says they are a link's words even when that link can't be opened, so no address in them is
+    /// made a link of its own (``StoryBlock/linkingAddresses(_:find:)``).
+    static func inlines(_ node: Markup, bold: Bool = false, italic: Bool = false, strike: Bool = false, link: String? = nil,
+                        inLink: Bool = false) -> [InlineRun] {
         var runs: [InlineRun] = []
+        func run(_ text: String, code: Bool = false) -> InlineRun {
+            InlineRun(text, bold: bold, italic: italic, strikethrough: strike, code: code, link: link, inLink: inLink || link != nil)
+        }
         for child in node.children {
             switch child {
             case let t as Text:
-                runs.append(InlineRun(t.string, bold: bold, italic: italic, strikethrough: strike, link: link))
+                runs.append(run(t.string))
             case is SoftBreak:
-                runs.append(InlineRun(" ", bold: bold, italic: italic, strikethrough: strike, link: link))
+                runs.append(run(" "))
             case is LineBreak:
-                runs.append(InlineRun("\n", bold: bold, italic: italic, strikethrough: strike, link: link))
+                runs.append(run("\n"))
             case let c as InlineCode:
-                runs.append(InlineRun(c.code, bold: bold, italic: italic, strikethrough: strike, code: true, link: link))
+                runs.append(run(c.code, code: true))
             case is Strong:
-                runs += inlines(child, bold: true, italic: italic, strike: strike, link: link)
+                runs += inlines(child, bold: true, italic: italic, strike: strike, link: link, inLink: inLink)
             case is Emphasis:
-                runs += inlines(child, bold: bold, italic: true, strike: strike, link: link)
+                runs += inlines(child, bold: bold, italic: true, strike: strike, link: link, inLink: inLink)
             case is Strikethrough:
-                runs += inlines(child, bold: bold, italic: italic, strike: true, link: link)
+                runs += inlines(child, bold: bold, italic: italic, strike: true, link: link, inLink: inLink)
             case let l as Link:
-                // A link the reader can't open (tel:, another app's scheme…) is plain text (StoryLink).
-                runs += inlines(child, bold: bold, italic: italic, strike: strike, link: l.destination.flatMap { StoryLink.isTappable($0) ? $0 : nil })
+                // A link the reader can't open (tel:, another app's scheme…) is plain text (StoryLink) — still a link's words.
+                runs += inlines(child, bold: bold, italic: italic, strike: strike,
+                                link: l.destination.flatMap { StoryLink.isTappable($0) ? $0 : nil }, inLink: true)
             case let i as Markdown.Image:
                 // An image inside running text keeps its alt text in the line.
-                runs.append(InlineRun(i.plainText, bold: bold, italic: italic, strikethrough: strike, link: link))
+                runs.append(run(i.plainText))
             case let h as InlineHTML:
-                runs.append(InlineRun(h.rawHTML, bold: bold, italic: italic, strikethrough: strike, link: link))
+                runs.append(run(h.rawHTML))
             default:
-                runs += inlines(child, bold: bold, italic: italic, strike: strike, link: link)
+                runs += inlines(child, bold: bold, italic: italic, strike: strike, link: link, inLink: inLink)
             }
         }
         return runs
@@ -190,7 +205,7 @@ nonisolated extension StoryBlock {
             var joined: [InlineRun] = []
             for run in runs {
                 if var last = joined.last, last.bold == run.bold, last.italic == run.italic, last.strikethrough == run.strikethrough,
-                   last.code == run.code, last.link == run.link {
+                   last.code == run.code, last.link == run.link, last.inLink == run.inLink {
                     last.text += run.text
                     joined[joined.count - 1] = last
                 } else {
@@ -198,7 +213,8 @@ nonisolated extension StoryBlock {
                 }
             }
             return joined.flatMap { run -> [InlineRun] in
-                guard run.link == nil, !run.code else { return [run] }
+                // A link's words (one that opens or not) and code stay as they are.
+                guard !run.inLink, !run.code else { return [run] }
                 let found = find(run.text)
                 guard !found.isEmpty else { return [run] }
                 let text = run.text as NSString
@@ -209,6 +225,7 @@ nonisolated extension StoryBlock {
                     var part = run
                     part.text = text.substring(with: range)
                     part.link = link
+                    part.inLink = link != nil
                     pieces.append(part)
                 }
                 for (range, url) in found where range.location >= at && NSMaxRange(range) <= text.length {

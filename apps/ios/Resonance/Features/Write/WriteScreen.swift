@@ -288,17 +288,17 @@ struct WriteScreen: View {
 
     /// Everything autosaves; these are only about intent. A draft: publish it,
     /// or step away. A live card: put the revision in front of readers, or drop it.
-    /// On a phone one centred column: the verb across the width, the quiet way out
-    /// (Save draft and leave / Discard changes) on its own row under it, the error
-    /// centred under both; a wider layout keeps them in a row.
+    /// On a phone one centred column of two pills of one size: the verb across the
+    /// width, the tonal way out (Save draft and leave / Discard changes) as wide on its
+    /// own row under it, the error centred under both; a wider layout keeps them in a row.
     private func actions(_ model: WriteModel) -> some View {
         let compact = sizeClass == .compact
         return VStack(alignment: compact ? .center : .leading, spacing: compact ? 4 : 8) {
             Group {
                 if compact {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 10) {
                         primaryAction(model).fillingWidth()
-                        secondaryAction(model)
+                        secondaryAction(model, fillsWidth: true)
                     }
                 } else {
                     FlowRow(spacing: 12) {
@@ -328,11 +328,13 @@ struct WriteScreen: View {
     }
 
     @ViewBuilder
-    private func secondaryAction(_ model: WriteModel) -> some View {
+    private func secondaryAction(_ model: WriteModel, fillsWidth: Bool = false) -> some View {
         if !model.isPublished {
-            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .text) { Task { await leave(model) } }
+            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .tonal) { Task { await leave(model) } }
+                .fillingWidth(fillsWidth)
         } else if model.hasPendingEdit {
-            OrganicButton(L10n.Write.discardChanges, variant: .text) { Task { await discard(model) } }
+            OrganicButton(L10n.Write.discardChanges, variant: .tonal) { Task { await discard(model) } }
+                .fillingWidth(fillsWidth)
         }
     }
 
@@ -412,11 +414,12 @@ private struct PublishPanel: View {
                     .font(AppFonts.body(Tokens.labelSize, weight: .semibold))
                     .tracking(Tokens.labelSize * 0.06)
                     .foregroundStyle(Tokens.textMuted)
-                VStack(spacing: 0) {
-                    visibilityRow("public", L10n.Write.Visibility.`public`, icon: .globe, seed: 71)
-                    WavyDivider(seed: 49).padding(.vertical, 2)
-                    visibilityRow("private", L10n.Write.Visibility.`private`, icon: .lock, seed: 73)
-                }
+                // A segmented choice with no pen line (its options are buttons): a quiet paper-dark track
+                // shows the control's extent, the chosen side wears the tonal peach with the deep label.
+                SegmentedActionBar([
+                    visibilityOption("public", L10n.Write.Visibility.`public`, icon: .globe),
+                    visibilityOption("private", L10n.Write.Visibility.`private`, icon: .lock),
+                ], fill: Tokens.creamDark)
                 // Why there is no other audience for it (a connections card made anonymous has just gone public).
                 if anonymous {
                     Text(L10n.Write.PublishPanel.anonymousVisibility)
@@ -449,17 +452,22 @@ private struct PublishPanel: View {
                 }
             }
             WavyDivider(seed: 47)
-            HStack(spacing: 12) {
-                OrganicButton(updating
-                              ? (pending ? L10n.Write.PublishPanel.updating : L10n.Write.PublishPanel.update)
-                              : (pending ? L10n.Write.PublishPanel.publishing : L10n.Write.PublishPanel.publish), variant: .solid, size: .sm) {
-                    Task { await publish() }
+            // The foot every dialog shares: right-aligned, 再想想 the tonal way out, the verb solid and rightmost;
+            // why the last try failed right above it.
+            VStack(alignment: .leading, spacing: 12) {
+                if let error { ModalError(error) }
+                ModalActions {
+                    OrganicButton(L10n.Write.PublishPanel.cancel, variant: .tonal, size: .sm, action: onCancel)
+                } verb: {
+                    OrganicButton(updating
+                                  ? (pending ? L10n.Write.PublishPanel.updating : L10n.Write.PublishPanel.update)
+                                  : (pending ? L10n.Write.PublishPanel.publishing : L10n.Write.PublishPanel.publish),
+                                  variant: .solid, size: .sm) {
+                        Task { await publish() }
+                    }
                 }
                 .disabled(pending)
-                OrganicButton(L10n.Write.PublishPanel.cancel, variant: .text, size: .sm, action: onCancel)
-                    .disabled(pending)
             }
-            if let error { Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta) }
         }
         // Anonymous is public or yours alone: a card for connections turns public as it goes anonymous.
         .onChange(of: anonymous) { _, on in visibility = WriteModel.visibility(visibility, anonymous: on) }
@@ -476,21 +484,15 @@ private struct PublishPanel: View {
         }
     }
 
-    private func visibilityRow(_ value: String, _ label: String, icon: IconName, seed: Double) -> some View {
-        let selected = visibility == value
-        return Button { visibility = value } label: {
-            HStack(spacing: 12) {
-                OrganicIcon(icon, size: 16, color: selected ? Tokens.terracotta : Tokens.textMuted)
-                Text(label).font(AppFonts.body(15, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? Tokens.terracotta : Tokens.text)
-                Spacer(minLength: 0)
-                OrganicRadio(isOn: selected, seed: seed)
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+    private func visibilityOption(_ value: String, _ label: String, icon: IconName) -> SegmentSpec {
+        let chosen = visibility == value
+        // The other side's ink stays deep enough to read on the track: color-mix(text-muted, black 10%).
+        return SegmentSpec(id: value, icon: icon, label: label,
+                           fill: chosen ? Tokens.buttonTonal : nil,
+                           ink: chosen ? Tokens.buttonOnTonal : OKLCHColor.color(0.52 * 0.9, 0.04 * 0.9, 70),
+                           pressInk: .black.opacity(0.05), selected: chosen) {
+            visibility = value
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func publish() async {
@@ -505,11 +507,19 @@ private struct PublishPanel: View {
             onPublished(model.isPublished
                         ? try await model.applyEdit(visibility: visibility, anonymous: anonymous)
                         : try await model.publish(visibility: visibility, anonymous: anonymous))
-        } catch let failure as APIFailure {
-            error = failure.message
         } catch {
-            self.error = error.localizedDescription
+            self.error = PublishFailure.message(error)
         }
         pending = false
+    }
+}
+
+/// Why a publish (or a published card's saved changes) didn't go through, in the app's words —
+/// never the server's, which are English (nor the system's): the card gone (deleted elsewhere) is
+/// that it can't be found; anything else — offline, the server's trouble, a refusal the panel can't
+/// name — is the save error, a retry. (A card without a title is said before anything is sent.)
+enum PublishFailure {
+    static func message(_ error: Error) -> String {
+        (error as? APIFailure)?.isNotFound == true ? L10n.Card.NotFound.title : L10n.Native.saveError
     }
 }

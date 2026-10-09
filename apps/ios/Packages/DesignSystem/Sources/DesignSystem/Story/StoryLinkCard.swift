@@ -3,13 +3,19 @@ import SwiftUI
 
 /// A link standing alone in a story, drawn as what its page says about itself (the server's
 /// preview of it): the page's picture when it has one, its title, a line or two of description
-/// and the site's host — the story-column sibling of a chat message's link preview, in the
-/// lightly inked hand-drawn card of an embedded story card (StoryLinkCard.tsx).
+/// and the site's host — the story-column sibling of a chat message's link preview, in the chat
+/// card bubble's language (StoryLinkCard.tsx, the filled look B): a block of light fill
+/// (`bubbleTheirs`) in a seeded wobbly outline, with no pen line round it.
+///
+/// The picture runs across the card's top edge to edge, cut by the card's own outline (the same
+/// seeded path as its fill and its press), so the card has one edge, not a frame round a framed
+/// picture; its foot meets the words directly. Without a picture (none, or one that won't load):
+/// just the fill with the words. Upright wherever it stands — a story's quote sets its own words
+/// in italics, never the card quoted in it (the card's type is its own).
 ///
 /// The whole card is one link (`onOpen`). `host` is always the real one, in ASCII (punycode for an
 /// international name), whatever the page called itself; the picture comes only from our own image
-/// route (the server fetched it), and one that won't load leaves no empty frame behind.
-/// `openLabel` is what VoiceOver calls the card ("Open link: example.com").
+/// route (the server fetched it). `openLabel` is what VoiceOver calls the card ("Open link: example.com").
 public struct StoryLinkCard: View {
     let title: String
     let description: String?
@@ -31,11 +37,22 @@ public struct StoryLinkCard: View {
         self.onOpen = onOpen
     }
 
+    /// The card's look, as the web's: the chat card bubble's fill, the quote's under a finger, no stroke.
+    public enum Look {
+        public static let fill = Tokens.bubbleTheirs
+        public static let pressedFill = Tokens.bubbleQuote
+        public static let radius = 16.0
+        /// How far the picture reaches past the card's box on its top and sides, so the outline's
+        /// outward swings (a few points at most) still land on picture.
+        public static let bleed: CGFloat = 8
+    }
+
     public var body: some View {
+        let picture = pictureFailed ? nil : imageURL
         Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 10) {
-                if let imageURL, !pictureFailed {
-                    LinkPicture(url: imageURL, seed: seed + 3) { pictureFailed = true }
+            VStack(alignment: .leading, spacing: 0) {
+                if let picture {
+                    LinkPicture(url: picture) { pictureFailed = true }
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
@@ -46,17 +63,13 @@ public struct StoryLinkCard: View {
                             .font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
                             .lineSpacing(3).lineLimit(2).multilineTextAlignment(.leading)
                     }
-                    HStack(spacing: 6) {
-                        OrganicIcon(.link, size: 15, color: Tokens.textMuted)
-                        Text(host).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted).lineLimit(1).truncationMode(.tail)
-                    }
-                    .padding(.top, 4)
+                    LinkHost(host: host).padding(.top, 4)
                 }
-                .padding(.horizontal, 8)
-                .padding(.top, 2)
+                .padding(.horizontal, 18)
+                .padding(.top, picture == nil ? 16 : 12)
+                .padding(.bottom, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.top, 10).padding(.horizontal, 10).padding(.bottom, 14)
             .frame(maxWidth: 520, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -69,47 +82,64 @@ public struct StoryLinkCard: View {
     }
 }
 
-/// The card's paper and its light pen line (both on the card's own seed); pressed, the paper takes
-/// the hover wash and the line darkens, as the web's card does under a pointer.
+/// The card's fill in its seeded outline, which also cuts what lies on it (the picture's top and
+/// sides); pressed, the fill takes the quote's deeper wash, as the web's card does under a pointer.
 private struct LinkCardStyle: ButtonStyle {
     let seed: Double
 
     func makeBody(configuration: Configuration) -> some View {
-        let shape = WobRectShape(radius: 16, seed: seed)
+        let shape = WobRectShape(radius: StoryLinkCard.Look.radius, seed: seed)
         configuration.label
+            .environment(\.linkCardPressed, configuration.isPressed)
             .background {
-                shape.fill(Tokens.cardBg)
-                shape.fill(Tokens.creamDark).opacity(configuration.isPressed ? 1 : 0)
-                shape.stroke(configuration.isPressed ? Tokens.fieldBorderHover : Tokens.fieldBorder,
-                             style: StrokeStyle(lineWidth: Tokens.inkLight, lineJoin: .round))
+                shape.fill(StoryLinkCard.Look.fill)
+                shape.fill(StoryLinkCard.Look.pressedFill).opacity(configuration.isPressed ? 1 : 0)
             }
+            .clipShape(shape)
             .animation(.easeOut(duration: configuration.isPressed ? 0.1 : 0.3), value: configuration.isPressed)
     }
 }
 
-/// The page's picture at 1.91:1 (the share-image ratio) in the organic clip of a story photo; a
-/// picture that won't load says so (`onError`) and its frame goes with it.
+private extension EnvironmentValues {
+    @Entry var linkCardPressed = false
+}
+
+/// The host line: the link glyph and the host, turning to the link colour under a finger.
+private struct LinkHost: View {
+    let host: String
+    @Environment(\.linkCardPressed) private var pressed
+
+    var body: some View {
+        HStack(spacing: 6) {
+            OrganicIcon(.link, size: 15, color: Tokens.textMuted)
+            Text(host).font(AppFonts.body(13)).foregroundStyle(pressed ? Tokens.terracotta : Tokens.textMuted)
+                .lineLimit(1).truncationMode(.tail)
+        }
+    }
+}
+
+/// The page's picture at 1.91:1 (the share-image ratio), flush with the card's top and sides: it
+/// reaches `bleed` past them (the card's outline, which clips it, swings out a little there); its
+/// foot is straight and meets the words. A picture that won't load says so (`onError`) and its
+/// room goes with it.
 private struct LinkPicture: View {
     let url: URL
-    let seed: Double
     let onError: () -> Void
 
     var body: some View {
         GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            // Past the wobble's outward swing, so the clip lands on picture, not on nothing.
-            let bleed = (min(w, h) * 0.05 + 6 + 4).rounded(.up)
+            let bleed = StoryLinkCard.Look.bleed
             LazyImage(url: url) { state in
                 if let image = state.image {
                     image.resizable().scaledToFill()
                 } else if state.error != nil {
                     Color.clear.onAppear(perform: onError)
                 } else {
-                    Tokens.creamDark
+                    Tokens.text.opacity(0.06)
                 }
             }
-            .frame(width: w + bleed * 2, height: h + bleed * 2)
-            .clipShape(OrganicImageShape(seed: seed, radius: 12, bleed: bleed))
+            .frame(width: geo.size.width + bleed * 2, height: geo.size.height + bleed)
+            .clipped()
             .offset(x: -bleed, y: -bleed)
         }
         .aspectRatio(1.91, contentMode: .fit)

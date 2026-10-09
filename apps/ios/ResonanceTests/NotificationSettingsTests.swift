@@ -56,8 +56,11 @@ import Testing
         let world = World()
         let model = model(world)
         #expect(!model.canFlip)
+        // Both held back (faded) until read.
+        #expect(model.isHeld(.picks) && model.isHeld(.connectionCards))
         await model.load()
         #expect(model.canFlip)
+        #expect(!model.isHeld(.picks) && !model.isHeld(.connectionCards))
         #expect(!model.isOn(.picks) && !model.isOn(.connectionCards))
         #expect(!model.permissionDenied && !model.loadFailed && !model.saveFailed)
     }
@@ -72,11 +75,14 @@ import Testing
         // On before the server has answered; the other switch waits meanwhile.
         #expect(await eventually { model.isOn(.connectionCards) && model.pending == .connectionCards })
         #expect(!model.canFlip)
+        // The other one is held back (faded); the one flipping stays as it is, showing its new place.
+        #expect(model.isHeld(.picks) && !model.isHeld(.connectionCards))
         await gate.open(())
         await flip.value
         #expect(world.saves == ["connectionCards=true"])
         #expect(model.isOn(.connectionCards) && !model.isOn(.picks))
         #expect(model.pending == nil && model.canFlip && !model.saveFailed)
+        #expect(!model.isHeld(.picks) && !model.isHeld(.connectionCards))
         // Already allowed: no question.
         #expect(world.asked == 0)
     }

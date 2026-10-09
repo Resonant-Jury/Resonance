@@ -110,7 +110,7 @@ struct FeedScreen: View {
                     .multilineTextAlignment(.center)
             }
             if model.canLoadMore {
-                OrganicButton(model.isLoadingMore ? L10n.Home.moreLoading : L10n.Home.moreBtn, variant: .textAccent) {
+                OrganicButton(model.isLoadingMore ? L10n.Home.moreLoading : L10n.Home.moreBtn, variant: .tonal) {
                     Task { await model.loadMore() }
                 }
             }

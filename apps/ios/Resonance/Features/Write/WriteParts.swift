@@ -41,7 +41,7 @@ struct TagField: View {
                     .onSubmit(commit)
                     // The line box of a 15pt body (1.6), as the other fields.
                     .frame(minHeight: 15 * 1.6)
-                OrganicButton(actionTitle, icon: canAdd ? .plus : .sparkle, variant: .textAccent, size: .sm) {
+                OrganicButton(actionTitle, icon: canAdd ? .plus : .sparkle, variant: .tonal, size: .sm) {
                     if canAdd { commit() } else { onSuggest() }
                 }
                 // The sparkle breathes (the action fades as a whole: the button draws its label and glyph together) until the tags arrive.

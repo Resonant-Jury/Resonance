@@ -229,7 +229,7 @@ private struct AccountSettings: View {
                 .disabled(true)
             OrganicTextField(L10n.Settings.Account.phone, text: .constant(session.phoneNumber ?? ""), placeholder: "—", seed: 57)
                 .disabled(true)
-            OrganicButton(L10n.Settings.Account.signOut, variant: .outline) { confirming = true }
+            OrganicButton(L10n.Settings.Account.signOut, variant: .tonal) { confirming = true }
                 .padding(.top, 4)
         }
         .organicConfirm(isPresented: $confirming, title: L10n.App.SignOutConfirm.title, message: L10n.App.SignOutConfirm.body,
@@ -245,7 +245,7 @@ private struct PrivacySettings: View {
     @State private var showingBlocks = false
 
     var body: some View {
-        OrganicButton(L10n.Settings.Privacy.manageBlocks, variant: .outline) { showingBlocks = true }
+        OrganicButton(L10n.Settings.Privacy.manageBlocks, variant: .tonal) { showingBlocks = true }
             .organicModal(isPresented: $showingBlocks, seed: 97, closeLabel: L10n.Safety.BlockedList.close) {
                 BlockedListContent { showingBlocks = false }
             }
@@ -283,7 +283,7 @@ private struct NotificationSettings: View {
                 } else if model.loadFailed {
                     VStack(alignment: .leading, spacing: 8) {
                         ModalError(L10n.Native.loadError)
-                        OrganicButton(L10n.Native.retry, variant: .textAccent, size: .sm) { Task { await model.load() } }
+                        OrganicButton(L10n.Native.retry, variant: .tonal, size: .sm) { Task { await model.load() } }
                     }
                     .padding(.top, 14)
                 }
@@ -302,8 +302,7 @@ private struct NotificationSettings: View {
     }
 
     private func switchRow(_ name: NotificationSettingsModel.Switch, label: String, hint: String, seed: Double) -> some View {
-        let enabled = model?.canFlip ?? false
-        return HStack(alignment: .top, spacing: 20) {
+        HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(label).font(AppFonts.body(16)).foregroundStyle(Tokens.text)
                     .fixedSize(horizontal: false, vertical: true)
@@ -316,9 +315,8 @@ private struct NotificationSettings: View {
                           label: label, seed: seed)
                 .accessibilityHint(hint)
                 .padding(.top, 1)
-                .disabled(!enabled)
-                .opacity(enabled || model?.pending == name ? 1 : 0.5)
-                .animation(.easeOut(duration: 0.16), value: enabled)
+                // Held back, the switch fades itself (OrganicToggleSpec.disabledOpacity, as the web's).
+                .disabled(model?.isHeld(name) ?? true)
         }
     }
 
@@ -327,7 +325,7 @@ private struct NotificationSettings: View {
         VStack(alignment: .leading, spacing: 10) {
             CSSText(L10n.Settings.Notifications.permissionDenied, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.55,
                     color: UIColor(Tokens.textMuted))
-            OrganicButton(L10n.Settings.Notifications.openSettings, variant: .outline, size: .sm) {
+            OrganicButton(L10n.Settings.Notifications.openSettings, variant: .tonal, size: .sm) {
                 if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
             }
         }
@@ -391,9 +389,10 @@ private struct TermsSettings: View {
     }
 }
 
-/// DeleteAccountSection: what happens, the backup first, then the quieter
-/// outline Delete (the web keeps it from reading as a call to action) and
-/// its confirmation. Apple 5.1.1(v).
+/// DeleteAccountSection: what happens, then two pills of one size, stacked at the
+/// column's width as the web lays them out on a phone — the backup in the tonal
+/// peach, and the way into the deletion in the red tint (it only opens the
+/// dialog, whose confirm is the solid red). Apple 5.1.1(v).
 private struct DeleteAccountSettings: View {
     @Environment(SessionStore.self) private var session
     @State private var exportFile: URL?
@@ -410,20 +409,23 @@ private struct DeleteAccountSettings: View {
             Text(L10n.Settings.Delete.title).font(AppFonts.heading(20)).foregroundStyle(Tokens.text)
             muted(L10n.Settings.Delete.warn)
             muted(L10n.Settings.Delete.exportHint)
-            FlowRow(spacing: 12) {
+            VStack(spacing: 10) {
                 if let exportFile {
-                    // Ready: the same frameless text as before (Android keeps it too), now handing the file over.
+                    // Ready: the same pill as before, now handing the file over.
                     ShareLink(item: exportFile) {
-                        OrganicButtonLabel(L10n.Settings.Delete.export, icon: .check, variant: .text)
+                        OrganicButtonLabel(L10n.Settings.Delete.export, icon: .check, variant: .tonal)
+                            .fillingWidth()
                     }
                     .buttonStyle(OrganicPressStyle(inset: 0))
                 } else {
-                    OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .text) {
+                    OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .tonal) {
                         Task { await export() }
                     }
+                    .fillingWidth()
                     .disabled(exporting)
                 }
-                OrganicButton(L10n.Settings.Delete.button, icon: .trash, variant: .outline) { confirming = true }
+                OrganicButton(L10n.Settings.Delete.button, icon: .trash, variant: .dangerTonal) { confirming = true }
+                    .fillingWidth()
             }
             if failed { ModalError(L10n.Settings.Delete.error) }
         }
@@ -491,7 +493,6 @@ private struct BlockedListContent: View {
                 SketchLoader(size: 44).frame(maxWidth: .infinity).padding(.vertical, 18)
             }
             ModalCloseButton(L10n.Safety.BlockedList.close, action: onClose)
-                .padding(.top, 12)
         }
         .task { people = (try? await session.safety?.blocked()) ?? [] }
     }
@@ -513,7 +514,7 @@ private struct BlockedListContent: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            OrganicButton(pending == person.id ? "…" : L10n.Safety.unblock, variant: .textAccent, size: .sm) {
+            OrganicButton(pending == person.id ? "…" : L10n.Safety.unblock, variant: .tonal, size: .sm) {
                 Task { await unblock(person.id) }
             }
             .disabled(pending != nil)

@@ -258,11 +258,59 @@ private struct OrganicLinkStyle: ButtonStyle {
     }
 }
 
-/// The web's organic toggle (ToggleSwitch.tsx): wobbly pill track + wobbly knob.
+/// The switch's numbers — the web's `TOGGLE` (ToggleSwitch.tsx) and Android's OrganicToggle draw
+/// the same, so change all three together.
+///
+/// The track is a pill bowed by hand: a radius just under half the height (so each end may come
+/// out a little rounder or flatter than the other) and one seeded turn in each long edge, bowing
+/// up to 2.5pt in or out. The pen goes round it twice — the trace, and a lighter pass from
+/// `seed + 1` — in the light pen. The knob is a lumpier circle than a button's dot (six arcs, ±1pt).
+public nonisolated enum OrganicToggleSpec {
+    public static let width: CGFloat = 50
+    public static let height: CGFloat = 28
+    public static let radius = 12.5
+    public static let mag = 2.4
+    public static let trackOptions = WobRectOptions(curve: 2.8, cornerJitter: 2, cornerOffset: 1.4,
+                                                    segmentsH: .count(2), segmentsV: .count(1))
+    /// The second pass is the same pill from the next seed, at this much of the pen's ink.
+    public static let retraceSeed = 1.0
+    public static let retraceOpacity = 0.4
+    public static let knob: CGFloat = 20
+    public static let pad: CGFloat = 4
+    public static let knobSeed = 5.0
+    public static let knobOptions = WobCircleOptions(segments: 6, mag: 1, cpJitter: 0.5)
+    /// Faded like a disabled button while it can't be flipped.
+    public static let disabledOpacity = 0.45
+
+    /// The track, its second pen pass and the knob (drawn at 0,0) for one seed.
+    public static func shapes(seed: Double) -> (track: [PathCommand], retrace: [PathCommand], knob: [PathCommand]) {
+        let r = Double(knob / 2)
+        return (wobRect(Double(width), Double(height), radius, seed: seed, mag: mag, options: trackOptions),
+                wobRect(Double(width), Double(height), radius, seed: seed + retraceSeed, mag: mag, options: trackOptions),
+                wobCircle(r, r, r, seed: seed + knobSeed, options: knobOptions))
+    }
+
+    /// Where the knob's box sits: at the pad on the left when off, as far right when on.
+    public static func knobOrigin(isOn: Bool) -> CGPoint {
+        CGPoint(x: isOn ? width - knob - pad : pad, y: (height - knob) / 2)
+    }
+
+    /// Off: a pale paper well edged in a soft ink (text-muted, 5:1 on cream — WCAG 1.4.11 asks 3:1
+    /// of an input's edge). On: terracotta, edged and knob-ringed in deep terracotta (6.6:1 on
+    /// cream). The knob is cream either way (3.5:1 on the terracotta).
+    public static func fill(isOn: Bool) -> Color { isOn ? Tokens.terracotta : Tokens.creamDark }
+    public static func ink(isOn: Bool) -> Color { isOn ? Tokens.terracottaDeep : Tokens.textMuted }
+}
+
+/// The web's organic toggle (ToggleSwitch.tsx): a hand-drawn pill gone round twice in the light
+/// pen, the buttons' grain on its well, and a lumpy cream knob that slides across. Its numbers are
+/// ``OrganicToggleSpec``. The 50×28 box is its tap target; the pen reaches a few points past it.
 public struct OrganicToggle: View {
     @Binding var isOn: Bool
     var label: String
     var seed: Double
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(isOn: Binding<Bool>, label: String, seed: Double = 9) {
         _isOn = isOn
@@ -271,24 +319,45 @@ public struct OrganicToggle: View {
     }
 
     public var body: some View {
-        let track = wobRect(50, 28, 14, seed: seed, mag: 1.1, options: WobRectOptions(
-            curve: 1.5, cornerJitter: 0.6, segmentsH: .range(1, 2), segmentsV: .range(3, 4)))
-        let knob = wobCircle(10, 10, 10, seed: seed + 5, options: WobCircleOptions(segments: 8, mag: 0.5, cpJitter: 0.3))
+        let spec = OrganicToggleSpec.self
+        let shapes = spec.shapes(seed: seed)
+        let track = shapes.track.path()
+        let ink = spec.ink(isOn: isOn)
+        let pen = StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round, lineJoin: .round)
+        let knob = spec.knobOrigin(isOn: isOn)
+        // Colours ease over 160ms, the knob glides over 200ms; under reduced motion it all snaps.
+        let tint: Animation? = reduceMotion ? nil : .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.16)
+        let glide: Animation? = reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.3, 1, duration: 0.2)
         ZStack(alignment: .topLeading) {
-            track.path().fill(isOn ? Tokens.terracotta : Tokens.toggleOff)
-            track.path().stroke(isOn ? Tokens.terracottaDeep : Tokens.toggleOffStroke, lineWidth: Tokens.ink)
-            knob.path().fill(Tokens.cream)
-                .overlay(knob.path().stroke(Tokens.textMuted.opacity(0.4), lineWidth: Tokens.inkLight))
-                .frame(width: 20, height: 20)
-                .offset(x: isOn ? 26 : 4, y: 4)
+            ZStack {
+                track.fill(spec.fill(isOn: isOn))
+                // Both states carry the buttons' grain, so the switch sits in their family.
+                GrainLayer(shape: TogglePath(path: track), mode: .tile, opacity: 0.38, tile: "grain-button", overflow: 4)
+                shapes.retrace.path().stroke(ink.opacity(spec.retraceOpacity), style: pen)
+                track.stroke(ink, style: pen)
+            }
+            .animation(tint, value: isOn)
+            shapes.knob.path().fill(Tokens.cream)
+                .overlay(shapes.knob.path().stroke(ink, style: StrokeStyle(lineWidth: Tokens.inkLight, lineJoin: .round)))
+                .animation(tint, value: isOn)
+                .frame(width: spec.knob, height: spec.knob)
+                .offset(x: knob.x, y: knob.y)
+                .animation(glide, value: isOn)
         }
-        .frame(width: 50, height: 28)
-        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isOn)
+        .frame(width: spec.width, height: spec.height, alignment: .topLeading)
+        .opacity(isEnabled ? 1 : spec.disabledOpacity)
+        .animation(tint, value: isEnabled)
         .contentShape(Rectangle())
-        .onTapGesture { isOn.toggle() }
+        .onTapGesture { if isEnabled { isOn.toggle() } }
         .sensoryFeedback(.selection, trigger: isOn)
         .accessibilityRepresentation { Toggle(label, isOn: $isOn) }
     }
+}
+
+/// A fixed path as a shape (the grain's clip), placed where the switch's box is.
+private nonisolated struct TogglePath: Shape {
+    let path: Path
+    func path(in rect: CGRect) -> Path { path.offsetBy(dx: rect.minX, dy: rect.minY) }
 }
 
 /// SketchLoader: six dashes travelling nose-to-tail around the two-lap wobLoop,

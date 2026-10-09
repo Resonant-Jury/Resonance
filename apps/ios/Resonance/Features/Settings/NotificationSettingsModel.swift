@@ -62,6 +62,11 @@ final class NotificationSettingsModel {
     /// Whether a switch can be flipped now: read, and no other flip on its way.
     var canFlip: Bool { settings != nil && pending == nil }
 
+    /// Whether `name`'s switch is held back (the switch's own disabled fade): until the switches
+    /// are read, and while the other one's flip is on its way. The one flipping stays as it is,
+    /// showing its new place (a tap on it meanwhile is refused by ``set(_:_:)``).
+    func isHeld(_ name: Switch) -> Bool { !canFlip && pending != name }
+
     func isOn(_ name: Switch) -> Bool { settings?[name] ?? false }
 
     func load() async {

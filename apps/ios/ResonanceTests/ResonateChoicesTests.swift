@@ -1,4 +1,5 @@
 import ResonanceKit
+import SwiftUI
 import Testing
 @testable import Resonance
 
@@ -75,5 +76,19 @@ import Testing
         #expect(origin.footnote == nil)
         // A card listed: the heading and the list, as ever.
         #expect(!ResonateChoices.of([card("origin"), card("walk")], target: "target", targetReference: "origin").nothingToPick)
+    }
+    /// Variant A's rows: one muted line under the title — when it came out, the year too before this
+    /// one, led by 匿名 for an anonymous card (no pill) — in the interface's language, as the web's.
+    @Test func aRowsLineSaysWhenItCameOutLedByAnonymous() {
+        let now = ISO8601.date("2026-10-09T08:00:00.000Z")!
+        let named = card("walk"), anonymous = card("night", anonymous: true)
+        #expect(CardPickList<EmptyView, EmptyView>.meta(named, anonymousLabel: "匿名", now: now, language: .zhTW) == "9月1日")
+        #expect(CardPickList<EmptyView, EmptyView>.meta(anonymous, anonymousLabel: "匿名", now: now, language: .zhTW) == "匿名 · 9月1日")
+        #expect(CardPickList<EmptyView, EmptyView>.meta(anonymous, anonymousLabel: "Anonymous", now: now, language: .en) == "Anonymous · Sep 1")
+        // A list that doesn't mark anonymous cards (inserting a card, sharing one) shows the date alone.
+        #expect(CardPickList<EmptyView, EmptyView>.meta(anonymous, anonymousLabel: nil, now: now, language: .en) == "Sep 1")
+        let nextYear = ISO8601.date("2027-02-01T08:00:00.000Z")!
+        #expect(CardPickList<EmptyView, EmptyView>.meta(named, anonymousLabel: nil, now: nextYear, language: .zhTW) == "2026年9月1日")
+        #expect(CardPickList<EmptyView, EmptyView>.meta(named, anonymousLabel: nil, now: nextYear, language: .en) == "Sep 1, 2026")
     }
 }
