@@ -16,3 +16,16 @@
   width: 0;
   height: 0;
 }
+
+/* The gutter is the rail's: while there is no rail (nothing to scroll, or a
+   phone or touch screen, which never shows one) the rows and their rules run
+   to the dialog's edge, square with its buttons. */
+.scrollArea:has(> [data-hidden]) .scrollBody {
+  padding-right: 0;
+}
+
+@media (max-width: 720px), (hover: none) and (pointer: coarse) {
+  .scrollBody {
+    padding-right: 0;
+  }
+}
