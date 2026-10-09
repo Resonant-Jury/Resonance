@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -58,6 +59,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -70,6 +72,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -235,15 +238,16 @@ private fun EdgeToEdgeDialogWindow() {
 }
 
 /**
- * The way out of a modal with nothing else at its foot (a list to look through,
- * a note just sent): its close words as a quiet text button, centred under the
- * content. Where there is a choice (cancel and a verb) the two sit at the
- * bottom right instead, in [ModalActions].
+ * The way out of a modal with nothing else at its foot (a list to look through, a note just
+ * sent, "thanks", "that didn't go through"): its close words as a small tonal pill, centred under
+ * the content (the web's ModalCloseRow / `Modal closeButton`), at least [ModalActionMinHeight]
+ * tall for a finger. Where there is a choice (cancel and a verb) the two sit at the bottom right
+ * instead, in [ModalActions].
  */
 @Composable
 fun ModalCloseButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.Center) {
-        OrganicButton(label, variant = ButtonVariant.Text, small = true, onClick = onClick)
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        OrganicButton(label, Modifier.heightIn(min = ModalActionMinHeight), variant = ButtonVariant.Tonal, small = true, onClick = onClick)
     }
 }
 
@@ -256,9 +260,9 @@ fun Modifier.plainClickable(role: Role? = null, onClickLabel: String? = null, on
 
 /**
  * ConfirmModal.tsx — the one confirm layout: title and body left-aligned,
- * then cancel and the verb, small, at the bottom right. The modal is the
- * frame, so neither button draws one: cancel is plain text, the verb a solid
- * fill — red when it can't be undone (`destructive`).
+ * then cancel and the verb, small, at the bottom right ([ModalActions]): cancel
+ * the tonal pill, the verb solid — red when it can't be undone (`destructive`).
+ * Why the last try failed ([error]) is one danger line right above them.
  */
 @Composable
 fun OrganicConfirmDialog(
@@ -283,24 +287,27 @@ fun OrganicConfirmDialog(
             Box(Modifier.fade(if (titlePending) 0f else 1f)) { ModalTitle(title) }
             ModalBody(body)
         }
-        if (error != null) BasicText(
-            error, style = AppFonts.body(13f, color = Mixes.Danger),
-            // ConfirmModal: 10 under the body and 14 above the actions; the column's 14 and the actions' 4 would make them 14 and 18.
-            modifier = Modifier.layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints)
-                val tuck = 4.dp.roundToPx()
-                layout(placeable.width, placeable.height - 2 * tuck) { placeable.place(0, -tuck) }
-            },
+        if (error != null) ModalError(error)
+        ModalActions(
+            cancelLabel, onCancel, if (busy) "…" else confirmLabel, onConfirm,
+            busy = busy, destructive = destructive,
         )
-        ModalActions {
-            OrganicButton(cancelLabel, variant = ButtonVariant.Text, small = true, enabled = !busy, onClick = onCancel)
-            OrganicButton(
-                if (busy) "…" else confirmLabel, variant = if (destructive) ButtonVariant.Danger else ButtonVariant.Solid,
-                small = true, enabled = !busy, onClick = onConfirm,
-            )
-        }
     }
 }
+
+/**
+ * A dialog's error line (the web's Modal `.error`): 13, danger red, right above its actions —
+ * 12 over them, as on the web (the column's 14 and the actions' 4 would make it 18).
+ */
+@Composable
+fun ModalError(text: String) = BasicText(
+    text, style = AppFonts.body(13f, lineHeight = 1.5f, color = Mixes.Danger),
+    modifier = Modifier.layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val tuck = 6.dp.roundToPx()
+        layout(placeable.width, placeable.height - tuck) { placeable.place(0, 0) }
+    },
+)
 
 /** ConfirmModal's title: Playfair 20/700. */
 @Composable
@@ -310,11 +317,82 @@ fun ModalTitle(text: String) = BasicText(text, style = AppFonts.heading(20f, lin
 @Composable
 fun ModalBody(text: String, color: Color = Tokens.TextMuted) = BasicText(text, style = AppFonts.body(14f, lineHeight = 1.6f, color = color))
 
-/** Actions at the bottom right, 10 apart, a little air above (`topPadding`; a list that ends in its own padding asks for none). */
+/** A finger needs this much to land on: the small pills at a dialog's foot are about 36 tall. */
+val ModalActionMinHeight = 48.dp
+
+/**
+ * A dialog's foot when it asks for a choice (the web's ModalActions): its buttons [content] in
+ * scanning order — the way out (tonal) first, the verb (solid, or danger) last — right-aligned,
+ * the verb rightmost, 10 apart, each at least [ModalActionMinHeight] tall, a little air above
+ * (`topPadding`; a list that ends in its own padding asks for none). A pair too wide for one row
+ * (a narrow phone, long English words, a large text size) stacks instead of squeezing its labels
+ * onto two lines inside the pills: the verb on top, the way out under it, both still at the right
+ * ([ModalActionsLayout]).
+ */
 @Composable
 fun ModalActions(topPadding: Dp = 4.dp, content: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(top = topPadding), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-        content()
+    Layout(content, Modifier.fillMaxWidth().padding(top = topPadding)) { measurables, constraints ->
+        val gap = 10.dp.roundToPx()
+        val minHeight = ModalActionMinHeight.roundToPx().coerceAtMost(constraints.maxHeight)
+        // Each button's width on one line, asked before it is measured.
+        val natural = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }
+        val stacked = ModalActionsLayout.stacks(natural, gap, constraints.maxWidth)
+        val placeables = measurables.map { it.measure(Constraints(maxWidth = constraints.maxWidth, minHeight = minHeight)) }
+        val spots = ModalActionsLayout.place(placeables.map { it.width }, placeables.map { it.height }, gap, constraints.maxWidth, stacked)
+        val height = spots.indices.maxOfOrNull { spots[it].y + placeables[it].height } ?: 0
+        layout(constraints.maxWidth, height) { placeables.forEachIndexed { i, p -> p.place(spots[i]) } }
+    }
+}
+
+/**
+ * ModalActions' (cancel, verb) form, the foot most dialogs end in: [cancelLabel] tonal, then the
+ * verb — solid, or danger when [destructive] — with an optional glyph ([verbIcon]); [verbEnabled]
+ * false while there is nothing to act on yet. While [busy] both rest (faded, taking no tap).
+ */
+@Composable
+fun ModalActions(
+    cancelLabel: String,
+    onCancel: () -> Unit,
+    verbLabel: String,
+    onVerb: () -> Unit,
+    busy: Boolean = false,
+    destructive: Boolean = false,
+    verbEnabled: Boolean = true,
+    verbIcon: IconName? = null,
+    topPadding: Dp = 4.dp,
+) {
+    ModalActions(topPadding) {
+        OrganicButton(cancelLabel, variant = ButtonVariant.Tonal, small = true, busy = busy, onClick = onCancel)
+        OrganicButton(
+            verbLabel, variant = if (destructive) ButtonVariant.Danger else ButtonVariant.Solid, icon = verbIcon,
+            small = true, enabled = verbEnabled, busy = busy, onClick = onVerb,
+        )
+    }
+}
+
+/**
+ * Where [ModalActions] puts its buttons (in px), apart from Compose so it can be tested: in a row
+ * at the right when they fit side by side, else stacked — the last (the verb) on top — each at
+ * the right; in a row they share one centre line.
+ */
+object ModalActionsLayout {
+    /** Whether buttons of these one-line [widths], [gap] apart, are too wide for [available]. */
+    fun stacks(widths: List<Int>, gap: Int, available: Int): Boolean =
+        widths.sum() + gap * (widths.size - 1).coerceAtLeast(0) > available
+
+    fun place(widths: List<Int>, heights: List<Int>, gap: Int, available: Int, stacked: Boolean): List<IntOffset> {
+        if (!stacked) {
+            val rowHeight = heights.maxOrNull() ?: 0
+            var x = available - (widths.sum() + gap * (widths.size - 1).coerceAtLeast(0))
+            return widths.indices.map { i -> IntOffset(x, (rowHeight - heights[i]) / 2).also { x += widths[i] + gap } }
+        }
+        val spots = arrayOfNulls<IntOffset>(widths.size)
+        var y = 0
+        for (i in widths.indices.reversed()) {
+            spots[i] = IntOffset(available - widths[i], y)
+            y += heights[i] + gap
+        }
+        return spots.map { it!! }
     }
 }
 
