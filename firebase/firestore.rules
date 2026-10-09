@@ -254,13 +254,21 @@ service cloud.firestore {
       // already that way (from before) stays editable in everything else. A
       // published resonance's byline and visibility change through the server,
       // which takes back what hiding it ends (publishedResonance).
+      // An unpublished draft may become anonymous-for-connections: no one but
+      // its author reads a draft, and publishing refuses one so, in words the
+      // apps show. The app builds before letters (iOS ≤ 6, Android ≤ 7) can't
+      // pick "connections" but keep a web draft's, and save the anonymous
+      // switch beside it: refused here, that save failed silently and the
+      // draft went out under its author's name. (publishedAt is no client
+      // write, so the draft stays one.)
       allow update: if signedIn()
         && resource.data.authorId == request.auth.uid
         && changedKeys().hasOnly([
           "thoughtCore", "story", "tags", "visibility", "anonymous", "media", "accentHue", "updatedAt"
         ])
         && validCardContent(request.resource.data, changedKeys())
-        && (!anonymousForConnections(request.resource.data) || !changedKeys().hasAny(["anonymous", "visibility"]))
+        && (!anonymousForConnections(request.resource.data) || !changedKeys().hasAny(["anonymous", "visibility"])
+            || resource.data.get("publishedAt", null) == null)
         && (!publishedResonance(resource.data) || !changedKeys().hasAny(["anonymous", "visibility"]));
       // Authors may delete their drafts. A published card is deleted by the
       // server (DELETE /api/v1/cards/{id}, as the web and both apps do), with

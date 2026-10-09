@@ -95,7 +95,8 @@ async function main() {
     if (at != null && !(at instanceof Timestamp)) badDate.push(d.id);
     else if (at instanceof Timestamp && at.toMillis() > now + FUTURE_SLACK_MS) futureDate.push(d.id);
     if (typeof d.get('anonymous') !== 'boolean') noAnonymous.push(d.id);
-    if (anonymousForConnections(d.data())) anonymousConnections.push(d.id);
+    // A draft may be (the rules let one become so; publishing refuses it): only a published one counts.
+    if (anonymousForConnections(d.data()) && at != null) anonymousConnections.push(d.id);
     if (!/^[A-Za-z0-9]{20}$/.test(d.id)) oddId.push(d.id);
     const slug = d.get('slug');
     if (typeof slug === 'string' && slug) bySlug.set(slug, [...(bySlug.get(slug) ?? []), d.id]);

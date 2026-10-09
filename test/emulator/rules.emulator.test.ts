@@ -843,6 +843,40 @@ describe('cards: what the author may write', () => {
         await assertSucceeds(updateDoc(doc(db, 'cards', 'namedConn'), { story: 'more', updatedAt: serverTimestamp() }));
       });
 
+      // The app builds before letters (iOS ≤ 6, Android ≤ 7) can't pick
+      // "connections" but keep a web draft's, and save their anonymous switch
+      // beside it. Refused, that save failed silently and the draft was
+      // published under its author's name; saved, publishing refuses it in
+      // words the app shows (apiV1PreLetter.emulator.test.ts).
+      it("may be an unpublished draft's, which its author alone reads — and is still what nothing published becomes", async () => {
+        const DRAFT = 'dddddddddddddddddddd';
+        await seed(async (db) => {
+          await setDoc(doc(db, 'cards', DRAFT), draft('alice', { visibility: 'connections' }));
+          await setDoc(doc(db, 'cards', 'anonDraft'), draft('alice', { anonymous: true }));
+        });
+        await seedConnection();
+        const db = as('alice');
+        const ref = doc(db, 'cards', DRAFT);
+        // The old apps' draft save (iOS DraftService.update, Android's twin): every field as it is, merged, stamped.
+        await assertSucceeds(setDoc(ref, {
+          thoughtCore: 'A title', story: 'A story', tags: ['one'], visibility: 'connections', anonymous: true,
+          media: deleteField(), accentHue: null, updatedAt: serverTimestamp(),
+        }, { merge: true }));
+        await assertSucceeds(updateDoc(doc(db, 'cards', 'anonDraft'), { visibility: 'connections', updatedAt: serverTimestamp() }));
+        await assertSucceeds(getDoc(ref));
+        // No one else reads or answers a draft — Bob, connected to her, no more than anyone.
+        await assertFails(getDoc(doc(as('bob'), 'cards', DRAFT)));
+        await assertFails(setDoc(doc(collection(as('bob'), 'cards')), draft('bob', { referenceCardId: DRAFT })));
+        // No client publishes it; its author takes it out again either way.
+        await assertFails(updateDoc(ref, { publishedAt: serverTimestamp() }));
+        await assertSucceeds(updateDoc(ref, { visibility: 'private', updatedAt: serverTimestamp() }));
+        // A published card still never becomes one, by its own update or its pending edit (the old apps' path).
+        await assertFails(updateDoc(doc(db, 'cards', 'namedConn'), { anonymous: true, updatedAt: serverTimestamp() }));
+        await assertFails(setDoc(doc(db, 'cards', 'namedConn', 'edits', 'current'), {
+          thoughtCore: 'Revised', story: 'Still writing', tags: ['a'], visibility: 'connections', anonymous: true, updatedAt: serverTimestamp(),
+        }));
+      });
+
       it('keeps an older card that already is editable in everything else, and lets it out either way', async () => {
         const db = as('alice');
         const old = doc(db, 'cards', OLD);
