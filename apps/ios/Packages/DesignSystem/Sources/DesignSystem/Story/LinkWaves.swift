@@ -14,6 +14,19 @@ public struct LinkFragment: Equatable, Sendable {
 /// part). The twin of Android's `linkFragments` and of the web's repeating
 /// background.
 public enum LinkWaves {
+    /// How far under the baseline the wave's centre runs, in em of the link's text — the depth
+    /// every platform draws a story link's wave at (the web's WAVE_DEPTH_EM, storyLinkWave.ts):
+    /// the up crests (at most 1.62pt off the line, plus half the INK stroke) stay clear of the feet
+    /// of Chinese glyphs (their ink ends about 0.12em down), and Latin descenders only dip into them.
+    public static let depthEm: CGFloat = 0.29
+
+    /// The wave's centre under the baseline for text of `fontSize`.
+    public static func drop(fontSize: CGFloat) -> CGFloat { fontSize * depthEm }
+
+    /// How far under the baseline the wave's highest point reaches (its up crests and half the pen):
+    /// the room it leaves the glyphs above it.
+    public static func clearance(fontSize: CGFloat) -> CGFloat { drop(fontSize: fontSize) - 1.2 * 1.35 - Tokens.ink / 2 }
+
     /// The link attribute's runs: the URL and the character range it covers.
     public static func links(in storage: NSAttributedString) -> [(url: URL, range: NSRange)] {
         var out: [(URL, NSRange)] = []
@@ -50,8 +63,10 @@ public enum LinkWaves {
 }
 
 /// A text view that draws the link wave under each link: terracotta, INK wide,
-/// ~0.2em under the baseline (OrganicLink's stroke), 70% at rest and 100% while
-/// a finger is on the link.
+/// ``LinkWaves/depthEm`` under the baseline, 70% at rest and 100% while a finger
+/// is on the link. Drawn beneath the glyphs, as the web paints its wave as the
+/// link's background: a descender that dips into a crest stands on it, never
+/// crossed by it.
 final class LinkWaveTextView: UITextView, UIGestureRecognizerDelegate {
     private var waveLayers: [CAShapeLayer] = []
     private var drawn: (width: CGFloat, text: NSAttributedString)?
@@ -102,8 +117,8 @@ final class LinkWaveTextView: UITextView, UIGestureRecognizerDelegate {
             layer.lineCap = .round
             layer.lineJoin = .round
             layer.opacity = link.url == pressedURL ? 1 : 0.7
-            layer.zPosition = 1
-            self.layer.addSublayer(layer)
+            // Under the text (the glyphs are drawn by the text container's own view, above).
+            self.layer.insertSublayer(layer, at: 0)
             waveLayers.append(layer)
             tracks.append((link.url, layer))
         }

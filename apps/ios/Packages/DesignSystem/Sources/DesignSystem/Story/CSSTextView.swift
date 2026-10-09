@@ -51,8 +51,8 @@ public struct CSSTextView: UIViewRepresentable {
         context.coordinator.onOpenURL = onOpenURL
         let boxes = CSSLineBoxes(font: font, lineHeight: lineHeight)
         context.coordinator.lineBoxes = boxes
-        // Under the letters, not under the line box: 0.2em below the baseline, like OrganicLink.
-        (view as? LinkWaveTextView)?.waveDrop = font.pointSize * 0.2
+        // Under the letters, not under the line box: the depth every platform shares (0.29em).
+        (view as? LinkWaveTextView)?.waveDrop = LinkWaves.drop(fontSize: font.pointSize)
         view.layoutManager.delegate = boxes
         if view.attributedText != text { view.attributedText = text }
     }
