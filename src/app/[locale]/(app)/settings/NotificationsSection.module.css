@@ -3,6 +3,15 @@
   flex-direction: column;
 }
 
+/* Where these go (the phone app), above the switches. */
+.note {
+  margin-bottom: 18px;
+  font-family: var(--font-body);
+  font-size: var(--hint-size);
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
 /* One switch: its label with the hint under it, the switch at the row's end. */
 .row {
   display: flex;
@@ -12,7 +21,7 @@
   padding: 14px 0;
 }
 
-.row:first-child {
+.note + .row {
   padding-top: 0;
 }
 

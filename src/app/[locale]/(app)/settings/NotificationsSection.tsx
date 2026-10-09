@@ -15,8 +15,10 @@ const SWITCHES: { name: NotificationSwitch; label: 'picks' | 'connectionCards'; 
 /**
  * Settings → 通知: the pushes beyond the ones answering you, each its own
  * switch, both off until turned on. They reach the person's phones (the
- * apps); the web only keeps the choice. A flip shows at once and is undone,
- * with a line saying so, when it doesn't save.
+ * apps); the web only keeps the choice — which the line above the switches
+ * says, for someone who reads Resonance on the web alone (each switch is
+ * described by it too). A flip shows at once and is undone, with a line
+ * saying so, when it doesn't save.
  */
 export function NotificationsSection() {
   const t = useTranslations('settings.notifications');
@@ -26,6 +28,9 @@ export function NotificationsSection() {
 
   return (
     <div className={styles.section}>
+      <p id={`${id}-apps`} className={styles.note}>
+        {t('appsOnly')}
+      </p>
       {SWITCHES.map(({ name, label, hint, seed }, i) => (
         <Fragment key={name}>
           {i > 0 && <Divider seed={seed + 2} spacing={2} />}
@@ -42,7 +47,7 @@ export function NotificationsSection() {
                 disabled={!data}
                 onChange={() => data && void set(name, !data[name])}
                 ariaLabel={t(label)}
-                describedBy={`${id}-${name}`}
+                describedBy={`${id}-${name} ${id}-apps`}
                 seed={seed}
               />
             </div>

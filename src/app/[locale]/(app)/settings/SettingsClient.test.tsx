@@ -268,6 +268,16 @@ describe('SettingsClient notifications', () => {
     expect(callApi).toHaveBeenCalledWith(PATH);
   });
 
+  it('says, above the switches and to each one, that these go to the phone app', async () => {
+    callApi.mockResolvedValue({ picks: false, connectionCards: false });
+    await open();
+    expect(screen.getByText('These notifications go to the Resonance app on your phone')).toBeInTheDocument();
+    for (const control of [picks(), fromConnections()]) {
+      expect(control).toHaveAccessibleDescription(/ These notifications go to the Resonance app on your phone$/);
+    }
+    await waitFor(() => expect(picks()).toBeEnabled());
+  });
+
   it("can't be flipped before the server has said where they stand", async () => {
     callApi.mockReturnValue(new Promise(() => {}));
     const u = await open();
