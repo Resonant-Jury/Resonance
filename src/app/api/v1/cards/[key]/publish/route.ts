@@ -1,5 +1,6 @@
 import { NextResponse, after } from 'next/server';
 import { parse, routeParam, withUser, type RouteContext } from '@/lib/api/v1/http';
+import { refusalForPreLetterBuild } from '@/lib/api/v1/preLetter';
 import { publishCard } from '@/lib/api/v1/publish';
 import { CardIdParam } from '@/lib/api/v1/schemas';
 import { getAdminDb } from '@/lib/db/firestore/admin';
@@ -19,11 +20,14 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /** POST /api/v1/cards/{id}/publish — publish your card (see publishCard). */
-export const POST = withUser(async (user, _req, ctx: RouteContext<'key'>) => {
+export const POST = withUser(async (user, req, ctx: RouteContext<'key'>) => {
   const id = parse(CardIdParam, await routeParam(ctx, 'key'));
   const db = getAdminDb();
   await spend(db, user.id, 'publish');
-  const { notificationId, pendingSlug, ...result } = await publishCard(db, user.id, id);
+  const { notificationId, pendingSlug, ...result } = await publishCard(db, user.id, id).catch(async (e: unknown) => {
+    // A build before letters shows the refusal's words as they are: in its own language (lib/api/v1/preLetter).
+    throw await refusalForPreLetterBuild(db, user.id, req, e);
+  });
   ringAfter(db, notificationId);
   // Same grace notes as the web editor: never awaited by the writer, never failing the publish.
   after(() =>

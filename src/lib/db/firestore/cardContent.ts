@@ -59,8 +59,10 @@ export function cardContentProblem(
  * are connected to its author, and blocking someone ends the connection: the
  * card vanishing as a reader blocked someone would tell them who wrote it.
  * So an anonymous card is public or private. firestore.rules hold the client
- * to the same (`anonymousForConnections`); a card already that way is left as
- * it is, editable in everything else (scripts/integrity.ts lists them).
+ * to the same (`anonymousForConnections`) — except on an unpublished draft,
+ * which only its author reads and which publishing refuses so; a card
+ * already that way is left as it is, editable in everything else
+ * (scripts/integrity.ts lists the published ones).
  */
 export function anonymousForConnections(c: { anonymous?: unknown; visibility?: unknown }): boolean {
   return c.anonymous === true && c.visibility === 'connections';
