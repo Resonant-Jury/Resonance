@@ -203,7 +203,8 @@ object SegmentedLayout {
     /** Wider, a segment stands at its own width with the web's desktop padding. */
     const val WIDE_PAD = 24f
 
-    private fun natural(label: Float, icon: Boolean, pad: Float) = 2 * pad + label + if (icon) ICON + GAP else 0f
+    /** A segment's own width: its padding, glyph, gap and label — and a dp to spare, so rounding to pixels never cuts the label. */
+    private fun natural(label: Float, icon: Boolean, pad: Float) = 2 * pad + label + (if (icon) ICON + GAP else 0f) + 1f
 
     /** Whether the collapsible segments show their glyph alone: every label at its own width needs more than [room]. */
     fun collapses(labels: List<Float>, icons: List<Boolean>, room: Float, spread: Boolean): Boolean {
@@ -215,9 +216,25 @@ object SegmentedLayout {
         val tight = collapses(labels, icons, room, spread)
         val alone = labels.indices.map { tight && collapsible[it] && icons[it] }
         if (!spread) return labels.indices.map { if (alone[it]) ICON_ONLY else natural(labels[it], icons[it], WIDE_PAD) }
-        val shared = labels.indices.count { !alone[it] }
-        val rest = room - alone.count { it } * ICON_ONLY
-        return labels.indices.map { if (alone[it]) ICON_ONLY else rest / max(1, shared) }
+        // Shared evenly (the web's `flex: 1`), but never narrower than a segment's own words (its min-content):
+        // one that needs more than an even share keeps its own width, and the rest is shared again.
+        val widths = labels.indices.map { if (alone[it]) ICON_ONLY else 0f }.toMutableList()
+        val open = labels.indices.filter { !alone[it] }.toMutableList()
+        var rest = room - alone.count { it } * ICON_ONLY
+        while (open.isNotEmpty()) {
+            val share = rest / open.size
+            val wide = open.filter { natural(labels[it], icons[it], PAD) > share }
+            if (wide.isEmpty()) {
+                open.forEach { widths[it] = share }
+                break
+            }
+            wide.forEach {
+                widths[it] = natural(labels[it], icons[it], PAD)
+                rest -= widths[it]
+                open.remove(it)
+            }
+        }
+        return widths
     }
 
     /**

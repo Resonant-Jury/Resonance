@@ -22,9 +22,9 @@ class SegmentedLayoutTest {
     }
 
     @Test fun withNoRoomForEveryLabelTheBookmarkIsItsGlyphAlone() {
-        // Resonate | Send a note | Remove bookmark: each needs 2×8 + 16 + 8 + its words.
+        // Resonate | Send a note | Remove bookmark: each needs 2×8 + 16 + 8 + its words (+ a dp to spare).
         val labels = listOf(64f, 76f, 112f)
-        val need = labels.sumOf { (it + 40f).toDouble() }.toFloat()
+        val need = labels.sumOf { (it + 41f).toDouble() }.toFloat()
         assertTrue(SegmentedLayout.collapses(labels, icons, need - 1f, spread = true))
         val widths = SegmentedLayout.widths(labels, icons, collapsible, 320f, spread = true)
         assertEquals(SegmentedLayout.ICON_ONLY, widths[2])
@@ -34,9 +34,19 @@ class SegmentedLayoutTest {
         assertFalse(SegmentedLayout.collapses(labels, icons, need, spread = true))
     }
 
+    @Test fun aSegmentIsNeverSharedNarrowerThanItsWords() {
+        // At 280: the glyph alone 48, and 232 left for Resonate (105) and Send a note (117): the note keeps
+        // its words whole, Resonate takes the rest — not 116 each, which would cut "Send a note".
+        val labels = listOf(64f, 76f, 66f)
+        val widths = SegmentedLayout.widths(labels, icons, collapsible, 280f, spread = true)
+        assertEquals(SegmentedLayout.ICON_ONLY, widths[2])
+        assertEquals(76f + 41f, widths[1])
+        assertEquals(280f - SegmentedLayout.ICON_ONLY - 117f, widths[0])
+    }
+
     @Test fun widerTheBarStandsAtItsOwnWidth() {
         val labels = listOf(64f, 160f, 66f)
         val widths = SegmentedLayout.widths(labels, icons, collapsible, 900f, spread = false)
-        assertEquals(listOf(64f, 160f, 66f).map { it + 2 * SegmentedLayout.WIDE_PAD + SegmentedLayout.ICON + SegmentedLayout.GAP }, widths)
+        assertEquals(listOf(64f, 160f, 66f).map { it + 2 * SegmentedLayout.WIDE_PAD + SegmentedLayout.ICON + SegmentedLayout.GAP + 1f }, widths)
     }
 }
