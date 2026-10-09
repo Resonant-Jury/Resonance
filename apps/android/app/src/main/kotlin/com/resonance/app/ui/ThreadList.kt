@@ -82,7 +82,6 @@ import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicIcon
 import com.resonance.design.QuoteBubble
 import com.resonance.design.REPLY_OVERLAP
-import com.resonance.design.ReplyCaption
 import com.resonance.design.SharedCardSection
 import com.resonance.design.SharedCardSkeleton
 import com.resonance.design.SketchLoader
@@ -265,12 +264,7 @@ internal fun MessageList(
         ) {
             // The key a row had while it was sending is the one its document comes under, so it doesn't jump.
             itemsIndexed(newestFirst, key = { _, r -> r.message.key }) { i, row ->
-                // Between runs the air is wide; inside one the bubbles nearly touch. A label brings its own.
-                val gap = when {
-                    row.dayLabel || row.timeLabel -> 0.dp
-                    row.joinsAbove -> RUN_GAP
-                    else -> BETWEEN_RUNS
-                }
+                val gap = rowGap(labelled = row.dayLabel || row.timeLabel, joinsAbove = row.joinsAbove, quoted = row.message.replyTo != null || row.message.isNote)
                 // A run still on its way says so once, under its newest message: the stack stays one stack.
                 val sendingBelow = row.position.joinsBelow && newestFirst.getOrNull(i - 1)?.message?.delivery == Delivery.Sending
                 Column(Modifier.padding(top = gap)) {
@@ -307,6 +301,20 @@ private const val OLDER_AHEAD = 6
 
 private val RUN_GAP = 2.dp
 private val BETWEEN_RUNS = 12.dp
+private val BEFORE_QUOTED_RUN = 18.dp
+
+/**
+ * The air over a row: none under a day or time label (it brings its own); inside a run the bubbles
+ * nearly touch; between runs it is wide — a little wider over a run that leads with what it answers
+ * (a reply's quote, a note's card), where a caption once stood, so the quote never reads as the foot
+ * of the run above (the web's `data-quoted`).
+ */
+internal fun rowGap(labelled: Boolean, joinsAbove: Boolean, quoted: Boolean): Dp = when {
+    labelled -> 0.dp
+    joinsAbove -> RUN_GAP
+    quoted -> BEFORE_QUOTED_RUN
+    else -> BETWEEN_RUNS
+}
 
 /** Their face beside their messages: the column every one of their bubbles is indented by. */
 private val FACE = 28.dp
@@ -427,22 +435,29 @@ internal fun ThreadModel.carried(message: ChatMessage): Carried = Carried.of(mes
 private val PREVIEW_WIDTH = 280.dp
 private val CARD_WIDTH = 300.dp
 
-/** The caption over a reply and the message it quotes, which the reply's bubble lies over; tapping it goes to the original. */
+/**
+ * Who answered whom, said only to a screen reader: one to one it goes without saying on screen
+ * (Resonance has no group chats), so the line over a reply's quote is gone — its words are read out
+ * before the quote instead.
+ */
+internal fun replySpoken(mine: Boolean, quotedMine: Boolean, handle: String): String = when {
+    mine && quotedMine -> L10n.Messages.youRepliedToYourself
+    mine -> L10n.Messages.youRepliedTo(handle)
+    quotedMine -> L10n.Messages.repliedToYou(handle)
+    else -> L10n.Messages.repliedToThemselves(handle)
+}
+
+/** That a note answers a card (always the recipient's), said only to a screen reader, before the card. */
+internal fun noteSpoken(mine: Boolean, handle: String): String =
+    if (mine) L10n.Messages.youLeftNote(handle) else L10n.Messages.noteOnYourCard(handle)
+
+/** The message a reply quotes, which the reply's bubble lies over; tapping it goes to the original. */
 @Composable
 private fun ReplyQuoteView(message: ChatMessage, mine: Boolean, ctx: ThreadContext, interactive: Boolean) {
     val quote = message.replyTo ?: return
     val model = ctx.model
-    val handle = model.other?.handle.orEmpty()
-    val quotedMine = quote.senderId == model.me
-    val caption = when {
-        mine && quotedMine -> L10n.Messages.youRepliedToYourself
-        mine -> L10n.Messages.youRepliedTo(handle)
-        quotedMine -> L10n.Messages.repliedToYou(handle)
-        else -> L10n.Messages.repliedToThemselves(handle)
-    }
-    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
-        // Inset from the bubble's outer edge, on its side.
-        ReplyCaption(caption, Modifier.padding(start = if (mine) 0.dp else 12.dp, end = if (mine) 12.dp else 0.dp, bottom = 4.dp))
+    val spoken = replySpoken(mine, quote.senderId == model.me, model.other?.handle.orEmpty())
+    Column(Modifier.semantics { contentDescription = spoken }, horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
         QuoteBubble(
             quote.text.ifEmpty { L10n.Messages.replyCard },
             seed = seedFromId(quote.id, 19),
@@ -452,20 +467,19 @@ private fun ReplyQuoteView(message: ChatMessage, mine: Boolean, ctx: ThreadConte
 }
 
 /**
- * A note's head (it was left on a card of the recipient's): who left it on whose card, with the
- * note glyph, over the card itself — the shared-card section on the quote's paper, which the note's
- * own bubble lies over the foot of, as a reply lies over what it quotes. A tap opens the card. While
- * the card is read, its plain stand-in; a card that can't be read is the quote's "a card".
+ * A note's head (it was left on a card of the recipient's): the card itself — the shared-card
+ * section on the quote's paper, which the note's own bubble lies over the foot of, as a reply lies
+ * over what it quotes; that it is a note on that card is read out before it, not shown. A tap
+ * opens the card. While the card is read, its plain stand-in; a card that can't be read is the
+ * quote's "a card".
  */
 @Composable
 private fun NoteQuoteView(message: ChatMessage, mine: Boolean, carried: Carried, ctx: ThreadContext, interactive: Boolean, press: (String?) -> Unit) {
-    val handle = ctx.model.other?.handle.orEmpty()
     // The card is always the recipient's: theirs when I left the note, mine when they did.
-    val caption = if (mine) L10n.Messages.youLeftNote(handle) else L10n.Messages.noteOnYourCard(handle)
+    val spoken = noteSpoken(mine, ctx.model.other?.handle.orEmpty())
     val seed = seedFromId(message.key, 19)
     val width = min(CARD_WIDTH, ctx.rowMax)
-    Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
-        ReplyCaption(caption, Modifier.padding(start = if (mine) 0.dp else 12.dp, end = if (mine) 12.dp else 0.dp, bottom = 4.dp), icon = IconName.Note)
+    Column(Modifier.semantics { contentDescription = spoken }, horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
         when (carried) {
             is Carried.Card -> MessageBubble(
                 "", mine, seed, fill = Tokens.BubbleQuote, width = width,
