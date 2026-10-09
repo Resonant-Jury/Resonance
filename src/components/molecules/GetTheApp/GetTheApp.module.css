@@ -1,0 +1,132 @@
+/* The download badges (and, for computers, the QR code). Geometry in
+   badges.ts: each badge box is --badge-h tall and is exactly the badge, its
+   file's own padding left outside; the clear space both stores ask for (a
+   quarter of the badge's height) is the gap here instead. */
+.root {
+  --badge-h: 44px;
+  --badge-gap: 14px;
+  --qr-tile: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  scroll-margin-top: calc(var(--app-header-h) + 32px);
+}
+
+.sm {
+  --badge-h: 40px;
+  --badge-gap: 12px;
+}
+
+/* Phones: Apple's minimum, so the two badges share one row even at 320px and
+   dropping one after hydration moves nothing. */
+@media (max-width: 480px) {
+  .root {
+    --badge-h: 40px;
+    --badge-gap: 12px;
+  }
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--badge-gap);
+}
+
+.badge {
+  display: block;
+  flex: none;
+  width: calc(var(--badge-h) * var(--box-w));
+  height: var(--badge-h);
+  border-radius: calc(var(--badge-h) * 0.2);
+}
+
+.badge:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 3px;
+}
+
+.terracotta .badge:focus-visible,
+.ink .badge:focus-visible {
+  outline-color: var(--color-cream);
+}
+
+/* The file is drawn whole at its offset, not clipped to the box: cutting at a
+   fractional edge could shave the badge's own 1px rim. Its transparent padding
+   stays inside the gap around the box and takes no clicks. */
+.badgeArt {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.badgeArt img {
+  position: absolute;
+  pointer-events: none;
+  left: calc(var(--badge-h) * var(--off-x) * -1);
+  top: calc(var(--badge-h) * var(--off-y) * -1);
+  width: calc(var(--badge-h) * var(--img-w));
+  height: calc(var(--badge-h) * var(--img-h));
+  max-width: none;
+}
+
+/* The QR code is for a computer: a phone (no hover, a finger) never shows it,
+   from the server's first paint on. */
+.qr {
+  display: none;
+  margin: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.qrTile {
+  position: relative;
+  width: var(--qr-tile);
+  height: var(--qr-tile);
+  display: grid;
+  place-items: center;
+}
+
+.qrImage {
+  position: relative;
+  display: block;
+}
+
+.caption {
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  max-width: calc(var(--qr-tile) + 40px);
+  text-align: center;
+}
+
+.terracotta .caption {
+  color: color-mix(in oklch, var(--color-cream) 85%, transparent);
+}
+
+.ink .caption {
+  color: oklch(85% 0.015 75 / 0.6);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .qr {
+    display: flex;
+  }
+
+  /* Beside the QR code the badges stand one above the other, centred on its tile. */
+  .withQr {
+    align-items: flex-start;
+  }
+
+  .withQr .badges {
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    margin-top: calc((var(--qr-tile) - 2 * var(--badge-h) - var(--badge-gap)) / 2);
+  }
+}

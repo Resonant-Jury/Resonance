@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { GetTheApp } from '@/components/molecules/GetTheApp/GetTheApp';
 import { Link } from '@/i18n/navigation';
 import styles from './CTASection.module.css';
 import { INK_LIGHT } from '@/lib/design/strokes';
@@ -40,6 +41,7 @@ export function CTASection() {
             <OrganicButton variant="ctaGhost">{t('create')}</OrganicButton>
           </Link>
         </div>
+        <GetTheApp qr={false} tone="terracotta" className={styles.download} />
       </div>
     </section>
   );

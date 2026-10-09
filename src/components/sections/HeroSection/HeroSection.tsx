@@ -5,6 +5,8 @@ import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
+import { GetTheApp } from '@/components/molecules/GetTheApp/GetTheApp';
+import { DOWNLOAD_ANCHOR } from '@/lib/appStores';
 import { Link } from '@/i18n/navigation';
 import styles from './HeroSection.module.css';
 import { INK_STRONG } from '@/lib/design/strokes';
@@ -49,6 +51,8 @@ export function HeroSection() {
             <OrganicButton variant="ghost">{t('share')}</OrganicButton>
           </Link>
         </div>
+
+        <GetTheApp id={DOWNLOAD_ANCHOR} className={styles.download} />
 
         <div className={styles.proof}>
           <div className={styles.avatarStack}>

@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
+import { GetTheApp } from '@/components/molecules/GetTheApp/GetTheApp';
 import { Link } from '@/i18n/navigation';
 import styles from './SiteFooter.module.css';
 import { INK_LIGHT } from '@/lib/design/strokes';
@@ -43,6 +44,8 @@ export function SiteFooter({ edgeColor = 'var(--color-terracotta)' }: SiteFooter
           <span className={styles.brandName}>Resonance</span>
         </div>
         <p className={styles.tagline}>&ldquo;{t('tagline')}&rdquo;</p>
+
+        <GetTheApp qr={false} size="sm" tone="ink" />
 
         <div className={styles.links}>
           {LINK_KEYS.map((k) => (

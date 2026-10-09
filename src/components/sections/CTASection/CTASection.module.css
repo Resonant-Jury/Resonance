@@ -59,3 +59,7 @@
   justify-content: center;
   flex-wrap: wrap;
 }
+
+.download {
+  margin-top: 36px;
+}
