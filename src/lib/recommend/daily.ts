@@ -137,17 +137,29 @@ async function rebuild(ref: DocumentReference, uid: string, build: BuildFeed, no
   }
 }
 
-/** Another request is building this reader's first picks: wait for them, within the budget. */
-async function waitForBuild(ref: DocumentReference, now: () => number, deadline: number): Promise<DailyRecommendations> {
+/**
+ * A build holds this reader's lease while they have nothing to show: wait
+ * for its picks, within the budget. The build may be the warm-up cron's,
+ * which records no ask, or may fail — so this request's ask (`asked`) goes on
+ * record unless the stored picks show it already.
+ */
+async function waitForBuild(
+  ref: DocumentReference,
+  now: () => number,
+  deadline: number,
+  asked: DailyRecommendations['asked'],
+): Promise<DailyRecommendations> {
   while (now() + POLL_MS < deadline) {
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
     const stored = readStored((await ref.get()).data());
-    if (stored?.date === recommendationDay(new Date(now()))) {
-      return { items: stored.items, cached: true, status: stored.partial ? 'stale' : 'fresh', refresh: null, asked: null };
+    const day = recommendationDay(new Date(now()));
+    if (stored?.date === day) {
+      const status = stored.partial ? 'stale' : 'fresh';
+      return { items: stored.items, cached: true, status, refresh: null, asked: stored.askedOn === day ? null : asked };
     }
     if (!stored || stored.leaseUntil <= now()) break; // released without a result: it failed
   }
-  return { items: [], cached: true, status: 'stale', refresh: null, asked: null };
+  return { items: [], cached: true, status: 'stale', refresh: null, asked };
 }
 
 /**
@@ -175,15 +187,15 @@ export async function dailyRecommendations(db: Firestore, uid: string, deps: Dai
     case 'cooldown':
       return { items: [], cached: true, status: 'stale', refresh: null, asked };
     case 'wait':
-      // Another request of the reader's is building their first picks: its store records the ask.
-      return waitForBuild(ref, now, deadline);
+      // A build is under way (another request of theirs, or the warm-up's): wait for it.
+      return waitForBuild(ref, now, deadline, asked);
     case 'build':
       break;
   }
 
   // Nothing to show: build now, in a hurry. Old app builds ask once a day,
   // so an empty answer here would be an empty feed until tomorrow.
-  if (!(await takeLease(ref, now))) return waitForBuild(ref, now, deadline);
+  if (!(await takeLease(ref, now))) return waitForBuild(ref, now, deadline, asked);
   try {
     const result = await build(uid, { deadline, fallback: true, now });
     await store(ref, recommendationDay(new Date(started)), result);

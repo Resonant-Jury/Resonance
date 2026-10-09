@@ -16,7 +16,7 @@ vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => mocks.db }));
 const { registerDevice } = await import('@/lib/push/devices');
 const { getNotificationSettings, updateNotificationSettings } = await import('@/lib/push/settings');
 const { PICK_PUSHES, PICKS_CHANNEL, pushPick, pushPicks } = await import('@/lib/push/picks');
-const { dailyRecommendations } = await import('@/lib/recommend/daily');
+const { dailyRecommendations, warmRecommendations } = await import('@/lib/recommend/daily');
 const { warmPicks, warmReader, ACTIVE_DAYS } = await import('@/lib/recommend/warm');
 const notificationsRoute = await import('@/app/api/v1/me/notifications/route');
 type PushSender = import('@/lib/push/send').PushSender;
@@ -94,6 +94,12 @@ async function aliceOptedIn() {
   // Their app last opened yesterday (by this suite's clock).
   await Promise.all(['alice-iphone', 'alice-pixel'].map((id) => db.doc(`devices/${id}`).update({ updatedAt: Timestamp.fromMillis(NOW - DAY) })));
 }
+
+/** A clock that starts at `at` and runs in real time (a wait loop needs one that moves). */
+const clockFrom = (at: number) => {
+  const start = Date.now();
+  return () => at + (Date.now() - start);
+};
 
 describe('notification settings', () => {
   it('are both off until turned on, and turning one on records when', async () => {
@@ -347,5 +353,44 @@ describe('the warm-up', () => {
     expect(await warmPicks(db, { build, clock: () => NOW })).toEqual({ readers: 2, outcomes: { built: 1, inactive: 1 }, deferred: 0 });
     expect(await warmPicks(db, { build, clock: () => NOW, deadline: NOW })).toEqual({ readers: 0, outcomes: {}, deferred: 2 });
     expect(build).toHaveBeenCalledTimes(1);
+  });
+
+  // Review: a reader who opened the app while the warm-up was building their
+  // first picks waited for that build — which records no ask — and their own
+  // ask was dropped, so they were pushed that evening anyway.
+  it("records the ask of a reader who opens their picks while the warm-up is building them, or after it failed", async () => {
+    await aliceOptedIn();
+    await card('c1', 'bob');
+    let finish!: (r: FunnelResult) => void;
+    const warmBuild = vi.fn(() => new Promise<FunnelResult>((resolve) => (finish = resolve)));
+    const warming = warmRecommendations(db, 'alice', { build: warmBuild, now: () => NOW });
+    await vi.waitFor(() => expect(warmBuild).toHaveBeenCalled());
+
+    const own = vi.fn(async () => built(['own']));
+    const opening = dailyRecommendations(db, 'alice', { build: own, now: clockFrom(NOW), budgetMs: 5_000 });
+    setTimeout(() => finish(built(['c1'])), 300);
+    const served = await opening;
+    expect(served).toMatchObject({ items: [item('c1')], status: 'fresh' });
+    expect(own).not.toHaveBeenCalled();
+    expect(await warming).toBe('built');
+    expect(served.asked).not.toBeNull();
+    await served.asked!();
+    expect((await db.doc('recommendations/alice').get()).data()).toMatchObject({ warm: true, askedOn: TODAY });
+    const { sender, sent } = fakeFcm();
+    expect(await pushPick(db, 'alice', sender, { now: NOW + 3_600_000 })).toEqual({ outcome: 'opened-today' });
+    expect(sent).toEqual([]);
+
+    // A warm build that fails while Bob waits: nothing to show, and his ask still goes on record.
+    let fail!: () => void;
+    const failing = warmRecommendations(db, 'bob', { build: () => new Promise<FunnelResult>((_, reject) => (fail = () => reject(new Error('down')))), now: () => NOW });
+    await vi.waitFor(() => expect(fail).toBeDefined());
+    const waiting = dailyRecommendations(db, 'bob', { build: own, now: clockFrom(NOW), budgetMs: 5_000 });
+    setTimeout(() => fail(), 300);
+    const empty = await waiting;
+    expect(await failing).toBe('failed');
+    expect(empty).toMatchObject({ items: [], status: 'stale' });
+    expect(empty.asked).not.toBeNull();
+    await empty.asked!();
+    expect((await db.doc('recommendations/bob').get()).get('askedOn')).toBe(TODAY);
   });
 });
