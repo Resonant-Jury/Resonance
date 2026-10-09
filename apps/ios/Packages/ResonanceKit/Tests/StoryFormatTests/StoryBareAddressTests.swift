@@ -50,4 +50,18 @@ import Testing
         guard case let .quote(children) = linked("> https://example.com/q").first else { return #expect(Bool(false)) }
         #expect(runs(children.first).map(\.link) == ["https://example.com/q"])
     }
+    @Test func aLinksWordsNeverHoldALinkOfTheirOwnEvenWhenItCantBeOpened() {
+        // A link that opens keeps its own address over the one written in its words.
+        #expect(runs(linked("[see https://example.com/x](https://example.com/y)").first) == [
+            InlineRun("see https://example.com/x", link: "https://example.com/y"),
+        ])
+        // One the reader can't open is plain words — and still a link's words, which GFM never links on their own.
+        #expect(runs(linked("[https://example.com/a](tel:1)").first) == [InlineRun("https://example.com/a", inLink: true)])
+        #expect(runs(linked("[call **www.example.com** now](tel:+886212345678)").first) == [
+            InlineRun("call ", inLink: true), InlineRun("www.example.com", bold: true, inLink: true), InlineRun(" now", inLink: true),
+        ])
+        // Beside such a link, an address in the sentence is a link as before.
+        #expect(runs(linked("[打給我](tel:1) 或看 https://example.com/b").first).map(\.link)
+            == [nil, nil, "https://example.com/b"])
+    }
 }
