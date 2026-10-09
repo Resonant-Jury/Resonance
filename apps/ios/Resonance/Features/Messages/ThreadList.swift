@@ -282,7 +282,7 @@ private struct OlderRow: View {
                 note(L10n.Messages.loadingOlder)
             } else if model.olderError {
                 note(L10n.Messages.loadOlderError)
-                OrganicButton(L10n.Native.retry, variant: .textAccent, size: .sm) { model.loadOlder() }
+                OrganicButton(L10n.Native.retry, variant: .tonal, size: .sm) { model.loadOlder() }
             } else if !model.hasOlder {
                 note(L10n.Messages.beginning)
             }

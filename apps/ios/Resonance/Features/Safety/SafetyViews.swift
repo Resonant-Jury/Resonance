@@ -215,7 +215,7 @@ struct AccountDeletionBanner: View {
                 .lineSpacing(14.5 * 0.5)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            OrganicButton(busy ? "…" : L10n.AccountDeletion.cancel, variant: .textAccent, size: .sm) { Task { await cancel() } }
+            OrganicButton(busy ? "…" : L10n.AccountDeletion.cancel, variant: .tonal, size: .sm) { Task { await cancel() } }
                 .disabled(busy)
         }
         .frame(maxWidth: .infinity)

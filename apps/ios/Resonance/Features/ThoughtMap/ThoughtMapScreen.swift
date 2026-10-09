@@ -64,12 +64,12 @@ struct ThoughtMapScreen: View {
     @ViewBuilder private func chrome(insets: EdgeInsets, size: CGSize) -> some View {
         let top = insets.top + 8
         ZStack(alignment: .topLeading) {
-            OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .paper, size: .sm) { dismiss() }
+            OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .tonal, size: .sm) { dismiss() }
                 .mirroringIcon()
                 .roomy()
                 .offset(x: 20, y: top)
             HStack(spacing: 10) {
-                OrganicButton(L10n.Me.ThoughtMap.addGroupShort, icon: .frame, variant: .paper, size: .sm) {
+                OrganicButton(L10n.Me.ThoughtMap.addGroupShort, icon: .frame, variant: .tonal, size: .sm) {
                     Task { await store.addGroup() }
                 }
                 OrganicButton(L10n.Me.ThoughtMap.addCardShort, icon: .plus, variant: .solid, size: .sm) {

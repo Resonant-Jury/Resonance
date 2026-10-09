@@ -7,17 +7,25 @@ import SwiftUI
 /// the ink every control shares (``OrganicPressStyle``), spreading its full
 /// course and then lifting — plus a light haptic and a slight scale.
 public struct OrganicButton: View {
-    /// primary, ghost and outline are the web's; the rest keep a control from
-    /// adding a pen line inside something already framed (a modal, a card, a
-    /// bar): `solid` is primary without its rim, `danger` the same in red for
-    /// what can't be undone, and `text` / `textAccent` draw no frame at all —
-    /// only the ink while pressed (Cancel beside a confirm, "load more").
-    /// `paper` is the card's own paper (grain and all, as the modal's) with no
-    /// rim and ink for a label: a control floating over busy content (the
-    /// thought map's toolbar) that needs a ground to read on but no outline
-    /// of its own. `ink` is solid in the text ink, for a brand that asks for
-    /// a black button (Sign in with Apple).
-    public enum Variant: Sendable { case primary, ghost, outline, solid, danger, text, textAccent, paper, ink }
+    /// A button is a filled shape and never draws a pen line — an outline marks a floating
+    /// surface (a modal, a sheet, a menu), a container or an input, never a button — and every
+    /// button has a fill: a bare word does not read as something to press, so a Cancel beside a
+    /// verb is a pill as filled as the verb, only quieter (OrganicButton.tsx). By rank:
+    /// - `solid`: the verb — deep terracotta, cream label (Publish, Sign in, Confirm).
+    /// - `tonal`: everything beside it — a soft peach face, deep terracotta label: a secondary
+    ///   action, Cancel / Keep / Close, Download, Load more, Unblock, Retry.
+    /// - `danger`: solid in red, the final confirm of what can't be undone.
+    /// - `dangerTonal`: the peach's red twin, for a button that opens a destructive flow
+    ///   (Settings' Delete account), whose dialog then asks with `danger`.
+    /// - `ink`: solid in the text ink, for a brand that asks for a black button (Apple's).
+    /// - `paper`: the cards' paper (grain and all), ink label, for a control that must match a
+    ///   paper surface.
+    /// The older names keep working and wear the new faces, as on the web: `primary` is `solid`;
+    /// `ghost`, `outline`, `text` and `textAccent` are `tonal`. Bare text is left to a link inside
+    /// running text and to icon-only header and toolbar buttons, whose glyph is the affordance.
+    public enum Variant: Sendable, CaseIterable {
+        case primary, ghost, outline, solid, tonal, danger, dangerTonal, text, textAccent, paper, ink
+    }
     /// `sm` is the web's dense size (dialog actions, list rows, the deletion
     /// banner); `lg` the sign-in sheet's provider buttons: a 16pt label, 12×16
     /// padding, at least 52 tall.
@@ -44,9 +52,9 @@ public struct OrganicButton: View {
         self.action = action
     }
 
-    /// A glyph alone in the button's outline (the card box's pen to settings:
-    /// ghost, small, the pad tightened to 9×11).
-    public init(icon: IconName, label: String, iconSize: CGFloat = 17, variant: Variant = .ghost, size: Size = .sm,
+    /// A glyph alone on the button's face (the card box's pen to settings:
+    /// tonal, small, the pad tightened to 9×11).
+    public init(icon: IconName, label: String, iconSize: CGFloat = 17, variant: Variant = .tonal, size: Size = .sm,
                 action: @escaping () -> Void) {
         self.title = label
         self.icon = icon
@@ -69,9 +77,9 @@ public struct OrganicButton: View {
     /// pill drawn at the full width (the sign-in sheet's provider buttons).
     var fillsWidth = false
 
-    public func fillingWidth() -> OrganicButton {
+    public func fillingWidth(_ fills: Bool = true) -> OrganicButton {
         var copy = self
-        copy.fillsWidth = true
+        copy.fillsWidth = fills
         return copy
     }
 
@@ -144,9 +152,10 @@ public struct OrganicButton: View {
     /// swipe claiming it, an alert) — so the button can't stay stuck pressed.
     @GestureState private var touching = false
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.organicButtonMinHeight) private var minHeight
 
     public var body: some View {
-        let style = OrganicButtonStyle(variant: variant, size: size)
+        let style = OrganicButtonStyle(variant: variant, size: size, minHeight: minHeight)
         let shape = OrganicButtonShape(seed: style.seed)
         face(style)
             .frame(maxWidth: fillsWidth ? .infinity : nil, maxHeight: fillsHeight ? .infinity : nil)
@@ -159,19 +168,16 @@ public struct OrganicButton: View {
                         let p = pressPoint ?? CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
                         let maxR = hypot(max(p.x, geo.size.width - p.x), max(p.y, geo.size.height - p.y))
                         Circle()
-                            .fill(style.filled ? Color.black.opacity(0.14) : Tokens.terracotta.opacity(0.14))
+                            .fill(style.face.pressInk)
                             .frame(width: revealed ? maxR * 2 : 0, height: revealed ? maxR * 2 : 0)
                             .position(p)
                             .clipShape(shape)
                             .opacity(ink)
-                        if style.stroked {
-                            shape.stroke(style.stroke, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
-                        }
                     }
                 }
             }
-            // Busy / inactive: the web dims the whole button (fill, grain, ink, label).
-            .opacity(active ? 1 : 0.6)
+            // The web dims the whole button (fill, grain, ink, label): not pressable yet 0.45, busy 0.6.
+            .opacity(!isEnabled ? 0.45 : isBusy ? 0.6 : 1)
             .scaleEffect(pressed ? 0.97 : 1)
             .contentShape(shape)
             .onGeometryChange(for: CGSize.self) { $0.size } action: { bounds = $0 }
@@ -234,10 +240,16 @@ extension OrganicButton {
                 .foregroundStyle(style.textColor)
                 .padding(.horizontal, roomyIcon ? (size == .sm ? 18 : 32) : 11)
                 .padding(.vertical, roomyIcon ? (size == .sm ? 9 : 14) : 9)
+                .frame(minHeight: style.minHeight)
         } else {
             style.label(title, icon: icon, image: image, onDisc: marksOnDisc, busyTitle: busyTitle, busy: isBusy, working: isWorking)
         }
     }
+}
+
+extension EnvironmentValues {
+    /// The least height the buttons inside ask for (a dialog's foot: 44pt, a finger's), when any.
+    @Entry public var organicButtonMinHeight: CGFloat? = nil
 }
 
 /// The button's face without its gesture, for system controls that bring
@@ -255,76 +267,79 @@ public struct OrganicButtonLabel: View {
         self.size = size
     }
 
+    @Environment(\.organicButtonMinHeight) private var minHeight
+    var fillsWidth = false
+
+    /// Stretch to the column's width, the label kept in the middle (as ``OrganicButton/fillingWidth(_:)``).
+    public func fillingWidth(_ fills: Bool = true) -> OrganicButtonLabel {
+        var copy = self
+        copy.fillsWidth = fills
+        return copy
+    }
+
     public var body: some View {
-        let style = OrganicButtonStyle(variant: variant, size: size)
+        let style = OrganicButtonStyle(variant: variant, size: size, minHeight: minHeight)
         let shape = OrganicButtonShape(seed: style.seed)
         style.label(title, icon: icon, image: nil)
-            .background {
-                ZStack {
-                    style.fillLayers(shape)
-                    if style.stroked {
-                        shape.stroke(style.stroke, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
-                    }
-                }
-            }
+            .frame(maxWidth: fillsWidth ? .infinity : nil)
+            .background { style.fillLayers(shape) }
             .contentShape(shape)
     }
 }
 
-/// BTN_VARIANTS and the .btn / .sm metrics, shared by the button and its label.
+/// One rank's face: what it is filled with, its label's ink, the ink a press spreads (a filled
+/// face darkens, a tinted one takes a wash of its own hue), its wobble's seed and its grain.
+public struct OrganicButtonFace: Equatable, Sendable {
+    public let fill: Color
+    public let label: Color
+    public let pressInk: Color
+    /// The web's BTN_SEEDS: each rank wobbles like the variant it grew out of.
+    public let seed: Double
+    /// The grain tile over the face and its strength.
+    public let grain: String
+    public let grainOpacity: Double
+
+    static let solid = OrganicButtonFace(fill: Tokens.buttonFill, label: Tokens.cream, pressInk: .black.opacity(0.14), seed: 3)
+    static let tonal = OrganicButtonFace(fill: Tokens.buttonTonal, label: Tokens.buttonOnTonal,
+                                         pressInk: Tokens.terracotta.opacity(0.14), seed: 601)
+
+    init(fill: Color, label: Color, pressInk: Color, seed: Double, grain: String = "grain-button", grainOpacity: Double = 0.38) {
+        self.fill = fill
+        self.label = label
+        self.pressInk = pressInk
+        self.seed = seed
+        self.grain = grain
+        self.grainOpacity = grainOpacity
+    }
+
+    public static func of(_ variant: OrganicButton.Variant) -> OrganicButtonFace {
+        switch variant {
+        case .primary, .solid: .solid
+        case .tonal, .outline, .textAccent: .tonal
+        // Cancel / Close / Keep and the ghost wobble as they did (seed 401) in the tonal face.
+        case .ghost, .text: OrganicButtonFace(fill: Tokens.buttonTonal, label: Tokens.buttonOnTonal,
+                                              pressInk: Tokens.terracotta.opacity(0.14), seed: 401)
+        case .danger: OrganicButtonFace(fill: Tokens.dangerFill, label: Tokens.cream, pressInk: .black.opacity(0.14), seed: 3)
+        case .dangerTonal: OrganicButtonFace(fill: Tokens.buttonDangerTonal, label: Tokens.buttonOnDangerTonal,
+                                             pressInk: Tokens.danger.opacity(0.14), seed: 601)
+        case .ink: OrganicButtonFace(fill: Tokens.text, label: Tokens.cream, pressInk: .black.opacity(0.14), seed: 3)
+        // The cards' own tile, at the strength the modal's paper carries it.
+        case .paper: OrganicButtonFace(fill: Tokens.cardBg, label: Tokens.text, pressInk: Tokens.terracotta.opacity(0.14),
+                                       seed: 401, grain: "grain-card", grainOpacity: 0.3)
+        }
+    }
+}
+
+/// The .btn / .sm metrics and the rank's face, shared by the button and its label.
 struct OrganicButtonStyle {
     let variant: OrganicButton.Variant
     let size: OrganicButton.Size
+    /// The least height a dialog's foot asks of its buttons (44pt: a finger's), if any.
+    var minHeight: CGFloat? = nil
 
-    /// The web's BTN_SEEDS, so each variant wobbles like its web twin.
-    var seed: Double {
-        switch variant {
-        case .primary, .solid, .danger, .ink: 3
-        case .ghost, .text, .paper: 401
-        case .outline, .textAccent: 601
-        }
-    }
-    /// A filled face (the ink over it darkens rather than tints). The paper
-    /// is light, so it tints terracotta like the frameless variants.
-    var filled: Bool {
-        switch variant {
-        case .primary, .solid, .danger, .ink: true
-        case .ghost, .outline, .text, .textAccent, .paper: false
-        }
-    }
-    /// Whether the pen line is drawn: only the web's own three variants.
-    var stroked: Bool {
-        switch variant {
-        case .primary, .ghost, .outline: true
-        case .solid, .danger, .text, .textAccent, .paper, .ink: false
-        }
-    }
-    var fill: Color {
-        switch variant {
-        case .primary, .solid: Tokens.terracotta
-        case .danger: Tokens.danger
-        case .paper: Tokens.cardBg
-        case .ink: Tokens.text
-        case .ghost, .outline, .text, .textAccent: .clear
-        }
-    }
-    var stroke: Color {
-        switch variant {
-        case .primary: Tokens.terracottaInk
-        case .ghost: Tokens.ghostStroke
-        // Darker than the label: the pen line reads apart from the text.
-        case .outline: Tokens.terracottaOutline
-        case .solid, .danger, .text, .textAccent, .paper, .ink: .clear
-        }
-    }
-    var textColor: Color {
-        switch variant {
-        case .primary, .solid, .danger, .ink: Tokens.cream
-        case .ghost, .paper: Tokens.text
-        case .text: Tokens.textMuted
-        case .outline, .textAccent: Tokens.terracotta
-        }
-    }
+    var face: OrganicButtonFace { .of(variant) }
+    var seed: Double { face.seed }
+    var textColor: Color { face.label }
 
     /// Label row: 16pt glyphs 7 apart; brand marks are 18pt, 10 from the text.
     /// With a `busyTitle`, both labels share one spot (the one not showing is
@@ -382,7 +397,7 @@ struct OrganicButtonStyle {
         .foregroundStyle(textColor)
         .padding(.horizontal, padX)
         .padding(.vertical, padY)
-        .frame(minHeight: size == .lg ? 52 : nil)
+        .frame(minHeight: size == .lg ? 52 : minHeight)
     }
 
     /// An 18pt brand mark. On a disc it sits on a white wobbly circle 30
@@ -401,13 +416,8 @@ struct OrganicButtonStyle {
     }
 
     @ViewBuilder func fillLayers(_ shape: OrganicButtonShape) -> some View {
-        shape.fill(fill)
-        if filled {
-            GrainLayer(shape: shape, mode: .tile, opacity: 0.38, tile: "grain-button")
-        } else if variant == .paper {
-            // The cards' own tile, at the strength the modal's paper carries it.
-            GrainLayer(shape: shape, mode: .tile, opacity: 0.3, tile: "grain-card")
-        }
+        shape.fill(face.fill)
+        GrainLayer(shape: shape, mode: .tile, opacity: face.grainOpacity, tile: face.grain, overflow: 3)
     }
 }
 

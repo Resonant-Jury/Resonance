@@ -34,12 +34,17 @@ public struct GrainLayer<S: Shape>: View {
     var mode: GrainMode
     var opacity: Double
     var tile: String
+    /// How far the shape reaches past the view's box (a wobbly outline bowing out, a region
+    /// overshooting to be trimmed by an outer clip): the tile is laid that much wider, so the
+    /// grain doesn't stop at the box and leave a band of bare fill along the bulge.
+    var overflow: CGFloat
 
-    public init(shape: S, mode: GrainMode = .tile, opacity: Double = 0.3, tile: String = "grain-card") {
+    public init(shape: S, mode: GrainMode = .tile, opacity: Double = 0.3, tile: String = "grain-card", overflow: CGFloat = 0) {
         self.shape = shape
         self.mode = mode
         self.opacity = opacity
         self.tile = tile
+        self.overflow = overflow
     }
 
     public var body: some View {
@@ -50,7 +55,8 @@ public struct GrainLayer<S: Shape>: View {
             Image(uiImage: GrainTiles.image(tile))
                 .resizable(resizingMode: .tile)
                 .opacity(opacity)
-                .clipShape(shape)
+                .clipShape(OutsetShape(base: shape, by: overflow))
+                .padding(-overflow)
                 .allowsHitTesting(false)
         case .shader:
             let spec = GrainSpec.named(tile)
@@ -59,6 +65,17 @@ public struct GrainLayer<S: Shape>: View {
                                  opacity: opacity, mode: spec.shaderMode)
                 .allowsHitTesting(false)
         }
+    }
+}
+
+/// `base` laid out in a box `by` smaller on each side than the one it is asked to fill: the shape
+/// as its own view sees it, drawn in a frame grown by `by` (GrainLayer's `overflow`).
+nonisolated struct OutsetShape<Base: Shape>: Shape {
+    let base: Base
+    let by: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        base.path(in: rect.insetBy(dx: by, dy: by))
     }
 }
 

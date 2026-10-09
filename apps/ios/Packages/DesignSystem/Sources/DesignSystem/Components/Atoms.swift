@@ -332,7 +332,7 @@ public struct OrganicToggle: View {
             ZStack {
                 track.fill(spec.fill(isOn: isOn))
                 // Both states carry the buttons' grain, so the switch sits in their family.
-                GrainLayer(shape: TogglePath(path: track), mode: .tile, opacity: 0.38, tile: "grain-button")
+                GrainLayer(shape: TogglePath(path: track), mode: .tile, opacity: 0.38, tile: "grain-button", overflow: 4)
                 shapes.retrace.path().stroke(ink.opacity(spec.retraceOpacity), style: pen)
                 track.stroke(ink, style: pen)
             }
@@ -354,10 +354,10 @@ public struct OrganicToggle: View {
     }
 }
 
-/// A fixed path as a shape (the grain's clip).
+/// A fixed path as a shape (the grain's clip), placed where the switch's box is.
 private nonisolated struct TogglePath: Shape {
     let path: Path
-    func path(in rect: CGRect) -> Path { path }
+    func path(in rect: CGRect) -> Path { path.offsetBy(dx: rect.minX, dy: rect.minY) }
 }
 
 /// SketchLoader: six dashes travelling nose-to-tail around the two-lap wobLoop,

@@ -288,17 +288,17 @@ struct WriteScreen: View {
 
     /// Everything autosaves; these are only about intent. A draft: publish it,
     /// or step away. A live card: put the revision in front of readers, or drop it.
-    /// On a phone one centred column: the verb across the width, the quiet way out
-    /// (Save draft and leave / Discard changes) on its own row under it, the error
-    /// centred under both; a wider layout keeps them in a row.
+    /// On a phone one centred column of two pills of one size: the verb across the
+    /// width, the tonal way out (Save draft and leave / Discard changes) as wide on its
+    /// own row under it, the error centred under both; a wider layout keeps them in a row.
     private func actions(_ model: WriteModel) -> some View {
         let compact = sizeClass == .compact
         return VStack(alignment: compact ? .center : .leading, spacing: compact ? 4 : 8) {
             Group {
                 if compact {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 10) {
                         primaryAction(model).fillingWidth()
-                        secondaryAction(model)
+                        secondaryAction(model, fillsWidth: true)
                     }
                 } else {
                     FlowRow(spacing: 12) {
@@ -328,11 +328,13 @@ struct WriteScreen: View {
     }
 
     @ViewBuilder
-    private func secondaryAction(_ model: WriteModel) -> some View {
+    private func secondaryAction(_ model: WriteModel, fillsWidth: Bool = false) -> some View {
         if !model.isPublished {
-            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .text) { Task { await leave(model) } }
+            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .tonal) { Task { await leave(model) } }
+                .fillingWidth(fillsWidth)
         } else if model.hasPendingEdit {
-            OrganicButton(L10n.Write.discardChanges, variant: .text) { Task { await discard(model) } }
+            OrganicButton(L10n.Write.discardChanges, variant: .tonal) { Task { await discard(model) } }
+                .fillingWidth(fillsWidth)
         }
     }
 
