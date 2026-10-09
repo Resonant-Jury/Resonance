@@ -34,6 +34,8 @@ object Tokens {
     val BubbleTheirs = Color(0.9116f, 0.8855f, 0.847f, 1f, ColorSpaces.DisplayP3)
     /** --bubble-quote · sRGB #dfd8d0 */
     val BubbleQuote = Color(0.8683f, 0.8475f, 0.819f, 1f, ColorSpaces.DisplayP3)
+    /** --link-card-muted · sRGB #64523d */
+    val LinkCardMuted = Color(0.3801f, 0.3227f, 0.2494f, 1f, ColorSpaces.DisplayP3)
     /** --field-border · sRGB #c5bcb0 */
     val FieldBorder = Color(0.7681f, 0.7392f, 0.695f, 1f, ColorSpaces.DisplayP3)
     /** --field-border-hover · sRGB #937b69 */

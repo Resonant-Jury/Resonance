@@ -35,6 +35,11 @@
   --bubble-mine:   oklch(91.2% 0.055 62.6);
   --bubble-theirs: oklch(91.5% 0.017 74);
   --bubble-quote:  oklch(88.5% 0.013 72);
+  /* A link card's description and host (a story's link card, a chat link's
+     preview): the muted ink deepened to clear 4.5:1 on the bubbles' papers —
+     5.8:1 on --bubble-theirs, 5.7:1 on --bubble-mine, 5.3:1 on --bubble-quote
+     (--color-text-muted is 4.3:1 there). The apps' link cards take the same. */
+  --link-card-muted: oklch(45% 0.04 70);
 
   /* Every button is a filled shape with no pen line (a pen outline marks a
      container, an input or a segmented control — never a lone button): the
