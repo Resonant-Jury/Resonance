@@ -15,6 +15,7 @@ import type { Card, User } from '@/lib/db/types';
 // (Firestore through the rules), the viewer's blocks and auth are the module
 // boundary. Covers how it takes over from the server's HTML (CardSeed).
 const mockUseAuth = vi.fn();
+const mockPush = vi.fn();
 vi.mock('@/components/providers/AuthProvider', () => ({ useAuth: () => mockUseAuth() }));
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children, className }: { href: string; children: ReactNode; className?: string }) => (
@@ -22,7 +23,7 @@ vi.mock('@/i18n/navigation', () => ({
       {children}
     </a>
   ),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
 }));
 vi.mock('@/lib/db/firestore/client/reads', () => ({
   getCardById: vi.fn(),
@@ -207,6 +208,11 @@ describe('CardDetailClient (no server content)', () => {
     renderPage({ slug: 'c1' });
     expect(await screen.findByText("This card can't be found")).toBeInTheDocument();
     expect(screen.queryByText('The core thought of this card')).not.toBeInTheDocument();
+    // The way home is a button, filled as every button is: the tonal pill.
+    const home = screen.getByRole('button', { name: 'Back to home' });
+    expect(home).toHaveAttribute('data-variant', 'tonal');
+    await userEvent.click(home);
+    expect(mockPush).toHaveBeenCalledWith('/home');
   });
 
   // A read that failed offline used to come back as null — "this card can't be
