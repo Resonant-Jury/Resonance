@@ -2,6 +2,7 @@
   "name": "resonance",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "dev:emulator": "node scripts/dev-emulator.mjs",
