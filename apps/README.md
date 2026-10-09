@@ -227,6 +227,7 @@ cd apps/android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :core:kit:test        # API clients, localization, story format, cover hue
 ./gradlew :app:testDebugUnitTest  # the app's JVM tests: the origin, routes, App Links, pen names, settings sections, push routing
+./gradlew :core:design:testDebugUnitTest  # the design language: geometry against the web's fixtures, and components composed under Robolectric (switch rows, dialogs)
 ```
 
 Debug launch extras mirror iOS's arguments: `--ez emulator true` points
