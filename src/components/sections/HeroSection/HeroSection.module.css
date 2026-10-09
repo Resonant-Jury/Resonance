@@ -71,8 +71,12 @@
   flex-wrap: wrap;
 }
 
+.download {
+  margin-top: 40px;
+}
+
 .proof {
-  margin-top: 56px;
+  margin-top: 48px;
   display: flex;
   align-items: center;
   justify-content: center;

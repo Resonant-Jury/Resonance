@@ -1,0 +1,82 @@
+/* The switch's inks. Off: a pale paper well edged in a soft ink (text-muted,
+   5:1 on cream — WCAG 1.4.11 asks 3:1 of an input's edge). On: terracotta,
+   edged and knob-ringed in deep terracotta (6:1 on cream), the cream knob 3.5:1
+   on the fill. The apps' OrganicToggle takes the same tokens. */
+.switch {
+  --toggle-track: var(--color-cream-dark);
+  --toggle-ink: var(--color-text-muted);
+  position: relative;
+  flex-shrink: 0;
+  width: 50px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  transition: opacity 160ms;
+}
+
+.switch[aria-checked='true'] {
+  --toggle-track: var(--color-terracotta);
+  --toggle-ink: color-mix(in oklch, var(--color-terracotta), black 25%);
+}
+
+/* No pen line of its own for focus to re-trace at a glance, so keyboard focus
+   rings the pill in the focus colour, as the frame-free buttons do. */
+.switch:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 3px;
+  border-radius: 16px;
+}
+
+/* Not to be flipped now: faded like a disabled button, and the pointer says so. */
+.switch:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.fill {
+  fill: var(--toggle-track);
+  transition: fill 160ms;
+}
+
+/* The pen: one trace, and a lighter second pass of the same hand beside it —
+   two lines that meet and part read as drawn, not as a stock pill. */
+.pen,
+.retrace {
+  fill: none;
+  stroke: var(--toggle-ink);
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  transition: stroke 160ms;
+}
+
+.knob {
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.knobFace {
+  fill: var(--color-cream);
+  stroke: var(--toggle-ink);
+  stroke-linejoin: round;
+  transition: stroke 160ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .fill,
+  .pen,
+  .retrace,
+  .knob,
+  .knobFace {
+    transition: none;
+  }
+}

@@ -28,6 +28,13 @@ describe('the middleware matcher', () => {
     }
   });
 
+  it('leaves /download to its route handler, and only that path', () => {
+    expect(runs('/download')).toBe(false);
+    for (const path of ['/downloads', '/download-guide', '/download/x', '/zh-TW/download', '/en/download']) {
+      expect(runs(path), path).toBe(true);
+    }
+  });
+
   it('runs for the pages, with or without a locale', () => {
     for (const path of ['/', '/en', '/zh-TW', '/zh-TW/card/a-quiet-turning-point', '/en/me', '/home', '/card/a-quiet-turning-point']) {
       expect(runs(path), path).toBe(true);

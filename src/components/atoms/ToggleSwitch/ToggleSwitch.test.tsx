@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, userEvent } from '@/../test/render';
-import { ToggleSwitch } from './ToggleSwitch';
+import { wobRect } from '@/lib/design/wobRect';
+import { wobCircle } from '@/lib/design/wobCircle';
+import { INK_LIGHT } from '@/lib/design/strokes';
+import { TOGGLE, ToggleSwitch, toggleShapes } from './ToggleSwitch';
 
-// Smoke test that doubles as proof the component-testing harness works:
-// jsdom environment + Testing Library + user-event + the JSX transform.
-// It exercises the switch the way a user would, via role + aria semantics.
+// The end point of every cubic in a wobRect path, in drawing order: for the
+// switch's track (one turn per long edge, one cubic per short edge) the 2nd is
+// the top edge's turn and the 7th the bottom edge's.
+const cubicEnds = (d: string) => [...d.matchAll(/C \S+ \S+ ([-\d.]+),([-\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+const edgeTurns = (d: string) => {
+  const ends = cubicEnds(d);
+  return { top: ends[1][1], bottom: ends[6][1] - TOGGLE.h };
+};
+
 describe('ToggleSwitch', () => {
   it('exposes switch semantics reflecting the checked prop', () => {
     render(<ToggleSwitch checked={false} onChange={() => {}} ariaLabel="Auto translate" />);
@@ -38,5 +47,43 @@ describe('ToggleSwitch', () => {
     expect(sw).toHaveAccessibleDescription('Up to three evenings a week');
     await userEvent.click(sw);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('goes round its pill twice with the light pen — the trace, and a lighter pass drawn from seed + 1 — and draws the knob from seed + 5', () => {
+    render(<ToggleSwitch checked={false} onChange={() => {}} ariaLabel="Anonymous" seed={57} />);
+    const sw = screen.getByRole('switch');
+    const fill = sw.querySelector('path:not([stroke-width])')!;
+    const [retrace, pen, knob] = [...sw.querySelectorAll('path[stroke-width]')];
+    const { w, h, radius, mag, track, knob: size, knobOpts } = TOGGLE;
+
+    // The apps draw the same seeds: the track and its fill from the seed itself.
+    expect(fill.getAttribute('d')).toBe(wobRect(w, h, radius, 57, mag, track));
+    expect(pen.getAttribute('d')).toBe(fill.getAttribute('d'));
+    expect(retrace.getAttribute('d')).toBe(wobRect(w, h, radius, 58, mag, track));
+    expect(retrace.getAttribute('d')).not.toBe(pen.getAttribute('d'));
+    expect(retrace).toHaveAttribute('stroke-opacity', String(TOGGLE.retraceOpacity));
+    expect(knob.getAttribute('d')).toBe(wobCircle(size / 2, size / 2, size / 2, 62, knobOpts));
+    for (const line of [retrace, pen, knob]) expect(line).toHaveAttribute('stroke-width', String(INK_LIGHT));
+  });
+
+  it('is the same drawing for the same seed (server and browser agree) and another for another seed', () => {
+    const { container: a } = render(<ToggleSwitch checked onChange={() => {}} seed={91} />);
+    const { container: b } = render(<ToggleSwitch checked onChange={() => {}} seed={91} />);
+    const { container: c } = render(<ToggleSwitch checked onChange={() => {}} seed={83} />);
+    const paths = (el: HTMLElement) => [...el.querySelectorAll('path[stroke-width]')].map((p) => p.getAttribute('d'));
+    expect(paths(a)).toEqual(paths(b));
+    expect(paths(c)).not.toEqual(paths(a));
+  });
+
+  it('bows each long edge by hand, in or out by up to 2.5px and never more — a visible wobble, not a stock pill or a peanut', () => {
+    let widest = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const { top, bottom } = edgeTurns(toggleShapes(seed).track);
+      for (const turn of [top, bottom]) {
+        expect(Math.abs(turn)).toBeLessThanOrEqual(2.52);
+        widest = Math.max(widest, Math.abs(turn));
+      }
+    }
+    expect(widest).toBeGreaterThan(2.3);
   });
 });

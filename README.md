@@ -1,164 +1,208 @@
-# Resonance（共振）
+<p align="center">
+  <img src="public/icon.svg" width="88" height="88" alt="Resonance">
+</p>
 
-一個以「故事卡片」為核心的多語社交書寫平台。使用者撰寫故事卡片、透過「共振」（撰寫一張回應卡片，而非按讚）與他人連結。視覺識別建立在執行期程序化生成的手繪風 SVG 之上。
+<h1 align="center">Resonance</h1>
 
-## 技術棧
+<p align="center">
+  <strong>Answer stories with stories.</strong><br>
+  A place to share life stories as cards, where a reply isn't a like but a story of your own.
+</p>
 
-| 領域 | 技術 |
+<p align="center">
+  <a href="https://apps.apple.com/tw/app/resonance/id6817604797"><img src="public/badges/appstore-en-us.svg" height="40" align="middle" alt="Download on the App Store"></a>
+  &nbsp;
+  <a href="https://play.google.com/store/apps/details?id=com.resonance.stories"><img src="public/badges/googleplay-en.png" height="60" align="middle" alt="Get it on Google Play"></a>
+</p>
+
+<p align="center">
+  <a href="https://resonance.channel">resonance.channel</a> ·
+  <a href="README.zh-TW.md">中文說明</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="SECURITY.md">Security</a> ·
+  <a href="LICENSE">MIT License</a>
+</p>
+
+---
+
+## What is Resonance?
+
+Resonance (共振, *gòngzhèn*) is a social writing platform built around **story cards**. You write a
+piece of your life on a card: a title, a story, perhaps a photo. When someone else's card moves you,
+you don't tap a heart. You **resonate** with it, by writing a card of your own that answers it. The
+two cards are linked from then on, and so are the two of you.
+
+It runs on the web at [resonance.channel](https://resonance.channel) and as native apps for iPhone
+and Android, in Traditional Chinese and English. Anyone can read public cards without an account.
+
+## Why does it exist?
+
+Most social apps measure attention: likes, views, time spent. What gets measured gets optimized,
+and the result is performance. Resonance is built on the opposite bet. It rewards only the
+response that costs something, which is writing.
+
+- **Resonance, not likes.** The one public way to answer a card is to write another card. There are
+  no like counts and no public comment threads, so nobody performs for an audience under someone
+  else's story.
+- **Three ways to respond, each to someone.** Bookmark a card (for yourself: private, never
+  counted). Leave its author a **note** (for them alone: a letter nobody else reads). Or resonate
+  (for everyone: a card of your own).
+- **Messages are earned through a story.** There is no open inbox. Two people become connected
+  when one resonates publicly with the other's card, or when an author answers a note, and only
+  connections can message each other. Every conversation starts from a story, never from "hi". It
+  is deliberately not a dating app.
+- **Anonymity per card.** The account is real, but any single card can go out anonymously: no name,
+  not on your profile. The server never tells anyone else who wrote it. The most vulnerable stories
+  are often the ones most worth writing.
+- **AI as a mirror, not a judge.** Before you publish, Resonance shows you the core insight it read
+  in your draft. Recommendations come with the reason they were picked for you, and they are built
+  from what you *write*, never from what you click or how long you looked. No score is ever shown.
+- **A safe room.** Every card, person and message can be reported, and anyone can be blocked. No
+  ads, no tracking. You can download everything you wrote, or delete your account.
+
+The full reasoning, in Chinese, is in
+[docs/product-design-principles.md](docs/product-design-principles.md).
+
+## Who is it for?
+
+- **Writers of real life**: people who want to put a turning point, a small realization or a quiet
+  memory into words, and be answered in kind.
+- **Readers who'd rather reply than react**: people for whom a story is worth more than a number.
+- **Contributors**: Resonance is open source. It is a working example of one product on three
+  platforms (a Next.js site and SwiftUI and Jetpack Compose apps) over one versioned API, with a
+  hand-drawn interface generated at runtime. If that interests you, read on.
+
+## Download
+
+<a href="https://apps.apple.com/tw/app/resonance/id6817604797"><img src="public/badges/appstore-en-us.svg" height="40" align="middle" alt="Download on the App Store"></a>
+&nbsp;
+<a href="https://play.google.com/store/apps/details?id=com.resonance.stories"><img src="public/badges/googleplay-en.png" height="60" align="middle" alt="Get it on Google Play"></a>
+
+- **iPhone**: [App Store](https://apps.apple.com/tw/app/resonance/id6817604797)
+- **Android**: [Google Play](https://play.google.com/store/apps/details?id=com.resonance.stories)
+- **Web**: [resonance.channel](https://resonance.channel). On a phone,
+  [resonance.channel/download](https://resonance.channel/download) opens the right store.
+
+## Features
+
+| | |
 | --- | --- |
-| 框架 | Next.js 15（App Router）+ React 19 + TypeScript 5.7（strict） |
-| 樣式 | CSS Modules + CSS 自訂屬性（無 Tailwind），OKLCH 色彩空間 |
-| i18n | next-intl（`en`、`zh-TW` 路由，卡片內容支援更多語言欄位） |
-| 認證 | Firebase Auth（client SDK）+ session cookie（firebase-admin 簽發） |
-| 資料庫 | Cloud Firestore（client SDK 直讀 + admin SDK 伺服器端 repository） |
-| 物件儲存 | Cloudflare R2（S3 相容 API，`@aws-sdk/client-s3`） |
-| AI | OpenAI（LLM：slug 翻譯、標籤建議；Image：故事插圖生成） |
-| 編輯器 | Tiptap 3 + tiptap-markdown；閱讀端用 react-markdown + remark-gfm |
-| 資料抓取 | SWR（client hooks） |
-| 測試 | Vitest 3 + @testing-library/react + jsdom |
-| 部署 | Vercel，網址 https://resonance.channel（函式在 `hkg1`，呼叫 OpenAI 的 route 在 `hnd1`）；Firebase CLI 管理 rules/indexes |
+| **Write cards** | A warm paper editor for a title, a story (headings, quotes, pictures, links, other cards) and a cover photo, or a doodle illustration drawn from your story. Each card is for everyone, for your connections, or for you alone. Drafts save themselves. |
+| **Resonate** | Answer a card with a card. A card's page shows the cards that answer it. |
+| **Notes** | A private letter to a card's author. It connects you only if they write back. |
+| **Connections and messages** | One-to-one conversations between people who met through a story, with replies, shared cards and link previews. |
+| **Thought map** | Lay your own cards out on dotted paper: group them into regions, draw arrows and label how they relate. |
+| **Feeds** | The latest public cards, and picks for you with the reason each was chosen. |
+| **Notifications** | A bell on the web, and push notifications in the apps. |
+| **Safety and your data** | Anonymous cards, blocking, reporting, data export, account deletion with a grace period. |
 
-## 常用指令
+## How it's built
+
+```
+Web (Next.js + React)      iOS app (SwiftUI)      Android app (Compose)
+          │                        │                        │
+          └──────────── /api/v1 (Zod → OpenAPI) ────────────┘
+                                   │
+    Firebase Auth · Cloud Firestore · Cloudflare R2 · OpenAI · FCM
+```
+
+- **Web**: Next.js 15 (App Router), React 19, TypeScript (strict), next-intl, CSS Modules with OKLCH
+  design tokens (no Tailwind), a Tiptap 3 editor that stores Markdown, SWR. Deployed on Vercel.
+- **Data**: Cloud Firestore. The browser reads through security rules (`firebase/firestore.rules`);
+  anything that reaches another person (publishing, notes, messages, pen names) goes through the
+  server, which uses the Admin SDK and re-checks what the rules guarantee.
+- **API**: `/api/v1` is a contract. Zod schemas in `src/lib/api/v1/schemas.ts` generate
+  `openapi/v1/openapi.json`, from which the iOS and Android clients are generated. It only changes
+  additively.
+- **Apps**: SwiftUI (`apps/ios`, XcodeGen) and Jetpack Compose (`apps/android`). They take their
+  design tokens, strings, icons and story editor from the web (`npm run apps:generate`), so the web
+  stays the single source.
+- **Images**: Cloudflare R2, re-encoded on the server with sharp.
+- **AI** (OpenAI, server-side only): English URL slugs, tag suggestions, story illustrations, the
+  pre-publish insight, and recommendations (vector search over each card's insight, then a rerank
+  that writes the reason).
+- **Design**: hand-drawn shapes generated from seeds (`src/lib/design`), so the server and the
+  browser draw the same wobble. See [designs/DESIGN.md](designs/DESIGN.md).
+
+| Where | What |
+| --- | --- |
+| `src/app` | pages (`[locale]/…`) and API routes (`api/…`) |
+| `src/components` | `atoms`, `molecules`, `sections` |
+| `src/lib` | auth, data layer, API contract, AI, push, storage, design geometry |
+| `src/messages` | UI strings, `en.json` and `zh-TW.json` (the apps read them too) |
+| `firebase/` | Firestore rules and indexes |
+| `apps/` | the iOS and Android apps ([apps/README.md](apps/README.md)) |
+| `test/` | shared test setup; tests live next to their code |
+| `docs/` | product principles, policies, store listings, [architecture in Chinese](docs/ARCHITECTURE.zh-TW.md) |
+
+[CLAUDE.md](CLAUDE.md) is the detailed, current architecture guide (written for AI coding agents
+and humans alike).
+
+## Getting started
+
+You need Node.js 22 and npm. To run against local Firebase emulators (recommended; nothing touches
+real data) you also need Java 21 and the [Firebase CLI](https://firebase.google.com/docs/cli)
+(`npm install -g firebase-tools`).
 
 ```bash
-npm run dev        # 啟動 Next.js dev server
-npm run build      # production build
-npm run lint       # ESLint
-npm run typecheck  # tsc --noEmit
-npm test           # Vitest 單次執行（CI 模式）
-npm run test:watch # Vitest watch 模式
-npm run test:ui    # Vitest browser UI
+git clone https://github.com/Resonant-Jury/Resonance.git
+cd Resonance
+npm ci
+
+npm run emulators                  # terminal 1: Auth + Firestore emulators (project demo-resonance)
+npx tsx scripts/seed-emulator.ts   # terminal 2: a small known world (alice, bob, carol, dora)
+npm run dev:emulator               # http://localhost:3000, wired to the emulators
 ```
 
-部署 Firestore 規則／索引（修改 `firebase/firestore.rules` 或 `firestore.indexes.json` 後必須執行）：
+To sign in as a seeded account, open the browser console on the site and run
+`await window.__emulatorSignIn('alice@resonance.test', password)`. The password is `SEED_PASSWORD` in
+`scripts/seed-emulator.ts`; the helper exists only in emulator builds.
+
+`dev:emulator` needs no secrets: it points Firebase at the emulators and leaves image storage off.
+Features that call OpenAI need `OPENAI_API_KEY` in a `.env` file (copy `.env.example`).
+
+### Checks
 
 ```bash
-firebase deploy --only firestore:rules,firestore:indexes
+npm run lint
+npm run typecheck
+npm test                # Vitest: unit and component tests
+npm run test:emulator   # Firestore rules and server suites against the emulators
 ```
 
-## 環境變數
+### The apps
 
-複製 `.env.example` 為 `.env` 並填入：
+Run the site for them on port 3100 (`npm run dev:emulator -- --port 3100`), then:
 
-- `NEXT_PUBLIC_FIREBASE_*` — Firebase client SDK 設定（公開）。
-- `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` — firebase-admin 服務帳號（伺服器端）。
-- `FIREBASE_SESSION_COOKIE_NAME`（預設 `__session`）、`FIREBASE_SESSION_EXPIRES_IN_DAYS`（預設 7）。
-- `R2_*` — Cloudflare R2 帳號、bucket、S3 端點、金鑰；`R2_PUBLIC_BASE` 為公開讀取網域（新圖片都存在這裡）；`R2_FORMER_PUBLIC_BASES`（選填，逗號分隔）列出同一個 bucket 先前的公開網域——搬家期間舊網址上的圖片仍算「我們的圖」。
-- `OPENAI_API_KEY`、`OPENAI_LLM_MODEL`、`OPENAI_IMAGE_MODEL` — AI 功能（slug、標籤、插圖）。
-- `NEXT_PUBLIC_ENABLE_PHONE_OTP` — 手機 OTP 登入開關。
+- **iOS** (Xcode and XcodeGen): `cd apps/ios && xcodegen generate`, build the `Resonance` scheme,
+  and launch it with `-emulator YES`.
+- **Android** (JDK 21 and the Android SDK): `cd apps/android && ./gradlew :app:assembleDebug`, and
+  start it with `--ez emulator true`.
 
-## 專案結構
+[apps/README.md](apps/README.md) has the full commands, launch arguments and tests.
 
-```
-src/
-├── middleware.ts            # next-intl locale 路由攔截
-├── i18n/                    # routing / navigation / request（next-intl）
-├── messages/                # en.json, zh-TW.json 介面翻譯
-├── styles/                  # tokens.css（design tokens）、globals.css
-├── app/
-│   ├── [locale]/
-│   │   ├── (auth)/          # signin, signup
-│   │   ├── (app)/           # home（動態牆）、me、settings、write/[id]（編輯器）、
-│   │   │                    # card/[slug]（卡片頁）、u/[handle]（公開個人頁）
-│   │   └── page.tsx         # 行銷 landing page（Hero → CardFeed → CTA）
-│   └── api/                 # 伺服器端 route handlers（見下）
-├── components/
-│   ├── atoms/               # 手繪風基礎元件（多為程序化 SVG）
-│   ├── molecules/           # 組合元件（StoryCard、CardEditor、Modal…）
-│   ├── sections/            # 頁面區塊（AppHeader、HeroSection…）
-│   └── providers/           # TweaksPanel 等 context providers
-└── lib/
-    ├── auth/                # 認證抽象層 + firebase client/server 實作
-    ├── db/firestore/        # 伺服器端 repository（admin SDK）+ client/ 直讀寫層
-    ├── storage/             # 儲存抽象層 + R2 實作 + AVIF 影像處理
-    ├── ai/                  # OpenAI 任務：slugify、tags、story image
-    ├── adapters/            # Firestore 資料 → UI 模型轉換
-    ├── data/                # SWR hooks
-    ├── design/              # prng、wobRect、wavyPath、strokes 等 SVG 工具
-    ├── images/              # 客戶端壓縮 + 上傳
-    └── hooks/               # useElementSize、useIsMobile
-firebase/                    # firebase.json、firestore.rules、firestore.indexes.json
-test/                        # 共用測試 infra（setup.ts、render.tsx）
-docs/                        # PRD（共振_產品需求書）、開發計畫、TODO
-```
+## Contributing
 
-路徑別名 `@/*` 對應 `src/*`。
+Bug reports, fixes and ideas are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. In
+short: work on a branch, add a test that fails without your change, keep every string in both
+languages, build UI from the design system's primitives, and check it at desktop and phone widths.
 
-## 架構說明
+Before proposing a feature, read the product principles above. Resonance will not add like counts,
+public comment threads or open messaging, however small.
 
-### 路由與 i18n
+## Security
 
-`src/middleware.ts` 攔截所有請求並導入 `[locale]` 路由（`localePrefix: 'always'`，即 `/home` 實際存在於 `/en/home` 與 `/zh-TW/home`）。`next-intl` plugin（`next.config.ts` 中以 `./src/i18n/request.ts` 註冊）處理伺服器端翻譯。注意 `next.config.ts` 將 `firebase` / `firebase-admin` 列入 `serverExternalPackages`，避免 Webpack vendor-chunk 對 scoped package 的 require 路徑錯誤。
+Please don't open a public issue for a vulnerability. Email **support@resonance.channel** instead;
+[SECURITY.md](SECURITY.md) explains what to include and what happens next.
 
-### 認證流程
+## License
 
-1. 瀏覽器用 Firebase client SDK 完成登入（Google / Email，OTP 可由 flag 開啟），取得 ID token。
-2. POST `/api/auth/session` — 伺服器以 admin SDK 換發 session cookie（httpOnly、`__session`），DELETE 登出。
-3. 伺服器端以 `requireUser()` / `getCurrentUser()`（`src/lib/auth`）驗證 cookie。
-4. 客戶端 Firestore 直讀依賴 Firebase Auth 狀態恢復——`useCard` 等 hooks 會等待 auth 完成再查詢，避免匿名規則誤判（公開卡片與個人檔案允許匿名讀取）。
+The source code is released under the [MIT License](LICENSE), Copyright (c) 2026 Resonant-Jury.
 
-### 資料層（雙軌）
+The license covers the code. It does not cover the **Resonance name, the wave logo or the app
+icons**: please don't use them for your own product, and give a fork you publish its own name and
+icon. Fonts, flags and the store badges in this repository come from others under their own terms;
+see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-- **伺服器端**：`src/lib/db/firestore/*.ts` 為 repository 類別（`FirestoreCardRepository`、`FirestoreUserRepository`…），透過 admin SDK 操作並在程式中強制可見性（`public` / `connections` / `private`；connections 以 `uid1_uid2` 排序後的 pair id 查 `connections` collection）。
-- **客戶端**：`src/lib/db/firestore/client/*` 為直接讀寫層（feed、invites、resonances、notifications、profile…），由 `src/lib/data/hooks.ts` 的 SWR hooks 消費，安全性由 `firebase/firestore.rules` 把關。
-
-主要實體（`src/lib/db/types.ts`）：`Card`（含 `translations`、`tags`、`slug`、計數欄位）、`User`（`handle`/`handleLower`）、`Connection`、`Invite`、`Resonance`、`CardLink`、`Notification`。
-
-### 產品語意：共振與邀請
-
-「共振」不是按讚——它會建立一張帶 `referenceCardId` 的新卡片（回應卡）。卡片之間可互相嵌入：站內 `/card/...` 連結在閱讀時渲染為 `EmbedStoryCard`。留言功能已移除。
-
-### API Routes（`src/app/api/`）
-
-| Route | 用途 |
-| --- | --- |
-| `POST/DELETE /api/auth/session` | ID token 換 session cookie／登出 |
-| `GET /api/cards/resolve?key=` | slug 或舊 doc id → Firestore doc id（只回 id，不洩漏內容） |
-| `POST /api/cards/slug` | 發佈後自動產生英文 slug（LLM 翻譯標題 + 防碰撞，冪等） |
-| `POST /api/cards/tags` | LLM 建議 2–3 個標籤，參考作者歷史標籤詞彙 |
-| `POST /api/generate-image` | 由故事內文生成 doodle 風插圖，轉 AVIF 存入 R2（`maxDuration: 120`） |
-| `POST /api/upload` | 圖片上傳代理：伺服器轉送至 R2（繞過部分網路對 R2 的 TLS 問題），限 8 MB |
-| `POST /api/revalidate` | 登入後對白名單路徑做 `revalidatePath`（自動展開所有 locale 前綴） |
-
-### 卡片 URL 與 AI
-
-卡片公開網址使用英文 slug（LLM 將標題翻成英文後 slugify，與作者 handle、數字後綴防碰撞）。AI 程式碼集中在 `src/lib/ai/`：`openai.ts` 封裝呼叫、`tasks.ts` 定義任務（slug base、標籤建議、故事插圖）、`slugify.ts` / `tags.ts` 為純邏輯（有測試）。OpenAI 只在伺服器 route 中呼叫，金鑰不落地客戶端。
-
-### 設計系統與程序化 SVG
-
-- 所有 design token 在 `src/styles/tokens.css`（OKLCH）。字體：Playfair Display（標題）+ DM Sans（內文）。
-- 手繪邊框線寬統一使用 `src/lib/design/strokes.ts` 的 `INK` / `INK_LIGHT` / `INK_STRONG`「一支筆」tokens，**不可硬編碼 strokeWidth**。
-- 形狀生成工具：`wobRect.ts`（seeded bezier 抖動圓角矩形）、`wobCircle.ts`、`wavyPath.ts`、`prng.ts`（seeded PRNG）。所有形狀元件吃 `seed` prop，保證 SSR 與 client hydration 渲染一致。
-- `TweaksPanel` provider 可在執行期覆寫 accent 色、卡片密度、grain 強度等 CSS 變數，供設計迭代。
-- 建構 UI 時優先重用既有 primitives（`OrganicButton`、`Panel`、`Field`、`Icon`、`TagPill`、`PageShell`），不要寫 inline style 或重複的 SVG。
-
-### 影像管線
-
-客戶端先壓縮（`src/lib/images/compress.ts`），經 `/api/upload` 或 `/api/generate-image` 上傳；伺服器端以 sharp 轉 AVIF（`src/lib/storage/image.ts`）後寫入 R2，回傳 `R2_PUBLIC_BASE` 公開 URL。R2 CORS 設定在根目錄 `r2-cors.json`。
-
-圖片網域搬家（r2.dev → `img.resonance.channel`，同一個 bucket，兩個網域都能讀到每個 key）：舊網域放進 `R2_FORMER_PUBLIC_BASES`，規則的 `storedFile()` 也接受 `config/storage.formerHosts` 裡的舊網域；`npx tsx scripts/backfill.ts storage-host --apply` 會把被取代的網域記進 `formerHosts`，`rehost-images --apply` 再把頭像、封面、故事內圖片（含待套用的修改）的網址改到新網域（不動 `updatedAt`，檢舉證據保持原樣）。步驟順序見 CLAUDE.md 的 Storage 一節。
-
-## 測試
-
-整合風格的單元測試：測一整個功能（adapter 規則、hook 組合、元件互動），不測瑣碎函式。無 E2E。
-
-- **位置**：與原始碼共置（`Foo.tsx` → `Foo.test.tsx`）。`test/` 只放共用 infra：`setup.ts`（jest-dom、cleanup、ResizeObserver/matchMedia stubs）與 `render.tsx`（`renderWithIntl()` 載入真實 `en` 翻譯）。
-- **環境**：預設 node；渲染 React 的測試需在檔頭加 `// @vitest-environment jsdom`。
-- **Mock 邊界**：只 mock 模組邊界（`@/lib/db/firestore/client/*`、`useAuth`、`@/i18n/navigation`），純邏輯不 mock。
-- **SWR hooks**：包 `<SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>` 隔離快取。
-- **確定性**：seeded design utils 測「同 seed 同輸出」，這是 SSR/CSR hydration 一致性的保證。
-- `vitest.config.ts` 被排除在 `npm run typecheck` 之外（build tooling 的雙 Vite 型別噪音）。
-
-## 部署
-
-- **Vercel**：`vercel.json` 指定 region `hkg1`（香港，離 Firestore 的 asia-east1 最近）。OpenAI 不接受來自香港的請求，所以會呼叫 OpenAI 的 route 在 `functions` 裡固定在 `hnd1`（東京），`src/lib/ai/regions.test.ts` 會檢查這份清單是否完整。`vercel` CLI 已登入可直接操作。
-- **網域**：網站在 https://resonance.channel（www 轉到這裡）。舊網址 resonance-world.vercel.app 仍是同一個部署：`vercel.json` 的 `redirects` 把頁面（路徑與 query 不變）永久轉到新網域，但 `/api/*`、`/_next/*`、`/.well-known/*` 不轉——已安裝的舊版 App 還在呼叫舊網址的 API，Android App Links 也讀它的 `/.well-known`。`src/lib/site.test.ts` 會擋住擴大轉址範圍的修改。聯絡信箱是 support@resonance.channel（Cloudflare Email Routing 轉寄到團隊信箱）。
-- **Firebase**：rules / indexes 在 `firebase/`，改動後需 `firebase deploy --only firestore:rules,firestore:indexes`。
-- **Cloudflare**：R2 由 `wrangler` 管理。
-
-## 相關文件
-
-- [CLAUDE.md](CLAUDE.md) — AI 協作指引（指令、慣例摘要）
-- [docs/共振_產品需求書_v0.1.md](docs/共振_產品需求書_v0.1.md) — 產品需求書
-- [docs/development_plan.md](docs/development_plan.md) — 開發計畫
-- [docs/TODO.md](docs/TODO.md) — 待辦清單
+Apple, the Apple logo and App Store are trademarks of Apple Inc. Google Play and the Google Play logo
+are trademarks of Google LLC.
