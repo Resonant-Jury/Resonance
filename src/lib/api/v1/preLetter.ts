@@ -85,14 +85,19 @@ const at = (d: DocumentSnapshot) => {
  * English): the one it last registered for pushes on this platform (the
  * app's own setting), else the language the request asks for (iOS sends the
  * system's; OkHttp none), else the profile's primaryLocale. Read only on a
- * refusal.
+ * refusal — and never in its way: a read that fails falls back to the
+ * language asked for (else English), so the refusal still goes out.
  */
 async function appLocale(db: Firestore, uid: string, req: Request): Promise<DeviceLocale> {
-  const platform = clientBuild(req.headers.get('user-agent'))?.platform;
-  const devices = await db.collection('devices').where('userId', '==', uid).select('platform', 'locale', 'updatedAt').get();
-  const registered = devices.docs.filter((d) => d.get('platform') === platform && typeof d.get('locale') === 'string').sort((a, b) => at(b) - at(a))[0];
-  if (registered) return deviceLocale(registered.get('locale'));
   const asked = preferredLanguage(req.headers.get('accept-language'));
-  if (asked) return deviceLocale(asked);
-  return deviceLocale((await db.doc(`users/${uid}`).get()).get('primaryLocale'));
+  try {
+    const platform = clientBuild(req.headers.get('user-agent'))?.platform;
+    const devices = await db.collection('devices').where('userId', '==', uid).select('platform', 'locale', 'updatedAt').get();
+    const registered = devices.docs.filter((d) => d.get('platform') === platform && typeof d.get('locale') === 'string').sort((a, b) => at(b) - at(a))[0];
+    if (registered) return deviceLocale(registered.get('locale'));
+    if (asked) return deviceLocale(asked);
+    return deviceLocale((await db.doc(`users/${uid}`).get()).get('primaryLocale'));
+  } catch {
+    return deviceLocale(asked);
+  }
 }

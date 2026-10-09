@@ -96,6 +96,14 @@ describe('refusalForPreLetterBuild', () => {
       .toMatchObject({ code: 'forbidden', message: en.card.note.waitForReply });
   });
 
+  it("still refuses with its 403 when the language can't be read — in the language asked for, else English", async () => {
+    const down = { collection: () => { throw new Error('unavailable'); }, doc: () => { throw new Error('unavailable'); } } as unknown as Parameters<typeof refusalForPreLetterBuild>[0];
+    expect(await refusalForPreLetterBuild(down, 'alice', request({ 'User-Agent': OLD_IOS, 'Accept-Language': 'zh-Hant-TW' }), limit()))
+      .toMatchObject({ code: 'forbidden', message: zhTW.card.note.waitForReply });
+    expect(await refusalForPreLetterBuild(down, 'alice', request({ 'User-Agent': OLD_ANDROID }), audience()))
+      .toMatchObject({ code: 'invalid_request', message: en.write.publishPanel.anonymousVisibility });
+  });
+
   it('says an anonymous card is public or only for its author in the same way, still a 400', async () => {
     const fake = fakeAdminDb({ 'devices/a': { userId: 'alice', platform: 'ios', locale: 'zh-TW', updatedAt: at('2026-10-01T00:00:00Z') } });
     expect(await refusalForPreLetterBuild(fake.db, 'alice', request({ 'User-Agent': OLD_IOS }), audience()))

@@ -71,8 +71,9 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
-    // Anonymous and shown to its author's connections only — what no card may
-    // become: whether a reader could open it would turn on whether they are
+    // Anonymous and shown to its author's connections only — what no published
+    // card may become (an unpublished draft may be, for the app builds before
+    // letters; publishing refuses it): whether a reader could open it would turn on whether they are
     // connected to its author, and blocking someone ends the connection, so
     // the card vanishing as they blocked someone would name its author. An
     // anonymous card is public or private (the server holds publishing, a
