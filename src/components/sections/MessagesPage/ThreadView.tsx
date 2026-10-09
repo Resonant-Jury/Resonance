@@ -9,7 +9,7 @@ import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBor
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
-import { OrganicScrollbar } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
+import { OrganicScrollbar, organicScrollTarget } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { Divider } from '@/components/atoms/Divider/Divider';
 import { Modal } from '@/components/molecules/Modal/Modal';
@@ -833,7 +833,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 <p className={pageStyles.quietNote}>{t('mediaEmpty')}</p>
               ) : (
                 <div className={pageStyles.mediaArea}>
-                  <div ref={mediaScrollRef} className={pageStyles.mediaBody}>
+                  <div ref={mediaScrollRef} className={`${pageStyles.mediaBody} ${organicScrollTarget}`}>
                     {sharedCardKeys.length > 0 && (
                       <section>
                         <h4 className={pageStyles.mediaSection}>{t('mediaCards')}</h4>

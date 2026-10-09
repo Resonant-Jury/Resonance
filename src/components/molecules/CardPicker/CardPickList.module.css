@@ -6,15 +6,8 @@
 .scroll {
   max-height: 50vh;
   overflow-y: auto;
-  /* the hand-drawn rail replaces the native bar */
-  scrollbar-width: none;
-  /* keep rows clear of the rail */
+  /* keep rows clear of the drawn bar (OrganicScrollbar), which replaces the native one */
   padding-right: 18px;
-}
-
-.scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
 }
 
 .list {

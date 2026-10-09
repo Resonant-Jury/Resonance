@@ -1,53 +1,111 @@
+/* The drawn bar's column: 14px the pointer can hit, floating in the gutter
+   its list keeps on the right (the list's own padding), over nothing. The
+   numbers and the ink are the native bars' (globals.css --sb-*). */
+/* (Its top and bottom inset is OrganicScrollbar's INSET, set inline.) */
 .rail {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
   right: 0;
-  cursor: pointer;
+  width: var(--sb-hit);
+  cursor: default;
   touch-action: none;
+  user-select: none;
   z-index: 2;
-}
-
-.rail[data-page] {
-  position: fixed;
-  top: 10px;
-  bottom: 10px;
-  right: 4px;
-  /* Under modal overlays — the backdrop dims it along with the page. */
-  z-index: 40;
 }
 
 .rail[data-hidden] {
   display: none;
 }
 
-/* Phones and touch screens show no scrollbar, drawn or native (globals.css). */
+/* Pointed at, the column shows where it pages: a faint straight track. */
+.track {
+  position: absolute;
+  inset: 0;
+  margin: 0 auto;
+  width: var(--sb-active);
+  border-radius: 999px;
+  background: var(--sb-track-hover);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.rail:hover .track,
+.rail[data-dragging] .track {
+  opacity: 1;
+}
+
+/* The thumb: drawn once per length, moved whole by its transform (written on
+   every scroll frame — no transition on where it stands, so it never lags). */
+.thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--sb-hit);
+  will-change: transform;
+}
+
+.thumb svg {
+  display: block;
+  overflow: visible;
+}
+
+/* A brush stroke with round ends: a capsule with a hand-made edge. Its width
+   is the bar family's (6px at rest, 10px pointed at), not a pen line's. */
+.thumb path {
+  fill: none;
+  stroke: var(--sb-thumb);
+  stroke-width: var(--sb-rest);
+  stroke-linecap: round;
+  transition:
+    stroke-width 120ms ease,
+    stroke 120ms ease;
+}
+
+.rail:hover .thumb path {
+  stroke-width: var(--sb-active);
+  stroke: var(--sb-thumb-near);
+}
+
+.rail .thumb:hover path {
+  stroke: var(--sb-thumb-hover);
+}
+
+.rail[data-dragging] .thumb path {
+  stroke-width: var(--sb-active);
+  stroke: var(--sb-thumb-active);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track,
+  .thumb path {
+    transition: none;
+  }
+}
+
+/* Phones and touch screens show no bar, drawn or native (globals.css). */
 @media (max-width: 720px), (hover: none) and (pointer: coarse) {
   .rail {
     display: none;
   }
 }
 
-.thumb {
-  stroke: var(--color-terracotta-light);
-  /* The "wet ink catching up" lag: the dash window chases the scroll. */
-  transition:
-    stroke-dashoffset 150ms ease-out,
-    stroke-dasharray 150ms ease-out,
-    stroke 160ms ease;
+/* Forced colours: author colours are gone, so the drawn bar steps aside and
+   the list's own system bar comes back (.target). */
+@media (forced-colors: active) {
+  .rail {
+    display: none;
+  }
 }
 
-.rail:hover .thumb,
-.rail[data-dragging] .thumb {
-  stroke: var(--color-terracotta);
-}
+/* The list it scrolls: its native bar hidden for the drawn one — except in
+   forced colours, where the system's stays. */
+@media not (forced-colors: active) {
+  .target {
+    scrollbar-width: none;
+  }
 
-.rail[data-dragging] .thumb {
-  transition: stroke 160ms ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .thumb {
-    transition: none;
+  .target::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
 }

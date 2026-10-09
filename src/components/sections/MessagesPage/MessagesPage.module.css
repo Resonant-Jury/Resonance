@@ -251,8 +251,8 @@
   margin: 0 0 18px;
 }
 
-/* Scrollable divider-row list (notification modal language) with the
-   hand-drawn rail in place of the native scrollbar. */
+/* Scrollable divider-row list (notification modal language) with the drawn
+   bar (OrganicScrollbar) in the gutter on its right in place of the native one. */
 .mediaArea {
   position: relative;
 }
@@ -263,13 +263,7 @@
   gap: 18px;
   max-height: min(420px, 55vh);
   overflow-y: auto;
-  scrollbar-width: none;
   padding-right: 18px;
-}
-
-.mediaBody::-webkit-scrollbar {
-  width: 0;
-  height: 0;
 }
 
 .mediaSection {
