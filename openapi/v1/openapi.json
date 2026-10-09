@@ -1723,6 +1723,82 @@
         }
       }
     },
+    "/me/notifications": {
+      "get": {
+        "operationId": "getNotificationSettings",
+        "summary": "Which pushes beyond the ones answering you this account asked for",
+        "description": "Both switches are off until turned on (an account that never set them reads both off).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateNotificationSettings",
+        "summary": "Turn \"a card for tonight\" or \"new cards from your connections\" on or off",
+        "description": "Only the switches sent change (`null` or absent leaves one as it is); turning one on records when. Answers the settings as they are now. Ask for the OS permission before turning one on: the server cannot tell whether this install may show notifications.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNotificationSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/devices/{installationId}": {
       "put": {
         "operationId": "registerDevice",
@@ -2626,13 +2702,48 @@
               "type": "string",
               "pattern": "^[a-z0-9-]{1,32}$"
             }
+          },
+          "timeZone": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 64
           }
         },
         "required": [
           "token",
           "platform"
         ],
-        "description": "This install's push token. Register after sign-in and whenever the token or the app's language changes."
+        "description": "This install's push token. Register after sign-in and whenever the token, the app's language or the time zone changes."
+      },
+      "NotificationSettings": {
+        "type": "object",
+        "properties": {
+          "picks": {
+            "type": "boolean"
+          },
+          "connectionCards": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "picks",
+          "connectionCards"
+        ],
+        "description": "The pushes you asked for beyond the ones answering you (resonances, notes, messages). Both are off until turned on."
+      },
+      "UpdateNotificationSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "picks": {
+            "nullable": true,
+            "type": "boolean"
+          },
+          "connectionCards": {
+            "nullable": true,
+            "type": "boolean"
+          }
+        },
+        "description": "Only the switches sent change; turning one on records when you agreed to it."
       },
       "ReportCardRequest": {
         "type": "object",

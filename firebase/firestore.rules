@@ -692,5 +692,21 @@ service cloud.firestore {
     match /recommendations/{userId} {
       allow read, write: if false;
     }
+
+    // --- push preferences and logs (server-only) ---
+    // notificationSettings: which pushes beyond replies a person turned on,
+    // with when they agreed (GET/PATCH /api/v1/me/notifications). pickPushes /
+    // connectionCardPushes: what each was pushed and when — the senders'
+    // once-only claims and caps (lib/push/picks, lib/push/connectionCards).
+    // None of it is a client's to read or write.
+    match /notificationSettings/{userId} {
+      allow read, write: if false;
+    }
+    match /pickPushes/{userId} {
+      allow read, write: if false;
+    }
+    match /connectionCardPushes/{userId} {
+      allow read, write: if false;
+    }
   }
 }

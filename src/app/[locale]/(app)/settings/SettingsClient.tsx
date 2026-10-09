@@ -18,6 +18,7 @@ import { HANDLE_FORBIDDEN, isHandleTaken, updateProfile } from '@/lib/db/firesto
 import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import { SignOutConfirmModal } from '@/components/molecules/SignOutConfirmModal/SignOutConfirmModal';
 import { DeleteAccountSection } from './DeleteAccountSection';
+import { NotificationsSection } from './NotificationsSection';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useTweaks } from '@/components/providers/TweaksPanel';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
@@ -34,6 +35,7 @@ type Section =
   | 'profile'
   | 'account'
   | 'privacy'
+  | 'notifications'
   | 'language'
   | 'appearance'
   | 'terms'
@@ -43,6 +45,7 @@ const SECTIONS: Section[] = [
   'profile',
   'account',
   'privacy',
+  'notifications',
   'language',
   'appearance',
   'terms',
@@ -61,6 +64,7 @@ const SECTION_ICONS: Record<Section, IconName> = {
   profile: 'user',
   account: 'key',
   privacy: 'lock',
+  notifications: 'bell',
   language: 'globe',
   appearance: 'palette',
   terms: 'document',
@@ -311,6 +315,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
             </OrganicButton>
           </div>
         )}
+        {active === 'notifications' && <NotificationsSection />}
         {active === 'language' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <Field label={t('language.ui')}>

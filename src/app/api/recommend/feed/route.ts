@@ -19,7 +19,9 @@ export const maxDuration = 60;
 export async function GET() {
   const user = await getCurrentUser({ revocation: 'cached' });
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  const { items, cached, status, refresh } = await dailyRecommendations(getAdminDb(), user.id);
+  const { items, cached, status, refresh, asked } = await dailyRecommendations(getAdminDb(), user.id);
   if (refresh) after(refresh);
+  // The reader opened their picks today: the evening's pick push leaves them be.
+  if (asked) after(asked);
   return NextResponse.json({ items: items.map(({ cardId, reason }) => ({ cardId, reason })), cached, status });
 }

@@ -24,4 +24,19 @@ describe('ToggleSwitch', () => {
     await userEvent.click(screen.getByRole('switch'));
     expect(onChange).toHaveBeenCalledTimes(1);
   });
+
+  it('does nothing while disabled, and points at the text that explains it', async () => {
+    const onChange = vi.fn();
+    render(
+      <>
+        <ToggleSwitch checked={false} onChange={onChange} ariaLabel="Evening card" describedBy="hint" disabled />
+        <p id="hint">Up to three evenings a week</p>
+      </>,
+    );
+    const sw = screen.getByRole('switch', { name: 'Evening card' });
+    expect(sw).toBeDisabled();
+    expect(sw).toHaveAccessibleDescription('Up to three evenings a week');
+    await userEvent.click(sw);
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

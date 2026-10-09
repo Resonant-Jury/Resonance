@@ -443,9 +443,40 @@ export const RegisterDeviceRequest = named(
      * values are kept and ignored.
      */
     capabilities: z.array(z.string().regex(/^[a-z0-9-]{1,32}$/)).max(8).nullish(),
+    /**
+     * The device's time zone, an IANA name (`Asia/Taipei`; iOS
+     * `TimeZone.current.identifier`, Android `ZoneId.systemDefault().id`).
+     * Kept for sending scheduled pushes at the reader's own evening; one the
+     * server's time zone data doesn't know is kept as unknown, never refused.
+     */
+    timeZone: z.string().max(64).nullish(),
   }),
   'RegisterDeviceRequest',
-  "This install's push token. Register after sign-in and whenever the token or the app's language changes.",
+  "This install's push token. Register after sign-in and whenever the token, the app's language or the time zone changes.",
+);
+
+export const NotificationSettings = named(
+  z.object({
+    /**
+     * "A card for tonight": up to three evenings a week (around 20:00 Taipei
+     * time), one card from your picks that you haven't been sent before —
+     * not on a day you opened your picks yourself.
+     */
+    picks: z.boolean(),
+    /** A push when someone you're connected with publishes a new public card under their pen name. */
+    connectionCards: z.boolean(),
+  }),
+  'NotificationSettings',
+  'The pushes you asked for beyond the ones answering you (resonances, notes, messages). Both are off until turned on.',
+);
+
+export const UpdateNotificationSettingsRequest = named(
+  z.object({
+    picks: z.boolean().nullish(),
+    connectionCards: z.boolean().nullish(),
+  }),
+  'UpdateNotificationSettingsRequest',
+  'Only the switches sent change; turning one on records when you agreed to it.',
 );
 
 /** firestore.rules' cap on a report's details (REPORT_DETAIL_MAX on the web). */
@@ -559,6 +590,8 @@ export type CardBoxTabName = z.infer<typeof CardBoxTab>;
 export type CardBoxBody = z.infer<typeof CardBox>;
 export type CreateProfileInput = z.infer<typeof CreateProfileRequest>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileRequest>;
+export type NotificationSettingsBody = z.infer<typeof NotificationSettings>;
+export type UpdateNotificationSettingsInput = z.infer<typeof UpdateNotificationSettingsRequest>;
 export type ReportCardInput = z.infer<typeof ReportCardRequest>;
 export type CreateReportInput = z.infer<typeof CreateReportRequest>;
 export type UpdateCardInput = z.infer<typeof UpdateCardRequest>;

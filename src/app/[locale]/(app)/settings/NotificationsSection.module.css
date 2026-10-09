@@ -1,0 +1,59 @@
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Where these go (the phone app), above the switches. */
+.note {
+  margin-bottom: 18px;
+  font-family: var(--font-body);
+  font-size: var(--hint-size);
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+/* One switch: its label with the hint under it, the switch at the row's end. */
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+}
+
+.note + .row {
+  padding-top: 0;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 16px;
+  color: var(--color-text);
+  line-height: 1.45;
+}
+
+.hint {
+  margin-top: 6px;
+  font-family: var(--font-body);
+  font-size: var(--hint-size);
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+/* Level with the label's first line. */
+.switch {
+  padding-top: 1px;
+}
+
+.error {
+  margin-top: 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-danger, oklch(58% 0.16 25));
+}

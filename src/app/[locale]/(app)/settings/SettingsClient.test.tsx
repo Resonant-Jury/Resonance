@@ -17,6 +17,8 @@ const mockSignOut = vi.fn().mockResolvedValue(undefined);
 vi.mock('@/components/providers/AuthProvider', () => ({
   useAuth: () => ({ user: { id: 'me', email: 'me@example.com', phoneNumber: null }, signOut: mockSignOut }),
 }));
+const callApi = vi.fn();
+vi.mock('@/lib/db/firestore/client/api', () => ({ callApi: (...a: unknown[]) => callApi(...a) }));
 vi.mock('@/lib/account/client', () => ({
   scheduleMyAccountDeletion: vi.fn(),
   downloadMyData: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock('@/components/molecules/AvatarUpload/AvatarUpload', () => ({
 import { updateProfile } from '@/lib/db/firestore/client/profile';
 import { downloadMyData, scheduleMyAccountDeletion } from '@/lib/account/client';
 import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
+import { SWRConfig } from 'swr';
 import { SettingsClient } from './SettingsClient';
 
 const initial = {
@@ -237,3 +240,77 @@ describe('SettingsClient account deletion', () => {
     expect(await screen.findByRole('dialog', { name: 'Blocked people' })).toBeInTheDocument();
   });
 });
+
+describe('SettingsClient notifications', () => {
+  const PATH = '/api/v1/me/notifications';
+  const renderFresh = () =>
+    renderWithIntl(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <SettingsClient initial={initial} />
+      </SWRConfig>,
+    );
+  const open = async () => {
+    const u = userEvent.setup();
+    renderFresh();
+    await u.click(screen.getByRole('tab', { name: 'Notifications' }));
+    return u;
+  };
+  const picks = () => screen.getByRole('switch', { name: 'A card for you in the evening' });
+  const fromConnections = () => screen.getByRole('switch', { name: "New cards from people you're connected with" });
+
+  it('shows both switches as the server has them, each explained by its hint', async () => {
+    callApi.mockResolvedValue({ picks: false, connectionCards: true });
+    await open();
+    await waitFor(() => expect(fromConnections()).toHaveAttribute('aria-checked', 'true'));
+    expect(picks()).toHaveAttribute('aria-checked', 'false');
+    expect(picks()).toHaveAccessibleDescription(/Up to three evenings a week/);
+    expect(fromConnections()).toHaveAccessibleDescription(/publishes a public card under their pen name/);
+    expect(callApi).toHaveBeenCalledWith(PATH);
+  });
+
+  it('says, above the switches and to each one, that these go to the phone app', async () => {
+    callApi.mockResolvedValue({ picks: false, connectionCards: false });
+    await open();
+    expect(screen.getByText('These notifications go to the Resonance app on your phone')).toBeInTheDocument();
+    for (const control of [picks(), fromConnections()]) {
+      expect(control).toHaveAccessibleDescription(/ These notifications go to the Resonance app on your phone$/);
+    }
+    await waitFor(() => expect(picks()).toBeEnabled());
+  });
+
+  it("can't be flipped before the server has said where they stand", async () => {
+    callApi.mockReturnValue(new Promise(() => {}));
+    const u = await open();
+    expect(picks()).toBeDisabled();
+    await u.click(picks());
+    expect(callApi).toHaveBeenCalledTimes(1);
+  });
+
+  it('turns a switch on at once and saves it', async () => {
+    callApi.mockImplementation(async (_path: string, init?: { method?: string; body?: unknown }) =>
+      init?.method === 'PATCH' ? { picks: true, connectionCards: false } : { picks: false, connectionCards: false },
+    );
+    const u = await open();
+    await waitFor(() => expect(picks()).toBeEnabled());
+    await u.click(picks());
+    expect(picks()).toHaveAttribute('aria-checked', 'true');
+    expect(callApi).toHaveBeenCalledWith(PATH, { method: 'PATCH', body: { picks: true } });
+    await waitFor(() => expect(picks()).toHaveAttribute('aria-checked', 'true'));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it("undoes a flip that didn't save, and says so", async () => {
+    let refuse!: (e: Error) => void;
+    callApi.mockImplementation((_path: string, init?: { method?: string }) =>
+      init?.method === 'PATCH' ? new Promise((_, reject) => (refuse = reject)) : Promise.resolve({ picks: false, connectionCards: true }),
+    );
+    const u = await open();
+    await waitFor(() => expect(fromConnections()).toBeEnabled());
+    await u.click(fromConnections());
+    expect(fromConnections()).toHaveAttribute('aria-checked', 'false');
+    await act(async () => refuse(new Error('offline')));
+    await waitFor(() => expect(fromConnections()).toHaveAttribute('aria-checked', 'true'));
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't save that — try again");
+  });
+});
+

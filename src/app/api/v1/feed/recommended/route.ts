@@ -19,6 +19,8 @@ export const GET = withUser(async (user, req) => {
   const feed = await getRecommendedFeed(getAdminDb(), user.id, async (db, uid) => {
     const daily = await dailyRecommendations(db, uid);
     if (daily.refresh) after(daily.refresh);
+    // The reader opened their picks today: the evening's pick push leaves them be.
+    if (daily.asked) after(daily.asked);
     return daily;
   });
   return cachedJson(req, feed, feed.status === 'stale' ? NEVER : { kind: 'fresh', maxAge: secondsUntilUtcMidnight() });

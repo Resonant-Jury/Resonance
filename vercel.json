@@ -5,6 +5,7 @@
   "functions": {
     "src/app/api/cards/insight/route.ts": { "regions": ["hnd1"], "maxDuration": 60 },
     "src/app/api/cards/tags/route.ts": { "regions": ["hnd1"] },
+    "src/app/api/cron/warm-picks/route.ts": { "regions": ["hnd1"], "maxDuration": 300 },
     "src/app/api/generate-image/route.ts": { "regions": ["hnd1"], "maxDuration": 120 },
     "src/app/api/recommend/feed/route.ts": { "regions": ["hnd1"], "maxDuration": 60 },
     "src/app/api/v1/cards/*/edits/apply/route.ts": { "regions": ["hnd1"], "maxDuration": 60 },
@@ -22,5 +23,9 @@
   "github": {
     "silent": true
   },
-  "crons": [{ "path": "/api/cron/purge-accounts", "schedule": "0 18 * * *" }]
+  "crons": [
+    { "path": "/api/cron/purge-accounts", "schedule": "0 18 * * *" },
+    { "path": "/api/cron/warm-picks", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/push-picks", "schedule": "0 12 * * *" }
+  ]
 }

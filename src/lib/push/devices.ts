@@ -14,6 +14,28 @@ export interface DeviceRegistration {
   appVersion?: string | null;
   /** What the build does with a push beyond showing it (`chat-push`, see lib/push/chat); unknown values are kept. */
   capabilities?: string[] | null;
+  /** The device's IANA time zone (`Asia/Taipei`); one this server doesn't know is stored as null. */
+  timeZone?: string | null;
+}
+
+/** An IANA zone name's shape: `UTC`, `Asia/Taipei`, `America/Argentina/Buenos_Aires`, `Etc/GMT+8` — never an offset. */
+const ZONE_NAME = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/;
+
+/**
+ * A time zone as the server keeps it: an IANA name this runtime's time zone
+ * data knows (Intl), in its own spelling — else null. Never a reason to
+ * refuse a registration: a phone set to a zone we can't place still gets
+ * its pushes, just not at its own local hour.
+ */
+export function timeZoneOf(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const name = value.trim();
+  if (!name || name.length > 64 || !ZONE_NAME.test(name)) return null;
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone: name }).resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -32,6 +54,7 @@ export async function registerDevice(db: Firestore, uid: string, installationId:
     locale: deviceLocale(input.locale),
     appVersion: input.appVersion ?? null,
     capabilities: [...new Set(input.capabilities ?? [])].filter((c) => /^[a-z0-9-]{1,32}$/.test(c)).slice(0, 8),
+    timeZone: timeZoneOf(input.timeZone),
     updatedAt: FieldValue.serverTimestamp(),
   });
   await forgetOldestDevices(db, uid);

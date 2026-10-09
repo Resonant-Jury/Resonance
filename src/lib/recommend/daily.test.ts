@@ -15,6 +15,8 @@ const stored = (extra: Partial<StoredRecommendations> = {}): StoredRecommendatio
   partial: false,
   leaseUntil: 0,
   failedAt: 0,
+  askedOn: null,
+  warm: false,
   ...extra,
 });
 
@@ -60,8 +62,15 @@ describe('readStored', () => {
         leaseUntil: Timestamp.fromMillis(NOW),
         failedAt: 'yesterday',
       }),
-    ).toEqual({ date: TODAY, items: [item], partial: false, leaseUntil: NOW, failedAt: 0 });
+    ).toEqual({ date: TODAY, items: [item], partial: false, leaseUntil: NOW, failedAt: 0, askedOn: null, warm: false });
     // A document written before these fields existed: yesterday's picks, no lease, no failure.
     expect(readStored({ date: '2026-09-30', items: [item] })).toEqual(stored());
+  });
+
+  it("reads the day the reader last asked, and whether the cron built the picks ahead of them", () => {
+    expect(readStored({ date: TODAY, items: [item], askedOn: TODAY, warm: true })).toMatchObject({ askedOn: TODAY, warm: true });
+    // Anything but a day key is no ask on record.
+    expect(readStored({ items: [], askedOn: 'today' })?.askedOn).toBeNull();
+    expect(readStored({ items: [], askedOn: 20261001, warm: 'yes' })).toMatchObject({ askedOn: null, warm: false });
   });
 });

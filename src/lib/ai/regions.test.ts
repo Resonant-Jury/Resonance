@@ -83,6 +83,15 @@ describe('function regions', () => {
     expect(openAIRoutes).not.toContain('src/app/api/cards/latest/route.ts');
   });
 
+  // The evening's push only reads the picks; the warm-up an hour before builds them.
+  it('keeps the pick push beside Firestore, and the warm-up that builds the picks away from Hong Kong', () => {
+    expect(openAIRoutes).not.toContain('src/app/api/cron/push-picks/route.ts');
+    expect(openAIRoutes).toContain('src/app/api/cron/warm-picks/route.ts');
+    expect(regionsOf('src/app/api/cron/push-picks/route.ts')).toEqual(['hkg1']);
+    expect(regionsOf('src/app/api/cron/warm-picks/route.ts')).toEqual(['hnd1']);
+    expect(openAIRoutes).not.toContain('src/app/api/v1/me/notifications/route.ts');
+  });
+
   it('runs none of them where OpenAI refuses requests', () => {
     const refused = openAIRoutes.filter((route) => regionsOf(route).some((r) => REFUSED.has(r)));
     expect(refused).toEqual([]);
