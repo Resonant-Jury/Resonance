@@ -153,6 +153,7 @@ final class SessionStore {
     var hints: HintService? { uid.map(HintService.init(uid:)) }
     var messaging: MessagingAPI { MessagingAPI(client: api) }
     var pushAPI: PushAPI { PushAPI(client: api) }
+    var notificationSettings: NotificationSettingsAPI { NotificationSettingsAPI(client: api) }
     /// The people this account has blocked: the live list, or until it has
     /// arrived the one kept from the last run — what kept answers are
     /// filtered with before they're drawn.
@@ -201,13 +202,15 @@ final class SessionStore {
     /// The push registration on its way, if any.
     @ObservationIgnored private var pushSending: PushRegistration?
 
-    /// This install gets the signed-in person's pushes (again whenever the token, the language or
-    /// the app's version changes — and once a day; not on every launch, see PushRegistration).
+    /// This install gets the signed-in person's pushes (again whenever the token, the language, the
+    /// app's version or the time zone changes — and once a day; not on every launch, see PushRegistration).
     func registerPush() async {
         guard phase == .signedIn, let uid, let token = push.token else { return }
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        // PushAPI sends none in place of a zone over the contract's 64 characters.
+        let timeZone = TimeZone.current.identifier
         let wanted = PushRegistration(installationId: PushCenter.installationId, uid: uid, token: token,
-                                      language: Strings.shared.language.rawValue, version: version)
+                                      language: Strings.shared.language.rawValue, version: version, timeZone: timeZone)
         // Sent already today, as it is now: not again on every launch (nor twice at once —
         // a new token and a sign-in arrive together).
         guard !PushRegistration.isFresh(PushCenter.lastRegistration, wanted, now: .now), pushSending != wanted else { return }
@@ -215,7 +218,7 @@ final class SessionStore {
         defer { pushSending = nil }
         do {
             try await pushAPI.register(installationId: wanted.installationId, token: token,
-                                       language: Strings.shared.language, appVersion: version)
+                                       language: Strings.shared.language, appVersion: version, timeZone: timeZone)
             if self.uid == uid { PushCenter.lastRegistration = wanted.encode(sentAt: .now) }
         } catch {
             #if DEBUG
