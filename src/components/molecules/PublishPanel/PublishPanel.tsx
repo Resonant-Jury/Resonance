@@ -122,6 +122,9 @@ export function PublishPanel({
     })();
     return () => {
       alive = false;
+      // An effect torn down while still open (React's dev double-run) asks
+      // again, or the dropped answer would leave the echo loading for good.
+      openedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { StrictMode } from 'react';
 import { renderWithIntl, screen, userEvent, waitFor } from '@/../test/render';
 import en from '@/messages/en.json';
 import { PublishPanel } from './PublishPanel';
@@ -58,6 +59,17 @@ describe('PublishPanel', () => {
   });
 
   // Why it didn't go through is read before the buttons that try again.
+  it('shows the mirror moment when React mounts the panel twice (dev), not a loading line for good', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ coreInsight: 'Small kindnesses add up' }) }));
+    renderWithIntl(
+      <StrictMode>
+        <PublishPanel {...baseProps} onPublish={vi.fn()} onClose={vi.fn()} />
+      </StrictMode>,
+    );
+    expect(await screen.findByText(/Small kindnesses add up/)).toBeInTheDocument();
+    expect(screen.queryByText(en.write.publishPanel.insightLoading)).not.toBeInTheDocument();
+  });
+
   it('says a failed publish above the actions', async () => {
     renderWithIntl(<PublishPanel {...baseProps} error="Couldn't publish" onPublish={vi.fn()} onClose={vi.fn()} />);
     const alert = screen.getByRole('alert');
