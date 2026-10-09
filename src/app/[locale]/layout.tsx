@@ -6,7 +6,6 @@ import { NextIntlProvider } from '@/components/providers/NextIntlProvider';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { SWRProvider } from '@/components/providers/SWRProvider';
 import TweaksPanel from '@/components/providers/TweaksPanel';
-import { APP_STORE_ID } from '@/lib/appStores';
 import { OG_COVER_PATH, OG_COVER_SIZE } from '@/lib/og';
 import { siteUrl } from '@/lib/site';
 import { fontVariables } from '@/styles/fonts';
@@ -49,9 +48,8 @@ export async function generateMetadata({
       ],
       apple: '/apple-icon.png',
     },
-    // Safari on an iPhone or iPad offers the app in a banner above every page
-    // (Open, once it is installed). Every page under [locale] inherits it.
-    itunes: { appId: APP_STORE_ID },
+    // No Smart App Banner here: only the public pages offer the app
+    // (smartAppBanner — the landing page, a card, a profile).
     // Default share card (platform cover) — card pages override this per-card.
     openGraph: {
       type: 'website',

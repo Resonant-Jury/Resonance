@@ -23,9 +23,16 @@ export interface SiteFooterProps {
    * the page runs straight into the wave.
    */
   edgeColor?: string;
+  /**
+   * The store badges, with the stores' trademark line under them. The policy
+   * pages leave them out: the apps open those pages in an in-app browser
+   * (SFSafariViewController, a Custom Tab), where the badges would offer the
+   * app to someone already using it.
+   */
+  download?: boolean;
 }
 
-export function SiteFooter({ edgeColor = 'var(--color-terracotta)' }: SiteFooterProps = {}) {
+export function SiteFooter({ edgeColor = 'var(--color-terracotta)', download = true }: SiteFooterProps = {}) {
   const t = useTranslations('footer');
   return (
     <footer className={styles.footer}>
@@ -45,7 +52,13 @@ export function SiteFooter({ edgeColor = 'var(--color-terracotta)' }: SiteFooter
         </div>
         <p className={styles.tagline}>&ldquo;{t('tagline')}&rdquo;</p>
 
-        <GetTheApp qr={false} size="sm" tone="ink" />
+        {download && (
+          <div className={styles.download}>
+            <GetTheApp qr={false} size="sm" tone="ink" />
+            {/* Where the badges are, the stores ask for their marks to be named. */}
+            <p className={styles.trademarks}>{t('trademarks')}</p>
+          </div>
+        )}
 
         <div className={styles.links}>
           {LINK_KEYS.map((k) => (

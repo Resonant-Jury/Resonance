@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import type { Locale } from '@/lib/db/types';
+import { smartAppBanner } from '@/lib/appStores';
 import { buildCardMetadata } from '@/lib/og';
 import { siteUrl } from '@/lib/site';
 import { publicBases } from '@/lib/storage/publicUrl';
@@ -43,18 +44,34 @@ export async function generateMetadata({
   params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
   const { locale, slug } = await params;
+  const base = siteUrl();
+  // Safari offers the app on every card page, and opens it on this card (the
+  // address asked for: it says nothing the URL doesn't).
+  const itunes = smartAppBanner(`${base}/${locale}/card/${encodeURIComponent(decoded(slug))}`);
   const loaded = await loadCard(slug);
-  if (!loaded?.card) return {};
+  if (!loaded?.card) return { itunes };
 
   const t = await getTranslations({ locale, namespace: 'card' });
-  return buildCardMetadata({
-    card: loaded.card,
-    author: loaded.author,
-    locale: locale as Locale,
-    base: siteUrl(),
-    anonymousLabel: t('anonymousAuthor'),
-    storageBases: publicBases(),
-  });
+  return {
+    ...buildCardMetadata({
+      card: loaded.card,
+      author: loaded.author,
+      locale: locale as Locale,
+      base,
+      anonymousLabel: t('anonymousAuthor'),
+      storageBases: publicBases(),
+    }),
+    itunes,
+  };
+}
+
+/** A route segment arrives percent-encoded; anything malformed stays as it came. */
+function decoded(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 export default function CardLayout({ children }: { children: React.ReactNode }) {

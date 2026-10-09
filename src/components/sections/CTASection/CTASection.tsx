@@ -4,11 +4,15 @@ import { useTranslations } from 'next-intl';
 import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
-import { GetTheApp } from '@/components/molecules/GetTheApp/GetTheApp';
 import { Link } from '@/i18n/navigation';
 import styles from './CTASection.module.css';
 import { INK_LIGHT } from '@/lib/design/strokes';
 
+/**
+ * The landing page's closing band: its calls to action. The store badges are
+ * the footer's, right under it (with the stores' trademark line), not a
+ * second pair here as well.
+ */
 export function CTASection() {
   const t = useTranslations('cta');
   return (
@@ -41,7 +45,6 @@ export function CTASection() {
             <OrganicButton variant="ctaGhost">{t('create')}</OrganicButton>
           </Link>
         </div>
-        <GetTheApp qr={false} tone="terracotta" className={styles.download} />
       </div>
     </section>
   );
