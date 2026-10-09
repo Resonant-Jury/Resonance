@@ -4,10 +4,11 @@ import android.os.Build
 import android.view.View
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,6 +59,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
@@ -616,43 +618,102 @@ private fun MenuPanel(
 }
 
 /**
- * ToggleSwitch.tsx: a wobbly pill track (50×28) and a slightly irregular knob
- * that slides across; terracotta when on.
+ * ToggleSwitch.tsx's TOGGLE: the switch's geometry, the same numbers the web and iOS draw through
+ * their wobRect / wobCircle — change all three together (native/fixtures/geometry.json carries the
+ * shapes for the seeds the apps use).
+ *
+ * The track is a pill bowed by hand: a radius just under half the height, so each end may come out
+ * a little rounder or flatter than the other, and one seeded turn in each long edge (`curve` sets
+ * how far it bows, up to 2.5 in or out). The pen goes round it twice, the second pass (seed + 1)
+ * lighter. The knob is a lumpier circle than a button's dot (six arcs, ±1).
+ */
+object Toggle {
+    const val W = 50.0
+    const val H = 28.0
+    const val RADIUS = 12.5
+    const val MAG = 2.4
+    val track = WobRectOptions(curve = 2.8, segmentsH = SegValue.Count(2.0), segmentsV = SegValue.Count(1.0), cornerJitter = 2.0, cornerOffset = 1.4)
+    const val RETRACE_SEED = 1.0
+    const val RETRACE_ALPHA = 0.4f
+    const val KNOB = 20.0
+    const val PAD = 4.0
+    const val KNOB_SEED = 5.0
+    val knob = WobCircleOptions(segments = 6, mag = 1.0, cpJitter = 0.5)
+    /** The buttons' grain on the well, so the switch sits in their family. */
+    const val GRAIN_ALPHA = 0.38f
+    /** Not to be flipped now: faded like a disabled button. */
+    const val DISABLED_ALPHA = 0.45f
+
+    fun trackPath(seed: Double) = wobRect(W, H, RADIUS, seed, MAG, track)
+    fun retracePath(seed: Double) = wobRect(W, H, RADIUS, seed + RETRACE_SEED, MAG, track)
+    /** The knob, drawn in its own 20×20 box. */
+    fun knobPath(seed: Double) = wobCircle(KNOB / 2, KNOB / 2, KNOB / 2, seed + KNOB_SEED, knob)
+    /** Where the knob's box sits: 4 in from the left off, 4 in from the right on. */
+    fun knobX(checked: Boolean) = if (checked) W - KNOB - PAD else PAD
+
+    /**
+     * The switch's inks. Off: a pale paper well edged in a soft ink (text-muted, 5:1 on cream —
+     * WCAG 1.4.11 asks 3:1 of an input's edge). On: terracotta, edged and knob-ringed in deep
+     * terracotta (6.6:1 on cream), the cream knob 3.5:1 on the fill.
+     */
+    class Inks(val fill: Color, val ink: Color)
+
+    fun inks(checked: Boolean) = if (checked) Inks(Tokens.Terracotta, Tokens.TerracottaDeep) else Inks(Tokens.CreamDark, Tokens.TextMuted)
+}
+
+/** The knob's slide (200ms, the web's cubic-bezier(0.2, 0.8, 0.3, 1)) and the inks' change (160ms ease). */
+private val KnobEasing = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f)
+private val InkEasing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
+
+/**
+ * ToggleSwitch.tsx: a hand-drawn pill gone round twice in the light pen — the trace and a lighter
+ * second pass — with the buttons' grain on its well, and a lumpy cream knob that slides across:
+ * a soft ink off, terracotta on ([Toggle]). 50×28, its own tap target; the pen's swings reach a
+ * little past the box (nothing clips them). Not [enabled] (its value still loading, say), it is
+ * faded like a disabled button and a tap does nothing. With animations off it snaps.
  */
 @Composable
-fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String, seed: Double = 9.0) {
-    val knobX by animateDpAsState(if (checked) 26.dp else 4.dp, spring(dampingRatio = 0.75f, stiffness = 700f), label = "knob")
+fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String, seed: Double = 9.0, enabled: Boolean = true) {
+    val still = LocalContext.current.prefersReducedMotion()
+    val inks = Toggle.inks(checked)
+    val knobX by animateDpAsState(Toggle.knobX(checked).dp, if (still) snap() else tween(200, easing = KnobEasing), label = "knob")
+    val fill by animateColorAsState(inks.fill, if (still) snap() else tween(160, easing = InkEasing), label = "fill")
+    val ink by animateColorAsState(inks.ink, if (still) snap() else tween(160, easing = InkEasing), label = "ink")
     Box(
         Modifier
-            .size(50.dp, 28.dp)
+            .size(Toggle.W.dp, Toggle.H.dp)
+            // Faded drawing by drawing, so the pen's swings past the box aren't cut straight.
+            .fade(if (enabled) 1f else Toggle.DISABLED_ALPHA)
             // Its state is the toggleable state's, which TalkBack reads in the reader's language (on / 開啟).
             .semantics {
                 contentDescription = label
                 toggleableState = ToggleableState(checked)
             }
             // The knob's slide is the feedback; no wash over the track.
-            .clickable(interactionSource = null, indication = null, role = Role.Switch) { onCheckedChange(!checked) }
+            .clickable(interactionSource = null, indication = null, enabled = enabled, role = Role.Switch) { onCheckedChange(!checked) }
             .drawWithCache {
-                val track = wobRect(50.0, 28.0, 14.0, seed, 1.1, WobRectOptions(
-                    curve = 1.5, cornerJitter = 0.6, segmentsH = SegValue.Range(1, 2), segmentsV = SegValue.Range(3, 4),
-                )).toPath(density)
-                val ink = Stroke(Tokens.Ink.toPx())
+                val track = Toggle.trackPath(seed).toPath(density)
+                val retrace = Toggle.retracePath(seed).toPath(density)
+                val grain = Grain.brush(GrainMode.Tile, "grain-button", size, density, Toggle.GRAIN_ALPHA)
+                val pen = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 onDrawBehind {
-                    drawPath(track, if (checked) Tokens.Terracotta else Tokens.ToggleOff)
-                    drawPath(track, if (checked) Tokens.TerracottaDeep else Tokens.ToggleOffStroke, style = ink)
+                    drawPath(track, fill)
+                    grain?.let { drawPath(track, it, alpha = Toggle.GRAIN_ALPHA) }
+                    drawPath(retrace, ink, alpha = Toggle.RETRACE_ALPHA, style = pen)
+                    drawPath(track, ink, style = pen)
                 }
             },
     ) {
         Box(
             Modifier
-                .offset(x = knobX, y = 4.dp)
-                .size(20.dp)
+                .offset(x = knobX, y = Toggle.PAD.dp)
+                .size(Toggle.KNOB.dp)
                 .drawWithCache {
-                    val knob = wobCircle(10.0, 10.0, 10.0, seed + 5, WobCircleOptions(segments = 8, mag = 0.5, cpJitter = 0.3)).toPath(density)
-                    val line = Stroke(Tokens.InkLight.toPx())
+                    val knob = Toggle.knobPath(seed).toPath(density)
+                    val ring = Stroke(Tokens.InkLight.toPx(), join = StrokeJoin.Round)
                     onDrawBehind {
                         drawPath(knob, Tokens.Cream)
-                        drawPath(knob, Tokens.TextMuted.copy(alpha = 0.4f), style = line)
+                        drawPath(knob, ink, style = ring)
                     }
                 },
         )
