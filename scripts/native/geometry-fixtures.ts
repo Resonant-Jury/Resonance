@@ -75,12 +75,10 @@ for (const [w, h] of [[150, 48], [212, 52], [96, 38]] as const) {
   }); // OrganicButton
 }
 addRect(50, 28, 14, 9, 1.1, { curve: 1.5, segmentsH: [1, 2], segmentsV: [3, 4], cornerJitter: 0.6 }); // ToggleSwitch (before round 4)
-// ToggleSwitch: the track and its second pen pass (seed + 1) for the seeds the apps use —
-// publish 57, report 91, the notification switches 83 and 89, the default 9.
+// ToggleSwitch: the track for the seeds the apps use — publish 57, report 91,
+// the notification switches 83 and 89, the default 9.
 for (const seed of [9, 57, 83, 89, 91]) {
-  for (const s of [seed, seed + 1]) {
-    addRect(50, 28, 12.5, s, 2.4, { curve: 2.8, segmentsH: 2, segmentsV: 1, cornerJitter: 2, cornerOffset: 1.4 });
-  }
+  addRect(50, 28, 12.5, seed, 2.4, { curve: 2.8, segmentsH: 2, segmentsV: 1, cornerJitter: 2, cornerOffset: 1.4 });
 }
 for (const [w, h, seed] of [[320, 420, 42], [680, 240, 7], [1080, 360, 11]] as const) {
   addRect(w, h, 22, seed, autoMag(w, h), { segmentsH: autoSegments(w), segmentsV: autoSegments(h), curve: autoCurve(w, h) }); // HandDrawnBorder

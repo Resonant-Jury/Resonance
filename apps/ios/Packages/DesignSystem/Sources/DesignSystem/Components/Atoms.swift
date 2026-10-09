@@ -263,8 +263,8 @@ private struct OrganicLinkStyle: ButtonStyle {
 ///
 /// The track is a pill bowed by hand: a radius just under half the height (so each end may come
 /// out a little rounder or flatter than the other) and one seeded turn in each long edge, bowing
-/// up to 2.5pt in or out. The pen goes round it twice — the trace, and a lighter pass from
-/// `seed + 1` — in the light pen. The knob is a lumpier circle than a button's dot (six arcs, ±1pt).
+/// up to 2.5pt in or out. The light pen goes round it once, on the very path the well is filled
+/// to, so paint and edge never part. The knob is a lumpier circle than a button's dot (six arcs, ±1pt).
 public nonisolated enum OrganicToggleSpec {
     public static let width: CGFloat = 50
     public static let height: CGFloat = 28
@@ -272,9 +272,6 @@ public nonisolated enum OrganicToggleSpec {
     public static let mag = 2.4
     public static let trackOptions = WobRectOptions(curve: 2.8, cornerJitter: 2, cornerOffset: 1.4,
                                                     segmentsH: .count(2), segmentsV: .count(1))
-    /// The second pass is the same pill from the next seed, at this much of the pen's ink.
-    public static let retraceSeed = 1.0
-    public static let retraceOpacity = 0.4
     public static let knob: CGFloat = 20
     public static let pad: CGFloat = 4
     public static let knobSeed = 5.0
@@ -285,11 +282,10 @@ public nonisolated enum OrganicToggleSpec {
     /// which keeps its own room in the row.
     public static let hitHeight: CGFloat = 44
 
-    /// The track, its second pen pass and the knob (drawn at 0,0) for one seed.
-    public static func shapes(seed: Double) -> (track: [PathCommand], retrace: [PathCommand], knob: [PathCommand]) {
+    /// The track (filled and inked on that one path) and the knob (drawn at 0,0) for one seed.
+    public static func shapes(seed: Double) -> (track: [PathCommand], knob: [PathCommand]) {
         let r = Double(knob / 2)
         return (wobRect(Double(width), Double(height), radius, seed: seed, mag: mag, options: trackOptions),
-                wobRect(Double(width), Double(height), radius, seed: seed + retraceSeed, mag: mag, options: trackOptions),
                 wobCircle(r, r, r, seed: seed + knobSeed, options: knobOptions))
     }
 
@@ -305,8 +301,8 @@ public nonisolated enum OrganicToggleSpec {
     public static func ink(isOn: Bool) -> Color { isOn ? Tokens.terracottaDeep : Tokens.textMuted }
 }
 
-/// The web's organic toggle (ToggleSwitch.tsx): a hand-drawn pill gone round twice in the light
-/// pen, the buttons' grain on its well, and a lumpy cream knob that slides across. Its numbers are
+/// The web's organic toggle (ToggleSwitch.tsx): a hand-drawn pill gone round once in the light
+/// pen on the path its well is filled to, the buttons' grain on that well, and a lumpy cream knob that slides across. Its numbers are
 /// ``OrganicToggleSpec``. It takes 50×28 in the row; its tap target is a finger's 44pt tall
 /// (`hitHeight`), past the box above and below, as the pen reaches a few points past it.
 public struct OrganicToggle: View {
@@ -337,7 +333,6 @@ public struct OrganicToggle: View {
                 track.fill(spec.fill(isOn: isOn))
                 // Both states carry the buttons' grain, so the switch sits in their family.
                 GrainLayer(shape: TogglePath(path: track), mode: .tile, opacity: 0.38, tile: "grain-button", overflow: 4)
-                shapes.retrace.path().stroke(ink.opacity(spec.retraceOpacity), style: pen)
                 track.stroke(ink, style: pen)
             }
             .animation(tint, value: isOn)

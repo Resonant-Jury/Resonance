@@ -49,21 +49,21 @@ describe('ToggleSwitch', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('goes round its pill twice with the light pen — the trace, and a lighter pass drawn from seed + 1 — and draws the knob from seed + 5', () => {
+  it('inks its pill once, on the very path its well is filled to (paint and edge never part), and draws the knob from seed + 5', () => {
     render(<ToggleSwitch checked={false} onChange={() => {}} ariaLabel="Anonymous" seed={57} />);
     const sw = screen.getByRole('switch');
     const fill = sw.querySelector('path:not([stroke-width])')!;
-    const [retrace, pen, knob] = [...sw.querySelectorAll('path[stroke-width]')];
+    const lines = [...sw.querySelectorAll('path[stroke-width]')];
+    const [pen, knob] = lines;
     const { w, h, radius, mag, track, knob: size, knobOpts } = TOGGLE;
 
     // The apps draw the same seeds: the track and its fill from the seed itself.
+    expect(lines).toHaveLength(2);
     expect(fill.getAttribute('d')).toBe(wobRect(w, h, radius, 57, mag, track));
     expect(pen.getAttribute('d')).toBe(fill.getAttribute('d'));
-    expect(retrace.getAttribute('d')).toBe(wobRect(w, h, radius, 58, mag, track));
-    expect(retrace.getAttribute('d')).not.toBe(pen.getAttribute('d'));
-    expect(retrace).toHaveAttribute('stroke-opacity', String(TOGGLE.retraceOpacity));
+    expect(pen).not.toHaveAttribute('stroke-opacity');
     expect(knob.getAttribute('d')).toBe(wobCircle(size / 2, size / 2, size / 2, 62, knobOpts));
-    for (const line of [retrace, pen, knob]) expect(line).toHaveAttribute('stroke-width', String(INK_LIGHT));
+    for (const line of lines) expect(line).toHaveAttribute('stroke-width', String(INK_LIGHT));
   });
 
   it('is the same drawing for the same seed (server and browser agree) and another for another seed', () => {

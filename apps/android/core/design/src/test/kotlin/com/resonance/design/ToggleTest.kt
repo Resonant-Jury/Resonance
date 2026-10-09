@@ -17,8 +17,8 @@ import java.io.File
 import kotlin.math.abs
 
 /**
- * The switch draws the web's shapes (ToggleSwitch.tsx's TOGGLE / toggleShapes): its track, the
- * pen's second pass and its knob come out as the web drew them for the seeds the app uses —
+ * The switch draws the web's shapes (ToggleSwitch.tsx's TOGGLE / toggleShapes): its track (filled
+ * and inked on that one path) and its knob come out as the web drew them for the seeds the app uses —
  * native/fixtures/geometry.json, generated from the TypeScript — and it inks off and on as the web does.
  */
 class ToggleTest {
@@ -43,12 +43,11 @@ class ToggleTest {
         got.zip(numbers).forEach { (a, b) -> assertTrue("$label: $a vs $b", abs(a - b) <= 0.005) }
     }
 
-    @Test fun theTrackAndItsSecondPassAreTheWebsForEverySeedTheAppUses() {
+    @Test fun theTrackAndTheKnobAreTheWebsForEverySeedTheAppUses() {
         // publish 57, report 91, the notification switches 83 and 89, the default 9.
         for (seed in listOf(9.0, 57.0, 83.0, 89.0, 91.0)) {
             val track = mapOf("curve" to 2.8, "cornerJitter" to 2.0, "cornerOffset" to 1.4)
             assertSameShape(webPath("wobRect", 50.0, 28.0, 12.5, seed, options = track), Toggle.trackPath(seed), "track $seed")
-            assertSameShape(webPath("wobRect", 50.0, 28.0, 12.5, seed + 1, options = track), Toggle.retracePath(seed), "second pass $seed")
             val knob = mapOf("segments" to 6.0, "mag" to 1.0, "cpJitter" to 0.5)
             assertSameShape(webPath("wobCircle", 10.0, 10.0, 10.0, seed + 5, options = knob), Toggle.knobPath(seed), "knob $seed")
         }

@@ -48,10 +48,9 @@
   transition: fill 160ms;
 }
 
-/* The pen: one trace, and a lighter second pass of the same hand beside it —
-   two lines that meet and part read as drawn, not as a stock pill. */
-.pen,
-.retrace {
+/* The pen: one trace along the well's own edge (a second, offset pass read as
+   a second shape behind the fill). */
+.pen {
   fill: none;
   stroke: var(--toggle-ink);
   stroke-linejoin: round;
@@ -74,7 +73,6 @@
   .switch,
   .fill,
   .pen,
-  .retrace,
   .knob,
   .knobFace {
     transition: none;

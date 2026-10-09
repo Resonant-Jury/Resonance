@@ -4,8 +4,8 @@ import SwiftUI
 import Testing
 import UIKit
 
-/// The switch is drawn by hand, the same on all three platforms: the track, its second pen pass
-/// and the knob come out of the web's own numbers (its shapes for each seed the app uses are in
+/// The switch is drawn by hand, the same on all three platforms: the track (filled and inked on
+/// that one path) and the knob come out of the web's own numbers (its shapes for each seed the app uses are in
 /// the shared geometry fixture), the knob sits at the pad off and as far right on, and the inks are
 /// the soft text ink off and the deep terracotta on.
 @MainActor @Suite struct OrganicToggleTests {
@@ -31,26 +31,17 @@ import UIKit
     }
 
     @Test(arguments: [9.0, 57, 83, 89, 91])
-    func theTrackAndItsSecondPassAreTheWebsOwn(seed: Double) throws {
+    func theTrackAndTheKnobAreTheWebsOwn(seed: Double) throws {
         let shapes = OrganicToggleSpec.shapes(seed: seed)
-        for (s, drawn) in [(seed, shapes.track), (seed + 1, shapes.retrace)] {
-            let web = try #require(web("wobRect") { a in
-                a.count == 6 && num(a[0]) == 50 && num(a[1]) == 28 && num(a[2]) == 12.5 && num(a[3]) == s && num(a[4]) == 2.4
-            }, "the fixture has the web's track for seed \(s)")
-            #expect(close(drawn.flatMap(\.numbers), web), "seed \(s)")
-        }
+        let track = try #require(web("wobRect") { a in
+            a.count == 6 && num(a[0]) == 50 && num(a[1]) == 28 && num(a[2]) == 12.5 && num(a[3]) == seed && num(a[4]) == 2.4
+        }, "the fixture has the web's track for seed \(seed)")
+        #expect(close(shapes.track.flatMap(\.numbers), track), "seed \(seed)")
         let knob = try #require(web("wobCircle") { a in
             num(a[0]) == 10 && num(a[1]) == 10 && num(a[2]) == 10 && num(a[3]) == seed + 5
                 && (a[4] as? [String: Any]).map { num($0["segments"]!) == 6 } == true
         })
         #expect(close(shapes.knob.flatMap(\.numbers), knob))
-    }
-
-    @Test func thePenGoesRoundTwiceNotOverItsOwnLine() {
-        // The second pass is another hand's go at the same pill: it meets and parts from the trace.
-        let shapes = OrganicToggleSpec.shapes(seed: 57)
-        #expect(shapes.retrace != shapes.track)
-        #expect(OrganicToggleSpec.retraceOpacity == 0.4)
     }
 
     @Test func theKnobSitsAtThePadOffAndAsFarRightOn() {

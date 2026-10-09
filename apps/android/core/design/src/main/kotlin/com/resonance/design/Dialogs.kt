@@ -720,8 +720,9 @@ private fun MenuPanel(
  *
  * The track is a pill bowed by hand: a radius just under half the height, so each end may come out
  * a little rounder or flatter than the other, and one seeded turn in each long edge (`curve` sets
- * how far it bows, up to 2.5 in or out). The pen goes round it twice, the second pass (seed + 1)
- * lighter. The knob is a lumpier circle than a button's dot (six arcs, ±1).
+ * how far it bows, up to 2.5 in or out). The pen goes round it once, on the very path the well is
+ * filled to, so paint and edge never part. The knob is a lumpier circle than a button's dot (six
+ * arcs, ±1).
  */
 object Toggle {
     const val W = 50.0
@@ -729,8 +730,6 @@ object Toggle {
     const val RADIUS = 12.5
     const val MAG = 2.4
     val track = WobRectOptions(curve = 2.8, segmentsH = SegValue.Count(2.0), segmentsV = SegValue.Count(1.0), cornerJitter = 2.0, cornerOffset = 1.4)
-    const val RETRACE_SEED = 1.0
-    const val RETRACE_ALPHA = 0.4f
     const val KNOB = 20.0
     const val PAD = 4.0
     const val KNOB_SEED = 5.0
@@ -741,7 +740,6 @@ object Toggle {
     const val DISABLED_ALPHA = 0.45f
 
     fun trackPath(seed: Double) = wobRect(W, H, RADIUS, seed, MAG, track)
-    fun retracePath(seed: Double) = wobRect(W, H, RADIUS, seed + RETRACE_SEED, MAG, track)
     /** The knob, drawn in its own 20×20 box. */
     fun knobPath(seed: Double) = wobCircle(KNOB / 2, KNOB / 2, KNOB / 2, seed + KNOB_SEED, knob)
     /** Where the knob's box sits: 4 in from the left off, 4 in from the right on. */
@@ -776,8 +774,8 @@ fun Modifier.toggleRow(checked: Boolean, enabled: Boolean = true, onCheckedChang
     )
 
 /**
- * ToggleSwitch.tsx: a hand-drawn pill gone round twice in the light pen — the trace and a lighter
- * second pass — with the buttons' grain on its well, and a lumpy cream knob that slides across:
+ * ToggleSwitch.tsx: a hand-drawn pill gone round once in the light pen, on the path its well is
+ * filled to, with the buttons' grain on that well, and a lumpy cream knob that slides across:
  * a soft ink off, terracotta on ([Toggle]). 50×28; the pen's swings reach a little past the box
  * (nothing clips them). The drawing only: the row it stands in, with the words it flips, is what
  * a finger and TalkBack meet ([toggleRow]). Not [enabled], it is faded like a disabled button.
@@ -797,13 +795,11 @@ fun OrganicToggle(checked: Boolean, seed: Double = 9.0, enabled: Boolean = true)
             .fade(if (enabled) 1f else Toggle.DISABLED_ALPHA)
             .drawWithCache {
                 val track = Toggle.trackPath(seed).toPath(density)
-                val retrace = Toggle.retracePath(seed).toPath(density)
                 val grain = Grain.brush(GrainMode.Tile, "grain-button", size, density, Toggle.GRAIN_ALPHA)
                 val pen = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 onDrawBehind {
                     drawPath(track, fill)
                     grain?.let { drawPath(track, it, alpha = Toggle.GRAIN_ALPHA) }
-                    drawPath(retrace, ink, alpha = Toggle.RETRACE_ALPHA, style = pen)
                     drawPath(track, ink, style = pen)
                 }
             },
