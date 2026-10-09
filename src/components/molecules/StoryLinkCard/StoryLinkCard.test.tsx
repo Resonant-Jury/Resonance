@@ -78,4 +78,32 @@ describe('StoryLinkCard', () => {
     expect(a).toHaveTextContent('example.com');
     expect(a.querySelectorAll(':scope > svg path')).toHaveLength(1);
   });
+
+  it('drops a picture that won’t load, leaving no empty frame — one that failed before the page came alive too', () => {
+    restore = layOut(420, 300);
+    const { unmount } = renderWithIntl(<StoryLinkCard preview={preview({ image: PICTURE })} />);
+    fireEvent.error(card().querySelector('img')!);
+    expect(card().querySelector('img')).toBeNull();
+    expect(card()).toHaveTextContent('A rainy walk');
+    unmount();
+
+    // The server's HTML asked for it before React listened: broken already (complete, no width), no error event to come.
+    const complete = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'complete');
+    const naturalWidth = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'naturalWidth');
+    let loaded = false;
+    Object.defineProperty(HTMLImageElement.prototype, 'complete', { configurable: true, get: () => true });
+    Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', { configurable: true, get: () => (loaded ? 1200 : 0) });
+    try {
+      const broken = renderWithIntl(<StoryLinkCard preview={preview({ image: PICTURE })} />);
+      expect(card().querySelector('img')).toBeNull();
+      broken.unmount();
+      // One that did load stays.
+      loaded = true;
+      renderWithIntl(<StoryLinkCard preview={preview({ image: PICTURE })} />);
+      expect(card().querySelector('img')).not.toBeNull();
+    } finally {
+      Object.defineProperty(HTMLImageElement.prototype, 'complete', complete!);
+      Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', naturalWidth!);
+    }
+  });
 });

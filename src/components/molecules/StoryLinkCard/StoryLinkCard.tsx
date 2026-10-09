@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { useTranslations } from 'next-intl';
 import { BrushWash } from '@/components/atoms/BrushWash/BrushWash';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
@@ -51,6 +51,7 @@ export function StoryLinkCard({ preview }: StoryLinkCardProps) {
   const t = useTranslations('card.linkPreview');
   const titleId = useId();
   const ref = useRef<HTMLAnchorElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
   const { w, h } = useElementSize(ref);
   const [imageFailed, setImageFailed] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -63,6 +64,15 @@ export function StoryLinkCard({ preview }: StoryLinkCardProps) {
     const outline = { mag: autoMag(w, h), curve: autoCurve(w, h), segmentsH: autoSegments(w), segmentsV: autoSegments(h) };
     return { outline, d: wobRect(w, h, R, seed, outline.mag, outline) };
   }, [w, h, seed]);
+
+  // The server's HTML starts loading the picture before the page comes alive,
+  // and an error then reaches no handler: ask the picture itself once it is
+  // (a broken one is complete with no width; one still loading, or a lazy
+  // one not yet asked for, isn't complete).
+  useEffect(() => {
+    const img = imageRef.current;
+    if (img?.complete && img.naturalWidth === 0) setImageFailed(true);
+  }, [preview.image]);
 
   const link = parseLink(preview.url);
   if (!link) return null;
@@ -116,6 +126,7 @@ export function StoryLinkCard({ preview }: StoryLinkCardProps) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- our own /api/link-image route, clipped by the card's outline */}
           <img
+            ref={imageRef}
             className={styles.image}
             src={picture}
             alt=""
