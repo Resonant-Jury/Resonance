@@ -281,6 +281,9 @@ public nonisolated enum OrganicToggleSpec {
     public static let knobOptions = WobCircleOptions(segments: 6, mag: 1, cpJitter: 0.5)
     /// Faded like a disabled button while it can't be flipped.
     public static let disabledOpacity = 0.45
+    /// How tall the tap target is: a finger's 44pt, reaching 8pt above and below the 28pt drawing,
+    /// which keeps its own room in the row.
+    public static let hitHeight: CGFloat = 44
 
     /// The track, its second pen pass and the knob (drawn at 0,0) for one seed.
     public static func shapes(seed: Double) -> (track: [PathCommand], retrace: [PathCommand], knob: [PathCommand]) {
@@ -304,7 +307,8 @@ public nonisolated enum OrganicToggleSpec {
 
 /// The web's organic toggle (ToggleSwitch.tsx): a hand-drawn pill gone round twice in the light
 /// pen, the buttons' grain on its well, and a lumpy cream knob that slides across. Its numbers are
-/// ``OrganicToggleSpec``. The 50×28 box is its tap target; the pen reaches a few points past it.
+/// ``OrganicToggleSpec``. It takes 50×28 in the row; its tap target is a finger's 44pt tall
+/// (`hitHeight`), past the box above and below, as the pen reaches a few points past it.
 public struct OrganicToggle: View {
     @Binding var isOn: Bool
     var label: String
@@ -347,8 +351,12 @@ public struct OrganicToggle: View {
         .frame(width: spec.width, height: spec.height, alignment: .topLeading)
         .opacity(isEnabled ? 1 : spec.disabledOpacity)
         .animation(tint, value: isEnabled)
+        // The tap lands on 44pt (a finger's), the drawing keeps its 28 in the row: the pad grows the
+        // target, the negative pad hands the room back.
+        .padding(.vertical, (spec.hitHeight - spec.height) / 2)
         .contentShape(Rectangle())
         .onTapGesture { if isEnabled { isOn.toggle() } }
+        .padding(.vertical, -(spec.hitHeight - spec.height) / 2)
         .sensoryFeedback(.selection, trigger: isOn)
         .accessibilityRepresentation { Toggle(label, isOn: $isOn) }
     }
