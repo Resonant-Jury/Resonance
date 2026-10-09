@@ -232,22 +232,25 @@ public struct QuoteBubble: View {
     }
 }
 
-/// The reply glyph and a line of who answered whom, over the quote — or, over a note, the note
-/// glyph and whose card it was left on (`icon`).
-public struct ReplyCaption: View {
+/// Who answered whom over a reply's quote — or, over a note, that it answers the card: plain in a
+/// one-to-one thread, so never shown, only read out by VoiceOver before the quote (the web's
+/// `.quoteSpoken`). It takes no room: a point of clear text, laid over the line's top.
+public struct SpokenCaption: View {
     let text: String
-    let icon: IconName
 
-    public init(_ text: String, icon: IconName = .reply) {
+    public init(_ text: String) {
         self.text = text
-        self.icon = icon
     }
 
     public var body: some View {
-        HStack(spacing: 5) {
-            OrganicIcon(icon, size: 12, color: Tokens.textMuted)
-            Text(text).font(AppFonts.body(12)).foregroundStyle(Tokens.textMuted).lineLimit(1)
-        }
+        Text(text)
+            .font(AppFonts.body(1))
+            .foregroundStyle(.clear)
+            .frame(width: 1, height: 1)
+            .clipped()
+            .padding(.bottom, -1)
+            .accessibilityLabel(text)
+            .accessibilityAddTraits(.isStaticText)
     }
 }
 

@@ -77,6 +77,9 @@ private let olderAhead = 6
 private let edgeFade: CGFloat = 12
 private let runGap: CGFloat = 2
 private let betweenRuns: CGFloat = 12
+/// Between runs when the new one leads with what it answers (a reply's quote, a note's card): a
+/// little more air, where a caption once stood, so the quote never reads as the foot of the run above.
+private let beforeQuotedRun: CGFloat = 18
 /// Their face beside their messages: the column every one of their bubbles is indented by.
 private let face: CGFloat = 28
 private let faceGap: CGFloat = 8
@@ -228,14 +231,13 @@ extension View {
 }
 
 /// One row: the day or time label that leads it, if any, and the message on its side.
-private struct ThreadRowView: View {
+struct ThreadRowView: View {
     let row: ThreadRow
     let ctx: ThreadContext
     let deliveryLine: Bool
 
     var body: some View {
-        // Between runs the air is wide; inside one the bubbles nearly touch. A label brings its own.
-        let gap: CGFloat = row.dayLabel || row.timeLabel ? 0 : row.joinsAbove ? runGap : betweenRuns
+        let gap = Self.gap(above: row)
         VStack(spacing: 0) {
             if row.dayLabel {
                 DayLabel(text: ThreadScreen.day(row.message.sentAt))
@@ -245,6 +247,14 @@ private struct ThreadRowView: View {
             MessageItem(row: row, ctx: ctx, deliveryLine: deliveryLine)
         }
         .padding(.top, gap)
+    }
+
+    /// The air over a row: between runs it is wide (wider still before one that leads with a quote or
+    /// a note's card); inside one the bubbles nearly touch. A label brings its own.
+    static func gap(above row: ThreadRow) -> CGFloat {
+        if row.dayLabel || row.timeLabel { return 0 }
+        if row.joinsAbove { return runGap }
+        return row.message.replyTo != nil || row.message.isNote ? beforeQuotedRun : betweenRuns
     }
 }
 
@@ -561,10 +571,11 @@ private struct SharedCard: View {
     }
 }
 
-/// Over a note's words: whose card it was left on (the note glyph and "{handle} left a note on
-/// your card" / "You left a note on {handle}'s card", inset on the sender's side), then that card in
-/// a quote the note's bubble lies over — its skeleton while it is read, and, when the reader may
-/// not see it (any more), the plain quote of "a card", which leads nowhere.
+/// Over a note's words: the card it was left on, in a quote the note's bubble lies over — its
+/// skeleton while it is read, and, when the reader may not see it (any more), the plain quote of
+/// "a card", which leads nowhere. That it is a note on the card ("{handle} left a note on your
+/// card" / "You left a note on {handle}'s card") goes without saying one to one — the card over the
+/// words says so — so it is only read out by VoiceOver, before the card.
 private struct NotedCard: View {
     let message: ChatMessage
     let carried: Carried<FeedCard>
@@ -577,9 +588,7 @@ private struct NotedCard: View {
         let width = min(cardWidth, ctx.rowMax)
         let seed = seedFromId(message.key, start: 19)
         VStack(alignment: mine ? .trailing : .leading, spacing: 0) {
-            ReplyCaption(mine ? L10n.Messages.youLeftNote(handle: handle) : L10n.Messages.noteOnYourCard(handle: handle), icon: .note)
-                .padding(mine ? .trailing : .leading, 12)
-                .padding(.bottom, 4)
+            SpokenCaption(ThreadCaptions.note(mine: mine, handle: handle))
             switch carried {
             case let .card(card, _):
                 CardQuote(seed: seed, width: width) { SharedCard(card: card, ctx: ctx, interactive: interactive) }
@@ -592,7 +601,9 @@ private struct NotedCard: View {
     }
 }
 
-/// The caption over a reply and the message it quotes, which the reply's bubble lies over; tapping it goes to the original.
+/// The message a reply quotes, which the reply's bubble lies over; tapping it goes to the original.
+/// Who answered whom goes without saying in a one-to-one thread (the reply stands on its sender's
+/// side), so it is only read out by VoiceOver, before the quote.
 private struct QuotedReply: View {
     let quote: ReplyQuote
     let mine: Bool
@@ -601,19 +612,25 @@ private struct QuotedReply: View {
 
     var body: some View {
         let model = ctx.model
-        let handle = model.displayHandle
-        let quotedMine = quote.senderId == model.me
-        let caption = mine
-            ? (quotedMine ? L10n.Messages.youRepliedToYourself : L10n.Messages.youRepliedTo(handle: handle))
-            : (quotedMine ? L10n.Messages.repliedToYou(handle: handle) : L10n.Messages.repliedToThemselves(handle: handle))
         VStack(alignment: mine ? .trailing : .leading, spacing: 0) {
-            // Inset from the bubble's outer edge, on its side.
-            ReplyCaption(caption)
-                .padding(mine ? .trailing : .leading, 12)
-                .padding(.bottom, 4)
+            SpokenCaption(ThreadCaptions.reply(mine: mine, quotedMine: quote.senderId == model.me, handle: model.displayHandle))
             QuoteBubble(text: quote.text.isEmpty ? L10n.Messages.replyCard : quote.text, seed: seedFromId(quote.id, start: 19),
                         onTap: interactive ? { ctx.onQuote(quote.id) } : nil)
         }
+    }
+}
+
+/// What a reply's quote or a note's card is, as VoiceOver reads it before them (the words the
+/// thread once showed as a caption).
+enum ThreadCaptions {
+    static func reply(mine: Bool, quotedMine: Bool, handle: String) -> String {
+        mine
+            ? (quotedMine ? L10n.Messages.youRepliedToYourself : L10n.Messages.youRepliedTo(handle: handle))
+            : (quotedMine ? L10n.Messages.repliedToYou(handle: handle) : L10n.Messages.repliedToThemselves(handle: handle))
+    }
+
+    static func note(mine: Bool, handle: String) -> String {
+        mine ? L10n.Messages.youLeftNote(handle: handle) : L10n.Messages.noteOnYourCard(handle: handle)
     }
 }
 
