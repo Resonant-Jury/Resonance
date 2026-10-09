@@ -247,7 +247,7 @@ private fun EdgeToEdgeDialogWindow() {
 @Composable
 fun ModalCloseButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        OrganicButton(label, Modifier.heightIn(min = ModalActionMinHeight), variant = ButtonVariant.Tonal, small = true, onClick = onClick)
+        OrganicButton(label, Modifier.heightIn(min = ModalActionMinHeight).widthIn(min = ModalActionMinWidth), variant = ButtonVariant.Tonal, small = true, onClick = onClick)
     }
 }
 
@@ -320,10 +320,13 @@ fun ModalBody(text: String, color: Color = Tokens.TextMuted) = BasicText(text, s
 /** A finger needs this much to land on: the small pills at a dialog's foot are about 36 tall. */
 val ModalActionMinHeight = 48.dp
 
+/** Grown that tall, a pill with a two-character label (取消, 關閉) is at least this wide, so it still reads as a pill, not a blob. */
+val ModalActionMinWidth = 72.dp
+
 /**
  * A dialog's foot when it asks for a choice (the web's ModalActions): its buttons [content] in
  * scanning order — the way out (tonal) first, the verb (solid, or danger) last — right-aligned,
- * the verb rightmost, 10 apart, each at least [ModalActionMinHeight] tall, a little air above
+ * the verb rightmost, 10 apart, each at least [ModalActionMinHeight] tall (and [ModalActionMinWidth] wide), a little air above
  * (`topPadding`; a list that ends in its own padding asks for none). A pair too wide for one row
  * (a narrow phone, long English words, a large text size) stacks instead of squeezing its labels
  * onto two lines inside the pills: the verb on top, the way out under it, both still at the right
@@ -334,10 +337,11 @@ fun ModalActions(topPadding: Dp = 4.dp, content: @Composable () -> Unit) {
     Layout(content, Modifier.fillMaxWidth().padding(top = topPadding)) { measurables, constraints ->
         val gap = 10.dp.roundToPx()
         val minHeight = ModalActionMinHeight.roundToPx().coerceAtMost(constraints.maxHeight)
+        val minWidth = ModalActionMinWidth.roundToPx().coerceAtMost(constraints.maxWidth)
         // Each button's width on one line, asked before it is measured.
-        val natural = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }
+        val natural = measurables.map { maxOf(it.maxIntrinsicWidth(Constraints.Infinity), minWidth) }
         val stacked = ModalActionsLayout.stacks(natural, gap, constraints.maxWidth)
-        val placeables = measurables.map { it.measure(Constraints(maxWidth = constraints.maxWidth, minHeight = minHeight)) }
+        val placeables = measurables.map { it.measure(Constraints(minWidth = minWidth, maxWidth = constraints.maxWidth, minHeight = minHeight)) }
         val spots = ModalActionsLayout.place(placeables.map { it.width }, placeables.map { it.height }, gap, constraints.maxWidth, stacked)
         val height = spots.indices.maxOfOrNull { spots[it].y + placeables[it].height } ?: 0
         layout(constraints.maxWidth, height) { placeables.forEachIndexed { i, p -> p.place(spots[i]) } }
