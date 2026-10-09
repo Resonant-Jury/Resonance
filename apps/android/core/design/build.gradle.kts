@@ -15,6 +15,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    // The components' own tests (what a finger and TalkBack meet) compose them on the JVM under
+    // Robolectric, with the module's fonts and pictures.
+    testOptions { unitTests.isIncludeAndroidResources = true }
+    // The app's fonts and grain tiles (its assets, apps/android/app/build.gradle.kts), for those tests.
+    sourceSets {
+        getByName("test") {
+            assets.srcDirs("../../../shared/fonts", "../../../ios/Packages/DesignSystem/Sources/DesignSystem/Resources")
+        }
+    }
 }
 
 dependencies {
@@ -29,4 +38,7 @@ dependencies {
     api("io.coil-kt.coil3:coil-compose:3.6.3")
     api("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.17")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("androidx.compose.ui:ui-test-manifest")
 }
