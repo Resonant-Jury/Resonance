@@ -27,6 +27,10 @@ public enum LinkWaves {
     /// the room it leaves the glyphs above it.
     public static func clearance(fontSize: CGFloat) -> CGFloat { drop(fontSize: fontSize) - 1.2 * 1.35 - Tokens.ink / 2 }
 
+    /// How far under the baseline the wave's lowest point reaches (its down crests and half the
+    /// pen): on a heading's last line that is past the line box's foot.
+    public static func reach(fontSize: CGFloat) -> CGFloat { drop(fontSize: fontSize) + 1.2 * 1.35 + Tokens.ink / 2 }
+
     /// The link attribute's runs: the URL and the character range it covers.
     public static func links(in storage: NSAttributedString) -> [(url: URL, range: NSRange)] {
         var out: [(URL, NSRange)] = []

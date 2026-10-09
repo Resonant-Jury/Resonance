@@ -2,6 +2,7 @@ import DesignSystem
 import Foundation
 import SwiftUI
 import Testing
+import UIKit
 
 /// The switch is drawn by hand, the same on all three platforms: the track, its second pen pass
 /// and the knob come out of the web's own numbers (its shapes for each seed the app uses are in
@@ -55,6 +56,14 @@ import Testing
     @Test func theKnobSitsAtThePadOffAndAsFarRightOn() {
         #expect(OrganicToggleSpec.knobOrigin(isOn: false) == CGPoint(x: 4, y: 4))
         #expect(OrganicToggleSpec.knobOrigin(isOn: true) == CGPoint(x: 26, y: 4))
+    }
+
+    @Test func aFingerLandsOn44PointsWhileTheRowKeepsTheDrawingsRoom() {
+        // 28pt tall is under the 44pt a finger needs (Apple's HIG): the target reaches past the drawing.
+        #expect(OrganicToggleSpec.hitHeight >= 44)
+        let size = UIHostingController(rootView: OrganicToggle(isOn: .constant(true), label: "Anonymous", seed: 57).fixedSize())
+            .sizeThatFits(in: CGSize(width: 400, height: 400))
+        #expect(size == CGSize(width: OrganicToggleSpec.width, height: OrganicToggleSpec.height))
     }
 
     @Test func offIsASoftInkOnPaperAndOnADeepTerracotta() {

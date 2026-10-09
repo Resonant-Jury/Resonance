@@ -16,6 +16,11 @@ import Testing
         #expect(!SegmentWidths.overflows(ideal: [110, 130, 90], room: 340))
     }
 
+    @Test func aChoicesUnchosenSideIsTheMutedInkDeepened() {
+        // The publish panel's audience: color-mix(in oklch, text-muted, black 10%), a token like every mix.
+        #expect(Tokens.segmentIdleInk == OKLCHColor.color(0.52 * 0.9, 0.04 * 0.9, 70))
+    }
+
     @Test func aBookmarkFlipsAtOnceAndSettlesOnWhatTheWriteSays() {
         var mark = BookmarkState()
         mark.found(false)

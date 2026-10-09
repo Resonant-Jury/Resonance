@@ -38,6 +38,12 @@ public struct CSSTextView: UIViewRepresentable {
         view.isEditable = false
         view.isSelectable = true
         view.isScrollEnabled = false
+        // A link's wave runs 0.29em under its baseline, which on a heading's last line (h2, h3: a
+        // tight line box) is past the view's foot: clipped there, that line would show only the
+        // wave's highest crests. UIKit stops a text view clipping once it no longer scrolls (the
+        // line above), but the wave relies on it, so it is said here rather than left to that side
+        // effect. Nothing else is drawn past the bounds.
+        view.clipsToBounds = false
         view.backgroundColor = .clear
         view.textContainerInset = .zero
         view.linkTextAttributes = [:]

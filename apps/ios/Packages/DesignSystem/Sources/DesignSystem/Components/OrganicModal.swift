@@ -36,6 +36,42 @@ extension View {
     }
 }
 
+extension View {
+    /// A one-exit notice: something happened that leaves nothing to choose (an action the server
+    /// refused, the card as it was) — its heading, a line saying what happened, and the centred
+    /// tonal close (``ModalCloseButton``), never a cancel beside a retry. The web's Modal with
+    /// `closeButton`, Android's OrganicAlert.
+    public func organicNotice(isPresented: Binding<Bool>, title: String, message: String, closeLabel: String,
+                              seed: Double = 67) -> some View {
+        organicModal(isPresented: isPresented, seed: seed, maxWidth: 400, closeLabel: closeLabel) {
+            OrganicNoticeContent(title: title, message: message, closeLabel: closeLabel) { isPresented.wrappedValue = false }
+        }
+    }
+}
+
+/// A one-exit notice's inside: heading, the line, the centred close.
+public struct OrganicNoticeContent: View {
+    let title: String
+    let message: String
+    let closeLabel: String
+    let onClose: () -> Void
+
+    public init(title: String, message: String, closeLabel: String, onClose: @escaping () -> Void) {
+        self.title = title
+        self.message = message
+        self.closeLabel = closeLabel
+        self.onClose = onClose
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ModalTitle(title).padding(.bottom, 8)
+            ModalBody(message).padding(.bottom, 4)
+            ModalCloseButton(closeLabel, action: onClose)
+        }
+    }
+}
+
 /// ConfirmModal's inside, for hosts that compose their own modal.
 public struct OrganicConfirmContent: View {
     let title: String
@@ -76,12 +112,11 @@ public struct OrganicConfirmContent: View {
             if let error {
                 ModalError(error).padding(.bottom, 14)
             }
-            ModalActions {
+            ModalActions(busy: busy) {
                 OrganicButton(cancelLabel, variant: .tonal, size: .sm, action: onCancel)
             } verb: {
                 OrganicButton(busy ? "…" : confirmLabel, variant: destructive ? .danger : .solid, size: .sm, action: onConfirm)
             }
-            .disabled(busy)
         }
     }
 }
@@ -130,12 +165,16 @@ public struct ModalError: View {
 /// width. A pair too wide for one row (a narrow phone, long English words, a large text size)
 /// stacks rather than squeezing its labels: the verb on top, the way out under it, both still at
 /// the right (Material's stacked dialog buttons, iOS's stacked alerts). Each button is at least
-/// 44pt tall, a finger's. Dimmed together while busy (`.disabled` on the row).
+/// 44pt tall, a finger's. `busy` (the action on its way): the row dims as one to 0.6 and takes
+/// no tap, VoiceOver's included (the web's `ModalActions[data-busy]`) — not `.disabled`, whose
+/// 0.45 says "not yet possible" of each button rather than "working on it".
 public struct ModalActions<Cancel: View, Verb: View>: View {
+    let busy: Bool
     let cancel: Cancel
     let verb: Verb
 
-    public init(@ViewBuilder cancel: () -> Cancel, @ViewBuilder verb: () -> Verb) {
+    public init(busy: Bool = false, @ViewBuilder cancel: () -> Cancel, @ViewBuilder verb: () -> Verb) {
+        self.busy = busy
         self.cancel = cancel()
         self.verb = verb()
     }
@@ -153,12 +192,20 @@ public struct ModalActions<Cancel: View, Verb: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .environment(\.organicButtonMinHeight, ModalMetrics.minButtonHeight)
+        .environment(\.organicButtonsHeld, busy)
+        .allowsHitTesting(!busy)
+        // One layer, as the web's opacity on the row is: a face's grain doesn't show through it.
+        .compositingGroup()
+        .opacity(busy ? ModalMetrics.busyOpacity : 1)
+        .animation(.easeOut(duration: 0.16), value: busy)
     }
 }
 
 public enum ModalMetrics {
     /// A dialog's buttons are never shorter than a finger needs (the small pills are about 38pt).
     public static let minButtonHeight: CGFloat = 44
+    /// A dialog's foot while its action is on its way (the web's `.actions[data-busy]`).
+    public static let busyOpacity = 0.6
 }
 
 /// The way out of a modal with nothing else at its foot (a list to look through, a note just

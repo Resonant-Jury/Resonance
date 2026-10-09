@@ -69,13 +69,12 @@ struct ReportForm: View {
                     }
                 }
                 if let error { ModalError(error) }
-                ModalActions {
+                ModalActions(busy: sending) {
                     OrganicButton(L10n.Safety.cancel, variant: .tonal, size: .sm, action: onClose)
                 } verb: {
                     OrganicButton(sending ? "…" : L10n.Safety.Report.submit, variant: .solid, size: .sm) { Task { await submit() } }
                         .disabled(reason == nil)
                 }
-                .disabled(sending)
                 .padding(.top, 4)
             }
         }

@@ -41,6 +41,9 @@ public struct StoryLinkCard: View {
     public enum Look {
         public static let fill = Tokens.bubbleTheirs
         public static let pressedFill = Tokens.bubbleQuote
+        /// The description and the host line (glyph and words) at rest: deeper than text-muted,
+        /// which read about 4.3:1 on the fill.
+        public static let muted = Tokens.linkCardMeta
         public static let radius = 16.0
         /// How far the picture reaches past the card's box on its top and sides, so the outline's
         /// outward swings (a few points at most) still land on picture.
@@ -60,7 +63,7 @@ public struct StoryLinkCard: View {
                         .lineSpacing(2).lineLimit(2).multilineTextAlignment(.leading)
                     if let description, !description.isEmpty {
                         Text(description)
-                            .font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
+                            .font(AppFonts.body(14)).foregroundStyle(Look.muted)
                             .lineSpacing(3).lineLimit(2).multilineTextAlignment(.leading)
                     }
                     LinkHost(host: host).padding(.top, 4)
@@ -111,8 +114,8 @@ private struct LinkHost: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            OrganicIcon(.link, size: 15, color: Tokens.textMuted)
-            Text(host).font(AppFonts.body(13)).foregroundStyle(pressed ? Tokens.terracotta : Tokens.textMuted)
+            OrganicIcon(.link, size: 15, color: StoryLinkCard.Look.muted)
+            Text(host).font(AppFonts.body(13)).foregroundStyle(pressed ? Tokens.terracotta : StoryLinkCard.Look.muted)
                 .lineLimit(1).truncationMode(.tail)
         }
     }
