@@ -35,7 +35,7 @@ struct CardActionsMenu: View {
     @State private var unresonating = false
     @State private var busy = false
     @State private var failed = false
-    /// The visibility change didn't go through: a small dialog says so, with a retry.
+    /// The visibility change didn't go through: a small notice says so.
     @State private var visibilityFailed = false
     /// The answered card's title, asked for when the page didn't have it.
     @State private var asked = AnsweredTitle()
@@ -60,12 +60,10 @@ struct CardActionsMenu: View {
                             titlePending: asked.looking, seed: seed + 9) {
                 Task { await unresonate() }
             }
-            // Turning public or private didn't go through: the card is as it was; say so, and offer it again.
-            .organicConfirm(isPresented: $visibilityFailed, title: visibilityLabel, message: L10n.Safety.actionError,
-                            cancelLabel: L10n.Safety.Report.close, confirmLabel: L10n.Native.retry,
-                            closeLabel: L10n.Safety.Report.close, busy: busy, seed: seed + 11) {
-                Task { await toggleVisibility() }
-            }
+            // Turning public or private didn't go through: the card is as it was. Said in a notice with one way
+            // out, as every refusal is (the web's, Android's): the menu is still there to try again from.
+            .organicNotice(isPresented: $visibilityFailed, title: visibilityLabel, message: L10n.Safety.actionError,
+                           closeLabel: L10n.Safety.Report.close, seed: seed + 11)
             .task(id: unresonating) {
                 guard unresonating, asked.looking, let answering else { return }
                 await AnsweredTitle.lookUp {

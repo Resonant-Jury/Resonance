@@ -351,19 +351,13 @@ struct WriteScreen: View {
         }
     }
 
-    /// The card isn't there (deleted) or isn't yours: the web's not-found note.
+    /// The card isn't there (deleted) or isn't yours: the card page's own not-found — its heading,
+    /// then Back as the tonal pill (every button has a fill; a bare terracotta word didn't read as one).
     private var missing: some View {
-        VStack(spacing: 12) {
-            Text(L10n.Card.NotFound.title).font(AppFonts.heading(24)).foregroundStyle(Tokens.text)
-            Button(L10n.Card.NotFound.back) { dismiss() }
-                .font(AppFonts.body(15))
-                .foregroundStyle(Tokens.terracotta)
-                .buttonStyle(.plain)
-        }
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 20)
-        .padding(.top, 120)
+        OrganicEmptyState(title: L10n.Card.NotFound.title, titleSize: 24, actionTitle: L10n.Card.NotFound.back,
+                          actionStyle: .link) { dismiss() }
+            .padding(.top, 56)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private static func load(_ item: PhotosPickerItem) async -> UIImage? {
@@ -456,7 +450,7 @@ private struct PublishPanel: View {
             // why the last try failed right above it.
             VStack(alignment: .leading, spacing: 12) {
                 if let error { ModalError(error) }
-                ModalActions {
+                ModalActions(busy: pending) {
                     OrganicButton(L10n.Write.PublishPanel.cancel, variant: .tonal, size: .sm, action: onCancel)
                 } verb: {
                     OrganicButton(updating
@@ -466,7 +460,6 @@ private struct PublishPanel: View {
                         Task { await publish() }
                     }
                 }
-                .disabled(pending)
             }
         }
         // Anonymous is public or yours alone: a card for connections turns public as it goes anonymous.
@@ -486,10 +479,10 @@ private struct PublishPanel: View {
 
     private func visibilityOption(_ value: String, _ label: String, icon: IconName) -> SegmentSpec {
         let chosen = visibility == value
-        // The other side's ink stays deep enough to read on the track: color-mix(text-muted, black 10%).
+        // The other side's ink stays deep enough to read on the track.
         return SegmentSpec(id: value, icon: icon, label: label,
                            fill: chosen ? Tokens.buttonTonal : nil,
-                           ink: chosen ? Tokens.buttonOnTonal : OKLCHColor.color(0.52 * 0.9, 0.04 * 0.9, 70),
+                           ink: chosen ? Tokens.buttonOnTonal : Tokens.segmentIdleInk,
                            pressInk: .black.opacity(0.05), selected: chosen) {
             visibility = value
         }
@@ -503,12 +496,13 @@ private struct PublishPanel: View {
         }
         pending = true
         error = nil
+        let updating = model.isPublished
         do {
-            onPublished(model.isPublished
+            onPublished(updating
                         ? try await model.applyEdit(visibility: visibility, anonymous: anonymous)
                         : try await model.publish(visibility: visibility, anonymous: anonymous))
         } catch {
-            self.error = PublishFailure.message(error)
+            self.error = PublishFailure.message(error, updating: updating)
         }
         pending = false
     }
@@ -516,10 +510,17 @@ private struct PublishPanel: View {
 
 /// Why a publish (or a published card's saved changes) didn't go through, in the app's words —
 /// never the server's, which are English (nor the system's): the card gone (deleted elsewhere) is
-/// that it can't be found; anything else — offline, the server's trouble, a refusal the panel can't
-/// name — is the save error, a retry. (A card without a title is said before anything is sent.)
+/// that it can't be found; the day's publishing spent (429 `rate_limited`, which trying again today
+/// would only hear again) says so and when it comes back; anything else — offline, the server's
+/// trouble, a refusal the panel can't name — is a retry: the publish that didn't happen, or the
+/// changes that weren't saved. (A card without a title is said before anything is sent.)
 enum PublishFailure {
-    static func message(_ error: Error) -> String {
-        (error as? APIFailure)?.isNotFound == true ? L10n.Card.NotFound.title : L10n.Native.saveError
+    static func message(_ error: Error, updating: Bool = false) -> String {
+        let failure = error as? APIFailure
+        if failure?.isNotFound == true { return L10n.Card.NotFound.title }
+        // The publish route documents no 429, so the generated client hands it over as an unexpected status.
+        if failure?.code == "rate_limited" || failure?.status == 429 { return L10n.Write.PublishPanel.rateLimited }
+        return updating ? L10n.Native.saveError : L10n.Write.PublishPanel.failed
     }
 }
+

@@ -137,8 +137,9 @@ public struct OrganicButton: View {
     }
 
     private var active: Bool { isEnabled && !isBusy }
-    /// Takes a tap now.
-    private var tappable: Bool { active && !isWorking }
+    /// Takes a tap now: not while its dialog's foot waits on the last one (``ModalActions``'s
+    /// `busy`, which dims the row itself rather than each button).
+    private var tappable: Bool { active && !isWorking && !held }
 
     @State private var pressPoint: CGPoint? = nil
     @State private var revealed = false
@@ -153,6 +154,7 @@ public struct OrganicButton: View {
     @GestureState private var touching = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.organicButtonMinHeight) private var minHeight
+    @Environment(\.organicButtonsHeld) private var held
 
     public var body: some View {
         let style = OrganicButtonStyle(variant: variant, size: size, minHeight: minHeight)
@@ -250,6 +252,9 @@ extension OrganicButton {
 extension EnvironmentValues {
     /// The least height the buttons inside ask for (a dialog's foot: 44pt, a finger's), when any.
     @Entry public var organicButtonMinHeight: CGFloat? = nil
+    /// The buttons inside take no tap (VoiceOver's included) and keep their faces: a dialog's foot
+    /// while its action is on its way, the row dimmed as one (``ModalActions``'s `busy`).
+    @Entry public var organicButtonsHeld = false
 }
 
 /// The button's face without its gesture, for system controls that bring

@@ -90,7 +90,8 @@ struct NoteComposer: View {
                 .padding(.bottom, 10)
             }
             if let error {
-                Text(error).font(AppFonts.body(12)).foregroundStyle(Tokens.terracotta).padding(.bottom, 10)
+                // What every dialog says a failure in: 13pt in the danger ink (12pt terracotta read 3.5:1).
+                ModalError(error).padding(.top, 4).padding(.bottom, 10)
             }
             // The foot every dialog shares: cancel the tonal pill, Send the solid verb, rightmost.
             ModalActions {
