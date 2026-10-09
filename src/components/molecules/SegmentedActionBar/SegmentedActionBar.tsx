@@ -20,6 +20,11 @@ export interface SegmentSpec {
   onClick?: () => void;
   ariaLabel?: string;
   /**
+   * A segmented *choice* (the publish panel's Public / Only me): whether this
+   * side is the chosen one, told to a screen reader as a pressed toggle.
+   */
+  pressed?: boolean;
+  /**
    * This segment drops its visible label — its icon is the affordance, the
    * words stay for a screen reader — once every label no longer fits the
    * bar's container in one row (the card page's Bookmark beside Resonate and
@@ -145,8 +150,10 @@ export function SegmentedActionBar({
   }, [fit]);
 
   // A label changed under a hidden one (Bookmark ⇄ Remove bookmark) resizes
-  // nothing the observer sees: weigh the room again after every render.
-  useLayoutEffect(() => fit());
+  // nothing the observer sees: weigh the room again whenever the segments
+  // change — not on the bar's own renders (every pointer move over it is one,
+  // and each fit reads style and layout).
+  useLayoutEffect(() => fit(), [fit, segments]);
 
   useLayoutEffect(() => {
     recompute();
@@ -290,6 +297,7 @@ export function SegmentedActionBar({
           }}
           onBlur={() => setHovered((cur) => (cur === i ? null : cur))}
           aria-label={s.ariaLabel}
+          aria-pressed={s.pressed}
           className={styles.seg}
           data-icon-only={(s.collapsible && tight) || undefined}
           style={{ color: s.textColor ?? 'var(--button-on-tonal)' }}

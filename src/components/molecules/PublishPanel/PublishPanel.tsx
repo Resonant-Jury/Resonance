@@ -183,7 +183,7 @@ export function PublishPanel({
                   fill: active ? 'var(--button-tonal)' : 'transparent',
                   textColor: ink,
                   hoverOverlay: 'oklch(0% 0 0 / 0.05)',
-                  ariaLabel: tVis(v),
+                  pressed: active,
                   onClick: () => setVisibility(v),
                 } satisfies SegmentSpec;
               })}

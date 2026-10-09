@@ -35,8 +35,14 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* No pen line marks a Tab-focused segment, only the faint wash its focus
+   grows: a ring inside it marks it, as every OrganicButton is ringed — in
+   its label's own ink, which clears its fill (the terracotta focus colour
+   would vanish into the verb's segment; its cream label's ring doesn't). */
 .seg:focus-visible {
-  outline: none;
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+  border-radius: 12px;
 }
 
 .seg:active {

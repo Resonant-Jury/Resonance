@@ -69,7 +69,7 @@ export function DeleteAccountSection() {
           way into the deletion in the red tint — it only opens the dialog,
           whose confirm is the solid red. */}
       <div className={styles.actions}>
-        <OrganicButton variant="text" onClick={() => void exportData()}>
+        <OrganicButton variant="tonal" onClick={() => void exportData()}>
           <Icon name="document" size={16} />
           {exporting ? t('exporting') : t('export')}
         </OrganicButton>

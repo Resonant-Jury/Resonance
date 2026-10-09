@@ -10,12 +10,13 @@
 }
 
 /* The note's words: in full where the bar stands at its own width, the short
-   form where it spans a phone's column in one row with the other two. */
+   form where it spans a phone's column in one row with the other two — the
+   same width at which SegmentedActionBar spreads across it (560px). */
 .narrow {
   display: none;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 560px) {
   .wide {
     display: none;
   }
