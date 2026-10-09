@@ -145,6 +145,17 @@ fun linkFragments(
     }
 }
 
+/**
+ * How far under the baseline a story link's wave runs (its centre line), in em — the web reader's
+ * WAVE_DEPTH_EM (lib/design/storyLinkWave), and iOS's: deep enough that its upper crests clear the
+ * feet of CJK glyphs (the ideographic box ends 0.12em down) and the wave never cuts a descender
+ * (it is drawn under the letters, as the web's background is).
+ */
+const val WAVE_DEPTH_EM = 0.29f
+
+/** Where a story link's wave runs under a line whose baseline is at [baseline] (px), at a font size of [sizePx]. */
+fun linkWaveY(baseline: Float, sizePx: Float): Float = baseline + sizePx * WAVE_DEPTH_EM
+
 /** A link's strokes, ready to draw: its url (for the press state), wave paths and where they sit. */
 private class LinkStroke(val url: String, val x: Float, val y: Float, val wave: androidx.compose.ui.graphics.Path)
 
@@ -160,8 +171,7 @@ private fun linkStrokes(layout: Layout, spanned: Spanned, sizePx: Float, density
         frags.mapIndexed { i, f ->
             // Seeded by the link, and by the fragment so a wrapped link's parts don't repeat.
             val wave = penWave(((f.right - f.left) / density).toDouble(), (seedFromString(span.url) + i).toDouble()).toPath(density)
-            // Under the letters, not under the line box: 0.2em below the baseline, like OrganicLink.
-            LinkStroke(span.url, f.left, f.baseline + sizePx * 0.2f, wave)
+            LinkStroke(span.url, f.left, linkWaveY(f.baseline, sizePx), wave)
         }
     }
 
@@ -235,11 +245,13 @@ fun RichCssText(runs: List<InlineRun>, style: ProseStyle, onOpenUrl: (String) ->
                     ) { p -> linkAt(p)?.let { onOpenUrl(it.url) } }
                 }
                 .drawBehind {
-                    drawIntoCanvas { layout.draw(it.nativeCanvas) }
+                    // The waves first, under the letters (the web paints them as the link's background):
+                    // a descender's foot rests in its arch rather than being crossed by it.
                     val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                     strokes.forEach { s ->
                         translate(s.x, s.y) { drawPath(s.wave, Tokens.Terracotta, alpha = if (s.url == pressedUrl) 1f else 0.7f, style = pen) }
                     }
+                    drawIntoCanvas { layout.draw(it.nativeCanvas) }
                 },
         )
     }

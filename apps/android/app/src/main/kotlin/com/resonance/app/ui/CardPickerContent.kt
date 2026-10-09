@@ -40,21 +40,24 @@ import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicImage
-import com.resonance.design.TagPill
-import com.resonance.design.TagSize
 import com.resonance.design.WavyDivider
 import com.resonance.design.fade
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
 import com.resonance.kit.l10n.L10n
+import com.resonance.kit.l10n.Strings
 import kotlinx.coroutines.CancellationException
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * InsertCardModal: one of your public cards — dropped into a story as an
  * embedded card, or shared in a conversation. Rows carry a small cover (the
- * card's hue when it has none) and the title on two lines ([CardPickList]); a
- * tap is the pick. The host wraps it in an OrganicModal (seed 53, max width
+ * card's hue when it has none), the title on one line and when it came out
+ * ([CardPickList]); a tap is the pick. The host wraps it in an OrganicModal (seed 53, max width
  * 480). The twin of iOS's CardPickerContent.
  */
 @Composable
@@ -85,13 +88,14 @@ fun CardPickerContent(session: Session, title: String, subtitle: String, onPick:
 }
 
 /**
- * The author's own cards as a scrollable pick list (CardPickList.tsx): a cover thumb and the title on
- * each row, rows parted by a wavy pen rule — no boxed press region; the ink speaks through the
- * title. [lead] comes before the cards and scrolls with them (the resonate picker's "write a new
- * card" row). With [choosing] the rows are one choice (radio buttons): the row of [selectedId]
- * is marked — its thumb washed in the accent with a tick, its title in the accent — so the pick
- * reads before it is confirmed; without, a tap is the pick. While not [enabled] (a request on its
- * way) the rows rest, the chosen one as it was.
+ * The author's own cards as a scrollable pick list (CardPickList.tsx), quiet enough to scan: on each
+ * row a 40 cover thumb, the title on one line, and one muted line under it — when it came out, led
+ * by 匿名 for an anonymous card ([pickMeta]) — rows parted by a wavy pen rule, no boxed press
+ * region; the ink speaks through the title. [lead] comes before the cards and scrolls with them
+ * (the resonate picker's "write a new card" row). With [choosing] the rows are one choice (radio
+ * buttons): the row of [selectedId] is marked — its thumb washed in the accent with a tick, its
+ * title in the accent — so the pick reads before it is confirmed; without, a tap is the pick.
+ * While not [enabled] (a request on its way) the rows rest, the chosen one as it was.
  */
 @Composable
 internal fun CardPickList(
@@ -101,7 +105,7 @@ internal fun CardPickList(
     choosing: Boolean = false,
     selectedId: String? = null,
     enabled: Boolean = true,
-    /** Shown on an anonymous card's row; without it nothing marks one. */
+    /** Leads an anonymous card's meta line (「匿名 · 9月28日」); without it nothing marks one. */
     anonymousLabel: String? = null,
     /** Drawn in place of the rows when there are none. */
     empty: (@Composable () -> Unit)? = null,
@@ -145,24 +149,50 @@ private fun CardPickRow(card: FeedCard, index: Int, choosing: Boolean, chosen: B
     ) {
         val cover = OklchColor.parse("oklch(90% 0.06 ${card.accentHue ?: 55.0})") ?: Tokens.TerracottaLight
         OrganicImage(
-            card.imageUrl, (index * 7 + 3).toDouble(), Modifier.size(48.dp),
+            card.imageUrl, (index * 7 + 3).toDouble(), Modifier.size(40.dp),
             overlay = {
                 // The chosen row's mark: its own cover washed in the accent, a cream tick on it.
                 AnimatedVisibility(chosen, enter = fadeIn(tween(180)), exit = fadeOut(tween(120))) {
                     Box(Modifier.fillMaxSize().background(Tokens.Terracotta.copy(alpha = 0.82f)), contentAlignment = Alignment.Center) {
-                        OrganicIcon(IconName.Check, size = 24.dp, color = Tokens.Cream)
+                        OrganicIcon(IconName.Check, size = 20.dp, color = Tokens.Cream)
                     }
                 }
             },
         ) { Box(Modifier.fillMaxSize().background(cover)) }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             BasicText(
-                card.title, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                card.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 style = AppFonts.body(15f, 600, lineHeight = 1.3f, color = if (chosen) Tokens.Terracotta else Tokens.Text),
             )
-            if (card.anonymous && anonymousLabel != null) TagPill(anonymousLabel, fill = Tokens.CreamDark, size = TagSize.Sm)
+            pickMeta(card.anonymous, card.publishedAt, anonymousLabel)?.let {
+                BasicText(it, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(13f, lineHeight = 1.4f, color = Tokens.TextMuted))
+            }
         }
     }
+}
+
+/**
+ * A pick row's muted line: when the card came out ([pickDate]), led by [anonymousLabel] for an
+ * anonymous card (「匿名 · 9月28日」/ "Anonymous · Sep 28"); null when there is nothing to say.
+ */
+internal fun pickMeta(anonymous: Boolean, publishedAt: String?, anonymousLabel: String?, today: LocalDate = LocalDate.now()): String? =
+    listOfNotNull(anonymousLabel?.takeIf { anonymous }, pickDate(publishedAt, today)).joinToString(" · ").ifEmpty { null }
+
+/**
+ * When a card came out, for its row (CardPickList.tsx's pickDate): the month and day this year,
+ * with the year before that (「9月28日」/ "Sep 28", 「2025年9月28日」/ "Sep 28, 2025"), in the
+ * reader's time zone.
+ */
+internal fun pickDate(iso: String?, today: LocalDate = LocalDate.now()): String? = iso?.let {
+    runCatching {
+        val day = OffsetDateTime.parse(it).atZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
+        val zh = Strings.language == Strings.Language.ZhTW
+        val pattern = when {
+            day.year == today.year -> if (zh) "M月d日" else "MMM d"
+            else -> if (zh) "y年M月d日" else "MMM d, y"
+        }
+        day.format(DateTimeFormatter.ofPattern(pattern, Strings.language.locale))
+    }.getOrNull()
 }
 
 /** A quiet line where the rows would be (none to pick). */

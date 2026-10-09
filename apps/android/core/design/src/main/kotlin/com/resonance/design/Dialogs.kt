@@ -4,10 +4,11 @@ import android.os.Build
 import android.view.View
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -45,7 +47,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -58,7 +59,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
@@ -69,6 +72,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -234,15 +238,16 @@ private fun EdgeToEdgeDialogWindow() {
 }
 
 /**
- * The way out of a modal with nothing else at its foot (a list to look through,
- * a note just sent): its close words as a quiet text button, centred under the
- * content. Where there is a choice (cancel and a verb) the two sit at the
- * bottom right instead, in [ModalActions].
+ * The way out of a modal with nothing else at its foot (a list to look through, a note just
+ * sent, "thanks", "that didn't go through"): its close words as a small tonal pill, centred under
+ * the content (the web's ModalCloseRow / `Modal closeButton`), at least [ModalActionMinHeight]
+ * tall for a finger. Where there is a choice (cancel and a verb) the two sit at the bottom right
+ * instead, in [ModalActions].
  */
 @Composable
 fun ModalCloseButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.Center) {
-        OrganicButton(label, variant = ButtonVariant.Text, small = true, onClick = onClick)
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        OrganicButton(label, Modifier.heightIn(min = ModalActionMinHeight).widthIn(min = ModalActionMinWidth), variant = ButtonVariant.Tonal, small = true, onClick = onClick)
     }
 }
 
@@ -255,9 +260,9 @@ fun Modifier.plainClickable(role: Role? = null, onClickLabel: String? = null, on
 
 /**
  * ConfirmModal.tsx — the one confirm layout: title and body left-aligned,
- * then cancel and the verb, small, at the bottom right. The modal is the
- * frame, so neither button draws one: cancel is plain text, the verb a solid
- * fill — red when it can't be undone (`destructive`).
+ * then cancel and the verb, small, at the bottom right ([ModalActions]): cancel
+ * the tonal pill, the verb solid — red when it can't be undone (`destructive`).
+ * Why the last try failed ([error]) is one danger line right above them.
  */
 @Composable
 fun OrganicConfirmDialog(
@@ -282,24 +287,27 @@ fun OrganicConfirmDialog(
             Box(Modifier.fade(if (titlePending) 0f else 1f)) { ModalTitle(title) }
             ModalBody(body)
         }
-        if (error != null) BasicText(
-            error, style = AppFonts.body(13f, color = Mixes.Danger),
-            // ConfirmModal: 10 under the body and 14 above the actions; the column's 14 and the actions' 4 would make them 14 and 18.
-            modifier = Modifier.layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints)
-                val tuck = 4.dp.roundToPx()
-                layout(placeable.width, placeable.height - 2 * tuck) { placeable.place(0, -tuck) }
-            },
+        if (error != null) ModalError(error)
+        ModalActions(
+            cancelLabel, onCancel, if (busy) "…" else confirmLabel, onConfirm,
+            busy = busy, destructive = destructive,
         )
-        ModalActions {
-            OrganicButton(cancelLabel, variant = ButtonVariant.Text, small = true, enabled = !busy, onClick = onCancel)
-            OrganicButton(
-                if (busy) "…" else confirmLabel, variant = if (destructive) ButtonVariant.Danger else ButtonVariant.Solid,
-                small = true, enabled = !busy, onClick = onConfirm,
-            )
-        }
     }
 }
+
+/**
+ * A dialog's error line (the web's Modal `.error`): 13, danger red, right above its actions —
+ * 12 over them, as on the web (the column's 14 and the actions' 4 would make it 18).
+ */
+@Composable
+fun ModalError(text: String) = BasicText(
+    text, style = AppFonts.body(13f, lineHeight = 1.5f, color = Mixes.Danger),
+    modifier = Modifier.layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val tuck = 6.dp.roundToPx()
+        layout(placeable.width, placeable.height - tuck) { placeable.place(0, 0) }
+    },
+)
 
 /** ConfirmModal's title: Playfair 20/700. */
 @Composable
@@ -309,11 +317,86 @@ fun ModalTitle(text: String) = BasicText(text, style = AppFonts.heading(20f, lin
 @Composable
 fun ModalBody(text: String, color: Color = Tokens.TextMuted) = BasicText(text, style = AppFonts.body(14f, lineHeight = 1.6f, color = color))
 
-/** Actions at the bottom right, 10 apart, a little air above (`topPadding`; a list that ends in its own padding asks for none). */
+/** A finger needs this much to land on: the small pills at a dialog's foot are about 36 tall. */
+val ModalActionMinHeight = 48.dp
+
+/** Grown that tall, a pill with a two-character label (取消, 關閉) is at least this wide, so it still reads as a pill, not a blob. */
+val ModalActionMinWidth = 72.dp
+
+/**
+ * A dialog's foot when it asks for a choice (the web's ModalActions): its buttons [content] in
+ * scanning order — the way out (tonal) first, the verb (solid, or danger) last — right-aligned,
+ * the verb rightmost, 10 apart, each at least [ModalActionMinHeight] tall (and [ModalActionMinWidth] wide), a little air above
+ * (`topPadding`; a list that ends in its own padding asks for none). A pair too wide for one row
+ * (a narrow phone, long English words, a large text size) stacks instead of squeezing its labels
+ * onto two lines inside the pills: the verb on top, the way out under it, both still at the right
+ * ([ModalActionsLayout]).
+ */
 @Composable
 fun ModalActions(topPadding: Dp = 4.dp, content: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(top = topPadding), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-        content()
+    Layout(content, Modifier.fillMaxWidth().padding(top = topPadding)) { measurables, constraints ->
+        val gap = 10.dp.roundToPx()
+        val minHeight = ModalActionMinHeight.roundToPx().coerceAtMost(constraints.maxHeight)
+        val minWidth = ModalActionMinWidth.roundToPx().coerceAtMost(constraints.maxWidth)
+        // Each button's width on one line, asked before it is measured.
+        val natural = measurables.map { maxOf(it.maxIntrinsicWidth(Constraints.Infinity), minWidth) }
+        val stacked = ModalActionsLayout.stacks(natural, gap, constraints.maxWidth)
+        val placeables = measurables.map { it.measure(Constraints(minWidth = minWidth, maxWidth = constraints.maxWidth, minHeight = minHeight)) }
+        val spots = ModalActionsLayout.place(placeables.map { it.width }, placeables.map { it.height }, gap, constraints.maxWidth, stacked)
+        val height = spots.indices.maxOfOrNull { spots[it].y + placeables[it].height } ?: 0
+        layout(constraints.maxWidth, height) { placeables.forEachIndexed { i, p -> p.place(spots[i]) } }
+    }
+}
+
+/**
+ * ModalActions' (cancel, verb) form, the foot most dialogs end in: [cancelLabel] tonal, then the
+ * verb — solid, or danger when [destructive] — with an optional glyph ([verbIcon]); [verbEnabled]
+ * false while there is nothing to act on yet. While [busy] both rest (faded, taking no tap).
+ */
+@Composable
+fun ModalActions(
+    cancelLabel: String,
+    onCancel: () -> Unit,
+    verbLabel: String,
+    onVerb: () -> Unit,
+    busy: Boolean = false,
+    destructive: Boolean = false,
+    verbEnabled: Boolean = true,
+    verbIcon: IconName? = null,
+    topPadding: Dp = 4.dp,
+) {
+    ModalActions(topPadding) {
+        OrganicButton(cancelLabel, variant = ButtonVariant.Tonal, small = true, busy = busy, onClick = onCancel)
+        OrganicButton(
+            verbLabel, variant = if (destructive) ButtonVariant.Danger else ButtonVariant.Solid, icon = verbIcon,
+            small = true, enabled = verbEnabled, busy = busy, onClick = onVerb,
+        )
+    }
+}
+
+/**
+ * Where [ModalActions] puts its buttons (in px), apart from Compose so it can be tested: in a row
+ * at the right when they fit side by side, else stacked — the last (the verb) on top — each at
+ * the right; in a row they share one centre line.
+ */
+object ModalActionsLayout {
+    /** Whether buttons of these one-line [widths], [gap] apart, are too wide for [available]. */
+    fun stacks(widths: List<Int>, gap: Int, available: Int): Boolean =
+        widths.sum() + gap * (widths.size - 1).coerceAtLeast(0) > available
+
+    fun place(widths: List<Int>, heights: List<Int>, gap: Int, available: Int, stacked: Boolean): List<IntOffset> {
+        if (!stacked) {
+            val rowHeight = heights.maxOrNull() ?: 0
+            var x = available - (widths.sum() + gap * (widths.size - 1).coerceAtLeast(0))
+            return widths.indices.map { i -> IntOffset(x, (rowHeight - heights[i]) / 2).also { x += widths[i] + gap } }
+        }
+        val spots = arrayOfNulls<IntOffset>(widths.size)
+        var y = 0
+        for (i in widths.indices.reversed()) {
+            spots[i] = IntOffset(available - widths[i], y)
+            y += heights[i] + gap
+        }
+        return spots.map { it!! }
     }
 }
 
@@ -617,17 +700,72 @@ private fun MenuPanel(
 }
 
 /**
- * ToggleSwitch.tsx: a wobbly pill track (50×28) and a slightly irregular knob
- * that slides across; terracotta when on. Not [enabled] (its value is still
- * loading, say), it is dimmed to half and a tap does nothing — the web's `disabled`.
+ * ToggleSwitch.tsx's TOGGLE: the switch's geometry, the same numbers the web and iOS draw through
+ * their wobRect / wobCircle — change all three together (native/fixtures/geometry.json carries the
+ * shapes for the seeds the apps use).
+ *
+ * The track is a pill bowed by hand: a radius just under half the height, so each end may come out
+ * a little rounder or flatter than the other, and one seeded turn in each long edge (`curve` sets
+ * how far it bows, up to 2.5 in or out). The pen goes round it twice, the second pass (seed + 1)
+ * lighter. The knob is a lumpier circle than a button's dot (six arcs, ±1).
+ */
+object Toggle {
+    const val W = 50.0
+    const val H = 28.0
+    const val RADIUS = 12.5
+    const val MAG = 2.4
+    val track = WobRectOptions(curve = 2.8, segmentsH = SegValue.Count(2.0), segmentsV = SegValue.Count(1.0), cornerJitter = 2.0, cornerOffset = 1.4)
+    const val RETRACE_SEED = 1.0
+    const val RETRACE_ALPHA = 0.4f
+    const val KNOB = 20.0
+    const val PAD = 4.0
+    const val KNOB_SEED = 5.0
+    val knob = WobCircleOptions(segments = 6, mag = 1.0, cpJitter = 0.5)
+    /** The buttons' grain on the well, so the switch sits in their family. */
+    const val GRAIN_ALPHA = 0.38f
+    /** Not to be flipped now: faded like a disabled button. */
+    const val DISABLED_ALPHA = 0.45f
+
+    fun trackPath(seed: Double) = wobRect(W, H, RADIUS, seed, MAG, track)
+    fun retracePath(seed: Double) = wobRect(W, H, RADIUS, seed + RETRACE_SEED, MAG, track)
+    /** The knob, drawn in its own 20×20 box. */
+    fun knobPath(seed: Double) = wobCircle(KNOB / 2, KNOB / 2, KNOB / 2, seed + KNOB_SEED, knob)
+    /** Where the knob's box sits: 4 in from the left off, 4 in from the right on. */
+    fun knobX(checked: Boolean) = if (checked) W - KNOB - PAD else PAD
+
+    /**
+     * The switch's inks. Off: a pale paper well edged in a soft ink (text-muted, 5:1 on cream —
+     * WCAG 1.4.11 asks 3:1 of an input's edge). On: terracotta, edged and knob-ringed in deep
+     * terracotta (6.6:1 on cream), the cream knob 3.5:1 on the fill.
+     */
+    class Inks(val fill: Color, val ink: Color)
+
+    fun inks(checked: Boolean) = if (checked) Inks(Tokens.Terracotta, Tokens.TerracottaDeep) else Inks(Tokens.CreamDark, Tokens.TextMuted)
+}
+
+/** The knob's slide (200ms, the web's cubic-bezier(0.2, 0.8, 0.3, 1)) and the inks' change (160ms ease). */
+private val KnobEasing = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f)
+private val InkEasing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
+
+/**
+ * ToggleSwitch.tsx: a hand-drawn pill gone round twice in the light pen — the trace and a lighter
+ * second pass — with the buttons' grain on its well, and a lumpy cream knob that slides across:
+ * a soft ink off, terracotta on ([Toggle]). 50×28, its own tap target; the pen's swings reach a
+ * little past the box (nothing clips them). Not [enabled] (its value still loading, say), it is
+ * faded like a disabled button and a tap does nothing. With animations off it snaps.
  */
 @Composable
 fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String, seed: Double = 9.0, enabled: Boolean = true) {
-    val knobX by animateDpAsState(if (checked) 26.dp else 4.dp, spring(dampingRatio = 0.75f, stiffness = 700f), label = "knob")
+    val still = LocalContext.current.prefersReducedMotion()
+    val inks = Toggle.inks(checked)
+    val knobX by animateDpAsState(Toggle.knobX(checked).dp, if (still) snap() else tween(200, easing = KnobEasing), label = "knob")
+    val fill by animateColorAsState(inks.fill, if (still) snap() else tween(160, easing = InkEasing), label = "fill")
+    val ink by animateColorAsState(inks.ink, if (still) snap() else tween(160, easing = InkEasing), label = "ink")
     Box(
         Modifier
-            .size(50.dp, 28.dp)
-            .alpha(if (enabled) 1f else 0.5f)
+            .size(Toggle.W.dp, Toggle.H.dp)
+            // Faded drawing by drawing, so the pen's swings past the box aren't cut straight.
+            .fade(if (enabled) 1f else Toggle.DISABLED_ALPHA)
             // Its state is the toggleable state's, which TalkBack reads in the reader's language (on / 開啟).
             .semantics {
                 contentDescription = label
@@ -636,26 +774,28 @@ fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: S
             // The knob's slide is the feedback; no wash over the track.
             .clickable(interactionSource = null, indication = null, enabled = enabled, role = Role.Switch) { onCheckedChange(!checked) }
             .drawWithCache {
-                val track = wobRect(50.0, 28.0, 14.0, seed, 1.1, WobRectOptions(
-                    curve = 1.5, cornerJitter = 0.6, segmentsH = SegValue.Range(1, 2), segmentsV = SegValue.Range(3, 4),
-                )).toPath(density)
-                val ink = Stroke(Tokens.Ink.toPx())
+                val track = Toggle.trackPath(seed).toPath(density)
+                val retrace = Toggle.retracePath(seed).toPath(density)
+                val grain = Grain.brush(GrainMode.Tile, "grain-button", size, density, Toggle.GRAIN_ALPHA)
+                val pen = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 onDrawBehind {
-                    drawPath(track, if (checked) Tokens.Terracotta else Tokens.ToggleOff)
-                    drawPath(track, if (checked) Tokens.TerracottaDeep else Tokens.ToggleOffStroke, style = ink)
+                    drawPath(track, fill)
+                    grain?.let { drawPath(track, it, alpha = Toggle.GRAIN_ALPHA) }
+                    drawPath(retrace, ink, alpha = Toggle.RETRACE_ALPHA, style = pen)
+                    drawPath(track, ink, style = pen)
                 }
             },
     ) {
         Box(
             Modifier
-                .offset(x = knobX, y = 4.dp)
-                .size(20.dp)
+                .offset(x = knobX, y = Toggle.PAD.dp)
+                .size(Toggle.KNOB.dp)
                 .drawWithCache {
-                    val knob = wobCircle(10.0, 10.0, 10.0, seed + 5, WobCircleOptions(segments = 8, mag = 0.5, cpJitter = 0.3)).toPath(density)
-                    val line = Stroke(Tokens.InkLight.toPx())
+                    val knob = Toggle.knobPath(seed).toPath(density)
+                    val ring = Stroke(Tokens.InkLight.toPx(), join = StrokeJoin.Round)
                     onDrawBehind {
                         drawPath(knob, Tokens.Cream)
-                        drawPath(knob, Tokens.TextMuted.copy(alpha = 0.4f), style = line)
+                        drawPath(knob, ink, style = ring)
                     }
                 },
         )

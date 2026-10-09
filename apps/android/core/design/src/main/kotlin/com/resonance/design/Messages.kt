@@ -301,15 +301,6 @@ fun QuoteBubble(text: String, seed: Double, modifier: Modifier = Modifier, onCli
 /** How far a reply's bubble lies over the foot of the message it quotes. */
 val REPLY_OVERLAP = 14.dp
 
-/** A glyph and a line of who answered whom, over the quote: the reply glyph, or the note's ([icon]) over the card a note was left on. */
-@Composable
-fun ReplyCaption(text: String, modifier: Modifier = Modifier, icon: IconName = IconName.Reply) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        OrganicIcon(icon, size = 12.dp, color = Tokens.TextMuted)
-        BasicText(text, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted))
-    }
-}
-
 // Words
 
 /**

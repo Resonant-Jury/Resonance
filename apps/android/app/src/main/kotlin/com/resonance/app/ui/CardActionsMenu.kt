@@ -1,13 +1,6 @@
 package com.resonance.app.ui
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -15,25 +8,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.resonance.app.Session
-import com.resonance.design.AppFonts
-import com.resonance.design.ButtonVariant
-import com.resonance.design.CssText
-import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicConfirmDialog
 import com.resonance.design.MenuTrigger
-import com.resonance.design.Mixes
 import com.resonance.design.OrganicAlert
 import com.resonance.design.OrganicMenu
 import com.resonance.design.OrganicMenuItem
-import com.resonance.design.OrganicModal
 import com.resonance.design.generated.IconName
-import com.resonance.design.generated.Tokens
 import com.resonance.design.fade
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.cardsByKey
@@ -116,54 +98,39 @@ fun CardActionsMenu(
     Box(Modifier.fade(if (busy && !confirming && !unresonating) 0.6f else 1f)) {
         OrganicMenu(items, L10n.Me.Actions.menuLabel, seed, hue = hue, trigger = trigger)
     }
-    if (confirming) {
-        OrganicModal(
-            if (busy) null else ({ confirming = false }),
-            L10n.Me.Actions.deleteConfirmTitle,
-            seed = seed + 5,
-            closeLabel = L10n.Me.Actions.deleteCancel,
-            maxWidth = 400.dp,
-        ) {
-            // The delete confirmation: 20 heading, the muted note, then Keep it / Delete card on the right.
-            Column {
-                CssText(
-                    L10n.Me.Actions.deleteConfirmTitle, AppFonts.Family.Heading, 20f, 700, lineHeight = 1.3f,
-                    modifier = Modifier.semantics { heading() },
-                )
-                Spacer(Modifier.height(10.dp))
-                CssText(L10n.Me.Actions.deleteConfirmBody, AppFonts.Family.Body, 14f, lineHeight = 1.6f, color = Tokens.TextMuted)
-                if (deleteFailed) {
-                    Spacer(Modifier.height(10.dp))
-                    BasicText(L10n.Safety.actionError, style = AppFonts.body(13f, color = Mixes.Danger))
-                }
-                Spacer(Modifier.height(if (deleteFailed) 14.dp else 24.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-                    // The modal is the frame: "keep it" is plain text, and deleting — which can't be undone — is red.
-                    OrganicButton(L10n.Me.Actions.deleteCancel, variant = ButtonVariant.Text, small = true, enabled = !busy) { confirming = false }
-                    OrganicButton(if (busy) "…" else L10n.Me.Actions.deleteConfirm, variant = ButtonVariant.Danger, small = true, enabled = !busy) {
-                        if (busy) return@OrganicButton
-                        busy = true
-                        deleteFailed = false
-                        scope.launch {
-                            try {
-                                session.writing.deleteCard(cardId)
-                                confirming = false
-                                session.noteCardChange(menuChange(cardId, referenceCardId))
-                                onDeleted()
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                // Still there, and listed where it was: the dialog says so and stays for another try.
-                                deleteFailed = true
-                            } finally {
-                                busy = false
-                            }
-                        }
-                    }
+    // The one confirm (ConfirmModal): Keep it | Delete card in red, which can't be undone; a delete
+    // that didn't go through says so above them, and the dialog stays for another try.
+    if (confirming) OrganicConfirmDialog(
+        title = L10n.Me.Actions.deleteConfirmTitle,
+        body = L10n.Me.Actions.deleteConfirmBody,
+        cancelLabel = L10n.Me.Actions.deleteCancel,
+        confirmLabel = L10n.Me.Actions.deleteConfirm,
+        onCancel = { confirming = false },
+        onConfirm = {
+            if (busy) return@OrganicConfirmDialog
+            busy = true
+            deleteFailed = false
+            scope.launch {
+                try {
+                    session.writing.deleteCard(cardId)
+                    confirming = false
+                    session.noteCardChange(menuChange(cardId, referenceCardId))
+                    onDeleted()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Still there, and listed where it was.
+                    deleteFailed = true
+                } finally {
+                    busy = false
                 }
             }
-        }
-    }
+        },
+        busy = busy,
+        seed = seed + 5,
+        error = if (deleteFailed) L10n.Safety.actionError else null,
+        destructive = true,
+    )
     if (changeFailed) OrganicAlert(L10n.Safety.actionError, seed = seed + 3) { changeFailed = false }
     if (unresonating && referenceCardId != null) UnresonateDialog(
         session, cardId, referenceCardId, referenceTitle, seed = seed + 9,

@@ -63,34 +63,23 @@ import com.resonance.geometry.mapNodeW
 import com.resonance.geometry.seedFromString
 import com.resonance.geometry.wobRect
 import com.resonance.geometry.wobTabRect
+import com.resonance.kit.story.PlainText
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 // What a card on the map says
 
-private val CodeFence = Regex("```[\\s\\S]*?```")
-private val Image = Regex("!\\[[^\\]]*\\]\\([^)]*\\)")
-private val Link = Regex("\\[([^\\]]*)\\]\\([^)]*\\)")
-private val Heading = Regex("^#{1,6}\\s+", RegexOption.MULTILINE)
-private val Quote = Regex("^>\\s?", RegexOption.MULTILINE)
-private val Marks = Regex("[*_~`]+")
 // JavaScript's `\s` is Unicode-aware (the ideographic space, NBSP, the BOM); Android's regex needs them spelled out.
 private val Spaces = Regex("[\\s\\p{Z}\\uFEFF]+")
 private val FirstImage = Regex("!\\[[^\\]]*\\]\\((https?://[^\\s)]+)\\)")
 
-/** plainExcerpt (src/lib/adapters/story.ts): the story's prose with the Markdown stripped, cut at `max` UTF-16 units like the web's `slice`. */
-fun plainExcerpt(markdown: String, max: Int = 80): String {
-    val t = markdown
-        .replace(CodeFence, " ")
-        .replace(Image, " ")
-        .replace(Link, "$1")
-        .replace(Heading, "")
-        .replace(Quote, "")
-        .replace(Marks, "")
-        .replace(Spaces, " ")
-        .trim()
-    return if (t.length > max) t.substring(0, max) + "…" else t
-}
+/**
+ * plainExcerpt (src/lib/adapters/story.ts): the story's prose by the web's one rule
+ * (src/lib/markdown/plainText.ts, ported as [PlainText]) — Markdown syntax off, links keeping their
+ * text, the bare addresses Linkify reads as links left out with the `<…>` round an autolink — cut
+ * at `max` code points (never half an emoji).
+ */
+fun plainExcerpt(markdown: String, max: Int = 80): String = PlainText.plainExcerpt(markdown, max)
 
 /** The card's little picture: its cover, else the story's first inline image. */
 fun mapThumbUrl(card: MapCard): String? = card.mediaUrl ?: FirstImage.find(card.story)?.groupValues?.get(1)

@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -270,7 +271,7 @@ private fun AccountSettings(session: Session) {
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         OrganicTextField(L10n.Settings.Account.email, session.email ?: "", {}, placeholder = "you@example.com", seed = 51.0, enabled = false)
         OrganicTextField(L10n.Settings.Account.phone, session.phoneNumber ?: "", {}, placeholder = "—", seed = 57.0, enabled = false)
-        OrganicButton(L10n.Settings.Account.signOut, Modifier.padding(top = 4.dp), variant = ButtonVariant.Outline) { confirming = true }
+        OrganicButton(L10n.Settings.Account.signOut, Modifier.padding(top = 4.dp), variant = ButtonVariant.Tonal) { confirming = true }
     }
     if (confirming) OrganicConfirmDialog(
         title = L10n.App.SignOutConfirm.title,
@@ -286,7 +287,7 @@ private fun AccountSettings(session: Session) {
 @Composable
 private fun PrivacySettings(session: Session) {
     var showingBlocks by remember { mutableStateOf(false) }
-    OrganicButton(L10n.Settings.Privacy.manageBlocks, variant = ButtonVariant.Outline) { showingBlocks = true }
+    OrganicButton(L10n.Settings.Privacy.manageBlocks, variant = ButtonVariant.Tonal) { showingBlocks = true }
     if (showingBlocks) OrganicModal({ showingBlocks = false }, L10n.Safety.BlockedList.title, seed = 97.0, closeLabel = L10n.Safety.BlockedList.close) {
         BlockedListContent(session) { showingBlocks = false }
     }
@@ -417,7 +418,7 @@ private fun NotificationSettings(session: Session) {
         if (showsPermissionNotice(settings, canNotify = block == PushCenter.PicksBlock.None, refused)) {
             Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 BasicText(L10n.Settings.Notifications.permissionDenied, style = AppFonts.body(14f, lineHeight = 1.55f, color = Tokens.TextMuted))
-                OrganicButton(L10n.Settings.Notifications.openSettings, variant = ButtonVariant.Outline, small = true) {
+                OrganicButton(L10n.Settings.Notifications.openSettings, variant = ButtonVariant.Tonal, small = true) {
                     runCatching { context.startActivity(PushCenter.notificationSettingsIntent(context, block)) }
                 }
             }
@@ -486,9 +487,9 @@ private fun TermsSettings(session: Session) {
 }
 
 /**
- * DeleteAccountSection: what happens, the backup first, then the quieter
- * outline Delete (the web keeps it from reading as a call to action) and its
- * confirmation. The backup goes wherever the person picks (the system's save sheet).
+ * DeleteAccountSection: what happens, the backup first, then the way into the
+ * deletion in the red's soft tint (not a call to action: the dialog's confirm
+ * is the solid red) and its confirmation. The backup goes wherever the person picks (the system's save sheet).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -518,14 +519,20 @@ private fun DeleteAccountSettings(session: Session) {
         BasicText(L10n.Settings.Delete.title, style = AppFonts.heading(20f, lineHeight = 1.3f))
         CssText(L10n.Settings.Delete.warn, AppFonts.Family.Body, 14f, lineHeight = 1.65f, color = Tokens.TextMuted)
         CssText(L10n.Settings.Delete.exportHint, AppFonts.Family.Body, 14f, lineHeight = 1.65f, color = Tokens.TextMuted)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Two pills of one height: the backup in the tonal peach, and the way into the deletion in the
+        // red's tint — it only opens the dialog, whose confirm is the solid red. On a phone they don't
+        // fit one row, so they stack at one width (a balanced column, not two ragged pills).
+        val compact = LocalConfiguration.current.screenWidthDp < 640
+        val width = if (compact) Modifier.fillMaxWidth() else Modifier
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp)) {
             OrganicButton(
                 if (exporting) L10n.Settings.Delete.exporting else L10n.Settings.Delete.export,
-                variant = ButtonVariant.Text,
+                width,
+                variant = ButtonVariant.Tonal,
                 icon = if (exported) IconName.Check else IconName.Document,
                 enabled = !exporting,
             ) { save.launch("resonance-backup-${LocalDate.now()}.json") }
-            OrganicButton(L10n.Settings.Delete.button, variant = ButtonVariant.Outline, icon = IconName.Trash) { confirming = true }
+            OrganicButton(L10n.Settings.Delete.button, width, variant = ButtonVariant.DangerTonal, icon = IconName.Trash) { confirming = true }
         }
         if (failed) BasicText(L10n.Settings.Delete.error, style = AppFonts.body(13f, color = Mixes.Danger))
     }
@@ -592,7 +599,7 @@ private fun ColumnScope.BlockedListContent(session: Session, onClose: () -> Unit
                     }
                     OrganicButton(
                         if (pending == person.id) "…" else L10n.Safety.unblock,
-                        variant = ButtonVariant.TextAccent,
+                        variant = ButtonVariant.Tonal,
                         small = true,
                         enabled = pending == null,
                     ) {

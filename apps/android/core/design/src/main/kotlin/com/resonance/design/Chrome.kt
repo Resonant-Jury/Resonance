@@ -158,7 +158,8 @@ private fun PenChip(pressed: Boolean, icon: IconName) {
                 )).createOutline(size, layoutDirection, this)
                 val grain = Grain.brush(GrainMode.Tile, "grain-button", size, density, 0.38f)
                 onDrawBehind {
-                    drawOutline(o, Tokens.Terracotta)
+                    // The verb's face (--button-fill): the pen chip is the write button.
+                    drawOutline(o, Mixes.ButtonFill)
                     grain?.let { drawOutline(o, it, alpha = 0.38f) }
                     if (pressed) drawOutline(o, OrganicIndication.OnFill)
                 }

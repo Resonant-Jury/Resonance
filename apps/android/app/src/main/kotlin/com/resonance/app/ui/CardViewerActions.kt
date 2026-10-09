@@ -1,17 +1,6 @@
 package com.resonance.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,43 +8,36 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.DraftService
 import com.resonance.app.Session
-import com.resonance.design.AppFonts
-import com.resonance.design.ButtonVariant
-import com.resonance.design.OrganicButton
-import com.resonance.design.OrganicIcon
+import com.resonance.design.Mixes
+import com.resonance.design.OrganicIndication
 import com.resonance.design.OrganicModal
+import com.resonance.design.Segment
+import com.resonance.design.SegmentedActionBar
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
-import com.resonance.design.plainClickable
 import com.resonance.kit.l10n.L10n
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * The reader's actions under a story (ReadAfterArea → CardViewerActions, the
- * phone layout): 共振 as the one primary button — or, once you have answered
- * this card, 已共振 in outline opening your resonance (`onOpenMine`), or 修改
- * taking a resonance still a draft back to the writer (`onModify`) — then the
- * note as a quiet text link and the bookmark as a bare glyph. The twin of iOS's
- * CardViewerActions. 共振 opens the [ResonatePicker]: write a new card in answer
- * (`onWriteNew`), or pick one already written. The note opens the note composer
- * in its modal (`onUpgradeNote`: a long note grown into a resonance, its words
- * carried into the writer). [referenceCardId] is the card this one answers:
- * never offered to answer it back.
+ * The reader's actions under a story (ReadAfterArea → CardViewerActions): one [SegmentedActionBar]
+ * in one row — 共振 the verb (solid): or, once you have answered this card, 已共振 opening your
+ * resonance (`onOpenMine`), or 修改 taking a resonance still a draft back to the writer
+ * (`onModify`) — then the note and the bookmark (tonal). On a phone the note reads its short
+ * words (寄小紙條 / Send a note; its full words stay its accessible name) and the bookmark shows
+ * its glyph alone when the row has no room for its words. The twin of iOS's CardViewerActions.
+ * 共振 opens the [ResonatePicker]: write a new card in answer (`onWriteNew`), or pick one already
+ * written. The note opens the note composer in its modal (`onUpgradeNote`: a long note grown into
+ * a resonance, its words carried into the writer). [referenceCardId] is the card this one
+ * answers: never offered to answer it back.
  */
 @Composable
 fun CardViewerActions(
@@ -86,31 +68,53 @@ fun CardViewerActions(
             null
         }
     }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        val answered = mine
-        // Wait for the lookup, so a second resonance can't be started by accident (dimmed to 0.6 and inert meanwhile).
-        when {
-            // A published resonance is done: the button says so and opens it.
-            answered != null && answered != NONE && answered.published ->
-                OrganicButton(L10n.Card.resonated, variant = ButtonVariant.Outline, icon = IconName.Check) { onOpenMine(answered.routeKey) }
-            // A draft is still being written: 修改 takes it back to the writer.
-            answered != null && answered != NONE -> OrganicButton(L10n.Card.modify, variant = ButtonVariant.Outline, icon = IconName.Pen) { onModify(answered.id) }
-            else -> OrganicButton(L10n.Card.resonate, icon = IconName.Wave, enabled = answered != null) { picking = true }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // The web's secondaryOutline with its frame hidden: a link.
-            Row(
-                Modifier.heightIn(min = 44.dp).plainClickable(role = Role.Button) { writingNote = true },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    var bookmarked by remember(cardId) { mutableStateOf(false) }
+    LaunchedEffect(cardId) { bookmarked = runCatching { session.bookmarks?.isBookmarked(cardId) }.getOrNull() ?: false }
+    val resonate = ResonateAction.of(mine?.let { if (it == NONE) ResonateAction.Mine.None else ResonateAction.Mine.Found(it.published) })
+    // The full words where the bar stands at its own width; the short ones where it spans a phone's column.
+    val phone = LocalConfiguration.current.screenWidthDp < 640
+    SegmentedActionBar(
+        listOf(
+            Segment(
+                "resonate", resonate.label, resonate.icon,
+                fill = Mixes.ButtonFill, textColor = Tokens.Cream, press = OrganicIndication.OnFill,
             ) {
-                OrganicIcon(IconName.Note, size = 16.dp, color = Tokens.Terracotta)
-                BasicText(L10n.Card.Note.entry, style = AppFonts.body(15f, 600, color = Tokens.Terracotta).copy(letterSpacing = 0.02.em))
-            }
-            Spacer(Modifier.weight(1f))
-            BookmarkButton(session, cardId)
-        }
-    }
+                val answered = mine
+                when {
+                    answered == null -> Unit
+                    answered == NONE -> picking = true
+                    // A published resonance is done: the button says so and opens it.
+                    answered.published -> onOpenMine(answered.routeKey)
+                    // A draft is still being written: 修改 takes it back to the writer.
+                    else -> onModify(answered.id)
+                }
+            },
+            Segment(
+                "note", if (phone) L10n.Card.Note.entryShort else L10n.Card.Note.entry, IconName.Note,
+                contentDescription = L10n.Card.Note.entry,
+            ) { writingNote = true },
+            Segment(
+                "bookmark", if (bookmarked) L10n.Card.Bookmark.remove else L10n.Card.Bookmark.add, IconName.Bookmark,
+                collapsible = true,
+                iconFill = if (bookmarked) Mixes.ButtonOnTonal else null,
+                iconStroke = if (bookmarked) 2f else 1.6f,
+            ) {
+                val bookmarks = session.bookmarks ?: return@Segment
+                // Optimistic, then reconciled with what the write returns.
+                val saving = !bookmarked
+                bookmarked = saving
+                haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                scope.launch {
+                    bookmarked = runCatching { bookmarks.toggle(cardId) }.onSuccess { session.noteOwnWrite() }.getOrElse { !saving }
+                }
+            },
+        ),
+        modifier.fillMaxWidth(),
+        // Wait for the lookup, so a second resonance can't be started by accident (dimmed and inert meanwhile).
+        enabled = mine != null,
+    )
     if (picking) ResonatePicker(
         session, cardId, referenceCardId,
         onWriteNew = onWriteNew,
@@ -132,48 +136,21 @@ fun CardViewerActions(
 /** No resonance of yours answers the card (looked, and found none). */
 private val NONE = DraftService.Resonance("", "", published = false)
 
-/** BookmarkButton.tsx: the ribbon alone — muted and outlined when off, filled terracotta when on — and a brief "Saved" after saving. */
-@Composable
-fun BookmarkButton(session: Session, cardId: String) {
-    val scope = rememberCoroutineScope()
-    val haptic = LocalHapticFeedback.current
-    var active by remember(cardId) { mutableStateOf(false) }
-    var justSaved by remember(cardId) { mutableStateOf(false) }
-    LaunchedEffect(cardId) { active = runCatching { session.bookmarks?.isBookmarked(cardId) }.getOrNull() ?: false }
-    LaunchedEffect(justSaved) {
-        if (justSaved) {
-            delay(3000)
-            justSaved = false
-        }
+/**
+ * What the verb's segment says and draws, from what you have written in answer: still looking
+ * (`null`: 共振, while the bar waits), none (共振 ≋), a draft (修改 ✎), or a published one (已共振 ✓).
+ */
+internal class ResonateAction private constructor(val label: String, val icon: IconName) {
+    sealed interface Mine {
+        data object None : Mine
+        data class Found(val published: Boolean) : Mine
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        AnimatedVisibility(justSaved && active, enter = fadeIn(), exit = fadeOut()) {
-            BasicText(L10n.Card.Bookmark.saved, style = AppFonts.body(13f, color = Tokens.Terracotta))
+
+    companion object {
+        fun of(mine: Mine?): ResonateAction = when {
+            mine is Mine.Found && mine.published -> ResonateAction(L10n.Card.resonated, IconName.Check)
+            mine is Mine.Found -> ResonateAction(L10n.Card.modify, IconName.Pen)
+            else -> ResonateAction(L10n.Card.resonate, IconName.Wave)
         }
-        OrganicIcon(
-            IconName.Bookmark,
-            Modifier
-                .sizeIn(minWidth = 44.dp, minHeight = 44.dp)
-                .semantics {
-                    contentDescription = if (active) L10n.Card.Bookmark.remove else L10n.Card.Bookmark.add
-                    selected = active
-                }
-                .plainClickable(role = Role.Button) {
-                    val bookmarks = session.bookmarks ?: return@plainClickable
-                    // Optimistic, then reconciled with what the write returns.
-                    val saving = !active
-                    active = saving
-                    justSaved = saving
-                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    scope.launch {
-                        active = runCatching { bookmarks.toggle(cardId) }.onSuccess { session.noteOwnWrite() }.getOrElse { !saving }
-                    }
-                }
-                .padding(12.dp),
-            size = 20.dp,
-            color = if (active) Tokens.Terracotta else Tokens.TextMuted,
-            strokeWidth = if (active) 2f else 1.6f,
-            fill = if (active) Tokens.Terracotta else null,
-        )
     }
 }

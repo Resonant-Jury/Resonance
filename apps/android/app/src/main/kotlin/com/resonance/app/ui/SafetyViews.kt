@@ -29,6 +29,8 @@ import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.ModalActions
+import com.resonance.design.ModalCloseButton
+import com.resonance.design.ModalError
 import com.resonance.design.OrganicAlert
 import com.resonance.design.ModalBody
 import com.resonance.design.ModalTitle
@@ -133,7 +135,8 @@ fun ReportDialog(
             ModalTitle(L10n.Safety.Report.doneTitle)
             ModalBody(L10n.Safety.Report.doneBody)
             if (blocked) ModalBody(L10n.Safety.Report.doneBlocked(name))
-            ModalActions { OrganicButton(L10n.Safety.Report.close, variant = ButtonVariant.Solid, small = true, onClick = onClose) }
+            // Nothing left to do but leave: the one-exit notice's centred close, not a verb.
+            ModalCloseButton(L10n.Safety.Report.close, onClose)
             return@OrganicModal
         }
         ModalTitle(title)
@@ -161,25 +164,22 @@ fun ReportDialog(
             BasicText(L10n.Safety.Report.alsoBlock(name), style = AppFonts.body(14.5f), modifier = Modifier.weight(1f).padding(end = 16.dp))
             OrganicToggle(alsoBlock, { alsoBlock = it }, L10n.Safety.Report.alsoBlock(name), seed = 91.0)
         }
-        if (error) BasicText(L10n.Safety.actionError, style = AppFonts.body(13f, color = Tokens.Terracotta))
-        ModalActions {
-            OrganicButton(L10n.Safety.cancel, variant = ButtonVariant.Text, small = true, enabled = !busy, onClick = onClose)
-            OrganicButton(if (busy) "…" else L10n.Safety.Report.submit, variant = ButtonVariant.Solid, small = true, enabled = !busy) {
-                scope.launch {
-                    busy = true
-                    error = false
-                    runCatching {
-                        val safety = session.safety ?: error("signed out")
-                        safety.report(target, reason, detail)
-                        target.userId?.let { if (blocks && alsoBlock) safety.block(it) }
-                    }.onSuccess {
-                        done = blocks && alsoBlock
-                        if (blocks && alsoBlock) onBlocked()
-                    }.onFailure { error = true }
-                    busy = false
-                }
+        if (error) ModalError(L10n.Safety.actionError)
+        ModalActions(L10n.Safety.cancel, onClose, if (busy) "…" else L10n.Safety.Report.submit, busy = busy, onVerb = {
+            scope.launch {
+                busy = true
+                error = false
+                runCatching {
+                    val safety = session.safety ?: error("signed out")
+                    safety.report(target, reason, detail)
+                    target.userId?.let { if (blocks && alsoBlock) safety.block(it) }
+                }.onSuccess {
+                    done = blocks && alsoBlock
+                    if (blocks && alsoBlock) onBlocked()
+                }.onFailure { error = true }
+                busy = false
             }
-        }
+        })
     }
 }
 
@@ -210,7 +210,7 @@ fun AccountDeletionBanner(session: Session, date: OffsetDateTime) {
         BasicText(L10n.AccountDeletion.banner(mediumDate(date.toString()) ?: ""), style = AppFonts.body(14f, 600), modifier = Modifier.weight(1f))
         Spacer(Modifier.size(8.dp))
         // The banner has its own pen line, so its undo draws none (as on the web and iOS).
-        OrganicButton(if (busy) "…" else L10n.AccountDeletion.cancel, variant = ButtonVariant.TextAccent, small = true, enabled = !busy) {
+        OrganicButton(if (busy) "…" else L10n.AccountDeletion.cancel, variant = ButtonVariant.Tonal, small = true, enabled = !busy) {
             scope.launch {
                 busy = true
                 failed = false

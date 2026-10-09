@@ -27,10 +27,9 @@ import androidx.compose.ui.unit.dp
 import com.resonance.app.PushCenter
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
-import com.resonance.design.ButtonVariant
 import com.resonance.design.FieldLabel
+import com.resonance.design.ModalActions
 import com.resonance.design.ModalCloseButton
-import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicIcon
 import com.resonance.design.fieldHintStyle
 import com.resonance.design.fieldSurface
@@ -122,16 +121,13 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
             )
         }
         error?.let { BasicText(it, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.Terracotta), modifier = Modifier.padding(bottom = 10.dp)) }
-        Row(
-            Modifier.fillMaxWidth().padding(top = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OrganicButton(L10n.Card.Note.cancel, variant = ButtonVariant.Text, small = true, onClick = onClose)
-            // The web's wrapper: dimmed to .5 and deaf to touches until there is something to send.
-            Box(Modifier.dimmedUnless(valid && !pending)) {
-                OrganicButton(if (pending) "…" else L10n.Card.Note.send, variant = ButtonVariant.Solid, small = true) {
-                    if (!valid || pending) return@OrganicButton
+        // The modal is the frame: cancel the tonal pill, Send the solid verb, rightmost — the foot
+        // every dialog shares; Send waits, faded, until there is something to send.
+        ModalActions(
+            L10n.Card.Note.cancel, onClose, if (pending) "…" else L10n.Card.Note.send,
+            busy = pending, verbEnabled = valid, topPadding = 18.dp,
+            onVerb = {
+                if (valid && !pending) {
                     pending = true
                     error = null
                     val words = text.trim()
@@ -149,8 +145,8 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
                         }
                     }
                 }
-            }
-        }
+            },
+        )
     }
 }
 

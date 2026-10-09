@@ -40,8 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.style.TextAlign
 import android.view.View
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.resonance.api.models.Author
@@ -64,7 +62,6 @@ import com.resonance.design.StoryCardContent
 import com.resonance.design.cream
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
-import com.resonance.design.fade
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.l10n.Strings
 import com.resonance.kit.reading.RefreshFailure
@@ -268,15 +265,3 @@ private fun rememberQuickReturn(list: LazyListState): QuickReturn {
     return q
 }
 
-/**
- * The web's `opacity: .5; pointer-events: none` wrapper (a Send with nothing to
- * send yet): dimmed, and touches don't reach what is under it.
- */
-fun Modifier.dimmedUnless(active: Boolean): Modifier =
-    if (active) this
-    // fade, not alpha: alpha's layer is the box's size and would cut a hand-drawn button's wobble straight.
-    else fade(0.5f).pointerInput(Unit) {
-        awaitPointerEventScope {
-            while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
-        }
-    }

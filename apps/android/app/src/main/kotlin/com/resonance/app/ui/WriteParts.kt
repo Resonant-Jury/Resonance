@@ -141,7 +141,7 @@ fun TagField(
                         else -> L10n.Write.tagsSuggest
                     },
                     modifier = Modifier.fade(breath),
-                    variant = ButtonVariant.TextAccent,
+                    variant = ButtonVariant.Tonal,
                     icon = if (canAdd) IconName.Plus else IconName.Sparkle,
                     iconSize = if (canAdd) 13.dp else 16.dp,
                     small = true,

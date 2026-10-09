@@ -118,7 +118,7 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
                                 CssText(L10n.Home.endOfDay, AppFonts.Family.Heading, 20f, 700, lineHeight = 1.3f)
                             }
                             if (state.canLoadMore) {
-                                OrganicButton(if (state.loadingMore) L10n.Home.moreLoading else L10n.Home.moreBtn, variant = ButtonVariant.TextAccent) {
+                                OrganicButton(if (state.loadingMore) L10n.Home.moreLoading else L10n.Home.moreBtn, variant = ButtonVariant.Tonal) {
                                     feed.loadMore()
                                 }
                             }

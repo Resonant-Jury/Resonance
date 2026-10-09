@@ -189,7 +189,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                             }
                             // Connected: a way into the conversation (the web's small ghost button with the chat glyph).
                             if (!p.isBlocked && !p.isSelf && p.isConnected) {
-                                OrganicButton(L10n.Messages.messageLink, Modifier.padding(top = 4.dp), variant = ButtonVariant.Ghost, icon = IconName.Chat, small = true) {
+                                OrganicButton(L10n.Messages.messageLink, Modifier.padding(top = 4.dp), variant = ButtonVariant.Tonal, icon = IconName.Chat, small = true) {
                                     open(Route.Thread(a.handle, uid = a.id))
                                 }
                             }
@@ -251,7 +251,7 @@ private fun BlockedNotice(session: Session, userId: String, handle: String, onUn
             style = AppFonts.body(14.5f, lineHeight = 1.6f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
             modifier = Modifier.padding(bottom = 8.dp),
         )
-        OrganicButton(if (busy) "…" else L10n.Safety.unblock, variant = ButtonVariant.TextAccent, small = true, enabled = !busy) {
+        OrganicButton(if (busy) "…" else L10n.Safety.unblock, variant = ButtonVariant.Tonal, small = true, enabled = !busy) {
             busy = true
             scope.launch {
                 runCatching { session.safety?.unblock(userId) }.onSuccess { onUnblocked() }
