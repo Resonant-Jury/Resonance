@@ -35,5 +35,6 @@ export default function middleware(request: NextRequest) {
 export const config = {
   // Never a path with a dot in it: /robots.txt, /sitemap.xml, /favicon.ico
   // and the other root files are answered outside [locale] (middleware.test.ts).
-  matcher: ['/', '/(en|zh-TW)/:path*', '/((?!_next|_vercel|api|.*\\..*).*)'],
+  // Nor /download, a route handler of its own (the QR code's link to the stores).
+  matcher: ['/', '/(en|zh-TW)/:path*', '/((?!_next|_vercel|api|download$|.*\\..*).*)'],
 };
