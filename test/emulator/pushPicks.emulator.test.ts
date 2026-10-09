@@ -14,7 +14,7 @@ vi.mock('@/lib/auth', () => ({ getCurrentUser: async () => ({ id: mocks.viewer }
 vi.mock('@/lib/db/firestore/admin', () => ({ getAdminDb: () => mocks.db }));
 
 const { registerDevice } = await import('@/lib/push/devices');
-const { getNotificationSettings, updateNotificationSettings } = await import('@/lib/push/settings');
+const { dailyWalkStart, getNotificationSettings, optedIn, updateNotificationSettings } = await import('@/lib/push/settings');
 const { PICK_PUSHES, PICKS_CHANNEL, pushPick, pushPicks } = await import('@/lib/push/picks');
 const { dailyRecommendations, warmRecommendations } = await import('@/lib/recommend/daily');
 const { warmPicks, warmReader, ACTIVE_DAYS } = await import('@/lib/recommend/warm');
@@ -93,6 +93,14 @@ async function aliceOptedIn() {
   await registerDevice(db, 'alice', 'alice-pixel', { token: 'alice-en', platform: 'android', locale: 'en' });
   // Their app last opened yesterday (by this suite's clock).
   await Promise.all(['alice-iphone', 'alice-pixel'].map((id) => db.doc(`devices/${id}`).update({ updatedAt: Timestamp.fromMillis(NOW - DAY) })));
+}
+
+/** A reader with tonight's card on, one phone (its token is their uid) last opened yesterday, and yesterday's picks. */
+async function reader(uid: string, pickIds: string[]) {
+  await updateNotificationSettings(db, uid, { picks: true });
+  await registerDevice(db, uid, `${uid}-phone`, { token: uid, platform: 'android', locale: 'en' });
+  await db.doc(`devices/${uid}-phone`).update({ updatedAt: Timestamp.fromMillis(NOW - DAY) });
+  await picks(uid, pickIds);
 }
 
 /** A clock that starts at `at` and runs in real time (a wait loop needs one that moves). */
@@ -283,6 +291,46 @@ describe('pushPicks', () => {
     const late = await pushPicks(db, sender, { now: NOW + DAY, deadline: 0, clock: () => 1 });
     expect(late).toEqual({ readers: 0, outcomes: {}, deferred: 2 });
   });
+
+  // Review: both crons walked from the first id every day, so a run that ran
+  // out of time left the same last readers out every day.
+  it("leaves a different stretch of readers each day when a run hasn't time for everyone", async () => {
+    const [first, second] = [dailyWalkStart(NOW), dailyWalkStart(NOW + DAY)];
+    expect(first).not.toBe(second);
+    // The first reader each day's walk meets: just past that day's start.
+    const [ann, ben] = [`${first}0`, `${second}0`];
+    await card('c1', 'carol');
+    await reader(ann, ['c1']);
+    await reader(ben, ['c1']);
+
+    /** A run with time for one reader: the clock runs out as the first push goes. */
+    const oneReader = async (now: number) => {
+      const { sender: fcm, sent } = fakeFcm();
+      let late = false;
+      const sender: PushSender = { sendEachForMulticast: (m) => ((late = true), fcm.sendEachForMulticast(m)) };
+      const run = await pushPicks(db, sender, { now, deadline: 1, clock: () => (late ? 1 : 0), concurrency: 1 });
+      return { run, pushed: sent.flatMap((m) => m.tokens) };
+    };
+    expect(await oneReader(NOW)).toEqual({ run: { readers: 1, outcomes: { sent: 1 }, deferred: 1 }, pushed: [ann] });
+    expect(await oneReader(NOW + DAY)).toEqual({ run: { readers: 1, outcomes: { sent: 1 }, deferred: 1 }, pushed: [ben] });
+  });
+});
+
+describe('the walk over opted-in readers', () => {
+  it('goes from just past its start to the end, then round to it, a page at a time, each reader once', async () => {
+    for (const uid of ['a1', 'b1', 'c1', 'd1', 'e1']) await updateNotificationSettings(db, uid, { picks: true });
+    await updateNotificationSettings(db, 'c2', { connectionCards: true });
+    const walk = async (opts: Parameters<typeof optedIn>[2]) => {
+      const pages: string[][] = [];
+      for await (const page of optedIn(db, 'picks', opts)) pages.push(page);
+      return pages;
+    };
+    expect(await walk({ from: 'c1', pageSize: 2 })).toEqual([['d1', 'e1'], ['a1', 'b1'], ['c1']]);
+    // A start that is no one's id, and one past everyone.
+    expect(await walk({ from: 'b5', pageSize: 10 })).toEqual([['c1', 'd1', 'e1'], ['a1', 'b1']]);
+    expect(await walk({ from: 'zz', pageSize: 2 })).toEqual([['a1', 'b1'], ['c1', 'd1'], ['e1']]);
+    expect(await walk({ pageSize: 3 })).toEqual([['a1', 'b1', 'c1'], ['d1', 'e1']]);
+  });
 });
 
 describe('the warm-up', () => {
@@ -356,6 +404,23 @@ describe('the warm-up', () => {
     expect(build).toHaveBeenCalledWith('alice', { now: expect.any(Function), deadline: buildDeadline });
     expect(await warmPicks(db, { build, clock: () => NOW, deadline: NOW })).toEqual({ readers: 0, outcomes: {}, deferred: 2 });
     expect(build).toHaveBeenCalledTimes(1);
+  });
+
+  it("warms a different stretch of readers each day when a run hasn't time for everyone", async () => {
+    const [first, second] = [dailyWalkStart(NOW), dailyWalkStart(NOW + DAY)];
+    const [ann, ben] = [`${first}0`, `${second}0`];
+    await reader(ann, ['x']);
+    await reader(ben, ['x']);
+
+    /** A run with time for one build: the clock runs out as the first one starts. */
+    const oneBuild = async (at: number) => {
+      let late = false;
+      const build = vi.fn(async (_uid: string) => ((late = true), built(['y'])));
+      const run = await warmPicks(db, { build, clock: () => (late ? at + 1 : at), deadline: at + 1, concurrency: 1 });
+      return { run, built: build.mock.calls.map(([uid]) => uid) };
+    };
+    expect(await oneBuild(NOW)).toEqual({ run: { readers: 1, outcomes: { built: 1 }, deferred: 1 }, built: [ann] });
+    expect(await oneBuild(NOW + DAY)).toEqual({ run: { readers: 1, outcomes: { built: 1 }, deferred: 1 }, built: [ben] });
   });
 
   // Review: a reader who opened the app while the warm-up was building their

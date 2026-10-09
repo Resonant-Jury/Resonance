@@ -10,7 +10,7 @@ import { RECOMMENDATIONS, readStored, recommendationDay } from '@/lib/recommend/
 import type { DeviceLocale } from './devices';
 import { runPool } from './pool';
 import { deviceTargets, forgetDevices, groupByLocale, multicastTo, type PushSender } from './send';
-import { NOTIFICATION_SETTINGS, optedIn, readNotificationSettings } from './settings';
+import { NOTIFICATION_SETTINGS, dailyWalkStart, optedIn, readNotificationSettings } from './settings';
 
 /**
  * "A card for tonight" (`/api/cron/push-picks`, once a day at 12:00 UTC =
@@ -223,19 +223,21 @@ export interface PickRun {
 /**
  * The evening's run: every reader with `picks` on, a few at a time, starting
  * none past `deadline` (ms on `clock`); one reader's failure is logged and
- * the rest go on.
+ * the rest go on. The walk starts at the day's point in the user ids
+ * (dailyWalkStart) and goes round, so the readers a run has no time for
+ * aren't the same ones every day.
  */
 export async function pushPicks(
   db: Firestore,
   sender: PushSender,
-  opts: { now?: number; deadline?: number; clock?: () => number } = {},
+  opts: { now?: number; deadline?: number; clock?: () => number; concurrency?: number } = {},
 ): Promise<PickRun> {
   const clock = opts.clock ?? Date.now;
   const now = opts.now ?? clock();
   const stop = () => opts.deadline !== undefined && clock() >= opts.deadline;
   const run: PickRun = { readers: 0, outcomes: {}, deferred: 0 };
   const tally = (o: PickOutcome | 'failed') => (run.outcomes[o] = (run.outcomes[o] ?? 0) + 1);
-  for await (const uids of optedIn(db, 'picks')) {
+  for await (const uids of optedIn(db, 'picks', { from: dailyWalkStart(now) })) {
     if (stop()) {
       run.deferred += uids.length;
       continue;
@@ -243,13 +245,13 @@ export async function pushPicks(
     run.readers += uids.length;
     const { notStarted } = await runPool(
       uids,
-      CONCURRENCY,
+      opts.concurrency ?? CONCURRENCY,
       (uid) => pushPick(db, uid, sender, { now }).then((r) => tally(r.outcome), (e) => (tally('failed'), Promise.reject(e))),
       { stop, tag: '[push-picks]' },
     );
     run.readers -= notStarted;
     run.deferred += notStarted;
   }
-  if (run.deferred) console.warn(`[push-picks] out of time: ${run.deferred} readers left for tomorrow`);
+  if (run.deferred) console.warn(`[push-picks] out of time: ${run.deferred} readers left (tomorrow's walk starts elsewhere)`);
   return run;
 }

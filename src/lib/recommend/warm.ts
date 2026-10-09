@@ -1,7 +1,7 @@
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { PICK_PUSHES, pickGate, readPickLog } from '@/lib/push/picks';
 import { runPool } from '@/lib/push/pool';
-import { optedIn } from '@/lib/push/settings';
+import { dailyWalkStart, optedIn } from '@/lib/push/settings';
 import { planServe, warmRecommendations, type BuildFeed, type WarmOutcome } from './daily';
 import { RECOMMENDATIONS, readStored, recommendationDay } from './stored';
 
@@ -23,6 +23,10 @@ import { RECOMMENDATIONS, readStored, recommendationDay } from './stored';
  * build under way, none failed within the hour). Each goes through the
  * reader's own lease (warmRecommendations), stored as `warm`, and must be
  * done by the run's `buildDeadline`.
+ *
+ * The walk starts at the day's point in the user ids (dailyWalkStart) and
+ * goes round, so the readers a run has no time for aren't the same ones
+ * every day.
  */
 
 /** A reader counts as active for this long after their app last registered. */
@@ -66,25 +70,25 @@ export interface WarmRun {
 /**
  * Warm every opted-in reader who needs it, a few builds at a time, starting
  * none past `deadline` and finishing each by `buildDeadline` (both ms on
- * `clock`).
+ * `clock`), from the day's point in the walk round to it.
  */
 export async function warmPicks(
   db: Firestore,
-  opts: { deadline?: number; buildDeadline?: number; clock?: () => number; build?: BuildFeed } = {},
+  opts: { deadline?: number; buildDeadline?: number; clock?: () => number; build?: BuildFeed; concurrency?: number } = {},
 ): Promise<WarmRun> {
   const clock = opts.clock ?? Date.now;
   const stop = () => opts.deadline !== undefined && clock() >= opts.deadline;
   const run: WarmRun = { readers: 0, outcomes: {}, deferred: 0 };
   const tally = (o: WarmReaderOutcome | 'error') => (run.outcomes[o] = (run.outcomes[o] ?? 0) + 1);
   const reader = { build: opts.build, clock, buildDeadline: opts.buildDeadline };
-  for await (const uids of optedIn(db, 'picks')) {
+  for await (const uids of optedIn(db, 'picks', { from: dailyWalkStart(clock()) })) {
     if (stop()) {
       run.deferred += uids.length;
       continue;
     }
     const { notStarted } = await runPool(
       uids,
-      CONCURRENCY,
+      opts.concurrency ?? CONCURRENCY,
       (uid) => warmReader(db, uid, { ...reader, now: clock() }).then(tally, (e) => (tally('error'), Promise.reject(e))),
       { stop, tag: '[warm-picks]' },
     );

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { FieldPath, FieldValue, type DocumentData, type Firestore } from 'firebase-admin/firestore';
 
 /**
@@ -78,19 +79,49 @@ export async function updateNotificationSettings(db: Firestore, uid: string, pat
 /** Readers fetched per page when a cron walks everyone who turned a switch on. */
 const OPTED_IN_PAGE = 500;
 
+/** The characters of a Firebase uid, in the byte order Firestore sorts document ids by. */
+const UID_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+
 /**
- * Everyone who turned `key` on, a page of user ids at a time (document id
- * order: an equality filter and the id order need no composite index).
+ * Where a cron's walk over the opted-in readers starts on the UTC day of
+ * `now`: a point among the user ids that moves from day to day (a hash of
+ * the day), so a run that runs out of time leaves a different stretch of
+ * readers each day rather than the same last ones every day. Both of the
+ * evening's crons start at the same point, so the readers the warm-up
+ * reaches first are the ones the push reaches first.
  */
-export async function* optedIn(db: Firestore, key: NotificationSwitch, pageSize = OPTED_IN_PAGE): AsyncGenerator<string[]> {
-  let after: string | null = null;
-  for (;;) {
-    let q = db.collection(NOTIFICATION_SETTINGS).where(key, '==', true).orderBy(FieldPath.documentId()).select().limit(pageSize);
-    if (after) q = q.startAfter(after);
-    const snap = await q.get();
-    if (snap.empty) return;
-    yield snap.docs.map((d) => d.id);
-    if (snap.size < pageSize) return;
-    after = snap.docs[snap.size - 1].id;
+export function dailyWalkStart(now: number): string {
+  const day = new Date(now).toISOString().slice(0, 10);
+  const digest = createHash('sha256').update(`opted-in walk ${day}`).digest();
+  return Array.from(digest.subarray(0, 8), (b) => UID_CHARS[b % UID_CHARS.length]).join('');
+}
+
+/**
+ * Everyone who turned `key` on, a page of user ids at a time, in document id
+ * order (an equality filter and the id order need no composite index) — from
+ * just after `from` to the end, then from the start up to it, so each reader
+ * comes once wherever the walk starts.
+ */
+export async function* optedIn(
+  db: Firestore,
+  key: NotificationSwitch,
+  opts: { from?: string; pageSize?: number } = {},
+): AsyncGenerator<string[]> {
+  const pageSize = opts.pageSize ?? OPTED_IN_PAGE;
+  const base = db.collection(NOTIFICATION_SETTINGS).where(key, '==', true).orderBy(FieldPath.documentId()).select();
+  const legs: { after: string | null; upTo: string | null }[] =
+    opts.from === undefined ? [{ after: null, upTo: null }] : [{ after: opts.from, upTo: null }, { after: null, upTo: opts.from }];
+  for (const leg of legs) {
+    let after = leg.after;
+    for (;;) {
+      let q = base.limit(pageSize);
+      if (after !== null) q = q.startAfter(after);
+      if (leg.upTo !== null) q = q.endAt(leg.upTo);
+      const snap = await q.get();
+      if (snap.empty) break;
+      yield snap.docs.map((d) => d.id);
+      if (snap.size < pageSize) break;
+      after = snap.docs[snap.size - 1].id;
+    }
   }
 }

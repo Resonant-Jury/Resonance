@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 import { timeZoneOf } from './devices';
 import { PICKS_PER_WEEK, cardRoute, pickGate, pickText, readPickLog, recentlyPushed, type PickLog } from './picks';
-import { readNotificationSettings } from './settings';
+import { dailyWalkStart, readNotificationSettings } from './settings';
 
 // The pure rules of "a card for tonight" and its switches (Firestore and FCM:
 // test/emulator/pushPicks.emulator.test.ts).
@@ -73,6 +73,18 @@ describe('readNotificationSettings', () => {
   it('reads anything but true as off — a missing document is both off', () => {
     expect(readNotificationSettings(undefined)).toEqual({ picks: false, connectionCards: false });
     expect(readNotificationSettings({ picks: true, connectionCards: 'yes' })).toEqual({ picks: true, connectionCards: false });
+  });
+});
+
+describe('dailyWalkStart', () => {
+  it('starts the crons\' walk at one point all day, a different one each day, spread over the user ids', () => {
+    // The warm-up (11:00) and the push (12:00) start at the same point; the next day elsewhere.
+    expect(dailyWalkStart(Date.parse('2026-10-05T11:00:00Z'))).toBe(dailyWalkStart(Date.parse('2026-10-05T12:59:00Z')));
+    const starts = Array.from({ length: 60 }, (_, d) => dailyWalkStart(NOW + d * DAY));
+    expect(new Set(starts).size).toBe(60);
+    for (const s of starts) expect(s).toMatch(/^[0-9A-Za-z]{8}$/);
+    // Not stuck in one stretch of the ids: the first characters land all over.
+    expect(new Set(starts.map((s) => s[0])).size).toBeGreaterThan(25);
   });
 });
 
