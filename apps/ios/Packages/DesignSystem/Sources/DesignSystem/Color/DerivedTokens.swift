@@ -33,9 +33,6 @@ extension Tokens {
     /// A segmented choice's unchosen side on its paper-dark track (the publish panel's audience):
     /// color-mix(in oklch, text-muted, black 10%), deep enough to read there.
     public nonisolated static let segmentIdleInk = oklch(0.52 * 0.9, 0.04 * 0.9, 70)
-    /// --link-card-muted: a story link card's description and host on its `bubbleTheirs` fill —
-    /// text-muted there read 4.3:1 at 13–14pt; this is 5.8:1 (5.3:1 on the pressed `bubbleQuote`).
-    public nonisolated static let linkCardMeta = oklch(0.45, 0.04, 70)
     /// Divider's default ink: color-mix(in oklch, field-border-hover 35%, transparent).
     public nonisolated static let dividerInk = fieldBorderHover.opacity(0.35)
     /// What a modal (and a message's long-press menu) lays over the whole screen: the warm ink of

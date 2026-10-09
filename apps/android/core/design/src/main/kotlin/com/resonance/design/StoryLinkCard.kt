@@ -22,7 +22,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -133,7 +132,7 @@ object StoryLinkCardLook {
     const val BLEED = 8f
     val fill get() = Tokens.BubbleTheirs
     val wash get() = Tokens.BubbleQuote
-    val muted: Color = OklchColor.parse("oklch(45% 0.04 70)") ?: Tokens.TextMuted
+    val muted get() = Tokens.LinkCardMuted
 }
 
 /** As tall as its box, but [by] wider on each side and [by] higher, placed so it reaches past the box's top and sides. */

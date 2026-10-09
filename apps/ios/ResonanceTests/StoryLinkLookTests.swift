@@ -74,8 +74,7 @@ import UIKit
 
     @Test func aLinksCardsDescriptionAndHostReadOnItsFill() {
         // The web's --link-card-muted: text-muted on the card's fill was 4.3:1, under the 4.5:1 small words need.
-        #expect(StoryLinkCard.Look.muted == Tokens.linkCardMeta)
-        #expect(Tokens.linkCardMeta == OKLCHColor.color(0.45, 0.04, 70))
+        #expect(StoryLinkCard.Look.muted == Tokens.linkCardMuted)
         #expect(Self.contrast(StoryLinkCard.Look.muted, on: StoryLinkCard.Look.fill) >= 4.5)
         #expect(Self.contrast(StoryLinkCard.Look.muted, on: StoryLinkCard.Look.pressedFill) >= 4.5)
         #expect(Self.contrast(Tokens.textMuted, on: StoryLinkCard.Look.fill) < 4.5)

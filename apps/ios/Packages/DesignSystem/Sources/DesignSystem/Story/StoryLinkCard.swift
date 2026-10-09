@@ -41,9 +41,10 @@ public struct StoryLinkCard: View {
     public enum Look {
         public static let fill = Tokens.bubbleTheirs
         public static let pressedFill = Tokens.bubbleQuote
-        /// The description and the host line (glyph and words) at rest: deeper than text-muted,
-        /// which read about 4.3:1 on the fill.
-        public static let muted = Tokens.linkCardMeta
+        /// The description and the host line (glyph and words) at rest: the web's
+        /// `--link-card-muted`, deeper than text-muted, which read about 4.3:1 on the fill (this
+        /// is 5.8:1, 5.3:1 on the pressed fill).
+        public static let muted = Tokens.linkCardMuted
         public static let radius = 16.0
         /// How far the picture reaches past the card's box on its top and sides, so the outline's
         /// outward swings (a few points at most) still land on picture.

@@ -46,7 +46,7 @@ class LinkWaveTest {
 
     @Test fun itsDescriptionAndHostAreTheWebsLinkCardInkReadableOnItsFill() {
         // --link-card-muted: the page's text-muted is 4.3:1 on the card's fill, short of the 4.5 small words need.
-        assertEquals(OklchColor.parse("oklch(45% 0.04 70)"), StoryLinkCardLook.muted)
+        assertEquals(Tokens.LinkCardMuted, StoryLinkCardLook.muted)
         fun contrast(a: Color, b: Color): Float {
             val (hi, lo) = listOf(a.luminance(), b.luminance()).sortedDescending()
             return (hi + 0.05f) / (lo + 0.05f)
