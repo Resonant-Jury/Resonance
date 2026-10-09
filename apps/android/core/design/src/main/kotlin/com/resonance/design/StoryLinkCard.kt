@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -106,26 +107,33 @@ fun StoryLinkCard(preview: LinkPreview, host: String, label: String, onOpen: () 
         ) {
             BasicText(preview.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(16f, 600, lineHeight = 1.4f))
             preview.description?.let {
-                BasicText(it, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14f, lineHeight = 1.5f, color = Tokens.TextMuted))
+                BasicText(it, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14f, lineHeight = 1.5f, color = StoryLinkCardLook.muted))
             }
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OrganicIcon(IconName.Link, size = 15.dp, color = Tokens.TextMuted)
+                OrganicIcon(IconName.Link, size = 15.dp, color = StoryLinkCardLook.muted)
                 // The host takes the link's colour while the card is pressed (the web's hover).
                 BasicText(
                     host, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = AppFonts.body(13f, lineHeight = 1.3f, color = if (pressed) Tokens.Terracotta else Tokens.TextMuted),
+                    style = AppFonts.body(13f, lineHeight = 1.3f, color = if (pressed) Tokens.Terracotta else StoryLinkCardLook.muted),
                 )
             }
         }
     }
 }
 
-/** The card's look (StoryLinkCard.tsx): radius 16, the chat card bubble's fill, its quote's fill as the press wash, and how far the picture reaches past the card's box. */
+/**
+ * The card's look (StoryLinkCard.tsx): radius 16, the chat card bubble's fill, its quote's fill as
+ * the press wash, how far the picture reaches past the card's box, and the quieter ink of its
+ * description and host — the web's `--link-card-muted`, oklch(45% 0.04 70): the page's
+ * text-muted (52%) is 4.3:1 on the card's fill, under the 4.5 WCAG AA asks of 13–14px words;
+ * this one is 5.8:1.
+ */
 object StoryLinkCardLook {
     const val RADIUS = 16.0
     const val BLEED = 8f
     val fill get() = Tokens.BubbleTheirs
     val wash get() = Tokens.BubbleQuote
+    val muted: Color = OklchColor.parse("oklch(45% 0.04 70)") ?: Tokens.TextMuted
 }
 
 /** As tall as its box, but [by] wider on each side and [by] higher, placed so it reaches past the box's top and sides. */

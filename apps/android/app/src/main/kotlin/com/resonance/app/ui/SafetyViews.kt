@@ -44,6 +44,7 @@ import com.resonance.design.OrganicModal
 import com.resonance.design.OrganicRadio
 import com.resonance.design.OrganicTextField
 import com.resonance.design.OrganicToggle
+import com.resonance.design.toggleRow
 import com.resonance.design.organicSurface
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
@@ -129,7 +130,7 @@ fun ReportDialog(
         is SafetyService.Target.Message -> L10n.Safety.Report.titleMessage(name)
     }
 
-    OrganicModal(if (busy) null else onClose, title, seed = 83.0) {
+    OrganicModal(if (busy) null else onClose, title, seed = 83.0, closeLabel = reportCloseLabel(sent = done != null)) {
         val blocked = done
         if (blocked != null) {
             ModalTitle(L10n.Safety.Report.doneTitle)
@@ -159,10 +160,10 @@ fun ReportDialog(
             }
         }
         OrganicTextField(L10n.Safety.Report.detail, detail, { detail = it.take(SafetyService.DETAIL_MAX) }, L10n.Safety.Report.detailPlaceholder, seed = 89.0, multiline = true)
-        // The web's blockRow: the label, then the switch at the far end.
-        if (blocks) Row(verticalAlignment = Alignment.CenterVertically) {
+        // The web's blockRow: the label, then the switch at the far end — the whole row one switch, as the web's <label>.
+        if (blocks) Row(Modifier.toggleRow(alsoBlock) { alsoBlock = it }, verticalAlignment = Alignment.CenterVertically) {
             BasicText(L10n.Safety.Report.alsoBlock(name), style = AppFonts.body(14.5f), modifier = Modifier.weight(1f).padding(end = 16.dp))
-            OrganicToggle(alsoBlock, { alsoBlock = it }, L10n.Safety.Report.alsoBlock(name), seed = 91.0)
+            OrganicToggle(alsoBlock, seed = 91.0)
         }
         if (error) ModalError(L10n.Safety.actionError)
         ModalActions(L10n.Safety.cancel, onClose, if (busy) "…" else L10n.Safety.Report.submit, busy = busy, onVerb = {
@@ -182,6 +183,12 @@ fun ReportDialog(
         })
     }
 }
+
+/**
+ * What a tap beside the report dialog says it does: the form's own way out (取消 / Cancel) while
+ * the report is being written, the thank-you note's close (關閉 / Close) once it is sent.
+ */
+internal fun reportCloseLabel(sent: Boolean): String = if (sent) L10n.Safety.Report.close else L10n.Safety.cancel
 
 private fun reasonLabel(r: SafetyService.Reason) = when (r) {
     SafetyService.Reason.Spam -> L10n.Safety.Report.Reasons.spam

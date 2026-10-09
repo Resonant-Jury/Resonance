@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.lifecycle.Lifecycle
@@ -73,6 +74,7 @@ import com.resonance.design.ButtonVariant
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.Mixes
 import com.resonance.design.ModalActions
+import com.resonance.design.ModalActionsTop
 import com.resonance.design.ModalError
 import com.resonance.design.ModalBody
 import com.resonance.design.ModalTitle
@@ -87,6 +89,7 @@ import com.resonance.design.OrganicListEmpty
 import com.resonance.design.OrganicModal
 import com.resonance.design.OrganicTextField
 import com.resonance.design.OrganicToggle
+import com.resonance.design.toggleRow
 import com.resonance.design.Segment
 import com.resonance.design.SegmentedActionBar
 import com.resonance.design.SketchLoader
@@ -532,12 +535,17 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BasicText(L10n.Write.PublishPanel.anonymousToggle, style = AppFonts.body(14f), modifier = Modifier.weight(1f))
-                OrganicToggle(anonymous, {
+            // The whole row is the switch (the web's <label className={toggleRow}>): a tap on the words flips it too.
+            Row(
+                Modifier.toggleRow(anonymous) {
                     anonymous = it
                     visibility = anonymousVisibility(visibility, it)
-                }, L10n.Write.PublishPanel.anonymousToggle, seed = 57.0)
+                },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BasicText(L10n.Write.PublishPanel.anonymousToggle, style = AppFonts.body(14f), modifier = Modifier.weight(1f))
+                OrganicToggle(anonymous, seed = 57.0)
             }
             // Seeing is understanding: the exact card head the world will get.
             val me = session.me
@@ -561,7 +569,7 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
         } else {
             if (pending) L10n.Write.PublishPanel.publishing else L10n.Write.PublishPanel.publish
         }
-        ModalActions(L10n.Write.PublishPanel.cancel, onCancel, label, busy = pending, topPadding = 0.dp, onVerb = {
+        ModalActions(L10n.Write.PublishPanel.cancel, onCancel, label, busy = pending, topPadding = publishActionsTop(afterError = error != null), onVerb = {
             // The server refuses a card without a title; say so in the writer's words.
             if (model.values.title.isBlank()) {
                 error = L10n.Write.titleRequired
@@ -588,16 +596,25 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
 private val VisibilityInk = OklchColor.parse("oklch(46.8% 0.036 70)") ?: Tokens.TextMuted
 
 /**
+ * The air the publish panel's foot keeps above itself: none under the divider (the column's own
+ * gap is the web's), but the actions' usual [ModalActionsTop] while an error line stands over
+ * them — so the line sits [com.resonance.design.ModalErrorGap] above the buttons, as in every
+ * other dialog, not crowded down to 8.
+ */
+internal fun publishActionsTop(afterError: Boolean): Dp = if (afterError) ModalActionsTop else 0.dp
+
+/**
  * Why publishing (or saving the changes to a published card, [updating]) didn't go through, in the
- * reader's words — never the server's English: a card gone (deleted elsewhere) can't be found, so
- * trying again won't help; anything else — a refusal, the server's trouble, the network, the
- * changes that didn't save first — that it didn't work, to try again (an update: that it didn't
- * save).
+ * panel's own words — never the server's English: a card gone (deleted elsewhere) can't be found,
+ * so trying again won't help; the day's publishing used up (429 `rate_limited`) waits for
+ * tomorrow; anything else — a refusal, the server's trouble, the network, the changes that didn't
+ * save first — that it didn't publish, to try again (an update: that it didn't save).
  */
 internal fun publishError(e: Exception, updating: Boolean): String = when {
     e is ApiFailure && (e.isNotFound || e.status == 404) -> L10n.Card.NotFound.title
+    e is ApiFailure && (e.code == "rate_limited" || e.status == 429) -> L10n.Write.PublishPanel.rateLimited
     updating -> L10n.Native.saveError
-    else -> L10n.Safety.actionError
+    else -> L10n.Write.PublishPanel.failed
 }
 
 /**

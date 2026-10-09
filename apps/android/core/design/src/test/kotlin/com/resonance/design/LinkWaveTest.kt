@@ -1,5 +1,7 @@
 package com.resonance.design
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.SegValue
 import com.resonance.geometry.WobRectOptions
@@ -40,6 +42,17 @@ class LinkWaveTest {
     @Test fun theStoryLinkCardIsTheChatCardBubblesFillPressedTheQuotes() {
         assertEquals(Tokens.BubbleTheirs, StoryLinkCardLook.fill)
         assertEquals(Tokens.BubbleQuote, StoryLinkCardLook.wash)
+    }
+
+    @Test fun itsDescriptionAndHostAreTheWebsLinkCardInkReadableOnItsFill() {
+        // --link-card-muted: the page's text-muted is 4.3:1 on the card's fill, short of the 4.5 small words need.
+        assertEquals(OklchColor.parse("oklch(45% 0.04 70)"), StoryLinkCardLook.muted)
+        fun contrast(a: Color, b: Color): Float {
+            val (hi, lo) = listOf(a.luminance(), b.luminance()).sortedDescending()
+            return (hi + 0.05f) / (lo + 0.05f)
+        }
+        assertTrue(contrast(StoryLinkCardLook.muted, StoryLinkCardLook.fill) >= 4.5f)
+        assertTrue(contrast(Tokens.TextMuted, StoryLinkCardLook.fill) < 4.5f)
     }
 
     @Test fun itsPictureReachesPastEveryOutwardSwingOfItsOutline() {

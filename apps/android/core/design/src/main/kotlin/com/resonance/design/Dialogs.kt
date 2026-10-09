@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -69,9 +70,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.semantics.traversalIndex
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -194,7 +193,7 @@ fun OrganicModal(
                         }
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 28.dp, vertical = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(ModalGap),
                     content = content,
                 )
             }
@@ -281,7 +280,8 @@ fun OrganicConfirmDialog(
     /** The question's own words are still on their way: its place is kept, unwritten, rather than changing under the reader. */
     titlePending: Boolean = false,
 ) {
-    OrganicModal(if (busy) null else onCancel, title, seed) {
+    // A tap beside the card is the way out at its foot, and says so: "Keep it", not a "Close" it has no button for.
+    OrganicModal(if (busy) null else onCancel, title, seed, closeLabel = cancelLabel) {
         // ConfirmModal: 8 between title and body, 18 before the actions (14 + ModalActions' 4).
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.fade(if (titlePending) 0f else 1f)) { ModalTitle(title) }
@@ -295,16 +295,30 @@ fun OrganicConfirmDialog(
     }
 }
 
+/** What a modal's column puts between its parts. */
+val ModalGap = 14.dp
+
+/** The air [ModalActions] keeps above itself unless asked for other: 18 under what comes before, as ConfirmModal. */
+val ModalActionsTop = 4.dp
+
+/** How far a dialog's error line sits above its actions (the web's Modal `.error`). */
+val ModalErrorGap = 12.dp
+
 /**
- * A dialog's error line (the web's Modal `.error`): 13, danger red, right above its actions —
- * 12 over them, as on the web (the column's 14 and the actions' 4 would make it 18).
+ * How much of its line box [ModalError] gives back at its foot, so that it stands [ModalErrorGap]
+ * over actions that keep [ModalActionsTop] (the column's 14 and the actions' 4 would make it 18).
+ * A foot that keeps less air above it ([ModalActions]' `topPadding`) must keep [ModalActionsTop]
+ * while an error stands over it, or the line crowds the buttons.
  */
+val ModalErrorTuck = ModalGap + ModalActionsTop - ModalErrorGap
+
+/** A dialog's error line (the web's Modal `.error`): 13, danger red, right above its actions — [ModalErrorGap] over them, as on the web. */
 @Composable
 fun ModalError(text: String) = BasicText(
     text, style = AppFonts.body(13f, lineHeight = 1.5f, color = Mixes.Danger),
     modifier = Modifier.layout { measurable, constraints ->
         val placeable = measurable.measure(constraints)
-        val tuck = 6.dp.roundToPx()
+        val tuck = ModalErrorTuck.roundToPx()
         layout(placeable.width, placeable.height - tuck) { placeable.place(0, 0) }
     },
 )
@@ -333,7 +347,7 @@ val ModalActionMinWidth = 72.dp
  * ([ModalActionsLayout]).
  */
 @Composable
-fun ModalActions(topPadding: Dp = 4.dp, content: @Composable () -> Unit) {
+fun ModalActions(topPadding: Dp = ModalActionsTop, content: @Composable () -> Unit) {
     Layout(content, Modifier.fillMaxWidth().padding(top = topPadding)) { measurables, constraints ->
         val gap = 10.dp.roundToPx()
         val minHeight = ModalActionMinHeight.roundToPx().coerceAtMost(constraints.maxHeight)
@@ -363,7 +377,7 @@ fun ModalActions(
     destructive: Boolean = false,
     verbEnabled: Boolean = true,
     verbIcon: IconName? = null,
-    topPadding: Dp = 4.dp,
+    topPadding: Dp = ModalActionsTop,
 ) {
     ModalActions(topPadding) {
         OrganicButton(cancelLabel, variant = ButtonVariant.Tonal, small = true, busy = busy, onClick = onCancel)
@@ -748,14 +762,29 @@ private val KnobEasing = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f)
 private val InkEasing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
 
 /**
+ * The row a switch stands in with its words (the web's `<label>` around a ToggleSwitch), made the
+ * one control: a tap anywhere on it — the words, the hint, the switch, the air between — flips
+ * it, and TalkBack meets one switch named by the row's words with its state (on / 開啟), not a
+ * line of text and a nameless 50×28 target beside it. The [OrganicToggle] inside only draws.
+ * Not [enabled] (its value still loading, say), a tap does nothing; the knob's slide is the
+ * feedback, so no wash spreads over the row.
+ */
+fun Modifier.toggleRow(checked: Boolean, enabled: Boolean = true, onCheckedChange: (Boolean) -> Unit): Modifier =
+    toggleable(
+        value = checked, interactionSource = null, indication = null, enabled = enabled, role = Role.Switch,
+        onValueChange = onCheckedChange,
+    )
+
+/**
  * ToggleSwitch.tsx: a hand-drawn pill gone round twice in the light pen — the trace and a lighter
  * second pass — with the buttons' grain on its well, and a lumpy cream knob that slides across:
- * a soft ink off, terracotta on ([Toggle]). 50×28, its own tap target; the pen's swings reach a
- * little past the box (nothing clips them). Not [enabled] (its value still loading, say), it is
- * faded like a disabled button and a tap does nothing. With animations off it snaps.
+ * a soft ink off, terracotta on ([Toggle]). 50×28; the pen's swings reach a little past the box
+ * (nothing clips them). The drawing only: the row it stands in, with the words it flips, is what
+ * a finger and TalkBack meet ([toggleRow]). Not [enabled], it is faded like a disabled button.
+ * With animations off it snaps.
  */
 @Composable
-fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String, seed: Double = 9.0, enabled: Boolean = true) {
+fun OrganicToggle(checked: Boolean, seed: Double = 9.0, enabled: Boolean = true) {
     val still = LocalContext.current.prefersReducedMotion()
     val inks = Toggle.inks(checked)
     val knobX by animateDpAsState(Toggle.knobX(checked).dp, if (still) snap() else tween(200, easing = KnobEasing), label = "knob")
@@ -766,13 +795,6 @@ fun OrganicToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: S
             .size(Toggle.W.dp, Toggle.H.dp)
             // Faded drawing by drawing, so the pen's swings past the box aren't cut straight.
             .fade(if (enabled) 1f else Toggle.DISABLED_ALPHA)
-            // Its state is the toggleable state's, which TalkBack reads in the reader's language (on / 開啟).
-            .semantics {
-                contentDescription = label
-                toggleableState = ToggleableState(checked)
-            }
-            // The knob's slide is the feedback; no wash over the track.
-            .clickable(interactionSource = null, indication = null, enabled = enabled, role = Role.Switch) { onCheckedChange(!checked) }
             .drawWithCache {
                 val track = Toggle.trackPath(seed).toPath(density)
                 val retrace = Toggle.retracePath(seed).toPath(density)

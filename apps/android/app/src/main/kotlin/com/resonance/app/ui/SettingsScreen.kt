@@ -70,6 +70,7 @@ import com.resonance.design.OrganicRadio
 import com.resonance.design.SquareFlag
 import com.resonance.design.OrganicTextField
 import com.resonance.design.OrganicToggle
+import com.resonance.design.toggleRow
 import com.resonance.design.SketchLoader
 import com.resonance.design.WavyDivider
 import com.resonance.design.cream
@@ -401,17 +402,22 @@ private fun NotificationSettings(session: Session) {
     Column {
         pushSwitchRows.forEachIndexed { i, row ->
             if (i > 0) WavyDivider(seed = row.seed + 2, modifier = Modifier.padding(vertical = 2.dp))
+            // The whole row — its words, its hint and the air around them — is the one switch (the
+            // web's <label>), named by the words and described by the hint; dimmed until the switches are read.
             Row(
-                Modifier.fillMaxWidth().padding(top = if (i == 0) 0.dp else 14.dp, bottom = 14.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .toggleRow(settings?.get(row.switch) ?: false, enabled = settings != null) { flip(row.switch, it) }
+                    .padding(top = if (i == 0) 0.dp else 14.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     BasicText(row.label, style = AppFonts.body(16f, lineHeight = 1.45f))
                     BasicText(row.hint, style = AppFonts.body(Tokens.HintSize, lineHeight = 1.55f, color = Tokens.TextMuted))
                 }
-                // Level with the label's first line; dimmed until the switches are read.
+                // Level with the label's first line.
                 Box(Modifier.padding(top = 1.dp)) {
-                    OrganicToggle(settings?.get(row.switch) ?: false, { flip(row.switch, it) }, row.label, seed = row.seed, enabled = settings != null)
+                    OrganicToggle(settings?.get(row.switch) ?: false, seed = row.seed, enabled = settings != null)
                 }
             }
         }
