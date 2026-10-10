@@ -1,9 +1,11 @@
 'use client';
 
-import { CSSProperties, MouseEvent, ReactNode, useMemo, useRef, useState } from 'react';
+import { Children, CSSProperties, isValidElement, MouseEvent, ReactNode, useMemo, useRef, useState } from 'react';
 import { HandDrawnBorder } from '../HandDrawnBorder/HandDrawnBorder';
 import { ShapeGrain } from '../ShapeGrain/ShapeGrain';
 import { BrushWash } from '../BrushWash/BrushWash';
+import { ButtonLoader } from '../ButtonLoader/ButtonLoader';
+import { Icon } from '../Icon';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wobRect } from '@/lib/design/wobRect';
 import styles from './OrganicButton.module.css';
@@ -111,11 +113,24 @@ export interface OrganicButtonProps {
   onClick?: (e: MouseEvent<HTMLButtonElement>) => void;
   /** Not pressable yet (a dialog's verb before there is anything to act on): faded, no hover ink. */
   disabled?: boolean;
+  /**
+   * Its action is on its way: the label stays, a small pen loop draws
+   * itself in the label's ink (in place of a leading icon, else just before
+   * the label), the button keeps its size and colour, takes no click and
+   * says it is busy (aria-busy) — focus stays on it.
+   */
+  loading?: boolean;
+  /**
+   * With `loading`: the caller draws the ButtonLoader itself, in a slot of
+   * its own (a brand mark's, which the button can't see inside) — the
+   * button only takes the busy state.
+   */
+  callerLoader?: boolean;
   style?: CSSProperties & { fillColor?: string };
   className?: string;
 }
 
-export function OrganicButton({ children, variant = 'primary', size = 'md', block = false, onClick, disabled = false, style = {}, className }: OrganicButtonProps) {
+export function OrganicButton({ children, variant = 'primary', size = 'md', block = false, onClick, disabled = false, loading = false, callerLoader = false, style = {}, className }: OrganicButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const ref = useRef<HTMLButtonElement>(null);
@@ -146,6 +161,7 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', bloc
   }, [w, h, R, seed, mag, cornerOff]);
 
   const { fillColor: _fill, ...restStyle } = style;
+  const { content, shift } = loadingLabel(children, loading && !callerLoader, size === 'sm' ? 14 : 16);
   // Until measured (the server's HTML, a browser still loading or running no
   // scripts) the button stands in as a plain pill of its own fill
   // (.res-shape-stand-in): a solid's cream label never sits on cream.
@@ -157,8 +173,11 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', bloc
   return (
     <button
       ref={ref}
-      onClick={onClick}
+      // Busy: no click (nor a form's submit), but not `disabled`, which would drop the focus.
+      onClick={loading ? (e) => e.preventDefault() : onClick}
       disabled={disabled}
+      aria-busy={loading || undefined}
+      aria-disabled={loading || undefined}
       onMouseEnter={(e) => { recordPointer(e); setHovered(true); }}
       onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
       className={`${styles.btn}${size === 'sm' ? ` ${styles.sm}` : ''}${block ? ` ${styles.block}` : ''} res-shape-stand-in ${className || ''}`}
@@ -183,9 +202,49 @@ export function OrganicButton({ children, variant = 'primary', size = 'md', bloc
       <BrushWash
         w={w} h={h} d={overlayPath}
         color={v.hoverOverlay}
-        x={pos.x} y={pos.y} on={hovered && !disabled} duration={340} overshoot={4}
+        x={pos.x} y={pos.y} on={hovered && !disabled && !loading} duration={340} overshoot={4}
       />
-      <span className={styles.label}>{children}</span>
+      <span
+        className={styles.label}
+        data-loading-shift={shift != null || undefined}
+        style={shift != null ? ({ '--loader-shift': `${shift}px` } as CSSProperties) : undefined}
+      >
+        {content}
+      </span>
     </button>
   );
+}
+
+/** The loader's distance from the label it stands before. */
+const LOADER_GAP = 6;
+
+/**
+ * A busy button's label: the loader takes a leading icon's place (at the
+ * icon's size), else it stands `LOADER_GAP` before the label, outside its
+ * box, and the label moves half that much toward the end — so the pair stays
+ * centred and the button never changes size. `shift` is that move (null when
+ * nothing moves).
+ */
+export function loadingLabel(
+  children: ReactNode,
+  loading: boolean,
+  box: number,
+): { content: ReactNode; shift: number | null } {
+  if (!loading) return { content: children, shift: null };
+  const kids = Children.toArray(children);
+  const first = kids[0];
+  if (isValidElement<{ size?: number }>(first) && first.type === Icon) {
+    return { content: [<ButtonLoader key="loader" size={first.props.size ?? box} />, ...kids.slice(1)], shift: null };
+  }
+  return {
+    content: (
+      <>
+        <span className={styles.loaderSlot}>
+          <ButtonLoader size={box} />
+        </span>
+        {children}
+      </>
+    ),
+    shift: (box + LOADER_GAP) / 2,
+  };
 }

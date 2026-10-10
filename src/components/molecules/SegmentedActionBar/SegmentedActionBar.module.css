@@ -49,6 +49,35 @@
   opacity: 0.82;
 }
 
+/* In progress (loading): no press ink, the pointer says it is working. */
+.seg[aria-busy='true'] {
+  cursor: progress;
+}
+.seg[aria-busy='true']:active {
+  opacity: 1;
+}
+
+.label {
+  position: relative;
+  transition: transform 120ms ease-out;
+}
+.label[data-loading-shift] {
+  transform: translateX(var(--loader-shift));
+}
+.loaderSlot {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  margin-right: 6px;
+  transform: translateY(-50%);
+  display: flex;
+}
+@media (prefers-reduced-motion: reduce) {
+  .label {
+    transition: none;
+  }
+}
+
 /* A collapsible segment with no room for its words: the icon alone, the
    words kept for a screen reader (SegmentedActionBar measures them still). */
 .seg[data-icon-only] .label {

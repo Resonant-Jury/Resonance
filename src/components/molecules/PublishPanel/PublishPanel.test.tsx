@@ -79,10 +79,17 @@ describe('PublishPanel', () => {
     await echoSettled();
   });
 
-  // The request is on its way: the row rests, so it is neither sent twice nor walked away from.
+  // The request is on its way: the verb shows it working (its word kept) and the way out rests,
+  // so it is neither sent twice nor walked away from.
   it('rests its actions while publishing', async () => {
-    renderWithIntl(<PublishPanel {...baseProps} pending onPublish={vi.fn()} onClose={vi.fn()} />);
-    expect(screen.getByRole('button', { name: 'Publishing…' }).parentElement).toHaveAttribute('data-busy', 'true');
+    const onPublish = vi.fn();
+    renderWithIntl(<PublishPanel {...baseProps} pending onPublish={onPublish} onClose={vi.fn()} />);
+    const publish = screen.getByRole('button', { name: 'Publish' });
+    expect(publish).toHaveAttribute('aria-busy', 'true');
+    expect(publish.parentElement).toHaveAttribute('data-busy', 'true');
+    expect(screen.getByRole('button', { name: en.write.publishPanel.cancel })).toBeDisabled();
+    await userEvent.click(publish);
+    expect(onPublish).not.toHaveBeenCalled();
     await echoSettled();
   });
 

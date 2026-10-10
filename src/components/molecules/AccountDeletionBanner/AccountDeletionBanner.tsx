@@ -58,10 +58,10 @@ export function AccountDeletionBanner({ belowHeader = true }: { belowHeader?: bo
           {t('banner', { date })}
           {error && <span className={styles.error}> {t('error')}</span>}
         </p>
-        <span style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
+        <span>
           {/* The banner has its own danger-red pen line, so its undo draws none. */}
-          <OrganicButton variant="textAccent" size="sm" onClick={() => void cancel()}>
-            {busy ? '…' : t('cancel')}
+          <OrganicButton variant="textAccent" size="sm" onClick={() => void cancel()} loading={busy}>
+            {t('cancel')}
           </OrganicButton>
         </span>
       </div>

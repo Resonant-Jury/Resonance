@@ -302,8 +302,8 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               />
             </Field>
             <div style={{ marginTop: 4 }}>
-              <OrganicButton variant="outline" onClick={() => setConfirmingSignOut(true)}>
-                {signingOut ? '…' : t('account.signOut')}
+              <OrganicButton variant="outline" onClick={() => setConfirmingSignOut(true)} loading={signingOut}>
+                {t('account.signOut')}
               </OrganicButton>
             </div>
           </div>

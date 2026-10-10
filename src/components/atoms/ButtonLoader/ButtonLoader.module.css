@@ -1,0 +1,44 @@
+/* A button in progress (B6). The links run SketchLoader's sweep (literal
+   keyframe numbers: var() inside @keyframes doesn't animate a dash offset in
+   Chromium); keep 1100ms in sync with LOOP_MS in ButtonLoader.tsx. */
+.loader {
+  display: block;
+  flex: none;
+  overflow: visible;
+  animation: appear 120ms ease-out;
+}
+
+.link {
+  animation: sweep 1100ms linear infinite;
+}
+
+.still {
+  display: none;
+}
+
+@keyframes sweep {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -1; }
+}
+
+@keyframes appear {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes breathe {
+  from { opacity: 0.45; }
+  to   { opacity: 0.9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader {
+    animation: breathe 1600ms ease-in-out infinite alternate;
+  }
+  .link {
+    display: none;
+  }
+  .still {
+    display: inline;
+  }
+}

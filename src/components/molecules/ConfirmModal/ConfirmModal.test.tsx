@@ -60,10 +60,16 @@ describe('ConfirmModal', () => {
     expect(cancel).toHaveAttribute('data-variant', 'tonal');
   });
 
-  it('dims the actions and swaps the verb for an ellipsis while busy', () => {
-    const { confirm } = renderConfirm({ busy: true, destructive: true });
-    expect(confirm).toHaveTextContent('…');
-    expect(confirm.parentElement).toHaveAttribute('data-busy', 'true');
+  // B6: the verb keeps its word and draws the pen loop; the way out rests.
+  it('keeps the verb\'s word with a loader while busy, takes no click and rests the way out', async () => {
+    const { confirm, cancel, onConfirm } = renderConfirm({ busy: true, destructive: true });
+    expect(confirm).toHaveTextContent('Delete');
+    expect(confirm).not.toHaveTextContent('…');
+    expect(confirm).toHaveAttribute('aria-busy', 'true');
+    expect(confirm.querySelector('[data-button-loader]')).not.toBeNull();
+    expect(cancel).toBeDisabled();
+    await userEvent.click(confirm);
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 
   // The apps' confirm says why a try failed, and keeps the question until its words are read.

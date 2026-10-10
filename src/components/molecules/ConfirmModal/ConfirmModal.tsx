@@ -16,7 +16,7 @@ export interface ConfirmModalProps {
   confirmLabel: string;
   onCancel: () => void;
   onConfirm: () => void;
-  /** Action in flight — dims the buttons and blocks dismissal. */
+  /** Action in flight: the verb shows it is working, the way out rests and the dialog can't be dismissed. */
   busy?: boolean;
   /** A permanent loss (delete a card, a conversation, the account): the verb in red. */
   destructive?: boolean;
@@ -72,11 +72,11 @@ export function ConfirmModal({
         </p>
       )}
       <ModalActions busy={busy}>
-        <OrganicButton variant="tonal" size="sm" onClick={onCancel}>
+        <OrganicButton variant="tonal" size="sm" onClick={onCancel} disabled={busy}>
           {cancelLabel}
         </OrganicButton>
-        <OrganicButton variant={destructive ? 'danger' : 'solid'} size="sm" onClick={onConfirm}>
-          {busy ? '…' : confirmLabel}
+        <OrganicButton variant={destructive ? 'danger' : 'solid'} size="sm" onClick={onConfirm} loading={busy}>
+          {confirmLabel}
         </OrganicButton>
       </ModalActions>
     </Modal>

@@ -89,6 +89,13 @@
   opacity: 0.55;
   cursor: progress;
 }
+/* Signing out: the row keeps its ink while its loader runs. */
+.option[aria-busy='true'] {
+  opacity: 1;
+}
+.option[aria-busy='true'] .optionIcon {
+  display: inline-flex;
+}
 .option[data-active] {
   color: var(--color-terracotta);
 }

@@ -242,21 +242,16 @@ export function PublishPanel({
             </p>
           )}
           <ModalActions busy={pending}>
-            <OrganicButton variant="tonal" size="sm" onClick={onClose}>
+            <OrganicButton variant="tonal" size="sm" onClick={onClose} disabled={pending}>
               {t('cancel')}
             </OrganicButton>
             <OrganicButton
               variant="solid"
               size="sm"
+              loading={pending}
               onClick={() => onPublish({ visibility: anonymousVisibility(visibility, anonymous), anonymous })}
             >
-              {updating
-                ? pending
-                  ? t('updating')
-                  : t('update')
-                : pending
-                ? t('publishing')
-                : t('publish')}
+              {updating ? t('update') : t('publish')}
             </OrganicButton>
           </ModalActions>
         </div>

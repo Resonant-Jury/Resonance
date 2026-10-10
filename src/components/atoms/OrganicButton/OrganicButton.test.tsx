@@ -6,6 +6,7 @@ import { renderToString } from 'react-dom/server';
 import { render, screen, fireEvent, userEvent } from '@/../test/render';
 import { mockElementSize, penLines } from '@/../test/organic';
 import { OrganicButton, type OrganicButtonVariant } from './OrganicButton';
+import { Icon } from '../Icon';
 import styles from './OrganicButton.module.css';
 
 // The button draws nothing until it is measured; give it a box.
@@ -233,5 +234,91 @@ describe('before it is measured', () => {
 
   it('drops the stand-in once drawn', () => {
     expect(renderVariant('primary')).not.toHaveAttribute('data-shape-pending');
+  });
+});
+
+// B6: a button whose action is on its way keeps its word and its size, draws a
+// small pen loop in its label's ink, says it is busy and takes no second press —
+// but keeps the focus (no `disabled`) and its full colour.
+describe('in progress (loading)', () => {
+  const loaders = (btn: HTMLElement) => btn.querySelectorAll('[data-button-loader]');
+
+  it('keeps its label, says it is busy, ignores presses and stays focusable', async () => {
+    const onClick = vi.fn();
+    render(<OrganicButton loading onClick={onClick}>Publish</OrganicButton>);
+    const btn = screen.getByRole('button', { name: 'Publish' });
+    expect(btn).toHaveTextContent('Publish');
+    expect(btn).toHaveAttribute('aria-busy', 'true');
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(btn).not.toBeDisabled();
+    expect(loaders(btn)).toHaveLength(1);
+    // The loop is drawn in the label's own ink, at the house pen.
+    const link = loaders(btn)[0].querySelector('path')!;
+    expect(link).toHaveAttribute('stroke', 'currentColor');
+    expect(loaders(btn)[0]).toHaveAttribute('aria-hidden', 'true');
+
+    await userEvent.click(btn);
+    expect(onClick).not.toHaveBeenCalled();
+    btn.focus();
+    expect(btn).toHaveFocus();
+  });
+
+  it('stands the loader before a bare label, outside its box, and moves the pair to stay centred', () => {
+    const { rerender } = render(<OrganicButton loading>Publish</OrganicButton>);
+    const label = () => screen.getByRole('button').querySelector(`.${styles.label}`) as HTMLElement;
+    // md: a 16 loader + 6 → the label moves 11 toward the end.
+    expect(label()).toHaveAttribute('data-loading-shift');
+    expect(label().style.getPropertyValue('--loader-shift')).toBe('11px');
+    expect(label().querySelector(`.${styles.loaderSlot} [data-button-loader]`)).toHaveAttribute('width', '16');
+    // sm: 14 + 6 → 10.
+    rerender(<OrganicButton loading size="sm">Publish</OrganicButton>);
+    expect(label().style.getPropertyValue('--loader-shift')).toBe('10px');
+    // Idle again: nothing moved, no loader.
+    rerender(<OrganicButton size="sm">Publish</OrganicButton>);
+    expect(label()).not.toHaveAttribute('data-loading-shift');
+    expect(loaders(screen.getByRole('button'))).toHaveLength(0);
+  });
+
+  it('takes a leading icon’s place at the icon’s size, moving nothing', () => {
+    render(
+      <OrganicButton loading>
+        <Icon name="document" size={18} />
+        Download
+      </OrganicButton>,
+    );
+    const btn = screen.getByRole('button', { name: 'Download' });
+    const [loader] = loaders(btn);
+    expect(loader).toHaveAttribute('width', '18');
+    // The icon is gone (the loader is the only drawing in the label), and the label didn't move.
+    const label = btn.querySelector(`.${styles.label}`) as HTMLElement;
+    expect(label.querySelectorAll('svg')).toHaveLength(1);
+    expect(label).not.toHaveAttribute('data-loading-shift');
+  });
+
+  it('leaves the loader to the caller when asked (a brand mark’s slot)', () => {
+    render(<OrganicButton loading callerLoader>Continue</OrganicButton>);
+    const btn = screen.getByRole('button', { name: 'Continue' });
+    expect(btn).toHaveAttribute('aria-busy', 'true');
+    expect(loaders(btn)).toHaveLength(0);
+  });
+
+  it('keeps a form from submitting while busy', async () => {
+    const onSubmit = vi.fn((e: Event) => e.preventDefault());
+    render(
+      <form onSubmit={(e) => onSubmit(e.nativeEvent)}>
+        <OrganicButton loading>Send</OrganicButton>
+      </form>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // Reduced motion: the loop is drawn once and only breathes — no travelling dash.
+  it('has a still loop for reduced motion and travels otherwise', () => {
+    const css = readFileSync(join(process.cwd(), 'src/components/atoms/ButtonLoader/ButtonLoader.module.css'), 'utf8');
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(reduced).toMatch(/\.link\s*\{\s*display:\s*none/);
+    expect(reduced).toMatch(/\.still\s*\{\s*display:\s*inline/);
+    expect(css).toMatch(/\.link\s*\{\s*animation:\s*sweep 1100ms linear infinite/);
   });
 });

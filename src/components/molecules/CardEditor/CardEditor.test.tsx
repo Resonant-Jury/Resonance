@@ -167,7 +167,7 @@ describe('CardEditor', () => {
       renderWithIntl(<CardEditor locale="en" />);
       await userEvent.click(screen.getByRole('button', { name: 'Suggest with AI' }));
       // The field is still usable while the model thinks.
-      expect(screen.getByRole('button', { name: 'Thinking…' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Suggest with AI' })).toHaveAttribute('aria-busy', 'true');
       const input = screen.getByLabelText('Type a tag…');
       fireEvent.change(input, { target: { value: '旅行' } });
       fireEvent.keyDown(input, { key: 'Enter' });

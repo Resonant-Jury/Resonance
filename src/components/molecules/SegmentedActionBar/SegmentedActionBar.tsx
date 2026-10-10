@@ -1,10 +1,11 @@
 'use client';
 
-import { MouseEvent, ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { isValidElement, MouseEvent, ReactNode, type CSSProperties, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { wobRect } from '@/lib/design/wobRect';
 import { makePrng } from '@/lib/design/prng';
 import { INK } from '@/lib/design/strokes';
 import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
+import { ButtonLoader } from '@/components/atoms/ButtonLoader/ButtonLoader';
 import styles from './SegmentedActionBar.module.css';
 
 export interface SegmentSpec {
@@ -31,6 +32,12 @@ export interface SegmentSpec {
    * Send a note on a narrow phone).
    */
   collapsible?: boolean;
+  /**
+   * Its action is on its way (B6, as OrganicButton's `loading`): a pen loop
+   * in place of its icon (else just before its label), no click, aria-busy;
+   * the segment keeps its size and colour.
+   */
+  loading?: boolean;
 }
 
 export interface SegmentedActionBarProps {
@@ -279,15 +286,18 @@ export function SegmentedActionBar({
       {/* The buttons' own grain over the whole face, so the bar and a lone OrganicButton feel cut from the same paper. */}
       <ShapeGrain w={w} h={h} d={outerPath} seed={seed} opacity={0.38} frequency={1.1} />
 
-      {segments.map((s, i) => (
+      {segments.map((s, i) => {
+        const iconBox = isValidElement<{ size?: number }>(s.icon) ? s.icon.props.size ?? 16 : 16;
+        const shift = s.loading && !s.icon;
+        return (
         <button
           key={s.key}
           ref={(el) => {
             segRefs.current[i] = el;
           }}
           type="button"
-          onClick={s.onClick}
-          onMouseEnter={(e) => { recordPointer(e); setHovered(i); }}
+          onClick={s.loading ? undefined : s.onClick}
+          onMouseEnter={(e) => { recordPointer(e); if (!s.loading) setHovered(i); }}
           onMouseMove={recordPointer}
           onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
           onFocus={() => {
@@ -298,16 +308,30 @@ export function SegmentedActionBar({
           onBlur={() => setHovered((cur) => (cur === i ? null : cur))}
           aria-label={s.ariaLabel}
           aria-pressed={s.pressed}
+          aria-busy={s.loading || undefined}
+          aria-disabled={s.loading || undefined}
           className={styles.seg}
           data-icon-only={(s.collapsible && tight) || undefined}
           style={{ color: s.textColor ?? 'var(--button-on-tonal)' }}
         >
-          {s.icon}
-          <span data-label className={styles.label}>
+          {s.loading && s.icon ? <ButtonLoader size={iconBox} /> : s.icon}
+          <span
+            data-label
+            className={styles.label}
+            data-loading-shift={shift || undefined}
+            // The loader's 16 + 6 before the label, half of it moved toward the end: the pair stays centred.
+            style={shift ? ({ '--loader-shift': '11px' } as CSSProperties) : undefined}
+          >
+            {shift && (
+              <span className={styles.loaderSlot}>
+                <ButtonLoader size={16} />
+              </span>
+            )}
             {s.label}
           </span>
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -9,7 +9,6 @@ import { Divider } from '@/components/atoms/Divider/Divider';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
-import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { useRouter } from '@/i18n/navigation';
 import { useMyCardBox } from '@/lib/data/hooks';
 import { useResonanceRefresh } from '@/lib/data/resonate';
@@ -183,13 +182,9 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
         <OrganicButton variant="tonal" size="sm" onClick={close} disabled={busy}>
           {t('cancel')}
         </OrganicButton>
-        <OrganicButton variant="solid" size="sm" onClick={() => void confirm()} disabled={!selected}>
-          {busy ? (
-            // The pen keeps inking where the wave was while the server answers.
-            <SketchLoader size={16} seed={53} color="var(--color-cream)" />
-          ) : (
-            <Icon name="wave" size={16} />
-          )}
+        {/* While the server answers, the button's pen loop draws where the wave was. */}
+        <OrganicButton variant="solid" size="sm" onClick={() => void confirm()} disabled={!selected} loading={busy}>
+          <Icon name="wave" size={16} />
           {t('confirm')}
         </OrganicButton>
       </ModalActions>

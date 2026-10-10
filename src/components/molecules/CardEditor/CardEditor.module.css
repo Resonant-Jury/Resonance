@@ -104,11 +104,6 @@
 }
 
 /* While a save or publish is in flight the buttons wait, dimmed. */
-.primaryAction[data-pending],
-.secondaryAction[data-pending] {
-  opacity: 0.6;
-  pointer-events: none;
-}
 
 .actionError {
   font-size: 12px;

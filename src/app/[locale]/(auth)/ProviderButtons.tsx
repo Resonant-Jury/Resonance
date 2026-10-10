@@ -1,8 +1,9 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { ButtonLoader } from '@/components/atoms/ButtonLoader/ButtonLoader';
 import { GoogleMark } from '@/components/atoms/GoogleMark/GoogleMark';
 import { AppleMark } from '@/components/atoms/AppleMark/AppleMark';
 import { wobCircle } from '@/lib/design/wobCircle';
@@ -10,30 +11,23 @@ import styles from './auth.module.css';
 
 export type Provider = 'google' | 'apple';
 
-/**
- * A button label that turns into "Signing in…" without resizing the button:
- * both labels sit in one grid cell, the one not showing hidden, so the cell
- * is as wide as the longer.
- */
-function BusyLabel({ busy, idle, working }: { busy: boolean; idle: string; working: string }) {
-  const cell = { gridArea: '1 / 1' } as const;
-  return (
-    <span style={{ display: 'inline-grid' }}>
-      <span style={{ ...cell, visibility: busy ? 'hidden' : 'visible' }}>{idle}</span>
-      <span style={{ ...cell, visibility: busy ? 'visible' : 'hidden' }}>{working}</span>
-    </span>
-  );
-}
-
 // The white disc under Google's G on the sheet's terracotta button.
 const DISC = wobCircle(15, 15, 14.6, 12, { segments: 8, mag: 0.7, cpJitter: 0.4 });
 
 /**
  * A provider's mark in the sheet buttons' 30px slot. Google's G keeps its
  * colours on a white wobbly disc (the terracotta face would swallow its red);
- * Apple's logo stands bare in the label's cream.
+ * Apple's logo stands bare in the label's cream. While its sign-in is on its
+ * way the slot holds the button's pen loop instead (B6), so nothing moves.
  */
-function ProviderMark({ disc = false, children }: { disc?: boolean; children: ReactNode }) {
+function ProviderMark({ disc = false, busy = false, children }: { disc?: boolean; busy?: boolean; children: ReactNode }) {
+  if (busy) {
+    return (
+      <span className={styles.mark}>
+        <ButtonLoader size={18} />
+      </span>
+    );
+  }
   return (
     <span className={styles.mark}>
       {disc && (
@@ -64,49 +58,45 @@ export function ProviderButtons({
   onPick: (provider: Provider) => void;
 }) {
   const t = useTranslations('auth');
-  const sheetButton = pending ? `${styles.sheetButton} ${styles.busy}` : styles.sheetButton;
-  const busyLabel = (idle: string) => <BusyLabel busy={pending} idle={idle} working={t('signingIn')} />;
+  // Which one was pressed: it shows the loader, the other rests until the answer.
+  const [picked, setPicked] = useState<Provider | null>(null);
+  const pick = (provider: Provider) => {
+    if (pending) return;
+    setPicked(provider);
+    onPick(provider);
+  };
+  const busy = (provider: Provider) => pending && picked === provider;
+  const resting = (provider: Provider) => pending && picked !== provider;
+  const button = (provider: Provider, layout: 'card' | 'sheet') => {
+    const apple = provider === 'apple';
+    return (
+      <OrganicButton
+        variant={apple ? 'ink' : 'solid'}
+        block={layout === 'sheet'}
+        className={layout === 'sheet' ? styles.sheetButton : undefined}
+        loading={busy(provider)}
+        callerLoader
+        disabled={resting(provider)}
+        onClick={() => pick(provider)}
+      >
+        <span className={styles.markLabel}>
+          <ProviderMark disc={!apple} busy={busy(provider)}>
+            {apple ? <AppleMark size={18} /> : <GoogleMark size={18} />}
+          </ProviderMark>
+          {t(apple ? 'continueWithApple' : 'continueWithGoogle')}
+        </span>
+      </OrganicButton>
+    );
+  };
   return (
     <>
       <div className={styles.cardButtons} data-layout="card">
-        {showApple && (
-          <OrganicButton variant="ink" onClick={() => onPick('apple')}>
-            <span className={styles.markLabel}>
-              <ProviderMark>
-                <AppleMark size={18} />
-              </ProviderMark>
-              {busyLabel(t('continueWithApple'))}
-            </span>
-          </OrganicButton>
-        )}
-        <OrganicButton variant="solid" onClick={() => onPick('google')}>
-          <span className={styles.markLabel}>
-            <ProviderMark disc>
-              <GoogleMark size={18} />
-            </ProviderMark>
-            {busyLabel(t('continueWithGoogle'))}
-          </span>
-        </OrganicButton>
+        {showApple && button('apple', 'card')}
+        {button('google', 'card')}
       </div>
       <div className={styles.sheetButtons} data-layout="sheet">
-        {showApple && (
-          <OrganicButton variant="ink" block className={sheetButton} onClick={() => onPick('apple')}>
-            <span className={styles.markLabel}>
-              <ProviderMark>
-                <AppleMark size={18} />
-              </ProviderMark>
-              {busyLabel(t('continueWithApple'))}
-            </span>
-          </OrganicButton>
-        )}
-        <OrganicButton variant="solid" block className={sheetButton} onClick={() => onPick('google')}>
-          <span className={styles.markLabel}>
-            <ProviderMark disc>
-              <GoogleMark size={18} />
-            </ProviderMark>
-            {busyLabel(t('continueWithGoogle'))}
-          </span>
-        </OrganicButton>
+        {showApple && button('apple', 'sheet')}
+        {button('google', 'sheet')}
       </div>
     </>
   );
