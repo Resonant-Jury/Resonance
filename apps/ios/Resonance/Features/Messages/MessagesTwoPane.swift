@@ -56,8 +56,9 @@ extension EnvironmentValues {
 }
 
 /// The list | rule | conversation of an expanded window's Messages, under the window's full-width
-/// header (round 5 B2: 私訊 at its leading end, the tabs and the pen over it); the conversation keeps
-/// its own bar at the top of its pane, under the header's wave.
+/// header (round 5 B2, D5: the brand at its leading end, the tabs and the pen over it); the
+/// conversation keeps its own bar at the top of its pane, under the header's wave — the header's
+/// line, the rule and the pane bar's foot one constant pen (D4, ``PaneLines``).
 struct MessagesTwoPane: View {
     let detail: Route?
     let choose: (Route) -> Void
@@ -82,8 +83,10 @@ struct MessagesTwoPane: View {
                 }
             }
             .environment(\.inDetailPane, true)
-            // The pane's bar is its own, under the window's header: no room kept for the tabs.
+            // The pane's bar is its own, under the window's header: no room kept for the tabs. Its line is
+            // the pane's, drawn from the rule (round 5 D4: ``PaneLines``).
             .environment(\.headerChrome, nil)
+            .environment(\.headerLineInk, .hidden)
             // Exactly what is left beside the list: nothing in the thread may widen its pane.
             .frame(width: max(0, window.contentWidth - Tokens.msgListW))
             .frame(maxHeight: .infinity)
@@ -92,7 +95,9 @@ struct MessagesTwoPane: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
+            // One pen with the panes' rules, which no scrolling inks in (round 5 D4).
             OrganicBrandBar(title: L10n.App.Nav.messages, scrolled: listScrolled)
+                .environment(\.headerLineInk, .pane)
         }
         // The status bar keeps the header's paper.
         .overlay(alignment: .top) {
@@ -111,10 +116,12 @@ struct MessagesTwoPane: View {
 private struct EmptyDetailPane: View {
     let noConversations: Bool
     @State private var height: CGFloat = 0
+    @State private var barHeight: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
             OrganicInlineBar("", backLabel: L10n.Messages.back).backHidden(true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
             Group {
                 if noConversations {
                     OrganicEmptyState(title: L10n.Messages.emptyTitle, message: L10n.Messages.empty, icon: .chat, seed: 23, fills: true)
@@ -125,31 +132,9 @@ private struct EmptyDetailPane: View {
             .environment(\.emptyStateRegion, height)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
-            .padding(.leading, PaneRule.gutter)
+            .padding(.leading, PaneLines.gutter)
         }
-        .background(alignment: .leading) { PaneRule() }
+        .overlay { PaneLines(barHeight: barHeight) }
         .background(Tokens.cream)
-    }
-}
-
-/// The web's wavy vertical rule between the panes (MessagesPage `vRule`): seed 71, a turn every 34
-/// or so, `INK`, in the field border at 35 %, from under the bars' paper to past the bottom. It sits
-/// in the detail pane's leading gutter (12 | rule | 12).
-struct PaneRule: View {
-    /// The detail pane's leading room for the rule.
-    static let gutter: CGFloat = 24
-
-    var body: some View {
-        GeometryReader { geo in
-            let h = Double(geo.size.height) + 40
-            let steps = max(2, Int((h / 34).rounded()))
-            wavyVertical(h, seed: 71, amp: 2, steps: steps)
-                .path(offsetX: 12, offsetY: 0)
-                .stroke(Tokens.fieldBorderHover.opacity(0.35), style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
-        }
-        .frame(width: Self.gutter)
-        .ignoresSafeArea(edges: [.top, .bottom])
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 }

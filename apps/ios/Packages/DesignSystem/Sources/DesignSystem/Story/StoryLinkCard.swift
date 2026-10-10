@@ -53,7 +53,7 @@ public struct StoryLinkCard: View {
 
     public var body: some View {
         let picture = pictureFailed ? nil : imageURL
-        Button(action: onOpen) {
+        StoryLinkBlock(seed: seed, onOpen: onOpen) {
             VStack(alignment: .leading, spacing: 0) {
                 if let picture {
                     LinkPicture(url: picture) { pictureFailed = true }
@@ -74,14 +74,54 @@ public struct StoryLinkCard: View {
                 .padding(.bottom, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: 520, alignment: .leading)
-            .contentShape(Rectangle())
+        }
+        .accessibilityLabel(openLabel)
+        .accessibilityValue(title)
+    }
+}
+
+/// A Resonance card standing alone in a story (round 5 D2): the story link card's block — its fill,
+/// seeded outline, column and press — holding the card as a chat draws a shared one
+/// (``SharedCardSection``: the byline, the cover edge to edge, cut by the block's outline at the
+/// sides, the title, the excerpt and the source line). The whole block opens the card; VoiceOver
+/// reads one link named by the card's title.
+public struct StoryCardEmbed: View {
+    let title: String
+    let seed: Double
+    let section: SharedCardSection
+    let onOpen: () -> Void
+
+    /// `section`: the shared card, without an action of its own (the block is the link).
+    public init(title: String, seed: Double, section: SharedCardSection, onOpen: @escaping () -> Void) {
+        self.title = title
+        self.seed = seed
+        self.section = section
+        self.onOpen = onOpen
+    }
+
+    public var body: some View {
+        StoryLinkBlock(seed: seed, onOpen: onOpen) { section }
+            .accessibilityLabel(title)
+    }
+}
+
+/// What stands alone in a story as a link to somewhere (a page, a card): one button, at most 520
+/// across at the column's start, on the chat card bubble's fill in its seeded wobbly outline,
+/// which also cuts what lies on it; one element for VoiceOver (its caller names it).
+struct StoryLinkBlock<Content: View>: View {
+    let seed: Double
+    let onOpen: () -> Void
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        Button(action: onOpen) {
+            content
+                .frame(maxWidth: 520, alignment: .leading)
+                .contentShape(Rectangle())
         }
         .buttonStyle(LinkCardStyle(seed: seed))
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(openLabel)
-        .accessibilityValue(title)
         .accessibilityAddTraits(.isLink)
     }
 }
