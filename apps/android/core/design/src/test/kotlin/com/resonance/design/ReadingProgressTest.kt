@@ -1,6 +1,8 @@
 package com.resonance.design
 
+import com.resonance.design.generated.Tokens
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The card page's reading progress (design note §3): how far the story's top has passed the bar's pen line, over what is left to see. */
@@ -23,5 +25,13 @@ class ReadingProgressTest {
         assertEquals(0f, p(-300f, storyHeight = 700f))
         assertEquals(0f, p(-300f, storyHeight = 300f))
         assertEquals(0f, p(-300f, storyHeight = 0f))
+    }
+
+    @Test fun isAMarkerInTheBrighterOrangeOverTheHeadersLine() {
+        // Round 5 D1: --reading-progress, 4 wide, so it covers the 1.8 line it rides on and the unread rest reads as its track.
+        assertEquals(Tokens.ReadingProgress, ReadingProgressPen.color)
+        assertEquals(4f, ReadingProgressPen.width.value)
+        assertTrue(ReadingProgressPen.width.value > Tokens.Ink.value)
+        assertTrue(ReadingProgressPen.color != Tokens.Terracotta)
     }
 }

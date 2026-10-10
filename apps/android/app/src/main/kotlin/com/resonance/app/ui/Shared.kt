@@ -199,6 +199,8 @@ internal fun LazyListScope.borderedCards(
     layout: CardListLayout,
     /** Where a card leads (its page; a draft, its writer). */
     tap: (FeedCard) -> Route = { Route.Card(it.routeKey, it) },
+    /** Keeps the blocks' keys apart from another grid's in the same list (a card page's lists). */
+    keyPrefix: String = "",
     /** Laid over a card's top-end corner (the owner's ⋯ on their shelves). */
     overlay: (@Composable BoxScope.(FeedCard, Int) -> Unit)? = null,
 ) {
@@ -206,7 +208,7 @@ internal fun LazyListScope.borderedCards(
     val blocks = cards.indices.chunked(n * GridBlockRows)
     // The same families as the list read top to bottom: row-major, so none shares one with the cards beside or above it.
     val palettes = cardFamilies(cards)
-    itemsIndexed(blocks, key = { b, block -> "grid:$b:${cards[block.first()].id}" }) { b, block ->
+    itemsIndexed(blocks, key = { b, block -> "${keyPrefix}grid:$b:${cards[block.first()].id}" }) { b, block ->
         val gap = Tokens.FeedGap.dp
         Row(
             Modifier
@@ -260,6 +262,29 @@ fun LazyListScope.refreshNote(failure: RefreshFailure?, underBar: Boolean = fals
 /** Says [text] to TalkBack now (a refresh asked for away from the list's top has nothing in view to say it). */
 @Suppress("DEPRECATION")
 internal fun View.announce(text: String) = announceForAccessibility(text)
+
+/** How a card page's resonances and the owner's linked cards are drawn ([answerCards]). */
+internal enum class AnswerListStyle { MiniBands, Grid }
+
+/**
+ * The card page's other lists take the related list's layout at every width (round 5 D3): mini
+ * bands where it draws bands (a phone, a medium window), its bordered grid on an expanded one.
+ */
+internal fun answerListStyle(related: CardListLayout): AnswerListStyle =
+    if (related.isGrid) AnswerListStyle.Grid else AnswerListStyle.MiniBands
+
+/**
+ * A card page's resonances or the owner's linked cards, laid out as its related list is
+ * ([answerListStyle]): on an expanded window the same bordered card in the same columns, gutter
+ * and side insets, so the page's lists line up — a lone card in the first column, start-aligned,
+ * never centred or stretched (the web's MiniCardGrid) — else the mini bands.
+ */
+internal fun LazyListScope.answerCards(cards: List<FeedCard>, open: (Route) -> Unit, keyPrefix: String, related: CardListLayout) {
+    when (answerListStyle(related)) {
+        AnswerListStyle.Grid -> borderedCards(cards, open, null, false, related, keyPrefix = keyPrefix)
+        AnswerListStyle.MiniBands -> miniCards(cards, open, keyPrefix)
+    }
+}
 
 /** MiniCardGrid on a phone: the resonance and linked-cards lists, as pared-back bands. */
 fun LazyListScope.miniCards(cards: List<FeedCard>, open: (Route) -> Unit, keyPrefix: String) {

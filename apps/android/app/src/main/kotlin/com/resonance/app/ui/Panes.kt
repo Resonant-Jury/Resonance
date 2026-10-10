@@ -8,18 +8,25 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.draw.drawWithContent
+import com.resonance.design.LocalBarLineLead
+import com.resonance.design.LocalBarPen
+import com.resonance.design.headerEdgePaths
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -31,7 +38,6 @@ import androidx.navigation3.scene.Scene
 import androidx.navigation3.scene.SceneStrategy
 import androidx.navigation3.scene.SceneStrategyScope
 import com.resonance.app.Session
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.layout
 import com.resonance.design.HeaderEdgeHeight
 import com.resonance.design.LocalBarBackHidden
@@ -113,8 +119,13 @@ private class MessagesPanesScene(override val entries: List<NavEntry<Route>>, pr
  * Under the window's header — the Messages root's bar across the whole width, its tabs and pen
  * over it (design note B2) — the list (300), 12, the wavy rule, 12, and the detail. The list
  * scrolls under the header; the detail starts under the header's wave, its thread keeping a bar
- * of its own (no way back) whose messages scroll under it. The rule is drawn last, so it reads
- * unbroken over the thread's bar.
+ * of its own (no way back) whose messages scroll under it.
+ *
+ * The header's line, the pane bar's line and the rule are one pen (round 5 D4, [PanePen]): the
+ * same width and colour, opaque and constant — content scrolling under either bar never inks it
+ * in — so where they meet nothing darkens. The rule runs from under the header's paper (it shows
+ * from the wave down, wherever the wave is) to the window's bottom edge, and the pane bar's line
+ * reaches back across the 12 between to meet it. The rule is drawn last, over both.
  */
 @Composable
 private fun MessagesPanes(entries: List<NavEntry<Route>>, session: Session) {
@@ -124,23 +135,32 @@ private fun MessagesPanes(entries: List<NavEntry<Route>>, session: Session) {
     // The Messages root's bar is the header's row (an expanded window always has the header's tabs).
     val header = TopBarRow + HeaderEdgeHeight
     val listWidth = Tokens.MsgListW.dp
+    val pen = PanePen
     Box(Modifier.fillMaxSize().cream()) {
-        CompositionLocalProvider(LocalTwoPane provides true, LocalSelectedThread provides chosen, LocalListPane provides listWidth) { entries[0].Content() }
+        CompositionLocalProvider(LocalTwoPane provides true, LocalSelectedThread provides chosen, LocalListPane provides listWidth, LocalBarPen provides pen) {
+            entries[0].Content()
+        }
         // The detail starts under the header's paper. Its pages still lay themselves out under a status
-        // bar (their bars pad for it): that much of them is drawn above the pane's top, and clipped.
+        // bar (their bars pad for it): that much of them is drawn above the pane's top, and clipped —
+        // and only that: the pane bar's line may reach back to the rule beside the pane.
         Box(
             Modifier
                 .fillMaxSize()
                 .padding(start = listWidth + PaneGap * 2, top = status + header)
-                .clipToBounds()
+                .drawWithContent { clipRect(left = -PaneGap.toPx()) { this@drawWithContent.drawContent() } }
                 .layout { measurable, constraints ->
                     val lift = status.roundToPx()
                     val placeable = measurable.measure(constraints.copy(minHeight = constraints.minHeight + lift, maxHeight = constraints.maxHeight + lift))
                     layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(0, -lift) }
                 },
         ) {
-            // A pane's bar is a phone's bar (nothing of the header's to keep clear of), a row smaller than the header's.
-            CompositionLocalProvider(LocalHeaderChrome provides null, LocalInlineBarHeight provides PaneBarRow, LocalTwoPane provides true) {
+            // A pane's bar is a phone's bar (nothing of the header's to keep clear of), a row smaller than
+            // the header's, its line in the panes' pen reaching back to the rule (its start stays inside
+            // the rule's stroke: the rule's centre is a gap away).
+            CompositionLocalProvider(
+                LocalHeaderChrome provides null, LocalInlineBarHeight provides PaneBarRow, LocalTwoPane provides true,
+                LocalBarPen provides pen, LocalBarLineLead provides PaneGap - PaneLeadTuck,
+            ) {
                 AnimatedContent(
                     detail,
                     contentKey = { it?.contentKey },
@@ -152,7 +172,7 @@ private fun MessagesPanes(entries: List<NavEntry<Route>>, session: Session) {
                 }
             }
         }
-        PaneRule(Modifier.padding(start = listWidth, top = status + header + PaneGap).width(PaneGap * 2).fillMaxHeight())
+        PaneRule(listWidth + PaneGap, status, pen, Modifier.fillMaxSize())
     }
 }
 
@@ -168,21 +188,65 @@ private fun EmptyDetail(session: Session) {
 }
 
 /**
- * The web's rule between the conversations and the thread (MessagesPage `vRule`): a wavy pen
- * line down the gap from 12 under the header, seed 71, a turn every 34, in the fields' border ink
- * at 35 %. Decoration only.
+ * The web's rule between the conversations and the thread (MessagesPage `vRule`): a wavy pen line
+ * down the gap, a turn every 34, in the panes' pen ([PanePen]). Its geometry is [PaneRuleGeometry]:
+ * it starts under the header's paper and is cut by that paper's own outline ([headerEdgePaths]),
+ * so it shows from the header's wave down wherever the wave is; its wave breaks at the pane bar's
+ * line (it passes it exactly on its centre, where that line comes to meet it); it runs to the
+ * window's bottom edge. Decoration only.
  */
 @Composable
-private fun PaneRule(modifier: Modifier) {
+private fun PaneRule(x: Dp, status: Dp, pen: Color, modifier: Modifier) {
     Box(
         modifier.clearAndSetSemantics { }.drawWithCache {
-            val h = size.height / density
-            val path = wavyVertical(h.toDouble(), 71.0, 2.0, max(2, (h / 34).roundToInt())).toPath(density, size.width / 2, 0f)
-            val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round)
-            onDrawBehind { drawPath(path, Tokens.FieldBorderHover.copy(alpha = 0.35f), style = pen) }
+            val d = density
+            val g = paneRuleGeometry(status.value, size.height / d)
+            val cx = x.toPx()
+            fun run(from: Float, to: Float, seed: Double): Path {
+                val h = to - from
+                return wavyVertical(h.toDouble(), seed, 2.0, max(2, (h / 34).roundToInt())).toPath(d, cx, from * d)
+            }
+            val rule = Path().apply {
+                addPath(run(g.top, g.junction, 73.0))
+                addPath(run(g.junction, g.bottom, 71.0))
+            }
+            // The header's paper over the rule's top: the window-wide bar the Messages root draws.
+            val paper = headerEdgePaths(size.width, (status + TopBarRow + HeaderEdgeHeight).toPx(), d).fill
+            val stroke = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round)
+            onDrawBehind { clipPath(paper, ClipOp.Difference) { drawPath(rule, pen, style = stroke) } }
         },
     )
 }
+
+/**
+ * Where the rule between the panes runs (round 5 D4), in dp from the window's top, under a status
+ * bar [status] tall in a window [height] tall: from [top], the header's band's top — a few under
+ * the header's paper, which clips it on the wave itself — breaking its wave at [junction], the
+ * pane bar's line (a phone's inline bar [PaneBarRow] tall under the header, lifted by the status
+ * bar; its line 1.4 + the pen above its foot), to [bottom], the window's bottom edge.
+ */
+internal data class PaneRuleGeometry(val top: Float, val junction: Float, val bottom: Float)
+
+internal fun paneRuleGeometry(status: Float, height: Float): PaneRuleGeometry {
+    val headerFoot = status + TopBarRow.value + HeaderEdgeHeight.value
+    // The pane starts at the header's foot. Its pages are laid out from a status bar's height above
+    // that, and their bar pads for it: its foot is its row and wavy band under the header's foot.
+    val paneBarFoot = headerFoot + PaneBarRow.value + HeaderEdgeHeight.value
+    return PaneRuleGeometry(
+        top = headerFoot - HeaderEdgeHeight.value,
+        junction = paneBarFoot - 1.4f - Tokens.Ink.value,
+        bottom = height,
+    )
+}
+
+/**
+ * The panes' one pen (round 5 D4): the rule's ink — the fields' border at 35 % — laid on the
+ * paper once, so it is opaque: the lines that meet it never darken where they overlap.
+ */
+internal val PanePen: Color get() = Tokens.FieldBorderHover.copy(alpha = 0.35f).compositeOver(Tokens.Cream)
+
+/** The pane bar's line starts this much past the rule's centre, so its round cap ends inside the rule's stroke. */
+private val PaneLeadTuck: Dp = 0.5.dp
 
 /** Either side of the rule. */
 private val PaneGap: Dp = 12.dp
