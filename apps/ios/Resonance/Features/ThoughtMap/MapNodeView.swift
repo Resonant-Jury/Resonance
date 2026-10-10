@@ -139,6 +139,28 @@ enum StoryProse {
         return String(String.UnicodeScalarView(scalars))
     }
 
+    /// A picture, `![alt](src)`, and a link, `[text](destination)` (its words are group 1), on one
+    /// line (plainText.ts's PICTURE and LINK). Every run is bounded — a link's words by
+    /// `linkTextMax`, its destination by the longest address the link rules take — so no attempt
+    /// reads on to the story's end: unbounded, a story of 200 000 unclosed `[` took seconds. A link
+    /// whose words run longer shows its brackets in an excerpt, which is harmless. Each run is
+    /// possessive (`{…}+`, which JavaScript lacks): its class holds no `]` / `)`, so giving a
+    /// character back could never let the mark after it match — the same matches, without ICU
+    /// trying every shorter run (4–5 times quicker on a flood of brackets).
+    static let linkTextMax = 500
+    private static let picturePattern = "!\\[[^\\]\\n]{0,\(linkTextMax)}+\\]\\([^)\\n]{0,\(ChatLinks.maxLength)}+\\)"
+    private static let linkPattern = "\\[([^\\]\\n]{0,\(linkTextMax)}+)\\]\\([^)\\n]{0,\(ChatLinks.maxLength)}+\\)"
+    /// A picture with a web address (group 1), bounded as `picturePattern` is.
+    private static let webPicture = try! NSRegularExpression(
+        pattern: "!\\[[^\\]\\n]{0,\(linkTextMax)}+\\]\\((https?://[^\\s)]{1,\(ChatLinks.maxLength)}+)\\)")
+
+    /// The address of the story's first picture on the web — a node's little visual — or nil (plainText.ts's firstPicture).
+    static func firstPicture(_ markdown: String) -> String? {
+        let ns = markdown as NSString
+        guard let m = webPicture.firstMatch(in: markdown, range: NSRange(location: 0, length: ns.length)) else { return nil }
+        return ns.substring(with: m.range(at: 1))
+    }
+
     /// A story's prose without Markdown syntax (links keep their words), as a reader sees it:
     /// character references decoded (`-&gt;` reads `->`) and backslash escapes gone (`\*` reads `*`),
     /// without either ever making syntax; its bare addresses left out.
@@ -149,14 +171,15 @@ enum StoryProse {
                                                withTemplate: template)
         }
         var t = literals(replace(replace(markdown, literalsPattern, ""), "```[\\s\\S]*?```", " "))
-        t = replace(t, "!\\[[^\\]]*\\]\\([^)]*\\)", " ")
-        t = replace(t, "\\[([^\\]]*)\\]\\([^)]*\\)", "$1")
+        t = replace(t, picturePattern, " ")
+        t = replace(t, linkPattern, "$1")
         // After the addresses go: an address's `_`, `~` and `*` are not emphasis.
         t = withoutLinks(t)
         t = replace(t, "^#{1,6}\\s+", "", lines: true)
         t = replace(t, "^>\\s?", "", lines: true)
-        t = replace(t, "^\\s*(?:[-*+]|[0-9]+\\.)\\s+", "", lines: true)
-        t = replace(t, "^\\s*(?:-{3,}|\\*{3,}|_{3,})\\s*$", "", lines: true)
+        // A marker's indent is spaces and tabs on its own line: `^\s*` would read on across every blank line after it, at each one (quadratic).
+        t = replace(t, "^[ \\t]*(?:[-*+]|[0-9]+\\.)\\s+", "", lines: true)
+        t = replace(t, "^[ \\t]*(?:-{3,}|\\*{3,}|_{3,})[ \\t]*$", "", lines: true)
         t = replace(t, "[*~`]+", "")
         // An underscore inside a word is the word's (snake_case, a_b_c): only one at a word's edge can be emphasis.
         t = replace(t, "(?<![\\p{L}\\p{N}])_+|_+(?![\\p{L}\\p{N}])", "")
@@ -175,10 +198,7 @@ enum StoryProse {
 /// The card's little picture: its cover, else the story's first inline image.
 func mapThumbURL(_ card: MapCard) -> URL? {
     if let url = card.mediaURL { return url }
-    let re = try! NSRegularExpression(pattern: "!\\[[^\\]]*\\]\\((https?://[^\\s)]+)\\)")
-    let s = card.story
-    guard let m = re.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)), let r = Range(m.range(at: 1), in: s) else { return nil }
-    return URL(string: String(s[r]))
+    return StoryProse.firstPicture(card.story).flatMap { URL(string: $0) }
 }
 
 /// The node's text, broken into lines the way the browser lays it out: CSS

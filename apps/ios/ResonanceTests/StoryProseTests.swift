@@ -60,6 +60,28 @@ import Testing
         #expect(StoryProse.plainText("see https://example.com/?a=1&amp;b=2, then &lt;https://example.org&gt; done") == "see, then done")
     }
 
+    @Test func anyStoryTheRulesTakeReadsInAMoment() {
+        // Each took many seconds before (a quadratic pattern), in every node showing the excerpt; the web's test asks 1 s, this one 2 (a busy simulator).
+        for unit in ["[", "![", "[a](", "[](", "\n", " \n", "-\n", "\t\n\n"] {
+            let story = String(repeating: unit, count: 200_000 / unit.count)
+            let started = Date()
+            _ = StoryProse.plainText(story)
+            #expect(Date().timeIntervalSince(started) < 2, "\(unit.debugDescription)")
+        }
+        // Links, pictures, list markers and rules on their own lines read as before.
+        #expect(StoryProse.plainText("a [link](https://x.y \"title\") b ![pic](https://x.y/p.png) c") == "a link b c")
+        #expect(StoryProse.plainText("\n\n  - one\n\t* two\n\n   1. three\n\n  ---  \n\nend") == "one two three end")
+    }
+
+    @Test func aNodesPictureIsTheStorysFirstOnTheWebAndQuickToSayThereIsNone() {
+        #expect(StoryProse.firstPicture("text ![rain](https://cdn.example.com/a.avif) and ![b](https://x.y/b.png)") == "https://cdn.example.com/a.avif")
+        #expect(StoryProse.firstPicture("[a link](https://x.y) ![local](/p.png) ![](ftp://x.y/p.png)") == nil)
+        let started = Date()
+        #expect(StoryProse.firstPicture(String(repeating: "![", count: 100_000)) == nil)
+        #expect(StoryProse.firstPicture(String(repeating: "![a](https://", count: 15_000)) == nil)
+        #expect(Date().timeIntervalSince(started) < 2)
+    }
+
     @Test func theCutFallsBetweenCodePointsNeverInsideAnEmoji() {
         #expect(StoryProse.excerpt(String(repeating: "a", count: 95) + "😀b", max: 96) == String(repeating: "a", count: 95) + "😀…")
         #expect(StoryProse.excerpt("short", max: 96) == "short")

@@ -71,7 +71,6 @@ import kotlin.math.roundToInt
 
 // JavaScript's `\s` is Unicode-aware (the ideographic space, NBSP, the BOM); Android's regex needs them spelled out.
 private val Spaces = Regex("[\\s\\p{Z}\\uFEFF]+")
-private val FirstImage = Regex("!\\[[^\\]]*\\]\\((https?://[^\\s)]+)\\)")
 
 /**
  * plainExcerpt (src/lib/adapters/story.ts): the story's prose by the web's one rule
@@ -82,7 +81,7 @@ private val FirstImage = Regex("!\\[[^\\]]*\\]\\((https?://[^\\s)]+)\\)")
 fun plainExcerpt(markdown: String, max: Int = 80): String = PlainText.plainExcerpt(markdown, max)
 
 /** The card's little picture: its cover, else the story's first inline image. */
-fun mapThumbUrl(card: MapCard): String? = card.mediaUrl ?: FirstImage.find(card.story)?.groupValues?.get(1)
+fun mapThumbUrl(card: MapCard): String? = card.mediaUrl ?: PlainText.firstPicture(card.story)
 
 /**
  * The node's text, broken into lines the way the browser lays it out: CSS line

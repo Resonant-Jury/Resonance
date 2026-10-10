@@ -17,12 +17,25 @@ object PlainText {
 
     private const val S = "[\\s\\p{Z}\\uFEFF]"
     private val CodeFence = Regex("```[\\s\\S]*?```")
-    private val Image = Regex("!\\[[^\\]]*\\]\\([^)]*\\)")
-    private val Link = Regex("\\[([^\\]]*)\\]\\([^)]*\\)")
+    /**
+     * A picture, `![alt](src)`, and a link, `[text](destination)` (its text is group 1), on one line,
+     * every run bounded (plainText.ts's PICTURE and LINK): a link's text by [LINK_TEXT_MAX], its
+     * destination by the longest address the link rule takes, so no attempt reads on to the story's
+     * end — unbounded, a story of 200 000 unclosed `[` took seconds. A longer link text shows its brackets.
+     * Each run is possessive (`{…}+`, which JavaScript lacks): its class holds no `]` / `)`, so giving a
+     * character back could never let the mark after it match — the same matches, without trying every
+     * shorter run.
+     */
+    const val LINK_TEXT_MAX = 500
+    private val Image = Regex("!\\[[^\\]\\n]{0,$LINK_TEXT_MAX}+\\]\\([^)\\n]{0,${Linkify.MAX_LENGTH}}+\\)")
+    private val Link = Regex("\\[([^\\]\\n]{0,$LINK_TEXT_MAX}+)\\]\\([^)\\n]{0,${Linkify.MAX_LENGTH}}+\\)")
+    /** A picture with a web address (group 1), bounded as [Image] is: a thought-map node's little visual. */
+    private val WebPicture = Regex("!\\[[^\\]\\n]{0,$LINK_TEXT_MAX}+\\]\\((https?://[^\\s)]{1,${Linkify.MAX_LENGTH}}+)\\)")
     private val Heading = Regex("^#{1,6}$S+", RegexOption.MULTILINE)
     private val Quote = Regex("^>$S?", RegexOption.MULTILINE)
-    private val ListMarker = Regex("^$S*(?:[-*+]|\\d+\\.)$S+", RegexOption.MULTILINE)
-    private val Rule = Regex("^$S*(?:-{3,}|\\*{3,}|_{3,})$S*$", RegexOption.MULTILINE)
+    // A marker's indent is spaces and tabs on its own line: `^\s*` would read on across every blank line after it, at each one (quadratic).
+    private val ListMarker = Regex("^[ \\t]*(?:[-*+]|\\d+\\.)$S+", RegexOption.MULTILINE)
+    private val Rule = Regex("^[ \\t]*(?:-{3,}|\\*{3,}|_{3,})[ \\t]*$", RegexOption.MULTILINE)
     private val Marks = Regex("[*_~`]+")
     private val Spaces = Regex("$S+")
     private val TrailingSpaces = Regex("$S+$")
@@ -74,6 +87,9 @@ object PlainText {
                 .replace(Spaces, " ")
                 .trim(),
         )
+
+    /** The address of the story's first picture on the web (plainText.ts's firstPicture), or null. */
+    fun firstPicture(markdown: String): String? = WebPicture.find(markdown)?.groupValues?.get(1)
 
     /** CommonMark's backslash escapes: a backslash before ASCII punctuation. */
     private val Escape = Regex("""\\([!-/:-@\[-`{-~])""")

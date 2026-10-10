@@ -2,6 +2,8 @@ package com.resonance.kit
 
 import com.resonance.kit.story.PlainText
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.test.Test
 
 /**
@@ -60,6 +62,29 @@ class PlainTextTest {
         // Unknown names stay as written; a broken code point reads as the replacement character.
         assertEquals("&nosuch; \uFFFD", PlainText.plainText("&nosuch; &#0;"))
         assertEquals("C:\\path", PlainText.plainText("C:\\\\path"))
+    }
+
+    @Test fun readsAnyStoryTheRulesTakeInAMoment() {
+        // Each took many seconds before (a quadratic pattern), in every node showing the excerpt; the web's test asks 1 s, this one 2 (a busy CI host).
+        for (unit in listOf("[", "![", "[a](", "[](", "\n", " \n", "-\n", "\t\n\n")) {
+            val story = unit.repeat(200_000 / unit.length)
+            val started = System.nanoTime()
+            PlainText.plainText(story)
+            val ms = (System.nanoTime() - started) / 1_000_000
+            assertTrue(ms < 2_000, "${unit.replace("\n", "\\n")} took $ms ms")
+        }
+        // Links, pictures, list markers and rules on their own lines read as before.
+        assertEquals("a link b c", PlainText.plainText("a [link](https://x.y \"title\") b ![pic](https://x.y/p.png) c"))
+        assertEquals("one two three end", PlainText.plainText("\n\n  - one\n\t* two\n\n   1. three\n\n  ---  \n\nend"))
+    }
+
+    @Test fun aNodesPictureIsTheStorysFirstOnTheWebAndQuickToSayThereIsNone() {
+        assertEquals("https://cdn.example.com/a.avif", PlainText.firstPicture("text ![rain](https://cdn.example.com/a.avif) and ![b](https://x.y/b.png)"))
+        assertNull(PlainText.firstPicture("[a link](https://x.y) ![local](/p.png) ![](ftp://x.y/p.png)"))
+        val started = System.nanoTime()
+        assertNull(PlainText.firstPicture("![".repeat(100_000)))
+        assertNull(PlainText.firstPicture("![a](https://".repeat(15_000)))
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 2_000)
     }
 
     @Test fun cutsBetweenCodePointsNeverInsideAnEmoji() {
