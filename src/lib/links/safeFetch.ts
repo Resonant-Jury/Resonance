@@ -52,8 +52,13 @@ export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const JSON_MAX_BYTES = 64 * 1024;
 export const FETCH_TIMEOUT_MS = 5000;
 export const MAX_REDIRECTS = 3;
-/** More addresses than this for one name is not a website. */
-const MAX_ADDRESSES = 16;
+/**
+ * More addresses than this for one name is not a website. Every one is still
+ * vetted. Not 16: a big CDN's name answers more from some resolvers —
+ * i.ytimg.com gave 12 A + 4 AAAA from Taiwan and more from Vercel's Hong Kong
+ * region, where every YouTube thumbnail was refused as 'blocked'.
+ */
+export const MAX_ADDRESSES = 64;
 
 export type SafeFetchFailure =
   | 'bad_url' // not a link we follow (scheme, userinfo, port, no dot, too long)

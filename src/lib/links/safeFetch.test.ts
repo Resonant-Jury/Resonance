@@ -53,6 +53,10 @@ const NAMES: Record<string, string[]> = {
   'mixed.test': ['127.0.0.1', '10.0.0.5'],
   'six.test': ['::1'],
   'empty.test': [],
+  // A big CDN's answer (i.ytimg.com from Vercel's Hong Kong region): many public addresses.
+  'cdn.test': ['127.0.0.1', ...Array.from({ length: 23 }, (_, i) => `142.250.${i}.1`), ...Array.from({ length: 4 }, (_, i) => `2404:6800:4008:c0${i}::77`)],
+  'cdn-with-inside.test': ['127.0.0.1', ...Array.from({ length: 23 }, (_, i) => `142.250.${i}.1`), '10.0.0.5'],
+  'flood.test': Array.from({ length: 65 }, (_, i) => `142.251.${i}.1`),
 };
 
 /** A fetcher that trusts loopback and resolves the names above; `calls` lists the names it was asked for. */
@@ -134,6 +138,15 @@ describe('addresses it will not connect to', () => {
     expect(await failure(fetcher(`http://metadata.test:${local.port}/`, { mode: 'page' }))).toBe('blocked');
     expect(await failure(fetcher(`http://mixed.test:${local.port}/`, { mode: 'page' }))).toBe('blocked');
     expect(local.hits).toHaveLength(0);
+  });
+
+  it("takes a big CDN's long answer when every address is public, and still refuses one with a private address among them, or a flood", async () => {
+    const local = await serve((_req, res) => page(res));
+    const { fetcher } = trusting();
+    expect((await fetcher(`http://cdn.test:${local.port}/`, { mode: 'page' })).status).toBe(200);
+    expect(await failure(fetcher(`http://cdn-with-inside.test:${local.port}/`, { mode: 'page' }))).toBe('blocked');
+    expect(await failure(fetcher(`http://flood.test:${local.port}/`, { mode: 'page' }))).toBe('blocked');
+    expect(local.hits).toHaveLength(1);
   });
 
   it('reports a name that does not resolve, or resolves to nothing, as a DNS failure', async () => {
