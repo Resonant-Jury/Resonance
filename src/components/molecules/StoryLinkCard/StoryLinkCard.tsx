@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useImageRetry } from '@/lib/hooks/useImageRetry';
 import { useTranslations } from 'next-intl';
 import { BrushWash } from '@/components/atoms/BrushWash/BrushWash';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
@@ -53,7 +54,7 @@ export function StoryLinkCard({ preview }: StoryLinkCardProps) {
   const ref = useRef<HTMLAnchorElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const { w, h } = useElementSize(ref);
-  const [imageFailed, setImageFailed] = useState(false);
+  const image = useImageRetry(preview.image);
   const [hovered, setHovered] = useState(false);
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const seed = seedFromString(preview.url);
@@ -71,13 +72,15 @@ export function StoryLinkCard({ preview }: StoryLinkCardProps) {
   // one not yet asked for, isn't complete).
   useEffect(() => {
     const img = imageRef.current;
-    if (img?.complete && img.naturalWidth === 0) setImageFailed(true);
+    if (img?.complete && img.naturalWidth === 0) image.onError();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview.image]);
 
   const link = parseLink(preview.url);
   if (!link) return null;
   const host = link.host.replace(/^www\./, '');
-  const picture = preview.image && !imageFailed ? preview.image : null;
+  // One that fails is hidden and asked for once more a little later (`useImageRetry`).
+  const picture = preview.image && !image.hidden ? preview.image : null;
 
   const track = (e: MouseEvent<HTMLElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
@@ -126,6 +129,7 @@ export function StoryLinkCard({ preview }: StoryLinkCardProps) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- our own /api/link-image route, clipped by the card's outline */}
           <img
+            key={image.attempt}
             ref={imageRef}
             className={styles.image}
             src={picture}
@@ -133,7 +137,7 @@ export function StoryLinkCard({ preview }: StoryLinkCardProps) {
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
-            onError={() => setImageFailed(true)}
+            onError={image.onError}
           />
         </span>
       )}
