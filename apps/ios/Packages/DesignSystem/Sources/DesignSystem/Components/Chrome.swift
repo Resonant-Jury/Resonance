@@ -258,6 +258,28 @@ nonisolated struct TopTabWashShape: Shape {
     }
 }
 
+/// Where a header tab's unread chip hangs (round 5 B2): off the glyph's top-trailing corner, its
+/// top-trailing corner (+8, −7) past the glyph's — as on the glyph alone. Beside a label that corner
+/// would sit 2 into the words (the gap is 6), so the glyph and its chip step toward the leading edge,
+/// out of the item's 14 of padding, until the chip ends ``clearance`` before the label: the label,
+/// the item and the capsule keep their places and widths whether a count shows or not.
+public nonisolated enum TopTabBadge {
+    /// The chip's top-trailing corner past the glyph's.
+    public static let offsetX: CGFloat = 8
+    public static let offsetY: CGFloat = -7
+    /// Between the glyph and its label.
+    public static let labelGap: CGFloat = 6
+    /// Between the chip's frame and the label: 2 clear, and 1 for the chip's wobbly edge.
+    public static let clearance: CGFloat = 3
+
+    /// How far the glyph (with its chip) steps toward the leading edge: 5 beside a label with a
+    /// count, else 0 (the glyph alone keeps the corner chip as it is).
+    public static func glyphShift(labelled: Bool, badge: Int) -> CGFloat {
+        guard labelled, badge > 0 else { return 0 }
+        return max(0, offsetX + clearance - labelGap)
+    }
+}
+
 /// One tab of the header's group: glyph and words side by side (or the glyph alone, 48 wide), 32 tall.
 struct TopTabButton<ID: Hashable>: View {
     let item: OrganicTabItem<ID>
@@ -269,11 +291,14 @@ struct TopTabButton<ID: Hashable>: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: TopTabBadge.labelGap) {
                 OrganicIcon(item.icon, size: labelled ? 20 : 22, strokeWidth: Tokens.ink)
                     .overlay(alignment: .topTrailing) {
-                        if item.badge > 0 { UnreadBadge(count: item.badge).offset(x: 8, y: -7) }
+                        if item.badge > 0 { UnreadBadge(count: item.badge).offset(x: TopTabBadge.offsetX, y: TopTabBadge.offsetY) }
                     }
+                    // Beside words, the glyph and its chip step into the leading padding so the chip
+                    // ends clear of the label; nothing else moves (an offset takes no room).
+                    .offset(x: -TopTabBadge.glyphShift(labelled: labelled, badge: item.badge))
                 if labelled {
                     // The chosen weight's room kept either way, so choosing a tab never moves the others.
                     ZStack {

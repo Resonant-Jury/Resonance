@@ -34,6 +34,22 @@ import Testing
         #expect(HeaderChrome.rowHeight == 56 && HeaderChrome.penReserve == 64 && HeaderChrome.titleMin == 72)
     }
 
+    @Test func aTabsUnreadChipNeverCoversItsLabel() {
+        // A labelled tab: 14 padding, the 20 glyph, 6, the label (from 40), 14. The chip hangs (+8, −7)
+        // off the glyph's corner; with a count the glyph steps 5 into the padding, so a chip of either
+        // width (19, 26 past 9) ends 3 before the label and stays inside the item.
+        let shift = TopTabBadge.glyphShift(labelled: true, badge: 12)
+        #expect(shift == 5)
+        let glyphLeft = 14 - shift
+        let labelStart: CGFloat = 14 + 20 + TopTabBadge.labelGap
+        let chipRight = glyphLeft + 20 + TopTabBadge.offsetX
+        #expect(labelStart - chipRight >= 2)
+        for chipWidth: CGFloat in [19, 26] { #expect(chipRight - chipWidth >= 0) }
+        // The label and the item keep their places: only the glyph moves, and only beside words with a count.
+        #expect(TopTabBadge.glyphShift(labelled: true, badge: 0) == 0)
+        #expect(TopTabBadge.glyphShift(labelled: false, badge: 8) == 0)
+    }
+
     @Test func thePagePadIsFourPercentBetweenTwentyAndFortyEight() {
         #expect(LayoutClass.pad(390) == 20)
         #expect(LayoutClass.pad(800) == 32)

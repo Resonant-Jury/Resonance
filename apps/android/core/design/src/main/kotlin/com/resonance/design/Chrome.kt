@@ -200,6 +200,27 @@ object TopTabsFit {
 }
 
 /**
+ * Where a header tab's unread chip hangs (design note B2): off the glyph's top-end corner, its
+ * top-end corner (+8, −7) past the glyph's — as on the glyph alone. Beside a label that corner
+ * would sit 2 into the words (the gap is 6), so the glyph and its chip step toward the start, out
+ * of the item's 14 of padding, until the chip ends [CLEARANCE] before the label: the label, the
+ * item and the track keep their places and widths whether a count shows or not.
+ */
+object TopTabBadge {
+    /** The chip's top-end corner past the glyph's. */
+    const val OFFSET_X = 8f
+    const val OFFSET_Y = -7f
+    /** Between the glyph and its label. */
+    const val LABEL_GAP = 6f
+    /** Between the chip's frame and the label: 2 clear, and 1 for the chip's wobbly edge. */
+    const val CLEARANCE = 3f
+
+    /** How far the glyph (with its chip) steps toward the start: 5 beside a label with a count, else 0. */
+    fun glyphShift(labelled: Boolean, badge: Int): Float =
+        if (labelled && badge > 0) max(0f, OFFSET_X + CLEARANCE - LABEL_GAP) else 0f
+}
+
+/**
  * What the header keeps for the window's tabs and pen (design note B2), which [MainTabs] draws
  * once over every page: on a medium or expanded window a page's bar leaves the middle to the tab
  * group ([groupWidth] wide, centred on the window) and its end to the pen, so its own leading
@@ -315,12 +336,16 @@ fun <T> TopTabs(
                 contentAlignment = Alignment.Center,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box {
+                    // Beside words, the glyph and its chip step into the leading padding so the chip
+                    // ends clear of the label; nothing else moves (an offset takes no room).
+                    Box(Modifier.offset(x = -TopTabBadge.glyphShift(labels, item.badge).dp)) {
                         OrganicIcon(item.icon, size = if (labels) 20.dp else 22.dp, color = ink)
-                        if (item.badge > 0) CountBadge(item.badge, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-7).dp))
+                        if (item.badge > 0) {
+                            CountBadge(item.badge, Modifier.align(Alignment.TopEnd).offset(x = TopTabBadge.OFFSET_X.dp, y = TopTabBadge.OFFSET_Y.dp))
+                        }
                     }
                     if (labels) {
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(TopTabBadge.LABEL_GAP.dp))
                         BasicText(item.title, maxLines = 1, softWrap = false, style = topTabStyle(selected), modifier = Modifier.clearAndSetSemantics { })
                     }
                 }
