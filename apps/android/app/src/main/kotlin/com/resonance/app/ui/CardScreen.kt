@@ -3,6 +3,22 @@ package com.resonance.app.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOut
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Dp
+import com.resonance.design.prefersReducedMotion
+import com.resonance.design.readingProgress
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -224,14 +240,15 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val bylineGone by remember(list, bylinePx) {
         derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > bylinePx }
     }
-    Box(Modifier.fillMaxSize().cream()) {
+    val progress = rememberReadingProgress(list, top)
+    Box(Modifier.fillMaxSize().cream().onGloballyPositioned { progress.page = it }) {
     Column(Modifier.fillMaxSize().padding(top = if (phase == "loaded") 0.dp else top)) {
         when (phase) {
             // The card as the list drew it, the story still shimmering below; or, knowing nothing yet,
             // CardDetailSkeleton: the article's own layout in shimmering blocks.
             "loading" -> if (placeholder != null) CardPreview(placeholder) { open(Route.Author(it)) }
                 else CardDetailSkeleton(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp))
-            "notFound" -> OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = back, action = EmptyAction.Link)
+            "notFound" -> OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = back, action = EmptyAction.Outline)
             "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { model.refresh(changes, session.lastCardChange, retry = true) }, action = EmptyAction.Outline)
             else -> detail?.let { d ->
                 val card = d.card
@@ -240,7 +257,10 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                     item {
                         Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
                             ArticleHead(card, d.anonymous) { open(Route.Author(it)) }
-                            StoryMarkdown(blocks, openUrl, linkCards) { href, title -> CardEmbed(embeds.embedFor(href), href, title, open) }
+                            // The story alone is what the bar's progress measures (not the cover, title or lists).
+                            Box(Modifier.onGloballyPositioned(progress::story)) {
+                                StoryMarkdown(blocks, openUrl, linkCards) { href, title -> CardEmbed(embeds.embedFor(href), href, title, open) }
+                            }
                             FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
                             }
@@ -282,6 +302,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     OrganicInlineBar(
         L10n.App.Nav.back, back, scrolled = list.scrolledPast20(),
         leading = { detail?.let { d -> BarAuthor(d.card, d.anonymous, visible = phase == "loaded" && bylineGone) { open(Route.Author(it)) } } },
+        progress = if (phase == "loaded") progress::shown else null,
     ) {
         detail?.let { d ->
             val card = d.card
@@ -439,4 +460,54 @@ internal fun openStoryLink(context: Context, origin: String, href: String, open:
         }
         null -> {}
     }
+}
+
+/**
+ * The card page's reading progress (design note §3): where the story is on the page, measured as
+ * it scrolls, turned into 0…1 by [readingProgress] and eased over 120 ms on its way to the bar
+ * (straight to it with the system's animations off). [shown] is read while the bar draws, so
+ * scrolling redraws the line and recomposes nothing.
+ */
+@Stable
+internal class ReadingProgress(private val list: LazyListState, private val lineY: Float, private val bottomInset: Float, private val barBottom: Float) {
+    var page: LayoutCoordinates? = null
+    private var top by mutableFloatStateOf(0f)
+    private var height by mutableFloatStateOf(0f)
+    private var pageHeight by mutableFloatStateOf(0f)
+    val eased = Animatable(0f)
+
+    fun story(coordinates: LayoutCoordinates) {
+        val page = page?.takeIf { it.isAttached } ?: return
+        top = page.localPositionOf(coordinates, Offset.Zero).y
+        height = coordinates.size.height.toFloat()
+        pageHeight = page.size.height.toFloat()
+    }
+
+    /** The story's progress now: once the article has scrolled out of the list, all of it is read. */
+    val target: Float get() {
+        val visible = pageHeight - barBottom - bottomInset
+        return if (list.firstVisibleItemIndex > 0) { if (height > visible) 1f else 0f }
+        else readingProgress(top, height, lineY, visible)
+    }
+
+    fun shown(): Float = eased.value
+}
+
+@Composable
+private fun rememberReadingProgress(list: LazyListState, top: Dp): ReadingProgress {
+    val density = LocalDensity.current
+    val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val reduced = LocalContext.current.prefersReducedMotion()
+    val progress = remember(list, top, bottom, density) {
+        with(density) {
+            // The bar's pen line: its band's 1.4 + INK above the bar's foot.
+            ReadingProgress(list, (top - (1.4f + Tokens.Ink.value).dp).toPx(), bottom.toPx(), top.toPx())
+        }
+    }
+    LaunchedEffect(progress, reduced) {
+        snapshotFlow { progress.target }.collectLatest { p ->
+            if (reduced) progress.eased.snapTo(p) else progress.eased.animateTo(p, tween(120, easing = EaseOut))
+        }
+    }
+    return progress
 }

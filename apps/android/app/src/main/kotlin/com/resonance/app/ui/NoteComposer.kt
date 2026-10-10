@@ -19,6 +19,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.height
+import com.resonance.design.ModalError
+import com.resonance.design.ModalErrorGap
+import com.resonance.design.ModalErrorTuck
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
@@ -120,12 +124,17 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
                 modifier = Modifier.padding(top = 2.dp, bottom = 10.dp).plainClickable(role = Role.Button) { onUpgrade(text) },
             )
         }
-        error?.let { BasicText(it, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.Terracotta), modifier = Modifier.padding(bottom = 10.dp)) }
+        // Why it didn't go: the dialogs' error line (13, danger red), ModalErrorGap over the foot as in
+        // every dialog (its line box gives back ModalErrorTuck, which the foot's 18 takes in).
+        error?.let {
+            Spacer(Modifier.height(4.dp))
+            ModalError(it)
+        }
         // The modal is the frame: cancel the tonal pill, Send the solid verb, rightmost — the foot
         // every dialog shares; Send waits, faded, until there is something to send.
         ModalActions(
             L10n.Card.Note.cancel, onClose, if (pending) "…" else L10n.Card.Note.send,
-            busy = pending, verbEnabled = valid, topPadding = 18.dp,
+            busy = pending, verbEnabled = valid, topPadding = NoteFootTop,
             onVerb = {
                 if (valid && !pending) {
                     pending = true
@@ -149,6 +158,9 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
         )
     }
 }
+
+/** The air over the composer's foot: ModalErrorGap under an error line, once its tuck is given back. */
+private val NoteFootTop = ModalErrorGap + ModalErrorTuck
 
 /**
  * Why a note didn't go, in the app's words — never the server's English: notes waiting

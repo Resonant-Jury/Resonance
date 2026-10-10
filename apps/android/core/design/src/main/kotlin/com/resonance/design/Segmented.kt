@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -51,8 +52,8 @@ import kotlin.math.min
 /**
  * One segment of a [SegmentedActionBar]: its words and glyph; its own face ([fill], else the
  * bar's) and label colour ([textColor]); the ink a press spreads ([press]); what a screen reader
- * calls it when that isn't its words ([contentDescription] — the note's short label reads its
- * full words); and, for a choice, whether it is the chosen option ([selected]: a radio, not a
+ * calls it when that isn't its words ([contentDescription]; a segment that shows words is named
+ * by them, WCAG 2.5.3); and, for a choice, whether it is the chosen option ([selected]: a radio, not a
  * button). A [collapsible] segment shows its glyph alone when the bar has no room for every
  * label (the card page's bookmark on a narrow phone), its words kept for a screen reader.
  */
@@ -172,7 +173,12 @@ fun SegmentedActionBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(SegmentedLayout.GAP.dp, Alignment.CenterHorizontally),
                 ) {
-                    seg.icon?.let { OrganicIcon(it, size = SegmentedLayout.ICON.dp, color = seg.textColor, strokeWidth = seg.iconStroke, fill = seg.iconFill) }
+                    seg.icon?.let {
+                        OrganicIcon(
+                            it, Modifier.offset(y = labelInkDrop(14f)), size = SegmentedLayout.ICON.dp,
+                            color = seg.textColor, strokeWidth = seg.iconStroke, fill = seg.iconFill,
+                        )
+                    }
                     if (!collapsed) BasicText(
                         seg.label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
                         style = style.copy(color = seg.textColor),
@@ -197,7 +203,8 @@ object SegmentedLayout {
     /** A segment's padding a side on a phone (the web's `clamp(8px, 2vw, 14px)` at a phone's width), its glyph and the gap after it. */
     const val PAD = 8f
     const val ICON = 16f
-    const val GAP = 8f
+    /** Glyph to label: 6, as every icon-and-label button (design note §7). */
+    const val GAP = 6f
     /** A glyph alone: 16 a side. */
     const val ICON_ONLY = ICON + 32f
     /** Wider, a segment stands at its own width with the web's desktop padding. */

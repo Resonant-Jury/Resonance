@@ -151,7 +151,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                 storyCardSkeletons(4)
             }
             "notFound" -> Box(Modifier.padding(top = top)) {
-                OrganicEmptyState(title = L10n.Profile.notFound, actionTitle = L10n.Profile.backHome, onAction = back, action = EmptyAction.Link, verticalPadding = 40.dp)
+                OrganicEmptyState(title = L10n.Profile.notFound, actionTitle = L10n.Profile.backHome, onAction = back, action = EmptyAction.Outline, verticalPadding = 40.dp)
             }
             "failed" -> Box(Modifier.padding(top = top)) {
                 OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, retry, action = EmptyAction.Outline)
@@ -200,19 +200,12 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                     } else if (cards.isNotEmpty() || p.isSelf) {
                         item { SectionHeading(L10n.Profile.publishedHeading) }
                         if (cards.isEmpty()) {
-                            // The owner's empty page teaches rather than apologizes.
+                            // The owner's empty page teaches rather than apologizes: the shared empty state.
                             item {
-                                Column(
-                                    Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                                ) {
-                                    BasicText(
-                                        L10n.Profile.emptyPublishedSelf,
-                                        style = AppFonts.body(15f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
-                                    )
-                                    OrganicButton(L10n.Profile.emptyPublishedCta) { open(Route.Write()) }
-                                }
+                                OrganicEmptyState(
+                                    title = L10n.Profile.emptyPublishedSelf, actionTitle = L10n.Profile.emptyPublishedCta,
+                                    onAction = { open(Route.Write()) }, icon = IconName.Cards, seed = 71.0, fill = true,
+                                )
                             }
                         } else storyCards(cards, open, onLast = model::loadMore)
                     }

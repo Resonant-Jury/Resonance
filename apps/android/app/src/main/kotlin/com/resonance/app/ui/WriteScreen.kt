@@ -40,6 +40,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Ease
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
@@ -77,6 +82,7 @@ import com.resonance.design.ModalActions
 import com.resonance.design.ModalActionsTop
 import com.resonance.design.ModalError
 import com.resonance.design.ModalBody
+import com.resonance.design.ModalGap
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicButton
@@ -156,7 +162,7 @@ fun WriteScreen(
             BackHandler(onBack = close)
             Box(Modifier.fillMaxSize().cream()) {
                 Box(Modifier.padding(top = inlineBarTop())) {
-                    OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = close, action = EmptyAction.Link, verticalPadding = 58.dp)
+                    OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = close, action = EmptyAction.Outline, verticalPadding = 58.dp)
                 }
                 OrganicInlineBar(L10n.App.Nav.back, close)
             }
@@ -495,19 +501,25 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
     // Not closable while it publishes or saves (the web's pending gate).
     val title = if (updating) L10n.Write.PublishPanel.updateTitle else L10n.Write.PublishPanel.title
     OrganicModal(if (pending) null else onCancel, title, seed = 29.0, closeLabel = L10n.Write.PublishPanel.cancel) {
-        ModalTitle(title)
         if (updating) {
+            ModalTitle(title)
             CssText(L10n.Write.PublishPanel.updateHint, AppFonts.Family.Body, 14f, lineHeight = 1.7f, color = Tokens.TextMuted)
-        }
-        if (insightLoading) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SketchLoader(28.dp)
-                BasicText(L10n.Write.PublishPanel.insightLoading, style = AppFonts.body(14f, color = Tokens.TextMuted))
-            }
-        } else insight?.let {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OrganicIcon(IconName.Sparkle, Modifier.padding(top = 3.dp), size = 16.dp, color = Tokens.Terracotta)
-                BasicText(L10n.Write.PublishPanel.insight(it), style = AppFonts.body(14f))
+        } else {
+            // The echo grows (or goes, with nothing to say) smoothly, its gap above it included, so the
+            // controls under it glide rather than jump.
+            Column(Modifier.fillMaxWidth().animateContentSize(tween(220, easing = Ease))) {
+                ModalTitle(title)
+                if (insightLoading) {
+                    Row(Modifier.padding(top = ModalGap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SketchLoader(28.dp)
+                        BasicText(L10n.Write.PublishPanel.insightLoading, style = AppFonts.body(14f, color = Tokens.TextMuted))
+                    }
+                } else insight?.let {
+                    Row(Modifier.padding(top = ModalGap), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OrganicIcon(IconName.Sparkle, Modifier.padding(top = 3.dp), size = 16.dp, color = Tokens.Terracotta)
+                        BasicText(L10n.Write.PublishPanel.insight(it), style = AppFonts.body(14f))
+                    }
+                }
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -530,9 +542,12 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
                 enabled = !pending,
             )
             // Never for connections only while anonymous (who could read it would say who wrote it): say so.
-            if (anonymous) {
-                BasicText(L10n.Write.PublishPanel.anonymousVisibility, style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted))
-            }
+            // Its room is kept while it isn't said, so flipping the switch below never moves the switch.
+            BasicText(
+                L10n.Write.PublishPanel.anonymousVisibility,
+                style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted),
+                modifier = if (anonymous) Modifier else Modifier.drawWithContent { }.clearAndSetSemantics { },
+            )
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // The whole row is the switch (the web's <label className={toggleRow}>): a tap on the words flips it too.

@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +26,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import com.resonance.design.Grain
+import com.resonance.design.GrainMode
+import com.resonance.design.Mixes
+import com.resonance.design.WobRectShape
+import com.resonance.geometry.SegValue
+import com.resonance.geometry.WobRectOptions
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,8 +51,6 @@ import com.resonance.design.ModalCloseButton
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicIcon
-import com.resonance.design.OrganicImage
-import com.resonance.design.WavyDivider
 import com.resonance.design.fade
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
@@ -89,12 +99,12 @@ fun CardPickerContent(session: Session, title: String, subtitle: String, onPick:
 
 /**
  * The author's own cards as a scrollable pick list (CardPickList.tsx), quiet enough to scan: on each
- * row a 40 cover thumb, the title on one line, and one muted line under it — when it came out, led
- * by 匿名 for an anonymous card ([pickMeta]) — rows parted by a wavy pen rule, no boxed press
- * region; the ink speaks through the title. [lead] comes before the cards and scrolls with them
+ * row a 40 cover thumb ([PickThumb]), the title on one line, and one muted line under it — when it
+ * came out, led by 匿名 for an anonymous card ([pickMeta]) — rows parted by their own air, no rules
+ * between them and no boxed press region; the ink speaks through the title. [lead] comes before the cards and scrolls with them
  * (the resonate picker's "write a new card" row). With [choosing] the rows are one choice (radio
- * buttons): the row of [selectedId] is marked — its thumb washed in the accent with a tick, its
- * title in the accent — so the pick reads before it is confirmed; without, a tap is the pick.
+ * buttons): the row of [selectedId] is marked — its thumb washed in the accent with the buttons'
+ * grain and a tick, its title in the deep accent — so the pick reads before it is confirmed; without, a tap is the pick.
  * While not [enabled] (a request on its way) the rows rest, the chosen one as it was.
  */
 @Composable
@@ -118,8 +128,8 @@ internal fun CardPickList(
             empty()
         } else {
             Column(if (choosing) Modifier.selectableGroup() else Modifier) {
+                // One wavy rule between groups (the lead's, above), none between the rows: their air parts them.
                 cards.forEachIndexed { i, card ->
-                    if (i > 0) WavyDivider(seed = (67 + i * 31).toDouble())
                     CardPickRow(card, i, choosing, chosen = choosing && card.id == selectedId, enabled, anonymousLabel) { onPick(card) }
                 }
             }
@@ -147,26 +157,62 @@ private fun CardPickRow(card: FeedCard, index: Int, choosing: Boolean, chosen: B
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        val cover = OklchColor.parse("oklch(90% 0.06 ${card.accentHue ?: 55.0})") ?: Tokens.TerracottaLight
-        OrganicImage(
-            card.imageUrl, (index * 7 + 3).toDouble(), Modifier.size(40.dp),
-            overlay = {
-                // The chosen row's mark: its own cover washed in the accent, a cream tick on it.
-                AnimatedVisibility(chosen, enter = fadeIn(tween(180)), exit = fadeOut(tween(120))) {
-                    Box(Modifier.fillMaxSize().background(Tokens.Terracotta.copy(alpha = 0.82f)), contentAlignment = Alignment.Center) {
-                        OrganicIcon(IconName.Check, size = 20.dp, color = Tokens.Cream)
-                    }
-                }
-            },
-        ) { Box(Modifier.fillMaxSize().background(cover)) }
+        PickThumb(card.imageUrl, card.accentHue ?: 55.0, (index * 7 + 3).toDouble(), chosen)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             BasicText(
                 card.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = AppFonts.body(15f, 600, lineHeight = 1.3f, color = if (chosen) Tokens.Terracotta else Tokens.Text),
+                // Chosen: the tonal buttons' deep terracotta (plain terracotta is 3.3:1 on the modal's paper).
+                style = AppFonts.body(15f, 600, lineHeight = 1.3f, color = if (chosen) Mixes.ButtonOnTonal else Tokens.Text),
             )
             pickMeta(card.anonymous, card.publishedAt, anonymousLabel)?.let {
                 BasicText(it, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(13f, lineHeight = 1.4f, color = Tokens.TextMuted))
             }
+        }
+    }
+}
+
+/**
+ * A pick row's 40 cover (design note §6): HandDrawnAvatar's lopsided square at a smaller radius
+ * (R 10, one turn a side), the picture cover-fitted in it — the card's hue when it has none — and
+ * an avatar photo's faint rim. Chosen, it is washed in terracotta with the buttons' grain and a
+ * cream tick, all inside the same outline.
+ */
+@Composable
+private fun PickThumb(url: String?, hue: Double, seed: Double, chosen: Boolean) {
+    val shape = remember(seed) {
+        WobRectShape(
+            10.0, seed, mag = 0.88,
+            options = WobRectOptions(curve = 1.3, cornerJitter = 3.2, cornerOffset = 2.4, segmentsH = SegValue.Count(1.0), segmentsV = SegValue.Count(1.0)),
+        )
+    }
+    val cover = OklchColor.parse("oklch(90% 0.06 $hue)") ?: Tokens.TerracottaLight
+    Box(
+        Modifier
+            .size(40.dp)
+            .drawWithCache {
+                val o = shape.createOutline(size, layoutDirection, this)
+                val rim = Stroke(Tokens.Ink.toPx(), join = StrokeJoin.Round)
+                onDrawWithContent {
+                    drawOutline(o, cover)
+                    drawContent()
+                    drawOutline(o, Mixes.AvatarRim, style = rim)
+                }
+            },
+    ) {
+        if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(shape))
+        // The chosen row's mark, fading in and out over the cover.
+        AnimatedVisibility(chosen, enter = fadeIn(tween(180)), exit = fadeOut(tween(120))) {
+            Box(
+                Modifier.fillMaxSize().drawWithCache {
+                    val o = shape.createOutline(size, layoutDirection, this)
+                    val grain = Grain.brush(GrainMode.Tile, "grain-button", size, density, 0.38f)
+                    onDrawBehind {
+                        drawOutline(o, Tokens.Terracotta.copy(alpha = 0.82f))
+                        grain?.let { drawOutline(o, it, alpha = 0.38f) }
+                    }
+                },
+                contentAlignment = Alignment.Center,
+            ) { OrganicIcon(IconName.Check, size = 20.dp, color = Tokens.Cream) }
         }
     }
 }

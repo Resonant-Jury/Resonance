@@ -32,6 +32,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
+import com.resonance.geometry.penWave
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
@@ -207,10 +210,15 @@ private fun StoryBand(
     verticalPadding: Dp,
     gap: Dp,
     modifier: Modifier,
+    isFirst: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val interior = palette.interior
     val border = palette.border
+    // The first band of a list that starts under the bar's wavy band: its paper runs up beneath the
+    // wave (the bar's pen line is its top edge, so it draws no rule of its own), and its content
+    // keeps its place.
+    val bleed = if (isFirst) HeaderEdgeHeight else 0.dp
     Column(
         modifier
             .fillMaxWidth()
@@ -221,14 +229,14 @@ private fun StoryBand(
                 val stroke = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round)
                 onDrawWithContent {
                     drawRect(interior)
-                    drawPath(rule, border, style = stroke)
+                    if (!isFirst) drawPath(rule, border, style = stroke)
                     if (isLast) translate(top = size.height) { drawPath(rule, border, style = stroke) }
                     drawContent()
                     // The tile's ink averages ½: twice the mean darkening.
                     grain?.let { drawRect(it, alpha = StoryGrain.Band * 2) }
                 }
             }
-            .padding(horizontal = 38.dp, vertical = verticalPadding),
+            .padding(start = 38.dp, end = 38.dp, top = verticalPadding + bleed, bottom = verticalPadding),
         verticalArrangement = Arrangement.spacedBy(gap),
         content = content,
     )
@@ -246,13 +254,14 @@ private fun BylineRule(seed: Double, color: Color) {
 
 /**
  * StoryCard as the web draws it on a phone: a full-bleed band tinted with the
- * card's hue, then image, tags, title, excerpt, rule, byline.
+ * card's hue, then image, tags, title, excerpt, rule, byline. [isFirst]: the
+ * feed's first card, which starts under the bar's wavy band (see StoryBand).
  */
 @Composable
-fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier) {
+fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, isFirst: Boolean = false) {
     val palette = CardPalette(content.accentHue, position)
     val seed = position * 77.0 + 13
-    StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier) {
+    StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier, isFirst) {
         OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.62f), grain = StoryGrain.Cover) {
             StoryImagePlaceholder(palette.fill, palette.stripe, content.imageLabel)
         }
@@ -286,11 +295,11 @@ fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false,
  * card's own hue.
  */
 @Composable
-fun StoryCardSkeleton(position: Int, isLast: Boolean = false, modifier: Modifier = Modifier) {
+fun StoryCardSkeleton(position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, isFirst: Boolean = false) {
     val palette = CardPalette(null, position)
     val seed = position * 77.0 + 13
     WithSkeletonHue(palette.hue) {
-        StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier.semantics { contentDescription = L10n.Home.moreLoading }) {
+        StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier.semantics { contentDescription = L10n.Home.moreLoading }, isFirst) {
             Skeleton(Modifier.aspectRatio(1 / 0.62f), height = Dp.Unspecified, radius = 18.dp)
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Skeleton(Modifier.width(56.dp), height = 22.dp, radius = 11.dp)
@@ -376,3 +385,27 @@ fun EmbedStoryCard(title: String, author: String?, imageUrl: String?, hue: Doubl
         }
     }
 }
+
+/**
+ * The end of a feed (design note §2): a short pen wave — `penWave(40, seed 307)` in the fields'
+ * border ink at 70% — with a terracotta dot 5 past its end, and one quiet line 10 under it. Shown
+ * only when nothing more can load; not a heading. The mark is decoration: the line says it all.
+ */
+@Composable
+fun FeedEndMark(text: String, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.size(width = FeedEndWave + 5.dp + 3.2.dp, height = 8.dp).clearAndSetSemantics { }) {
+            val mid = size.height / 2
+            val wave = penWave(FeedEndWave.value.toDouble(), 307.0, amp = 1.2, half = 4.5).toPath(density, 0f, mid)
+            drawPath(wave, Tokens.FieldBorderHover.copy(alpha = 0.7f), style = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawCircle(Tokens.Terracotta, radius = 1.6.dp.toPx(), center = Offset((FeedEndWave + 5.dp + 1.6.dp).toPx(), mid))
+        }
+        BasicText(
+            text,
+            style = AppFonts.body(13.5f, lineHeight = 1.5f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
+            modifier = Modifier.padding(top = 10.dp),
+        )
+    }
+}
+
+private val FeedEndWave = 40.dp

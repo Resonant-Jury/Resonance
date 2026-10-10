@@ -76,8 +76,8 @@ fun Skeleton(modifier: Modifier = Modifier, height: Dp = 14.dp, radius: Dp = 7.d
 }
 
 /** Six (or `count`) StoryCards in their loading dress, as the web's FeedSkeleton. */
-fun androidx.compose.foundation.lazy.LazyListScope.storyCardSkeletons(count: Int = 6) {
-    items(count) { i -> StoryCardSkeleton(i, isLast = i == count - 1) }
+fun androidx.compose.foundation.lazy.LazyListScope.storyCardSkeletons(count: Int = 6, firstUnderBar: Boolean = false) {
+    items(count) { i -> StoryCardSkeleton(i, isLast = i == count - 1, isFirst = firstUnderBar && i == 0) }
 }
 
 /**

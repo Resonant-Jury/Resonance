@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.layout.Layout
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.TextAutoSize
@@ -62,6 +65,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -398,11 +402,14 @@ fun OrganicButton(
             .then(if (iconOnly) Modifier.semantics { contentDescription = title } else Modifier)
             .padding(padding),
         verticalAlignment = Alignment.CenterVertically,
-        // The web's label gap is 7; a brand mark sits in its own 10-gap span (signin/page.tsx).
+        // A glyph sits 6 from its label (design note §7); a brand mark in its own 10-gap span (signin/page.tsx).
         // Centred, so a pill wider than its content (a block) keeps it in the middle.
-        horizontalArrangement = Arrangement.spacedBy(if (image != null) 10.dp else 7.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(if (image != null) 10.dp else 6.dp, Alignment.CenterHorizontally),
     ) {
-        if (icon != null) OrganicIcon(icon, size = iconSize ?: if (iconOnly) 17.dp else 16.dp, color = text, mirrored = mirrorIcon)
+        if (icon != null) OrganicIcon(
+            icon, if (iconOnly) Modifier else Modifier.offset(y = labelInkDrop(if (block) 16f else if (small) 14f else 15f)),
+            size = iconSize ?: if (iconOnly) 17.dp else 16.dp, color = text, mirrored = mirrorIcon,
+        )
         if (image != null) {
             // The same disc as the web's (signin/page.tsx) and iOS's: seed 12, 8 segments, mag 0.7.
             if (markOnDisc) Box(
@@ -430,6 +437,14 @@ fun OrganicButton(
         }
     }
 }
+
+/**
+ * How far below its line box's middle a label's ink sits (design note §7): about 0.06em for our
+ * faces, Latin and CJK alike — so a glyph beside the label is set that much lower, and reads level
+ * with the words instead of high. In the label's own sp, so it follows the text size.
+ */
+@Composable
+fun labelInkDrop(fontSizeSp: Float): Dp = with(LocalDensity.current) { (fontSizeSp * 0.06f).sp.toDp() }
 
 /**
  * A block button's label size: the first of 100, 95, 90 and 85% of [size]
@@ -608,16 +623,20 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.loaderPen(size: Dp)
 private const val LOOP_AT_REST = 0.7f
 
 /**
- * How an empty state's action reads: the verb's solid pill, the tonal one (Retry: `Outline`, its
- * older name), or a link (not-found "back", a link on the web's not-found pages too) in the deep
- * terracotta label (6:1 on cream; plain terracotta is 3.5:1).
+ * How an empty state's action reads: the verb's solid pill (only "write your first card"), or the
+ * tonal one (Retry, a not-found page's way home: `Outline`, its older name) — every action a
+ * filled button, as on the web.
  */
-enum class EmptyAction { Primary, Outline, Link }
+enum class EmptyAction { Primary, Outline }
 
 /**
- * A page-level empty, not-found or error state as the web sets it: an
- * optional Playfair title in the text color, muted copy, then the action —
- * no decoration (the web never draws a blob here).
+ * The one empty state (design note §1; the web's EmptyState, iOS's OrganicEmptyState): an
+ * optional [icon] on a small paper blob (the avatar recipe at 64, [seed]), an optional title in
+ * the heading face, one quiet line, then the action — a column at most 340 wide, centred, 24 in
+ * from the sides, the same gaps on every page. With [fill] it takes all the height it is given
+ * (a list passes `fillParentMaxHeight()`), at least 300, and puts its middle at 45% of it;
+ * without, it keeps [verticalPadding] above and below. The not-found and error pages call it
+ * without a mark and keep their own title size.
  */
 @Composable
 fun OrganicEmptyState(
@@ -628,32 +647,91 @@ fun OrganicEmptyState(
     titleSize: Float = 22f,
     action: EmptyAction = EmptyAction.Primary,
     verticalPadding: Dp = 64.dp,
+    icon: IconName? = null,
+    seed: Double = 23.0,
+    fill: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = verticalPadding),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        val center = TextAlign.Center
-        if (title != null) {
-            BasicText(title, style = AppFonts.heading(titleSize, 400, lineHeight = 1.3f).copy(textAlign = center))
-        }
-        if (message != null) {
-            if (title != null) Box(Modifier.height(8.dp))
-            BasicText(message, style = AppFonts.body(16f, lineHeight = 1.6f, color = Tokens.TextMuted).copy(textAlign = center))
-        }
-        if (actionTitle != null && onAction != null) {
-            // Not-found pages put their link 12 under the title; a CTA sits 24 under the copy.
-            Box(Modifier.height(if (message == null) 12.dp else 24.dp))
-            when (action) {
-                EmptyAction.Link -> BasicText(
-                    actionTitle,
-                    style = AppFonts.body(16f, lineHeight = 1.6f, color = Mixes.ButtonOnTonal),
-                    modifier = Modifier.clickable(role = Role.Button, onClick = onAction).padding(vertical = 8.dp),
+    val content: @Composable () -> Unit = {
+        Column(
+            Modifier.widthIn(max = EmptyStateColumn).padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            val center = TextAlign.Center
+            if (icon != null) {
+                EmptyMark(icon, seed)
+                Box(Modifier.height(if (title != null) 18.dp else 14.dp))
+            }
+            if (title != null) {
+                val size = if (icon != null) 20f else titleSize
+                BasicText(
+                    title,
+                    style = AppFonts.heading(size, 400, lineHeight = 1.3f).copy(textAlign = center),
+                    modifier = if (icon != null) Modifier.semantics { heading() } else Modifier,
                 )
-                EmptyAction.Primary -> OrganicButton(actionTitle, onClick = onAction)
-                EmptyAction.Outline -> OrganicButton(actionTitle, variant = ButtonVariant.Tonal, onClick = onAction)
+            }
+            if (message != null) {
+                if (title != null) Box(Modifier.height(8.dp))
+                val style = if (icon != null) AppFonts.body(14.5f, lineHeight = 1.6f, color = Tokens.TextMuted)
+                    else AppFonts.body(16f, lineHeight = 1.6f, color = Tokens.TextMuted)
+                BasicText(message, style = style.copy(textAlign = center))
+            }
+            if (actionTitle != null && onAction != null) {
+                Box(Modifier.height(20.dp))
+                when (action) {
+                    EmptyAction.Primary -> OrganicButton(actionTitle, small = icon != null, onClick = onAction)
+                    EmptyAction.Outline -> OrganicButton(actionTitle, variant = ButtonVariant.Tonal, small = icon != null, onClick = onAction)
+                }
             }
         }
+    }
+    if (fill) {
+        // The middle a little above the middle: 45% down whatever height the region has.
+        Layout(content, modifier.fillMaxWidth().heightIn(min = 300.dp)) { measurables, constraints ->
+            val p = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
+            val h = if (constraints.hasBoundedHeight) max(constraints.maxHeight, p.height) else max(constraints.minHeight, p.height)
+            val w = constraints.maxWidth
+            layout(w, h) {
+                val y = (h * 0.45f - p.height / 2f).toInt().coerceIn(0, max(0, h - p.height))
+                p.place((w - p.width) / 2, y)
+            }
+        }
+    } else {
+        Box(modifier.fillMaxWidth().padding(vertical = verticalPadding), contentAlignment = Alignment.TopCenter) { content() }
+    }
+}
+
+/** An empty state's column: never wider than this, however wide the screen. */
+private val EmptyStateColumn = 340.dp
+
+/**
+ * The empty state's mark: the glyph (28, the tonal label's ink) on a 64 blob — HandDrawnAvatar's
+ * outline at 64 — of terracotta-light at half strength with the paper's grain, no pen line.
+ * Decorative: the words beside it say everything.
+ */
+@Composable
+private fun EmptyMark(icon: IconName, seed: Double) {
+    val shape = remember(seed) {
+        WobRectShape(
+            25.6, seed, mag = 1.41,
+            options = WobRectOptions(curve = 1.3, cornerJitter = 3.2, cornerOffset = 3.84, segmentsH = SegValue.Count(1.0), segmentsV = SegValue.Count(1.0)),
+        )
+    }
+    Box(
+        Modifier
+            .size(64.dp)
+            .clearAndSetSemantics { }
+            .drawWithCache {
+                val o = shape.createOutline(size, layoutDirection, this)
+                val grain = Grain.brush(GrainMode.Tile, "grain-card", size, density, 0.3f)
+                onDrawBehind {
+                    drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.5f))
+                    grain?.let { drawOutline(o, it, alpha = 0.3f) }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        OrganicIcon(icon, size = 28.dp, color = Mixes.ButtonOnTonal, strokeWidth = Tokens.Ink.value)
     }
 }
 

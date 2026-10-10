@@ -91,10 +91,8 @@ fun CardViewerActions(
                     else -> onModify(answered.id)
                 }
             },
-            Segment(
-                "note", if (phone) L10n.Card.Note.entryShort else L10n.Card.Note.entry, IconName.Note,
-                contentDescription = L10n.Card.Note.entry,
-            ) { writingNote = true },
+            // Named by the words it shows (WCAG 2.5.3: what is read out is what can be said to it).
+            Segment("note", if (phone) L10n.Card.Note.entryShort else L10n.Card.Note.entry, IconName.Note) { writingNote = true },
             Segment(
                 "bookmark", if (bookmarked) L10n.Card.Bookmark.remove else L10n.Card.Bookmark.add, IconName.Bookmark,
                 collapsible = true,

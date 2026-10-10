@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -272,13 +274,15 @@ fun OrganicInlineBar(
     showBack: Boolean = true,
     /** Beside the arrow when there is no title (the card page's author, once the byline has scrolled away). */
     leading: @Composable RowScope.() -> Unit = {},
+    /** How far a story has been read (0…1, read while drawing): the card page's progress on the pen line. */
+    progress: (() -> Float)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
         modifier
             .fillMaxWidth()
             .blocksTouches()
-            .headerEdge(edgeInk(scrolled))
+            .headerEdge(edgeInk(scrolled), progress)
             .statusBarsPadding()
             // Puts the arrow on the page's 20 margin, as the web's -8 margin + 8 padding does.
             .padding(start = 4.dp, end = 8.dp)
@@ -331,7 +335,7 @@ val HeaderEdgeHeight = 10.dp
  * across the width, seed 211, 12 steps. `lineAlpha` is read while drawing, so
  * fading the line redraws without rebuilding the paths.
  */
-fun Modifier.headerEdge(lineAlpha: () -> Float = { 1f }): Modifier = drawWithCache {
+fun Modifier.headerEdge(lineAlpha: () -> Float = { 1f }, progress: (() -> Float)? = null): Modifier = drawWithCache {
     val d = density
     val ink = Tokens.Ink.toPx()
     val y0 = size.height / d - 1.4 - Tokens.Ink.value
@@ -357,10 +361,35 @@ fun Modifier.headerEdge(lineAlpha: () -> Float = { 1f }): Modifier = drawWithCac
         }
         close()
     }
+    val measure = if (progress != null) PathMeasure().apply { setPath(line, false) } else null
+    val read = Path()
     onDrawBehind {
         drawPath(fill, Tokens.Cream)
         drawPath(line, Tokens.FieldBorderHover, alpha = lineAlpha(), style = Stroke(ink, cap = StrokeCap.Round))
+        // How far the story has been read, in terracotta on the pen line itself; nothing at all
+        // before the first step (no lone cap dot).
+        val p = progress?.invoke() ?: 0f
+        if (measure != null && p >= READ_MIN) {
+            read.reset()
+            measure.getSegment(0f, p.coerceAtMost(1f) * measure.length, read, true)
+            drawPath(read, Tokens.Terracotta, style = Stroke(ink, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
     }
+}
+
+/** Less read than this draws no progress (design note §3). */
+private const val READ_MIN = 0.002f
+
+/**
+ * How far through a story the reader is (design note §3), 0…1: 0 while the story's top is still
+ * below the bar's pen line, 1 once its bottom reaches the bottom of what can be seen, and 0 when
+ * the whole story fits ([storyHeight] ≤ [visible], nothing to show). All in the same unit, the
+ * story's top measured on screen.
+ */
+fun readingProgress(storyTop: Float, storyHeight: Float, lineY: Float, visible: Float): Float {
+    val room = storyHeight - visible
+    if (storyHeight <= 0f || room <= 0f) return 0f
+    return ((lineY - storyTop) / room).coerceIn(0f, 1f)
 }
 
 /**

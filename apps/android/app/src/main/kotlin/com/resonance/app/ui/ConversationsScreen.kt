@@ -28,12 +28,12 @@ import com.resonance.app.Person
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.CountBadge
-import com.resonance.design.CssText
 import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.WobRectShape
+import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.geometry.SegValue
 import com.resonance.geometry.WobRectOptions
@@ -56,10 +56,11 @@ fun ConversationsScreen(session: Session, open: (Route) -> Unit) {
     val state by session.conversations.state.collectAsStateWithLifecycle()
     TabScreen(L10n.App.Nav.messages, titleInBar = true) {
         if (state.loaded && state.conversations.isEmpty() && state.starters.isEmpty()) {
+            // Nothing yet: the shared empty state, in the middle of the room between the bar and the tab bar.
             item {
-                CssText(
-                    L10n.Messages.empty, AppFonts.Family.Body, 14f, lineHeight = 1.7f, color = Tokens.TextMuted,
-                    modifier = Modifier.padding(start = 16.dp, end = 18.dp, top = 10.dp),
+                OrganicEmptyState(
+                    L10n.Messages.empty, title = L10n.Messages.emptyTitle, icon = IconName.Chat, seed = 23.0,
+                    fill = true, modifier = Modifier.fillParentMaxHeight(),
                 )
             }
         } else if (!state.loaded && state.failed) {

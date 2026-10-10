@@ -64,7 +64,6 @@ import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicInlineBar
 import com.resonance.design.inlineBarTop
 import com.resonance.design.OrganicLink
-import com.resonance.design.OrganicListEmpty
 import com.resonance.design.OrganicModal
 import com.resonance.design.OrganicRadio
 import com.resonance.design.SquareFlag
@@ -271,7 +270,9 @@ private fun AccountSettings(session: Session) {
     var confirming by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         OrganicTextField(L10n.Settings.Account.email, session.email ?: "", {}, placeholder = "you@example.com", seed = 51.0, enabled = false)
-        OrganicTextField(L10n.Settings.Account.phone, session.phoneNumber ?: "", {}, placeholder = "—", seed = 57.0, enabled = false)
+        // "(verified)" only beside a number there is.
+        val phone = session.phoneNumber?.takeIf { it.isNotEmpty() }
+        OrganicTextField(if (phone != null) L10n.Settings.Account.phoneVerified else L10n.Settings.Account.phone, phone ?: "", {}, placeholder = "—", seed = 57.0, enabled = false)
         OrganicButton(L10n.Settings.Account.signOut, Modifier.padding(top = 4.dp), variant = ButtonVariant.Tonal) { confirming = true }
     }
     if (confirming) OrganicConfirmDialog(
@@ -579,7 +580,7 @@ private fun ColumnScope.BlockedListContent(session: Session, onClose: () -> Unit
     val list = people
     when {
         list == null -> Box(Modifier.fillMaxWidth().padding(vertical = 18.dp), contentAlignment = Alignment.Center) { SketchLoader(44.dp) }
-        list.isEmpty() -> OrganicListEmpty(L10n.Safety.BlockedList.empty, 14.5f, Modifier.padding(vertical = 18.dp))
+        list.isEmpty() -> OrganicEmptyState(L10n.Safety.BlockedList.empty, icon = IconName.Ban, seed = 61.0, verticalPadding = 18.dp)
         else -> Column {
             list.forEachIndexed { i, person ->
                 if (i > 0) WavyDivider(seed = 100.0 + i * 7, modifier = Modifier.padding(vertical = 2.dp))

@@ -5,7 +5,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -27,10 +26,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.resonance.app.Session
-import com.resonance.design.AppFonts
 import com.resonance.design.BrandBarHeight
 import com.resonance.design.ButtonVariant
-import com.resonance.design.CssText
+import com.resonance.design.FeedEndMark
 import com.resonance.design.EmptyAction
 import com.resonance.design.HeaderEdgeHeight
 import com.resonance.design.OrganicButton
@@ -75,9 +73,9 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
     val cards = remember(state.cards, blocked) { state.cards.withoutAuthors(blocked) }
     val view = LocalView.current
 
+    // No page title: the brand bar is the feed's only heading, and the first card starts right under its wave.
     TabScreen(
-        L10n.Home.heading,
-        subtitle = L10n.Home.subheading,
+        null,
         list = list,
         // Pulled down: read again now, from the server rather than the HTTP cache. Nothing back: the feed stays, and says why.
         onRefresh = {
@@ -102,25 +100,30 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
     ) {
         when (state.phase) {
             // The web's FeedSkeleton: the real cards' bands with shimmering blocks, so nothing jumps on arrival.
-            FeedLoader.Phase.Loading -> storyCardSkeletons(6)
+            FeedLoader.Phase.Loading -> storyCardSkeletons(6, firstUnderBar = true)
             FeedLoader.Phase.Failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { feed.load() }, action = EmptyAction.Outline) }
             FeedLoader.Phase.Loaded -> {
                 if (cards.isEmpty()) {
                     item {
-                        OrganicEmptyState(L10n.Home.Empty.subtitle, L10n.Home.Empty.cta, { open(Route.Write()) }, title = L10n.Home.Empty.title)
+                        // Under the bar's band, as the first card would be.
+                        OrganicEmptyState(
+                            L10n.Home.Empty.subtitle, L10n.Home.Empty.cta, { open(Route.Write()) }, title = L10n.Home.Empty.title,
+                            modifier = Modifier.padding(top = HeaderEdgeHeight),
+                        )
                     }
                 } else {
-                    refreshNote(state.refreshFailure)
-                    storyCards(cards, open)
+                    refreshNote(state.refreshFailure, underBar = true)
+                    // A note over the cards parts the first one from the bar: it keeps its own top rule then.
+                    storyCards(cards, open, firstUnderBar = state.refreshFailure == null)
                     item {
-                        Column(Modifier.fillMaxWidth().padding(top = 48.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            if (state.latestVisible && !state.canLoadMore) {
-                                CssText(L10n.Home.endOfDay, AppFonts.Family.Heading, 20f, 700, lineHeight = 1.3f)
-                            }
+                        Column(Modifier.fillMaxWidth().padding(top = 48.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            // While more can load, only the button; the end mark once nothing more can.
                             if (state.canLoadMore) {
                                 OrganicButton(if (state.loadingMore) L10n.Home.moreLoading else L10n.Home.moreBtn, variant = ButtonVariant.Tonal) {
                                     feed.loadMore()
                                 }
+                            } else if (state.latestVisible) {
+                                FeedEndMark(L10n.Home.feedEnd)
                             }
                         }
                     }

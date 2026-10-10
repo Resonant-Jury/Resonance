@@ -22,8 +22,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.unit.sp
+import com.resonance.design.linkWaveY
+import com.resonance.design.toPath
+import com.resonance.geometry.penWave
+import com.resonance.geometry.seedFromString
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.resonance.api.apis.DefaultApi.TabGetCardBox
 import com.resonance.api.models.FeedCard
@@ -221,7 +231,7 @@ fun ResonatePicker(
 /**
  * Row 0: write a new card — one line, a way rather than a card: the pen in terracotta and the
  * words in the deep terracotta (6:1 on the modal's paper; plain terracotta is 3.5:1), at least 48
- * tall; pressed, the words darken and underline (the ink answers, as the rows' does).
+ * tall; pressed, the words darken over the story links' pen wave (the ink answers, as the rows' does).
  */
 @Composable
 private fun WriteNewRow(enabled: Boolean, onClick: () -> Unit) {
@@ -238,10 +248,18 @@ private fun WriteNewRow(enabled: Boolean, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         OrganicIcon(IconName.Pen, size = 18.dp, color = Tokens.Terracotta)
+        var baseline by remember { mutableFloatStateOf(Float.NaN) }
         BasicText(
             L10n.Card.ResonatePicker.writeNew,
-            style = AppFonts.body(15f, 600, lineHeight = 1.3f, color = if (pressed) WriteNewPressed else Mixes.ButtonOnTonal)
-                .copy(textDecoration = if (pressed) TextDecoration.Underline else null),
+            style = AppFonts.body(15f, 600, lineHeight = 1.3f, color = if (pressed) WriteNewPressed else Mixes.ButtonOnTonal),
+            onTextLayout = { baseline = it.firstBaseline },
+            modifier = Modifier.drawWithCache {
+                val wave = penWave((size.width / density).toDouble(), seedFromString("write-new").toDouble()).toPath(density)
+                val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                onDrawBehind {
+                    if (pressed && !baseline.isNaN()) translate(top = linkWaveY(baseline, 15.sp.toPx())) { drawPath(wave, Tokens.Terracotta, style = pen) }
+                }
+            },
         )
     }
 }
