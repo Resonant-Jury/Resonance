@@ -2,13 +2,11 @@ package com.resonance.app.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.unit.Dp
 import androidx.navigation3.scene.SinglePaneSceneStrategy
 import com.resonance.design.HeaderChrome
 import com.resonance.design.InlineBarHeight
