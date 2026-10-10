@@ -559,16 +559,31 @@ private struct SharedCard: View {
     let interactive: Bool
 
     var body: some View {
+        SharedCardSection(card: card, onOpen: interactive ? { ctx.openRoute(.card(card.routeKey)) } : nil)
+    }
+}
+
+extension CardByline {
+    /// Who wrote `card`, as a shared card says: its author — or, posted anonymously, the anonymous
+    /// mark and name, never the author.
+    static func of(_ card: FeedCard) -> CardByline {
         let author = card.anonymous ? nil : card.author?.value1
-        SharedCardSection(
-            byline: author.map {
-                CardByline(name: $0.handle, initials: $0.initials, imageURL: $0.avatarUrl.flatMap(URL.init(string:)),
-                           color: $0.accent, avatarSeed: $0.avatarSeedValue)
-            } ?? .anonymous(L10n.Card.anonymousAuthor),
+        return author.map {
+            CardByline(name: $0.handle, initials: $0.initials, imageURL: $0.avatarUrl.flatMap(URL.init(string:)),
+                       color: $0.accent, avatarSeed: $0.avatarSeedValue)
+        } ?? .anonymous(L10n.Card.anonymousAuthor)
+    }
+}
+
+extension SharedCardSection {
+    /// A card as a chat (or a story embedding it) draws it: its byline (``CardByline/of(_:)``), read
+    /// time, cover, title, excerpt, the source line.
+    init(card: FeedCard, onOpen: (() -> Void)?) {
+        self.init(
+            byline: .of(card),
             readTime: L10n.App.readMinutes(count: card.readMinutes),
             title: card.title, excerpt: card.excerpt, imageURL: card.imageUrl.flatMap(URL.init(string:)),
-            accentHue: card.accentHue, source: L10n.Messages.cardSource,
-            onOpen: interactive ? { ctx.openRoute(.card(card.routeKey)) } : nil)
+            accentHue: card.accentHue, source: L10n.Messages.cardSource, onOpen: onOpen)
     }
 }
 

@@ -196,6 +196,10 @@ public struct HeaderContextTitle: View {
     let shown: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// A pushed page's context in the header's centre (round 5 D5): the heading face at iPadOS's
+    /// inline-title size, 17 semibold, on one line.
+    public static var font: Font { AppFonts.heading(17, weight: .semibold) }
+
     public init(_ text: String, shown: Bool) {
         self.text = text
         self.shown = shown
@@ -205,8 +209,7 @@ public struct HeaderContextTitle: View {
         ZStack {
             if shown, !text.isEmpty {
                 Text(text)
-                    .font(AppFonts.heading(19))
-                    .tracking(-0.01 * 19)
+                    .font(Self.font)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .foregroundStyle(Tokens.text)
@@ -539,6 +542,8 @@ public struct OrganicBrandBar<Trailing: View>: View {
 
     @Environment(\.headerChrome) private var chrome
     @Environment(\.window) private var window
+    /// The window's controls in the row's corner (an iPad's app in a window): the row's content clears them.
+    @State private var controls = WindowControlsInset.zero
 
     public var body: some View {
         if let chrome {
@@ -546,11 +551,15 @@ public struct OrganicBrandBar<Trailing: View>: View {
             // alone when the wordmark doesn't fit), the page's actions 8 before the window's pen.
             HStack(spacing: 0) {
                 lockup
-                    .frame(maxWidth: HeaderChrome.leadingRoom(width: window.width, groupWidth: chrome.groupWidth), alignment: .leading)
+                    .frame(maxWidth: max(0, HeaderChrome.leadingRoom(width: window.width, groupWidth: chrome.groupWidth) - controls.leading),
+                           alignment: .leading)
                 Spacer(minLength: 12)
                 trailing
             }
+            .padding(.leading, controls.leading)
+            .padding(.trailing, controls.trailing)
             .frame(minHeight: HeaderChrome.rowHeight)
+            .windowControlsInset($controls)
             .padding(.leading, window.pad)
             .padding(.trailing, window.pad + chrome.trailingReserve)
             .padding(.bottom, HeaderEdge.height)
@@ -563,7 +572,10 @@ public struct OrganicBrandBar<Trailing: View>: View {
                 Spacer(minLength: 12)
                 trailing
             }
+            .padding(.leading, controls.leading)
+            .padding(.trailing, controls.trailing)
             .frame(minHeight: 44)
+            .windowControlsInset($controls)
             .padding(.horizontal, 20)
             .padding(.top, 4)
             .padding(.bottom, HeaderEdge.height)
@@ -587,24 +599,29 @@ public struct OrganicBrandBar<Trailing: View>: View {
                 .foregroundStyle(Tokens.text)
                 .accessibilityAddTraits(.isHeader)
         } else {
-            Text(verbatim: "Resonance")
-                .font(AppFonts.heading(22))
-                .tracking(-0.02 * 22)
-                .foregroundStyle(Tokens.text)
+            wordmark
         }
     }
 
-    /// The mark and the words in the room left of the tab group: a title truncates; the wordmark
-    /// that doesn't fit leaves the mark alone (named for VoiceOver).
-    @ViewBuilder private var lockup: some View {
-        if title != nil {
-            HStack(spacing: 10) { mark; words }
-        } else {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) { mark; words.fixedSize() }
-                mark.accessibilityElement().accessibilityLabel(Text(verbatim: "Resonance"))
-            }
+    /// The mark and the wordmark in the room left of the tab group — whatever the tab, since the group
+    /// says which one it is (round 5 D5; a phone's bar swaps the wordmark for the tab's title). The
+    /// wordmark that doesn't fit leaves the mark alone. A tab that names itself still heads the screen
+    /// for VoiceOver, under the brand's place.
+    private var lockup: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { mark; wordmark.fixedSize() }
+            mark
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title.map { Text($0) } ?? Text(verbatim: "Resonance"))
+        .accessibilityAddTraits(title != nil ? .isHeader : [])
+    }
+
+    private var wordmark: some View {
+        Text(verbatim: "Resonance")
+            .font(AppFonts.heading(22))
+            .tracking(-0.02 * 22)
+            .foregroundStyle(Tokens.text)
     }
 }
 
@@ -648,6 +665,8 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     private var inset: CGFloat = 0
     /// The page's actions as drawn (a tablet centres the context clear of them).
     @State private var trailingWidth: CGFloat = 0
+    /// The window's controls in the row's corner (an iPad's app in a window): the arrow and the actions clear them.
+    @State private var controls = WindowControlsInset.zero
     @Environment(\.dismiss) private var dismiss
 
     public init(_ title: String, backLabel: String, scrolled: Bool = false,
@@ -680,8 +699,8 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
         return bar
     }
 
-    /// How far through the page's story the reader is (0…1; nil draws nothing): a terracotta pen
-    /// line rides the bar's own wave from its left end (design §3).
+    /// How far through the page's story the reader is (0…1; nil draws nothing): a marker rides the
+    /// bar's own wave from its left end (design §3), in its own ink and width (round 5 D1).
     public func readingProgress(_ progress: CGFloat?) -> Self {
         var bar = self
         bar.progress = progress
@@ -705,13 +724,18 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { trailingWidth = $0 }
                         .padding(.trailing, -12)
                 }
+                .padding(.leading, controls.leading)
+                .padding(.trailing, controls.trailing)
                 HStack(spacing: 10) {
                     titleText
                     leading
                 }
-                .frame(maxWidth: HeaderChrome.centreRoom(width: window.width, side: trailingWidth - 12))
+                // On the window's centre line, clear of the arrow (and the controls before it) and the actions.
+                .frame(maxWidth: HeaderChrome.centreRoom(width: window.width,
+                                                         side: max(trailingWidth - 12 + controls.trailing, HeaderChrome.backReserve + controls.leading)))
             }
             .frame(minHeight: HeaderChrome.rowHeight)
+            .windowControlsInset($controls)
             .padding(.leading, window.pad + inset)
             .padding(.trailing, window.pad)
             .padding(.bottom, HeaderEdge.height)
@@ -726,7 +750,10 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
                 HStack(spacing: 0) { trailing }
                     .padding(.trailing, -12)
             }
+            .padding(.leading, controls.leading)
+            .padding(.trailing, controls.trailing)
             .frame(minHeight: 44)
+            .windowControlsInset($controls)
             .padding(.horizontal, 20)
             .padding(.leading, inset)
             .padding(.top, 4)
@@ -745,10 +772,12 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
 
     @ViewBuilder private var titleText: some View {
         if !title.isEmpty {
+            // A tablet's centred context is set as iPadOS sets an inline title (round 5 D5).
             Text(title)
-                .font(AppFonts.heading(22))
-                .tracking(-0.02 * 22)
+                .font(chrome != nil ? HeaderContextTitle.font : AppFonts.heading(22))
+                .tracking(chrome != nil ? 0 : -0.02 * 22)
                 .lineLimit(1)
+                .truncationMode(.tail)
                 .foregroundStyle(Tokens.text)
                 .accessibilityAddTraits(.isHeader)
         }
@@ -771,14 +800,16 @@ extension OrganicInlineBar where Leading == EmptyView, Trailing == EmptyView {
 /// on the wavy pen line (the web masks its backdrop to the same curve), so
 /// the line *is* the bar's edge — no band of fill below it, and content
 /// scrolled beneath shows right up to the line. Reaches up under the status bar.
-/// The line rests at half ink and darkens once the page has scrolled.
+/// The line rests at half ink and darkens once the page has scrolled — unless the place it is drawn
+/// in inks it otherwise (``HeaderLineInk``).
 public struct HeaderEdge: View {
     /// Room under the bar's content for the wave (the web's HEADER_WAVE_H band).
     public static let height: CGFloat = 10
     var scrolled: Bool
-    /// Reading progress (the card page): the share of the wave inked in terracotta over the grey.
+    /// Reading progress (the card page): the share of the wave overdrawn by the progress marker.
     var progress: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.headerLineInk) private var ink
 
     public init(scrolled: Bool = false, progress: CGFloat? = nil) {
         self.scrolled = scrolled
@@ -791,15 +822,25 @@ public struct HeaderEdge: View {
     public var body: some View {
         ZStack {
             HeaderEdgeShape(closed: true).fill(Tokens.cream)
-            HeaderEdgeShape(closed: false)
-                .stroke(Tokens.fieldBorderHover, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
-                .opacity(scrolled ? 1 : 0.5)
-                .animation(.easeInOut(duration: 0.3), value: scrolled)
+            switch ink {
+            case .page:
+                HeaderEdgeShape(closed: false)
+                    .stroke(Tokens.fieldBorderHover, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                    .opacity(scrolled ? 1 : 0.5)
+                    .animation(.easeInOut(duration: 0.3), value: scrolled)
+            case .pane:
+                HeaderEdgeShape(closed: false)
+                    .stroke(PaneLines.ink, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+            case .hidden:
+                EmptyView()
+            }
             if let progress {
+                // A marker over the line (round 5 D1): wider than the pen and brighter, on the same path —
+                // so centred on it, covering it — leaving the unread rest of the line as its track.
                 let p = min(max(progress, 0), 1)
                 HeaderEdgeShape(closed: false)
                     .trim(from: 0, to: p)
-                    .stroke(Tokens.terracotta, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                    .stroke(Tokens.readingProgress, style: StrokeStyle(lineWidth: Tokens.readingProgressWidth, lineCap: .round))
                     .opacity(p < Self.progressMin ? 0 : 1)
                     // It follows the scroll; with motion allowed, a short ease takes the steps out.
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: p)
@@ -808,6 +849,21 @@ public struct HeaderEdge: View {
         .ignoresSafeArea(edges: .top)
         .accessibilityHidden(true)
     }
+}
+
+/// How a header's pen line is inked where it is drawn (round 5 D4).
+public enum HeaderLineInk: Sendable {
+    /// A page's: half ink at rest, full once the page has scrolled under it.
+    case page
+    /// The two-pane Messages' one constant ink, its rules' (``PaneLines/ink``): nothing inks in
+    /// or darkens as the list or the thread scrolls under it.
+    case pane
+    /// None: a pane's own bar, whose line the pane draws with its rule (``PaneLines``), so the two meet.
+    case hidden
+}
+
+extension EnvironmentValues {
+    @Entry public var headerLineInk: HeaderLineInk = .page
 }
 
 /// How far a reader is through a story (design §3), from the scroll view's geometry and the story
@@ -840,8 +896,13 @@ extension View {
 nonisolated struct HeaderEdgeShape: Shape {
     var closed: Bool
 
+    /// The wave's resting height in a bar's box: 1.4 (its swing) and the pen's width above the foot.
+    static func lineY(in rect: CGRect) -> CGFloat {
+        rect.maxY - 1.4 - Tokens.ink
+    }
+
     func path(in rect: CGRect) -> Path {
-        let y0 = Double(rect.maxY) - 1.4 - Double(Tokens.ink)
+        let y0 = Double(Self.lineY(in: rect))
         let pts = wavyPoints(Double(rect.width), y0: y0, amp: 1.4, seed: 211, steps: 12)
             .map { CGPoint(x: Double(rect.minX) + $0.x, y: $0.y) }
         var p = Path()

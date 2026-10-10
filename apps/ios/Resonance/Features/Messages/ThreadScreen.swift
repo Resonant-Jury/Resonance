@@ -144,13 +144,14 @@ struct ThreadScreen: View {
             VStack(spacing: 0) {
                 if let model { content(model) }
             }
-            .padding(.leading, inPane ? PaneRule.gutter : 0)
+            .padding(.leading, inPane ? PaneLines.gutter : 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(alignment: .leading) { if inPane { PaneRule() } }
             .accessibilityHidden(menu != nil)
             bar
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
                 .accessibilityHidden(menu != nil)
+            // Beside the list: the rule between the panes and the bar's foot from it, over the bar's paper.
+            if inPane { PaneLines(barHeight: barHeight) }
             if let menu, let model {
                 MessageMenuOverlay(menu: menu, ctx: context(model),
                                    items: menu.items(model: model, reply: { reply(menu.row.message) }, openLink: openLink,
@@ -375,7 +376,7 @@ struct ThreadScreen: View {
             }
         }
         .backHidden(searching || inPane)
-        .leadingInset(inPane ? PaneRule.gutter : 0)
+        .leadingInset(inPane ? PaneLines.gutter : 0)
     }
 
     /// Where in the matches the thread is (1 is the newest), once one was chosen and the list put away.

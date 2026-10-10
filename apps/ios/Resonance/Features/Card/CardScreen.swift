@@ -205,7 +205,8 @@ struct CardScreen: View {
                 section(L10n.Card.ResonanceSection.title, headingGap: 40) { MiniCardList(cards: resonance) }
             }
             if !model.related.isEmpty {
-                section(L10n.Card.related, headingGap: 56) { StoryCardList(cards: model.related, grid: false) }
+                // Bands, and on an expanded window the bordered grid — as the lists above it (round 5 D3).
+                section(L10n.Card.related, headingGap: 56) { StoryCardList(cards: model.related) }
             }
             // The page's own air under its last section (editing your card is in its ⋯).
             Color.clear.frame(height: 40)
@@ -481,9 +482,9 @@ private struct StorySkeleton: View {
     }
 }
 
-/// A card link standing alone in a story: the linked card as an embed, drawn
-/// from the summary the card page brought along, or the plain link when the
-/// viewer can't see it (web: CardEmbedLink).
+/// A card link standing alone in a story: the linked card as a block like a link's card, holding
+/// the card as a chat shares it (round 5 D2), drawn from the summary the card page brought along
+/// with the story — or the plain link when the viewer can't see it (web: CardEmbedLink).
 struct CardEmbedView: View {
     let href: String
     let title: String
@@ -492,22 +493,21 @@ struct CardEmbedView: View {
     @Environment(\.openRoute) private var openRoute
 
     var body: some View {
-        Button {
-            if let key = card?.routeKey ?? CardKey.of(href: href) { openRoute(.card(key)) }
-        } label: {
-            if let card {
-                EmbedStoryCard(title: card.title, author: card.author?.value1.handle ?? L10n.Card.anonymousAuthor,
-                               imageURL: card.imageUrl.flatMap(URL.init(string:)), hue: card.accentHue,
-                               seed: Double(seedFromString(href)))
-            } else {
+        if let card {
+            StoryCardEmbed(title: card.title, seed: Double(seedFromString(href)),
+                           section: SharedCardSection(card: card, onOpen: nil)) { openRoute(.card(card.routeKey)) }
+        } else {
+            Button {
+                if let key = CardKey.of(href: href) { openRoute(.card(key)) }
+            } label: {
                 Text(title)
                     .font(AppFonts.body(17))
                     .underline()
                     .foregroundStyle(Tokens.terracotta)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 }
 

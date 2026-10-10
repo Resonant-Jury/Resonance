@@ -10,15 +10,13 @@ struct StoryCardList: View {
     let cards: [FeedCard]
     /// The first card's top edge is the bar's pen line (home: design §2).
     var underBar = false
-    /// False keeps the bands at every width (a card page's related cards beside its article).
-    var grid = true
     var onAppearLast: (() -> Void)? = nil
     @Environment(SessionStore.self) private var session
 
     var body: some View {
         // One colouring for the list as shown (round 5 B3): no card wears a neighbour's family.
         let palettes = CardPalette.palettes(cards.map(\.accentHue))
-        CardColumns(count: cards.count, underBar: underBar, grid: grid) { i, bordered in
+        CardColumns(count: cards.count, underBar: underBar) { i, bordered in
             let card = cards[i]
             NavigationLink(value: Route.card(card.routeKey)) {
                 StoryCardView(card.story, position: i, isLast: i == cards.count - 1, underBar: underBar && i == 0, bordered: bordered,
@@ -39,7 +37,6 @@ struct StoryCardList: View {
 struct CardColumns<Item: View>: View {
     let count: Int
     var underBar = false
-    var grid = true
     @ViewBuilder let item: (_ index: Int, _ bordered: Bool) -> Item
     @Environment(\.window) private var window
     /// The list's own width (a card page's column is narrower than the window).
@@ -48,7 +45,7 @@ struct CardColumns<Item: View>: View {
     var body: some View {
         let width = measured ?? window.contentWidth
         let content = max(0, min(width, 1200) - 2 * window.pad)
-        let columns = grid ? LayoutClass.feedColumns(window.layoutClass, contentWidth: content) : 1
+        let columns = LayoutClass.feedColumns(window.layoutClass, contentWidth: content)
         Group {
             if columns > 1 {
                 HStack(alignment: .top, spacing: Tokens.feedGap) {
@@ -77,14 +74,25 @@ struct CardColumns<Item: View>: View {
     }
 }
 
-/// MiniCardGrid on a phone: the pared-back bands for resonances and linked cards.
+/// MiniCardGrid: the pared-back bands for resonances and linked cards on a phone and a medium
+/// window; on an expanded one the related list's bordered grid — its card, columns, gutter and
+/// insets, a lone card in the first column (round 5 D3) — so a card page's lists line up.
 struct MiniCardList: View {
     let cards: [FeedCard]
     @Environment(SessionStore.self) private var session
+    @Environment(\.window) private var window
 
     var body: some View {
+        if window.layoutClass == .expanded {
+            StoryCardList(cards: cards)
+        } else {
+            bands
+        }
+    }
+
+    private var bands: some View {
         let palettes = CardPalette.palettes(cards.map(\.accentHue))
-        LazyVStack(spacing: 0) {
+        return LazyVStack(spacing: 0) {
             ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                 NavigationLink(value: Route.card(card.routeKey)) {
                     MiniStoryCardView(card.mini, position: i, isLast: i == cards.count - 1, palette: palettes[i])
