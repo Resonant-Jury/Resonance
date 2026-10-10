@@ -20,6 +20,8 @@ struct CardScreen: View {
     /// How far through the story the reader is, for the bar's terracotta line (only the bar reads it).
     @State private var meter = ReadingMeter()
     @Environment(\.window) private var window
+    /// A tablet's header (round 5 C1): the card's title fades into its centre in place of the author.
+    @Environment(\.headerChrome) private var headerChrome
     /// What the page has across.
     @State private var width: CGFloat?
     private static let pageSpace = "card.page"
@@ -85,10 +87,13 @@ struct CardScreen: View {
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
-            Metered(meter: meter) { progress in
+            Metered(meter: meter) { progress, titleGone in
             OrganicInlineBar("", backLabel: L10n.App.Nav.back, scrolled: scrolled) {
-                // Beside a rail the author is always in view: the bar has no need to name them.
-                if let detail = model?.detail, model?.phase == .loaded, bylineGone, !layout.rail {
+                if headerChrome != nil {
+                    // A tablet's header centres the card's title once the article's own has scrolled under it.
+                    HeaderContextTitle(model?.detail?.card.title ?? "", shown: titleGone && model?.phase == .loaded)
+                } else if let detail = model?.detail, model?.phase == .loaded, bylineGone, !layout.rail {
+                    // Beside a rail the author is always in view: the bar has no need to name them.
                     BarAuthor(card: detail.card, anonymous: detail.anonymous)
                         .transition(.opacity.combined(with: .offset(y: 8)))
                 }
@@ -226,6 +231,8 @@ struct CardScreen: View {
             CSSText(card.title, font: AppFonts.scaledUIFont(.heading, size: 28, weight: .bold), lineHeight: 1.2,
                     tracking: -0.015 * 28)
                 .accessibilityAddTraits(.isHeader)
+                // Where the title ends, for the tablet header's centre (it fades in once this is under the line).
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.pageSpace)).maxY } action: { meter.titleBottom = $0 }
                 .padding(.bottom, 28)
         }
     }
@@ -514,20 +521,25 @@ final class ReadingMeter {
     }
 
     var story: CGRect = .zero { didSet { update() } }
+    /// The article title's bottom in the page (round 5 C1: a tablet's header names the card past it).
+    var titleBottom: CGFloat? { didSet { update() } }
     var viewport = Viewport(top: 0, height: 0) { didSet { update() } }
     private(set) var progress: CGFloat?
+    private(set) var titleGone = false
 
     private func update() {
         let p = ReadingProgress.of(storyTop: story.minY, storyHeight: story.height, visibleTop: viewport.top,
                                    visibleHeight: viewport.height)
         if p != progress { progress = p }
+        let gone = HeaderContext.shown(headingBottom: titleBottom, visibleTop: viewport.top)
+        if gone != titleGone { titleGone = gone }
     }
 }
 
 /// Builds `content` with the meter's progress, so only this view follows the scroll.
 private struct Metered<Content: View>: View {
     let meter: ReadingMeter
-    @ViewBuilder let content: (CGFloat?) -> Content
+    @ViewBuilder let content: (CGFloat?, Bool) -> Content
 
-    var body: some View { content(meter.progress) }
+    var body: some View { content(meter.progress, meter.titleGone) }
 }

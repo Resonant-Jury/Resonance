@@ -32,16 +32,61 @@ extension EnvironmentValues {
     /// the chosen one), so a page on another tab never disappears: what may only happen while it is
     /// seen (a conversation being read) asks this too.
     @Entry var isSelectedTab = true
+    /// Counts the taps on a tab that is already chosen and at its root: each one takes the root's
+    /// list back to its top.
+    @Entry var scrollToTop = 0
+    /// What a phone's bottom tab bar takes over a pushed page (nothing on a tablet).
+    @Entry var tabBarRoom: CGFloat = 0
+}
+
+/// Which navigation chrome a tab shows over its stack (round 5 C1), from the window and the pages
+/// pushed over the tab's root.
+enum TabChrome {
+    /// A tablet's header carries the tab group and the pen on a tab's root only: a pushed page has
+    /// its back arrow, its context and its actions — only "back" leads out.
+    static func headerTabs(_ layout: LayoutClass, pushed: [Route]) -> Bool {
+        layout.topTabs && pushed.isEmpty
+    }
+
+    /// A phone keeps its bottom bar on pushed pages too, except where the page takes the window
+    /// (the writer, the thought map) or keeps its own composer at the foot (a conversation).
+    static func bottomBar(_ layout: LayoutClass, pushed: [Route]) -> Bool {
+        !layout.topTabs && !(pushed.last?.hidesTabBar ?? false)
+    }
+}
+
+/// What a tap on a tab does: the pen writes; another tab is chosen (where it was left); the chosen one
+/// goes back to its root, or, already there, back to the top of its list.
+enum TabTap: Equatable {
+    case write, choose, popToRoot, scrollToTop
+
+    static func of(_ picked: AppTab, current: AppTab, pushed: Int) -> TabTap {
+        if picked == .write { return .write }
+        if picked != current { return .choose }
+        return pushed > 0 ? .popToRoot : .scrollToTop
+    }
+}
+
+extension Route {
+    /// Pages a phone's bottom bar gives way to.
+    var hidesTabBar: Bool {
+        switch self {
+        case .write, .thoughtMap, .thread: true
+        default: false
+        }
+    }
 }
 
 /// Four tabs and the pen. Each tab keeps its own navigation stack alive, so
 /// switching tabs preserves where you were; re-tapping the current tab pops
-/// to its root. The bar hides on pushed screens, like the system one. A window
-/// medium or wider (an iPad) carries the tabs in the middle of a full-width
-/// header instead and the pen at its end (round 5 B2: iPadOS's top tabs, drawn
-/// our way), on every page, staying put while pages push under them; each
-/// page's own bar leaves them room (``HeaderChrome``). The writer and the
-/// thought map cover them. One navigation state, drawn either way, so
+/// to its root, and at its root takes its list back to the top. On a phone the
+/// bar stays on pushed pages (the system's convention), giving way only to the
+/// writer, the thought map and a conversation (``TabChrome``). A window medium
+/// or wider (an iPad) carries the tabs in the middle of a full-width header
+/// instead — one segmented group — and the pen at its end (round 5 B2, C:
+/// iPadOS's top tabs, drawn our way), on a tab's root only: the root's bar
+/// leaves them room (``HeaderChrome``), and a pushed page shows neither, its
+/// own back arrow the way out. One navigation state, drawn either way, so
 /// rotating or resizing the window never loses the place. On an expanded
 /// window the Messages tab draws its conversation beside the list
 /// (``MessagesPanes``). ⌘1…⌘4 choose a tab, ⌘N writes.
@@ -54,6 +99,8 @@ struct MainTabView: View {
     @State private var window = WindowLayout.phone
     /// The header's tab group as drawn (its width is what each page's bar leaves room for).
     @State private var groupWidth: CGFloat = 0
+    /// Taps on each tab while it was chosen and at its root (``EnvironmentValues/scrollToTop``).
+    @State private var toTop: [AppTab: Int] = [:]
     private let push = PushCenter.shared
 
     private let tabs: [AppTab] = [.feed, .messages, .notifications, .cardBox]
@@ -61,25 +108,25 @@ struct MainTabView: View {
     private static var openedLaunchRoute = false
     #endif
 
-    /// The writer and the thought map take the whole window: no header tabs over them (the writer has
-    /// its own bar, the map none).
-    private var covered: Bool {
-        switch paths[tab]?.last {
-        case .write?, .thoughtMap?: true
-        default: false
-        }
-    }
+    /// The header's tabs and pen over the current tab: its root only.
+    private var topTabs: Bool { TabChrome.headerTabs(window.layoutClass, pushed: path(tab).wrappedValue) }
 
-    private var topTabs: Bool { window.topTabs && !covered }
+    /// The phone's bottom bar over the current tab's page.
+    private var bottomBar: Bool { TabChrome.bottomBar(window.layoutClass, pushed: path(tab).wrappedValue) }
 
     /// The conversation beside the list (expanded windows).
     private var twoPane: Bool { window.layoutClass == .expanded }
 
     private var tabItems: [OrganicTabItem<AppTab>] {
+        Self.tabItems(notifications: session.notifications.unreadCount, messages: session.conversations.unreadTotal)
+    }
+
+    /// The bar's five items in its order, the pen among them as its action; the header's group takes
+    /// the four tabs of them (``OrganicTopTabs/segments(_:)``).
+    static func tabItems(notifications: Int, messages: Int) -> [OrganicTabItem<AppTab>] {
         AppTab.allCases.map {
             OrganicTabItem(id: $0, title: $0.title, icon: $0.icon, isAction: $0 == .write,
-                           badge: $0 == .notifications ? session.notifications.unreadCount
-                               : $0 == .messages ? session.conversations.unreadTotal : 0)
+                           badge: $0 == .notifications ? notifications : $0 == .messages ? messages : 0)
         }
     }
 
@@ -118,9 +165,9 @@ struct MainTabView: View {
         }
     }
 
-    /// The tablet header's own chrome (round 5 B2), drawn once above the stacks so it stays put while
-    /// pages push under it: the tab group on the window's centre line, the pen at its trailing end,
-    /// in the 56 row under the status bar that every page's bar shares.
+    /// The tablet header's own chrome (round 5 B2, C), drawn once above the stacks over a tab's root:
+    /// the tab group on the window's centre line, the pen at its trailing end, in the 72 row under the
+    /// status bar that the root's bar shares. It fades as a page pushes over the root.
     private var headerTabs: some View {
         ZStack {
             OrganicTopTabs(items: tabItems, selection: tab, labels: window.layoutClass.tabLabels,
@@ -153,14 +200,18 @@ struct MainTabView: View {
                     }
                 ))
                 .environment(\.isSelectedTab, t == tab)
+                .environment(\.scrollToTop, toTop[t] ?? 0)
+                .environment(\.tabBarRoom, window.topTabs ? 0 : OrganicTabBar<AppTab>.height + HeaderEdge.height)
                 .opacity(t == tab ? 1 : 0)
                 .allowsHitTesting(t == tab)
                 .accessibilityHidden(t != tab)
             }
-            if !window.topTabs, paths[tab]?.isEmpty ?? true {
+            if bottomBar {
                 OrganicTabBar(items: tabItems, selection: tab, onSelect: select)
-                    // In place, fading: back on a tab's first page it is simply there again (a slide up after
-                    // the pop has finished read as arriving late), and on a push it gives way as quickly.
+                    // A field's keyboard rises over it rather than carrying it up.
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+                    // In place, fading: back from a page it gave way to it is simply there again (a slide
+                    // up after the pop has finished read as arriving late), and it gives way as quickly.
                     .transition(.opacity)
             }
         }
@@ -175,7 +226,7 @@ struct MainTabView: View {
                 AccountDeletionBanner(date: date).padding(.vertical, 6)
             }
         }
-        .animation(.easeOut(duration: 0.12), value: paths[tab]?.isEmpty ?? true)
+        .animation(.easeOut(duration: 0.12), value: bottomBar)
         .background(Tokens.cream)
         .environment(writer)
         .onAppear {
@@ -270,12 +321,13 @@ struct MainTabView: View {
     }
 
     private func select(_ picked: AppTab) {
-        if picked == .write {
-            writer.open()
-            return
+        switch TabTap.of(picked, current: tab, pushed: path(tab).wrappedValue.count) {
+        case .write: writer.open()
+        case .choose: tab = picked
+        // In two panes the conversation beside the list stays; what was pushed over it goes.
+        case .popToRoot: path(tab).wrappedValue = []
+        case .scrollToTop: toTop[tab, default: 0] += 1
         }
-        if picked == tab { paths[tab] = [] }
-        tab = picked
     }
 
     /// The stack a tab's NavigationStack draws: in two panes, the Messages tab's conversation is the
@@ -315,6 +367,10 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     @Environment(\.window) private var window
     /// The Messages list beside a conversation: the window's header is drawn above it, full width.
     @Environment(\.headerAbove) private var headerAbove
+    /// A tap on this tab while it is chosen and here: back to the top.
+    @Environment(\.scrollToTop) private var toTop
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var position = ScrollPosition(edge: .top)
     @State private var scrolled = false
     /// How far the brand bar has slid up (0…`travel`).
     @State private var hidden: CGFloat = 0
@@ -361,6 +417,11 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
             .padding(.bottom, window.topTabs ? 40 : 110)
             // For whoever can't pull, the same refresh is the list's "Refresh" action (among VoiceOver's actions on any of its rows).
             .sketchRefreshAction(named: L10n.Native.refresh)
+        }
+        .scrollPosition($position)
+        .onChange(of: toTop) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { position.scrollTo(edge: .top) }
+            withAnimation(.easeOut(duration: 0.18)) { hidden = 0 }
         }
         .onHeaderScroll($scrolled)
         .onChange(of: scrolled) { _, now in headerAbove?.scrolled(now) }

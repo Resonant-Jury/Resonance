@@ -125,11 +125,13 @@ struct OrganicTabButton<ID: Hashable>: View {
     }
 }
 
-/// What a page's bar leaves for the window's own chrome on a tablet (round 5 B2): from medium up the
-/// tab group sits on the window's centre line and the pen at its trailing end, drawn once above
-/// every stack (``OrganicTopTabs``, ``OrganicPenButton``), so a page's bar spans the whole width
-/// and keeps its leading content left of the group and its own actions 8 before the pen. Nil on a
-/// phone (the bottom tab bar), in the writer and in a pane's own bar.
+/// What a page's bar leaves for the window's own chrome on a tablet (round 5 B2, C1): from medium up a
+/// tab's root carries the tab group on the window's centre line and the pen at its trailing end,
+/// drawn once above every stack (``OrganicTopTabs``, ``OrganicPenButton``), so the root's bar spans
+/// the whole width and keeps its lockup left of the group and its own actions 8 before the pen. A
+/// pushed page shows neither (only its back arrow leads out): its bar centres the page's context
+/// between the arrow and its actions. Nil on a phone (the bottom tab bar), in the writer and in a
+/// pane's own bar.
 public nonisolated struct HeaderChrome: Equatable, Sendable {
     /// The tab group's width (measured where it is drawn).
     public var groupWidth: CGFloat
@@ -141,14 +143,17 @@ public nonisolated struct HeaderChrome: Equatable, Sendable {
         self.trailingReserve = trailingReserve
     }
 
-    /// The header's row under the status bar (above its wave band).
-    public static let rowHeight: CGFloat = 56
+    /// The header's row under the status bar (above its wave band): tall enough that the group isn't
+    /// cramped (round 5 C2).
+    public static let rowHeight: CGFloat = 72
+    /// The tab group, centred on the row.
+    public static let groupHeight: CGFloat = 44
     /// The pen chip (56) and 8 before it.
     public static let penReserve: CGFloat = 64
-    /// A pushed page's title is dropped when less than this is left for it beside the arrow.
-    public static let titleMin: CGFloat = 72
+    /// What a pushed page's back arrow takes past the page pad (its 44 target hanging 13 into the gutter).
+    public static let backReserve: CGFloat = 31
 
-    /// How wide the leading content may be in a window `width` wide: up to 16 short of the group,
+    /// How wide a root's leading content may be in a window `width` wide: up to 16 short of the group,
     /// `L = (W − G) / 2 − P − 16`.
     public static func leadingRoom(width: CGFloat, groupWidth: CGFloat) -> CGFloat {
         max(0, (width - groupWidth) / 2 - LayoutClass.pad(width) - 16)
@@ -158,6 +163,13 @@ public nonisolated struct HeaderChrome: Equatable, Sendable {
     public static func labelRoom(width: CGFloat) -> CGFloat {
         max(0, width - 2 * (LayoutClass.pad(width) + 152))
     }
+
+    /// How wide a pushed page's centred context may be: the window less, on both sides, the pad, the
+    /// wider of the arrow and the page's actions (`side`, past the pad), and 12 of air — so it stays
+    /// on the window's centre line and never runs under either end.
+    public static func centreRoom(width: CGFloat, side: CGFloat) -> CGFloat {
+        max(0, width - 2 * (LayoutClass.pad(width) + max(side, backReserve) + 12))
+    }
 }
 
 extension EnvironmentValues {
@@ -165,11 +177,53 @@ extension EnvironmentValues {
     @Entry public var headerChrome: HeaderChrome? = nil
 }
 
-/// The tablet header's tab group (round 5 B2, iPadOS 18's tabs at the top of the window): the four
-/// tabs in the bar's order on one hand-drawn capsule of the dialog's paper, the chosen one inked
-/// terracotta on the bar's torn-paper wash; with their words on a wide window when they fit,
-/// glyphs alone otherwise (their names kept for VoiceOver, the pointer's tooltip and the Large
-/// Content Viewer). The same items, selection and haptics as the bar; the pen is drawn apart.
+/// When a pushed page's context (the card's title, the person's name) fades into its header: once
+/// the page's own heading has scrolled wholly under the header's line (round 5 C1).
+public nonisolated enum HeaderContext {
+    /// `headingBottom`: the heading's bottom in the scrolled content (nil, not yet measured);
+    /// `visibleTop`: the content's y at the header's line (offset + top inset).
+    public static func shown(headingBottom: CGFloat?, visibleTop: CGFloat) -> Bool {
+        guard let headingBottom, headingBottom > 0 else { return false }
+        return visibleTop >= headingBottom
+    }
+}
+
+/// A pushed page's context in the tablet header's centre (the card's title, the person's name): one
+/// line, truncated, fading in over 160 ms once ``HeaderContext`` says so — rising a little as it
+/// comes, unless motion is reduced.
+public struct HeaderContextTitle: View {
+    let text: String
+    let shown: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    public init(_ text: String, shown: Bool) {
+        self.text = text
+        self.shown = shown
+    }
+
+    public var body: some View {
+        ZStack {
+            if shown, !text.isEmpty {
+                Text(text)
+                    .font(AppFonts.heading(19))
+                    .tracking(-0.01 * 19)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(Tokens.text)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 6)))
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: shown)
+    }
+}
+
+/// The tablet header's tab group (round 5 C2, iPadOS's tabs at the top of the window): the four tabs
+/// in the bar's order as one borderless segmented control — the publish panel's audience recipe, a
+/// filled organic outline with no pen line, the segments cut apart by cream seams. Nothing is drawn
+/// inside a segment for the choice: the chosen one's face turns the tonal peach with deep ink and
+/// semibold words, the others are the paper's darker shade in muted ink. With their words on a wide
+/// window when they fit, glyphs alone otherwise (their names kept for VoiceOver, the pointer's
+/// tooltip and the Large Content Viewer). The pen is not one of them: it is an action, drawn apart.
 public struct OrganicTopTabs<ID: Hashable>: View {
     let items: [OrganicTabItem<ID>]
     let selection: ID
@@ -178,6 +232,9 @@ public struct OrganicTopTabs<ID: Hashable>: View {
     let label: String
     let onSelect: (ID) -> Void
     var onWidth: ((CGFloat) -> Void)?
+
+    /// The outline's and the seams' seed.
+    static var seed: Double { 233 }
 
     /// `items`: the bar's list (the pen among them is left out); `labels`: words allowed (expanded);
     /// `room`: the most the labelled group may take; `label`: the group's name for VoiceOver.
@@ -190,6 +247,11 @@ public struct OrganicTopTabs<ID: Hashable>: View {
         self.label = label
         self.onSelect = onSelect
         self.onWidth = onWidth
+    }
+
+    /// The group's segments: the bar's tabs in its order, the pen (an action) left out.
+    public static func segments(_ items: [OrganicTabItem<ID>]) -> [OrganicTabItem<ID>] {
+        items.filter { !$0.isAction }
     }
 
     public var body: some View {
@@ -210,59 +272,25 @@ public struct OrganicTopTabs<ID: Hashable>: View {
     }
 
     private func track(labelled: Bool) -> some View {
-        HStack(spacing: 2) {
-            ForEach(Array(items.enumerated()).filter { !$0.element.isAction }, id: \.element.id) { index, item in
-                TopTabButton(item: item, barIndex: index, selected: item.id == selection, labelled: labelled) { onSelect(item.id) }
+        let tabs = Self.segments(items)
+        return HStack(spacing: 0) {
+            ForEach(Array(tabs.enumerated()), id: \.element.id) { index, item in
+                TopTabSegment(item: item, index: index, count: tabs.count, selected: item.id == selection,
+                              labelled: labelled, seed: Self.seed) { onSelect(item.id) }
             }
         }
-        .padding(4)
-        .frame(height: 40)
-        .background { TopTabsTrack() }
+        .frame(height: HeaderChrome.groupHeight)
+        .clipShape(SegmentedBarShape(seed: Self.seed))
         .fixedSize()
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth?($0) }
-    }
-}
-
-/// The group's capsule: `wobRect(G, 40, R 18, seed 233, mag 1.2, {segmentsH max(3, round(G / 80)),
-/// segmentsV 1, curve 1.3, cornerJitter 1.6, cornerOffset 1.6})` in the cream's darker shade with
-/// the dialog paper's grain; no pen line (a control is a filled shape).
-struct TopTabsTrack: View {
-    var body: some View {
-        let shape = TopTabsTrackShape()
-        ZStack {
-            shape.fill(Tokens.creamDark.opacity(0.7))
-            GrainLayer(shape: shape, mode: .tile, opacity: 0.3, tile: "grain-card")
-        }
-        .accessibilityHidden(true)
-    }
-}
-
-nonisolated struct TopTabsTrackShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = Double(rect.width)
-        return WobRectShape(radius: 18, seed: 233, mag: 1.2, options: WobRectOptions(
-            curve: 1.3, cornerJitter: 1.6, cornerOffset: 1.6,
-            segmentsH: .count(Double(max(3, Int((w / 80).rounded())))), segmentsV: .count(1)))
-            .path(in: rect)
-    }
-}
-
-/// The chosen tab's wash, fitted to its item: `wobRect(w, 32, R 12, seed, mag 3.2, {segmentsH w > 90 ? 3 : 2,
-/// segmentsV 1, curve 1.2, cornerJitter 3.6, cornerOffset 3})`.
-nonisolated struct TopTabWashShape: Shape {
-    let seed: Double
-    func path(in rect: CGRect) -> Path {
-        WobRectShape(radius: 12, seed: seed, mag: 3.2, options: WobRectOptions(
-            curve: 1.2, cornerJitter: 3.6, cornerOffset: 3, segmentsH: .count(rect.width > 90 ? 3 : 2), segmentsV: .count(1)))
-            .path(in: rect)
     }
 }
 
 /// Where a header tab's unread chip hangs (round 5 B2): off the glyph's top-trailing corner, its
 /// top-trailing corner (+8, −7) past the glyph's — as on the glyph alone. Beside a label that corner
 /// would sit 2 into the words (the gap is 6), so the glyph and its chip step toward the leading edge,
-/// out of the item's 14 of padding, until the chip ends ``clearance`` before the label: the label,
-/// the item and the capsule keep their places and widths whether a count shows or not.
+/// out of the segment's padding, until the chip ends ``clearance`` before the label: the label, the
+/// segment and the group keep their places and widths whether a count shows or not.
 public nonisolated enum TopTabBadge {
     /// The chip's top-trailing corner past the glyph's.
     public static let offsetX: CGFloat = 8
@@ -271,6 +299,10 @@ public nonisolated enum TopTabBadge {
     public static let labelGap: CGFloat = 6
     /// Between the chip's frame and the label: 2 clear, and 1 for the chip's wobbly edge.
     public static let clearance: CGFloat = 3
+    /// A labelled segment's padding at each side (the seams' wobble stays clear of glyph and words).
+    public static let itemPadding: CGFloat = 16
+    /// A segment's glyph alone (medium): its width.
+    public static let glyphWidth: CGFloat = 56
 
     /// How far the glyph (with its chip) steps toward the leading edge: 5 beside a label with a
     /// count, else 0 (the glyph alone keeps the corner chip as it is).
@@ -280,12 +312,15 @@ public nonisolated enum TopTabBadge {
     }
 }
 
-/// One tab of the header's group: glyph and words side by side (or the glyph alone, 48 wide), 32 tall.
-struct TopTabButton<ID: Hashable>: View {
+/// One tab of the header's group: glyph and words side by side (or the glyph alone, 56 wide), the
+/// group's 44 tall, on its own share of the face.
+struct TopTabSegment<ID: Hashable>: View {
     let item: OrganicTabItem<ID>
-    let barIndex: Int
+    let index: Int
+    let count: Int
     let selected: Bool
     let labelled: Bool
+    let seed: Double
     let action: () -> Void
     @State private var hovered = false
 
@@ -309,24 +344,53 @@ struct TopTabButton<ID: Hashable>: View {
                     .fixedSize()
                 }
             }
-            .padding(.horizontal, labelled ? 14 : 0)
-            .frame(width: labelled ? nil : 48, height: 32)
-            .background {
-                TopTabWashShape(seed: Double(barIndex * 29 + 7))
-                    .fill(Tokens.terracottaLight.opacity(0.55))
-                    .opacity(selected ? 1 : hovered ? 0.45 : 0)
-                    .animation(.easeOut(duration: 0.16), value: selected)
-                    .animation(.easeOut(duration: 0.16), value: hovered)
-            }
-            .foregroundStyle(selected ? Tokens.terracotta : Tokens.textMuted)
+            .padding(.horizontal, labelled ? TopTabBadge.itemPadding : 0)
+            .frame(width: labelled ? nil : TopTabBadge.glyphWidth, height: HeaderChrome.groupHeight)
+            .foregroundStyle(selected ? Tokens.buttonOnTonal : Tokens.textMuted)
+            .animation(.easeOut(duration: 0.16), value: selected)
             .contentShape(Rectangle())
         }
-        .buttonStyle(TabPressStyle())
+        .buttonStyle(TopTabSegmentStyle(region: region, seam: index > 0 ? SegmentRegion.leftSeam(seed: seamSeed(index - 1)) : nil,
+                                        selected: selected, hovered: hovered))
         .onHover { hovered = $0 }
         .help(item.title)
         .accessibilityLabel(item.badge > 0 ? "\(item.title), \(item.badge)" : item.title)
         .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
         .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
+    }
+
+    /// SegmentedActionBar's seams: the one after segment i is seeded `seed + i·37 + 11`.
+    private func seamSeed(_ i: Int) -> Double { seed + Double(i * 37 + 11) }
+
+    private var region: SegmentRegion {
+        SegmentRegion(left: index == 0 ? nil : seamSeed(index - 1), right: index == count - 1 ? nil : seamSeed(index))
+    }
+}
+
+/// A tab segment's face: the paper's darker shade, or the tonal peach when chosen; a pointer over an
+/// unchosen one, or a press, washes it toward the peach; the buttons' grain over it and the cream
+/// seam on its left.
+private struct TopTabSegmentStyle: ButtonStyle {
+    let region: SegmentRegion
+    let seam: SeamShape?
+    let selected: Bool
+    let hovered: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        let wash = selected ? 0 : configuration.isPressed ? 0.8 : hovered ? 0.45 : 0
+        return configuration.label
+            .background {
+                ZStack {
+                    region.fill(selected ? Tokens.buttonTonal : Tokens.creamDark)
+                    region.fill(Tokens.buttonTonal).opacity(wash)
+                    GrainLayer(shape: region, mode: .tile, opacity: 0.3, tile: "grain-button", overflow: 16)
+                    if let seam {
+                        seam.stroke(Tokens.cream, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                    }
+                }
+                .animation(.easeOut(duration: 0.16), value: selected)
+                .animation(.easeOut(duration: 0.12), value: wash)
+            }
     }
 }
 
@@ -570,7 +634,8 @@ public struct OrganicLargeHeader<Trailing: View>: View {
 /// back arrow, then the screen's title set like the brand (or, with no title,
 /// `leading` — the card page's author once the byline has scrolled away), then
 /// any actions, as bare glyphs. The arrow goes back; a page that has something
-/// to ask first takes it over with ``onBack(_:)``.
+/// to ask first takes it over with ``onBack(_:)``. On a tablet the title (or
+/// `leading`) moves to the header's centre, between the arrow and the actions.
 public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     let title: String
     let backLabel: String
@@ -581,6 +646,8 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     private var showsBack = true
     private var progress: CGFloat?
     private var inset: CGFloat = 0
+    /// The page's actions as drawn (a tablet centres the context clear of them).
+    @State private var trailingWidth: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
 
     public init(_ title: String, backLabel: String, scrolled: Bool = false,
@@ -625,25 +692,28 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     @Environment(\.window) private var window
 
     public var body: some View {
-        if let chrome {
-            // A tablet's full-width header (round 5 B2): the arrow and the title (or `leading`) left of the
-            // window's tab group, truncating — the title dropped when too little is left for it — and the
-            // page's actions 8 before the window's pen.
-            let room = HeaderChrome.leadingRoom(width: window.width, groupWidth: chrome.groupWidth)
-            HStack(spacing: 0) {
-                HStack(spacing: 10) {
+        if chrome != nil {
+            // A tablet's pushed page (round 5 C1): no tabs and no pen — only the arrow leads out. The
+            // page's context (its title, or `leading`: a card's title once its own has scrolled away, the
+            // person in a thread) sits on the window's centre line, truncating before either end; the
+            // page's actions end on the pad.
+            ZStack {
+                HStack(spacing: 0) {
                     arrow
-                    if room - (showsBack ? 41 : 0) >= HeaderChrome.titleMin { titleText }
+                    Spacer(minLength: 8)
+                    HStack(spacing: 0) { trailing }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { trailingWidth = $0 }
+                        .padding(.trailing, -12)
+                }
+                HStack(spacing: 10) {
+                    titleText
                     leading
                 }
-                .frame(maxWidth: room, alignment: .leading)
-                Spacer(minLength: 8)
-                HStack(spacing: 0) { trailing }
-                    .padding(.trailing, -12)
+                .frame(maxWidth: HeaderChrome.centreRoom(width: window.width, side: trailingWidth - 12))
             }
             .frame(minHeight: HeaderChrome.rowHeight)
             .padding(.leading, window.pad + inset)
-            .padding(.trailing, window.pad + chrome.trailingReserve)
+            .padding(.trailing, window.pad)
             .padding(.bottom, HeaderEdge.height)
             .background { HeaderEdge(scrolled: scrolled, progress: progress) }
         } else {

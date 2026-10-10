@@ -74,6 +74,12 @@ extension View {
     /// Where each route leads; attach inside every tab's NavigationStack.
     func appRoutes() -> some View {
         navigationDestination(for: Route.self) { route in
+            destination(route).modifier(TabBarRoom(route: route))
+        }
+    }
+
+    @ViewBuilder private func destination(_ route: Route) -> some View {
+        Group {
             switch route {
             case let .card(key): CardScreen(key: key)
             case let .author(handle): AuthorScreen(handle: handle)
@@ -84,6 +90,19 @@ extension View {
             // The writer has its own bar and covers the header's tabs: it keeps no room for them.
             case let .write(request): WriteScreen(request: request).environment(\.headerChrome, nil)
             }
+        }
+    }
+}
+
+/// A pushed page's room for a phone's bottom tab bar, which stays over it (``TabChrome``): its content
+/// ends above the bar as a root's does, and still scrolls under it.
+private struct TabBarRoom: ViewModifier {
+    let route: Route
+    @Environment(\.tabBarRoom) private var room
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .bottom, spacing: 0) {
+            if room > 0, !route.hidesTabBar { Color.clear.frame(height: room).allowsHitTesting(false) }
         }
     }
 }
