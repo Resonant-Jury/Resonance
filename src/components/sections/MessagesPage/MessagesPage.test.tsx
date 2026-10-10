@@ -206,6 +206,18 @@ describe('MessagesPage list', () => {
     expect(screen.getByText('bob')).toBeInTheDocument();
   });
 
+  it('says "no conversations yet" with the shared empty state, and asks to pick one once there are some', () => {
+    mockUseConversations.mockReturnValueOnce({ data: { conversations: [], people: {}, connectedWithoutConversation: [] } });
+    const { unmount } = renderPage(<MessagesPage />);
+    // The list (phones) and the detail pane (two panes) each say it; CSS shows one.
+    expect(screen.getAllByText('No conversations yet').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Pick a conversation from the left')).not.toBeInTheDocument();
+    unmount();
+    renderPage(<MessagesPage />);
+    expect(screen.getByText('Pick a conversation from the left')).toBeInTheDocument();
+    expect(screen.queryByText('No conversations yet')).not.toBeInTheDocument();
+  });
+
   it('redirects signed-out visitors to /signin', () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     renderPage(<MessagesPage />);

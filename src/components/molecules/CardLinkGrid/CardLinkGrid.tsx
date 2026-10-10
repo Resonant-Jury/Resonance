@@ -27,15 +27,15 @@ export interface CardLinkGridProps {
    */
   renderCaption?: (card: Card, index: number) => ReactNode;
   /**
-   * Show real bylines on the viewer's own anonymous cards (me-page card box
-   * only — pair it with an explicit anonymous badge via `renderCaption`).
-   */
-  deanonymize?: boolean;
-  /**
    * System annotation shown inside the card as a hand-drawn blockquote
    * (e.g. the recommender's「因為…」reason). Return null/undefined to omit.
    */
   quoteFor?: (card: Card, index: number) => string | null | undefined;
+  /**
+   * The list starts right under the app bar (the home feed): on a phone the
+   * first band's paper begins on the bar's pen line, with no rule of its own.
+   */
+  seamTop?: boolean;
 }
 
 /**
@@ -64,7 +64,7 @@ function useFeedColumns(): number | null {
  * the same way — card i in column i % n, by the CSS breakpoints — so the
  * landing page ships its cards in its HTML where they will stay.
  */
-export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCaption, deanonymize, quoteFor }: CardLinkGridProps) {
+export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCaption, quoteFor, seamTop = false }: CardLinkGridProps) {
   const t = useTranslations('card');
   const cols = useFeedColumns();
   const prefill = usePrefillCard();
@@ -73,7 +73,7 @@ export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCa
     const author = authors[card.authorId];
     // An anonymous card needs no author: its byline is the anonymous one.
     const story = author || card.anonymous
-      ? cardToStory(card, author, { anonymousLabel: t('anonymousAuthor'), deanonymize })
+      ? cardToStory(card, author, { anonymousLabel: t('anonymousAuthor') })
       : { title: card.thoughtCore, excerpt: '', author: '—', authorInitials: '?', readTime: '—', tags: card.tags };
     return (
       <div key={card.id} className={styles.item} style={{ position: 'relative' }}>
@@ -91,6 +91,7 @@ export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCa
             story={story}
             index={i}
             isLast={i === cards.length - 1}
+            isFirst={seamTop && i === 0}
             quote={quoteFor ? quoteFor(card, i) ?? undefined : undefined}
           />
         </Link>

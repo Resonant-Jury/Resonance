@@ -107,7 +107,7 @@ function StoryImage({ label, accentFill, imageUrl, seed }: { label: string; acce
 
 /** Wavy section dividers framing a full-bleed mobile card: one along the top
     edge, plus one along the bottom for the last card of the feed. */
-function MobileDividers({ d, stroke, isLast }: { d: string; stroke: string; isLast: boolean }) {
+function MobileDividers({ d, stroke, isLast, isFirst }: { d: string; stroke: string; isLast: boolean; isFirst: boolean }) {
   const edge = (pos: 'top' | 'bottom') => (
     <svg
       viewBox="0 0 200 6"
@@ -129,7 +129,7 @@ function MobileDividers({ d, stroke, isLast }: { d: string; stroke: string; isLa
   );
   return (
     <>
-      {edge('top')}
+      {!isFirst && edge('top')}
       {isLast && edge('bottom')}
     </>
   );
@@ -139,6 +139,12 @@ export interface StoryCardProps {
   story?: Story;
   index?: number;
   isLast?: boolean;
+  /**
+   * The first card right under the app bar (the home feed): on a phone its
+   * band has no top rule — the bar's pen line is its edge — and its paper
+   * reaches up under the bar's wave, so nothing shows between the two.
+   */
+  isFirst?: boolean;
   /** Render the real card chrome (border, fills, colours) but swap text/image/icons for grey blocks. */
   loading?: boolean;
   /**
@@ -149,7 +155,7 @@ export interface StoryCardProps {
   quote?: string;
 }
 
-export function StoryCard({ story, index = 0, isLast = false, loading = false, quote }: StoryCardProps) {
+export function StoryCard({ story, index = 0, isLast = false, isFirst = false, loading = false, quote }: StoryCardProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const cardRef = useRef<HTMLElement>(null);
@@ -198,6 +204,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
       onMouseEnter={(e) => { recordPointer(e); setHovered(true); }}
       onMouseLeave={(e) => { recordPointer(e); setHovered(false); }}
       className={styles.card}
+      data-first={isFirst || undefined}
       style={{
         // Mobile-vs-desktop layout lives in the module CSS (640px media
         // query); the card only supplies its palette as variables.
@@ -214,7 +221,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
           <div className={styles.skeletonChrome} aria-hidden style={{ background: cardInterior }} />
           <div className={styles.skeletonMobileChrome} aria-hidden>
             <GrainOverlay opacity={STORY_GRAIN.band} />
-            <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} />
+            <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} isFirst={isFirst} />
           </div>
         </>
       ) : (
@@ -223,7 +230,7 @@ export function StoryCard({ story, index = 0, isLast = false, loading = false, q
         <>
           <div className={styles.mobileChrome} aria-hidden>
             <GrainOverlay opacity={STORY_GRAIN.band} />
-            <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} />
+            <MobileDividers d={dividerPath} stroke={bc1} isLast={isLast} isFirst={isFirst} />
           </div>
           <div
             className={`${styles.desktopChrome} res-shape-stand-in`}

@@ -1,19 +1,52 @@
-/* Where 「今天的推薦準備好了」scrolls back to, clear of the fixed header. */
+/* The feed has no page title: the first card sits right under the bar.
+   Bordered cards (wider than a phone) stand 28px under the bar, so an
+   outline is never under it at rest; on a phone the first band's paper
+   begins on the bar's pen line (StoryCard's seamTop), so the page starts at
+   the bar's foot with nothing between. */
+.page {
+  max-width: var(--page-max-w-wide);
+  margin: 0 auto;
+  padding: calc(var(--app-header-h) + 28px) var(--page-pad-x) var(--page-pad-bottom);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding-top: var(--app-header-h);
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Where 「今天的推薦準備好了」scrolls back to: the page's top, under the bar. */
 .feedTop {
-  scroll-margin-top: calc(var(--app-header-h) + var(--page-pad-top));
+  scroll-margin-top: var(--app-header-h);
 }
 
 /* Today's picks arrived after the latest cards: a small pill that rides just
-   under the header while the reader scrolls, instead of reshuffling the feed. */
+   under the header while the reader scrolls, instead of reshuffling the feed.
+   It takes no room (the first card stays under the bar): the pill hangs from
+   a line of no height, over the cards. */
 .picksHint {
   position: sticky;
   top: calc(var(--app-header-h) + 12px);
   z-index: 20;
   display: flex;
   justify-content: center;
-  margin-bottom: 24px;
+  height: 0;
+  overflow: visible;
   pointer-events: none;
   animation: picksHintIn 360ms ease-out both;
+}
+
+.picksHint > * {
+  align-self: flex-start;
 }
 
 .picksHint > * {
@@ -23,7 +56,7 @@
 .picksHintLabel {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 @keyframes picksHintIn {
@@ -41,4 +74,32 @@
   .picksHint {
     animation: none;
   }
+}
+
+/* Under the last card: Load more while more can come, else the end mark. */
+.foot {
+  margin-top: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.end {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* The 40px wave and, 5px after it, the dot — on the wave's line. */
+.endMark {
+  display: block;
+  overflow: visible;
+}
+
+.endLine {
+  margin: 10px 0 0;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
 }

@@ -1,0 +1,88 @@
+/* One empty state for every list (design note §1): the content's column,
+   centred across, and down a little above the middle — the space above and
+   below it shares 45 : 55. */
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-height: 300px;
+  padding: 24px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+/* Fills its region: the pane or page body gives the height. */
+.root[data-fills] {
+  flex: 1 1 auto;
+  min-height: 100%;
+}
+
+.above {
+  flex: 45 1 0;
+}
+
+.below {
+  flex: 55 1 0;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 340px;
+}
+
+.mark {
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+}
+
+.blob {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.glyph {
+  position: absolute;
+  inset: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 400;
+  color: var(--color-text);
+}
+
+.title[data-after-mark] {
+  margin-top: 18px;
+}
+
+.line {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.line[data-after='title'] {
+  margin-top: 8px;
+}
+
+.line[data-after='mark'] {
+  margin-top: 14px;
+}
+
+.action {
+  margin-top: 20px;
+}

@@ -20,6 +20,14 @@
     margin-right: calc(-1 * var(--story-bleed));
     background: var(--card-interior);
   }
+
+  /* The first band under the app bar: its paper reaches up under the bar's
+     wave (HEADER_WAVE_H 14), where the bar's cream stops on its pen line, so
+     the band begins exactly there; the content keeps its place. */
+  .card[data-first] {
+    margin-top: -14px;
+    padding-top: calc(32px + 14px);
+  }
 }
 
 /* The loaded card's two chromes, both in the HTML: the hand-drawn card on

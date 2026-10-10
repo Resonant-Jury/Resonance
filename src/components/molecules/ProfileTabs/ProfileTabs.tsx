@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { CardActionsMenu } from '@/components/molecules/CardActionsMenu/CardActionsMenu';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
-import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
 import { OrganicTabs } from '@/components/molecules/OrganicTabs/OrganicTabs';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { EmptyState } from '@/components/molecules/EmptyState/EmptyState';
 import { Select } from '@/components/atoms/Field/Field';
 import { Icon } from '@/components/atoms/Icon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
@@ -147,7 +147,7 @@ export function ProfileTabs({
           {showThoughtMap && (
             <Link href={thoughtMapHref!} style={{ textDecoration: 'none', flexShrink: 0 }}>
               <OrganicButton variant="outline">
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <Icon name="frame" size={16} ariaLabel={t('tabs.thoughtMap')} />
                   {t('tabs.thoughtMap')}
                 </span>
@@ -171,17 +171,13 @@ export function ProfileTabs({
       {loading ? (
         <FeedSkeleton count={6} />
       ) : list.length === 0 ? (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 18,
-            padding: '40px 0',
-          }}
-        >
-          <p style={{ color: 'var(--color-text-muted)', textAlign: 'center' }}>
-            {t(
+        active === 'bookmarks' ? (
+          <EmptyState icon="bookmark" seed={59} line={t('emptyBookmarks')} />
+        ) : (
+          <EmptyState
+            icon="cards"
+            seed={53}
+            title={t(
               active === 'published'
                 ? 'emptyPublished'
                 : active === 'private'
@@ -190,40 +186,27 @@ export function ProfileTabs({
                 ? 'emptyDraft'
                 : active === 'linked'
                 ? 'emptyLinked'
-                : active === 'bookmarks'
-                ? 'emptyBookmarks'
                 : 'emptyResonated'
             )}
-          </p>
-          {/* The empty card box is the teaching moment (ux §4) — point it at
-              the first story instead of leaving a dead end. */}
-          {manageable && active === 'published' && (
-            <Link href="/write" style={{ textDecoration: 'none' }}>
-              <OrganicButton variant="primary">{t('emptyPublishedCta')}</OrganicButton>
-            </Link>
-          )}
-        </div>
+            // The empty card box is the teaching moment (ux §4) — point it at
+            // the first story instead of leaving a dead end.
+            action={
+              manageable && active === 'published' ? (
+                <Link href="/write" style={{ textDecoration: 'none' }}>
+                  <OrganicButton variant="primary" size="sm">{t('emptyPublishedCta')}</OrganicButton>
+                </Link>
+              ) : undefined
+            }
+          />
+        )
       ) : active === 'linked' ? (
         <MiniCardGrid cards={list} authors={authors} />
       ) : (
         <CardLinkGrid
           cards={list}
           authors={authors}
-          // The owner's card box shows their own byline on anonymous cards —
-          // the badge below marks them instead (ux §6: visible to self only).
-          deanonymize={managed}
-          renderCaption={
-            managed
-              ? (c) =>
-                  c.anonymous ? (
-                    // On the bare page under the card, not inside a frame:
-                    // cream-dark on cream would vanish without its rim.
-                    <TagPill size="sm" color="var(--color-cream-dark)" outlined>
-                      {t('anonymousBadge')}
-                    </TagPill>
-                  ) : null
-              : undefined
-          }
+          // An anonymous card wears the anonymous byline here too, exactly as
+          // everyone sees it — the owner's ⋯ is what marks it as theirs.
           // A draft has no public page yet — clicking it resumes writing.
           cardHref={managed && active === 'draft' ? (c) => `/write/${c.id}` : undefined}
           renderActions={

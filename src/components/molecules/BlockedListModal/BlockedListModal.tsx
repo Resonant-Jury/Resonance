@@ -10,6 +10,7 @@ import { Divider } from '@/components/atoms/Divider/Divider';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { listMyBlocks, unblockUser } from '@/lib/db/firestore/client/blocks';
 import { getUsersByIds } from '@/lib/db/firestore/client/reads';
+import { EmptyState } from '@/components/molecules/EmptyState/EmptyState';
 import styles from './BlockedListModal.module.css';
 
 export interface BlockedListModalProps {
@@ -57,7 +58,7 @@ export function BlockedListModal({ open, onClose }: BlockedListModalProps) {
     >
       <h3 className={styles.title}>{t('title')}</h3>
       <p className={styles.subtitle}>{t('subtitle')}</p>
-      {data && data.length === 0 && <p className={styles.empty}>{t('empty')}</p>}
+      {data && data.length === 0 && <EmptyState icon="ban" seed={61} line={t('empty')} />}
       {data && data.length > 0 && (
         <ul className={styles.list}>
           {data.map((row, i) => (

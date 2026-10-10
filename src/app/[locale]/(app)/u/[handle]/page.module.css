@@ -86,14 +86,6 @@
   margin: 0 0 24px;
 }
 
-.empty {
-  text-align: center;
-  padding: clamp(40px, 6vw, 64px) 24px;
-  font-family: var(--font-body);
-  font-size: 15px;
-  color: var(--color-text-muted);
-}
-
 /* --- loading skeleton (mirrors the hero masthead + card grid) --- */
 
 @keyframes profilePulse {

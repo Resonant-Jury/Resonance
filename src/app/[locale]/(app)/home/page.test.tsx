@@ -132,6 +132,33 @@ describe('HomeFeedPage', () => {
     expect(screen.queryByRole('link', { name: /write/i })).not.toBeInTheDocument();
   });
 
+  it('has no page title over the feed, and ends with the quiet end mark only once nothing more can load', () => {
+    mockUseFeed.mockReturnValue({
+      data: { cards: [card('c1', 'a1', 'A thought')], authors: { a1: user('a1') } },
+      isLoading: false,
+      hasMore: true,
+      loadMore: vi.fn(),
+    });
+    const { unmount } = renderWithIntl(<HomeFeedPage />);
+    expect(screen.queryByText('Stories picked for you')).not.toBeInTheDocument();
+    // While more can load: the button alone, no sentence.
+    expect(screen.queryByText("That's all for now")).not.toBeInTheDocument();
+    expect(screen.queryByText('You are caught up on the latest public cards')).not.toBeInTheDocument();
+    unmount();
+
+    mockUseFeed.mockReturnValue({
+      data: { cards: [card('c1', 'a1', 'A thought')], authors: { a1: user('a1') } },
+      isLoading: false,
+      hasMore: false,
+      loadMore: vi.fn(),
+    });
+    renderWithIntl(<HomeFeedPage />);
+    const end = screen.getByText("That's all for now");
+    // One quiet line, not a heading.
+    expect(end.tagName).toBe('P');
+    expect(screen.getAllByRole('heading').map((h) => h.textContent)).not.toContain("That's all for now");
+  });
+
   it('renders recommended cards without surfacing their match reasons', () => {
     mockUseFeed.mockReturnValue({ data: { cards: [], authors: {} }, isLoading: false });
     mockUseRecommendedFeed.mockReturnValue({

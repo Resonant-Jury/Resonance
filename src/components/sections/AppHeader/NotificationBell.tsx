@@ -6,6 +6,7 @@ import { Link } from '@/i18n/navigation';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { Icon } from '@/components/atoms/Icon';
 import { Divider } from '@/components/atoms/Divider/Divider';
+import { EmptyState } from '@/components/molecules/EmptyState/EmptyState';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { OrganicScrollbar, organicScrollTarget } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import styles from './NotificationBell.module.css';
@@ -116,7 +117,7 @@ export function NotificationBell() {
           {tNav('notifications')}
         </h3>
         {fetched && items.length === 0 && (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>{tApp('empty')}</p>
+          <EmptyState icon="bell" seed={37} titleAs="p" title={tApp('emptyTitle')} line={tApp('empty')} />
         )}
         <div className={styles.scrollArea}>
           <div ref={scrollRef} className={`${styles.scrollBody} ${organicScrollTarget}`}>

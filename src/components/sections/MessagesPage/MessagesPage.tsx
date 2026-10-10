@@ -11,6 +11,7 @@ import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useConversations } from '@/lib/data/hooks';
 import type { Conversation, User } from '@/lib/db/types';
+import { EmptyState } from '@/components/molecules/EmptyState/EmptyState';
 import { RowWash } from './RowWash';
 import { ThreadView } from './ThreadView';
 import styles from './MessagesPage.module.css';
@@ -89,7 +90,18 @@ export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
   return (
     <div className={styles.page} data-thread-open={activeHandle || undefined}>
       <aside className={styles.listPane}>
-        {empty && <p className={styles.emptyText}>{t('empty')}</p>}
+        {/* Nothing at all yet: said here on a phone; beside a two-pane list (which stays empty), the
+            detail pane says it. */}
+        {empty && (
+          <EmptyState
+            className={styles.listEmpty}
+            fills
+            icon="chat"
+            seed={23}
+            title={t('emptyTitle')}
+            line={t('empty')}
+          />
+        )}
 
         {conversations.map((c) => {
           const otherUid = c.participants.find((p) => p !== user.id) ?? '';
@@ -112,11 +124,11 @@ export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
       <section className={styles.threadPane}>
         {activeHandle ? (
           <ThreadView key={activeHandle} handle={activeHandle} replyNote={replyNote} />
-        ) : (
-          <p className={styles.quietNote} style={{ paddingTop: 26 }}>
-            {t('pickOne')}
-          </p>
-        )}
+        ) : empty ? (
+          <EmptyState fills icon="chat" seed={23} title={t('emptyTitle')} line={t('empty')} />
+        ) : data ? (
+          <EmptyState fills icon="chat" seed={23} line={t('pickOne')} />
+        ) : null}
       </section>
     </div>
   );
