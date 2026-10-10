@@ -129,16 +129,23 @@ class SketchPull internal constructor(
 /**
  * Material's pull state, with its own timing: docking eases in, and the list goes back up in
  * [HIDE_MILLIS] with CSS's ease-out — not Material's spring, which lingers.
+ *
+ * Already where it is asked to go, it returns at once. Material hides the pull on every release
+ * of a drag in the list (its onPreFling awaits it before the list may fling), pulled or not: a
+ * tween from 0 to 0 still lasts its whole [HIDE_MILLIS], so every flick stood still that long
+ * and only then flew off.
  */
 @OptIn(ExperimentalMaterial3Api::class)
-private class EasedPullState : PullToRefreshState {
+internal class EasedPullState : PullToRefreshState {
     private val anim = Animatable(0f)
     override val distanceFraction: Float get() = anim.value
     override val isAnimating: Boolean get() = anim.isRunning
     override suspend fun animateToThreshold() {
+        if (anim.value == 1f && !anim.isRunning) return
         anim.animateTo(1f, tween(DOCK_MILLIS, easing = EaseOut))
     }
     override suspend fun animateToHidden() {
+        if (anim.value == 0f && !anim.isRunning) return
         anim.animateTo(0f, tween(HIDE_MILLIS, easing = EaseOut))
     }
     override suspend fun snapTo(targetValue: Float) {

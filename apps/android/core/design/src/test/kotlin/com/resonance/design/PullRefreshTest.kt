@@ -62,6 +62,20 @@ class PullRefreshTest {
         assertTrue(pull.refreshing)
     }
 
+    /**
+     * Material hides the pull on every release of a drag in the list and the list may fling only once
+     * that returns: at rest, it returns at once (a tween from 0 to 0 held every flick for its whole
+     * HIDE_MILLIS, the list still under the finger's last place, then flying off).
+     */
+    @Test fun aListLetGoUnpulledFlingsAtOnce() = runBlocking {
+        val state = EasedPullState()
+        val started = System.nanoTime()
+        // No frame clock here: an animation would not even start, let alone end.
+        withTimeout(50) { state.animateToHidden() }
+        assertTrue((System.nanoTime() - started) / 1_000_000 < HIDE_MILLIS)
+        assertEquals(0f, state.distanceFraction)
+    }
+
     private suspend fun untilDone(pull: SketchPull) = withTimeout(4_000) { while (pull.running) delay(5) }
 
     @Test fun theRefreshActionAtTheTopRefreshesAsAPullDoes() = runBlocking {
