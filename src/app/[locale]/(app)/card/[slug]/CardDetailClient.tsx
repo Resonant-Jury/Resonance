@@ -10,7 +10,8 @@ import { CardDetailSkeleton } from '@/components/molecules/CardDetail/CardDetail
 import { LoadError } from '@/components/molecules/LoadError/LoadError';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { MiniCardGrid } from '@/components/molecules/MiniStoryCard/MiniCardGrid';
-import { CardAuthorAside } from '@/components/molecules/CardDetail/CardAuthorAside';
+import { AuthorRegionFlag, CardAuthorAside, CardPublishedDate } from '@/components/molecules/CardDetail/CardAuthorAside';
+import { publishedDate } from '@/lib/publishedDate';
 import { CardToc, type TocHeading } from '@/components/molecules/CardDetail/CardToc';
 import { CardActionsMenu } from '@/components/molecules/CardActionsMenu/CardActionsMenu';
 import { CardSafetyMenu } from '@/components/molecules/CardDetail/CardSafetyMenu';
@@ -185,6 +186,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
   const relatedAuthors = lists.related?.authors ?? {};
   const linked = isOwner ? lists.links : undefined;
   const hue = card.accentHue ?? 55;
+  const published = publishedDate(card.publishedAt, locale, inBrowser ? undefined : 'UTC');
 
   const resonances = lists.resonances ?? { cards: [], authors: {} };
   const hasResonance = resonances.cards.length > 0;
@@ -250,22 +252,13 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
                         {author.handle}
                       </Link>
                     )}
+                    {!card.anonymous && <AuthorRegionFlag region={author.region} size={14} />}
                     {!card.anonymous && author.verified && (
                       <HandDrawnCheckmark size={13} title={t('verified')} />
                     )}
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                    {card.anonymous ? '' : author.region}
-                    {card.publishedAt
-                      ? `${card.anonymous ? '' : ' · '}${new Date(card.publishedAt).toLocaleDateString(locale, {
-                        month: 'short',
-                        day: 'numeric',
-                        // The server's zone isn't the reader's: the server
-                        // render and hydration agree on UTC, the reader's own
-                        // zone follows.
-                        timeZone: inBrowser ? undefined : 'UTC',
-                      })}`
-                      : ''}
+                    <CardPublishedDate published={published} />
                   </div>
                 </div>
               </div>
@@ -356,6 +349,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
               verifiedLabel={t('verified')}
               anonymous={card.anonymous}
               isOwner={isOwner}
+              published={published}
             />
             <CardToc headings={headings} title={t('toc')} />
           </aside>
