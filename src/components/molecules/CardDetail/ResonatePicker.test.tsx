@@ -186,6 +186,18 @@ describe('ResonatePicker', () => {
     await waitFor(() => expect(reads.map).toHaveBeenCalledTimes(2));
   });
 
+  it('lets a marked card go when it is tapped again, and the verb is not pressable then', async () => {
+    renderPicker();
+    const walk = await screen.findByRole('radio', { name: 'Card walk' });
+    const confirm = screen.getByRole('button', { name: 'Resonate' });
+    await user().click(walk);
+    expect(confirm).toBeEnabled();
+    await user().click(walk);
+    expect(walk).toHaveAttribute('aria-checked', 'false');
+    expect(confirm).toBeDisabled();
+    expect(mockCallApi).not.toHaveBeenCalled();
+  });
+
   it('says so when the card already answers another, stays open, and reads the shelf again', async () => {
     mockCallApi.mockRejectedValue(new ApiError(409, 'conflict', 'already answering'));
     const { onClose } = renderPicker();

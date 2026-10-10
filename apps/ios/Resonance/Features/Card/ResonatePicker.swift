@@ -127,7 +127,8 @@ struct ResonatePickerContent: View {
     private func choose(_ card: FeedCard) {
         guard !busy else { return }
         failure = nil
-        selectedId = card.id
+        // The marked card again lets it go: nothing marked, nothing to send.
+        selectedId = selectedId == card.id ? nil : card.id
     }
 
     private func confirm() async {

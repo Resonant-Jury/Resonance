@@ -153,7 +153,8 @@ fun ResonatePicker(
             onPick = { card ->
                 if (!busy) {
                     failure = null
-                    selectedId = card.id
+                    // The marked card again lets it go: nothing marked, nothing to send.
+                    selectedId = if (selectedId == card.id) null else card.id
                 }
             },
             lead = {

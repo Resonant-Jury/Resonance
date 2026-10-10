@@ -98,7 +98,8 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
   function choose(card: Card) {
     if (busy) return;
     setFailure(null);
-    setSelectedId(card.id);
+    // The marked card again lets it go: nothing marked, nothing to send.
+    setSelectedId((id) => (id === card.id ? null : card.id));
   }
 
   async function confirm() {
