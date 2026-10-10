@@ -4,6 +4,7 @@
 
 import type { InsightSignature } from '@/lib/db/types';
 import { parseSignature } from '@/lib/recommend/signature';
+import { acceptInsight, draftScript, draftUnits, languageInstruction, MIN_DRAFT_UNITS } from './mirror';
 import { chat, chatJSON, generateImage, generateImageStream } from './openai';
 import { slugify } from './slugify';
 import { parseTagList } from './tags';
@@ -95,6 +96,45 @@ export async function extractInsightSignature(input: ExtractSignatureInput): Pro
     { role: 'user', content: text },
   ]);
   return parseSignature(raw);
+}
+
+/** The mirror moment waits this long for the model, then shows nothing (the panel never holds publishing for it). */
+export const MIRROR_TIMEOUT_MS = 15_000;
+/** One sentence of reply; the rest is headroom for a reasoning model's thinking, which counts against the cap too. */
+const MIRROR_MAX_TOKENS = 1_500;
+
+/**
+ * The pre-publish mirror moment (POST /api/cards/insight): one sentence in
+ * the draft's own language handing back what it seems to say — or null, and
+ * the panel shows no line, when the draft is too short to read (no model call
+ * then), the model finds nothing to reflect, or its answer isn't a line worth
+ * showing (lib/ai/mirror: the wrong language, commentary about the draft).
+ * Its own small task rather than the recommender's signature, whose fields
+ * and examples serve indexing.
+ */
+export async function mirrorInsight(input: ExtractSignatureInput, opts: { signal?: AbortSignal } = {}): Promise<string | null> {
+  if (draftUnits(input.title, input.story) < MIN_DRAFT_UNITS) return null;
+  const script = draftScript(input.title, input.story);
+  const text = `${input.title.trim()}\n\n${input.story.trim()}`.trim().slice(0, MAX_STORY_CHARS);
+  const deadline = AbortSignal.timeout(MIRROR_TIMEOUT_MS);
+  const raw = await chatJSON<Record<string, unknown>>(
+    [
+      {
+        role: 'system',
+        content: [
+          'You are the quiet mirror of a personal storytelling app. Just before an author publishes a draft, you hand back, in ONE short sentence, the realization at the heart of it — the lesson or feeling it seems to carry, not a summary of its events — as a line the author might have written themselves.',
+          'Reply with ONLY a JSON object: {"insight": "<the sentence>"} — or {"insight": null}.',
+          languageInstruction(script),
+          'Keep it short: at most 25 words, or 40 characters in Chinese or Japanese. No quotation marks around it.',
+          'Reply {"insight": null} when the draft is too short, unfinished, a test, placeholder text, a list or a plain account of a day with no realization in it. Only reflect what the author actually wrote; never invent a meaning the draft does not hold — when unsure, null.',
+          'Never comment on the draft, the author or yourself, never ask for more, never say what is missing: either the sentence, or null.',
+        ].join('\n'),
+      },
+      { role: 'user', content: text },
+    ],
+    { signal: opts.signal ? AbortSignal.any([deadline, opts.signal]) : deadline, maxTokens: MIRROR_MAX_TOKENS },
+  );
+  return acceptInsight(raw?.insight, script);
 }
 
 // Illustration / doodle style appended to every generated image. Tuned to the
