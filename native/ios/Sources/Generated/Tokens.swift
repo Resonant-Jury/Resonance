@@ -117,8 +117,6 @@ public enum Tokens {
     public static let measure: CGFloat = 680
     /// --card-rail-w
     public static let cardRailW: CGFloat = 260
-    /// --side-rail-w
-    public static let sideRailW: CGFloat = 88
     /// --msg-list-w
     public static let msgListW: CGFloat = 300
     /// --bubble-max

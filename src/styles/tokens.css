@@ -84,8 +84,6 @@
   --measure: 680px;
   /* The card page's author rail beside the article (expanded). */
   --card-rail-w: 260px;
-  /* The apps' OrganicSideRail, in place of the tab bar from medium up. */
-  --side-rail-w: 88px;
   /* The conversations column beside an open thread (expanded). */
   --msg-list-w: 300px;
   /* A chat bubble's widest, on every platform: min(72% of the row, this). */

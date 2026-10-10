@@ -121,8 +121,6 @@ object Tokens {
     const val Measure = 680f
     /** --card-rail-w */
     const val CardRailW = 260f
-    /** --side-rail-w */
-    const val SideRailW = 88f
     /** --msg-list-w */
     const val MsgListW = 300f
     /** --bubble-max */

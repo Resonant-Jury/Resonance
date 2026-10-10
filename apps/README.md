@@ -130,7 +130,8 @@ resizable windows, one scene). Every layout decision is made from the window's
 width as `MainTabView` measures it (`WindowLayout` in the `window` environment
 value, `LayoutClass` in DesignSystem `Components/Layout.swift`: compact < 600 ≤
 medium < 900 ≤ expanded, the writer split from 1200) — never `UIScreen` or the
-device. Medium and up: the side rail instead of the tab bar; expanded: the
+device. Medium and up: a full-width header with the four tabs centred in it
+(`OrganicTopTabs`, the pen at its end) instead of the tab bar; expanded: the
 bordered feed grid, two-pane Messages (`MessagesPanes`: the conversation at the
 foot of the Messages stack is the detail pane), the card page's author rail.
 The simulator can't be turned or split from the command line:

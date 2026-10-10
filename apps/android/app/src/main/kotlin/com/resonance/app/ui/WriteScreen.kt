@@ -261,7 +261,7 @@ private fun WriteForm(
     BackHandler(onBack = goBack)
 
     val scroll = rememberScrollState()
-    // The writer takes the whole window (the side rail slides away). From 1200 wide the thought map
+    // The writer takes the whole window (the full-width header gives way). From 1200 wide the thought map
     // sits beside it, the editor in the window's right half (design note §12); otherwise the editor
     // alone, in a centred reading column on anything wider than a phone. The editor keeps its place
     // in the tree either way, so a rotation or a resize across 1200 keeps the story's editor as it is.

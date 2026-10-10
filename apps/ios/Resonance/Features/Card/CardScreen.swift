@@ -20,7 +20,7 @@ struct CardScreen: View {
     /// How far through the story the reader is, for the bar's terracotta line (only the bar reads it).
     @State private var meter = ReadingMeter()
     @Environment(\.window) private var window
-    /// What the page has across (beside the side rail, when there is one).
+    /// What the page has across.
     @State private var width: CGFloat?
     private static let pageSpace = "card.page"
 
