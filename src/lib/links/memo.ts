@@ -16,7 +16,7 @@ export interface MemoOptions<T> {
   /** At most this many keys. */
   max?: number;
   /** How long an outcome is remembered, in ms; 0 forgets it at once (an answer that says nothing about the key). */
-  keep: (outcome: Outcome<T>) => number;
+  keep: (outcome: Outcome<T>, key: string) => number;
   now?: () => number;
 }
 
@@ -41,7 +41,7 @@ export function createMemo<T>(options: MemoOptions<T>): Memo<T> {
       entries.set(key, entry);
       while (entries.size > max) entries.delete(entries.keys().next().value!);
       const settle = (outcome: Outcome<T>) => {
-        const ms = keep(outcome);
+        const ms = keep(outcome, key);
         if (ms > 0) entry.until = now() + ms;
         else if (entries.get(key) === entry) entries.delete(key);
       };

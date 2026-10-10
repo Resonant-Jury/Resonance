@@ -8,6 +8,8 @@ import {
   LINK_IMAGE_PATH,
   PROXY_EDGE,
   PROXY_MAX_PIXELS,
+  REMEMBER_FAILURE_MS,
+  REMEMBER_RETRY_MS,
   createImageCache,
   createLimiter,
   imageProxyPath,
@@ -531,6 +533,55 @@ describe('GET /api/link-image', () => {
       now += 600_000;
       await signed(TARGET);
       expect(fetchImage).toHaveBeenCalledTimes(6);
+    });
+
+    it('remembers a failure that may pass longer each time in a row, up to as long as a refusal, so a site that never answers is not a way to hold the decode slots', async () => {
+      let now = 1_000_000;
+      cache = createImageCache({ now: () => now });
+      fetchImage.mockRejectedValue(new SafeFetchError('timeout'));
+      /** How long the failure just remembered is held: asked a moment before then, nothing is fetched; at then, it is. */
+      const heldFor = async (ms: number) => {
+        const calls = fetchImage.mock.calls.length;
+        now += ms - 1;
+        await signed(TARGET);
+        expect(fetchImage).toHaveBeenCalledTimes(calls);
+        now += 1;
+        await signed(TARGET);
+        expect(fetchImage).toHaveBeenCalledTimes(calls + 1);
+      };
+      await signed(TARGET);
+      await heldFor(REMEMBER_RETRY_MS); // the first: a reader's next view asks again
+      await heldFor(4 * REMEMBER_RETRY_MS); // the second in a row: a minute
+      await heldFor(REMEMBER_FAILURE_MS); // the third: as long as a refusal
+      await heldFor(REMEMBER_FAILURE_MS); // and so on
+      expect(fetchImage).toHaveBeenCalledTimes(5);
+    });
+
+    it('starts the run again after a picture that comes, or a quiet spell', async () => {
+      let now = 1_000_000;
+      // Pictures kept a second here, so no quiet spell comes between a picture and the next failure.
+      cache = createImageCache({ pictureMs: 1_000, now: () => now });
+      fetchImage.mockRejectedValue(new SafeFetchError('network'));
+      const fetchesAfter = async (url: string, ms: number, status: number) => {
+        const calls = fetchImage.mock.calls.length;
+        now += ms;
+        expect((await signed(url)).status).toBe(status);
+        return fetchImage.mock.calls.length - calls;
+      };
+      const FLAKY = 'https://example.com/flaky.png';
+      await fetchesAfter(FLAKY, 0, 404);
+      await fetchesAfter(FLAKY, REMEMBER_RETRY_MS, 404); // the second in a row: a minute
+      fetchImage.mockImplementationOnce(async (url: string) => served(url, png));
+      expect(await fetchesAfter(FLAKY, 4 * REMEMBER_RETRY_MS, 200)).toBe(1);
+      await fetchesAfter(FLAKY, 1_000, 404); // after the picture, a first failure again…
+      expect(await fetchesAfter(FLAKY, REMEMBER_RETRY_MS, 404)).toBe(1); // …kept 15 s, not a refusal's 5 min
+
+      const SLOW = 'https://example.com/slow.png';
+      await fetchesAfter(SLOW, 0, 404);
+      await fetchesAfter(SLOW, REMEMBER_RETRY_MS, 404); // a minute
+      // A reader coming back long after it was forgotten: a first failure again, kept 15 s.
+      expect(await fetchesAfter(SLOW, 4 * REMEMBER_RETRY_MS + REMEMBER_FAILURE_MS + 1, 404)).toBe(1);
+      expect(await fetchesAfter(SLOW, REMEMBER_RETRY_MS, 404)).toBe(1);
     });
 
     it('tells a failure that may pass from a refusal the address would earn again', () => {

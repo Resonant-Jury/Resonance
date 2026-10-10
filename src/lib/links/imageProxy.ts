@@ -37,7 +37,11 @@ import { LINK_MAX_LENGTH, normalizeLink } from './url';
  * may pass (a slow or unreachable site, an error page): no browser, CDN or
  * app keeps a 404 from here, so the next view of the preview asks again and
  * gets the picture — a first try that failed once must not hide it for
- * minutes (as it did, held five minutes by every cache on the way).
+ * minutes (as it did, held five minutes by every cache on the way). Briefly
+ * the first time only: this memory is all that stands between the route and
+ * the decode slots, so an address that keeps failing — a site made to hold
+ * every connection until it times out, say — is remembered longer each time,
+ * up to as long as a refusal.
  */
 
 /** The longest side of the picture we send (a card shows it at most ~300 dp wide). */
@@ -58,12 +62,21 @@ export const MAX_WAITING = 16;
  * refusal that the same address would earn again (an address off the public
  * internet, not a picture, too big, unreadable); and a failure that may pass
  * at the next try (a timeout, a dropped connection, a name that didn't
- * resolve, a status that wasn't 2xx) — remembered just long enough that a
- * thread asking for it many times at once still costs one fetch.
+ * resolve, a status that wasn't 2xx) — the first time in a row just long
+ * enough that a thread asking for it many times at once still costs one
+ * fetch, the second time four times as long (1 min), and from the third as
+ * long as a refusal: one slow answer costs a reader seconds, while an address
+ * that never answers is tried as seldom as one that is refused. A picture
+ * that comes ends the run, and so does a failure more than
+ * REMEMBER_FAILURE_MS after the last one's memory ran out (a reader coming
+ * back much later, not someone asking again the moment it is forgotten).
  */
 export const REMEMBER_PICTURE_MS = 10 * 60_000;
 export const REMEMBER_FAILURE_MS = 5 * 60_000;
 export const REMEMBER_RETRY_MS = 15_000;
+/** How much longer the second failure in a row is remembered than the first; the third is a refusal's length. */
+const RETRY_GROWTH = 4;
+const RETRIES = 2;
 /** The fetch failures that may pass when asked again (see REMEMBER_RETRY_MS). */
 const PASSING: ReadonlySet<string> = new Set(['timeout', 'network', 'dns', 'status']);
 const REMEMBER_MAX = 100;
@@ -207,15 +220,35 @@ export function mayPass(error: unknown): boolean {
 
 /**
  * What became of each picture asked for, by address: the WebP, or the failure
- * (see `createMemo`) — a refusal for a while, a failure that may pass only
- * briefly. `Busy` is never remembered: it says nothing about the picture.
+ * (see `createMemo`) — a refusal for a while, a failure that may pass briefly
+ * at first and longer at each one in a row (see REMEMBER_RETRY_MS). `Busy` is
+ * never remembered: it says nothing about the picture.
  */
 export function createImageCache(options: ImageCacheOptions = {}) {
-  const { max = REMEMBER_MAX, pictureMs = REMEMBER_PICTURE_MS, failureMs = REMEMBER_FAILURE_MS, retryMs = REMEMBER_RETRY_MS, now } = options;
+  const { max = REMEMBER_MAX, pictureMs = REMEMBER_PICTURE_MS, failureMs = REMEMBER_FAILURE_MS, retryMs = REMEMBER_RETRY_MS, now = Date.now } = options;
+  /** Each address's run of failures that may pass: how many, and when the last one's memory runs out. As bounded as the memo. */
+  const runs = new Map<string, { failures: number; until: number }>();
+  const passingFailure = (url: string): number => {
+    const at = now();
+    const run = runs.get(url);
+    const failures = run && at - run.until <= failureMs ? run.failures + 1 : 1;
+    const ms = failures > RETRIES ? failureMs : Math.min(retryMs * RETRY_GROWTH ** (failures - 1), failureMs);
+    runs.delete(url); // the newest goes last, so the oldest is dropped first
+    runs.set(url, { failures, until: at + ms });
+    while (runs.size > max) runs.delete(runs.keys().next().value!);
+    return ms;
+  };
   return createMemo<Buffer>({
     max,
     now,
-    keep: (outcome) => (outcome.ok ? pictureMs : outcome.error instanceof Busy ? 0 : mayPass(outcome.error) ? retryMs : failureMs),
+    keep: (outcome, url) => {
+      if (outcome.ok) {
+        runs.delete(url);
+        return pictureMs;
+      }
+      if (outcome.error instanceof Busy) return 0;
+      return mayPass(outcome.error) ? passingFailure(url) : failureMs;
+    },
   });
 }
 
