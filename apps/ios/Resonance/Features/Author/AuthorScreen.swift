@@ -12,9 +12,16 @@ struct AuthorScreen: View {
     @State private var model: ProfileModel?
     @State private var scrolled = false
     @State private var unblocking = false
+    /// A tablet's header (round 5 C1): the person's name fades into its centre once theirs on the page
+    /// has scrolled under it.
+    @Environment(\.headerChrome) private var headerChrome
+    @State private var nameBottom: CGFloat?
+    @State private var nameGone = false
+    private static let pageSpace = "profile.page"
 
     var body: some View {
         ScrollView {
+            Group {
             switch model?.phase ?? .loading {
             case .loading:
                 ProfileSkeleton()
@@ -29,12 +36,21 @@ struct AuthorScreen: View {
             case .loaded:
                 if let model, let profile = model.profile { page(model, profile) }
             }
+            }
+            .coordinateSpace(.named(Self.pageSpace))
         }
         .onHeaderScroll($scrolled)
+        .onScrollGeometryChange(for: Bool.self) { geo in
+            HeaderContext.shown(headingBottom: nameBottom, visibleTop: geo.contentOffset.y + geo.contentInsets.top)
+        } action: { _, gone in nameGone = gone }
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
             OrganicInlineBar("", backLabel: L10n.App.Nav.back, scrolled: scrolled) {
+                if headerChrome != nil, let profile = model?.profile {
+                    HeaderContextTitle(profile.author.handle, shown: nameGone && model?.phase == .loaded)
+                }
+            } trailing: {
                 if let profile = model?.profile, !profile.isSelf {
                     SafetyMenu(target: .user(id: profile.author.id), handle: profile.author.handle, isBlocked: profile.isBlocked,
                                seed: Double(seedFromString(profile.author.id)), triggerSize: 36) {
@@ -66,6 +82,7 @@ struct AuthorScreen: View {
                     .font(AppFonts.heading(32))
                     .foregroundStyle(Tokens.text)
                     .accessibilityAddTraits(.isHeader)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.pageSpace)).maxY } action: { nameBottom = $0 }
                 Text(profile.bio ?? L10n.Profile.bioEmpty)
                     .font(AppFonts.body(15))
                     .foregroundStyle(profile.bio == nil ? Tokens.textMuted.opacity(0.8) : Tokens.textMuted)

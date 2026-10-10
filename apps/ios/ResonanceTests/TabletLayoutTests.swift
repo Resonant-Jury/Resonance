@@ -31,17 +31,78 @@ import Testing
         // Words go when the labelled group is wider than W − 2 × (P + 152).
         #expect(abs(HeaderChrome.labelRoom(width: 900) - (900 - 2 * (36 + 152))) < 0.01)
         #expect(abs(HeaderChrome.labelRoom(width: 1376) - (1376 - 2 * (48 + 152))) < 0.01)
-        #expect(HeaderChrome.rowHeight == 56 && HeaderChrome.penReserve == 64 && HeaderChrome.titleMin == 72)
+        // A tablet's header row is 72 (round 5 C2), the group 44 on its middle; the pen keeps 64.
+        #expect(HeaderChrome.rowHeight == 72 && HeaderChrome.groupHeight == 44 && HeaderChrome.penReserve == 64)
+        // A pushed page's context stays on the centre line, clear of the wider end on both sides (the
+        // arrow's 31 past the pad at least) and 12 of air: an 834 iPad with a 36 ⋯ keeps 671.28.
+        #expect(abs(HeaderChrome.centreRoom(width: 834, side: 36) - (834 - 2 * (33.36 + 36 + 12))) < 0.01)
+        #expect(abs(HeaderChrome.centreRoom(width: 834, side: 0) - (834 - 2 * (33.36 + 31 + 12))) < 0.01)
+        #expect(HeaderChrome.centreRoom(width: 100, side: 80) == 0)
+    }
+
+    @Test func theTabGroupHoldsTheFourTabsInTheBarsOrderAndLeavesThePenOut() {
+        let items = MainTabView.tabItems(notifications: 3, messages: 2)
+        #expect(items.map(\.id) == [.feed, .messages, .write, .notifications, .cardBox])
+        let segments = OrganicTopTabs<AppTab>.segments(items)
+        #expect(segments.map(\.id) == [.feed, .messages, .notifications, .cardBox])
+        #expect(segments.allSatisfy { !$0.isAction })
+        // The counts ride along with their tabs.
+        #expect(segments.map(\.badge) == [0, 2, 3, 0])
+    }
+
+    @Test func theTabGroupAndThePenShowOnATabsRootOnly() {
+        let card = Route.card("a"), thread = Route.thread(handle: "ben", uid: "u-ben", note: nil)
+        for layout in [LayoutClass.medium, .expanded] {
+            #expect(TabChrome.headerTabs(layout, pushed: []))
+            for pushed: [Route] in [[card], [.author("ben")], [.settings], [.settingsSection(.account)], [thread], [card, .thoughtMap]] {
+                #expect(!TabChrome.headerTabs(layout, pushed: pushed))
+            }
+            // No bottom bar from medium up, pushed or not.
+            #expect(!TabChrome.bottomBar(layout, pushed: []) && !TabChrome.bottomBar(layout, pushed: [card]))
+        }
+        // A phone has no header tabs; its bottom bar shows on a tab's root only — a pushed page's way
+        // out is its back arrow, as on a tablet.
+        #expect(!TabChrome.headerTabs(.compact, pushed: []))
+        #expect(TabChrome.bottomBar(.compact, pushed: []))
+        for pushed: [Route] in [[card], [.author("ben"), card], [.settings, .settingsSection(.account)], [card, thread], [.thoughtMap], [thread, card]] {
+            #expect(!TabChrome.bottomBar(.compact, pushed: pushed))
+        }
+    }
+
+    @Test func aTapOnTheChosenTabPopsToItsRootThenScrollsToTheTop() {
+        // Another tab is chosen where it was left; the pen writes from anywhere.
+        #expect(TabTap.of(.messages, current: .feed, pushed: 2) == .choose)
+        #expect(TabTap.of(.feed, current: .cardBox, pushed: 0) == .choose)
+        #expect(TabTap.of(.write, current: .feed, pushed: 3) == .write)
+        #expect(TabTap.of(.write, current: .feed, pushed: 0) == .write)
+        // The chosen one again: back to its root, and once there, back to the top of its list.
+        #expect(TabTap.of(.feed, current: .feed, pushed: 1) == .popToRoot)
+        #expect(TabTap.of(.notifications, current: .notifications, pushed: 4) == .popToRoot)
+        #expect(TabTap.of(.feed, current: .feed, pushed: 0) == .scrollToTop)
+    }
+
+    @Test func aPushedPagesContextFadesInOnceItsHeadingIsWhollyUnderTheHeader() {
+        // Not measured yet (or nothing there): never.
+        #expect(!HeaderContext.shown(headingBottom: nil, visibleTop: 900))
+        #expect(!HeaderContext.shown(headingBottom: 0, visibleTop: 40))
+        // At rest the content's top is on the header's line (0); the title ends 180 down the page.
+        #expect(!HeaderContext.shown(headingBottom: 180, visibleTop: 0))
+        #expect(!HeaderContext.shown(headingBottom: 180, visibleTop: 179.5))
+        // Its last line has gone under the line: the header names the page — and lets go again on the way back.
+        #expect(HeaderContext.shown(headingBottom: 180, visibleTop: 180))
+        #expect(HeaderContext.shown(headingBottom: 180, visibleTop: 640))
     }
 
     @Test func aTabsUnreadChipNeverCoversItsLabel() {
-        // A labelled tab: 14 padding, the 20 glyph, 6, the label (from 40), 14. The chip hangs (+8, −7)
+        // A labelled segment: 16 padding, the 20 glyph, 6, the label (from 42), 16. The chip hangs (+8, −7)
         // off the glyph's corner; with a count the glyph steps 5 into the padding, so a chip of either
-        // width (19, 26 past 9) ends 3 before the label and stays inside the item.
+        // width (19, 26 past 9) ends 3 before the label and stays inside the segment.
         let shift = TopTabBadge.glyphShift(labelled: true, badge: 12)
         #expect(shift == 5)
-        let glyphLeft = 14 - shift
-        let labelStart: CGFloat = 14 + 20 + TopTabBadge.labelGap
+        let pad = TopTabBadge.itemPadding
+        #expect(pad == 16)
+        let glyphLeft = pad - shift
+        let labelStart: CGFloat = pad + 20 + TopTabBadge.labelGap
         let chipRight = glyphLeft + 20 + TopTabBadge.offsetX
         #expect(labelStart - chipRight >= 2)
         for chipWidth: CGFloat in [19, 26] { #expect(chipRight - chipWidth >= 0) }

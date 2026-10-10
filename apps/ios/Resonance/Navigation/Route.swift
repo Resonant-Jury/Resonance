@@ -74,6 +74,12 @@ extension View {
     /// Where each route leads; attach inside every tab's NavigationStack.
     func appRoutes() -> some View {
         navigationDestination(for: Route.self) { route in
+            destination(route)
+        }
+    }
+
+    @ViewBuilder private func destination(_ route: Route) -> some View {
+        Group {
             switch route {
             case let .card(key): CardScreen(key: key)
             case let .author(handle): AuthorScreen(handle: handle)
