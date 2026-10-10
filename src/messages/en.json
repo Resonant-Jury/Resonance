@@ -314,6 +314,8 @@
     "editTitle": "Edit draft",
     "editPublishedTitle": "Edit a published card",
     "closeEditor": "Hide the editor",
+    "openEditor": "Show the editor",
+    "releaseToClose": "Release to hide the editor",
     "leaveTitle": "Leave for now?",
     "leaveBody": "What you've written is saved as a draft. You can pick it up again from My Card Box.",
     "leaveBodyRevision": "Your changes are saved, but not yet applied to the published card.",

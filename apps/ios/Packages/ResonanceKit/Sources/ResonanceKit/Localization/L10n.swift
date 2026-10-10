@@ -576,6 +576,10 @@ public enum L10n {
         public static var editPublishedTitle: String { Strings.shared.string("write.editPublishedTitle") }
         /// Hide the editor
         public static var closeEditor: String { Strings.shared.string("write.closeEditor") }
+        /// Show the editor
+        public static var openEditor: String { Strings.shared.string("write.openEditor") }
+        /// Release to hide the editor
+        public static var releaseToClose: String { Strings.shared.string("write.releaseToClose") }
         /// Leave for now?
         public static var leaveTitle: String { Strings.shared.string("write.leaveTitle") }
         /// What you've written is saved as a draft. You can pick it up again from My Card Box.

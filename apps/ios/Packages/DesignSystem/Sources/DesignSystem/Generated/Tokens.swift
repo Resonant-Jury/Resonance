@@ -102,7 +102,9 @@ public nonisolated enum Tokens {
     public static let inkStrong: CGFloat = 2.2
 
     /// --reading-progress-width
-    public static let readingProgressWidth: CGFloat = 4
+    public static let readingProgressWidth: CGFloat = 1.8
+    /// --reading-progress-glow
+    public static let readingProgressGlow: CGFloat = 4
     /// --grain-opacity
     public static let grainOpacity: CGFloat = 0.1
     /// --app-header-h

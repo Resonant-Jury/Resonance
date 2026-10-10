@@ -106,7 +106,9 @@ object Tokens {
     val InkStrong = 2.2.dp
 
     /** --reading-progress-width */
-    const val ReadingProgressWidth = 4f
+    const val ReadingProgressWidth = 1.8f
+    /** --reading-progress-glow */
+    const val ReadingProgressGlow = 4f
     /** --grain-opacity */
     const val GrainOpacity = 0.1f
     /** --app-header-h */

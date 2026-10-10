@@ -314,6 +314,8 @@
     "editTitle": "編輯草稿",
     "editPublishedTitle": "編輯已發布的卡片",
     "closeEditor": "收起編輯區",
+    "openEditor": "展開編輯區",
+    "releaseToClose": "放開以收起編輯區",
     "leaveTitle": "要先離開嗎？",
     "leaveBody": "寫下的內容已經存成草稿，之後可以在「我的卡片盒」接著寫",
     "leaveBodyRevision": "你的修改已經存起來了，還沒套用到已發布的卡片",

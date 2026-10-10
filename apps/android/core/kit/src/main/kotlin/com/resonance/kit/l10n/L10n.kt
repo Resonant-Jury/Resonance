@@ -578,6 +578,10 @@ object L10n {
         val editPublishedTitle: String get() = Strings.string("write.editPublishedTitle")
         /** Hide the editor */
         val closeEditor: String get() = Strings.string("write.closeEditor")
+        /** Show the editor */
+        val openEditor: String get() = Strings.string("write.openEditor")
+        /** Release to hide the editor */
+        val releaseToClose: String get() = Strings.string("write.releaseToClose")
         /** Leave for now? */
         val leaveTitle: String get() = Strings.string("write.leaveTitle")
         /** What you've written is saved as a draft. You can pick it up again from My Card Box. */
