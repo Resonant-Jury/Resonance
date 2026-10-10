@@ -24,8 +24,31 @@
   top: 0;
   width: 100%;
   pointer-events: none;
+  opacity: 0.5;
   transition: opacity 300ms ease;
   overflow: visible;
+}
+.waveStroke[data-scrolled] {
+  opacity: 1;
+}
+
+/* The two-pane Messages (MessagesPage's > 900px): the header's line, the rule
+   between the panes and the thread bar's foot are one pen — the rule's ink,
+   constant (nothing inks in as a pane scrolls), and opaque, so where two of
+   them meet nothing darkens. MessagesPage.module.css's --split-pen. Nothing
+   passes under the header there (each pane scrolls below it), so its paper
+   is solid: the rule's top, tucked under the line, doesn't show through. */
+@media (min-width: 901px) {
+  .bg[data-split-pen] {
+    background: var(--color-cream);
+    opacity: 1;
+  }
+  .waveStroke[data-split-pen] {
+    opacity: 1;
+  }
+  .waveStroke[data-split-pen] path {
+    stroke: color-mix(in oklch, var(--field-border-hover) 35%, var(--color-cream));
+  }
 }
 
 /* Phones: fully opaque, no blur. The PWA paints the status-bar strip in the

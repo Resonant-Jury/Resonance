@@ -48,36 +48,3 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* Link wrapper used on the published article page. */
-.link {
-  display: block;
-  max-width: 360px;
-  text-decoration: none;
-  color: inherit;
-}
-
-/* Loading placeholder: plain CSS chrome (no organic SVG measure-then-draw),
-   same footprint + interior tint as the real card so the swap is seamless. */
-.skeleton {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  max-width: 360px;
-  height: 72px;
-  padding: 10px 16px 10px 10px;
-  border: 1.5px solid color-mix(in oklch, var(--color-text) 22%, transparent);
-  border-radius: 16px;
-  background: oklch(97.5% 0.012 55);
-  font-family: var(--font-body);
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--color-text-muted);
-}
-
-.skeletonTitle {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}

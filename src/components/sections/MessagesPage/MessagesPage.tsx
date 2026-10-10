@@ -118,7 +118,7 @@ export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
       </aside>
 
       <div className={styles.vRule} aria-hidden>
-        <Divider orientation="vertical" seed={71} amplitude={2} strokeWidth={INK} spacing={0} />
+        <Divider orientation="vertical" seed={71} amplitude={2} strokeWidth={INK} spacing={0} color="var(--split-pen)" />
       </div>
 
       <section className={styles.threadPane}>

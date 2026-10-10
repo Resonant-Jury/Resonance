@@ -134,7 +134,7 @@
   height: var(--story-blank-line);
 }
 
-/* A standalone card link, rendered as the mini embedded story card. */
+/* A standalone card link or web link, drawn as its block (CardEmbedLink, StoryLinkCard). */
 .prose .embedBlock {
   margin: 0 0 1.1em;
 }

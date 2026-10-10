@@ -10,6 +10,11 @@
   /* One shared inset between the panes and the vertical rule — the thread's
      horizontal divider reaches back across it to meet the rule. */
   --msg-gap: 12px;
+  /* Two panes: the rule between them, the thread bar's foot and the app
+     header's line (HeaderChrome.module.css) are one pen — the rule's ink
+     (Divider's 35%), made opaque on the page's cream so where two meet
+     nothing darkens, and constant. */
+  --split-pen: color-mix(in oklch, var(--field-border-hover) 35%, var(--color-cream));
   column-gap: var(--msg-gap);
   height: 100vh;
   padding: var(--app-header-h) 0 0;
@@ -38,9 +43,12 @@
   z-index: 6;
   display: flex;
   align-self: stretch;
-  /* Overshoot both ends: tuck under the header's wavy border above and run
-     past the viewport below, so the rule connects instead of floating. */
-  margin-top: -12px;
+  /* Overshoot both ends: tuck under the header's wavy line above and run
+     past the viewport below, so the rule connects instead of floating. The
+     line runs at 72.9 ± 1.4 (HEADER_STROKE_Y and its wave); the rule's path
+     starts 6px into its box (Divider's inset): 82 − 17 + 6 = 71, at or above
+     the line wherever the wave is, the rest under the header's paper. */
+  margin-top: -17px;
   margin-bottom: -20px;
 }
 
@@ -181,6 +189,19 @@
 .threadChromeSvg {
   display: block;
   overflow: visible;
+}
+
+/* The bar's foot: half ink while the whole history fits, whole once messages
+   pass under it (ThreadHeaderChrome) — on a phone. Two panes: the split pen,
+   constant (it meets the rule). */
+.threadChromeLine {
+  transition: opacity 300ms ease;
+}
+@media (min-width: 901px) {
+  .threadChromeLine {
+    stroke: var(--split-pen);
+    opacity: 1;
+  }
 }
 
 /* Flex, not inline: an inline link keeps text baseline metrics and floats the

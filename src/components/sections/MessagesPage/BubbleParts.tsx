@@ -1,19 +1,8 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
-import { useTranslations } from 'next-intl';
-import { GrainOverlay } from '@/components/atoms/GrainOverlay/GrainOverlay';
-import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { Icon } from '@/components/atoms/Icon';
-import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
-import { CARD_BORDERS, CARD_FILLS } from '@/components/molecules/StoryCard/StoryCard';
-import { cardHueIndex, nearestCardHue } from '@/lib/design/dominantHue';
-import { STORY_GRAIN } from '@/lib/design/grain';
-import { Link } from '@/i18n/navigation';
-import { plainExcerpt } from '@/lib/adapters/story';
-import { readMinutes } from '@/lib/readTime';
 import { useImageRetry } from '@/lib/hooks/useImageRetry';
-import type { Card, MessageLinkPreview, User } from '@/lib/db/types';
+import type { MessageLinkPreview } from '@/lib/db/types';
 import { messageLinkProps, type MessageLink, type OnMessageLink } from './MessageBubble';
 import styles from './Thread.module.css';
 
@@ -65,124 +54,5 @@ export function LinkPreviewPart({ preview, link, afterWords, onLink }: LinkPrevi
         </span>
       </span>
     </a>
-  );
-}
-
-/** A card's palette family (StoryCard's): by its cover's hue, or the first. */
-function paletteOf(accentHue: number | undefined): number {
-  const i = accentHue != null ? cardHueIndex(nearestCardHue(accentHue)) : -1;
-  return i >= 0 ? i : 0;
-}
-
-export interface SharedCardPartProps {
-  card: Card;
-  /** Its author, or null for a card posted anonymously (never named here). */
-  author: User | null;
-  /** False for the long-press copy, which only shows it. */
-  interactive: boolean;
-}
-
-/**
- * A Resonance card shared in a message, inside its bubble — Messenger's
- * shared post, so it reads at a glance as a card of this site and what it is
- * about: who wrote it (avatar, pen name, and「共振 · 3 分鐘」under it), its
- * cover edge to edge (or, without one, a band of the card's own colour with
- * the wave), the title in the heading face, the excerpt, and the source line
- * — the wave and「共振」, like the "Facebook" under a shared post. A click
- * opens the card. An anonymous card shows the anonymous mark, never its author.
- */
-export function SharedCardPart({ card, author, interactive }: SharedCardPartProps) {
-  const t = useTranslations('messages');
-  const tApp = useTranslations('app');
-  const tCard = useTranslations('card');
-  const [coverFailed, setCoverFailed] = useState(false);
-  // A card posted anonymously is never put to a name, even when its author is known here.
-  const byline = card.anonymous ? null : author;
-  const palette = paletteOf(card.accentHue);
-  const cover = card.media?.url && !coverFailed ? card.media.url : null;
-  // A summary's story is its plain excerpt and brings the whole story's read time along; a card read in full
-  // (its summary didn't come) has its Markdown, to be read as words.
-  const minutes = card.summary?.readMinutes ?? readMinutes(card.story);
-  const meta = `${t('cardSource')} · ${tApp('readMinutes', { count: minutes })}`;
-  const excerpt = card.summary ? card.story.replace(/\s+/g, ' ').trim() : plainExcerpt(card.story, 200);
-
-  return (
-    <Link
-      href={`/card/${card.slug ?? card.id}` as `/card/${string}`}
-      className={styles.cardPart}
-      tabIndex={interactive ? undefined : -1}
-      onClick={interactive ? undefined : (e) => e.preventDefault()}
-    >
-      <span className={styles.cardHead}>
-        {byline ? (
-          <HandDrawnAvatar
-            src={byline.avatarUrl}
-            initials={byline.initials}
-            size={32}
-            color={byline.accentColor}
-            seed={Number(byline.avatarSeed) || 3}
-          />
-        ) : (
-          <HandDrawnAvatar initials="·" size={32} color="var(--color-cream-dark)" seed={(card.id.charCodeAt(0) || 7) * 31} />
-        )}
-        <span className={styles.cardByline}>
-          <span className={styles.cardAuthor} data-anonymous={byline ? undefined : ''}>
-            {byline ? byline.handle : tCard('anonymousAuthor')}
-          </span>
-          <span className={styles.cardMeta}>{meta}</span>
-        </span>
-      </span>
-      {cover ? (
-        <span className={styles.picture}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={cover} alt="" loading="lazy" decoding="async" onError={() => setCoverFailed(true)} />
-        </span>
-      ) : (
-        <span
-          className={styles.cardBand}
-          style={{ '--band-fill': CARD_FILLS[palette], '--band-ink': CARD_BORDERS[palette][0] } as CSSProperties}
-          aria-hidden
-        >
-          <GrainOverlay opacity={STORY_GRAIN.band} />
-          <Icon name="wave" size={40} className={styles.cardBandWave} />
-        </span>
-      )}
-      <span className={styles.cardText}>
-        <span className={styles.cardTitle}>{card.thoughtCore}</span>
-        {excerpt && <span className={styles.cardExcerpt}>{excerpt}</span>}
-      </span>
-      <span className={styles.cardSource}>
-        <Icon name="wave" size={14} className={styles.cardSourceWave} />
-        {t('cardSource')}
-      </span>
-    </Link>
-  );
-}
-
-/**
- * The shared card's footprint while it is read: plain blocks where the byline,
- * cover, title and source will be — no wobble, nothing measured (its bubble
- * stands in plain too).
- */
-export function SharedCardSkeleton() {
-  return (
-    <span className={styles.cardPart} aria-busy="true">
-      <span className={styles.cardHead}>
-        <Skeleton circle width={32} />
-        <span className={styles.cardByline}>
-          <Skeleton width={88} height={12} />
-          <Skeleton width={64} height={10} />
-        </span>
-      </span>
-      <span className={styles.picture} data-skeleton />
-      <span className={styles.cardText}>
-        <Skeleton width="85%" height={15} />
-        <Skeleton width="60%" height={15} />
-        <Skeleton width="90%" height={11} />
-      </span>
-      <span className={styles.cardSource}>
-        <Skeleton width={56} height={11} />
-      </span>
-    </span>
   );
 }
