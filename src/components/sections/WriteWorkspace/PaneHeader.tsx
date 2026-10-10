@@ -5,6 +5,7 @@ import { BareIconButton } from '@/components/atoms/BareIconButton/BareIconButton
 import { HEADER_STROKE_Y } from '@/components/sections/AppHeader/HeaderChrome';
 import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
 import { INK } from '@/lib/design/strokes';
+import barStyles from '@/components/sections/AppHeader/HeaderBar.module.css';
 import styles from './WriteWorkspace.module.css';
 
 /** The wave under the header: drawn this wide and stretched to the pane (its stroke keeps its width). */
@@ -30,9 +31,10 @@ function wavePaths() {
 export interface PaneHeaderProps {
   /** What the pane shows (編輯卡片, 編輯已發布的卡片, 共振的原文). */
   title: ReactNode;
-  /** Its name and tooltip: 收起編輯區 / Hide the editor. */
-  hideLabel: string;
-  onHide: () => void;
+  /** The back arrow's name and tooltip: 返回 / Back. */
+  backLabel: string;
+  /** Back to the map: the pane hides (its edits are already saved). */
+  onBack: () => void;
   /** Something has scrolled under it: the pen line inks in whole. */
   scrolled: boolean;
 }
@@ -41,12 +43,12 @@ export interface PaneHeaderProps {
  * The thought-map page's editor pane's own header row below the 1200px split,
  * where the pane covers the map — the writer's bar in small, as tall: on the
  * pane's paper over what it shows, a wavy pen line under it that what scrolls
- * passes beneath; the pane's title on the left, and on the right a
- * borderless →| that is the way back to the map (the edits are saved as they
- * are made, so it hides, it never discards — hence no ✕). At the split the
- * pane has no header: its divider hides it.
+ * passes beneath; the back arrow and the pane's title on the left, as the
+ * writer's own bar has them (HeaderBar) — the way back to the map (the edits
+ * are saved as they are made, so it hides, it never discards — hence no ✕).
+ * At the split the pane has no header: its divider hides it.
  */
-export function PaneHeader({ title, hideLabel, onHide, scrolled }: PaneHeaderProps) {
+export function PaneHeader({ title, backLabel, onBack, scrolled }: PaneHeaderProps) {
   const { strokeD, paperD } = useMemo(wavePaths, []);
   return (
     <header
@@ -55,18 +57,19 @@ export function PaneHeader({ title, hideLabel, onHide, scrolled }: PaneHeaderPro
       style={{ '--pane-bar-h': `${HEADER_STROKE_Y}px` } as CSSProperties}
     >
       <div className={styles.paneHeaderRow}>
-        <h2 className={styles.paneTitle}>{title}</h2>
         <BareIconButton
-          icon="collapse-right"
-          label={hideLabel}
+          icon="arrow-right"
+          mirror
           tone="ink"
-          iconSize={20}
+          label={backLabel}
+          iconSize={18}
           tip="below"
-          tipAlign="end"
-          seed={19}
-          className={styles.paneHide}
-          onClick={onHide}
+          tipAlign="start"
+          seed={13}
+          className={barStyles.back}
+          onClick={onBack}
         />
+        <h2 className={barStyles.title}>{title}</h2>
       </div>
       <svg
         aria-hidden="true"

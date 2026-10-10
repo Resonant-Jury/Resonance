@@ -451,8 +451,8 @@ export function WorkspaceShell({
                   // (and keeps its sticky toolbar) under the header's pen line.
                   <PaneHeader
                     title={paneTitle}
-                    hideLabel={t('closeEditor')}
-                    onHide={onClose!}
+                    backLabel={tNav('back')}
+                    onBack={onClose!}
                     scrolled={paneScrolled}
                   />
                 )}

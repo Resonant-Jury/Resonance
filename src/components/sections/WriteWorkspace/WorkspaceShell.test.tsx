@@ -118,17 +118,20 @@ describe('the chrome around the panes', () => {
   });
 
   // The thought-map page: the pane a card opened into has a header row of its
-  // own — what it shows on the left, a borderless →| that hides it on the
-  // right (hides, never discards: no ✕ — the edits are saved as they are made).
-  it('names what the pane shows in its header and hides the pane through its →|', async () => {
+  // own, the writer's bar's — a borderless back arrow, then what it shows (it
+  // hides the pane, never discards: no ✕ — the edits are saved as they are made).
+  it('names what the pane shows in its header and hides the pane through its back arrow', async () => {
     const onClose = vi.fn();
     renderWithIntl(
       <WorkspaceShell open onClose={onClose} paneTitle="Edit published card">
         <p>editor</p>
       </WorkspaceShell>,
     );
-    const header = screen.getByRole('heading', { level: 2, name: 'Edit published card' }).closest('header')!;
-    const hide = within(header).getByRole('button', { name: 'Hide the editor' });
+    const title = screen.getByRole('heading', { level: 2, name: 'Edit published card' });
+    const header = title.closest('header')!;
+    const hide = within(header).getByRole('button', { name: 'Back' });
+    // The arrow first, then the title: the writer's bar's order.
+    expect(hide.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // A glyph on the pane's paper: no pill, no pen line round it.
     expect(hide).not.toHaveAttribute('data-variant');
     expect(penLines(hide)).toHaveLength(0);
@@ -221,7 +224,7 @@ describe('the chrome around the panes', () => {
         />
       </WorkspaceShell>,
     );
-    const hide = screen.getByRole('button', { name: 'Hide the editor' });
+    const hide = screen.getByRole('button', { name: 'Back' });
 
     const title = screen.getByRole('textbox', { name: 'Title' });
     title.focus();
@@ -270,7 +273,7 @@ describe('the chrome around the panes', () => {
         <p>editor</p>
       </WorkspaceShell>,
     );
-    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
     await userEvent.keyboard('{Escape}');
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -286,7 +289,8 @@ describe('the chrome around the panes', () => {
     );
     expect(screen.getByRole('heading', { level: 1, name: 'New card' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Leave' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    // One back arrow, the bar's: the pane under it has no header of its own.
+    expect(screen.getAllByRole('button', { name: 'Back' })).toHaveLength(1);
     // Its back arrow is the way out: Escape leaves the writer to it.
     await userEvent.keyboard('{Escape}');
     expect(onBack).not.toHaveBeenCalled();
@@ -350,15 +354,15 @@ describe('the map while the pane is open', () => {
     screenWidth(1024);
     renderWithIntl(<MapPage />);
     await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Hide the editor' }));
-    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Open card' })).toHaveFocus();
 
     // And by Escape, from the field being written in (out of it, then hidden).
     await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
     await userEvent.click(screen.getByRole('textbox', { name: 'Title' }));
     await userEvent.keyboard('{Escape}{Escape}');
-    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Open card' })).toHaveFocus();
   });
 
@@ -368,7 +372,7 @@ describe('the map while the pane is open', () => {
     renderWithIntl(<MapPage />);
     await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
     // The tab went away with the pane open; hiding the pane brings a new one.
-    await userEvent.click(screen.getByRole('button', { name: 'Hide the editor' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('button', { name: 'A card' })).toHaveFocus();
   });
 
@@ -446,7 +450,7 @@ describe('the workspace at the split', () => {
       </WorkspaceShell>,
     );
     expect(screen.queryByRole('heading', { level: 2, name: 'Edit draft' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
     expect(mockBack).toHaveBeenCalledTimes(1);
   });

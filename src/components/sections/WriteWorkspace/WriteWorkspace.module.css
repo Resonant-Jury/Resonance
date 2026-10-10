@@ -317,8 +317,8 @@
 }
 
 /* The header (below the split only): on the pane's paper, above the body (its
-   wave hangs over the body's top). Its row lines up with the editor column
-   (the same max width and side padding). */
+   wave hangs over the body's top). Its row is the writer's bar's (HeaderBar):
+   the back arrow on the page margin, the title beside it. */
 .paneHeader {
   position: relative;
   z-index: 8;
@@ -331,31 +331,14 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  max-width: var(--page-max-w-narrow);
+  gap: 8px;
   min-height: 38px;
-  margin: 0 auto;
   padding: 0 var(--page-pad-x);
 }
-
-.paneTitle {
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  font-family: var(--font-heading);
-  font-size: 19px;
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  color: var(--color-text);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* The glyph's ink lands on the column's right edge, as the title's on its left. */
-.paneHide {
-  margin-right: -8px;
+@media (pointer: coarse) {
+  .paneHeaderRow {
+    gap: 4px;
+  }
 }
 
 /* The pen line hangs across the header's foot (the paper above it follows the
@@ -387,7 +370,7 @@
 }
 
 /* Below the desktop split the open pane simply owns the viewport; the map
-   waits (mounted) underneath and returns on the header's →|. */
+   waits (mounted) underneath and returns on the header's back arrow. */
 @media (max-width: 1199px) {
   .rail {
     display: none;
