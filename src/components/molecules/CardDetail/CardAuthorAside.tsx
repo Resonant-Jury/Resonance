@@ -75,8 +75,8 @@ export function CardAuthorAside({ author, verifiedLabel, anonymous, isOwner, pub
           <div className={styles.name}>
             <span className={styles.handle}>{t('anonymousAuthor')}</span>
           </div>
-          <CardPublishedDate published={published} className={styles.date} />
           {isOwner && <p className={styles.bio}>{t('anonymousOwnerNote')}</p>}
+          <CardPublishedDate published={published} className={styles.date} />
         </div>
       </div>
     );
@@ -101,8 +101,9 @@ export function CardAuthorAside({ author, verifiedLabel, anonymous, isOwner, pub
           <AuthorRegionFlag region={author.region} />
           {author.verified && <HandDrawnCheckmark size={14} title={verifiedLabel} />}
         </div>
-        <CardPublishedDate published={published} className={styles.date} />
         {author.bio && <p className={styles.bio}>{author.bio}</p>}
+        {/* The person first, then when they wrote this. */}
+        <CardPublishedDate published={published} className={styles.date} />
       </div>
     </div>
   );
