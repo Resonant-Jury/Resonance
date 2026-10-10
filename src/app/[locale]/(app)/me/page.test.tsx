@@ -14,8 +14,9 @@ vi.mock('@/i18n/navigation', () => ({
       {children}
     </a>
   ),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: nav.push, replace: vi.fn() }),
 }));
+const nav = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
 vi.mock('@/lib/db/firestore/client/reads', () => ({
   getCardById: vi.fn(),
@@ -102,13 +103,19 @@ describe('the card box', () => {
     expect(vi.mocked(getCardsByAuthor).mock.calls.map((c) => c[1])).toEqual(['published', 'private']);
   });
 
-  // The pen beside the identity row is a bare glyph on the page's paper (no chip, no pen line), as in the apps.
-  it('leads to the profile settings from a bare pen', async () => {
+  // B5: wide, a labelled tonal button with the profile's lines; a phone keeps a bare glyph at the
+  // row's end (CSS shows one) — the person, not the pen, which means writing.
+  it('leads to the profile settings from a labelled button and, on a phone, a bare glyph', async () => {
     const { container } = renderPage();
-    const pen = await screen.findByRole('link', { name: 'Edit profile' });
-    expect(pen).toHaveAttribute('href', '/settings');
-    expect(pen).not.toHaveAttribute('data-variant');
-    expect(pen.querySelector('[data-variant]')).toBeNull();
+    const button = await screen.findByRole('button', { name: 'Edit profile' });
+    expect(button).toHaveAttribute('data-variant', 'tonal');
+    await userEvent.setup().click(button);
+    expect(nav.push).toHaveBeenCalledWith('/settings');
+
+    const glyph = screen.getByRole('link', { name: 'Edit profile' });
+    expect(glyph).toHaveAttribute('href', '/settings');
+    expect(glyph).not.toHaveAttribute('data-variant');
+    expect(glyph.querySelector('[data-variant]')).toBeNull();
     expect(container.querySelector('button[data-variant="ghost"]')).toBeNull();
   });
 });
