@@ -83,8 +83,10 @@ data class ProseStyle(
     val italic: Boolean = false,
     /** CSS letter-spacing in em. */
     val tracking: Float = 0f,
+    /** Inside a quote: its pictures and cards keep to the quote's edge instead of centring in the column. */
+    val inQuote: Boolean = false,
 ) {
-    val quoted get() = copy(color = Tokens.TextMuted, italic = true)
+    val quoted get() = copy(color = Tokens.TextMuted, italic = true, inQuote = true)
 
     companion object {
         val Body = ProseStyle(AppFonts.Family.Body, 17f, 400, 1.8f, Tokens.Text)
@@ -323,15 +325,15 @@ private fun Block(block: StoryBlock, style: ProseStyle, story: Story) {
         is StoryBlock.Paragraph -> RichCssText(block.runs, style, onOpenUrl)
         is StoryBlock.Heading -> RichCssText(block.runs, if (block.level <= 2) ProseStyle.H2 else ProseStyle.H3, onOpenUrl, Modifier.semantics { heading() })
         StoryBlock.Blank -> Spacer(Modifier.height(em * 1.6f).clearAndSetSemantics { })
-        is StoryBlock.Image -> StoryImage(block.url, block.alt)
-        is StoryBlock.CardEmbed -> Centred { story.embed(block.href, block.title) }
+        is StoryBlock.Image -> StoryImage(block.url, block.alt, atStart = style.inQuote)
+        is StoryBlock.CardEmbed -> Centred(style.inQuote) { story.embed(block.href, block.title) }
         // The page's card when the server made one for this link; otherwise the paragraph as written.
         is StoryBlock.SoleLink -> {
             val links = story.links
             val preview = links?.previews?.get(block.key)
             if (links != null && preview != null) {
                 val host = links.host(preview)
-                Centred { StoryLinkCard(preview, host, links.label(host), onOpen = { links.open(preview) }) }
+                Centred(style.inQuote) { StoryLinkCard(preview, host, links.label(host), onOpen = { links.open(preview) }) }
             } else {
                 RichCssText(block.runs, style, onOpenUrl)
             }
@@ -372,15 +374,15 @@ private fun Block(block: StoryBlock, style: ProseStyle, story: Story) {
 
 /**
  * OrganicStoryImage: a photo at its own proportions (≤ 520dp or 62% of the
- * screen tall), centred, in a gentle clip (R 12, 2.5% wobble). Like the
+ * screen tall), centred (at a quote's edge inside one), in a gentle clip (R 12, 2.5% wobble). Like the
  * cover, the photo overflows its box by the clip's outward swing so the
  * bulges land on pixels instead of being cut flat.
  */
 @Composable
-private fun StoryImage(url: String, alt: String) {
+private fun StoryImage(url: String, alt: String, atStart: Boolean = false) {
     var aspect by remember(url) { mutableFloatStateOf(1.5f) }
     val maxH = min(520f, LocalConfiguration.current.screenHeightDp * 0.62f)
-    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = if (atStart) Alignment.CenterStart else Alignment.Center) {
         val w = min(maxWidth.value, maxH * aspect)
         val seed = seedFromString(url).toDouble()
         BoxWithConstraints(Modifier.widthIn(max = w.dp).aspectRatio(aspect).heightIn(min = 40.dp)) {
@@ -401,10 +403,10 @@ private fun StoryImage(url: String, alt: String) {
     }
 }
 
-/** A card (≤ 520 wide) centred in the column, as a picture is (the web's embedBlock). */
+/** A card (≤ 520 wide) centred in the column, as a picture is (the web's embedBlock); inside a quote, at its edge. */
 @Composable
-private fun Centred(content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) { content() }
+private fun Centred(atStart: Boolean, content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = if (atStart) Alignment.TopStart else Alignment.TopCenter) { content() }
 }
 
 /** The quote rail's strip: the web Divider's width (amplitude and pen, twice each). */

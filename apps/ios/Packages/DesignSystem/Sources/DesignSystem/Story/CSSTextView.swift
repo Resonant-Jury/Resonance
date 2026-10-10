@@ -96,6 +96,8 @@ public struct ProseStyle: Sendable {
     public var italic: Bool
     /// Letter spacing in em (CSS `letter-spacing`).
     public var tracking: CGFloat
+    /// Inside a quote: its pictures and cards keep to the quote's edge instead of centring in the column.
+    public var inQuote = false
 
     public static let body = ProseStyle(family: .body, size: 17, weight: .regular, lineHeight: 1.8, color: UIColor(Tokens.text), italic: false, tracking: 0)
     public static let h2 = ProseStyle(family: .heading, size: 22, weight: .bold, lineHeight: 1.3, color: UIColor(Tokens.text), italic: false, tracking: -0.01)
@@ -106,6 +108,7 @@ public struct ProseStyle: Sendable {
         var s = self
         s.color = UIColor(Tokens.textMuted)
         s.italic = true
+        s.inQuote = true
         return s
     }
 

@@ -140,6 +140,13 @@
   margin: var(--story-image-gap) auto;
 }
 
+/* Inside a quote, a picture or an embedded card keeps to the quote's edge (as the article). */
+.content blockquote .imageNode,
+.content blockquote .cardEmbedNode {
+  margin-left: 0;
+  margin-right: 0;
+}
+
 /* Embedded card node view (mini horizontal story card). The card draws its
    own focus border, so no extra outline here. Centred in the column, as the
    article and the pictures here are. */

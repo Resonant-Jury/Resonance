@@ -65,6 +65,9 @@ struct BlockView<Embed: View, LinkCard: View>: View {
     let embed: (String, String) -> Embed
     let linkCard: (String?, String) -> LinkCard?
 
+    /// A picture or a card narrower than the column: centred in it, at the quote's edge inside a quote.
+    private var blockAlignment: Alignment { style.inQuote ? .leading : .center }
+
     var body: some View {
         let em = ProseMetrics.em * TextScale.factor(relativeTo: .body)
         switch block {
@@ -77,14 +80,14 @@ struct BlockView<Embed: View, LinkCard: View>: View {
         case .blank:
             Color.clear.frame(height: 1.6 * em).accessibilityHidden(true)
         case let .image(url, alt):
-            StoryImageView(url: URL(string: url), alt: alt, seed: Double(seedFromString(url)))
-                .frame(maxWidth: .infinity)
+            StoryImageView(url: URL(string: url), alt: alt, seed: Double(seedFromString(url)), alignment: blockAlignment)
+                .frame(maxWidth: .infinity, alignment: blockAlignment)
         // A card (≤ 520 wide) centred in the column, as a picture is (the web's embedBlock).
         case let .cardEmbed(href, title):
             embed(href, title)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: blockAlignment)
         case let .soleLink(href, words, runs):
-            if let card = linkCard(href, words) { card.frame(maxWidth: .infinity) } else { text(runs, style) }
+            if let card = linkCard(href, words) { card.frame(maxWidth: .infinity, alignment: blockAlignment) } else { text(runs, style) }
         case let .quote(children):
             HStack(alignment: .top, spacing: em) {
                 WavyRailShape(seed: 5)
@@ -157,13 +160,14 @@ nonisolated struct WavyRailShape: Shape {
 }
 
 /// OrganicStoryImage: a photo at its natural proportions (never taller than
-/// 520pt or 62% of the window), centred, in a hand-drawn clip. The photo is
+/// 520pt or 62% of the window), centred (at a quote's edge inside one), in a hand-drawn clip. The photo is
 /// zoomed past its box by the wobble's reach so the clip's outward swings
 /// land on real pixels, as on the web.
 struct StoryImageView: View {
     let url: URL?
     let alt: String
     let seed: Double
+    var alignment: Alignment = .center
     @State private var aspect: CGFloat?
     /// The column it is laid out in, measured (an iPad window is neither the screen nor a phone).
     @State private var column: CGFloat?
@@ -192,7 +196,7 @@ struct StoryImageView: View {
             .frame(width: w + bleed * 2, height: h + bleed * 2)
             .clipShape(StoryImageClip(seed: seed, bleed: bleed))
             .frame(width: w, height: h)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: alignment)
             .accessibilityLabel(alt)
             .accessibilityAddTraits(.isImage)
         }
