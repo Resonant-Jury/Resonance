@@ -49,6 +49,8 @@ import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicInlineBar
 import com.resonance.design.SquareFlag
 import com.resonance.design.inlineBarTop
+import com.resonance.design.LocalWindowLayout
+import com.resonance.design.firstContentGap
 import com.resonance.design.ButtonVariant
 import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicButton
@@ -153,6 +155,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
     // The bar lies over the page, so what scrolls shows right up to its pen line.
     val top = inlineBarTop()
     val layout = cardListLayout()
+    val profileTop = LocalWindowLayout.current.cls.firstContentGap(20.dp)
     Box(Modifier.fillMaxSize().cream()) {
     Column(Modifier.fillMaxSize()) {
         when (phase) {
@@ -171,7 +174,8 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                 val a = p.author
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 48.dp)) {
                     item {
-                        Column(heading.onItem.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        // A tablet's profile starts 32 under the header's pen line (round 5 E2).
+                        Column(heading.onItem.fillMaxWidth().padding(horizontal = 24.dp).padding(top = profileTop, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             HandDrawnAvatar(a.initials, a.avatarUrl, a.accent(), 96.dp, a.avatarSeedValue())
                             BasicText(a.handle, style = AppFonts.heading(32f, lineHeight = 1.2f), modifier = heading.onHeading)
                             BasicText(p.bio ?: L10n.Profile.bioEmpty, style = AppFonts.body(15f, lineHeight = 1.6f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center))
@@ -273,7 +277,7 @@ private fun BlockedNotice(session: Session, userId: String, handle: String, onUn
 @Composable
 private fun ProfileHeroSkeleton() {
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = LocalWindowLayout.current.cls.firstContentGap(20.dp), bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {

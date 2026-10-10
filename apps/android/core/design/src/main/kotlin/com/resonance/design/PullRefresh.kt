@@ -191,12 +191,6 @@ fun BoxScope.SketchPullIndicator(
     pull: SketchPull,
     top: Dp,
     size: Dp = PullLoaderSize,
-    /**
-     * The paper of a band that starts at the bar's line (the feed's first card, design note B1):
-     * the gap the pull opens wears it, with the band's grain running on from the band's own, so
-     * the band looks taller rather than parted from the bar. Null: the page's cream shows.
-     */
-    paper: Color? = null,
 ) {
     val shown by remember(pull) { derivedStateOf { pull.state.distanceFraction > 0f || pull.refreshing } }
     val haptic = LocalHapticFeedback.current
@@ -219,26 +213,6 @@ fun BoxScope.SketchPullIndicator(
     if (!shown) return
     val density = LocalDensity.current
     val sizePx = with(density) { size.toPx() }
-    if (paper != null) Box(
-        Modifier
-            .align(Alignment.TopCenter)
-            // From the top of the bar's wave band, behind the bar's cream, as the band's own paper runs.
-            .offset(y = top - HeaderEdgeHeight)
-            .fillMaxWidth()
-            .height(pull.threshold * 3)
-            .drawWithCache {
-                val grain = Grain.brush(GrainMode.Tile, "grain-overlay", this.size, this.density, 1f)
-                onDrawBehind {
-                    val gap = pull.offsetPx
-                    if (gap <= 0f) return@onDrawBehind
-                    // Drawn from the band's own top (where it is now), so the grain's tiles run on from its.
-                    translate(top = gap) {
-                        drawRect(paper, topLeft = Offset(0f, -gap), size = Size(this.size.width, gap))
-                        grain?.let { drawRect(it, topLeft = Offset(0f, -gap), size = Size(this.size.width, gap), alpha = StoryGrain.Band * 2) }
-                    }
-                }
-            },
-    )
     Box(
         Modifier
             .align(Alignment.TopCenter)
@@ -263,6 +237,40 @@ fun BoxScope.SketchPullIndicator(
             if (pull.docked) SketchLoader(size) else SketchLoaderLoop({ pull.state.distanceFraction }, size)
         }
     }
+}
+
+/**
+ * The paper of a band that starts at the bar's line (the feed's first card, design note B1), for
+ * the gap a pull opens above it: put it in the list's box BEFORE the list, so it lies behind it.
+ * The gap wears the band's paper, its grain running on from the band's own, so the band looks
+ * taller rather than parted from the bar — for any pull, a second one while the first refresh
+ * still runs too (round 5 E4): the list doesn't move for that one, and the overscroll stretch it
+ * gets instead opens a little more than the docked gap, which shows this paper, never the page's
+ * cream, since it runs on well past the gap, hidden under the list wherever the list draws.
+ */
+@Composable
+fun BoxScope.SketchPullPaper(pull: SketchPull, top: Dp, paper: Color) {
+    val shown by remember(pull) { derivedStateOf { pull.state.distanceFraction > 0f || pull.refreshing } }
+    if (!shown) return
+    Box(
+        Modifier
+            .align(Alignment.TopCenter)
+            // From the top of the bar's wave band, behind the bar's cream, as the band's own paper runs.
+            .offset(y = top - HeaderEdgeHeight)
+            .fillMaxWidth()
+            .height(pull.threshold * 3)
+            .drawWithCache {
+                val grain = Grain.brush(GrainMode.Tile, "grain-overlay", this.size, this.density, 1f)
+                onDrawBehind {
+                    val gap = pull.offsetPx
+                    // Drawn from the band's own top (where it is now), so the grain's tiles run on from its.
+                    translate(top = gap) {
+                        drawRect(paper, topLeft = Offset(0f, -gap), size = this.size)
+                        grain?.let { drawRect(it, topLeft = Offset(0f, -gap), size = this.size, alpha = StoryGrain.Band * 2) }
+                    }
+                }
+            },
+    )
 }
 
 /** The loader fades in over the first part of the pull (and out again as the list eases back up). */

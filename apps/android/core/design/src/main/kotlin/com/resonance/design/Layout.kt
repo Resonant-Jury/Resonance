@@ -50,6 +50,21 @@ enum class LayoutClass {
     }
 }
 
+/** A bar's pen line above its foot: the wave's 1.4 and the pen ([headerLineY]). */
+val BarLineInset: Dp = (1.4f + Tokens.Ink.value).dp
+
+/** How far below the header's pen line a tablet's page starts its first content (round 5 E2). */
+val TabletHeaderAir: Dp = 32.dp
+
+/**
+ * Where a page's first content starts below its bar's foot (round 5 E2): a phone keeps the page's
+ * own [phone] gap; a tablet (medium, expanded) starts it [TabletHeaderAir] below the header's pen line.
+ */
+fun LayoutClass.firstContentGap(phone: Dp): Dp = if (this == LayoutClass.Compact) phone else TabletHeaderAir - BarLineInset
+
+/** A pull to refresh on a tablet: the loader and the gap it opens half as big again as a phone's (round 5 E2). */
+fun LayoutClass.pullScale(): Float = if (this == LayoutClass.Compact) 1f else 1.5f
+
 /**
  * The window as the app's root measured it (MainTabs), handed down to every screen: its width and
  * its class. Pane widths (a thread beside the conversations, the writer beside the map) are

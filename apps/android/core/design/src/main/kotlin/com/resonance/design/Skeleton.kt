@@ -98,10 +98,11 @@ fun androidx.compose.foundation.lazy.LazyListScope.storyCardSkeletons(count: Int
 }
 
 /**
- * Where a bordered grid's first row starts in a list that begins under the bar's wavy band:
- * 28 below the bar's pen line (design note §2), so no outline is under the bar at rest.
+ * Where a bordered grid's first row starts in a list that begins under the bar's wavy band (an
+ * expanded window's feed): a tablet's [TabletHeaderAir] below the bar's pen line (round 5 E2), so
+ * no outline is under the bar at rest.
  */
-val GridUnderBar = HeaderEdgeHeight + 28.dp - (1.4f + Tokens.Ink.value).dp
+val GridUnderBar = HeaderEdgeHeight + TabletHeaderAir - BarLineInset
 
 /**
  * CardDetailSkeleton.tsx on a phone: the byline, the cover, two title lines,

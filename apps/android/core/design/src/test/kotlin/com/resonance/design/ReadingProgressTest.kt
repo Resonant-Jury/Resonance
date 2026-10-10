@@ -27,11 +27,13 @@ class ReadingProgressTest {
         assertEquals(0f, p(-300f, storyHeight = 0f))
     }
 
-    @Test fun isAMarkerInTheBrighterOrangeOverTheHeadersLine() {
-        // Round 5 D1: --reading-progress, 4 wide, so it covers the 1.8 line it rides on and the unread rest reads as its track.
+    @Test fun isTheHeadersOwnPenInTheBrighterOrangeWithAGlowOfItsColour() {
+        // Round 5 E1: --reading-progress at the pen's own width (1.8, INK) over the line it rides on,
+        // with a soft glow behind it: the same colour at 55 %, blurred 4.
         assertEquals(Tokens.ReadingProgress, ReadingProgressPen.color)
-        assertEquals(4f, ReadingProgressPen.width.value)
-        assertTrue(ReadingProgressPen.width.value > Tokens.Ink.value)
+        assertEquals(Tokens.Ink.value, ReadingProgressPen.width.value)
+        assertEquals(4f, ReadingProgressPen.glow.value)
+        assertEquals(0.55f, ReadingProgressPen.GLOW_ALPHA)
         assertTrue(ReadingProgressPen.color != Tokens.Terracotta)
     }
 }

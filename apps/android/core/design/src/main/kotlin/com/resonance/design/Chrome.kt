@@ -69,6 +69,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -758,6 +762,7 @@ fun Modifier.headerEdge(
     val measure = if (progress != null) PathMeasure().apply { setPath(line, false) } else null
     val read = Path()
     val readPen = Stroke(ReadingProgressPen.width.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+    val glow = if (progress != null) ReadingProgressPen.glowPaint(readPen.width, ReadingProgressPen.glow.toPx()) else null
     val stroke = Stroke(ink, cap = StrokeCap.Round)
     onDrawBehind {
         drawPath(fill, Tokens.Cream)
@@ -774,19 +779,36 @@ fun Modifier.headerEdge(
         if (measure != null && p >= READ_MIN) {
             read.reset()
             measure.getSegment(0f, p.coerceAtMost(1f) * measure.length, read, true)
+            // Its soft glow first, behind it: the same stroke blurred, in the same colour at 55 % (round 5 E1).
+            glow?.let { paint -> drawIntoCanvas { it.nativeCanvas.drawPath(read.asAndroidPath(), paint) } }
             drawPath(read, ReadingProgressPen.color, style = readPen)
         }
     }
 }
 
 /**
- * The reading progress's pen (round 5 D1): `--reading-progress-width` (4, round caps) in
- * `--reading-progress`, a brighter terracotta-orange — a marker over the header's 1.8 line, so the
- * unread rest of that line reads as its track.
+ * The reading progress's pen (round 5 D1, E1): the header's own pen width (`--reading-progress-width`,
+ * 1.8, round caps) in `--reading-progress`, a brighter terracotta-orange, over the header's line —
+ * the unread rest of that line reads as its track — with a soft glow of the same colour behind it:
+ * the stroke blurred by `--reading-progress-glow` (4) at [GLOW_ALPHA] (the web's drop-shadow, iOS's
+ * shadow).
  */
 object ReadingProgressPen {
     val color: Color get() = Tokens.ReadingProgress
     val width: Dp get() = Tokens.ReadingProgressWidth.dp
+    val glow: Dp get() = Tokens.ReadingProgressGlow.dp
+    const val GLOW_ALPHA = 0.55f
+
+    /** The glow's paint: the pen's stroke, [blur] px soft (a blur mask: the canvas is hardware drawn, API 28+). */
+    fun glowPaint(width: Float, blur: Float): android.graphics.Paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = width
+        strokeCap = android.graphics.Paint.Cap.ROUND
+        strokeJoin = android.graphics.Paint.Join.ROUND
+        // As Compose's own paint takes it (the line drawn over it is the same colour).
+        color = this@ReadingProgressPen.color.copy(alpha = GLOW_ALPHA).toArgb()
+        maskFilter = android.graphics.BlurMaskFilter(blur, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
 }
 
 /** The header's pen line and the paper above it, for a bar [width] × [height] px at [density]: [headerEdge]'s geometry. */
