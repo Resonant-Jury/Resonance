@@ -1,10 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { HEADER_DRAW_W, HEADER_STROKE_Y, HEADER_TOTAL_H, headerStrokePoints } from '@/components/sections/AppHeader/HeaderChrome';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
+import { HEADER_DRAW_W, HEADER_OVERLAY_ID, HEADER_STROKE_Y, HEADER_TOTAL_H, headerStrokePoints } from '@/components/sections/AppHeader/HeaderChrome';
 import { pointsToBezier } from '@/lib/design/wavyPath';
 import { INK } from '@/lib/design/strokes';
 import styles from './ReadingProgress.module.css';
+
+const subscribeNever = () => () => {};
+const headerOverlay = () => document.getElementById(HEADER_OVERLAY_ID);
+const noOverlay = () => null;
 
 /** Below this nothing is drawn: no lone cap dot at the line's start. */
 const MIN_SHOWN = 0.002;
@@ -24,12 +29,16 @@ export function readingProgress(top: number, height: number, viewportH: number, 
 /**
  * The card page's reading progress (design note §3): a terracotta line drawn
  * on the app bar's own wavy pen line, over it, from the left edge to the
- * share of the story read. Decorative — no space, no pointer, no words.
+ * share of the story read. Decorative — no space, no pointer, no words. It is
+ * drawn in the header's overlay layer (HEADER_OVERLAY_ID), so the avatar's menu
+ * dropping over the line covers it; without that header, as its own layer.
  */
 export function ReadingProgress({ targetRef }: { targetRef: RefObject<HTMLElement | null> }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const pathRef = useRef<SVGPathElement>(null);
   const [w, setW] = useState(0);
+  // Null for the server render and hydration; the header's layer from then on.
+  const overlay = useSyncExternalStore(subscribeNever, headerOverlay, noOverlay);
 
   useEffect(() => {
     const box = boxRef.current;
@@ -39,7 +48,7 @@ export function ReadingProgress({ targetRef }: { targetRef: RefObject<HTMLElemen
     const ro = new ResizeObserver(measure);
     ro.observe(box);
     return () => ro.disconnect();
-  }, []);
+  }, [overlay]);
 
   // The bar's line, stretched to the bar's width as the bar stretches it — drawn at the real width, so the
   // trim is in the path's own length.
@@ -80,10 +89,10 @@ export function ReadingProgress({ targetRef }: { targetRef: RefObject<HTMLElemen
       ro.disconnect();
       if (frame != null) cancelAnimationFrame(frame);
     };
-  }, [d, targetRef]);
+  }, [d, targetRef, overlay]);
 
-  return (
-    <div ref={boxRef} className={styles.progress} aria-hidden>
+  const line = (
+    <div ref={boxRef} className={overlay ? styles.inHeader : styles.progress} aria-hidden>
       {d && (
         <svg width={w} height={HEADER_TOTAL_H} viewBox={`0 0 ${w} ${HEADER_TOTAL_H}`} className={styles.svg}>
           <path
@@ -102,4 +111,5 @@ export function ReadingProgress({ targetRef }: { targetRef: RefObject<HTMLElemen
       )}
     </div>
   );
+  return overlay ? createPortal(line, overlay) : line;
 }
