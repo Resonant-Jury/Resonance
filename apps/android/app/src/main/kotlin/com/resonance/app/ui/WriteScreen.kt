@@ -1,14 +1,15 @@
 package com.resonance.app.ui
 
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import com.resonance.app.thoughtmap.ThoughtMapScreen
-import com.resonance.design.HeaderEdgeHeight
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import com.resonance.design.LayoutClass
 import com.resonance.design.LocalWindowLayout
 
@@ -130,6 +131,10 @@ import kotlinx.coroutines.launch
  * Opened on one of your cards (`cardId`, write/[id]) it resumes a draft, or
  * revises a published card: then Save changes / Discard changes.
  * The twin of iOS's WriteScreen; `onFinished` gets the card's slug or id.
+ *
+ * In the split workspace ([Workspace], round 5 E5) it is the editor pane's ([pane]): no bar and no
+ * back of its own — the map's Leave and the system back are the workspace's, which asks through
+ * [pane] what the writer holds, as the bar's arrow does — its content starting under the status bar.
  */
 @Composable
 fun WriteScreen(
@@ -140,6 +145,10 @@ fun WriteScreen(
     close: () -> Unit,
     /** A new card was first saved, as the draft with this id (its route then names it: [rememberDraft]). */
     onCreated: (String) -> Unit = {},
+    /** How the workspace around the writer reaches it ([Workspace]); null: the writer is a page of its own. */
+    pane: WriterHandle? = null,
+    /** Its own bar and back (a page of its own, or a pane covering the map below the split); false: the split workspace's pane. */
+    bar: Boolean = true,
     onFinished: (String) -> Unit,
 ) {
     // A new card is saved as a draft as soon as there is something to keep, and its route then names
@@ -147,7 +156,7 @@ fun WriteScreen(
     // rotated, the app restored) it opens on the draft rather than a blank card.
     val id = remember { cardId }
     if (id == null) {
-        WriteForm(session, referenceCardId, story, null, close, onFinished, onCreated)
+        WriteForm(session, referenceCardId, story, null, close, onFinished, onCreated, pane, bar)
         return
     }
     // The card loads straight from Firestore, painting a loader meanwhile.
@@ -160,23 +169,23 @@ fun WriteScreen(
     val card = opened
     when {
         !loaded -> {
-            BackHandler(onBack = close)
+            if (bar) BackHandler(onBack = close)
             Box(Modifier.fillMaxSize().cream(), contentAlignment = Alignment.TopCenter) {
-                Box(Modifier.padding(top = inlineBarTop() + 58.dp)) { SketchLoader(64.dp) }
-                OrganicInlineBar(L10n.App.Nav.back, close)
+                Box(Modifier.padding(top = writerTop(bar) + 58.dp)) { SketchLoader(64.dp) }
+                if (bar) OrganicInlineBar(L10n.App.Nav.back, close)
             }
         }
         // The card isn't there (deleted) or isn't yours: the web's not-found note.
         card == null -> {
-            BackHandler(onBack = close)
+            if (bar) BackHandler(onBack = close)
             Box(Modifier.fillMaxSize().cream()) {
-                Box(Modifier.padding(top = inlineBarTop())) {
+                Box(Modifier.padding(top = writerTop(bar))) {
                     OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = close, action = EmptyAction.Outline, verticalPadding = 58.dp)
                 }
-                OrganicInlineBar(L10n.App.Nav.back, close)
+                if (bar) OrganicInlineBar(L10n.App.Nav.back, close)
             }
         }
-        else -> WriteForm(session, referenceCardId, null, card, close, onFinished)
+        else -> WriteForm(session, referenceCardId, null, card, close, onFinished, pane = pane, bar = bar)
     }
 }
 
@@ -189,6 +198,8 @@ private fun WriteForm(
     close: () -> Unit,
     onFinished: (String) -> Unit,
     onCreated: (String) -> Unit = {},
+    pane: WriterHandle? = null,
+    bar: Boolean = true,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -234,6 +245,8 @@ private fun WriteForm(
     val inlinePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { model.insertImage(context, it) } }
     val images = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
     var confirmingLeave by remember(model) { mutableStateOf(false) }
+    // What confirming the leave does when the workspace asked it (its Leave over the map); null: this writer's own leave.
+    var leaveThen by remember(model) { mutableStateOf<(() -> Unit)?>(null) }
     // The arrow, the system back and the buttons can land twice before the page has gone: it closes once.
     var leaving by remember(model) { mutableStateOf(false) }
     val leave: () -> Unit = {
@@ -258,31 +271,40 @@ private fun WriteForm(
             else -> leave()
         }
     }
-    BackHandler(onBack = goBack)
+    // In the workspace's pane the back is the workspace's: it asks here first ([WriterHandle.askToLeave]).
+    BackHandler(enabled = bar, onBack = goBack)
+    SideEffect {
+        pane?.attach(
+            hasWork = { model.hasWork },
+            saveNow = { model.saveNow() },
+            releaseKeyboard = { model.editor.releaseKeyboard() },
+            askToLeave = { then ->
+                model.editor.releaseKeyboard()
+                leaveThen = then
+                confirmingLeave = true
+            },
+        )
+    }
+    DisposableEffect(pane, model) { onDispose { pane?.detach() } }
 
     val scroll = rememberScrollState()
-    // The writer takes the whole window (the full-width header gives way). From 1200 wide the thought map
-    // sits beside it, the editor in the window's right half (design note §12); otherwise the editor
-    // alone, in a centred reading column on anything wider than a phone. The editor keeps its place
-    // in the tree either way, so a rotation or a resize across 1200 keeps the story's editor as it is.
+    // The writer takes the whole window (the full-width header gives way), or — from 1200 wide — the
+    // workspace's editor pane beside the thought map (design note §12, round 5 E5): the editor in a
+    // centred reading column on anything wider than a phone. The workspace keeps the writer in one
+    // place in its tree either way, so a rotation or a resize across 1200 keeps the editor as it is.
     val window = LocalWindowLayout.current
-    val split = window.writerSplit
     val compactWindow = window.cls == LayoutClass.Compact
     val pad = window.pad
     val columnMax = Tokens.Measure.dp + pad * 2
-    val editorWidth = minOf(if (split) window.width / 2 else window.width, if (compactWindow) window.width else columnMax)
-    Box(Modifier.fillMaxSize().cream().imePadding()) { Row(Modifier.fillMaxSize()) {
-    if (split) Box(Modifier.weight(1f).fillMaxHeight().padding(top = inlineBarTop() - HeaderEdgeHeight)) {
-        ThoughtMapScreen(session, session.thoughtMap, open = {}, leave = {}, embedded = true)
-    }
+    BoxWithConstraints(Modifier.fillMaxSize().cream().imePadding()) {
+    val editorWidth = minOf(maxWidth, if (compactWindow) maxWidth else columnMax)
     Column(
         Modifier
-            .then(if (split) Modifier.width(window.width / 2).editorBoundary(inlineBarTop()) else Modifier.fillMaxWidth())
-            .fillMaxHeight()
+            .fillMaxSize()
             .verticalScroll(scroll)
             .then(if (compactWindow) Modifier else Modifier.fillMaxWidth().wrapContentWidth().widthIn(max = columnMax))
             // The bar lies over the page, so what scrolls shows right up to its pen line.
-            .padding(top = inlineBarTop())
+            .padding(top = writerTop(bar))
             .padding(start = pad, end = pad, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
@@ -345,9 +367,8 @@ private fun WriteForm(
             },
         )
     }
-    }
         // Leaving keeps what's written: the draft is saved on the way out.
-        OrganicInlineBar(L10n.App.Nav.back, goBack, title = model.title, scrolled = scroll.scrolledPast20())
+        if (bar) OrganicInlineBar(L10n.App.Nav.back, goBack, title = model.title, scrolled = scroll.scrolledPast20())
     }
 
     if (confirmingLeave) OrganicConfirmDialog(
@@ -355,10 +376,15 @@ private fun WriteForm(
         body = if (model.isPublished) L10n.Write.leaveBodyRevision else L10n.Write.leaveBody,
         cancelLabel = L10n.Write.leaveStay,
         confirmLabel = L10n.Write.leaveConfirm,
-        onCancel = { confirmingLeave = false },
+        onCancel = {
+            confirmingLeave = false
+            leaveThen = null
+        },
         onConfirm = {
             confirmingLeave = false
-            leave()
+            val then = leaveThen
+            leaveThen = null
+            if (then != null) then() else leave()
         },
     )
 
@@ -663,8 +689,42 @@ internal fun publishError(e: Exception, updating: Boolean): String = when {
 internal fun anonymousVisibility(visibility: String, anonymous: Boolean): String =
     if (anonymous && visibility == "connections") "public" else visibility
 
-/** The editor pane's leading edge beside the map: a 1-wide line in the fields' border ink, from the bar's pen line down. */
-private fun Modifier.editorBoundary(barBottom: Dp): Modifier = drawBehind {
-    val top = (barBottom - (1.4f + Tokens.Ink.value).dp).toPx()
-    drawLine(Tokens.FieldBorder, Offset(0.5f, top), Offset(0.5f, size.height), strokeWidth = 1.dp.toPx())
+/** Where the writer's content starts: under its bar, or in the workspace's pane (no bar there) under the status bar. */
+@Composable
+private fun writerTop(bar: Boolean): Dp =
+    if (bar) inlineBarTop() else WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+/**
+ * How the split workspace reaches the writer in its editor pane (round 5 E5): what it holds, and
+ * its own ways to save, to put the keyboard away and to ask before leaving written work (the
+ * writer's leave dialog, whose confirm runs the workspace's leave). Empty while the pane's card is
+ * still being read.
+ */
+@Stable
+class WriterHandle {
+    private var hasWork: () -> Boolean = { false }
+    private var save: suspend () -> Unit = {}
+    private var keyboard: () -> Unit = {}
+    private var ask: ((() -> Unit) -> Unit)? = null
+
+    val holdsWork: Boolean get() = hasWork()
+    suspend fun saveNow() = save()
+    fun releaseKeyboard() = keyboard()
+
+    /** Asks, as the writer's back does, then [then] on a confirm; with no writer in the pane, [then] at once. */
+    fun askToLeave(then: () -> Unit) = ask?.invoke(then) ?: then()
+
+    internal fun attach(hasWork: () -> Boolean, saveNow: suspend () -> Unit, releaseKeyboard: () -> Unit, askToLeave: (() -> Unit) -> Unit) {
+        this.hasWork = hasWork
+        save = { saveNow() }
+        keyboard = releaseKeyboard
+        ask = askToLeave
+    }
+
+    internal fun detach() {
+        hasWork = { false }
+        save = {}
+        keyboard = {}
+        ask = null
+    }
 }

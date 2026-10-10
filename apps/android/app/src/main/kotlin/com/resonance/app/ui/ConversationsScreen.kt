@@ -1,5 +1,7 @@
 package com.resonance.app.ui
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -65,7 +67,16 @@ fun ConversationsScreen(session: Session, open: (Route) -> Unit) {
     // Beside the thread pane, the pane says there is nothing yet; the list stays empty.
     val twoPane = LocalTwoPane.current
     val chosen = LocalSelectedThread.current
-    TabScreen(L10n.App.Nav.messages, titleInBar = true) {
+    val list = rememberLazyListState()
+    // A conversation put in the pane from elsewhere (a bell, a push, a profile: round 5 E3) brings its row into view.
+    LaunchedEffect(twoPane, chosen?.contentKey, state.loaded) {
+        val thread = chosen?.takeIf { twoPane } ?: return@LaunchedEffect
+        val index = rowIndex(state.conversations.map { it.other }, state.starters) { thread.isWith(it) } ?: return@LaunchedEffect
+        val key = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+        val end = list.layoutInfo.viewportEndOffset
+        if (key == null || key.offset < 0 || key.offset + key.size > end) list.animateScrollToItem(index)
+    }
+    TabScreen(L10n.App.Nav.messages, titleInBar = true, tabletAir = false, list = list) {
         if (state.loaded && state.conversations.isEmpty() && state.starters.isEmpty() && !twoPane) {
             // Nothing yet: the shared empty state, in the middle of the room between the bar and the tab bar.
             item {
@@ -112,6 +123,15 @@ internal fun rowTime(date: Date, today: LocalDate = LocalDate.now()): String {
         "M/d"
     }
     return zoned.format(DateTimeFormatter.ofPattern(pattern, locale))
+}
+
+/**
+ * Where [person]'s row is in the list: among the conversations, or among the people to start one
+ * with, after their section's label; null when neither has them.
+ */
+internal fun <T> rowIndex(conversations: List<T>, starters: List<T>, isThem: (T) -> Boolean): Int? {
+    conversations.indexOfFirst(isThem).takeIf { it >= 0 }?.let { return it }
+    return starters.indexOfFirst(isThem).takeIf { it >= 0 }?.let { conversations.size + 1 + it }
 }
 
 /** Whether this pane's thread is the conversation with [person] (by uid when the route knows it). */
