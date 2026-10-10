@@ -110,6 +110,21 @@ public struct HandDrawnAvatar: View {
         self.seed = seed
     }
 
+    /// The initials' type size as a share of the avatar (the web's initialsScale): 0.35, unless the
+    /// letters would run wider than 0.56 of it (a wide character counted as an em, any other as
+    /// 0.62) — two Chinese characters at 0.35 met the outline's curve with no paper beside them.
+    public static func initialsScale(_ initials: String) -> CGFloat {
+        let ems = initials.unicodeScalars.reduce(CGFloat(0)) { $0 + (isWide($1.value) ? 1 : 0.62) }
+        return ems > 0 ? min(0.35, 0.56 / ems) : 0.35
+    }
+
+    /// A character drawn a full em wide: CJK ideographs, kana, hangul, fullwidth forms.
+    private static func isWide(_ cp: UInt32) -> Bool {
+        (0x1100...0x115F).contains(cp) || (0x2E80...0xA4CF).contains(cp) || (0xAC00...0xD7A3).contains(cp)
+            || (0xF900...0xFAFF).contains(cp) || (0xFE30...0xFE4F).contains(cp) || (0xFF00...0xFF60).contains(cp)
+            || (0xFFE0...0xFFE6).contains(cp) || cp >= 0x20000
+    }
+
     /// AVATAR_WOB: one lopsided turn per side, corners that drift (6% of the
     /// size), and the same curve for the fill, the photo's clip and the rim.
     public var body: some View {
@@ -118,7 +133,7 @@ public struct HandDrawnAvatar: View {
         ZStack {
             shape.fill(color)
             Text(initials)
-                .font(AppFonts.body(size * 0.35, weight: .bold))
+                .font(AppFonts.body(size * Self.initialsScale(initials), weight: .bold))
                 .foregroundStyle(Tokens.text)
             if let imageURL {
                 OrganicAvatarPhoto(url: imageURL).clipShape(shape)

@@ -35,6 +35,32 @@ export function avatarWobPath(size: number, seed = 1): string {
   });
 }
 
+/** A character drawn a full em wide: CJK ideographs, kana, hangul, fullwidth forms. */
+function isWide(cp: number): boolean {
+  return (
+    (cp >= 0x1100 && cp <= 0x115f) ||
+    (cp >= 0x2e80 && cp <= 0xa4cf) ||
+    (cp >= 0xac00 && cp <= 0xd7a3) ||
+    (cp >= 0xf900 && cp <= 0xfaff) ||
+    (cp >= 0xfe30 && cp <= 0xfe4f) ||
+    (cp >= 0xff00 && cp <= 0xff60) ||
+    (cp >= 0xffe0 && cp <= 0xffe6) ||
+    cp >= 0x20000
+  );
+}
+
+/**
+ * The initials' type size as a share of the avatar: 0.35, unless the letters would run wider
+ * than 0.56 of it (a wide character counted as an em, any other as 0.62) — two Chinese
+ * characters at 0.35 met the outline's curve with no paper beside them. The apps' twins
+ * (Android HandDrawnAvatar, iOS HandDrawnAvatar) follow the same rule.
+ */
+export function initialsScale(initials: string): number {
+  let ems = 0;
+  for (const ch of initials) ems += isWide(ch.codePointAt(0)!) ? 1 : 0.62;
+  return ems > 0 ? Math.min(0.35, 0.56 / ems) : 0.35;
+}
+
 export function HandDrawnAvatar({
   initials = '?',
   src,
@@ -117,7 +143,7 @@ export function HandDrawnAvatar({
               justifyContent: 'center',
               fontFamily: 'var(--font-body)',
               fontWeight: 700,
-              fontSize: size * 0.35,
+              fontSize: size * initialsScale(initials),
               color: 'var(--color-text)',
               userSelect: 'none',
             }}

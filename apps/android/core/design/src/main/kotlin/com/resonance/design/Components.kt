@@ -210,6 +210,27 @@ fun autoSeed(s: String): Double {
     return (Math.abs(hash) % 9973 + 1).toDouble()
 }
 
+/** A character drawn a full em wide: CJK ideographs, kana, hangul, fullwidth forms. */
+private fun isWide(cp: Int): Boolean =
+    cp in 0x1100..0x115F || cp in 0x2E80..0xA4CF || cp in 0xAC00..0xD7A3 || cp in 0xF900..0xFAFF ||
+        cp in 0xFE30..0xFE4F || cp in 0xFF00..0xFF60 || cp in 0xFFE0..0xFFE6 || cp >= 0x20000
+
+/**
+ * The initials' type size as a share of the avatar (the web's initialsScale): 0.35, unless the
+ * letters would run wider than 0.56 of it (a wide character counted as an em, any other as
+ * 0.62) — two Chinese characters at 0.35 met the outline's curve with no paper beside them.
+ */
+fun initialsScale(initials: String): Float {
+    var ems = 0f
+    var i = 0
+    while (i < initials.length) {
+        val cp = initials.codePointAt(i)
+        ems += if (isWide(cp)) 1f else 0.62f
+        i += Character.charCount(cp)
+    }
+    return if (ems > 0f) minOf(0.35f, 0.56f / ems) else 0.35f
+}
+
 /**
  * HandDrawnAvatar: a lopsided rounded square — one turn per side, corners
  * jittered and shifted (AVATAR_WOB) — filled with the person's color and
@@ -237,7 +258,7 @@ fun HandDrawnAvatar(initials: String, imageUrl: String? = null, color: Color = T
             },
         contentAlignment = Alignment.Center,
     ) {
-        BasicText(initials, style = AppFonts.body(size.value * 0.35f, 700, lineHeight = 1f))
+        BasicText(initials, style = AppFonts.body(size.value * initialsScale(initials), 700, lineHeight = 1f))
         if (imageUrl != null) {
             AsyncImage(model = imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.size(size).clip(shape))
