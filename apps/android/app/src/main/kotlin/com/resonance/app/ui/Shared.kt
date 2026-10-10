@@ -160,11 +160,7 @@ fun Author.avatarSeedValue(): Double = avatarSeed?.toDoubleOrNull() ?: ((initial
 fun seedOr(avatarSeed: String?, fallback: Double): Double = avatarSeed?.toDoubleOrNull()?.takeIf { it != 0.0 && it.isFinite() } ?: fallback
 fun Author.accent() = OklchColor.parse(accentColor) ?: Tokens.TerracottaLight
 
-/** "Sep 28" / "9月28日" in the interface language. */
-fun shortDate(iso: String?): String? = iso?.let {
-    runCatching { OffsetDateTime.parse(it).format(DateTimeFormatter.ofPattern(if (Strings.language == Strings.Language.ZhTW) "M月d日" else "MMM d", Strings.language.locale)) }.getOrNull()
-}
-
+/** "Oct 10, 2026" / "2026年10月10日" in the interface language (the web's publishedDate). */
 fun mediumDate(iso: String?): String? = iso?.let {
     runCatching { OffsetDateTime.parse(it).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Strings.language.locale)) }.getOrNull()
 }

@@ -58,6 +58,8 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import com.resonance.design.OrganicIcon
+import com.resonance.design.SquareFlag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -477,7 +479,7 @@ private fun CardPreview(card: FeedCard, columns: CardPageColumns, openAuthor: (S
     }
 }
 
-/** The phone byline: avatar, pen name (→ their page), verified mark, region · date. */
+/** The phone byline: avatar, pen name (→ their page), region flag, verified mark; the published date under them. */
 @Composable
 private fun Byline(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> Unit) {
     val author = card.author
@@ -488,20 +490,30 @@ private fun Byline(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> U
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (author != null && !anonymous) {
                     BasicText(author.handle, style = AppFonts.body(16f, 600), modifier = Modifier.plainClickable { openAuthor(author.handle) })
+                    AuthorRegionFlag(author.region, 14.dp)
                     if (author.verified) OrganicIcon(IconName.Verified, Modifier.semantics { contentDescription = L10n.Card.verified }, size = 14.dp, color = Tokens.Sage, strokeWidth = 1.8f)
                 } else {
                     BasicText(L10n.Card.anonymousAuthor, style = AppFonts.body(16f, 600, color = Tokens.TextMuted))
                 }
             }
-            val sub = listOfNotNull(if (anonymous) null else author?.region, shortDate(card.publishedAt)).joinToString(" · ")
-            BasicText(sub, style = AppFonts.body(13f, color = Tokens.TextMuted))
+            mediumDate(card.publishedAt)?.let { BasicText(it, style = AppFonts.body(13f, color = Tokens.TextMuted)) }
         }
     }
 }
 
 /**
+ * The author's region as a small square flag right after the pen name (the web's AuthorRegionFlag):
+ * a quiet mark, not a line of its own, its name read out by TalkBack; nothing without flag art.
+ */
+@Composable
+private fun AuthorRegionFlag(region: String?, size: Dp) {
+    val code = region?.let(Regions::flagCode) ?: return
+    Box(Modifier.clearAndSetSemantics { contentDescription = Regions.label(region) }) { SquareFlag(code, size) }
+}
+
+/**
  * The web's CardAuthorAside, on an expanded window's rail: the avatar 56, 12 under it the pen name
- * (→ their page) with its verified mark, then region · date, 4 apart. An anonymous card shows its
+ * (→ their page) with its region's flag and verified mark, then the published date, 4 apart. An anonymous card shows its
  * dot and "anonymous", no link — and to its owner the note that only they see it's theirs. Like
  * the web's sticky aside it stays 24 under the bar while the article scrolls, and goes up with
  * the article's end.
@@ -537,13 +549,13 @@ private fun AuthorRail(card: FeedCard, anonymous: Boolean, isOwner: Boolean, x: 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             if (named) {
                 BasicText(author!!.handle, style = AppFonts.body(16f, 600), modifier = Modifier.plainClickable { openAuthor(author.handle) })
+                AuthorRegionFlag(author.region, 15.dp)
                 if (author.verified) OrganicIcon(IconName.Verified, Modifier.semantics { contentDescription = L10n.Card.verified }, size = 14.dp, color = Tokens.Sage, strokeWidth = 1.8f)
             } else {
                 BasicText(L10n.Card.anonymousAuthor, style = AppFonts.body(16f, 600, color = Tokens.TextMuted))
             }
         }
-        val sub = listOfNotNull(if (anonymous) null else author?.region, shortDate(card.publishedAt)).joinToString(" · ")
-        if (sub.isNotEmpty()) BasicText(sub, style = AppFonts.body(13f, color = Tokens.TextMuted))
+        mediumDate(card.publishedAt)?.let { BasicText(it, style = AppFonts.body(13f, color = Tokens.TextMuted)) }
         if (anonymous && isOwner) BasicText(L10n.Card.anonymousOwnerNote, style = AppFonts.body(14f, lineHeight = 1.6f, color = Tokens.TextMuted))
     }
 }

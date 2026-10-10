@@ -28,3 +28,24 @@ export function regionFlag(region: string): string {
   if (!/^[A-Z]{2}$/.test(code)) return '';
   return String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
 }
+
+/** The square flags vendored in `public/flags/` (the apps bundle the same set). */
+const SQUARE_FLAGS = new Set(['tw', 'jp', 'us', 'kr', 'hk', 'gb']);
+
+/** Region values written before profiles took ISO codes only, as the code they meant. */
+const REGION_ALIASES: Record<string, string> = { UK: 'GB' };
+
+/**
+ * The ISO code a stored region stands for (an older `UK` is `GB`), so it names
+ * and flags the same as one chosen today.
+ */
+export function regionCode(region: string): string {
+  const code = region.trim().toUpperCase();
+  return REGION_ALIASES[code] ?? code;
+}
+
+/** The square flag's file code (`public/flags/{code}.svg`) for a region, or null when none is vendored. */
+export function squareFlagCode(region: string): string | null {
+  const code = regionCode(region).toLowerCase();
+  return SQUARE_FLAGS.has(code) ? code : null;
+}

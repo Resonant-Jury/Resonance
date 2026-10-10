@@ -109,14 +109,14 @@ export default function MyCardBoxPage() {
               })}
             </p>
           )}
-          {/* Wide: the way to the profile settings says what it is, with the profile's own lines —
-              a labelled tonal button under them, not a lone glyph at the far end (B5). */}
-          <div className={styles.editWide}>
-            <OrganicButton variant="tonal" size="sm" onClick={() => router.push('/settings')}>
-              <Icon name="user" size={16} />
-              {t('editProfile')}
-            </OrganicButton>
-          </div>
+        </div>
+        {/* Wide: the way to the profile settings says what it is — a labelled tonal button at the
+            identity row's end, beside the profile's lines rather than under them (B5). */}
+        <div className={styles.editWide}>
+          <OrganicButton variant="tonal" size="sm" onClick={() => router.push('/settings')}>
+            <Icon name="user" size={16} />
+            {t('editProfile')}
+          </OrganicButton>
         </div>
         {/* Phone: the identity row ends on a bare glyph on the page's paper, as in the apps, its name
             in its tooltip — the person, not the pen (the pen means writing). */}

@@ -14,7 +14,7 @@ import { WriteEntry } from './WriteEntry';
 import { AppMobileNavModal } from './AppMobileNavModal';
 import { Subnavbar } from './Subnavbar';
 import { HeaderBar } from './HeaderBar';
-import { HeaderChrome, HEADER_BODY_H, HEADER_TOTAL_H } from './HeaderChrome';
+import { HeaderChrome, HEADER_BODY_H, HEADER_OVERLAY_ID, HEADER_TOTAL_H } from './HeaderChrome';
 import styles from './AppHeader.module.css';
 
 export interface AppHeaderProps {
@@ -85,6 +85,7 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
     // and the thread's own header (back + person) takes over.
     <header className={styles.header} style={{ height: HEADER_TOTAL_H }} data-on-thread={onThread || undefined}>
       <HeaderChrome scrolled={scrolled} splitPen={onMessages} />
+      <div id={HEADER_OVERLAY_ID} className={styles.overlay} />
 
       <div className={styles.row} style={{ height: HEADER_BODY_H }}>
         <Link href="/home" className={styles.logo}>

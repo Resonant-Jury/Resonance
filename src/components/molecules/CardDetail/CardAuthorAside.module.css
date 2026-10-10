@@ -37,9 +37,13 @@
   text-decoration: none;
 }
 
-.region {
+.date {
   font-size: 13px;
   color: var(--color-text-muted);
+}
+
+.bio + .date {
+  margin-top: 4px;
 }
 
 .bio {

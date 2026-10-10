@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRef } from 'react';
 import { render } from '@testing-library/react';
+import { HEADER_OVERLAY_ID } from '@/components/sections/AppHeader/HeaderChrome';
 import { ReadingProgress, readingProgress } from './ReadingProgress';
 
 describe('readingProgress', () => {
@@ -70,5 +71,24 @@ describe('ReadingProgress', () => {
     expect(svg).toMatch(
       /filter:\s*drop-shadow\(0 0 var\(--reading-progress-glow\) color-mix\(in oklch, var\(--reading-progress\) 55%, transparent\)\)/,
     );
+  });
+
+  it('draws in the header’s overlay layer when the header has one, under its avatar menu', () => {
+    const overlay = document.createElement('div');
+    overlay.id = HEADER_OVERLAY_ID;
+    document.body.appendChild(overlay);
+    function Page() {
+      const ref = useRef<HTMLDivElement>(null);
+      return (
+        <>
+          <ReadingProgress targetRef={ref} />
+          <div ref={ref}>story</div>
+        </>
+      );
+    }
+    const { container } = render(<Page />);
+    expect(overlay.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+    expect(container.textContent).toBe('story');
+    overlay.remove();
   });
 });

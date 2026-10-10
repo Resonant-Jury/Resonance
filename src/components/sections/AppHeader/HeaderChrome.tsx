@@ -15,6 +15,12 @@ export const HEADER_STROKE_Y = HEADER_BODY_H + HEADER_WAVE_H * 0.35;
 
 /** The width the bar's paper and pen line are drawn at, stretched across the bar. */
 export const HEADER_DRAW_W = 1440;
+/**
+ * The header's overlay layer (AppHeader): over its paper and pen line, under its row — and so under the
+ * avatar's menu, which drops from the row. A page draws on the bar's line here (the card page's reading
+ * progress), never as a layer of its own over the whole header.
+ */
+export const HEADER_OVERLAY_ID = 'app-header-overlay';
 
 /**
  * The points of the bar's pen line on its {@link HEADER_DRAW_W}-wide drawing

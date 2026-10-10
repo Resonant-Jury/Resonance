@@ -94,8 +94,20 @@ enum ProfileRegion: String, CaseIterable {
     /// "TW" → "台灣" in the reader's language (its SquareFlag is drawn beside it); free text stays as it is.
     static func label(_ region: String) -> String {
         guard region.count == 2, region.allSatisfy(\.isLetter) else { return region }
-        let code = region.uppercased()
+        let code = code(region)
         return Strings.shared.locale.localizedString(forRegionCode: code) ?? code
+    }
+
+    /// The ISO code a stored region stands for: an older `UK` is `GB` (the web's regionCode).
+    static func code(_ region: String) -> String {
+        let code = region.trimmingCharacters(in: .whitespaces).uppercased()
+        return code == "UK" ? "GB" : code
+    }
+
+    /// The region's SquareFlag code, or nil when the app has no flag art for it (the web's squareFlagCode).
+    static func flagCode(_ region: String) -> String? {
+        let code = code(region).lowercased()
+        return code.count == 2 && SquareFlag.has(code) ? code : nil
     }
 }
 

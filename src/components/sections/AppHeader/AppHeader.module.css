@@ -7,6 +7,14 @@
   pointer-events: none;
 }
 
+/* HEADER_OVERLAY_ID: a page's marks on the bar's line. No z-index, so the row (and the avatar's menu
+   dropping from it) still paints over whatever is drawn here. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 .row {
   position: relative;
   display: flex;

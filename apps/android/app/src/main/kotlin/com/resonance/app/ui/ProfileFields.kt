@@ -199,9 +199,15 @@ object Regions {
 
     /** "TW" → "台灣" in the interface language (its SquareFlag is drawn beside it); free text stays as it is. */
     fun label(region: String): String {
-        val code = region.uppercase().takeIf { c -> c.length == 2 && c.all { it in 'A'..'Z' } } ?: return region
+        val code = code(region).takeIf { c -> c.length == 2 && c.all { it in 'A'..'Z' } } ?: return region
         return runCatching { displayName(code) }.getOrNull()?.takeIf { it.isNotBlank() } ?: code
     }
+
+    /** The ISO code a stored region stands for: an older `UK` is `GB` (the web's regionCode). */
+    fun code(region: String): String = region.trim().uppercase().let { if (it == "UK") "GB" else it }
+
+    /** The region's SquareFlag code, or null when the app has no flag art for it (the web's squareFlagCode). */
+    fun flagCode(region: String): String? = code(region).lowercase().takeIf { it.length == 2 && hasSquareFlag(it) }
 
     /**
      * The region's name; Hong Kong and Macau by their short one (香港, not the full

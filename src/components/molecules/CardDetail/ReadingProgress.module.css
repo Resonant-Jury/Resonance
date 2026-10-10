@@ -9,6 +9,13 @@
   pointer-events: none;
 }
 
+/* In the header's overlay layer: over its pen line, under its row and the avatar's menu. */
+.inHeader {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* The marker's soft glow, in its own colour at 55 % behind the line (on the
    svg, which holds the marker alone: a filter on an SVG child isn't drawn by
    every engine). */
