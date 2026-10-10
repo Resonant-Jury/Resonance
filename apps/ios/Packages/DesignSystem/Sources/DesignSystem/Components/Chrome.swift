@@ -82,7 +82,7 @@ public struct OrganicTabBar<ID: Hashable>: View {
     }
 }
 
-/// A tab as the bar and the rail draw it: the glyph over its label, the chosen one inked terracotta
+/// A tab as the bar draws it: the glyph over its label, the chosen one inked terracotta
 /// on a wash cut like torn paper; under a pointer, the wash half-shown.
 struct OrganicTabButton<ID: Hashable>: View {
     let item: OrganicTabItem<ID>
@@ -125,97 +125,207 @@ struct OrganicTabButton<ID: Hashable>: View {
     }
 }
 
-/// The side rail (design §9): the tab bar stood on its end along the window's leading edge, for
-/// windows wide enough (medium and up) — the pen first, then the tabs in the bar's order, on cream
-/// that ends on a vertical pen line. The same items, selection and haptics as the bar.
-public struct OrganicSideRail<ID: Hashable>: View {
-    let items: [OrganicTabItem<ID>]
-    let selection: ID
-    let onSelect: (ID) -> Void
+/// What a page's bar leaves for the window's own chrome on a tablet (round 5 B2): from medium up the
+/// tab group sits on the window's centre line and the pen at its trailing end, drawn once above
+/// every stack (``OrganicTopTabs``, ``OrganicPenButton``), so a page's bar spans the whole width
+/// and keeps its leading content left of the group and its own actions 8 before the pen. Nil on a
+/// phone (the bottom tab bar), in the writer and in a pane's own bar.
+public nonisolated struct HeaderChrome: Equatable, Sendable {
+    /// The tab group's width (measured where it is drawn).
+    public var groupWidth: CGFloat
+    /// The pen's room at the trailing end, and the 8 before it.
+    public var trailingReserve: CGFloat
 
-    public init(items: [OrganicTabItem<ID>], selection: ID, onSelect: @escaping (ID) -> Void) {
-        self.items = items
-        self.selection = selection
-        self.onSelect = onSelect
+    public init(groupWidth: CGFloat, trailingReserve: CGFloat = HeaderChrome.penReserve) {
+        self.groupWidth = groupWidth
+        self.trailingReserve = trailingReserve
     }
 
-    public var body: some View {
-        let pens = items.filter(\.isAction)
-        let tabs = Array(items.enumerated()).filter { !$0.element.isAction }
-        VStack(spacing: 0) {
-            // The pen's centre on the bars' content line (safe top + 26).
-            ForEach(pens) { item in
-                Button { onSelect(item.id) } label: {
-                    PenChip(icon: item.icon).frame(width: Tokens.sideRailW, height: 40).contentShape(Rectangle())
-                }
-                .buttonStyle(PenPressStyle())
-                .accessibilityLabel(item.title)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
-            }
-            .padding(.top, 6)
-            VStack(spacing: 4) {
-                ForEach(tabs, id: \.element.id) { index, item in
-                    OrganicTabButton(item: item, index: index, selected: item.id == selection) { onSelect(item.id) }
-                        .frame(width: Tokens.sideRailW, height: 64)
-                }
-            }
-            .padding(.top, 28)
-            Spacer(minLength: 0)
-        }
-        .frame(width: Tokens.sideRailW)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background { SideRailEdge() }
-        .sensoryFeedback(.selection, trigger: selection)
-        .accessibilityElement(children: .contain)
+    /// The header's row under the status bar (above its wave band).
+    public static let rowHeight: CGFloat = 56
+    /// The pen chip (56) and 8 before it.
+    public static let penReserve: CGFloat = 64
+    /// A pushed page's title is dropped when less than this is left for it beside the arrow.
+    public static let titleMin: CGFloat = 72
+
+    /// How wide the leading content may be in a window `width` wide: up to 16 short of the group,
+    /// `L = (W − G) / 2 − P − 16`.
+    public static func leadingRoom(width: CGFloat, groupWidth: CGFloat) -> CGFloat {
+        max(0, (width - groupWidth) / 2 - LayoutClass.pad(width) - 16)
+    }
+
+    /// The room the labelled group may take before it gives way to glyphs: `W − 2 × (P + 152)`.
+    public static func labelRoom(width: CGFloat) -> CGFloat {
+        max(0, width - 2 * (LayoutClass.pad(width) + 152))
     }
 }
 
-/// The rail's paper and its trailing edge: cream that stops on a vertical wavy pen line at half ink
-/// (nothing scrolls under the rail), reaching under the status bar, the home indicator and the
-/// leading safe area.
-struct SideRailEdge: View {
-    var body: some View {
-        ZStack {
-            SideRailEdgeShape(closed: true).fill(Tokens.cream)
-            SideRailEdgeShape(closed: false)
-                .stroke(Tokens.fieldBorderHover, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
-                .opacity(0.5)
+extension EnvironmentValues {
+    /// Set on every stack while the header carries the tabs (``HeaderChrome``).
+    @Entry public var headerChrome: HeaderChrome? = nil
+}
+
+/// The tablet header's tab group (round 5 B2, iPadOS 18's tabs at the top of the window): the four
+/// tabs in the bar's order on one hand-drawn capsule of the dialog's paper, the chosen one inked
+/// terracotta on the bar's torn-paper wash; with their words on a wide window when they fit,
+/// glyphs alone otherwise (their names kept for VoiceOver, the pointer's tooltip and the Large
+/// Content Viewer). The same items, selection and haptics as the bar; the pen is drawn apart.
+public struct OrganicTopTabs<ID: Hashable>: View {
+    let items: [OrganicTabItem<ID>]
+    let selection: ID
+    let labels: Bool
+    let room: CGFloat
+    let label: String
+    let onSelect: (ID) -> Void
+    var onWidth: ((CGFloat) -> Void)?
+
+    /// `items`: the bar's list (the pen among them is left out); `labels`: words allowed (expanded);
+    /// `room`: the most the labelled group may take; `label`: the group's name for VoiceOver.
+    public init(items: [OrganicTabItem<ID>], selection: ID, labels: Bool, room: CGFloat, label: String,
+                onSelect: @escaping (ID) -> Void, onWidth: ((CGFloat) -> Void)? = nil) {
+        self.items = items
+        self.selection = selection
+        self.labels = labels
+        self.room = room
+        self.label = label
+        self.onSelect = onSelect
+        self.onWidth = onWidth
+    }
+
+    public var body: some View {
+        Group {
+            if labels {
+                ViewThatFits(in: .horizontal) {
+                    track(labelled: true)
+                    track(labelled: false)
+                }
+                .frame(width: max(room, 0))
+            } else {
+                track(labelled: false)
+            }
         }
-        .ignoresSafeArea(edges: [.top, .bottom, .leading])
+        .sensoryFeedback(.selection, trigger: selection)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
+    }
+
+    private func track(labelled: Bool) -> some View {
+        HStack(spacing: 2) {
+            ForEach(Array(items.enumerated()).filter { !$0.element.isAction }, id: \.element.id) { index, item in
+                TopTabButton(item: item, barIndex: index, selected: item.id == selection, labelled: labelled) { onSelect(item.id) }
+            }
+        }
+        .padding(4)
+        .frame(height: 40)
+        .background { TopTabsTrack() }
+        .fixedSize()
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth?($0) }
+    }
+}
+
+/// The group's capsule: `wobRect(G, 40, R 18, seed 233, mag 1.2, {segmentsH max(3, round(G / 80)),
+/// segmentsV 1, curve 1.3, cornerJitter 1.6, cornerOffset 1.6})` in the cream's darker shade with
+/// the dialog paper's grain; no pen line (a control is a filled shape).
+struct TopTabsTrack: View {
+    var body: some View {
+        let shape = TopTabsTrackShape()
+        ZStack {
+            shape.fill(Tokens.creamDark.opacity(0.7))
+            GrainLayer(shape: shape, mode: .tile, opacity: 0.3, tile: "grain-card")
+        }
         .accessibilityHidden(true)
     }
 }
 
-/// `wavyPoints` turned 90°: down the rail's trailing edge at x = width − 1.4 − INK, seed 227, a turn
-/// every 90 or so (at least six).
-nonisolated struct SideRailEdgeShape: Shape {
-    var closed: Bool
-
+nonisolated struct TopTabsTrackShape: Shape {
     func path(in rect: CGRect) -> Path {
-        let h = Double(rect.height)
-        guard h > 0 else { return Path() }
-        let x0 = Double(rect.maxX) - 1.4 - Double(Tokens.ink)
-        let steps = max(6, Int((h / 90).rounded()))
-        let pts = wavyPoints(h, y0: x0, amp: 1.4, seed: 227, steps: steps)
-            .map { CGPoint(x: $0.y, y: Double(rect.minY) + $0.x) }
-        var p = Path()
-        if closed {
-            p.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            p.addLine(to: pts[0])
-        } else {
-            p.move(to: pts[0])
+        let w = Double(rect.width)
+        return WobRectShape(radius: 18, seed: 233, mag: 1.2, options: WobRectOptions(
+            curve: 1.3, cornerJitter: 1.6, cornerOffset: 1.6,
+            segmentsH: .count(Double(max(3, Int((w / 80).rounded())))), segmentsV: .count(1)))
+            .path(in: rect)
+    }
+}
+
+/// The chosen tab's wash, fitted to its item: `wobRect(w, 32, R 12, seed, mag 3.2, {segmentsH w > 90 ? 3 : 2,
+/// segmentsV 1, curve 1.2, cornerJitter 3.6, cornerOffset 3})`.
+nonisolated struct TopTabWashShape: Shape {
+    let seed: Double
+    func path(in rect: CGRect) -> Path {
+        WobRectShape(radius: 12, seed: seed, mag: 3.2, options: WobRectOptions(
+            curve: 1.2, cornerJitter: 3.6, cornerOffset: 3, segmentsH: .count(rect.width > 90 ? 3 : 2), segmentsV: .count(1)))
+            .path(in: rect)
+    }
+}
+
+/// One tab of the header's group: glyph and words side by side (or the glyph alone, 48 wide), 32 tall.
+struct TopTabButton<ID: Hashable>: View {
+    let item: OrganicTabItem<ID>
+    let barIndex: Int
+    let selected: Bool
+    let labelled: Bool
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                OrganicIcon(item.icon, size: labelled ? 20 : 22, strokeWidth: Tokens.ink)
+                    .overlay(alignment: .topTrailing) {
+                        if item.badge > 0 { UnreadBadge(count: item.badge).offset(x: 8, y: -7) }
+                    }
+                if labelled {
+                    // The chosen weight's room kept either way, so choosing a tab never moves the others.
+                    ZStack {
+                        Text(item.title).font(AppFonts.body(14, weight: .semibold)).hidden()
+                        Text(item.title).font(AppFonts.body(14, weight: selected ? .semibold : .medium))
+                    }
+                    .lineLimit(1)
+                    .fixedSize()
+                }
+            }
+            .padding(.horizontal, labelled ? 14 : 0)
+            .frame(width: labelled ? nil : 48, height: 32)
+            .background {
+                TopTabWashShape(seed: Double(barIndex * 29 + 7))
+                    .fill(Tokens.terracottaLight.opacity(0.55))
+                    .opacity(selected ? 1 : hovered ? 0.45 : 0)
+                    .animation(.easeOut(duration: 0.16), value: selected)
+                    .animation(.easeOut(duration: 0.16), value: hovered)
+            }
+            .foregroundStyle(selected ? Tokens.terracotta : Tokens.textMuted)
+            .contentShape(Rectangle())
         }
-        for i in 1..<pts.count {
-            let a = pts[i - 1], b = pts[i]
-            let midY = (a.y + b.y) / 2
-            p.addCurve(to: b, control1: CGPoint(x: a.x, y: midY), control2: CGPoint(x: b.x, y: midY))
+        .buttonStyle(TabPressStyle())
+        .onHover { hovered = $0 }
+        .help(item.title)
+        .accessibilityLabel(item.badge > 0 ? "\(item.title), \(item.badge)" : item.title)
+        .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
+        .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
+    }
+}
+
+/// The pen on its own (the tablet header's trailing end): the bar's solid chip, 56 × 40.
+public struct OrganicPenButton: View {
+    let title: String
+    let icon: IconName
+    let action: () -> Void
+
+    public init(title: String, icon: IconName, action: @escaping () -> Void) {
+        self.title = title
+        self.icon = icon
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            PenChip(icon: icon).contentShape(Rectangle())
         }
-        if closed {
-            p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-            p.closeSubpath()
-        }
-        return p
+        .buttonStyle(PenPressStyle())
+        .help(title)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityShowsLargeContentViewer { Label { Text(title) } icon: { OrganicIcon(icon) } }
     }
 }
 
@@ -338,34 +448,74 @@ public struct OrganicBrandBar<Trailing: View>: View {
         self.trailing = trailing()
     }
 
+    @Environment(\.headerChrome) private var chrome
+    @Environment(\.window) private var window
+
     public var body: some View {
-        HStack(spacing: 10) {
-            // ResonanceIcon: the wave glyph in the accent, nudged down 7% to
-            // sit on the wordmark's visual centre.
-            OrganicIcon(.wave, size: 38, color: Tokens.terracotta, strokeWidth: Tokens.ink)
-                .offset(y: 38 * 0.07)
-            if let title {
-                Text(title)
-                    .font(AppFonts.heading(22))
-                    .tracking(-0.02 * 22)
-                    .lineLimit(1)
-                    .foregroundStyle(Tokens.text)
-                    .accessibilityAddTraits(.isHeader)
-            } else {
-                Text(verbatim: "Resonance")
-                    .font(AppFonts.heading(22))
-                    .tracking(-0.02 * 22)
-                    .foregroundStyle(Tokens.text)
+        if let chrome {
+            // A tablet's full-width header (round 5 B2): the lockup left of the window's tab group (the mark
+            // alone when the wordmark doesn't fit), the page's actions 8 before the window's pen.
+            HStack(spacing: 0) {
+                lockup
+                    .frame(maxWidth: HeaderChrome.leadingRoom(width: window.width, groupWidth: chrome.groupWidth), alignment: .leading)
+                Spacer(minLength: 12)
+                trailing
             }
-            Spacer(minLength: 12)
-            trailing
+            .frame(minHeight: HeaderChrome.rowHeight)
+            .padding(.leading, window.pad)
+            .padding(.trailing, window.pad + chrome.trailingReserve)
+            .padding(.bottom, HeaderEdge.height)
+            .background { HeaderEdge(scrolled: scrolled) }
+            .accessibilityElement(children: .contain)
+        } else {
+            HStack(spacing: 10) {
+                mark
+                words
+                Spacer(minLength: 12)
+                trailing
+            }
+            .frame(minHeight: 44)
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, HeaderEdge.height)
+            .background { HeaderEdge(scrolled: scrolled) }
+            .accessibilityElement(children: .contain)
         }
-        .frame(minHeight: 44)
-        .padding(.horizontal, 20)
-        .padding(.top, 4)
-        .padding(.bottom, HeaderEdge.height)
-        .background { HeaderEdge(scrolled: scrolled) }
-        .accessibilityElement(children: .contain)
+    }
+
+    /// ResonanceIcon: the wave glyph in the accent, nudged down 7% to sit on the wordmark's visual centre.
+    private var mark: some View {
+        OrganicIcon(.wave, size: 38, color: Tokens.terracotta, strokeWidth: Tokens.ink)
+            .offset(y: 38 * 0.07)
+    }
+
+    @ViewBuilder private var words: some View {
+        if let title {
+            Text(title)
+                .font(AppFonts.heading(22))
+                .tracking(-0.02 * 22)
+                .lineLimit(1)
+                .foregroundStyle(Tokens.text)
+                .accessibilityAddTraits(.isHeader)
+        } else {
+            Text(verbatim: "Resonance")
+                .font(AppFonts.heading(22))
+                .tracking(-0.02 * 22)
+                .foregroundStyle(Tokens.text)
+        }
+    }
+
+    /// The mark and the words in the room left of the tab group: a title truncates; the wordmark
+    /// that doesn't fit leaves the mark alone (named for VoiceOver).
+    @ViewBuilder private var lockup: some View {
+        if title != nil {
+            HStack(spacing: 10) { mark; words }
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { mark; words.fixedSize() }
+                mark.accessibilityElement().accessibilityLabel(Text(verbatim: "Resonance"))
+            }
+        }
     }
 }
 
@@ -446,33 +596,67 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
         return bar
     }
 
+    @Environment(\.headerChrome) private var chrome
+    @Environment(\.window) private var window
+
     public var body: some View {
-        HStack(spacing: 10) {
-            // The arrow's own 8pt pad sits in the gutter (margin-left −8 on the web).
-            if showsBack {
-                OrganicIconButton(.arrowRight, label: backLabel, size: 18, mirrored: true) { if let back { back() } else { dismiss() } }
-                    .padding(.leading, -13)
+        if let chrome {
+            // A tablet's full-width header (round 5 B2): the arrow and the title (or `leading`) left of the
+            // window's tab group, truncating — the title dropped when too little is left for it — and the
+            // page's actions 8 before the window's pen.
+            let room = HeaderChrome.leadingRoom(width: window.width, groupWidth: chrome.groupWidth)
+            HStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    arrow
+                    if room - (showsBack ? 41 : 0) >= HeaderChrome.titleMin { titleText }
+                    leading
+                }
+                .frame(maxWidth: room, alignment: .leading)
+                Spacer(minLength: 8)
+                HStack(spacing: 0) { trailing }
+                    .padding(.trailing, -12)
             }
-            if !title.isEmpty {
-                Text(title)
-                    .font(AppFonts.heading(22))
-                    .tracking(-0.02 * 22)
-                    .lineLimit(1)
-                    .foregroundStyle(Tokens.text)
-                    .accessibilityAddTraits(.isHeader)
+            .frame(minHeight: HeaderChrome.rowHeight)
+            .padding(.leading, window.pad + inset)
+            .padding(.trailing, window.pad + chrome.trailingReserve)
+            .padding(.bottom, HeaderEdge.height)
+            .background { HeaderEdge(scrolled: scrolled, progress: progress) }
+        } else {
+            HStack(spacing: 10) {
+                arrow
+                titleText
+                leading
+                Spacer(minLength: 8)
+                // Bare glyphs sit on the page's 20 margin, as the arrow does on the other side.
+                HStack(spacing: 0) { trailing }
+                    .padding(.trailing, -12)
             }
-            leading
-            Spacer(minLength: 8)
-            // Bare glyphs sit on the page's 20 margin, as the arrow does on the other side.
-            HStack(spacing: 0) { trailing }
-                .padding(.trailing, -12)
+            .frame(minHeight: 44)
+            .padding(.horizontal, 20)
+            .padding(.leading, inset)
+            .padding(.top, 4)
+            .padding(.bottom, HeaderEdge.height)
+            .background { HeaderEdge(scrolled: scrolled, progress: progress) }
         }
-        .frame(minHeight: 44)
-        .padding(.horizontal, 20)
-        .padding(.leading, inset)
-        .padding(.top, 4)
-        .padding(.bottom, HeaderEdge.height)
-        .background { HeaderEdge(scrolled: scrolled, progress: progress) }
+    }
+
+    /// The arrow's own 8pt pad sits in the gutter (margin-left −8 on the web).
+    @ViewBuilder private var arrow: some View {
+        if showsBack {
+            OrganicIconButton(.arrowRight, label: backLabel, size: 18, mirrored: true) { if let back { back() } else { dismiss() } }
+                .padding(.leading, -13)
+        }
+    }
+
+    @ViewBuilder private var titleText: some View {
+        if !title.isEmpty {
+            Text(title)
+                .font(AppFonts.heading(22))
+                .tracking(-0.02 * 22)
+                .lineLimit(1)
+                .foregroundStyle(Tokens.text)
+                .accessibilityAddTraits(.isHeader)
+        }
     }
 }
 

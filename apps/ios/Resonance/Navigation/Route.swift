@@ -81,7 +81,8 @@ extension View {
             case let .settingsSection(section): SettingsSectionScreen(section: section)
             case let .thread(handle, uid, note): ThreadScreen(handle: handle, uid: uid, note: note)
             case .thoughtMap: ThoughtMapScreen()
-            case let .write(request): WriteScreen(request: request)
+            // The writer has its own bar and covers the header's tabs: it keeps no room for them.
+            case let .write(request): WriteScreen(request: request).environment(\.headerChrome, nil)
             }
         }
     }
