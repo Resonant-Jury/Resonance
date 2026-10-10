@@ -166,7 +166,7 @@ fun ReportDialog(
             OrganicToggle(alsoBlock, seed = 91.0)
         }
         if (error) ModalError(L10n.Safety.actionError)
-        ModalActions(L10n.Safety.cancel, onClose, if (busy) "…" else L10n.Safety.Report.submit, busy = busy, onVerb = {
+        ModalActions(L10n.Safety.cancel, onClose, L10n.Safety.Report.submit, busy = busy, onVerb = {
             scope.launch {
                 busy = true
                 error = false
@@ -217,7 +217,7 @@ fun AccountDeletionBanner(session: Session, date: OffsetDateTime) {
         BasicText(L10n.AccountDeletion.banner(mediumDate(date.toString()) ?: ""), style = AppFonts.body(14f, 600), modifier = Modifier.weight(1f))
         Spacer(Modifier.size(8.dp))
         // The banner has its own pen line, so its undo draws none (as on the web and iOS).
-        OrganicButton(if (busy) "…" else L10n.AccountDeletion.cancel, variant = ButtonVariant.Tonal, small = true, enabled = !busy) {
+        OrganicButton(L10n.AccountDeletion.cancel, variant = ButtonVariant.Tonal, small = true, loading = busy) {
             scope.launch {
                 busy = true
                 failed = false

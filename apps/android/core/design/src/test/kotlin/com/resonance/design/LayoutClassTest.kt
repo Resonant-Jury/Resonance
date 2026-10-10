@@ -14,9 +14,12 @@ class LayoutClassTest {
         assertEquals(LayoutClass.Medium, LayoutClass.of(600f))
         assertEquals(LayoutClass.Medium, LayoutClass.of(899f))
         assertEquals(LayoutClass.Expanded, LayoutClass.of(900f))
-        assertFalse(LayoutClass.Compact.sideRail)
-        assertTrue(LayoutClass.Medium.sideRail)
-        assertTrue(LayoutClass.Expanded.sideRail)
+        // The tabs move into the header from medium on; they carry their labels only when expanded.
+        assertFalse(LayoutClass.Compact.topTabs)
+        assertTrue(LayoutClass.Medium.topTabs)
+        assertTrue(LayoutClass.Expanded.topTabs)
+        assertFalse(LayoutClass.Medium.tabLabels)
+        assertTrue(LayoutClass.Expanded.tabLabels)
     }
 
     @Test fun theWriterSplitsFrom1200() {
@@ -48,34 +51,36 @@ class LayoutClassTest {
         assertEquals(256f, LayoutClass.columnInset(1192f, 48f), 1e-4f)
     }
 
-    @Test fun theWindowsGridAndRailFollowItsWidth() {
-        // Pixel Tablet: 800 portrait is medium (one column of bands); 1280 landscape, beside the rail, has three columns.
-        val portrait = WindowLayout(800.dp, railWidth = 88.dp)
+    @Test fun theWindowsGridFollowsItsWidth() {
+        // Pixel Tablet: 800 portrait is medium (one column of bands); 1280 landscape has three columns.
+        val portrait = WindowLayout(800.dp)
         assertEquals(LayoutClass.Medium, portrait.cls)
         assertEquals(1, portrait.feedColumns)
-        assertEquals(32f, portrait.columnInset().value, 1e-4f)
-        val landscape = WindowLayout(1280.dp, railWidth = 88.dp)
+        // The 680 reading column in the middle of 800.
+        assertEquals(60f, portrait.columnInset().value, 1e-4f)
+        val landscape = WindowLayout(1280.dp)
         assertEquals(LayoutClass.Expanded, landscape.cls)
-        assertEquals(1096f, landscape.gridWidth.value, 1e-3f)
+        assertEquals(1104f, landscape.gridWidth.value, 1e-3f)
         assertEquals(3, landscape.feedColumns)
         assertTrue(landscape.writerSplit)
-        // iPad Pro 13" portrait, for the record: 1032 − 88 − 2 × 41.28 is two columns.
-        assertEquals(2, WindowLayout(1032.dp, railWidth = 88.dp).feedColumns)
+        // iPad Pro 13" portrait, for the record: 1032 − 2 × 41.28 = 949 is two columns; 1376 landscape is three.
+        assertEquals(2, WindowLayout(1032.dp).feedColumns)
+        assertEquals(3, WindowLayout(1376.dp).feedColumns)
         // A phone has no inset column, whatever it measures.
         assertEquals(0f, WindowLayout.Phone.columnInset().value, 1e-4f)
     }
 
     @Test fun theCardPageHasItsRailOnlyWhenExpanded() {
         assertEquals(CardPageColumns(20.dp, 20.dp, null), WindowLayout(390.dp).cardPage())
-        // 800 beside the rail: 712 wide, a 760 column doesn't fit, so the pad's 32 each side.
-        assertEquals(CardPageColumns(32.dp, 32.dp, null), WindowLayout(800.dp, 88.dp).cardPage())
-        // 1280 beside the rail: 1192 content, 48 pad; the article 720 from 48, the rail at the box's end (48 + 1096 − 260).
-        val wide = WindowLayout(1280.dp, 88.dp).cardPage()
-        assertEquals(48f, wide.start.value, 1e-3f)
-        assertEquals(1192f - 48f - 720f, wide.end.value, 1e-3f)
-        assertEquals(884f, wide.railStart!!.value, 1e-3f)
-        // Just expanded (900 + rail): the article gives way to the rail and its 48.
-        val narrow = WindowLayout(988.dp, 88.dp).cardPage()
-        assertEquals(900f - 2 * 39.52f - 260f - 48f, 900f - narrow.start.value - narrow.end.value, 1e-2f)
+        // 800: a 760 column doesn't fit in 800 − 2 × 32, so the pad's 32 each side.
+        assertEquals(CardPageColumns(32.dp, 32.dp, null), WindowLayout(800.dp).cardPage())
+        // 1280: a 1200 box from 40, the pad 48 in it; the article 720 from 88, the rail at the box's end (88 + 1104 − 260).
+        val wide = WindowLayout(1280.dp).cardPage()
+        assertEquals(88f, wide.start.value, 1e-3f)
+        assertEquals(1280f - 88f - 720f, wide.end.value, 1e-3f)
+        assertEquals(932f, wide.railStart!!.value, 1e-3f)
+        // Just expanded (900): the article gives way to the rail and its 48.
+        val narrow = WindowLayout(900.dp).cardPage()
+        assertEquals(900f - 2 * 36f - 260f - 48f, 900f - narrow.start.value - narrow.end.value, 1e-2f)
     }
 }

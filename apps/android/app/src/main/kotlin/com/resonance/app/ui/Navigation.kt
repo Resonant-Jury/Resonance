@@ -10,11 +10,22 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Dp
 import androidx.navigation3.scene.SinglePaneSceneStrategy
+import com.resonance.design.HeaderChrome
+import com.resonance.design.InlineBarHeight
 import com.resonance.design.LayoutClass
+import com.resonance.design.LocalHeaderChrome
+import com.resonance.design.LocalInlineBarHeight
 import com.resonance.design.LocalWindowLayout
-import com.resonance.design.OrganicSideRail
+import com.resonance.design.TopBarRow
+import com.resonance.design.TopPen
+import com.resonance.design.TopTabs
+import com.resonance.design.TopTabsFit
 import com.resonance.design.WindowLayout
-import com.resonance.design.sideRailWidth
+import com.resonance.design.topTabWidths
+import com.resonance.design.topTabsOrder
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -324,10 +335,19 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     }
 
     // Ctrl-N / Cmd-N on a keyboard: a new card, over the current tab, as the pen does (not over a writer already open).
+    // Ctrl-1…4: Feed, Messages, Notifications, Card Box, as a tap on that tab.
     val currentStack by rememberUpdatedState(stack)
+    val pick = rememberUpdatedState<(Tab) -> Unit> { picked ->
+        if (picked == tab) stacks.getValue(tab).popToRoot()
+        tab = picked
+    }
     DisposableEffect(Unit) {
         KeyShortcuts.newCard = { if (currentStack.lastOrNull() !is Route.Write) currentStack.add(Route.Write()) }
-        onDispose { KeyShortcuts.newCard = null }
+        KeyShortcuts.tab = { n -> KeyTabs.getOrNull(n - 1)?.let { pick.value(it) } }
+        onDispose {
+            KeyShortcuts.newCard = null
+            KeyShortcuts.tab = null
+        }
     }
 
     val notifications by session.notifications.items.collectAsStateWithLifecycle()
@@ -357,18 +377,23 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
             tab = picked
         }
     }
-    // Medium and expanded windows: the side rail down the start edge on every page (the writer
-    // covers it); compact: the bottom bar on a tab's first page.
-    val rail = cls.sideRail
-    val railWidth = if (rail) sideRailWidth() else 0.dp
+    // Medium and expanded windows: the tabs in the middle of a full-width header and the pen at its
+    // end, over every page but the writer (design note B2); compact: the bottom bar on a tab's first page.
+    val topTabs = cls.topTabs
+    val tabs = topTabsOrder(tabItems)
+    val pad = LayoutClass.pad(windowWidth.value).dp
+    val labelled = topTabWidths(tabs.map { it.value.title }, labels = cls.tabLabels)
+    val labels = TopTabsFit.labels(cls, TopTabsFit.groupWidth(labelled.map { it.value }), windowWidth.value, pad.value)
+    val tabWidths = if (labels) labelled else topTabWidths(tabs.map { it.value.title }, labels = false)
+    val chrome = if (topTabs) HeaderChrome(windowWidth, TopTabsFit.groupWidth(tabWidths.map { it.value }).dp, pad, labels) else null
     val panes = remember(expanded, session) { listOf(MessagesPanesStrategy(expanded, session), SinglePaneSceneStrategy()) }
 
-    CompositionLocalProvider(LocalWindowLayout provides WindowLayout(windowWidth, railWidth), LocalRailInset provides railWidth) {
+    CompositionLocalProvider(LocalWindowLayout provides WindowLayout(windowWidth)) {
         Box(Modifier.fillMaxSize().cream()) {
             key(languageEpoch) {
                 val entries: Map<Tab, List<NavEntry<Route>>> = Tab.entries.associateWith { t ->
                     val own = stacks.getValue(t)
-                    rememberStackEntries(t, own) { route, onStack -> PageFrame(motion, onStack) { BesideRail(route) { Page(session, route, own) } } }
+                    rememberStackEntries(t, own) { route, onStack -> PageFrame(motion, onStack) { WithHeader(route, chrome) { Page(session, route, own) } } }
                 }
                 NavDisplay(
                     entries = entries.getValue(tab),
@@ -379,52 +404,71 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                     predictivePopTransitionSpec = motion.predictivePop,
                 )
             }
-            // The rail lies over the pages' start (they leave it room); the writer slides it away as it opens.
-            if (rail) RailSlot(shown = stack.lastOrNull() !is Route.Write, width = railWidth) {
-                OrganicSideRail(tabItems, selection = tab, onSelect = select)
+            // The header's tabs and pen lie over the pages' bars (which leave them room), still while pages
+            // move under them; the writer fades them away as it opens.
+            if (chrome != null) HeaderTabsSlot(shown = stack.lastOrNull() !is Route.Write) {
+                Box(Modifier.fillMaxWidth().statusBarsPadding().height(TopBarRow)) {
+                    TopTabs(tabs, tab, select, tabWidths, chrome.labels, L10n.App.Nav.main, Modifier.align(Alignment.Center))
+                    val pen = tabItems.first { it.isAction }
+                    TopPen(pen.title, pen.icon, { select(Tab.Write) }, Modifier.align(Alignment.CenterEnd).padding(end = pad))
+                }
             }
             // The undo banner floats above the tab bar (or the bottom edge on pushed screens) on every screen.
             deletionDate?.let { date ->
-                Box(Modifier.align(Alignment.BottomCenter).padding(start = railWidth).navigationBarsPadding().padding(bottom = if (!rail && stack.size == 1) 96.dp else 12.dp)) {
+                Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = if (!topTabs && stack.size == 1) 96.dp else 12.dp)) {
                     AccountDeletionBanner(session, date)
                 }
             }
-            if (!rail) TabBarSlot(stack.size == 1, Modifier.align(Alignment.BottomCenter)) {
+            if (!topTabs) TabBarSlot(stack.size == 1, Modifier.align(Alignment.BottomCenter)) {
                 OrganicTabBar(tabItems, selection = tab, onSelect = select)
             }
         }
     }
 }
 
-/** A page beside the side rail starts past it; the writer takes the whole window. */
+/**
+ * A page under the header's tabs (design note B2): its bar leaves them room ([chrome]) and is the
+ * root bars' 56 tall. The writer has the window to itself — no tabs over it, its bar as a phone's.
+ */
 @Composable
-private fun BesideRail(route: Route, page: @Composable () -> Unit) {
-    val inset = if (route is Route.Write) 0.dp else LocalRailInset.current
-    Box(Modifier.fillMaxSize().padding(start = inset)) { page() }
+private fun WithHeader(route: Route, chrome: HeaderChrome?, page: @Composable () -> Unit) {
+    val own = if (route is Route.Write) null else chrome
+    CompositionLocalProvider(
+        LocalHeaderChrome provides own,
+        LocalInlineBarHeight provides if (own != null) TopBarRow else InlineBarHeight,
+        content = page,
+    )
 }
 
 /**
- * Where the side rail is: in place on every page but the writer, which it slides out of the way
- * of (to the start, with the writer's push) and comes back with once the writer has gone.
+ * Where the header's tabs and pen are: in place over every page but the writer, which they fade
+ * from (160 ms) as it opens and come back with once it has gone. Gone, they are left unplaced
+ * (no touch, nothing read out).
  */
 @Composable
-private fun RailSlot(shown: Boolean, width: Dp, rail: @Composable () -> Unit) {
-    val hidden by animateFloatAsState(if (shown) 0f else 1f, tween(if (shown) PageMove.Pop.millis else PageMove.Push.millis, easing = PageMotionSpec.EmphasizedDecelerate), label = "rail")
-    val widthPx = with(LocalDensity.current) { width.toPx() }
+private fun HeaderTabsSlot(shown: Boolean, content: @Composable () -> Unit) {
+    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(HEADER_TABS_FADE_MILLIS, easing = LinearEasing), label = "headerTabs")
     Box(
-        Modifier.fillMaxHeight().layout { measurable, constraints ->
+        Modifier.fillMaxWidth().layout { measurable, constraints ->
             val placeable = measurable.measure(constraints)
             layout(placeable.width, placeable.height) {
-                if (hidden < 1f) placeable.placeWithLayer(0, 0) { translationX = -hidden * widthPx }
+                if (alpha > 0f) placeable.placeWithLayer(0, 0) { this.alpha = alpha }
             }
         },
-    ) { rail() }
+    ) { content() }
 }
+
+private const val HEADER_TABS_FADE_MILLIS = 160
+
+/** What Ctrl-1…4 choose, in the header's order. */
+private val KeyTabs = listOf(Tab.Feed, Tab.Messages, Tab.Notifications, Tab.CardBox)
 
 /** Keyboard shortcuts the activity hears before any screen: the screens say what they do. */
 object KeyShortcuts {
     /** Ctrl-N / Cmd-N: open the writer (set while the signed-in tabs are shown). */
     var newCard: (() -> Unit)? = null
+    /** Ctrl-1…4 / Cmd-1…4: choose that tab (1 the feed … 4 the card box), as a tap on it. */
+    var tab: ((Int) -> Unit)? = null
 }
 
 /**

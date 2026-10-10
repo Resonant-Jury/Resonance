@@ -74,7 +74,7 @@ import kotlin.math.min
  * GrainOverlay's mean darkening over the band — text and cover included —
  * and over a cover picture. Kept light: over the text it reads as sandpaper.
  */
-private object StoryGrain {
+internal object StoryGrain {
     const val Band = 0.045f
     const val Cover = 0.03f
 }
@@ -263,6 +263,10 @@ private fun BylineRule(seed: Double, color: Color) {
     })
 }
 
+/** The family a list gave the card ([CardPalette.palettes]), else its own preference. */
+private fun cardPalette(family: Int?, accentHue: Double?, position: Int): CardPalette =
+    if (family != null) CardPalette.of(family) else CardPalette(accentHue, position)
+
 /** A band's content inset on a phone: the page's 20 and the band's own 18. */
 val BandInset = 38.dp
 
@@ -274,8 +278,12 @@ val BandInset = 38.dp
  * side inset of the centred reading column, the paper still running edge to edge.
  */
 @Composable
-fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, isFirst: Boolean = false, inset: Dp = BandInset) {
-    val palette = CardPalette(content.accentHue, position)
+fun StoryCard(
+    content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, isFirst: Boolean = false, inset: Dp = BandInset,
+    /** The family its list gives it (CardPalette.palettes); null: its own preference. */
+    palette: Int? = null,
+) {
+    val palette = cardPalette(palette, content.accentHue, position)
     val seed = position * 77.0 + 13
     StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier, isFirst, inset) { StoryCardBody(content, palette, seed) }
 }
@@ -315,8 +323,8 @@ private fun ColumnScope.StoryCardBody(content: StoryCardContent, palette: CardPa
  * card's own hue.
  */
 @Composable
-fun StoryCardSkeleton(position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, isFirst: Boolean = false, inset: Dp = BandInset) {
-    val palette = CardPalette(null, position)
+fun StoryCardSkeleton(position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, isFirst: Boolean = false, inset: Dp = BandInset, palette: Int? = null) {
+    val palette = cardPalette(palette, null, position)
     val seed = position * 77.0 + 13
     WithSkeletonHue(palette.hue) {
         StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier.semantics { contentDescription = L10n.Home.moreLoading }, isFirst, inset) {
@@ -359,16 +367,16 @@ private fun ColumnScope.StoryCardSkeletonBody(palette: CardPalette, seed: Double
  * inside, 22 in. A pointer over it washes the paper a shade deeper (320 ms), as BrushWash does.
  */
 @Composable
-fun BorderedStoryCard(content: StoryCardContent, position: Int, modifier: Modifier = Modifier) {
-    val palette = CardPalette(content.accentHue, position)
+fun BorderedStoryCard(content: StoryCardContent, position: Int, modifier: Modifier = Modifier, palette: Int? = null) {
+    val palette = cardPalette(palette, content.accentHue, position)
     val seed = position * 77.0 + 13
     BorderedCardFrame(palette, seed, modifier) { StoryCardBody(content, palette, seed) }
 }
 
 /** [BorderedStoryCard] while its list is read: the same outline round shimmering blocks. */
 @Composable
-fun BorderedStoryCardSkeleton(position: Int, modifier: Modifier = Modifier) {
-    val palette = CardPalette(null, position)
+fun BorderedStoryCardSkeleton(position: Int, modifier: Modifier = Modifier, palette: Int? = null) {
+    val palette = cardPalette(palette, null, position)
     val seed = position * 77.0 + 13
     WithSkeletonHue(palette.hue) {
         BorderedCardFrame(palette, seed, modifier.semantics { contentDescription = L10n.Home.moreLoading }, hover = false) {
@@ -420,8 +428,8 @@ private const val BorderedCardGrain = 0.2f
  * picture), title, avatar and name. No tags, excerpt or read time.
  */
 @Composable
-fun MiniStoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, inset: Dp = BandInset) {
-    val palette = CardPalette(content.accentHue, position)
+fun MiniStoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, inset: Dp = BandInset, palette: Int? = null) {
+    val palette = cardPalette(palette, content.accentHue, position)
     val seed = position * 71.0 + 19
     val accent = content.authorAccent ?: palette.accent
     StoryBand(palette, seed + 17, isLast, 28.dp, 12.dp, modifier, inset = inset) {

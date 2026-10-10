@@ -34,10 +34,14 @@ import androidx.navigation3.scene.Scene
 import androidx.navigation3.scene.SceneStrategy
 import androidx.navigation3.scene.SceneStrategyScope
 import com.resonance.app.Session
-import com.resonance.design.BrandBarHeight
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.layout
 import com.resonance.design.HeaderEdgeHeight
 import com.resonance.design.LocalBarBackHidden
+import com.resonance.design.LocalHeaderChrome
 import com.resonance.design.LocalInlineBarHeight
+import com.resonance.design.TopBarRow
+import com.resonance.design.brandBarHeight
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.blocksTouches
 import com.resonance.design.cream
@@ -50,8 +54,11 @@ import com.resonance.kit.l10n.L10n
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** How far in a page starts at the window's start: the side rail's width beside it (0 for the writer, or in a pane). */
-internal val LocalRailInset = staticCompositionLocalOf { 0.dp }
+/**
+ * The conversations drawn as the list beside the thread pane: their list keeps to this width at
+ * the window's start, while their bar is the window's header across the whole width.
+ */
+internal val LocalListPane = staticCompositionLocalOf<Dp?> { null }
 
 /** The conversations are drawn beside a thread pane: a row picks the thread in place of the one shown. */
 internal val LocalTwoPane = staticCompositionLocalOf { false }
@@ -107,63 +114,74 @@ private class MessagesPanesScene(override val entries: List<NavEntry<Route>>, pr
     override fun hashCode() = entries.hashCode()
 }
 
-/** The list (its 300 beside the rail), 12, the wavy rule, 12, and the detail. */
+/**
+ * Under the window's header — the Messages root's bar across the whole width, its tabs and pen
+ * over it (design note B2) — the list (300), 12, the wavy rule, 12, and the detail. The list
+ * scrolls under the header; the detail starts under the header's wave, its thread keeping a bar
+ * of its own (no way back) whose messages scroll under it. The rule is drawn last, so it reads
+ * unbroken over the thread's bar.
+ */
 @Composable
 private fun MessagesPanes(entries: List<NavEntry<Route>>, session: Session) {
-    val rail = LocalRailInset.current
     val chosen = entries.getOrNull(1)?.route as? Route.Thread
     val detail = entries.drop(1).lastOrNull()
+    val status = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val header = brandBarHeight() + HeaderEdgeHeight
+    val listWidth = Tokens.MsgListW.dp
     Box(Modifier.fillMaxSize().cream()) {
-        Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(rail + Tokens.MsgListW.dp).fillMaxHeight()) {
-                CompositionLocalProvider(LocalTwoPane provides true, LocalSelectedThread provides chosen) { entries[0].Content() }
-            }
-            PaneRule(Modifier.width(PaneGap * 2).fillMaxHeight())
-            Box(Modifier.weight(1f).fillMaxHeight()) {
-                CompositionLocalProvider(LocalRailInset provides 0.dp, LocalInlineBarHeight provides BrandBarHeight, LocalTwoPane provides true) {
-                    AnimatedContent(
-                        detail,
-                        contentKey = { it?.contentKey },
-                        transitionSpec = { fadeIn(tween(PANE_FADE_MILLIS)) togetherWith fadeOut(tween(PANE_FADE_MILLIS)) },
-                        label = "detailPane",
-                    ) { entry ->
-                        if (entry == null) EmptyDetail(session)
-                        else CompositionLocalProvider(LocalBarBackHidden provides (entry.index == 1)) { entry.Content() }
-                    }
+        CompositionLocalProvider(LocalTwoPane provides true, LocalSelectedThread provides chosen, LocalListPane provides listWidth) { entries[0].Content() }
+        // The detail starts under the header's paper. Its pages still lay themselves out under a status
+        // bar (their bars pad for it): that much of them is drawn above the pane's top, and clipped.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(start = listWidth + PaneGap * 2, top = status + header)
+                .clipToBounds()
+                .layout { measurable, constraints ->
+                    val lift = status.roundToPx()
+                    val placeable = measurable.measure(constraints.copy(minHeight = constraints.minHeight + lift, maxHeight = constraints.maxHeight + lift))
+                    layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(0, -lift) }
+                },
+        ) {
+            // A pane's bar is a phone's bar (nothing of the header's to keep clear of), the header's row tall.
+            CompositionLocalProvider(LocalHeaderChrome provides null, LocalInlineBarHeight provides TopBarRow, LocalTwoPane provides true) {
+                AnimatedContent(
+                    detail,
+                    contentKey = { it?.contentKey },
+                    transitionSpec = { fadeIn(tween(PANE_FADE_MILLIS)) togetherWith fadeOut(tween(PANE_FADE_MILLIS)) },
+                    label = "detailPane",
+                ) { entry ->
+                    if (entry == null) EmptyDetail(session)
+                    else CompositionLocalProvider(LocalBarBackHidden provides (entry.index == 1)) { entry.Content() }
                 }
             }
         }
+        PaneRule(Modifier.padding(start = listWidth, top = status + header + PaneGap).width(PaneGap * 2).fillMaxHeight())
     }
 }
 
-/** The pane with nothing chosen: the bar's paper, and the empty state — pick a conversation, or none yet. */
+/** The pane with nothing chosen: the empty state in its middle — pick a conversation, or none yet. */
 @Composable
 private fun EmptyDetail(session: Session) {
     val state by session.conversations.state.collectAsStateWithLifecycle()
     val none = state.loaded && state.conversations.isEmpty() && state.starters.isEmpty()
-    Box(Modifier.fillMaxSize().cream()) {
-        val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight
-        Box(Modifier.fillMaxSize().padding(top = top)) {
-            if (none) OrganicEmptyState(L10n.Messages.empty, title = L10n.Messages.emptyTitle, icon = IconName.Chat, seed = 23.0, fill = true)
-            else if (state.loaded) OrganicEmptyState(L10n.Messages.pickOne, icon = IconName.Chat, seed = 23.0, fill = true)
-        }
-        Box(Modifier.fillMaxWidth().blocksTouches().headerEdge({ 0.5f }).statusBarsPadding().padding(bottom = HeaderEdgeHeight).height(BrandBarHeight))
+    Box(Modifier.fillMaxSize().cream().padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())) {
+        if (none) OrganicEmptyState(L10n.Messages.empty, title = L10n.Messages.emptyTitle, icon = IconName.Chat, seed = 23.0, fill = true)
+        else if (state.loaded) OrganicEmptyState(L10n.Messages.pickOne, icon = IconName.Chat, seed = 23.0, fill = true)
     }
 }
 
 /**
  * The web's rule between the conversations and the thread (MessagesPage `vRule`): a wavy pen
- * line down the gap from the bars' pen line, seed 71, a turn every 34, in the fields' border ink at
- * 35 %. Decoration only.
+ * line down the gap from 12 under the header, seed 71, a turn every 34, in the fields' border ink
+ * at 35 %. Decoration only.
  */
 @Composable
 private fun PaneRule(modifier: Modifier) {
-    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight - (1.4f + Tokens.Ink.value).dp
     Box(
         modifier.clearAndSetSemantics { }.drawWithCache {
-            val y0 = top.toPx()
-            val h = (size.height - y0) / density
-            val path = wavyVertical(h.toDouble(), 71.0, 2.0, max(2, (h / 34).roundToInt())).toPath(density, size.width / 2, y0)
+            val h = size.height / density
+            val path = wavyVertical(h.toDouble(), 71.0, 2.0, max(2, (h / 34).roundToInt())).toPath(density, size.width / 2, 0f)
             val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round)
             onDrawBehind { drawPath(path, Tokens.FieldBorderHover.copy(alpha = 0.35f), style = pen) }
         },

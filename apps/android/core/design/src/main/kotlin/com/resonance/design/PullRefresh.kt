@@ -27,6 +27,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
@@ -182,7 +187,17 @@ fun Modifier.pulledDown(pull: SketchPull): Modifier = graphicsLayer { translatio
  * refreshing, its dashes travel — or, with animations removed, the whole loop rests.
  */
 @Composable
-fun BoxScope.SketchPullIndicator(pull: SketchPull, top: Dp, size: Dp = PullLoaderSize) {
+fun BoxScope.SketchPullIndicator(
+    pull: SketchPull,
+    top: Dp,
+    size: Dp = PullLoaderSize,
+    /**
+     * The paper of a band that starts at the bar's line (the feed's first card, design note B1):
+     * the gap the pull opens wears it, with the band's grain running on from the band's own, so
+     * the band looks taller rather than parted from the bar. Null: the page's cream shows.
+     */
+    paper: Color? = null,
+) {
     val shown by remember(pull) { derivedStateOf { pull.state.distanceFraction > 0f || pull.refreshing } }
     val haptic = LocalHapticFeedback.current
     val refreshing by rememberUpdatedState(pull.refreshing)
@@ -204,6 +219,26 @@ fun BoxScope.SketchPullIndicator(pull: SketchPull, top: Dp, size: Dp = PullLoade
     if (!shown) return
     val density = LocalDensity.current
     val sizePx = with(density) { size.toPx() }
+    if (paper != null) Box(
+        Modifier
+            .align(Alignment.TopCenter)
+            // From the top of the bar's wave band, behind the bar's cream, as the band's own paper runs.
+            .offset(y = top - HeaderEdgeHeight)
+            .fillMaxWidth()
+            .height(pull.threshold * 3)
+            .drawWithCache {
+                val grain = Grain.brush(GrainMode.Tile, "grain-overlay", this.size, this.density, 1f)
+                onDrawBehind {
+                    val gap = pull.offsetPx
+                    if (gap <= 0f) return@onDrawBehind
+                    // Drawn from the band's own top (where it is now), so the grain's tiles run on from its.
+                    translate(top = gap) {
+                        drawRect(paper, topLeft = Offset(0f, -gap), size = Size(this.size.width, gap))
+                        grain?.let { drawRect(it, topLeft = Offset(0f, -gap), size = Size(this.size.width, gap), alpha = StoryGrain.Band * 2) }
+                    }
+                }
+            },
+    )
     Box(
         Modifier
             .align(Alignment.TopCenter)

@@ -232,9 +232,10 @@ private fun ProfileSettings(session: Session) {
         ChoiceList(L10n.Settings.Profile.region, Regions.settings(me.region), region, seed = 43.0, flag = { it }) { region = it; saved = false; failed = false }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OrganicButton(
-                if (saving) "…" else L10n.Write.saveChanges,
+                L10n.Write.saveChanges,
                 icon = if (saved) IconName.Check else null,
                 enabled = canSave,
+                loading = saving,
             ) {
                 scope.launch {
                     saving = true
@@ -534,11 +535,11 @@ private fun DeleteAccountSettings(session: Session) {
         val width = if (compact) Modifier.fillMaxWidth() else Modifier
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp)) {
             OrganicButton(
-                if (exporting) L10n.Settings.Delete.exporting else L10n.Settings.Delete.export,
+                L10n.Settings.Delete.export,
                 width,
                 variant = ButtonVariant.Tonal,
                 icon = if (exported) IconName.Check else IconName.Document,
-                enabled = !exporting,
+                loading = exporting,
             ) { save.launch("resonance-backup-${LocalDate.now()}.json") }
             OrganicButton(L10n.Settings.Delete.button, width, variant = ButtonVariant.DangerTonal, icon = IconName.Trash) { confirming = true }
         }
@@ -606,10 +607,11 @@ private fun ColumnScope.BlockedListContent(session: Session, onClose: () -> Unit
                         }
                     }
                     OrganicButton(
-                        if (pending == person.id) "…" else L10n.Safety.unblock,
+                        L10n.Safety.unblock,
                         variant = ButtonVariant.Tonal,
                         small = true,
                         enabled = pending == null,
+                        loading = pending == person.id,
                     ) {
                         scope.launch {
                             pending = person.id

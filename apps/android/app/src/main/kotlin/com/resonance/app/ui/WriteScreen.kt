@@ -310,7 +310,7 @@ private fun WriteForm(
             error = actionError,
             primary = { modifier ->
                 if (model.isPublished) {
-                    OrganicButton(if (discarding) L10n.Write.saving else L10n.Write.saveChanges, modifier, enabled = !discarding) {
+                    OrganicButton(L10n.Write.saveChanges, modifier, loading = discarding) {
                         actionError = null
                         publishing = true
                     }
@@ -605,11 +605,8 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
         // The foot every dialog shares: why the last try failed right above it, then 再想想 the tonal way
         // out and the verb solid and rightmost; the row rests while it publishes.
         error?.let { ModalError(it) }
-        val label = if (updating) {
-            if (pending) L10n.Write.PublishPanel.updating else L10n.Write.PublishPanel.update
-        } else {
-            if (pending) L10n.Write.PublishPanel.publishing else L10n.Write.PublishPanel.publish
-        }
+        // The verb keeps its words while it works: its loader says so (design note B6).
+        val label = if (updating) L10n.Write.PublishPanel.update else L10n.Write.PublishPanel.publish
         ModalActions(L10n.Write.PublishPanel.cancel, onCancel, label, busy = pending, topPadding = publishActionsTop(afterError = error != null), onVerb = {
             // The server refuses a card without a title; say so in the writer's words.
             if (model.values.title.isBlank()) {

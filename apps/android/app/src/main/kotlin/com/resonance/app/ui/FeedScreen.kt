@@ -26,8 +26,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.resonance.app.Session
-import com.resonance.design.BrandBarHeight
+import com.resonance.design.brandBarHeight
 import com.resonance.design.ButtonVariant
+import com.resonance.design.CardPalette
 import com.resonance.design.FeedEndMark
 import com.resonance.design.EmptyAction
 import com.resonance.design.HeaderEdgeHeight
@@ -86,8 +87,17 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
             feed.reload()?.let { view.announce(it.message) }
         },
         refreshEnabled = state.phase != FeedLoader.Phase.Loading,
+        // A band starts at the bar's line (the first card, or its skeleton): the pull's gap wears its paper.
+        // Not over the bordered grid, nor when a note parts the first card from the bar.
+        pullPaper = when {
+            layout.isGrid -> null
+            state.phase == FeedLoader.Phase.Loading -> CardPalette(null, 0).interior
+            state.phase == FeedLoader.Phase.Loaded && cards.isNotEmpty() && state.refreshFailure == null ->
+                CardPalette.of(cardFamilies(cards.take(1))[0]).interior
+            else -> null
+        },
         overlay = {
-            val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight
+            val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + brandBarHeight() + HeaderEdgeHeight
             AnimatedVisibility(
                 state.picksReady && state.phase == FeedLoader.Phase.Loaded,
                 Modifier.align(Alignment.TopCenter).padding(top = top + 12.dp),
@@ -122,7 +132,7 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
                         Column(Modifier.fillMaxWidth().padding(top = 48.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             // While more can load, only the button; the end mark once nothing more can.
                             if (state.canLoadMore) {
-                                OrganicButton(if (state.loadingMore) L10n.Home.moreLoading else L10n.Home.moreBtn, variant = ButtonVariant.Tonal) {
+                                OrganicButton(L10n.Home.moreBtn, variant = ButtonVariant.Tonal, loading = state.loadingMore) {
                                     feed.loadMore()
                                 }
                             } else if (state.latestVisible) {

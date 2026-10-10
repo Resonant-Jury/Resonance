@@ -120,6 +120,15 @@ class MainActivity : ComponentActivity() {
                 return true
             }
         }
+        // Ctrl-1…4 / Cmd-1…4: the four tabs, in the header's order.
+        val n = event.keyCode - KeyEvent.KEYCODE_0
+        if (event.action == KeyEvent.ACTION_DOWN && n in 1..4 && chord && !event.isAltPressed && !event.isShiftPressed) {
+            val choose = KeyShortcuts.tab
+            if (choose != null) {
+                if (event.repeatCount == 0) choose(n)
+                return true
+            }
+        }
         return super.dispatchKeyEvent(event)
     }
 
