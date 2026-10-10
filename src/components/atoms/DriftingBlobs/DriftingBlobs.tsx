@@ -38,9 +38,16 @@ export interface DriftingBlobsProps {
 const FIELD = 6;
 const COLOUR = 20;
 const FPS = 30;
-/** Paper grain over the blobs: ≈ the old OrganiBlob's grain at its opacity. */
-const GRAIN = 0.28;
-const GRAIN_SCALE = 1.5;
+/**
+ * Sand over the blobs: crisp one-pixel grains, half a shade darker and half
+ * a shade lighter than the colour under them, so the colour keeps its mean
+ * (all-dark, smoothed grain read as dust — a grey veil). Most grains are
+ * faint (strength = random³) and a few stand out, which is what reads as sand.
+ */
+const GRAIN = 0.2;
+/** A dark grain sits much further from the pastel than a light one, so it is weighted down to match. */
+const GRAIN_DARK = 0.3;
+const GRAIN_SIZE = 160;
 /** How much of a stand-in's box its blob's own radius is (OrganiBlob's paths reach ~0.42 of their size). */
 const STAND_IN_RADIUS = 0.42;
 
@@ -115,13 +122,20 @@ export function DriftingBlobs({ palette, children }: DriftingBlobsProps) {
     };
     size();
 
-    // Paper grain, made once: black specks of random strength.
+    // The sand, made once.
     const noise = document.createElement('canvas');
-    noise.width = noise.height = 160;
+    noise.width = noise.height = GRAIN_SIZE;
     const noiseCtx = noise.getContext('2d');
     if (noiseCtx) {
-      const img = noiseCtx.createImageData(160, 160);
-      for (let i = 0; i < img.data.length; i += 4) img.data[i + 3] = 255 * 0.4 * ((Math.random() + Math.random()) / 2);
+      const img = noiseCtx.createImageData(GRAIN_SIZE, GRAIN_SIZE);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const light = Math.random() < 0.5;
+        d[i] = light ? 255 : 84;
+        d[i + 1] = light ? 252 : 58;
+        d[i + 2] = light ? 244 : 38;
+        d[i + 3] = 255 * Math.random() ** 3 * (light ? 1 : GRAIN_DARK);
+      }
       noiseCtx.putImageData(img, 0, 0);
     }
     const grain = ctx.createPattern(noise, 'repeat');
@@ -164,10 +178,13 @@ export function DriftingBlobs({ palette, children }: DriftingBlobsProps) {
         ctx.drawImage(colourCanvas, colours.x0 - c / 2, colours.y0 - c / 2, colours.nx * c, colours.ny * c);
       }
       if (grain) {
+        // One grain per CSS pixel, unsmoothed: sharp specks, not blotches.
+        const px = Math.max(1, Math.round(dpr));
+        ctx.setTransform(px, 0, 0, px, 0, 0);
+        ctx.imageSmoothingEnabled = false;
         ctx.globalAlpha = GRAIN;
-        ctx.scale(GRAIN_SCALE, GRAIN_SCALE);
         ctx.fillStyle = grain;
-        ctx.fillRect(0, 0, width / GRAIN_SCALE, height / GRAIN_SCALE);
+        ctx.fillRect(0, 0, canvas.width / px, canvas.height / px);
       }
       ctx.restore();
     };

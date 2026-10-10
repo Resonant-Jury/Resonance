@@ -25,6 +25,9 @@ const BLOB_PAINTS: DriftPaint[] = [
   { color: '--color-yellow', alpha: 0.3 },
 ];
 
+/** The still blobs' grain, light like the live blobs' sand they hand over to. */
+const STAND_IN_GRAIN = 0.2;
+
 export function HeroSection() {
   const t = useTranslations('hero');
   return (
@@ -33,13 +36,13 @@ export function HeroSection() {
           (data-drift is each one's heading), new ones drift in, and two that meet melt into one. */}
       <DriftingBlobs palette={BLOB_PAINTS}>
         <div className={styles.blob1} data-drift="1,0.12" data-drift-color="--color-terracotta-light">
-          <OrganiBlob variant={1} fill="var(--color-terracotta-light)" size={380} />
+          <OrganiBlob variant={1} fill="var(--color-terracotta-light)" size={380} grain={STAND_IN_GRAIN} />
         </div>
         <div className={styles.blob2} data-drift="-1,-0.08" data-drift-color="--color-lavender">
-          <OrganiBlob variant={3} fill="var(--color-lavender)" size={300} />
+          <OrganiBlob variant={3} fill="var(--color-lavender)" size={300} grain={STAND_IN_GRAIN} />
         </div>
         <div className={styles.blob3} data-drift="1,-0.2" data-drift-color="--color-sage">
-          <OrganiBlob variant={2} fill="var(--color-sage)" size={180} />
+          <OrganiBlob variant={2} fill="var(--color-sage)" size={180} grain={STAND_IN_GRAIN} />
         </div>
       </DriftingBlobs>
 
