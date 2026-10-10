@@ -4,8 +4,8 @@ The iOS (SwiftUI) and Android (Jetpack Compose) apps. They share the web's
 backend (`/api/v1` plus Firebase) and take their design tokens, strings,
 fonts and story editor from the web through generators, so the web stays the
 single source. The migration plan and its milestones are in the
-"共振原生遷移計畫" document; `native/` holds the feasibility spikes (S1–S6)
-these apps grew out of.
+"共振原生遷移計畫" document; `native/` holds what the apps share with the web
+(see its README).
 
 ```
 apps/
@@ -20,6 +20,8 @@ apps/
     core/kit/               generated /api/v1 client, localization, story format (JVM, unit-tested)
   shared/fonts/             subset fonts for both apps (committed)
 native/geometry/            the hand-drawn geometry in Swift and Kotlin (used by the apps)
+native/editor/              the story editor island both apps load in a WebView
+native/fixtures/            golden files the web and both apps' tests read alike
 ```
 
 ## Both apps

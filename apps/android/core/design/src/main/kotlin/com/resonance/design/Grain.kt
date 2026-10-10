@@ -65,8 +65,8 @@ object Grain {
 @RequiresApi(33)
 object GrainShader {
     /**
-     * SVG feTurbulence (fractalNoise, stitchTiles), the AGSL twin of
-     * native/ios/Sources/Design/Grain.metal. AGSL follows GLSL ES 1.0 (no
+     * SVG feTurbulence (fractalNoise, stitchTiles), the AGSL twin of the iOS
+     * DesignSystem's Grain/Grain.metal. AGSL follows GLSL ES 1.0 (no
      * integer bit ops), so lattice indices are exact small floats and `& 255`
      * is `mod(…, 256)`. The lattice arrives as a raw F16 buffer:
      * row 0 = selector, rows 1–4 = gradients (x, y) per channel.

@@ -21,13 +21,11 @@ dist
 # Firebase emulator logs
 *-debug.log
 
-# Native spikes (native/): build outputs and generated projects
+# Shared with the native apps (native/): the geometry packages' build outputs
 native/**/.build/
 native/**/build/
 native/**/.gradle/
 native/**/local.properties
-native/**/*.xcodeproj/
-native/**/DerivedData/
 native/**/.kotlin/
 native/fixtures/*.local.json
 native/fonts/

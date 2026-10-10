@@ -34,7 +34,7 @@ const eslintConfig = [
       "build/**",
       "next-env.d.ts",
       "dist/**",
-      // Native spike apps (Swift / Kotlin) and their generated web bundles
+      // What the native apps share with the web: Swift/Kotlin geometry, the editor island and its bundle
       "native/**",
       // Native apps: Swift/Kotlin sources and their build outputs
       "apps/**",

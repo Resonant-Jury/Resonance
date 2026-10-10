@@ -17,7 +17,7 @@ import { grainTile, overlayTile } from './turbulence';
 
 const TILE_PT = 128;
 const SCALE = 3;
-const OUT = resolve(__dirname, '../../native/fixtures/grain');
+const OUT = resolve(__dirname, '../../apps/ios/Packages/DesignSystem/Sources/DesignSystem/Resources/grain');
 
 const tiles = [
   // ShapeGrain on StoryCard fills: frequency 0.85, 2 octaves (opacity 0.3 applied at draw time).

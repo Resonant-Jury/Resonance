@@ -1,9 +1,0 @@
-{
-  "note": "Chrome measurements of native/typelab/index.html (same fonts, sizes and widths as TypeLab on iOS/Android). Baselines are measured on the first line (Chrome snaps them to whole px); every line of a paragraph shares the same line box, so the offset holds for all lines.",
-  "samples": [
-    { "id": "title", "height": 70, "lineHeight": 35, "baseline": 29, "starts": [0, 18] },
-    { "id": "body", "height": 108.78, "lineHeight": 27.2, "baseline": 19, "starts": [0, 20, 60, 88] },
-    { "id": "excerpt", "height": 69.28, "lineHeight": 23.1, "baseline": 16, "starts": [0, 20, 40] },
-    { "id": "cardTitle", "height": 46.8, "lineHeight": 23.4, "baseline": 19, "starts": [0, 29] }
-  ]
-}

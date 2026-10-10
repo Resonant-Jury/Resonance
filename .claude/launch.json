@@ -14,20 +14,26 @@
     {
       "name": "docs-static",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "4173", "-d", "docs"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4173",
+        "-d",
+        "docs"
+      ],
       "port": 4173
     },
     {
       "name": "dev-emulator",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:emulator", "--", "--port", "3100"],
+      "runtimeArgs": [
+        "run",
+        "dev:emulator",
+        "--",
+        "--port",
+        "3100"
+      ],
       "port": 3100
-    },
-    {
-      "name": "native-static",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/native/serve-static.mjs", "4180"],
-      "port": 4180
     }
   ]
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download the web's typefaces for the native spikes into native/fonts/
+# Download the web's typefaces for the native apps into native/fonts/
 # (gitignored). All are SIL OFL 1.1 — bundling in apps is allowed; the OFL
 # forbids selling the fonts on their own and reserves 陳宇落雁's name for
 # unmodified copies.
