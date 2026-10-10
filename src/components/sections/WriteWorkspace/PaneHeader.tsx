@@ -38,13 +38,13 @@ export interface PaneHeaderProps {
 }
 
 /**
- * The thought map's editor pane's own header row — the writer's bar in
- * small, inside the pane: on the pane's paper over what it shows, a wavy pen
- * line under it that what scrolls passes beneath; the pane's title on the
- * left, and on the right a borderless →| that folds the pane away (the edits
- * are saved as they are made, so it hides, it never discards — hence no ✕).
- * Where the pane covers the map (below the 1200px split) it is the way back,
- * as tall as the writer's bar.
+ * The thought-map page's editor pane's own header row below the 1200px split,
+ * where the pane covers the map — the writer's bar in small, as tall: on the
+ * pane's paper over what it shows, a wavy pen line under it that what scrolls
+ * passes beneath; the pane's title on the left, and on the right a
+ * borderless →| that is the way back to the map (the edits are saved as they
+ * are made, so it hides, it never discards — hence no ✕). At the split the
+ * pane has no header: its divider hides it.
  */
 export function PaneHeader({ title, hideLabel, onHide, scrolled }: PaneHeaderProps) {
   const { strokeD, paperD } = useMemo(wavePaths, []);

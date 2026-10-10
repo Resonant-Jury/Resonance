@@ -131,12 +131,14 @@ describe('the chrome around the panes', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('hides the pane on Escape — not while a dialog over it, or a field on the map, takes the key', async () => {
+  // At the split Escape folds the pane away (the divider's hide: kept as it was), never closes it.
+  it('folds the pane on Escape — not while a dialog over it, or a field on the map, takes the key', async () => {
     // A desktop: the map stands beside the pane.
     screenWidth(1440);
     const onClose = vi.fn();
+    const onHide = vi.fn();
     renderWithIntl(
-      <WorkspaceShell open onClose={onClose} paneTitle="Edit draft">
+      <WorkspaceShell open onClose={onClose} onHide={onHide} paneTitle="Edit draft">
         <p>editor</p>
       </WorkspaceShell>,
     );
@@ -145,36 +147,51 @@ describe('the chrome around the panes', () => {
     dialog.setAttribute('aria-modal', 'true');
     document.body.appendChild(dialog);
     await userEvent.keyboard('{Escape}');
-    expect(onClose).not.toHaveBeenCalled();
+    expect(onHide).not.toHaveBeenCalled();
     dialog.remove();
 
     // A field on the map keeps its own Escape (an arrow's label being named: it cancels).
     screen.getByRole('textbox', { name: 'Arrow label' }).focus();
     await userEvent.keyboard('{Escape}');
-    expect(onClose).not.toHaveBeenCalled();
+    expect(onHide).not.toHaveBeenCalled();
 
     (document.activeElement as HTMLElement | null)?.blur();
     await userEvent.keyboard('{Escape}');
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onHide).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('separator', { name: 'Show the editor' })).toBeInTheDocument();
+    expect(screen.getByText('editor')).toBeInTheDocument();
   });
 
   // Opening a card leaves the focus on its 開啟卡片 (or on the card, double-
   // clicked): the next Escape is the pane's, not swallowed by the map.
-  it('hides the pane on Escape with the focus still on the map’s 開啟卡片 or on the card', async () => {
+  it('folds the pane on Escape with the focus still on the map’s 開啟卡片 or on the card', async () => {
     screenWidth(1440);
+    const onHide = vi.fn();
+    renderWithIntl(<MapPage onHide={onHide} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
+    expect(screen.getByRole('button', { name: 'Open card' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(onHide).toHaveBeenCalledTimes(1);
+
+    await userEvent.dblClick(screen.getByRole('button', { name: 'A card' }));
+    expect(screen.getByRole('separator', { name: 'Drag to resize panes' })).toBeInTheDocument();
+    screen.getByRole('button', { name: 'A card' }).focus();
+    await userEvent.keyboard('{Escape}');
+    expect(onHide).toHaveBeenCalledTimes(2);
+  });
+
+  // Below the split the pane covers the map, and Escape closes it as its →| does.
+  it('closes the covering pane on Escape below the split', async () => {
+    screenWidth(1024);
     const onClose = vi.fn();
     renderWithIntl(
       <WorkspaceShell open onClose={onClose} paneTitle="Edit draft">
         <p>editor</p>
       </WorkspaceShell>,
     );
-    screen.getByRole('button', { name: 'Open card' }).focus();
     await userEvent.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledTimes(1);
-
-    screen.getByRole('button', { name: 'A card' }).focus();
-    await userEvent.keyboard('{Escape}');
-    expect(onClose).toHaveBeenCalledTimes(2);
   });
 
   // Typing in the card, Escape never folds it away at once: the first press
@@ -248,9 +265,9 @@ describe('the chrome around the panes', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  // The writer: one bar over both panes, as on the apps' writer page — its
-  // back arrow and title, in place of the Leave over the map and the ✕.
-  it('stands the writer’s bar over both panes instead of the floating controls', async () => {
+  // The writer below the split: its bar over the pane that covers the map, as on the apps' writer page — its
+  // back arrow and title, in place of the Leave over the map and the →|.
+  it('stands the writer’s bar over the pane instead of the floating controls below the split', async () => {
     const onBack = vi.fn();
     renderWithIntl(
       <WorkspaceShell open bar={{ title: 'New card', onBack }}>
@@ -271,12 +288,13 @@ describe('the chrome around the panes', () => {
 });
 
 /** The thought-map page in small: a card opened from the map shows in the pane until it is hidden. */
-function MapPage() {
+function MapPage({ onHide }: { onHide?: () => void }) {
   const [card, setCard] = useState<Card | null>(null);
   return (
     <WorkspaceShell
       open={card != null}
       onClose={() => setCard(null)}
+      onHide={onHide}
       paneTitle="Edit draft"
       paneKey={card?.id}
       onOpenCard={setCard}
@@ -318,8 +336,8 @@ describe('the map while the pane is open', () => {
 
   // Hiding the pane unmounts what had the focus (its →|, the field being
   // written in): the focus goes back to what opened the card, not to the page.
-  it('hands the focus back to the 開啟卡片 that opened the card when the pane hides', async () => {
-    screenWidth(1440);
+  it('hands the focus back to the 開啟卡片 that opened the card when the pane closes', async () => {
+    screenWidth(1024);
     renderWithIntl(<MapPage />);
     await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
     await userEvent.click(screen.getByRole('button', { name: 'Hide the editor' }));
@@ -335,7 +353,7 @@ describe('the map while the pane is open', () => {
   });
 
   it('hands the focus to the card itself when what opened it is gone', async () => {
-    screenWidth(1440);
+    screenWidth(1024);
     map.tabShown = false;
     renderWithIntl(<MapPage />);
     await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
@@ -347,7 +365,7 @@ describe('the map while the pane is open', () => {
   // Another card opened while the pane is open starts at its top, the
   // header's line at rest — not where the last card was left.
   it('starts another card at its top, its header line at rest', () => {
-    screenWidth(1440);
+    screenWidth(1024);
     const shell = (key: string) => (
       <WorkspaceShell open onClose={vi.fn()} paneTitle="Original" paneKey={key}>
         <div data-testid={`panel-${key}`} />
@@ -363,5 +381,234 @@ describe('the map while the pane is open', () => {
     rerender(shell('b'));
     expect(header).not.toHaveAttribute('data-scrolled');
     expect(body.scrollTop).toBe(0);
+  });
+});
+
+/** The shell's box: 1000 wide from the left edge, so a pointer at x leaves the editor (1000 − x) / 10 % of it. */
+function shellBox() {
+  const box = { left: 0, right: 1000, width: 1000, top: 0, bottom: 800, height: 800, x: 0, y: 0, toJSON: () => ({}) };
+  const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box as DOMRect);
+  return () => spy.mockRestore();
+}
+
+describe('the workspace at the split', () => {
+  let restoreBox: () => void;
+  beforeEach(() => {
+    screenWidth(1440);
+    mockBack.mockClear();
+    restoreBox = shellBox();
+  });
+  afterEach(() => {
+    window.matchMedia = realMatchMedia;
+    restoreBox();
+  });
+
+  const divider = () => screen.getByRole('separator');
+  const pane = () => document.getElementById(divider().getAttribute('aria-controls')!)!;
+  const drag = (...xs: number[]) => {
+    const [from, ...rest] = xs;
+    fireEvent.pointerDown(divider(), { button: 0, pointerId: 1, clientX: from });
+    for (const x of rest) fireEvent.pointerMove(divider(), { pointerId: 1, clientX: x });
+    fireEvent.pointerUp(divider(), { pointerId: 1, clientX: rest.at(-1) ?? from });
+  };
+
+  // One page whichever way it was come into: no bar and no header row in the pane, the Leave over the map
+  // its way back (the writer's own way out, asking as it does).
+  it('has no bar and no header row: the Leave over the map is the way back', async () => {
+    const onBack = vi.fn();
+    const onLeave = vi.fn();
+    const { unmount } = renderWithIntl(
+      <WorkspaceShell open bar={{ title: 'New card', onBack }} onLeave={onLeave}>
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+    // Still the page's heading, for a screen reader.
+    expect(screen.getByRole('heading', { level: 1, name: 'New card' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(onBack).not.toHaveBeenCalled();
+    unmount();
+
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()} paneTitle="Edit draft">
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    expect(screen.queryByRole('heading', { level: 2, name: 'Edit draft' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Hide the editor' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('resizes the editor between 32 % and 50 % of the width', () => {
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()}>
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    expect(divider()).toHaveAttribute('aria-valuenow', '50');
+    drag(500, 600);
+    expect(divider()).toHaveAttribute('aria-valuenow', '40');
+    drag(600, 200);
+    expect(divider()).toHaveAttribute('aria-valuenow', '50');
+    drag(500, 680);
+    expect(divider()).toHaveAttribute('aria-valuenow', '32');
+    expect(screen.queryByText('Release to hide the editor')).toBeNull();
+  });
+
+  // Dragged on toward the edge the pane follows; narrower than 18 % it dims and the pill says what releasing
+  // does — and releasing there folds it away, kept as it was, saved at once.
+  it('hides the pane when released past the hide line, keeping what it shows', () => {
+    const onHide = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()} onHide={onHide}>
+        <input aria-label="Title" defaultValue="kept" />
+      </WorkspaceShell>,
+    );
+    fireEvent.pointerDown(divider(), { button: 0, pointerId: 1, clientX: 500 });
+    fireEvent.pointerMove(divider(), { pointerId: 1, clientX: 760 });
+    // Following the pointer past the narrowest (24 %), not yet in the hide zone.
+    expect(divider()).toHaveAttribute('aria-valuenow', '24');
+    expect(pane()).not.toHaveAttribute('data-dim');
+    expect(screen.queryByText('Release to hide the editor')).toBeNull();
+    fireEvent.pointerMove(divider(), { pointerId: 1, clientX: 900 });
+    expect(pane()).toHaveAttribute('data-dim');
+    expect(screen.getByText('Release to hide the editor')).toBeInTheDocument();
+    fireEvent.pointerUp(divider(), { pointerId: 1, clientX: 900 });
+
+    expect(onHide).toHaveBeenCalledTimes(1);
+    expect(pane()).toHaveAttribute('data-folded');
+    expect(pane()).toHaveAttribute('inert');
+    expect(screen.queryByText('Release to hide the editor')).toBeNull();
+    // Docked at the edge, to show it again; what the pane shows is still there, as it was.
+    expect(divider()).toHaveAccessibleName('Show the editor');
+    expect(divider()).toHaveAttribute('aria-valuenow', '0');
+    expect(screen.getByRole('textbox', { name: 'Title', hidden: true })).toHaveValue('kept');
+  });
+
+  it('cancels the hide when dragged back above the hide line, and springs back to the narrowest', () => {
+    const onHide = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()} onHide={onHide}>
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    fireEvent.pointerDown(divider(), { button: 0, pointerId: 1, clientX: 500 });
+    fireEvent.pointerMove(divider(), { pointerId: 1, clientX: 900 });
+    expect(screen.getByText('Release to hide the editor')).toBeInTheDocument();
+    fireEvent.pointerMove(divider(), { pointerId: 1, clientX: 760 });
+    expect(screen.queryByText('Release to hide the editor')).toBeNull();
+    expect(pane()).not.toHaveAttribute('data-dim');
+    fireEvent.pointerUp(divider(), { pointerId: 1, clientX: 760 });
+    expect(onHide).not.toHaveBeenCalled();
+    expect(pane()).not.toHaveAttribute('data-folded');
+    expect(divider()).toHaveAttribute('aria-valuenow', '32');
+  });
+
+  // Folded, the docked grip shows the pane again at the width it had — tapped, or drawn toward the map.
+  it('shows the pane again from the docked grip, at its last width', () => {
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()}>
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    drag(500, 600);
+    expect(divider()).toHaveAttribute('aria-valuenow', '40');
+    drag(600, 950);
+    expect(pane()).toHaveAttribute('data-folded');
+
+    // A tap.
+    drag(995);
+    expect(pane()).not.toHaveAttribute('data-folded');
+    expect(divider()).toHaveAttribute('aria-valuenow', '40');
+
+    // A drag toward the map.
+    drag(600, 950);
+    expect(pane()).toHaveAttribute('data-folded');
+    drag(995, 960);
+    expect(pane()).not.toHaveAttribute('data-folded');
+    expect(divider()).toHaveAttribute('aria-valuenow', '40');
+
+    // Drawn the other way (off the window's edge), it stays docked.
+    drag(600, 950);
+    drag(990, 1000, 1030);
+    expect(pane()).toHaveAttribute('data-folded');
+  });
+
+  it('shows the folded pane again when a card is opened from the map', async () => {
+    renderWithIntl(<MapPage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
+    drag(500, 950);
+    expect(pane()).toHaveAttribute('data-folded');
+    await userEvent.click(screen.getByRole('button', { name: 'Open card' }));
+    expect(pane()).not.toHaveAttribute('data-folded');
+  });
+
+  // A separator the keyboard moves: arrows resize within 32–50 %, Enter and Space fold and show; folded, the
+  // arrow toward the map shows it again.
+  it('answers the keyboard as a separator', async () => {
+    const onHide = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()} onHide={onHide}>
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    expect(divider()).toHaveAccessibleName('Drag to resize panes');
+    expect(divider()).toHaveAttribute('aria-orientation', 'vertical');
+    divider().focus();
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(divider()).toHaveAttribute('aria-valuenow', '50');
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}');
+    expect(divider()).toHaveAttribute('aria-valuenow', '46');
+    for (let i = 0; i < 10; i++) await userEvent.keyboard('{ArrowRight}');
+    expect(divider()).toHaveAttribute('aria-valuenow', '32');
+
+    await userEvent.keyboard('{Enter}');
+    expect(pane()).toHaveAttribute('data-folded');
+    expect(onHide).toHaveBeenCalledTimes(1);
+    expect(divider()).toHaveFocus();
+    await userEvent.keyboard(' ');
+    expect(pane()).not.toHaveAttribute('data-folded');
+    expect(divider()).toHaveAttribute('aria-valuenow', '32');
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{ArrowRight}');
+    expect(pane()).toHaveAttribute('data-folded');
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(pane()).not.toHaveAttribute('data-folded');
+  });
+
+  // Typing in the card, the first Escape steps out of the field to the divider (which says what Enter does
+  // there), the next folds the pane — the focus staying on the divider, where it shows again.
+  it('steps out of a field to the divider on Escape, and folds on the next', async () => {
+    const onHide = vi.fn();
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()} onHide={onHide}>
+        <input aria-label="Title" />
+      </WorkspaceShell>,
+    );
+    await userEvent.click(screen.getByRole('textbox', { name: 'Title' }));
+    await userEvent.keyboard('{Escape}');
+    expect(divider()).toHaveFocus();
+    expect(onHide).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    expect(onHide).toHaveBeenCalledTimes(1);
+    expect(divider()).toHaveFocus();
+    // Folded, Escape has nothing left to fold.
+    await userEvent.keyboard('{Escape}');
+    expect(onHide).toHaveBeenCalledTimes(1);
+  });
+
+  // Folding by a button inside the pane (none today but the editor's own) hands the focus to the divider.
+  it('hands the focus to the docked grip when the pane folds with the focus in it', async () => {
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()}>
+        <button type="button">In the pane</button>
+      </WorkspaceShell>,
+    );
+    screen.getByRole('button', { name: 'In the pane' }).focus();
+    await userEvent.keyboard('{Escape}');
+    expect(pane()).toHaveAttribute('data-folded');
+    expect(divider()).toHaveFocus();
   });
 });

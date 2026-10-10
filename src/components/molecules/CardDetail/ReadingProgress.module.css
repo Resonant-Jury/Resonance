@@ -9,12 +9,17 @@
   pointer-events: none;
 }
 
+/* The marker's soft glow, in its own colour at 55 % behind the line (on the
+   svg, which holds the marker alone: a filter on an SVG child isn't drawn by
+   every engine). */
 .svg {
   display: block;
   overflow: visible;
+  filter: drop-shadow(0 0 var(--reading-progress-glow) color-mix(in oklch, var(--reading-progress) 55%, transparent));
 }
 
-/* Its own pen: a marker over the bar's 1.8 line, not the line inked in. */
+/* Its own pen: at the bar line's own width, over it, in a brighter colour —
+   a marker, not the line inked in. */
 .line {
   stroke: var(--reading-progress);
   stroke-width: var(--reading-progress-width);

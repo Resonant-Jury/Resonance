@@ -1,9 +1,9 @@
 /* The unified workspace owns the whole viewport: map pane left, editor pane
-   right, a draggable wavy rail between. No app header lives above it — zeroing
+   right, a draggable divider between. No app header lives above it — zeroing
    the header token lets every embedded surface (map toolbar, sticky editor
-   toolbar, card panel padding) sit correctly without special cases. The
-   writer's own bar sets it back to the header's height (WorkspaceShell), so
-   the same surfaces keep clear of the bar instead. */
+   toolbar, card panel padding) sit correctly without special cases. Below the
+   split the writer's own bar sets it back to the header's height, so the same
+   surfaces keep clear of the bar instead. */
 .shell {
   position: fixed;
   inset: 0;
@@ -17,10 +17,39 @@
   background: var(--color-cream);
 }
 
-/* Under the writer's bar the first line sits closer to its pen line than a
-   page's title does to an empty top: the bar already says where you are. */
-.shell[data-bar] {
-  --editor-pad-top: clamp(20px, 3vh, 28px);
+/* Below the split, under the writer's bar, the first line sits closer to its
+   pen line than a page's title does to an empty top: the bar already says
+   where you are. */
+@media (max-width: 1199px) {
+  .shell[data-bar] {
+    --app-header-h: var(--bar-h);
+    --editor-pad-top: clamp(20px, 3vh, 28px);
+  }
+
+  /* The writer's Leave over the map is the split's: below it, its bar's back. */
+  .back[data-split-only] {
+    display: none;
+  }
+}
+
+/* The writer's bar is below the split's (at the split the workspace is one
+   page with the thought map's: the Leave over the map is its way back). */
+@media (min-width: 1200px) {
+  .barBelowSplit {
+    display: none;
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .mapPane {
@@ -29,11 +58,13 @@
   min-width: 0;
 }
 
-/* When a document (the resonance original) replaces the map, restore some
-   header clearance for its subtree so the floating Back button doesn't sit
-   on the panel's author line (the writer's bar already gives it the bar's). */
-.shell:not([data-bar]) .mapPaneDoc {
-  --app-header-h: 44px;
+/* When a document (the resonance original) replaces the map, its subtree
+   keeps clear of the floating Back (the split's: --editor-pad-top down, a
+   38px pill), so the panel's author line starts below it, not under it. */
+@media (min-width: 1200px) {
+  .mapPaneDoc {
+    --app-header-h: calc(var(--editor-pad-top) + 38px);
+  }
 }
 
 /* Single Back control over the map — the workspace's only chrome. Its inset
@@ -54,7 +85,9 @@
 
 /* The boundary is the editor pane's own straight edge (so line and background
    edge always coincide); this zero-width rail rides exactly on it as the drag
-   hit strip. Drag re-balances the panes — editor 1:1 at most, map keeps ≥ half. */
+   hit strip. Drag re-balances the panes — editor 1:1 at most, map keeps ≥ half;
+   dragged on past the narrowest the pane follows, and hides on release once
+   narrower than the hide line. Folded, it docks at the trailing edge. */
 .rail {
   position: relative;
   flex: none;
@@ -64,9 +97,10 @@
   z-index: 4;
   user-select: none;
   -webkit-user-select: none;
+  outline: none;
 }
 
-/* Invisible grab strip straddling the boundary line. */
+/* Invisible grab strip straddling the boundary line (a finger's width on a touch screen). */
 .rail::before {
   content: '';
   position: absolute;
@@ -74,6 +108,23 @@
   bottom: 0;
   left: -7px;
   width: 14px;
+}
+
+@media (pointer: coarse) {
+  .rail::before {
+    left: -22px;
+    width: 44px;
+  }
+}
+
+/* Docked at the edge: the grip sits wholly inside the window, its strip on the map's side. */
+.rail[data-docked] {
+  cursor: pointer;
+}
+
+.rail[data-docked]::before {
+  left: -44px;
+  width: 44px;
 }
 
 /* Grab affordance floating on the line: a small hand-inked chip whose fill
@@ -100,9 +151,43 @@
 }
 
 .rail:hover .railGrip,
-.rail:active .railGrip {
+.rail:active .railGrip,
+.rail[data-dragging] .railGrip {
   border-color: var(--field-border-hover);
   color: var(--color-text);
+}
+
+.rail:focus-visible .railGrip {
+  border-color: var(--field-border-focus);
+  color: var(--color-text);
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 2px;
+}
+
+/* Docked: a tab on the trailing edge, its open side against the window's. */
+.rail[data-docked] .railGrip {
+  transform: translate(-100%, -50%);
+  width: 30px;
+  height: 44px;
+  border-right-width: 0;
+  border-radius: 12px 0 0 14px;
+}
+
+/* In the hide zone, by the grip on the map's side: releasing here hides the pane. */
+.releasePill {
+  position: absolute;
+  top: 50%;
+  right: 24px;
+  transform: translateY(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--color-text);
+  color: var(--color-cream);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .editorPane {
@@ -110,16 +195,59 @@
   flex: none;
   width: calc(var(--editor-frac, 0.5) * 100%);
   min-width: 0;
+  /* Arrow keys, the spring back to the narrowest and showing it again ease;
+     the pointer's drag is followed as it goes. */
+  transition:
+    width 220ms cubic-bezier(0.3, 1.25, 0.5, 1),
+    opacity 200ms ease,
+    visibility 0s;
+}
+
+.editorPane[data-dragging] {
+  transition: opacity 120ms ease;
+}
+
+/* Narrower than the hide line while dragged: released here, it hides. */
+.editorPane[data-dim] {
+  opacity: 0.5;
+}
+
+/* Folded away (kept as it was): it slides out, then is gone. */
+.editorPane[data-folded] {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    width 200ms ease-in,
+    opacity 200ms ease-in,
+    visibility 0s linear 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editorPane {
+    transition:
+      opacity 200ms ease,
+      visibility 0s;
+  }
+
+  .editorPane[data-dragging] {
+    transition: none;
+  }
+
+  /* No slide: it fades, then makes way. */
+  .editorPane[data-folded] {
+    transition:
+      opacity 200ms ease,
+      width 0s linear 200ms,
+      visibility 0s linear 200ms;
+  }
 }
 
 /* The boundary: a hair of line on the pane's own edge, just outside it so
-   nothing the pane holds can paint over it. Under the writer's bar it starts
-   on the bar's pen line (tucked a little under its paper, which the wave
-   swings across) rather than showing through the paper above it. */
+   nothing the pane holds can paint over it. */
 .editorPane::before {
   content: '';
   position: absolute;
-  top: max(0px, calc(var(--bar-line, 0px) - 2px));
+  top: 0;
   bottom: 0;
   left: -1px;
   width: 1px;
@@ -127,10 +255,13 @@
   pointer-events: none;
 }
 
-.paneScroll {
+/* What the pane shows, cut at the pane's edge: narrower than the narrowest
+   (dragged on, sliding away) it keeps that width, so it slides out rather
+   than squeezing. */
+.paneClip {
   position: absolute;
   inset: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .editorCol {
@@ -150,22 +281,25 @@
   color: var(--color-text-muted);
 }
 
-/* Under the writer's bar each thing the pane can show (the draft, a card
-   opened from the map) scrolls on its own: going back to the draft finds it
-   where it was left. */
+/* Each thing the writer's pane can show (the draft, a card opened from the
+   map) scrolls on its own: going back to the draft finds it where it was left. */
 .paneLayer {
   position: absolute;
   inset: 0;
   overflow-y: auto;
 }
 
-/* The thought map's pane with its header row (PaneHeader): the header over
-   a body that scrolls on its own, so what the pane shows (the editor with its
-   sticky toolbar, or the reading panel with its own scroller) passes under
-   the header's pen line — never under a floating button. */
+/* The pane's column: below the split the thought map's pane has its header
+   row (PaneHeader) over a body that scrolls on its own, so what the pane
+   shows (the editor with its sticky toolbar, or the reading panel with its
+   own scroller) passes under the header's pen line — never under a floating
+   button; at the split, the body alone. */
 .paneHeaded {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: max(100%, calc(var(--min-editor-frac, 0.32) * 100vw));
   display: flex;
   flex-direction: column;
 }
@@ -178,15 +312,13 @@
 }
 
 /* Under its own header the pane's first line needs no page-sized gap above it. */
-.paneBody .editorCol {
+.paneHeader + .paneBody .editorCol {
   padding-top: clamp(16px, 2.5vh, 24px);
 }
 
-/* The header: on the pane's paper, above the body (its wave hangs over the
-   body's top). Its row lines up with the editor column (the same max width
-   and side padding) and, beside the map, sits on the line of the map's
-   floating chrome — Leave and the toolbar, whose top is --editor-pad-top and
-   whose pills are 38px tall. */
+/* The header (below the split only): on the pane's paper, above the body (its
+   wave hangs over the body's top). Its row lines up with the editor column
+   (the same max width and side padding). */
 .paneHeader {
   position: relative;
   z-index: 8;
