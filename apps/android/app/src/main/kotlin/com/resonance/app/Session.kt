@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 
@@ -395,6 +396,21 @@ class Session(
         val me = profiles.update(handle, bio, region)
         setMe(me)
         return me
+    }
+
+    /**
+     * A new profile photo (design note B7): the framed square up through /api/upload as an avatar
+     * (the server fits it to 256), then saved on the profile as the web saves it — the owner's own
+     * `users/{uid}` write ([ProfilePhoto.fields]), which the rules take for a file we stored; no v1
+     * field carries it — and Me read again past the HTTP cache, so the settings row, the card box
+     * and the writer's byline show it (other screens on their next read).
+     */
+    suspend fun setAvatar(jpeg: ByteArray) {
+        val who = uid ?: throw IllegalStateException("Signed out")
+        val url = writing.upload(jpeg, "avatar.jpg", "image/jpeg", purpose = ProfilePhoto.PURPOSE)
+        AppFirebase.db.collection("users").document(who).set(ProfilePhoto.fields(url), SetOptions.merge()).await()
+        noteOwnWrite()
+        loadMe()
     }
 
     /**

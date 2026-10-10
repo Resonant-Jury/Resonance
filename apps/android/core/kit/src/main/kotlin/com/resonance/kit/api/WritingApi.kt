@@ -107,10 +107,14 @@ class WritingApi(private val configuration: ApiConfiguration, http: OkHttpClient
 
     @Serializable private data class UploadReply(val publicUrl: String)
 
-    /** Uploads an (already compressed) photo through /api/upload and returns its public URL. */
-    suspend fun upload(image: ByteArray, filename: String, contentType: String = "image/jpeg"): String {
+    /**
+     * Uploads an (already compressed) photo through /api/upload and returns its public URL. With a
+     * [purpose] (`avatar`: a profile photo, which the server fits to 256) the form says so.
+     */
+    suspend fun upload(image: ByteArray, filename: String, contentType: String = "image/jpeg", purpose: String? = null): String {
         val form = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", filename, image.toRequestBody(contentType.toMediaType()))
+            .apply { if (purpose != null) addFormDataPart("purpose", purpose) }
             .build()
         return json.decodeFromString(UploadReply.serializer(), post("api/upload", form).decodeToString()).publicUrl
     }

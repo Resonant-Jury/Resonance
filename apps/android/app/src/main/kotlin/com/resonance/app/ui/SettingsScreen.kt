@@ -194,7 +194,8 @@ fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -
  * the one-line bio (≤ 80, empty clears it) and the region. The web saves
  * them as you type; here one Save changes sends what changed (PATCH
  * /api/v1/me), and only once a new name has checked out as free. No 30-day
- * hint: nothing enforces it. The photo stays a web task for now.
+ * hint: nothing enforces it. The photo heads the section ([AvatarSettingsRow]): picked, framed and
+ * saved on its own, apart from Save changes.
  */
 @Composable
 private fun ProfileSettings(session: Session) {
@@ -227,6 +228,7 @@ private fun ProfileSettings(session: Session) {
     val canSave = (handleChange != null || bioChange != null || regionChange != null) && nameOk && !saving
 
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        AvatarSettingsRow(session, me)
         PenNameField(L10n.Settings.Profile.handle, handle, { handle = it; saved = false; failed = false }, availability.value, onRetry = { retry++ })
         OrganicTextField(L10n.Settings.Profile.bio, bio, { bio = it; saved = false; failed = false }, seed = 37.0, maxLength = BIO_MAX)
         ChoiceList(L10n.Settings.Profile.region, Regions.settings(me.region), region, seed = 43.0, flag = { it }) { region = it; saved = false; failed = false }
