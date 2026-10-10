@@ -372,8 +372,7 @@ private fun Block(block: StoryBlock, style: ProseStyle, story: Story) {
 
 /**
  * OrganicStoryImage: a photo at its own proportions (≤ 520dp or 62% of the
- * screen tall), at the column's start like the text (as the web), in a gentle
- * clip (R 12, 2.5% wobble). Like the
+ * screen tall), centred, in a gentle clip (R 12, 2.5% wobble). Like the
  * cover, the photo overflows its box by the clip's outward swing so the
  * bulges land on pixels instead of being cut flat.
  */
@@ -381,7 +380,7 @@ private fun Block(block: StoryBlock, style: ProseStyle, story: Story) {
 private fun StoryImage(url: String, alt: String) {
     var aspect by remember(url) { mutableFloatStateOf(1.5f) }
     val maxH = min(520f, LocalConfiguration.current.screenHeightDp * 0.62f)
-    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         val w = min(maxWidth.value, maxH * aspect)
         val seed = seedFromString(url).toDouble()
         BoxWithConstraints(Modifier.widthIn(max = w.dp).aspectRatio(aspect).heightIn(min = 40.dp)) {

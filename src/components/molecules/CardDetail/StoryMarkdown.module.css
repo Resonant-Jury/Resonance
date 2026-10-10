@@ -107,13 +107,11 @@
 
 /* Story images render through OrganicStoryImage (curved clip, natural size).
    A photo on its own line is its own beat in the text, so it gets more air
-   than the paragraph rhythm — no blank lines needed in the Markdown — and
-   starts at the column's edge like the text, the embedded cards and the link
-   cards (one narrower than the column isn't centred off the text's line; the
-   apps lay it out the same). Tall shots are capped by --story-image-max-h in
+   than the paragraph rhythm and sits centered in the column — no blank lines
+   needed in the Markdown. Tall shots are capped by --story-image-max-h in
    OrganicStoryImage so a portrait photo can't run off the screen. */
 .prose .imageBlock {
-  margin: var(--story-image-gap) 0;
+  margin: var(--story-image-gap) auto;
   width: fit-content;
   max-width: 100%;
 }
