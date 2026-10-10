@@ -20,13 +20,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.NotificationsStore
 import com.resonance.app.Session
+import com.resonance.design.readableColumn
 import com.resonance.design.AppFonts
 import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicEmptyState
-import com.resonance.design.OrganicListEmpty
 import com.resonance.design.plainClickable
 import com.resonance.design.SketchLoader
 import com.resonance.design.WavyDivider
+import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.kit.l10n.L10n
 
@@ -46,9 +47,14 @@ fun NotificationsScreen(session: Session, open: (Route) -> Unit) {
                 OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { session.notifications.resume() }, action = EmptyAction.Outline)
             }
             !loaded -> item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { SketchLoader(48.dp) } }
-            items.isEmpty() -> item { OrganicListEmpty(L10n.App.Notifications.empty, modifier = Modifier.padding(horizontal = 20.dp)) }
+            items.isEmpty() -> item {
+                OrganicEmptyState(
+                    L10n.App.Notifications.empty, title = L10n.App.Notifications.emptyTitle, icon = IconName.Bell, seed = 37.0,
+                    fill = true, modifier = Modifier.fillParentMaxHeight(),
+                )
+            }
             else -> itemsIndexed(items, key = { _, it -> it.id }) { i, item ->
-                Column(Modifier.padding(horizontal = 20.dp)) {
+                Column(Modifier.readableColumn().padding(horizontal = 20.dp)) {
                     if (i > 0) WavyDivider(seed = 29.0 + i * 7)
                     NotificationRow(item, session, open)
                 }

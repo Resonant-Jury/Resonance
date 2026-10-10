@@ -1,5 +1,16 @@
 package com.resonance.app.ui
 
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -103,6 +114,10 @@ internal fun Composer(model: ThreadModel, handle: String, focus: FocusRequester,
                     maxLines = 5,
                     modifier = Modifier
                         .fillMaxWidth()
+                        // A hardware keyboard's Return sends and Shift-Return starts a line, as on the web;
+                        // a composition in progress keeps its Return (the IME takes it first), and the soft
+                        // keyboard's Enter is always a new line.
+                        .onPreviewKeyEvent { e -> sendsOnReturn(e).also { if (it && model.canSend) model.send() } }
                         .focusRequester(focus)
                         .onFocusChanged { focused = it.isFocused }
                         .semantics { contentDescription = L10n.Messages.threadWith(handle) },
@@ -159,4 +174,16 @@ private fun AttachmentChip(icon: IconName, title: String, onRemove: () -> Unit) 
                 .semantics { contentDescription = L10n.Messages.removeCard },
         ) { OrganicIcon(IconName.Close, size = 13.dp, color = Tokens.TextMuted) }
     }
+}
+
+/**
+ * Whether a key is a hardware keyboard's plain Return (no Shift, Alt, Ctrl or Meta) going down —
+ * the send key. The soft keyboard's Enter (flagged, or from the virtual device) stays a new line.
+ */
+internal fun sendsOnReturn(e: KeyEvent): Boolean {
+    val n = e.nativeKeyEvent
+    if (e.type != KeyEventType.KeyDown || (e.key != Key.Enter && e.key != Key.NumPadEnter)) return false
+    if (e.isShiftPressed || e.isAltPressed || e.isCtrlPressed || e.isMetaPressed) return false
+    val soft = (n.flags and android.view.KeyEvent.FLAG_SOFT_KEYBOARD) != 0 || n.deviceId == android.view.KeyCharacterMap.VIRTUAL_KEYBOARD
+    return !soft
 }

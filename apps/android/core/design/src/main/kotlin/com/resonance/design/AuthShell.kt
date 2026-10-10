@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -81,7 +83,9 @@ fun AuthShell(tagline: BrandTagline? = null, content: @Composable ColumnScope.()
         // The web's clamp(20px, 6.4vw, 28px).
         val gutter = (maxWidth * 0.064f).coerceIn(20.dp, 28.dp)
         val statusBars = WindowInsets.statusBars
-        val sheet: @Composable () -> Unit = { AuthSheet(gutter, content) }
+        // Wider than a phone (a tablet, an unfolded phone): the sheet's paper still runs edge to edge, its content keeps to 480 in the middle.
+        val wide = LayoutClass.of(maxWidth.value) != LayoutClass.Compact
+        val sheet: @Composable () -> Unit = { AuthSheet(gutter, wide, content) }
         val scroll = Modifier.verticalScroll(rememberScrollState())
         if (tagline != null) AnchoredPage(viewport, statusBars, tagline, scroll, sheet)
         else PinnedPage(viewport, statusBars, scroll, sheet)
@@ -157,13 +161,14 @@ private fun PinnedPage(viewport: Int, statusBars: WindowInsets, modifier: Modifi
  * content, the gutter at its sides, and the gesture bar's inset + 20 below.
  */
 @Composable
-private fun AuthSheet(gutter: Dp, content: @Composable ColumnScope.() -> Unit) {
+private fun AuthSheet(gutter: Dp, wide: Boolean, content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
             .sheetEdge()
             .navigationBarsPadding()
-            .padding(start = gutter, end = gutter, top = 40.dp, bottom = 20.dp),
+            .padding(start = gutter, end = gutter, top = 40.dp, bottom = 20.dp)
+            .then(if (wide) Modifier.wrapContentWidth().widthIn(max = AuthSheetMax) else Modifier),
         content = content,
     )
 }
@@ -318,3 +323,6 @@ fun Modifier.sheetEdge(seed: Double = 313.0, grain: Float = 0.04f): Modifier = d
         drawPath(line, Tokens.AuthBorder, style = pen)
     }
 }
+
+/** The sign-in sheet's content on a window wider than a phone. */
+private val AuthSheetMax = 480.dp

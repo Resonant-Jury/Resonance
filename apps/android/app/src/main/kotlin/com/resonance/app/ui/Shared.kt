@@ -1,6 +1,15 @@
 package com.resonance.app.ui
 
 import androidx.compose.animation.core.animate
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import com.resonance.design.BorderedStoryCard
+import com.resonance.design.CardListLayout
+import com.resonance.design.GridBlockRows
+import com.resonance.design.GridUnderBar
+import com.resonance.design.LocalWindowLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -71,12 +80,13 @@ import java.time.format.FormatStyle
 
 /**
  * StoryCard's fields (lib/adapters/story.ts cardToStory); anonymous cards get
- * the dot byline. The recommender's reason is left out on purpose: the web
- * never explains a pick (home/page.tsx), so the card's margin-note slot stays
- * empty everywhere.
+ * the dot byline — on their author's own shelves too, where the server names
+ * them: the byline everyone sees is what marks one there (design note §13).
+ * The recommender's reason is left out on purpose: the web never explains a
+ * pick (home/page.tsx), so the card's margin-note slot stays empty everywhere.
  */
 fun FeedCard.story(): StoryCardContent {
-    val a = author
+    val a = author.takeUnless { anonymous }
     return StoryCardContent(
         id = id,
         title = title,
@@ -117,10 +127,64 @@ fun mediumDate(iso: String?): String? = iso?.let {
  * Cards as the web lists them on a phone: full-bleed bands, each opening its page (a plain link —
  * no press chrome), which draws the card as the list had it while it reads the rest.
  */
-fun LazyListScope.storyCards(cards: List<FeedCard>, open: (Route) -> Unit, onLast: (() -> Unit)? = null) {
+fun LazyListScope.storyCards(
+    cards: List<FeedCard>,
+    open: (Route) -> Unit,
+    onLast: (() -> Unit)? = null,
+    firstUnderBar: Boolean = false,
+    layout: CardListLayout = CardListLayout.Phone,
+) {
+    if (layout.isGrid) return borderedCards(cards, open, onLast, firstUnderBar, layout)
     itemsIndexed(cards, key = { _, c -> c.id }) { i, card ->
-        StoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(Route.Card(card.routeKey, card)) })
+        StoryCard(
+            card.story(), i, i == cards.lastIndex,
+            Modifier.plainClickable { open(Route.Card(card.routeKey, card)) }.pointerHoverIcon(PointerIcon.Hand),
+            isFirst = firstUnderBar && i == 0, inset = layout.inset,
+        )
         if (i == cards.lastIndex) onLast?.invoke()
+    }
+}
+
+/**
+ * An expanded window's cards (design note §10): the web desktop's bordered cards in columns,
+ * row-major — card i in column i mod n, each column stacking its own cards (CardLinkGrid) —
+ * [GridBlockRows] rows to a block of the lazy list, so a long feed still composes as it scrolls.
+ */
+internal fun LazyListScope.borderedCards(
+    cards: List<FeedCard>,
+    open: (Route) -> Unit,
+    onLast: (() -> Unit)?,
+    firstUnderBar: Boolean,
+    layout: CardListLayout,
+    /** Where a card leads (its page; a draft, its writer). */
+    tap: (FeedCard) -> Route = { Route.Card(it.routeKey, it) },
+    /** Laid over a card's top-end corner (the owner's ⋯ on their shelves). */
+    overlay: (@Composable BoxScope.(FeedCard, Int) -> Unit)? = null,
+) {
+    val n = layout.columns
+    val blocks = cards.indices.chunked(n * GridBlockRows)
+    itemsIndexed(blocks, key = { b, block -> "grid:$b:${cards[block.first()].id}" }) { b, block ->
+        val gap = Tokens.FeedGap.dp
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = layout.gridInset)
+                .padding(top = if (b == 0) (if (firstUnderBar) GridUnderBar else 0.dp) else gap),
+            horizontalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            for (c in 0 until n) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(gap)) {
+                    for (i in block) if (i % n == c) {
+                        val card = cards[i]
+                        Box {
+                            BorderedStoryCard(card.story(), i, Modifier.plainClickable { open(tap(card)) })
+                            overlay?.invoke(this, card, i)
+                        }
+                    }
+                }
+            }
+        }
+        if (b == blocks.lastIndex) onLast?.invoke()
     }
 }
 
@@ -129,7 +193,7 @@ fun LazyListScope.storyCards(cards: List<FeedCard>, open: (Route) -> Unit, onLas
  * page's load error): a muted line, centred, tucked under the heading above it, gone with the next
  * answer — iOS's RefreshNote. TalkBack hears it from [announce], wherever the list is scrolled.
  */
-fun LazyListScope.refreshNote(failure: RefreshFailure?) {
+fun LazyListScope.refreshNote(failure: RefreshFailure?, underBar: Boolean = false) {
     if (failure == null) return
     item(key = "refresh-note") {
         BasicText(
@@ -138,11 +202,12 @@ fun LazyListScope.refreshNote(failure: RefreshFailure?) {
             modifier = Modifier
                 .animateItem()
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp)
+                // The feed's list starts under the bar's wavy band: the note keeps clear of the bar instead.
+                .padding(start = 20.dp, end = 20.dp, top = if (underBar) HeaderEdgeHeight + 16.dp else 0.dp, bottom = 24.dp)
                 .layout { measurable, constraints ->
                     // 12 closer to what is above it than the list's own gap (iOS's −12).
                     val placeable = measurable.measure(constraints)
-                    val tuck = 12.dp.roundToPx()
+                    val tuck = if (underBar) 0 else 12.dp.roundToPx()
                     layout(placeable.width, (placeable.height - tuck).coerceAtLeast(0)) { placeable.place(0, -tuck) }
                 },
         )
@@ -156,7 +221,12 @@ internal fun View.announce(text: String) = announceForAccessibility(text)
 /** MiniCardGrid on a phone: the resonance and linked-cards lists, as pared-back bands. */
 fun LazyListScope.miniCards(cards: List<FeedCard>, open: (Route) -> Unit, keyPrefix: String) {
     itemsIndexed(cards, key = { _, c -> "$keyPrefix${c.id}" }) { i, card ->
-        MiniStoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(Route.Card(card.routeKey, card)) })
+        // Wider than a phone, the band's content keeps to the centred reading column.
+        MiniStoryCard(
+            card.story(), i, i == cards.lastIndex,
+            Modifier.plainClickable { open(Route.Card(card.routeKey, card)) }.pointerHoverIcon(PointerIcon.Hand),
+            inset = LocalWindowLayout.current.bandInset,
+        )
     }
 }
 
@@ -173,10 +243,14 @@ fun LazyListState.scrolledPast20(): Boolean {
  * scrolls under it and ends on its wavy line), then the list, with room for
  * the docked tab bar.
  *
- * The feed keeps the brand in the bar and puts its title and lede in the page.
- * The other tabs (`titleInBar`) have no title block: the title takes the
- * brand's place in the bar, with the wave mark before it and `trailing` at the
- * bar's end, and the list starts a little under the bar's line.
+ * The feed keeps the brand in the bar and no title at all (`title` null): its
+ * list starts under the bar's wavy band, so the first card's paper runs up
+ * beneath the wave and the bar's pen line is that card's top edge (design note
+ * §2). The other tabs (`titleInBar`) have no title block either: the title
+ * takes the brand's place in the bar, with the wave mark before it and
+ * `trailing` at the bar's end, and the list starts a little under the bar's
+ * line. A title in the page (`title` set, not `titleInBar`) is the old
+ * home heading and its lede.
  *
  * With [onRefresh], the list can be pulled down past its top to run it: the gap
  * that opens under the bar draws the Resonance loader (SketchPullIndicator),
@@ -185,7 +259,7 @@ fun LazyListState.scrolledPast20(): Boolean {
  */
 @Composable
 fun TabScreen(
-    title: String,
+    title: String?,
     subtitle: String? = null,
     /** The title in the bar instead of the brand (Messages, Notifications, My Card Box); no lede then. */
     titleInBar: Boolean = false,
@@ -208,8 +282,15 @@ fun TabScreen(
         // Without the title block, the first row still starts clear of the bar's line.
         // For whoever can't pull, the same refresh is the list's "Refresh" action (in TalkBack's Actions on any of its rows).
         val refreshAction = Modifier.sketchPullAction(pull, L10n.Native.refresh, enabled = onRefresh != null && refreshEnabled) { !list.canScrollBackward }
-        LazyColumn(Modifier.fillMaxSize().pulledDown(pull).then(refreshAction), state = list, contentPadding = PaddingValues(top = if (titleInBar) top + TitledBarGap else top, bottom = 120.dp)) {
-            if (!titleInBar) item {
+        val listTop = when {
+            titleInBar -> top + TitledBarGap
+            title == null -> top - HeaderEdgeHeight
+            else -> top
+        }
+        // Room for the docked tab bar; beside the side rail, only the navigation bar's.
+        val bottom = if (LocalWindowLayout.current.sideRail) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 40.dp else 120.dp
+        LazyColumn(Modifier.fillMaxSize().pulledDown(pull).then(refreshAction), state = list, contentPadding = PaddingValues(top = listTop, bottom = bottom)) {
+            if (!titleInBar && title != null) item {
                 // The web's page padding: 40 under the header, the title block 40 above the content (home's header).
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 40.dp, bottom = if (subtitle != null) 40.dp else 28.dp),
@@ -225,7 +306,7 @@ fun TabScreen(
         // The bar slides up under the status bar while reading down and comes back on the way up
         // (the brand has nothing to press, so it gives the stories the room); the status bar keeps its paper.
         val bar = Modifier.offset { IntOffset(0, quickReturn.offset.roundToInt()) }
-        if (titleInBar) OrganicBrandBar(list.scrolledPast20(), bar, brand = title, isHeading = true, trailing = trailing)
+        if (titleInBar && title != null) OrganicBrandBar(list.scrolledPast20(), bar, brand = title, isHeading = true, trailing = trailing)
         else OrganicBrandBar(list.scrolledPast20(), bar)
         overlay()
         Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Tokens.Cream))

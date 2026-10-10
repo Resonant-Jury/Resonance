@@ -47,6 +47,7 @@ import com.resonance.api.models.NotificationSettings
 import com.resonance.app.PushCenter
 import com.resonance.app.SafetyService
 import com.resonance.app.Session
+import com.resonance.design.readableColumn
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.CssText
@@ -64,7 +65,6 @@ import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicInlineBar
 import com.resonance.design.inlineBarTop
 import com.resonance.design.OrganicLink
-import com.resonance.design.OrganicListEmpty
 import com.resonance.design.OrganicModal
 import com.resonance.design.OrganicRadio
 import com.resonance.design.SquareFlag
@@ -131,7 +131,7 @@ fun SettingsScreen(open: (Route) -> Unit, back: () -> Unit) {
     val scroll = rememberScrollState()
     // The bar lies over the page, so what scrolls shows right up to its pen line.
     Box(Modifier.fillMaxSize().cream()) {
-        Column(Modifier.verticalScroll(scroll).padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
+        Column(Modifier.verticalScroll(scroll).readableColumn().padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
             BasicText(
                 L10n.Settings.title,
                 style = AppFonts.heading(28f, lineHeight = 1.2f),
@@ -174,7 +174,7 @@ fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -
     val scroll = rememberScrollState()
     // The keyboard shortens the page, so the profile's fields scroll into view above it.
     Box(Modifier.fillMaxSize().cream().imePadding()) {
-        Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(scroll).readableColumn().padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
             when (section) {
                 SettingsSection.Profile -> ProfileSettings(session)
                 SettingsSection.Account -> AccountSettings(session)
@@ -271,7 +271,9 @@ private fun AccountSettings(session: Session) {
     var confirming by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         OrganicTextField(L10n.Settings.Account.email, session.email ?: "", {}, placeholder = "you@example.com", seed = 51.0, enabled = false)
-        OrganicTextField(L10n.Settings.Account.phone, session.phoneNumber ?: "", {}, placeholder = "—", seed = 57.0, enabled = false)
+        // "(verified)" only beside a number there is.
+        val phone = session.phoneNumber?.takeIf { it.isNotEmpty() }
+        OrganicTextField(if (phone != null) L10n.Settings.Account.phoneVerified else L10n.Settings.Account.phone, phone ?: "", {}, placeholder = "—", seed = 57.0, enabled = false)
         OrganicButton(L10n.Settings.Account.signOut, Modifier.padding(top = 4.dp), variant = ButtonVariant.Tonal) { confirming = true }
     }
     if (confirming) OrganicConfirmDialog(
@@ -579,7 +581,7 @@ private fun ColumnScope.BlockedListContent(session: Session, onClose: () -> Unit
     val list = people
     when {
         list == null -> Box(Modifier.fillMaxWidth().padding(vertical = 18.dp), contentAlignment = Alignment.Center) { SketchLoader(44.dp) }
-        list.isEmpty() -> OrganicListEmpty(L10n.Safety.BlockedList.empty, 14.5f, Modifier.padding(vertical = 18.dp))
+        list.isEmpty() -> OrganicEmptyState(L10n.Safety.BlockedList.empty, icon = IconName.Ban, seed = 61.0, verticalPadding = 18.dp)
         else -> Column {
             list.forEachIndexed { i, person ->
                 if (i > 0) WavyDivider(seed = 100.0 + i * 7, modifier = Modifier.padding(vertical = 2.dp))

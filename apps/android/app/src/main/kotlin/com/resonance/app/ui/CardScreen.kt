@@ -1,8 +1,33 @@
 package com.resonance.app.ui
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import com.resonance.design.CardPageColumns
+import com.resonance.design.LocalWindowLayout
+import com.resonance.design.cardListLayout
+
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOut
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Dp
+import com.resonance.design.prefersReducedMotion
+import com.resonance.design.readingProgress
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -224,23 +249,32 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val bylineGone by remember(list, bylinePx) {
         derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > bylinePx }
     }
-    Box(Modifier.fillMaxSize().cream()) {
+    val progress = rememberReadingProgress(list, top)
+    // One centred column on phones and medium windows; on an expanded one the article and the author's rail.
+    val columns = LocalWindowLayout.current.cardPage()
+    val railed = columns.railStart != null
+    Box(Modifier.fillMaxSize().cream().onGloballyPositioned { progress.page = it }) {
     Column(Modifier.fillMaxSize().padding(top = if (phase == "loaded") 0.dp else top)) {
         when (phase) {
             // The card as the list drew it, the story still shimmering below; or, knowing nothing yet,
             // CardDetailSkeleton: the article's own layout in shimmering blocks.
-            "loading" -> if (placeholder != null) CardPreview(placeholder) { open(Route.Author(it)) }
-                else CardDetailSkeleton(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp))
-            "notFound" -> OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = back, action = EmptyAction.Link)
+            "loading" -> if (placeholder != null) CardPreview(placeholder, columns) { open(Route.Author(it)) }
+                else CardDetailSkeleton(Modifier.padding(start = columns.start, end = columns.end).padding(top = 16.dp))
+            "notFound" -> OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = back, action = EmptyAction.Outline)
             "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { model.refresh(changes, session.lastCardChange, retry = true) }, action = EmptyAction.Outline)
             else -> detail?.let { d ->
                 val card = d.card
                 val resonance = (listOfNotNull(d.referenceCard) + resonances).distinctBy { it.id }
+                // Related cards are the feed's kind of list: bands, or the bordered grid when expanded.
+                val relatedLayout = cardListLayout()
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 40.dp)) {
-                    item {
-                        Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
-                            ArticleHead(card, d.anonymous) { open(Route.Author(it)) }
-                            StoryMarkdown(blocks, openUrl, linkCards) { href, title -> CardEmbed(embeds.embedFor(href), href, title, open) }
+                    item(key = "article") {
+                        Column(Modifier.padding(start = columns.start, end = columns.end).padding(top = 16.dp)) {
+                            ArticleHead(card, d.anonymous, byline = !railed) { open(Route.Author(it)) }
+                            // The story alone is what the bar's progress measures (not the cover, title or lists).
+                            Box(Modifier.onGloballyPositioned(progress::story)) {
+                                StoryMarkdown(blocks, openUrl, linkCards) { href, title -> CardEmbed(embeds.embedFor(href), href, title, open) }
+                            }
                             FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
                             }
@@ -272,16 +306,25 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                     }
                     if (related.isNotEmpty()) {
                         sectionHeading(L10n.Card.related, below = 56)
-                        storyCards(related, open)
+                        storyCards(related, open, layout = relatedLayout)
                         item { Spacer(Modifier.height(16.dp)) }
                     }
                 }
             }
         }
     }
+    // The author's rail beside the article (an expanded window): pinned under the bar while the article scrolls, leaving with its end.
+    val railStart = columns.railStart
+    if (railStart != null) {
+        val shown = detail?.takeIf { phase == "loaded" }
+        if (shown != null) AuthorRail(shown.card, shown.anonymous, shown.isOwner, railStart, list, top) { open(Route.Author(it)) }
+        // While the card is read, the rail already shows whom the list said it is by.
+        else if (phase == "loading" && placeholder != null) AuthorRail(placeholder, placeholder.anonymous, false, railStart, null, top) { open(Route.Author(it)) }
+    }
     OrganicInlineBar(
         L10n.App.Nav.back, back, scrolled = list.scrolledPast20(),
-        leading = { detail?.let { d -> BarAuthor(d.card, d.anonymous, visible = phase == "loaded" && bylineGone) { open(Route.Author(it)) } } },
+        leading = { detail?.let { d -> BarAuthor(d.card, d.anonymous, visible = phase == "loaded" && bylineGone && !railed) { open(Route.Author(it)) } } },
+        progress = if (phase == "loaded") progress::shown else null,
     ) {
         detail?.let { d ->
             val card = d.card
@@ -361,9 +404,12 @@ private fun BarAuthor(card: FeedCard, anonymous: Boolean, visible: Boolean, open
  * and 20 below, then the title (the page's actions live in the bar).
  */
 @Composable
-private fun ArticleHead(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> Unit) {
-    Byline(card, anonymous, openAuthor)
-    Spacer(Modifier.height(28.dp))
+private fun ArticleHead(card: FeedCard, anonymous: Boolean, byline: Boolean = true, openAuthor: (String) -> Unit) {
+    // Beside the author's rail the byline isn't drawn: the rail carries it.
+    if (byline) {
+        Byline(card, anonymous, openAuthor)
+        Spacer(Modifier.height(28.dp))
+    }
     if (card.imageUrl != null) {
         OrganicImage(card.imageUrl, (card.accentHue ?: 55.0) + 11, Modifier.fillMaxWidth().aspectRatio(1 / 0.52f)) {
             Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
@@ -381,9 +427,9 @@ private fun ArticleHead(card: FeedCard, anonymous: Boolean, openAuthor: (String)
  * will have, and the story and tags still shimmering under it.
  */
 @Composable
-private fun CardPreview(card: FeedCard, openAuthor: (String) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 16.dp)) {
-        ArticleHead(card, card.anonymous, openAuthor)
+private fun CardPreview(card: FeedCard, columns: CardPageColumns, openAuthor: (String) -> Unit) {
+    Column(Modifier.fillMaxSize().padding(start = columns.start, end = columns.end).padding(top = 16.dp)) {
+        ArticleHead(card, card.anonymous, byline = columns.railStart == null, openAuthor = openAuthor)
         StorySkeleton(Modifier.semantics { contentDescription = L10n.Home.moreLoading })
     }
 }
@@ -407,6 +453,54 @@ private fun Byline(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> U
             val sub = listOfNotNull(if (anonymous) null else author?.region, shortDate(card.publishedAt)).joinToString(" · ")
             BasicText(sub, style = AppFonts.body(13f, color = Tokens.TextMuted))
         }
+    }
+}
+
+/**
+ * The web's CardAuthorAside, on an expanded window's rail: the avatar 56, 12 under it the pen name
+ * (→ their page) with its verified mark, then region · date, 4 apart. An anonymous card shows its
+ * dot and "anonymous", no link — and to its owner the note that only they see it's theirs. Like
+ * the web's sticky aside it stays 24 under the bar while the article scrolls, and goes up with
+ * the article's end.
+ */
+@Composable
+private fun AuthorRail(card: FeedCard, anonymous: Boolean, isOwner: Boolean, x: Dp, list: LazyListState?, top: Dp, openAuthor: (String) -> Unit) {
+    val density = LocalDensity.current
+    var height by remember { mutableIntStateOf(0) }
+    val pinned = with(density) { (top + 24.dp).roundToPx() }
+    val y by remember(list, pinned) {
+        derivedStateOf {
+            val info = list?.layoutInfo ?: return@derivedStateOf pinned
+            val article = info.visibleItemsInfo.firstOrNull { it.key == "article" } ?: return@derivedStateOf null
+            val bottom = article.offset + article.size - info.viewportStartOffset
+            minOf(pinned, bottom - height)
+        }
+    }
+    val author = card.author
+    val named = author != null && !anonymous
+    Column(
+        Modifier
+            .offset { IntOffset(x.roundToPx(), y ?: -10_000) }
+            .width(Tokens.CardRailW.dp)
+            .onSizeChanged { height = it.height },
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (named) Box(Modifier.plainClickable(onClickLabel = author!!.handle) { openAuthor(author.handle) }) {
+            HandDrawnAvatar(author.initials, author.avatarUrl, author.accent(), 56.dp, author.avatarSeedValue())
+        }
+        else HandDrawnAvatar("·", color = Tokens.CreamDark, size = 56.dp, seed = 97.0)
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (named) {
+                BasicText(author!!.handle, style = AppFonts.body(16f, 600), modifier = Modifier.plainClickable { openAuthor(author.handle) })
+                if (author.verified) OrganicIcon(IconName.Verified, Modifier.semantics { contentDescription = L10n.Card.verified }, size = 14.dp, color = Tokens.Sage, strokeWidth = 1.8f)
+            } else {
+                BasicText(L10n.Card.anonymousAuthor, style = AppFonts.body(16f, 600, color = Tokens.TextMuted))
+            }
+        }
+        val sub = listOfNotNull(if (anonymous) null else author?.region, shortDate(card.publishedAt)).joinToString(" · ")
+        if (sub.isNotEmpty()) BasicText(sub, style = AppFonts.body(13f, color = Tokens.TextMuted))
+        if (anonymous && isOwner) BasicText(L10n.Card.anonymousOwnerNote, style = AppFonts.body(14f, lineHeight = 1.6f, color = Tokens.TextMuted))
     }
 }
 
@@ -439,4 +533,54 @@ internal fun openStoryLink(context: Context, origin: String, href: String, open:
         }
         null -> {}
     }
+}
+
+/**
+ * The card page's reading progress (design note §3): where the story is on the page, measured as
+ * it scrolls, turned into 0…1 by [readingProgress] and eased over 120 ms on its way to the bar
+ * (straight to it with the system's animations off). [shown] is read while the bar draws, so
+ * scrolling redraws the line and recomposes nothing.
+ */
+@Stable
+internal class ReadingProgress(private val list: LazyListState, private val lineY: Float, private val bottomInset: Float, private val barBottom: Float) {
+    var page: LayoutCoordinates? = null
+    private var top by mutableFloatStateOf(0f)
+    private var height by mutableFloatStateOf(0f)
+    private var pageHeight by mutableFloatStateOf(0f)
+    val eased = Animatable(0f)
+
+    fun story(coordinates: LayoutCoordinates) {
+        val page = page?.takeIf { it.isAttached } ?: return
+        top = page.localPositionOf(coordinates, Offset.Zero).y
+        height = coordinates.size.height.toFloat()
+        pageHeight = page.size.height.toFloat()
+    }
+
+    /** The story's progress now: once the article has scrolled out of the list, all of it is read. */
+    val target: Float get() {
+        val visible = pageHeight - barBottom - bottomInset
+        return if (list.firstVisibleItemIndex > 0) { if (height > visible) 1f else 0f }
+        else readingProgress(top, height, lineY, visible)
+    }
+
+    fun shown(): Float = eased.value
+}
+
+@Composable
+private fun rememberReadingProgress(list: LazyListState, top: Dp): ReadingProgress {
+    val density = LocalDensity.current
+    val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val reduced = LocalContext.current.prefersReducedMotion()
+    val progress = remember(list, top, bottom, density) {
+        with(density) {
+            // The bar's pen line: its band's 1.4 + INK above the bar's foot.
+            ReadingProgress(list, (top - (1.4f + Tokens.Ink.value).dp).toPx(), bottom.toPx(), top.toPx())
+        }
+    }
+    LaunchedEffect(progress, reduced) {
+        snapshotFlow { progress.target }.collectLatest { p ->
+            if (reduced) progress.eased.snapTo(p) else progress.eased.animateTo(p, tween(120, easing = EaseOut))
+        }
+    }
+    return progress
 }

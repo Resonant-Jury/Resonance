@@ -47,6 +47,21 @@ class PlainTextTest {
         assertEquals("Title a quote Some bold and light text with a link and .", PlainText.plainText(md))
     }
 
+    @Test fun readsTheEntitiesAndEscapesTheEditorWritesAsTheCharactersTheyStandFor() {
+        // A story written with "->" is stored "-&gt;" (the excerpt once showed the entity itself).
+        assertEquals("A -> B", PlainText.plainText("A -&gt; B"))
+        assertEquals("<b>不是 HTML</b> 與 <script>x</script>", PlainText.plainText("&lt;b&gt;不是 HTML&lt;/b&gt; 與 &lt;script&gt;x&lt;/script&gt;"))
+        // What only looks like syntax stays the writer's characters, never stripped as a heading, list or quote.
+        assertEquals(
+            "# 開頭不是標題 1. 開頭不是清單 - 開頭不是項目 > 開頭不是引用",
+            PlainText.plainText("\\# 開頭不是標題\n\n1\\. 開頭不是清單\n\n\\- 開頭不是項目\n\n&gt; 開頭不是引用"),
+        )
+        assertEquals("*not emphasis* and [not a link](x) & 'quotes'", PlainText.plainText("\\*not emphasis\\* and \\[not a link\\](x) &amp; &#39;quotes&#x27;"))
+        // Unknown names stay as written; a broken code point reads as the replacement character.
+        assertEquals("&nosuch; \uFFFD", PlainText.plainText("&nosuch; &#0;"))
+        assertEquals("C:\\path", PlainText.plainText("C:\\\\path"))
+    }
+
     @Test fun cutsBetweenCodePointsNeverInsideAnEmoji() {
         assertEquals("${"a".repeat(95)}😀…", PlainText.excerpt("${"a".repeat(95)}😀b"))
         assertEquals("short", PlainText.excerpt("short"))

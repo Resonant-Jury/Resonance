@@ -1,5 +1,17 @@
 package com.resonance.app.ui
 
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import com.resonance.app.thoughtmap.ThoughtMapScreen
+import com.resonance.design.HeaderEdgeHeight
+import com.resonance.design.LayoutClass
+import com.resonance.design.LocalWindowLayout
+
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -10,9 +22,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asImageBitmap
 import com.resonance.design.HandDrawnImage
@@ -40,7 +50,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Ease
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -77,6 +91,7 @@ import com.resonance.design.ModalActions
 import com.resonance.design.ModalActionsTop
 import com.resonance.design.ModalError
 import com.resonance.design.ModalBody
+import com.resonance.design.ModalGap
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicButton
@@ -156,7 +171,7 @@ fun WriteScreen(
             BackHandler(onBack = close)
             Box(Modifier.fillMaxSize().cream()) {
                 Box(Modifier.padding(top = inlineBarTop())) {
-                    OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = close, action = EmptyAction.Link, verticalPadding = 58.dp)
+                    OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = close, action = EmptyAction.Outline, verticalPadding = 58.dp)
                 }
                 OrganicInlineBar(L10n.App.Nav.back, close)
             }
@@ -246,13 +261,29 @@ private fun WriteForm(
     BackHandler(onBack = goBack)
 
     val scroll = rememberScrollState()
-    Box(Modifier.fillMaxSize().cream().imePadding()) { Column(
+    // The writer takes the whole window (the side rail slides away). From 1200 wide the thought map
+    // sits beside it, the editor in the window's right half (design note §12); otherwise the editor
+    // alone, in a centred reading column on anything wider than a phone. The editor keeps its place
+    // in the tree either way, so a rotation or a resize across 1200 keeps the story's editor as it is.
+    val window = LocalWindowLayout.current
+    val split = window.writerSplit
+    val compactWindow = window.cls == LayoutClass.Compact
+    val pad = window.pad
+    val columnMax = Tokens.Measure.dp + pad * 2
+    val editorWidth = minOf(if (split) window.width / 2 else window.width, if (compactWindow) window.width else columnMax)
+    Box(Modifier.fillMaxSize().cream().imePadding()) { Row(Modifier.fillMaxSize()) {
+    if (split) Box(Modifier.weight(1f).fillMaxHeight().padding(top = inlineBarTop() - HeaderEdgeHeight)) {
+        ThoughtMapScreen(session, session.thoughtMap, open = {}, leave = {}, embedded = true)
+    }
+    Column(
         Modifier
-            .fillMaxSize()
+            .then(if (split) Modifier.width(window.width / 2).editorBoundary(inlineBarTop()) else Modifier.fillMaxWidth())
+            .fillMaxHeight()
             .verticalScroll(scroll)
+            .then(if (compactWindow) Modifier else Modifier.fillMaxWidth().wrapContentWidth().widthIn(max = columnMax))
             // The bar lies over the page, so what scrolls shows right up to its pen line.
             .padding(top = inlineBarTop())
-            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 48.dp),
+            .padding(start = pad, end = pad, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
         // The title is the bar's; the save state stays here (an unsaved draft has none).
@@ -275,7 +306,7 @@ private fun WriteForm(
         // Everything autosaves; these are only about intent. A draft: publish it, or step away.
         // A live card: put the revision in front of readers, or drop it.
         WriteActions(
-            compact = LocalConfiguration.current.screenWidthDp < WIDE_SCREEN_DP,
+            compact = editorWidth < WIDE_SCREEN_DP.dp,
             error = actionError,
             primary = { modifier ->
                 if (model.isPublished) {
@@ -313,6 +344,7 @@ private fun WriteForm(
                 else -> null
             },
         )
+    }
     }
         // Leaving keeps what's written: the draft is saved on the way out.
         OrganicInlineBar(L10n.App.Nav.back, goBack, title = model.title, scrolled = scroll.scrolledPast20())
@@ -495,19 +527,25 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
     // Not closable while it publishes or saves (the web's pending gate).
     val title = if (updating) L10n.Write.PublishPanel.updateTitle else L10n.Write.PublishPanel.title
     OrganicModal(if (pending) null else onCancel, title, seed = 29.0, closeLabel = L10n.Write.PublishPanel.cancel) {
-        ModalTitle(title)
         if (updating) {
+            ModalTitle(title)
             CssText(L10n.Write.PublishPanel.updateHint, AppFonts.Family.Body, 14f, lineHeight = 1.7f, color = Tokens.TextMuted)
-        }
-        if (insightLoading) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SketchLoader(28.dp)
-                BasicText(L10n.Write.PublishPanel.insightLoading, style = AppFonts.body(14f, color = Tokens.TextMuted))
-            }
-        } else insight?.let {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OrganicIcon(IconName.Sparkle, Modifier.padding(top = 3.dp), size = 16.dp, color = Tokens.Terracotta)
-                BasicText(L10n.Write.PublishPanel.insight(it), style = AppFonts.body(14f))
+        } else {
+            // The echo grows (or goes, with nothing to say) smoothly, its gap above it included, so the
+            // controls under it glide rather than jump.
+            Column(Modifier.fillMaxWidth().animateContentSize(tween(220, easing = Ease))) {
+                ModalTitle(title)
+                if (insightLoading) {
+                    Row(Modifier.padding(top = ModalGap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SketchLoader(28.dp)
+                        BasicText(L10n.Write.PublishPanel.insightLoading, style = AppFonts.body(14f, color = Tokens.TextMuted))
+                    }
+                } else insight?.let {
+                    Row(Modifier.padding(top = ModalGap), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OrganicIcon(IconName.Sparkle, Modifier.padding(top = 3.dp), size = 16.dp, color = Tokens.Terracotta)
+                        BasicText(L10n.Write.PublishPanel.insight(it), style = AppFonts.body(14f))
+                    }
+                }
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -530,9 +568,12 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
                 enabled = !pending,
             )
             // Never for connections only while anonymous (who could read it would say who wrote it): say so.
-            if (anonymous) {
-                BasicText(L10n.Write.PublishPanel.anonymousVisibility, style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted))
-            }
+            // Its room is kept while it isn't said, so flipping the switch below never moves the switch.
+            BasicText(
+                L10n.Write.PublishPanel.anonymousVisibility,
+                style = AppFonts.body(Tokens.HintSize, color = Tokens.TextMuted),
+                modifier = if (anonymous) Modifier else Modifier.drawWithContent { }.clearAndSetSemantics { },
+            )
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // The whole row is the switch (the web's <label className={toggleRow}>): a tap on the words flips it too.
@@ -624,3 +665,9 @@ internal fun publishError(e: Exception, updating: Boolean): String = when {
  */
 internal fun anonymousVisibility(visibility: String, anonymous: Boolean): String =
     if (anonymous && visibility == "connections") "public" else visibility
+
+/** The editor pane's leading edge beside the map: a 1-wide line in the fields' border ink, from the bar's pen line down. */
+private fun Modifier.editorBoundary(barBottom: Dp): Modifier = drawBehind {
+    val top = (barBottom - (1.4f + Tokens.Ink.value).dp).toPx()
+    drawLine(Tokens.FieldBorder, Offset(0.5f, top), Offset(0.5f, size.height), strokeWidth = 1.dp.toPx())
+}

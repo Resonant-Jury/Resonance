@@ -1,6 +1,16 @@
 package com.resonance.design
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +42,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
+import com.resonance.geometry.penWave
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
@@ -207,10 +220,16 @@ private fun StoryBand(
     verticalPadding: Dp,
     gap: Dp,
     modifier: Modifier,
+    isFirst: Boolean = false,
+    inset: Dp = BandInset,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val interior = palette.interior
     val border = palette.border
+    // The first band of a list that starts under the bar's wavy band: its paper runs up beneath the
+    // wave (the bar's pen line is its top edge, so it draws no rule of its own), and its content
+    // keeps its place.
+    val bleed = if (isFirst) HeaderEdgeHeight else 0.dp
     Column(
         modifier
             .fillMaxWidth()
@@ -221,14 +240,14 @@ private fun StoryBand(
                 val stroke = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round)
                 onDrawWithContent {
                     drawRect(interior)
-                    drawPath(rule, border, style = stroke)
+                    if (!isFirst) drawPath(rule, border, style = stroke)
                     if (isLast) translate(top = size.height) { drawPath(rule, border, style = stroke) }
                     drawContent()
                     // The tile's ink averages ½: twice the mean darkening.
                     grain?.let { drawRect(it, alpha = StoryGrain.Band * 2) }
                 }
             }
-            .padding(horizontal = 38.dp, vertical = verticalPadding),
+            .padding(start = inset, end = inset, top = verticalPadding + bleed, bottom = verticalPadding),
         verticalArrangement = Arrangement.spacedBy(gap),
         content = content,
     )
@@ -244,38 +263,48 @@ private fun BylineRule(seed: Double, color: Color) {
     })
 }
 
+/** A band's content inset on a phone: the page's 20 and the band's own 18. */
+val BandInset = 38.dp
+
 /**
  * StoryCard as the web draws it on a phone: a full-bleed band tinted with the
- * card's hue, then image, tags, title, excerpt, rule, byline.
+ * card's hue, then image, tags, title, excerpt, rule, byline. [isFirst]: the
+ * feed's first card, which starts under the bar's wavy band (see StoryBand).
+ * [inset]: how far in its content sits — 38 on a phone; on a medium window the
+ * side inset of the centred reading column, the paper still running edge to edge.
  */
 @Composable
-fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier) {
+fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, isFirst: Boolean = false, inset: Dp = BandInset) {
     val palette = CardPalette(content.accentHue, position)
     val seed = position * 77.0 + 13
-    StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier) {
-        OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.62f), grain = StoryGrain.Cover) {
-            StoryImagePlaceholder(palette.fill, palette.stripe, content.imageLabel)
+    StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier, isFirst, inset) { StoryCardBody(content, palette, seed) }
+}
+
+/** What a story card holds, band or bordered: cover, tags, title, excerpt, rule, byline (and the margin note). */
+@Composable
+private fun ColumnScope.StoryCardBody(content: StoryCardContent, palette: CardPalette, seed: Double) {
+    OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.62f), grain = StoryGrain.Cover) {
+        StoryImagePlaceholder(palette.fill, palette.stripe, content.imageLabel)
+    }
+    // The web renders the tag row even when empty (its 8px margin still counts).
+    FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        content.tags.take(4).forEach { TagPill(it, fill = palette.fill) }
+    }
+    CssText(content.title, AppFonts.Family.Heading, 18f, 700, lineHeight = 1.3f, modifier = Modifier.fillMaxWidth())
+    CssText(content.excerpt, AppFonts.Family.Body, 14f, 400, lineHeight = 1.65f, color = Tokens.TextMuted, modifier = Modifier.fillMaxWidth())
+    BylineRule(seed, palette.separator)
+    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        HandDrawnAvatar(content.authorInitials, content.authorImageUrl, palette.fill, 30.dp, content.avatarSeed)
+        Column(Modifier.weight(1f)) {
+            BasicText(content.authorName, style = AppFonts.body(13f, 600, lineHeight = 1.4f))
+            BasicText(content.readTime, style = AppFonts.body(12f, lineHeight = 1.4f, color = Tokens.TextMuted))
         }
-        // The web renders the tag row even when empty (its 8px margin still counts).
-        FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            content.tags.take(4).forEach { TagPill(it, fill = palette.fill) }
-        }
-        CssText(content.title, AppFonts.Family.Heading, 18f, 700, lineHeight = 1.3f, modifier = Modifier.fillMaxWidth())
-        CssText(content.excerpt, AppFonts.Family.Body, 14f, 400, lineHeight = 1.65f, color = Tokens.TextMuted, modifier = Modifier.fillMaxWidth())
-        BylineRule(seed, palette.separator)
-        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HandDrawnAvatar(content.authorInitials, content.authorImageUrl, palette.fill, 30.dp, content.avatarSeed)
-            Column(Modifier.weight(1f)) {
-                BasicText(content.authorName, style = AppFonts.body(13f, 600, lineHeight = 1.4f))
-                BasicText(content.readTime, style = AppFonts.body(12f, lineHeight = 1.4f, color = Tokens.TextMuted))
-            }
-            OrganicIcon(IconName.ArrowRight, size = 18.dp, color = Tokens.Text.copy(alpha = 0.28f), strokeWidth = Tokens.Ink.value)
-        }
-        if (!content.reason.isNullOrEmpty()) {
-            Row(Modifier.marginTop((-4).dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                OrganicIcon(IconName.Sparkle, Modifier.padding(top = 5.dp), size = 13.dp, color = palette.noteInk, strokeWidth = Tokens.InkLight.value)
-                CssText(content.reason, AppFonts.Family.Handwritten, 17f, 400, lineHeight = 1.45f, color = palette.noteInk, modifier = Modifier.weight(1f), letterSpacing = 0.02f)
-            }
+        OrganicIcon(IconName.ArrowRight, size = 18.dp, color = Tokens.Text.copy(alpha = 0.28f), strokeWidth = Tokens.Ink.value)
+    }
+    if (!content.reason.isNullOrEmpty()) {
+        Row(Modifier.marginTop((-4).dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            OrganicIcon(IconName.Sparkle, Modifier.padding(top = 5.dp), size = 13.dp, color = palette.noteInk, strokeWidth = Tokens.InkLight.value)
+            CssText(content.reason, AppFonts.Family.Handwritten, 17f, 400, lineHeight = 1.45f, color = palette.noteInk, modifier = Modifier.weight(1f), letterSpacing = 0.02f)
         }
     }
 }
@@ -286,37 +315,104 @@ fun StoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false,
  * card's own hue.
  */
 @Composable
-fun StoryCardSkeleton(position: Int, isLast: Boolean = false, modifier: Modifier = Modifier) {
+fun StoryCardSkeleton(position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, isFirst: Boolean = false, inset: Dp = BandInset) {
     val palette = CardPalette(null, position)
     val seed = position * 77.0 + 13
     WithSkeletonHue(palette.hue) {
-        StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier.semantics { contentDescription = L10n.Home.moreLoading }) {
-            Skeleton(Modifier.aspectRatio(1 / 0.62f), height = Dp.Unspecified, radius = 18.dp)
-            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Skeleton(Modifier.width(56.dp), height = 22.dp, radius = 11.dp)
-                Skeleton(Modifier.width(72.dp), height = 22.dp, radius = 11.dp)
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Skeleton(Modifier.fillMaxWidth(0.9f), height = 18.dp)
-                Skeleton(Modifier.fillMaxWidth(0.55f), height = 18.dp)
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Skeleton(height = 13.dp)
-                Skeleton(height = 13.dp)
-                Skeleton(Modifier.fillMaxWidth(0.7f), height = 13.dp)
-            }
-            BylineRule(seed, palette.separator)
-            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Skeleton(height = 30.dp, circle = true)
-                Column(Modifier.weight(1f)) {
-                    Skeleton(Modifier.width(96.dp), height = 13.dp)
-                    Skeleton(Modifier.padding(top = 6.dp).width(56.dp), height = 11.dp)
-                }
-                Skeleton(height = 18.dp, circle = true)
-            }
+        StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier.semantics { contentDescription = L10n.Home.moreLoading }, isFirst, inset) {
+            StoryCardSkeletonBody(palette, seed)
         }
     }
 }
+
+@Composable
+private fun ColumnScope.StoryCardSkeletonBody(palette: CardPalette, seed: Double) {
+    Skeleton(Modifier.aspectRatio(1 / 0.62f), height = Dp.Unspecified, radius = 18.dp)
+    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Skeleton(Modifier.width(56.dp), height = 22.dp, radius = 11.dp)
+        Skeleton(Modifier.width(72.dp), height = 22.dp, radius = 11.dp)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Skeleton(Modifier.fillMaxWidth(0.9f), height = 18.dp)
+        Skeleton(Modifier.fillMaxWidth(0.55f), height = 18.dp)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Skeleton(height = 13.dp)
+        Skeleton(height = 13.dp)
+        Skeleton(Modifier.fillMaxWidth(0.7f), height = 13.dp)
+    }
+    BylineRule(seed, palette.separator)
+    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Skeleton(height = 30.dp, circle = true)
+        Column(Modifier.weight(1f)) {
+            Skeleton(Modifier.width(96.dp), height = 13.dp)
+            Skeleton(Modifier.padding(top = 6.dp).width(56.dp), height = 11.dp)
+        }
+        Skeleton(height = 18.dp, circle = true)
+    }
+}
+
+/**
+ * The web's desktop StoryCard (`desktopChrome`) for an expanded window's grid (design note §10):
+ * the card's paper inside a hand-drawn outline (R 22, seed index × 77 + 13, 2.5 % wobble), the
+ * paper grain clipped to it, then its pen line in the card's border ink; the band's content
+ * inside, 22 in. A pointer over it washes the paper a shade deeper (320 ms), as BrushWash does.
+ */
+@Composable
+fun BorderedStoryCard(content: StoryCardContent, position: Int, modifier: Modifier = Modifier) {
+    val palette = CardPalette(content.accentHue, position)
+    val seed = position * 77.0 + 13
+    BorderedCardFrame(palette, seed, modifier) { StoryCardBody(content, palette, seed) }
+}
+
+/** [BorderedStoryCard] while its list is read: the same outline round shimmering blocks. */
+@Composable
+fun BorderedStoryCardSkeleton(position: Int, modifier: Modifier = Modifier) {
+    val palette = CardPalette(null, position)
+    val seed = position * 77.0 + 13
+    WithSkeletonHue(palette.hue) {
+        BorderedCardFrame(palette, seed, modifier.semantics { contentDescription = L10n.Home.moreLoading }, hover = false) {
+            StoryCardSkeletonBody(palette, seed)
+        }
+    }
+}
+
+@Composable
+private fun BorderedCardFrame(palette: CardPalette, seed: Double, modifier: Modifier, hover: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    val wash by animateFloatAsState(if (hover && hovered) 1f else 0f, tween(320), label = "cardWash")
+    val interior = palette.interior
+    val washed = OklchColor.parse("oklch(92.5% 0.024 ${palette.hue})") ?: interior
+    Column(
+        modifier
+            .fillMaxWidth()
+            .then(if (hover) Modifier.hoverable(source).pointerHoverIcon(PointerIcon.Hand) else Modifier)
+            .drawWithCache {
+                val w = (size.width / density).toDouble()
+                val h = (size.height / density).toDouble()
+                val outline = WobRectShape(22.0, seed, mag = min(w, h) * 0.025, options = BorderedCardWob).createOutline(size, layoutDirection, this)
+                val grain = Grain.brush(GrainMode.Tile, "grain-card", size, density, BorderedCardGrain)
+                val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                onDrawBehind {
+                    drawOutline(outline, if (wash > 0f) lerp(interior, washed, wash) else interior)
+                    grain?.let { drawOutline(outline, it, alpha = BorderedCardGrain) }
+                    drawOutline(outline, palette.border, style = pen)
+                }
+            }
+            .padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        content = content,
+    )
+}
+
+/** StoryCard.tsx's desktop outline: 3–4 turns across, 5–6 down, gentle curves, corners drifting 4. */
+private val BorderedCardWob = WobRectOptions(
+    curve = 0.55, cornerJitter = 0.7, cornerOffset = 4.0, segmentsH = SegValue.Range(3, 4), segmentsV = SegValue.Range(5, 6),
+)
+
+/** STORY_GRAIN.paper: the bordered card's paper grain. */
+private const val BorderedCardGrain = 0.2f
 
 /**
  * MiniStoryCard on a phone — the pared-back card of the resonance and
@@ -324,11 +420,11 @@ fun StoryCardSkeleton(position: Int, isLast: Boolean = false, modifier: Modifier
  * picture), title, avatar and name. No tags, excerpt or read time.
  */
 @Composable
-fun MiniStoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier) {
+fun MiniStoryCard(content: StoryCardContent, position: Int, isLast: Boolean = false, modifier: Modifier = Modifier, inset: Dp = BandInset) {
     val palette = CardPalette(content.accentHue, position)
     val seed = position * 71.0 + 19
     val accent = content.authorAccent ?: palette.accent
-    StoryBand(palette, seed + 17, isLast, 28.dp, 12.dp, modifier) {
+    StoryBand(palette, seed + 17, isLast, 28.dp, 12.dp, modifier, inset = inset) {
         OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.56f), grain = StoryGrain.Cover) {
             if (content.imageUrl == null) Box(Modifier.fillMaxSize().background(accent))
         }
@@ -376,3 +472,27 @@ fun EmbedStoryCard(title: String, author: String?, imageUrl: String?, hue: Doubl
         }
     }
 }
+
+/**
+ * The end of a feed (design note §2): a short pen wave — `penWave(40, seed 307)` in the fields'
+ * border ink at 70% — with a terracotta dot 5 past its end, and one quiet line 10 under it. Shown
+ * only when nothing more can load; not a heading. The mark is decoration: the line says it all.
+ */
+@Composable
+fun FeedEndMark(text: String, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.size(width = FeedEndWave + 5.dp + 3.2.dp, height = 8.dp).clearAndSetSemantics { }) {
+            val mid = size.height / 2
+            val wave = penWave(FeedEndWave.value.toDouble(), 307.0, amp = 1.2, half = 4.5).toPath(density, 0f, mid)
+            drawPath(wave, Tokens.FieldBorderHover.copy(alpha = 0.7f), style = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawCircle(Tokens.Terracotta, radius = 1.6.dp.toPx(), center = Offset((FeedEndWave + 5.dp + 1.6.dp).toPx(), mid))
+        }
+        BasicText(
+            text,
+            style = AppFonts.body(13.5f, lineHeight = 1.5f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
+            modifier = Modifier.padding(top = 10.dp),
+        )
+    }
+}
+
+private val FeedEndWave = 40.dp

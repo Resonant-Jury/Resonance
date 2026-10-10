@@ -12,7 +12,6 @@ import android.text.TextPaint
 import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
 import android.text.style.TypefaceSpan
-import android.text.style.UnderlineSpan
 import android.graphics.text.LineBreaker
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -38,6 +37,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.translate
+import com.resonance.geometry.penWave
+import com.resonance.geometry.seedFromString
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -203,8 +209,8 @@ fun Modifier.bubbleSurface(shape: Shape, fill: Color, flash: () -> Float = { 0f 
  * fixed [width] — the words, then what it carries edge to edge. A reply to a note wears a small
  * italic header (`quoteLabel`).
  *
- * The words are drawn by [ChatText]: [links] (ranges of [text]) are underlined, terracotta-deep in
- * your own bubble and terracotta in theirs, and a tap on one calls [onLinkTap] with its index;
+ * The words are drawn by [ChatText]: [links] (ranges of [text]) wear the story's pen wave under
+ * them, in the tonal buttons' deep terracotta in either bubble, and a tap on one calls [onLinkTap] with its index;
  * [highlights] are the matches of a search, washed (the [highlightStrong] ones are the hit being
  * looked at); [flash] pulses the whole bubble. [onLongPress] gets the index of the link pressed, if
  * it was on one. [plain] draws the bubble's stand-in (a plain rounded box) while what it carries
@@ -262,8 +268,8 @@ fun MessageBubble(
                 if (text.isNotEmpty()) ChatText(
                     text,
                     links = links,
-                    // The terracotta of a link would sink into your own bubble's wash.
-                    linkColor = if (mine) Tokens.TerracottaDeep else Tokens.Terracotta,
+                    // The tonal buttons' deep label: 4.5:1 on either bubble (plain terracotta is 3.45:1).
+                    linkColor = Mixes.ButtonOnTonal,
                     highlights = highlights,
                     highlightColor = highlightWash(highlightStrong),
                     onTap = onLinkTap,
@@ -305,9 +311,10 @@ val REPLY_OVERLAP = 14.dp
 
 /**
  * A bubble's words on CSS line boxes (the twin of [CssText], which has no spans): [links] are
- * coloured and underlined, [highlights] washed behind the glyphs on rounded rects, and a tap or
- * long-press on a link is reported by its index in [links]. Takes the text's own width when it
- * wraps (a bubble hugs its words).
+ * coloured and carry the story links' pen wave under each line they cover ([WAVE_DEPTH_EM] below
+ * the baseline, terracotta at 70%, full while pressed — no straight underline), [highlights]
+ * washed behind the glyphs on rounded rects, and a tap or long-press on a link is reported by its
+ * index in [links]. Takes the text's own width when it wraps (a bubble hugs its words).
  */
 @Composable
 fun ChatText(
@@ -339,6 +346,9 @@ fun ChatText(
         val widest = ceil((0 until layout.lineCount).maxOfOrNull { layout.getLineMax(it) } ?: 0f).toInt()
         val boxPx = min(layout.width, widest)
         val hit: (Float, Float) -> Int? = { x, y -> linkAt(layout, links, x, y, 6f * density) }
+        val sizePx = scaled.cssFontPx(sizeSp)
+        val waves = remember(layout, links, sizePx, density) { chatLinkWaves(layout, links, sizePx, density) }
+        var pressed by remember { mutableStateOf<Int?>(null) }
         Box(
             Modifier
                 .width(Dp(boxPx / density))
@@ -352,11 +362,24 @@ fun ChatText(
                             drawRoundRect(highlightColor, androidx.compose.ui.geometry.Offset(rect.left, rect.top), Size(rect.width(), rect.height()), androidx.compose.ui.geometry.CornerRadius(r))
                         }
                     }
+                    // The waves under the letters, as the story's: a descender rests in an arch rather than being crossed.
+                    if (waves.isNotEmpty()) {
+                        val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        waves.forEach { w ->
+                            translate(w.x, w.y) { drawPath(w.path, Tokens.Terracotta, alpha = if (w.link == pressed) 1f else 0.7f, style = pen) }
+                        }
+                    }
                     drawIntoCanvas { layout.draw(it.nativeCanvas) }
                 }
                 .then(
                     if (onTap != null || onLongPress != null) Modifier.pointerInput(layout, links) {
                         detectTapGestures(
+                            // The pen presses harder while the finger is on a link: the web's hover.
+                            onPress = { p ->
+                                pressed = hit(p.x, p.y)
+                                tryAwaitRelease()
+                                pressed = null
+                            },
                             onTap = { p -> hit(p.x, p.y)?.let { i -> tap?.invoke(i) } },
                             onLongPress = { p -> press?.invoke(hit(p.x, p.y)) },
                         )
@@ -367,8 +390,9 @@ fun ChatText(
 }
 
 /**
- * [CssLayout.build] with spans: the same CSS line boxes and greedy breaks, [links] coloured and
- * underlined, an optional heavier face for some ranges, and at most [maxLines] lines (cut with …).
+ * [CssLayout.build] with spans: the same CSS line boxes and greedy breaks, [links] coloured (their
+ * waves are drawn apart, [chatLinkWaves]), an optional heavier face for some ranges, and at most
+ * [maxLines] lines (cut with …).
  */
 private fun buildChatLayout(
     text: String,
@@ -394,7 +418,6 @@ private fun buildChatLayout(
         for (r in links) {
             val (a, b) = clamp(r, text.length) ?: continue
             setSpan(ForegroundColorSpan(linkColor.toArgb()), a, b, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            setSpan(UnderlineSpan(), a, b, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         heavier?.let { (ranges, w) ->
             val face: Typeface = AppFonts.typeface(AppFonts.Family.Body, w)
@@ -413,6 +436,29 @@ private fun buildChatLayout(
     if (maxLines != Int.MAX_VALUE) b.setMaxLines(maxLines).setEllipsize(TextUtils.TruncateAt.END).setEllipsizedWidth(widthPx)
     if (Build.VERSION.SDK_INT >= 35) b.setUseBoundsForWidth(false)
     return b.build()
+}
+
+/** One line's share of a link's wave: which link, where it starts (px) and the stroke. */
+private class ChatWave(val link: Int, val x: Float, val y: Float, val path: androidx.compose.ui.graphics.Path)
+
+/** The story links' waves under [links] in [layout]: one `penWave` per line a link covers, seeded by its words. */
+private fun chatLinkWaves(layout: StaticLayout, links: List<IntRange>, sizePx: Float, density: Float): List<ChatWave> {
+    val length = layout.text.length
+    // A line cut with … draws nothing past its end.
+    val shown = if (layout.lineCount == 0) 0 else layout.getLineEnd(layout.lineCount - 1) - layout.getEllipsisCount(layout.lineCount - 1)
+    return links.flatMapIndexed { index, r ->
+        val (a, b) = clamp(r, min(length, shown)) ?: return@flatMapIndexed emptyList()
+        val seed = seedFromString(layout.text.substring(a, b))
+        linkFragments(
+            a, b,
+            layout::getLineForOffset, layout::getLineStart, layout::getLineVisibleEnd,
+            { layout.getPrimaryHorizontal(it) },
+            { line, o -> if (o == layout.getLineEnd(line)) layout.getLineRight(line) else layout.getPrimaryHorizontal(o) },
+            { layout.getLineBaseline(it).toFloat() },
+        ).mapIndexed { i, f ->
+            ChatWave(index, f.left, linkWaveY(f.baseline, sizePx), penWave(((f.right - f.left) / density).toDouble(), (seed + i).toDouble()).toPath(density))
+        }
+    }
 }
 
 /** A UTF-16 range (both ends inclusive) as a span's [start, end) inside the text; null when nothing of it is in the text. */

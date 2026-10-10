@@ -1,5 +1,10 @@
 package com.resonance.app.ui
 
+import androidx.compose.ui.layout.onSizeChanged
+import com.resonance.design.LayoutClass
+import com.resonance.design.LocalWindowLayout
+import com.resonance.design.readableColumn
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -205,8 +210,11 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     BackHandler(enabled = searching) {
         if (showResults && currentHit != null) showResults = false else closeSearch()
     }
-    // The row is the list's width inside its 16 margins; their face's column is not counted.
-    val rowMax = (LocalConfiguration.current.screenWidthDp.dp - 32.dp) * 0.72f
+    // The row is the list's width inside its 16 margins (their face's column is not counted), capped
+    // at the widest bubble: measured where the thread is, a pane beside the conversations included.
+    val pageWidth = LocalWindowLayout.current.contentWidth
+    var listWidth by remember { mutableStateOf(pageWidth) }
+    val rowMax = LayoutClass.bubbleMax(listWidth.value).dp
     val lifted = menu?.row?.message?.key
     val ctx = remember(model, rowMax, links, highlights, currentHit, open, scroll, lifted) {
         ThreadContext(
@@ -218,7 +226,7 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
         )
     }
 
-    Box(Modifier.fillMaxSize().cream()) {
+    Box(Modifier.fillMaxSize().cream().onSizeChanged { listWidth = with(density) { it.width.toDp() } }) {
         Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
             when (model.phase) {
                 ThreadModel.Phase.Loading -> {}
@@ -240,7 +248,8 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
                         MessageList(rows, ctx, list, top, Modifier.fillMaxSize(), pillVisible = !(searching && showResults), sayEmpty = foot.composes)
                         if (searching && showResults) SearchResults(model, query, top, resultsList, pick)
                     }
-                    val padded = Modifier.padding(horizontal = 14.dp).padding(bottom = 14.dp)
+                    // In a wide pane the composer keeps to a column of its own, centred under the thread.
+                    val padded = Modifier.readableColumn(ComposerMax).padding(horizontal = 14.dp).padding(bottom = 14.dp)
                     when (foot) {
                         ThreadFoot.Composer -> Composer(model, handle, composerFocus, onPickCard = { pickingCard = true }, padded)
                         ThreadFoot.Answer -> Composer(
@@ -580,3 +589,6 @@ private fun MediaHead(text: String) {
         modifier = Modifier.padding(bottom = 4.dp),
     )
 }
+
+/** The widest the composer runs in a wide thread pane. */
+private val ComposerMax = 720.dp
