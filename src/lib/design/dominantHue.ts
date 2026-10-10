@@ -65,7 +65,7 @@ export function dominantHue(pixels: Uint8ClampedArray | Uint8Array): number | nu
 }
 
 /** Circular hue distance in degrees (0–180). */
-function hueDistance(a: number, b: number): number {
+export function hueDistance(a: number, b: number): number {
   const d = Math.abs(a - b) % 360;
   return d > 180 ? 360 - d : d;
 }

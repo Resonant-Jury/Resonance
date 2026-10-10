@@ -1,0 +1,102 @@
+{
+  "note": "Which colour family each card of a list wears (src/lib/design/cardColours.ts, round 5 B3; read by cardColours.test.ts on the web and by the apps' CardPalette tests). Families are palette indices in `hues` order (CARD_HUES). A card prefers the family nearest its cover's `accentHue` (equally near: the earlier family), or, with none (null), `position mod 6`. Walking the list in order, a card whose preference one of the `window` cards before it already wears takes the first family of `order[preference]` (the other five, nearest hue first, ties by lower index) that none of them wears. `palettes`: the expected family of each card. `pages`: page sizes loaded one after another — colouring each prefix alone must give the same families as the whole list. `columns`: the grid this case is also checked as (row-major: card i in column i mod columns) — no two cards in a row and no card and the one above share a family; every case holds for 1, 2 and 3 columns.",
+  "hues": [55, 290, 140, 88, 215, 18],
+  "window": 3,
+  "order": [
+    [3, 5, 2, 1, 4],
+    [4, 5, 0, 2, 3],
+    [3, 4, 0, 5, 1],
+    [0, 2, 5, 4, 1],
+    [1, 2, 3, 0, 5],
+    [0, 3, 1, 2, 4]
+  ],
+  "cases": [
+    {
+      "id": "empty",
+      "about": "nothing to colour",
+      "accentHues": [],
+      "palettes": []
+    },
+    {
+      "id": "one-card",
+      "about": "a lone card keeps its cover's family",
+      "accentHues": [215],
+      "palettes": [4]
+    },
+    {
+      "id": "no-covers",
+      "about": "no cover hue anywhere: by position, as before — six in a row never clash",
+      "accentHues": [null, null, null, null, null, null, null, null],
+      "palettes": [0, 1, 2, 3, 4, 5, 0, 1]
+    },
+    {
+      "id": "nearest-ties",
+      "about": "a hue halfway between two families snaps to the one earlier in the palette: 71.5 → 55 (not 88), 252.5 → 290 (not 215), 36.5 → 55 (not 18) — which the first card wears, so it moves to 88 (18 would have stayed)",
+      "accentHues": [71.5, 252.5, 36.5],
+      "palettes": [0, 1, 3]
+    },
+    {
+      "id": "same-family-run",
+      "about": "seven orange covers: each moves to the nearest family the three before it leave free",
+      "accentHues": [60, 50, 58, 55, 52, 61, 57],
+      "palettes": [0, 3, 5, 2, 0, 3, 5]
+    },
+    {
+      "id": "warm-run",
+      "about": "reds, oranges and yellows (the generated covers' usual hues)",
+      "accentHues": [20, 60, 85, 15, 50, 90, 30, 70],
+      "palettes": [5, 0, 3, 1, 5, 0, 3, 2]
+    },
+    {
+      "id": "order-tie",
+      "about": "from 215, 290 and 140 are equally near: the lower index (290) first",
+      "accentHues": [215, 215, 215, 215],
+      "palettes": [4, 1, 2, 3]
+    },
+    {
+      "id": "covers-and-positions",
+      "about": "covers that match their position's family, and gaps filled by position",
+      "accentHues": [null, 290, null, 140, null, null, 88, 210],
+      "palettes": [0, 1, 2, 3, 4, 5, 0, 1]
+    },
+    {
+      "id": "position-clash",
+      "about": "a coverless card whose position's family a cover above took moves too",
+      "accentHues": [null, 18, 140, null, 55, null, null, 290],
+      "palettes": [0, 5, 2, 3, 0, 5, 2, 1]
+    },
+    {
+      "id": "wrap-around-hues",
+      "about": "hues either side of 0°/360° and a long mixed list",
+      "accentHues": [350, 5, 30, 200, 230, 300, 280, 120, 160, null, null, 89, 359.9, 0, 180, 250],
+      "palettes": [5, 0, 3, 4, 1, 5, 0, 2, 3, 5, 4, 0, 3, 5, 4, 1]
+    },
+    {
+      "id": "appended-pages",
+      "about": "three pages loaded one after another: each prefix colours exactly as the whole list does (nothing already shown is recoloured)",
+      "accentHues": [55, 55, 88, null, 18, 18, 290, null, 140, 140, 215, 60],
+      "pages": [5, 4, 3],
+      "palettes": [0, 3, 2, 5, 0, 3, 1, 4, 2, 3, 1, 0]
+    },
+    {
+      "id": "grid-two-columns",
+      "about": "a two-column grid filled row by row: no row shares a family, nor a card and the one above it",
+      "accentHues": [140, 145, 140, 135, 150, 140, null, 140, 88, 92],
+      "columns": 2,
+      "palettes": [2, 3, 4, 0, 2, 3, 5, 4, 0, 3]
+    },
+    {
+      "id": "grid-three-columns",
+      "about": "a three-column grid filled row by row: no row shares a family, nor a card and the one above it",
+      "accentHues": [290, 290, 280, 300, 290, null, 215, 215, 290, 18, 20, 25],
+      "columns": 3,
+      "palettes": [1, 4, 5, 0, 1, 3, 4, 2, 1, 5, 0, 3]
+    },
+    {
+      "id": "skeletons-after-cards",
+      "about": "placeholders drawn after the loaded cards are coloured as coverless cards at their positions",
+      "accentHues": [140, 140, 140, null, null, null],
+      "palettes": [2, 3, 4, 0, 1, 5]
+    }
+  ]
+}

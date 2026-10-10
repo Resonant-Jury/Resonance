@@ -159,7 +159,11 @@ object L10n {
             val openMenu: String get() = Strings.string("app.nav.openMenu")
             /** Edit this card */
             val editThisCard: String get() = Strings.string("app.nav.editThisCard")
+            /** Main navigation */
+            val main: String get() = Strings.string("app.nav.main")
         }
+        /** In progress */
+        val busy: String get() = Strings.string("app.busy")
         object Notifications {
             /** No notifications yet */
             val emptyTitle: String get() = Strings.string("app.notifications.emptyTitle")
@@ -1109,14 +1113,30 @@ object L10n {
             val region: String get() = Strings.string("settings.profile.region")
             /** Profile photo */
             val avatar: String get() = Strings.string("settings.profile.avatar")
-            /** Click or drag an image here · PNG, JPG, WebP */
+            /** Choose a photo, then frame it */
             val avatarHint: String get() = Strings.string("settings.profile.avatarHint")
+            /** Add a profile photo */
+            val avatarAdd: String get() = Strings.string("settings.profile.avatarAdd")
             /** Change profile photo */
             val avatarChange: String get() = Strings.string("settings.profile.avatarChange")
             /** Sketching it in… */
             val avatarUploading: String get() = Strings.string("settings.profile.avatarUploading")
             /** Couldn’t upload it — please try again */
             val avatarError: String get() = Strings.string("settings.profile.avatarError")
+            /** Couldn’t open this photo — try another */
+            val avatarOpenError: String get() = Strings.string("settings.profile.avatarOpenError")
+            /** Frame your photo */
+            val cropTitle: String get() = Strings.string("settings.profile.cropTitle")
+            /** Drag to move, zoom to resize */
+            val cropHint: String get() = Strings.string("settings.profile.cropHint")
+            /** Photo framing area */
+            val cropStage: String get() = Strings.string("settings.profile.cropStage")
+            /** Zoom */
+            val cropZoom: String get() = Strings.string("settings.profile.cropZoom")
+            /** Cancel */
+            val cropCancel: String get() = Strings.string("settings.profile.cropCancel")
+            /** Use photo */
+            val cropUse: String get() = Strings.string("settings.profile.cropUse")
         }
         object Account {
             /** Email */

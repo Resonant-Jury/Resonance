@@ -157,7 +157,11 @@ public enum L10n {
             public static var openMenu: String { Strings.shared.string("app.nav.openMenu") }
             /// Edit this card
             public static var editThisCard: String { Strings.shared.string("app.nav.editThisCard") }
+            /// Main navigation
+            public static var main: String { Strings.shared.string("app.nav.main") }
         }
+        /// In progress
+        public static var busy: String { Strings.shared.string("app.busy") }
         public enum Notifications {
             /// No notifications yet
             public static var emptyTitle: String { Strings.shared.string("app.notifications.emptyTitle") }
@@ -1107,14 +1111,30 @@ public enum L10n {
             public static var region: String { Strings.shared.string("settings.profile.region") }
             /// Profile photo
             public static var avatar: String { Strings.shared.string("settings.profile.avatar") }
-            /// Click or drag an image here · PNG, JPG, WebP
+            /// Choose a photo, then frame it
             public static var avatarHint: String { Strings.shared.string("settings.profile.avatarHint") }
+            /// Add a profile photo
+            public static var avatarAdd: String { Strings.shared.string("settings.profile.avatarAdd") }
             /// Change profile photo
             public static var avatarChange: String { Strings.shared.string("settings.profile.avatarChange") }
             /// Sketching it in…
             public static var avatarUploading: String { Strings.shared.string("settings.profile.avatarUploading") }
             /// Couldn’t upload it — please try again
             public static var avatarError: String { Strings.shared.string("settings.profile.avatarError") }
+            /// Couldn’t open this photo — try another
+            public static var avatarOpenError: String { Strings.shared.string("settings.profile.avatarOpenError") }
+            /// Frame your photo
+            public static var cropTitle: String { Strings.shared.string("settings.profile.cropTitle") }
+            /// Drag to move, zoom to resize
+            public static var cropHint: String { Strings.shared.string("settings.profile.cropHint") }
+            /// Photo framing area
+            public static var cropStage: String { Strings.shared.string("settings.profile.cropStage") }
+            /// Zoom
+            public static var cropZoom: String { Strings.shared.string("settings.profile.cropZoom") }
+            /// Cancel
+            public static var cropCancel: String { Strings.shared.string("settings.profile.cropCancel") }
+            /// Use photo
+            public static var cropUse: String { Strings.shared.string("settings.profile.cropUse") }
         }
         public enum Account {
             /// Email

@@ -84,8 +84,10 @@
       "messages": "私訊",
       "back": "返回",
       "openMenu": "開啟選單",
-      "editThisCard": "編輯這張卡片"
+      "editThisCard": "編輯這張卡片",
+      "main": "主要導覽"
     },
+    "busy": "處理中",
     "notifications": {
       "emptyTitle": "還沒有通知",
       "empty": "有人與你的卡片共振、或留下一張小紙條時，會在這裡告訴你",
@@ -596,10 +598,18 @@
       "bio": "一句話介紹 (≤ 80 字)",
       "region": "地區",
       "avatar": "個人頭像",
-      "avatarHint": "點擊或拖曳圖片到這裡 · 支援 PNG、JPG、WebP",
+      "avatarHint": "選一張照片，再調整要露出的範圍",
+      "avatarAdd": "加上頭像",
       "avatarChange": "更換頭像",
       "avatarUploading": "正在描繪中…",
-      "avatarError": "上傳失敗，請再試一次"
+      "avatarError": "上傳失敗，請再試一次",
+      "avatarOpenError": "這張照片打不開，換一張試試",
+      "cropTitle": "調整頭像",
+      "cropHint": "拖曳移動，縮放調整大小",
+      "cropStage": "頭像裁切範圍",
+      "cropZoom": "縮放",
+      "cropCancel": "取消",
+      "cropUse": "使用"
     },
     "account": {
       "email": "電子郵件",

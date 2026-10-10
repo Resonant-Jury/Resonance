@@ -84,8 +84,10 @@
       "messages": "Messages",
       "back": "Back",
       "openMenu": "Open menu",
-      "editThisCard": "Edit this card"
+      "editThisCard": "Edit this card",
+      "main": "Main navigation"
     },
+    "busy": "In progress",
     "notifications": {
       "emptyTitle": "No notifications yet",
       "empty": "When someone resonates with your card or leaves you a note, you'll see it here",
@@ -596,10 +598,18 @@
       "bio": "One-line bio (≤ 80 chars)",
       "region": "Region",
       "avatar": "Profile photo",
-      "avatarHint": "Click or drag an image here · PNG, JPG, WebP",
+      "avatarHint": "Choose a photo, then frame it",
+      "avatarAdd": "Add a profile photo",
       "avatarChange": "Change profile photo",
       "avatarUploading": "Sketching it in…",
-      "avatarError": "Couldn’t upload it — please try again"
+      "avatarError": "Couldn’t upload it — please try again",
+      "avatarOpenError": "Couldn’t open this photo — try another",
+      "cropTitle": "Frame your photo",
+      "cropHint": "Drag to move, zoom to resize",
+      "cropStage": "Photo framing area",
+      "cropZoom": "Zoom",
+      "cropCancel": "Cancel",
+      "cropUse": "Use photo"
     },
     "account": {
       "email": "Email",
