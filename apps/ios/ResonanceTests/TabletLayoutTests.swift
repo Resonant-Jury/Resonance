@@ -60,16 +60,13 @@ import Testing
             // No bottom bar from medium up, pushed or not.
             #expect(!TabChrome.bottomBar(layout, pushed: []) && !TabChrome.bottomBar(layout, pushed: [card]))
         }
-        // A phone has no header tabs; its bottom bar stays on pushed pages, giving way only to the pages
-        // that take the window (the thought map, the writer) or keep a composer at the foot (a conversation).
+        // A phone has no header tabs; its bottom bar shows on a tab's root only — a pushed page's way
+        // out is its back arrow, as on a tablet.
         #expect(!TabChrome.headerTabs(.compact, pushed: []))
         #expect(TabChrome.bottomBar(.compact, pushed: []))
-        #expect(TabChrome.bottomBar(.compact, pushed: [card]) && TabChrome.bottomBar(.compact, pushed: [.author("ben"), card]))
-        #expect(TabChrome.bottomBar(.compact, pushed: [.settings, .settingsSection(.account)]))
-        #expect(!TabChrome.bottomBar(.compact, pushed: [card, thread]))
-        #expect(!TabChrome.bottomBar(.compact, pushed: [.thoughtMap]))
-        // Back from a conversation to the card it was opened from: the bar is there again.
-        #expect(TabChrome.bottomBar(.compact, pushed: [thread, card]))
+        for pushed: [Route] in [[card], [.author("ben"), card], [.settings, .settingsSection(.account)], [card, thread], [.thoughtMap], [thread, card]] {
+            #expect(!TabChrome.bottomBar(.compact, pushed: pushed))
+        }
     }
 
     @Test func aTapOnTheChosenTabPopsToItsRootThenScrollsToTheTop() {

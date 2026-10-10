@@ -35,8 +35,6 @@ extension EnvironmentValues {
     /// Counts the taps on a tab that is already chosen and at its root: each one takes the root's
     /// list back to its top.
     @Entry var scrollToTop = 0
-    /// What a phone's bottom tab bar takes over a pushed page (nothing on a tablet).
-    @Entry var tabBarRoom: CGFloat = 0
 }
 
 /// Which navigation chrome a tab shows over its stack (round 5 C1), from the window and the pages
@@ -48,10 +46,10 @@ enum TabChrome {
         layout.topTabs && pushed.isEmpty
     }
 
-    /// A phone keeps its bottom bar on pushed pages too, except where the page takes the window
-    /// (the writer, the thought map) or keeps its own composer at the foot (a conversation).
+    /// A phone's bottom bar shows on a tab's root only, as the tablet's header tabs do: a pushed
+    /// page has its back arrow, and only "back" leads out (the owner; Android draws the same).
     static func bottomBar(_ layout: LayoutClass, pushed: [Route]) -> Bool {
-        !layout.topTabs && !(pushed.last?.hidesTabBar ?? false)
+        !layout.topTabs && pushed.isEmpty
     }
 }
 
@@ -64,16 +62,6 @@ enum TabTap: Equatable {
         if picked == .write { return .write }
         if picked != current { return .choose }
         return pushed > 0 ? .popToRoot : .scrollToTop
-    }
-}
-
-extension Route {
-    /// Pages a phone's bottom bar gives way to.
-    var hidesTabBar: Bool {
-        switch self {
-        case .write, .thoughtMap, .thread: true
-        default: false
-        }
     }
 }
 
@@ -201,7 +189,6 @@ struct MainTabView: View {
                 ))
                 .environment(\.isSelectedTab, t == tab)
                 .environment(\.scrollToTop, toTop[t] ?? 0)
-                .environment(\.tabBarRoom, window.topTabs ? 0 : OrganicTabBar<AppTab>.height + HeaderEdge.height)
                 .opacity(t == tab ? 1 : 0)
                 .allowsHitTesting(t == tab)
                 .accessibilityHidden(t != tab)
