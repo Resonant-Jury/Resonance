@@ -43,7 +43,28 @@ describe('plainText', () => {
       '```',
     ].join('\n');
     expect(plainText(md)).toBe('Title a quote Some bold and light text with a link and .');
+    expect(plainText('__bold__ and snake_case_name, _light_')).toBe('bold and snake_case_name, light');
   });
+  it('reads character references and backslash escapes as the text they stand for, never as syntax', () => {
+    // What the editor stores for text typed with <, >, & and Markdown's marks (native/fixtures/markdown-corpus.json).
+    expect(plainText('A -&gt; B &amp; C &lt;3')).toBe('A -> B & C <3');
+    expect(plainText('&lt;b&gt;不是 HTML&lt;/b&gt;')).toBe('<b>不是 HTML</b>');
+    expect(plainText('\\*不是粗體\\*，1\\. 不是清單，\\# 不是標題，a_b_c。')).toBe('*不是粗體*，1. 不是清單，# 不是標題，a_b_c。');
+    expect(plainText('\\# 開頭不是標題\n\n1\\. 開頭不是清單\n\n\\- 開頭不是項目\n\n&gt; 開頭不是引用')).toBe(
+      '# 開頭不是標題 1. 開頭不是清單 - 開頭不是項目 > 開頭不是引用',
+    );
+    // Decoded once, numeric ones too; an escaped & starts no reference; a name it doesn't know stays as written.
+    expect(plainText('&amp;gt; &#42;star&#x2A; &#x1F600; \\&amp; &unknown;')).toBe('&gt; *star* 😀 &amp; &unknown;');
+    // A hard break is a space; an escaped bracket makes no link; a reference in a link's text is read too.
+    expect(plainText('第一行\\\n第二行 \\[not a link\\](x) [Tom &amp; Jerry](https://example.com)')).toBe(
+      '第一行 第二行 [not a link](x) Tom & Jerry',
+    );
+  });
+
+  it('still leaves out an address whose text holds a reference, and its autolink brackets', () => {
+    expect(plainText('see https://example.com/?a=1&amp;b=2, then &lt;https://example.org&gt; done')).toBe('see, then done');
+  });
+
 });
 
 describe('excerpt', () => {
