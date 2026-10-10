@@ -7,7 +7,9 @@
  *   npx tsx scripts/seed-store-demo.ts --lang=en   # the English world
  *
  * It first CLEARS both emulators (Auth and Firestore, project demo-resonance),
- * so it replaces whatever the test world (or the other language) held;
+ * so it replaces whatever the test world (or the other language) held — the
+ * pair EMULATOR_AUTH_PORT / EMULATOR_FIRESTORE_PORT name when they are set
+ * (`npm run emulators:at`), so a private pair leaves the shared one alone;
  * `npx tsx scripts/seed-emulator.ts` restores the test world. Nothing here can
  * reach production: the project id is a `demo-` one and every request goes to
  * 127.0.0.1.
@@ -34,7 +36,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { emulatorEnv, EMULATOR_PROJECT_ID } from './emulator-env.mjs';
+import { emulatorEnv, EMULATOR_AUTH_PORT, EMULATOR_FIRESTORE_PORT, EMULATOR_PROJECT_ID } from './emulator-env.mjs';
 import { en } from './store-demo/en';
 import { checkWorld, type CardSpec, type DemoLang, type DemoWorld, type Writer } from './store-demo/shared';
 import { zhTW } from './store-demo/zh-TW';
@@ -106,10 +108,14 @@ export function demoMediaDataUri(cardId: string): string | null {
 
 const now = Date.now();
 
+/** The emulators this run seeds: firebase.json's, or the pair EMULATOR_AUTH_PORT / EMULATOR_FIRESTORE_PORT name (`npm run emulators:at`). */
+const FIRESTORE_AT = `http://127.0.0.1:${EMULATOR_FIRESTORE_PORT}`;
+const AUTH_AT = `http://127.0.0.1:${EMULATOR_AUTH_PORT}`;
+
 async function clearEmulators() {
   const targets = [
-    `http://127.0.0.1:8080/emulator/v1/projects/${EMULATOR_PROJECT_ID}/databases/(default)/documents`,
-    `http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/accounts`,
+    `${FIRESTORE_AT}/emulator/v1/projects/${EMULATOR_PROJECT_ID}/databases/(default)/documents`,
+    `${AUTH_AT}/emulator/v1/projects/${EMULATOR_PROJECT_ID}/accounts`,
   ];
   for (const url of targets) {
     const res = await fetch(url, { method: 'DELETE' });
@@ -118,7 +124,7 @@ async function clearEmulators() {
     if (!res.ok && res.status !== 499) throw new Error(`Clearing ${url} failed: ${res.status}`);
   }
   const left = await fetch(
-    `http://127.0.0.1:8080/v1/projects/${EMULATOR_PROJECT_ID}/databases/(default)/documents:listCollectionIds`,
+    `${FIRESTORE_AT}/v1/projects/${EMULATOR_PROJECT_ID}/databases/(default)/documents:listCollectionIds`,
     { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: '{}' },
   ).then((r) => r.json() as Promise<{ collectionIds?: string[] }>);
   if (left.collectionIds?.length) throw new Error(`Firestore emulator not empty after clearing: ${left.collectionIds.join(', ')}`);
