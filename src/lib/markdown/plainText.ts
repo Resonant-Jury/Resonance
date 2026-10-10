@@ -68,8 +68,9 @@ export function withoutLinks(text: string): string {
       end++;
     }
     const before = text.slice(at, start);
-    // "see https://…, then" reads "see, then"; "see https://… then" keeps its space.
-    out += CLOSING.test(plain.slice(end, end + 2)) ? before.replace(/\s+$/, '') : before;
+    // "see https://…, then" reads "see, then"; "see https://… then" keeps its space. trimEnd takes
+    // exactly what `/\s+$/` would, without retrying every space of a long run inside `before` (quadratic).
+    out += CLOSING.test(plain.slice(end, end + 2)) ? before.trimEnd() : before;
     at = end;
   }
   return out + text.slice(at);

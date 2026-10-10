@@ -68,6 +68,8 @@ describe('plainText', () => {
   it('reads any story the rules take in well under a second: no run of brackets or blank lines is read again from each place in it', () => {
     // Each took seconds to minutes before (a quadratic pattern), on the server at publish and in every browser showing the excerpt.
     const floods = ['[', '![', '[a](', '[](', '\n', ' \n', '-\n', '\t\n\n'].map((unit) => unit.repeat(Math.floor(200_000 / unit.length)));
+    // A long run of spaces before the words in front of an address and its full stop (17 s once).
+    floods.push(`a${' '.repeat(199_000)}b https://example.com.`, `a${'\n'.repeat(199_000)}b https://example.com.`);
     for (const story of floods) {
       const started = performance.now();
       plainText(story);
@@ -78,12 +80,43 @@ describe('plainText', () => {
     expect(plainText('\n\n  - one\n\t* two\n\n   1. three\n\n  ---  \n\nend')).toBe('one two three end');
   });
 
+  // What an app's port must spell out to read alike (Android PlainText, iOS StoryProse: Java's and ICU's patterns differ).
+  it('keeps the edges a port must spell out', () => {
+    // A run's bound counts UTF-16 units: 300 emoji are 600, past a link text's 500.
+    const [e300, e200] = ['😀'.repeat(300), '😀'.repeat(200)];
+    expect(plainText(`[${e300}](x) [${e200}](x)`)).toBe(`[${e300}](x) ${e200}`);
+    // `\s` is every Unicode space, the BOM and the vertical tab; trim takes no other control character.
+    expect(plainText('a\u000B b\uFEFF c\u3000d\u00A0e')).toBe('a b c d e');
+    expect(plainText('\u001Cx\u001C')).toBe('\u001Cx\u001C');
+    // A line ends at \n, \r, U+2028 and U+2029, never U+0085; a list's number is ASCII digits.
+    expect(plainText('a\u0085# b')).toBe('a\u0085# b');
+    expect(plainText('a\u2028# b\u2029> c')).toBe('a b c');
+    expect(plainText('# heading\r\n> quote\r\n- item\r\n  ---  \r\nafter')).toBe('heading quote item after');
+    expect(plainText('１. full-width\n٣. arabic')).toBe('１. full-width ٣. arabic');
+    // A letter outside the BMP is a letter beside an underscore; two inside a word go one by one.
+    expect(plainText('𠀀_𠀀 x_𠀀 𠀀_ _𠀀')).toBe('𠀀_𠀀 x_𠀀 𠀀 𠀀');
+    expect(plainText('a__b snake_case __init__ _x_')).toBe('ab snake_case init x');
+    // The private-use marks are dropped; fences go before escapes and references are read.
+    expect(plainText('stray \uE02A and \uE023 x')).toBe('stray and x');
+    expect(plainText('\\```code``` and &#96;&#96;&#96;x```')).toBe('\\ and ```x');
+    expect(plainText('```&gt;``` \\```')).toBe('`');
+    expect(plainText('[a\\](x)](https://x.y)')).toBe('a](x)');
+    // A hard break after \r\n too; the server's table of names (looked up in lower case), invalid code points as U+FFFD.
+    expect(plainText('line\\\r\nnext x\\\\\ny')).toBe('line next x\\ y');
+    expect(plainText('x &divide; &eacute; &sect; &para; &euro; &pound; &nbsp;y &AMP; &#X41; &Eacute; &nbsp')).toBe(
+      'x &divide; é § ¶ € £ y & A é &nbsp',
+    );
+    expect(plainText('&#xD800; &#1114112; &#0000065; &#x0;')).toBe('� � A �');
+  });
 });
 
 describe('firstPicture', () => {
   it("is the address of the story's first picture on the web, and quick to say there is none", () => {
     expect(firstPicture('text ![rain](https://cdn.example.com/a.avif) and ![b](https://x.y/b.png)')).toBe('https://cdn.example.com/a.avif');
     expect(firstPicture('[a link](https://x.y) ![local](/p.png) ![](ftp://x.y/p.png)')).toBeNull();
+    // No space of any kind in the address, and its bound counts UTF-16 units (1500 emoji are 3000).
+    expect(firstPicture('![a](https://x.y/a\u00A0b) ![b](https://x.y/c)')).toBe('https://x.y/c');
+    expect(firstPicture(`![a](https://x.y/${'😀'.repeat(1500)}) ![b](https://x.y/c)`)).toBe('https://x.y/c');
     const started = performance.now();
     expect(firstPicture('!['.repeat(100_000))).toBeNull();
     expect(firstPicture('![a](https://'.repeat(15_000))).toBeNull();
