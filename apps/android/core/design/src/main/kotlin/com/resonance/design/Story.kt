@@ -324,14 +324,14 @@ private fun Block(block: StoryBlock, style: ProseStyle, story: Story) {
         is StoryBlock.Heading -> RichCssText(block.runs, if (block.level <= 2) ProseStyle.H2 else ProseStyle.H3, onOpenUrl, Modifier.semantics { heading() })
         StoryBlock.Blank -> Spacer(Modifier.height(em * 1.6f).clearAndSetSemantics { })
         is StoryBlock.Image -> StoryImage(block.url, block.alt)
-        is StoryBlock.CardEmbed -> story.embed(block.href, block.title)
+        is StoryBlock.CardEmbed -> Centred { story.embed(block.href, block.title) }
         // The page's card when the server made one for this link; otherwise the paragraph as written.
         is StoryBlock.SoleLink -> {
             val links = story.links
             val preview = links?.previews?.get(block.key)
             if (links != null && preview != null) {
                 val host = links.host(preview)
-                StoryLinkCard(preview, host, links.label(host), onOpen = { links.open(preview) })
+                Centred { StoryLinkCard(preview, host, links.label(host), onOpen = { links.open(preview) }) }
             } else {
                 RichCssText(block.runs, style, onOpenUrl)
             }
@@ -399,6 +399,12 @@ private fun StoryImage(url: String, alt: String) {
             )
         }
     }
+}
+
+/** A card (≤ 520 wide) centred in the column, as a picture is (the web's embedBlock). */
+@Composable
+private fun Centred(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) { content() }
 }
 
 /** The quote rail's strip: the web Divider's width (amplitude and pen, twice each). */

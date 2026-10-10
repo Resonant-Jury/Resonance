@@ -79,10 +79,12 @@ struct BlockView<Embed: View, LinkCard: View>: View {
         case let .image(url, alt):
             StoryImageView(url: URL(string: url), alt: alt, seed: Double(seedFromString(url)))
                 .frame(maxWidth: .infinity)
+        // A card (≤ 520 wide) centred in the column, as a picture is (the web's embedBlock).
         case let .cardEmbed(href, title):
             embed(href, title)
+                .frame(maxWidth: .infinity)
         case let .soleLink(href, words, runs):
-            if let card = linkCard(href, words) { card } else { text(runs, style) }
+            if let card = linkCard(href, words) { card.frame(maxWidth: .infinity) } else { text(runs, style) }
         case let .quote(children):
             HStack(alignment: .top, spacing: em) {
                 WavyRailShape(seed: 5)

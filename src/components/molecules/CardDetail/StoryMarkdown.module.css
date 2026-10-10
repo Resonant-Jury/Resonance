@@ -138,3 +138,11 @@
 .prose .embedBlock {
   margin: 0 0 1.1em;
 }
+
+/* A link's card or an embedded card is narrower than the column (at most
+   520px): centred in it, as a picture is — a block of its own, not a line of
+   the text. The apps lay them out the same. */
+.prose .embedBlock > * {
+  margin-left: auto;
+  margin-right: auto;
+}

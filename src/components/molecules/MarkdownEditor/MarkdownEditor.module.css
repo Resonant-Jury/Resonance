@@ -141,11 +141,12 @@
 }
 
 /* Embedded card node view (mini horizontal story card). The card draws its
-   own focus border, so no extra outline here. */
+   own focus border, so no extra outline here. Centred in the column, as the
+   article and the pictures here are. */
 .cardEmbedNode {
   position: relative;
   max-width: 360px;
-  margin: 0 0 0.9em;
+  margin: 0 auto 0.9em;
 }
 
 .nodeRemoveBtn {
