@@ -82,6 +82,33 @@ import com.resonance.kit.reading.RefreshFailure
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
+
+/**
+ * Where a pushed page's own heading (the card's title, a person's name) ends below the top of the
+ * list item holding it (px; null until measured), so a tablet's header can take the heading once it
+ * has scrolled up under the bar ([com.resonance.design.scrolledUnderBar], round 5 part C). Measured
+ * against the item itself, so the scroll that moves both never skews it.
+ */
+@Stable
+internal class HeadingUnderBar {
+    var bottom by mutableStateOf<Float?>(null)
+        private set
+    private var item: LayoutCoordinates? = null
+
+    /** On the list item that holds the heading. */
+    val onItem: Modifier = Modifier.onPlaced { item = it }
+
+    /** On the heading. */
+    val onHeading: Modifier = Modifier.onGloballyPositioned { heading ->
+        val holder = item?.takeIf { it.isAttached } ?: return@onGloballyPositioned
+        bottom = holder.localPositionOf(heading, Offset.Zero).y + heading.size.height
+    }
+}
 
 /**
  * StoryCard's fields (lib/adapters/story.ts cardToStory); anonymous cards get
@@ -299,6 +326,10 @@ fun TabScreen(
     // Beside the header's tabs the bar carries the navigation: it stays put (design note B2).
     val pinned = LocalHeaderChrome.current != null
     val quickReturn = rememberQuickReturn(list)
+    // The tab chosen again while its root shows (round 5, part C): back to the list's top.
+    val rootTaps = LocalRootTaps.current
+    val pageTab = LocalPageTab.current
+    LaunchedEffect(rootTaps, pageTab, list) { rootTaps.collect { if (it == pageTab) list.animateScrollToItem(0) } }
     val pull = rememberSketchPull(onRefresh ?: {})
     // The pull is the outer of the two: pushing a pulled list back up is the pull's, not the bar's to slide away on.
     val pulling = Modifier.sketchPull(pull, enabled = onRefresh != null && (refreshEnabled || pull.refreshing))

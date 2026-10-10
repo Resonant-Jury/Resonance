@@ -1,5 +1,22 @@
 package com.resonance.design
 
+import androidx.compose.foundation.interaction.HoverInteraction
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.core.snap
+import androidx.compose.ui.unit.Constraints
+import com.resonance.geometry.wobRect
+import kotlin.math.min
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.platform.LocalDensity
@@ -169,33 +186,33 @@ private fun <T> TabFace(item: OrganicTabItem<T>, index: Int, selected: Boolean, 
 }
 
 /**
- * The header's tabs left to right (design note B2): the bar's items without the pen, each with
- * its place in the bar (the seed of its wash, as on the bar).
+ * The header's tabs left to right (design note B2, part C): the bar's items without the pen —
+ * Feed · Messages · Notifications · Card Box — each with its place in the bar.
  */
 fun <T> topTabsOrder(items: List<OrganicTabItem<T>>): List<IndexedValue<OrganicTabItem<T>>> =
     items.withIndex().filter { !it.value.isAction }
 
 /**
- * The tab group's measures on a medium or expanded window (design note B2), apart from Compose so
- * they can be tested: an item with its label is 14 + the 20 glyph + 6 + the label + 14 wide,
- * glyph alone 48; the track holds them 2 apart, 4 in from its ends.
+ * The tab group's measures on a medium or expanded window (round 5, part C), apart from Compose so
+ * they can be tested. The group is one segmented control, its segments side by side with a seam
+ * between them: a segment with its label is 14 + the 20 glyph + 6 + the label + 14 wide, a glyph
+ * alone 52; the group is [HEIGHT] tall in the header's [TopBarRow].
  */
 object TopTabsFit {
-    const val ICON_ITEM = 48f
-    const val INSET = 4f
-    const val GAP = 2f
+    const val ICON_ITEM = 52f
+    const val HEIGHT = 44f
 
-    /** An item showing its label, [textWidth] wide at 14/600 (the selected weight, so choosing one moves nothing). */
+    /** A segment showing its label, [textWidth] wide at 14/600 (the selected weight, so choosing one moves nothing). */
     fun labelledItem(textWidth: Float): Float = 14f + 20f + 6f + textWidth + 14f
 
-    /** The track's width round items this wide. */
-    fun groupWidth(items: List<Float>): Float = items.sum() + 2 * INSET + GAP * (items.size - 1).coerceAtLeast(0)
+    /** The group's width round segments this wide: they abut, the seams drawn on their edges. */
+    fun groupWidth(items: List<Float>): Float = items.sum()
 
     /** Labels show on an expanded window when the labelled group leaves 152 beside it each side past the pad. */
     fun labels(cls: LayoutClass, labelledGroup: Float, width: Float, pad: Float): Boolean =
         cls.tabLabels && labelledGroup <= width - 2 * (pad + 152f)
 
-    /** The widest a bar's leading part (the brand, a title, the back arrow's title) may be: 16 short of the group. */
+    /** The widest a root bar's leading part (the brand, a tab's title) may be: 16 short of the group. */
     fun leadingMax(width: Float, group: Float, pad: Float): Float = (width - group) / 2f - pad - 16f
 }
 
@@ -203,8 +220,8 @@ object TopTabsFit {
  * Where a header tab's unread chip hangs (design note B2): off the glyph's top-end corner, its
  * top-end corner (+8, −7) past the glyph's — as on the glyph alone. Beside a label that corner
  * would sit 2 into the words (the gap is 6), so the glyph and its chip step toward the start, out
- * of the item's 14 of padding, until the chip ends [CLEARANCE] before the label: the label, the
- * item and the track keep their places and widths whether a count shows or not.
+ * of the segment's 14 of padding, until the chip ends [CLEARANCE] before the label: the label, the
+ * segment and the group keep their places and widths whether a count shows or not.
  */
 object TopTabBadge {
     /** The chip's top-end corner past the glyph's. */
@@ -221,24 +238,27 @@ object TopTabBadge {
 }
 
 /**
- * What the header keeps for the window's tabs and pen (design note B2), which [MainTabs] draws
- * once over every page: on a medium or expanded window a page's bar leaves the middle to the tab
- * group ([groupWidth] wide, centred on the window) and its end to the pen, so its own leading
- * part keeps to [leadingMax] and its actions end [trailingPad] in from the window's edge. Null on a
- * phone (the bottom bar) and under the writer.
+ * The header on a medium or expanded window (design note B2, round 5 part C). On a tab's root
+ * ([tabs]) [MainTabs] draws the tab group over the middle of the page's bar and the pen at its end,
+ * so the bar's leading part keeps to [leadingMax] and its actions end [trailingPad] in from the
+ * window's edge. A pushed page has neither ([tabs] false): its bar is the back arrow, the page's
+ * context in the middle and its actions at the end. Null on a phone, in the writer and in a pane.
  */
 @Immutable
-data class HeaderChrome(val width: Dp, val groupWidth: Dp, val pad: Dp, val labels: Boolean) {
+data class HeaderChrome(val width: Dp, val groupWidth: Dp, val pad: Dp, val labels: Boolean, val tabs: Boolean = true) {
     val leadingMax: Dp get() = TopTabsFit.leadingMax(width.value, groupWidth.value, pad.value).dp
-    /** The pen (56) and 8 before it. */
-    val trailingPad: Dp get() = pad + PenChipWidth + 8.dp
+    /** The pen (56) and 8 before it on a tab's root; the pad alone on a pushed page (no pen there). */
+    val trailingPad: Dp get() = if (tabs) pad + PenChipWidth + 8.dp else pad
 }
 
-/** The header's chrome where the window has tabs in it; null on a phone and in the writer. */
+/** The header's chrome where the window has tabs in it; null on a phone, in the writer and in a pane. */
 val LocalHeaderChrome = staticCompositionLocalOf<HeaderChrome?> { null }
 
 /** A bar's row under the status bar on a medium or expanded window (brand and inline alike), without its wavy edge. */
-val TopBarRow = 56.dp
+val TopBarRow = 72.dp
+
+/** The bar of a pane beside a list (a thread beside the conversations): a smaller row under the header. */
+val PaneBarRow = 56.dp
 
 /** How tall the root bars' row is here: [TopBarRow] beside the header's tabs, a phone's [BrandBarHeight] else. */
 @Composable
@@ -249,7 +269,7 @@ private val PenChipWidth = 56.dp
 
 /** The labels' face in the header's tabs: body 14, 600 chosen / 500 not. */
 private fun topTabStyle(selected: Boolean) =
-    AppFonts.body(14f, if (selected) 600 else 500, lineHeight = 1.2f, color = if (selected) Tokens.Terracotta else Tokens.TextMuted)
+    AppFonts.body(14f, if (selected) 600 else 500, lineHeight = 1.2f, color = if (selected) Mixes.ButtonOnTonal else Tokens.TextMuted)
 
 /** Each tab's width in the header's group, labelled ([TopTabsFit.labelledItem], measured at 600) or glyph alone. */
 @Composable
@@ -264,11 +284,14 @@ fun topTabWidths(titles: List<String>, labels: Boolean): List<Dp> {
 }
 
 /**
- * The tab group in the middle of the header on a medium or expanded window (design note B2): the
- * bar's tabs (not the pen) side by side on one filled hand-drawn track — cream-dark at 0.7 with
- * the modal paper's grain, no pen line — each 32 tall, its glyph and (with [labels]) its label;
- * the chosen one on the bar's torn-paper wash, terracotta. A pointer lays the wash at 0.45 of
- * itself. Re-choosing the tab shown is the caller's to read (pop to its root), as on the bar.
+ * The tab group in the middle of a tab root's header on a medium or expanded window (round 5,
+ * part C): drawn as the borderless segmented buttons are (SegmentedActionBar) — one hand-drawn
+ * shape with no pen line, the segments parted by wavy seams cut in the paper's cream, the buttons'
+ * grain over all of it. Nothing is drawn inside a segment for the choice: the chosen segment's own
+ * fill changes, cream-dark to the tonal face (`--button-tonal`), its glyph and label from muted to
+ * `--button-on-tonal`, the label semibold. A pointer lays the tonal face at 0.45; a press spreads
+ * its ink from the finger, as on the segmented buttons. Re-choosing the tab shown is the caller's
+ * to read (pop to its root, or scroll it to the top), as on the bar.
  */
 @Composable
 fun <T> TopTabs(
@@ -281,40 +304,71 @@ fun <T> TopTabs(
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val ink = remember { InkSpread() }
+    var pressed by remember { mutableStateOf<Int?>(null) }
+    val lefts = widths.runningFold(0f) { x, w -> x + w.value }.dropLast(1)
+    val leftsNow by rememberUpdatedState(lefts)
+    val hovers = remember(items.size) { List(items.size) { mutableStateOf(false) } }
+    // How chosen each segment is (0…1, read while drawing): its fill eases between the two faces.
+    val chosen = items.map { (_, item) ->
+        animateFloatAsState(if (item.id == selection) 1f else 0f, tween(160), label = "topTabFill")
+    }
     Row(
         modifier
-            .height(40.dp)
+            .height(TopTabsFit.HEIGHT.dp)
             .drawWithCache {
-                val w = size.width / density
-                val o = WobRectShape(18.0, 233.0, mag = 1.2, options = WobRectOptions(
-                    curve = 1.3, cornerJitter = 1.6, cornerOffset = 1.6,
-                    segmentsH = SegValue.Count(max(3, (w / 80f).roundToInt()).toDouble()), segmentsV = SegValue.Count(1.0),
-                )).createOutline(size, layoutDirection, this)
-                val grain = Grain.brush(GrainMode.Tile, "grain-card", size, density, 0.3f)
+                val d = this.density
+                val w = size.width / d
+                val h = size.height / d
+                val outer = wobRect(w.toDouble(), h.toDouble(), 16.0, TOP_TABS_SEED, min(w, h) * 0.05, WobRectOptions(
+                    segmentsH = SegValue.Range(7, 9), segmentsV = SegValue.Range(2, 3), curve = 1.2, cornerJitter = 1.2, cornerOffset = h * 0.04,
+                )).toPath(d)
+                val pad = max(12.0, h * 0.3)
+                val boundaries = lefts.drop(1).mapIndexed { i, x -> boundaryPoints(x.toDouble(), h.toDouble(), TOP_TABS_SEED + i * 37 + 11, 1.6, pad) }
+                val regions = items.indices.map { i ->
+                    Path().apply { op(SegmentedLayout.regionPath(i, items.size, boundaries, w, h, pad.toFloat(), d), outer, PathOperation.Intersect) }
+                }
+                val seams = boundaries.map { polylinePath(it, d) }
+                val grain = Grain.brush(GrainMode.Tile, "grain-button", size, d, 0.38f)
+                val pen = Stroke(Tokens.Ink.toPx(), cap = StrokeCap.Round)
                 onDrawBehind {
-                    drawOutline(o, Tokens.CreamDark.copy(alpha = 0.7f))
-                    grain?.let { drawOutline(o, it, alpha = 0.3f) }
+                    drawPath(outer, Tokens.CreamDark)
+                    regions.forEachIndexed { i, region ->
+                        val fill = max(chosen[i].value, if (hovers[i].value) TOP_HOVER_FILL else 0f)
+                        if (fill > 0f) drawPath(region, Mixes.ButtonTonal, alpha = fill)
+                    }
+                    pressed?.let { i -> with(ink) { draw(regions[i], OrganicIndication.Wash) } }
+                    clipPath(outer) { seams.forEach { drawPath(it, Tokens.Cream, style = pen) } }
+                    grain?.let { drawPath(outer, it, alpha = 0.38f) }
                 }
             }
-            .padding(horizontal = TopTabsFit.INSET.dp)
             .selectableGroup()
             .semantics { isTraversalGroup = true; contentDescription = label },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(TopTabsFit.GAP.dp),
     ) {
-        items.forEachIndexed { i, (barIndex, item) ->
+        items.forEachIndexed { i, (_, item) ->
             val selected = item.id == selection
             val source = remember { MutableInteractionSource() }
-            val pressed by source.collectIsPressedAsState()
-            val hovered by source.collectIsHoveredAsState()
-            val wash by animateFloatAsState(
-                if (selected) 1f else if (pressed) 0.5f else if (hovered) TOP_HOVER_WASH else 0f, tween(160), label = "topTabWash",
-            )
-            val itemWidth = widths.getOrElse(i) { TopTabsFit.ICON_ITEM.dp }
-            val ink = if (selected) Tokens.Terracotta else Tokens.TextMuted
+            LaunchedEffect(source) {
+                source.interactions.collect {
+                    when (it) {
+                        is PressInteraction.Press -> {
+                            pressed = i
+                            ink.press(scope, Offset(it.pressPosition.x + with(density) { leftsNow[i].dp.toPx() }, it.pressPosition.y))
+                        }
+                        is PressInteraction.Release, is PressInteraction.Cancel -> ink.release(scope)
+                        is HoverInteraction.Enter -> hovers[i].value = true
+                        is HoverInteraction.Exit -> hovers[i].value = false
+                    }
+                }
+            }
+            val face = if (selected) Mixes.ButtonOnTonal else Tokens.TextMuted
             Box(
                 Modifier
-                    .size(itemWidth, 32.dp)
+                    .width(widths.getOrElse(i) { TopTabsFit.ICON_ITEM.dp })
+                    .fillMaxHeight()
                     .hoverable(source)
                     .pointerHoverIcon(PointerIcon.Hand)
                     .clickable(source, indication = null, role = Role.Tab, onClickLabel = item.title) {
@@ -324,14 +378,6 @@ fun <T> TopTabs(
                     .semantics {
                         this.selected = selected
                         if (!labels) contentDescription = item.title
-                    }
-                    .drawWithCache {
-                        // The bar's scrap of torn paper, fitted to the item (its seed: the item's place in the bar).
-                        val o = WobRectShape(12.0, barIndex * 29.0 + 7, mag = 3.2, options = WobRectOptions(
-                            curve = 1.2, cornerJitter = 3.6, cornerOffset = 3.0,
-                            segmentsH = SegValue.Count(if (itemWidth.value > 90f) 3.0 else 2.0), segmentsV = SegValue.Count(1.0),
-                        )).createOutline(size, layoutDirection, this)
-                        onDrawBehind { val w = wash; if (w > 0f) drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.55f * w)) }
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -339,7 +385,7 @@ fun <T> TopTabs(
                     // Beside words, the glyph and its chip step into the leading padding so the chip
                     // ends clear of the label; nothing else moves (an offset takes no room).
                     Box(Modifier.offset(x = -TopTabBadge.glyphShift(labels, item.badge).dp)) {
-                        OrganicIcon(item.icon, size = if (labels) 20.dp else 22.dp, color = ink)
+                        OrganicIcon(item.icon, size = if (labels) 20.dp else 22.dp, color = face)
                         if (item.badge > 0) {
                             CountBadge(item.badge, Modifier.align(Alignment.TopEnd).offset(x = TopTabBadge.OFFSET_X.dp, y = TopTabBadge.OFFSET_Y.dp))
                         }
@@ -354,8 +400,11 @@ fun <T> TopTabs(
     }
 }
 
-/** A pointer over a header tab: the wash at 0.45 of the chosen one's. */
-private const val TOP_HOVER_WASH = 0.45f
+/** The group's shape (part B's track seed); its seams take theirs from it. */
+private const val TOP_TABS_SEED = 233.0
+
+/** A pointer over a header tab: the tonal face at 0.45. */
+private const val TOP_HOVER_FILL = 0.45f
 
 /** The pen at the header's end (design note B2): the bar's pen chip, opening the writer. */
 @Composable
@@ -513,6 +562,11 @@ fun OrganicPageTitle(title: String, modifier: Modifier = Modifier, trailing: @Co
  * Pushed-screen bar (AppHeader's phone takeover): the bare back arrow and,
  * when given, the screen's title in Playfair 22/700 beside it; trailing
  * actions at the end. Edged by the header's wavy line.
+ *
+ * On a medium or expanded window (round 5, part C) a pushed page's bar is the whole header — no
+ * tabs, no pen over it: the arrow leads, the page's context ([title], else [centre]) stands in the
+ * middle of the window (one line, truncated, kept clear of both ends), its actions end on the pad.
+ * A [title] not [titleShown] yet (the card's title still on the page) is faded out and silent.
  */
 @Composable
 fun OrganicInlineBar(
@@ -527,61 +581,117 @@ fun OrganicInlineBar(
     leading: @Composable RowScope.() -> Unit = {},
     /** How far a story has been read (0…1, read while drawing): the card page's progress on the pen line. */
     progress: (() -> Float)? = null,
+    /** Whether [title] shows: it fades in (160 ms; at once under reduced motion) when this turns true. */
+    titleShown: Boolean = true,
+    /** The page's context when it isn't a title (a thread's person): the middle of a tablet's header, beside the arrow on a phone. */
+    centre: (@Composable RowScope.() -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val chrome = LocalHeaderChrome.current
-    // Beside the header's tabs the row is the root bars' 56, with no air above it (design note B2).
+    // Beside the header's tabs the row is the root bars', with no air above it (design note B2).
     val air = if (chrome != null) 0.dp else 4.dp
-    Row(
-        modifier
-            .fillMaxWidth()
-            .blocksTouches()
-            .headerEdge(edgeInk(scrolled), progress)
-            .statusBarsPadding()
-            // Puts the arrow on the page's 20 margin, as the web's -8 margin + 8 padding does (the pad beside the tabs).
-            .padding(start = chrome?.pad?.minus(16.dp) ?: 4.dp, end = chrome?.trailingPad ?: 8.dp)
-            .padding(top = air, bottom = HeaderEdgeHeight)
-            .height(LocalInlineBarHeight.current - air),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        val back: @Composable () -> Unit = {
-            if (showBack && !LocalBarBackHidden.current) OrganicIconButton(IconName.ArrowRight, backLabel, mirrored = true, onClick = onBack) else Spacer(Modifier.width(12.dp))
-        }
-        val titleText: @Composable (Modifier) -> Unit = { m ->
-            BasicText(
-                title.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = AppFonts.heading(22f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em),
-                modifier = m.semantics { heading() },
-            )
-        }
-        if (chrome == null) {
+    val still = LocalContext.current.prefersReducedMotion()
+    val titleAlpha by animateFloatAsState(if (titleShown) 1f else 0f, if (still) snap() else tween(TITLE_FADE_MILLIS), label = "barTitle")
+    val back: @Composable () -> Unit = {
+        if (showBack && !LocalBarBackHidden.current) OrganicIconButton(IconName.ArrowRight, backLabel, mirrored = true, onClick = onBack) else Spacer(Modifier.width(12.dp))
+    }
+    val titleText: @Composable (Modifier) -> Unit = { m ->
+        BasicText(
+            title.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = AppFonts.heading(22f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em),
+            modifier = m
+                .graphicsLayer { alpha = titleAlpha }
+                .then(if (titleShown) Modifier.semantics { heading() } else Modifier.clearAndSetSemantics { }),
+        )
+    }
+    val bar = modifier
+        .fillMaxWidth()
+        .blocksTouches()
+        .headerEdge(edgeInk(scrolled), progress)
+        .statusBarsPadding()
+    if (chrome == null) {
+        Row(
+            bar
+                // Puts the arrow on the page's 20 margin, as the web's -8 margin + 8 padding does.
+                .padding(start = 4.dp, end = 8.dp)
+                .padding(top = air, bottom = HeaderEdgeHeight)
+                .height(LocalInlineBarHeight.current - air),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             back()
             if (title != null) {
                 Spacer(Modifier.width(4.dp))
                 titleText(Modifier.weight(1f))
             } else {
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, content = leading)
-            }
-        } else {
-            // The arrow and the title keep clear of the tabs (the arrow's hit box hangs 16 into the pad);
-            // under 72 of room the title goes and the arrow stays.
-            val room = chrome.leadingMax + 16.dp
-            Row(Modifier.widthIn(max = room), verticalAlignment = Alignment.CenterVertically) {
-                back()
-                if (title != null) {
-                    if (room - 48.dp - 4.dp >= 72.dp) {
-                        Spacer(Modifier.width(4.dp))
-                        titleText(Modifier.weight(1f, fill = false))
-                    }
-                } else {
-                    Row(Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically, content = leading)
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    leading()
+                    centre?.invoke(this)
                 }
             }
-            Spacer(Modifier.weight(1f))
+            trailing()
         }
-        trailing()
+        return
+    }
+    // The arrow's hit box hangs 16 into the pad, the last action's 12 (their glyphs sit on it).
+    val startPad = chrome.pad - 16.dp
+    val endPad = chrome.pad - 12.dp
+    Layout(
+        contents = listOf(
+            { Row(verticalAlignment = Alignment.CenterVertically) { back(); leading() } },
+            {
+                if (title != null) titleText(Modifier)
+                else if (centre != null) Row(verticalAlignment = Alignment.CenterVertically, content = centre)
+            },
+            { Row(verticalAlignment = Alignment.CenterVertically, content = trailing) },
+        ),
+        modifier = bar.padding(bottom = HeaderEdgeHeight).height(LocalInlineBarHeight.current),
+    ) { (lead, middle, end), constraints ->
+        val w = constraints.maxWidth
+        val h = constraints.maxHeight
+        val sp = startPad.roundToPx()
+        val ep = endPad.roundToPx()
+        val loose = Constraints(maxHeight = h)
+        val endP = end.firstOrNull()?.measure(loose.copy(maxWidth = (w - sp - ep).coerceAtLeast(0)))
+        val endW = endP?.width ?: 0
+        val leadP = lead.firstOrNull()?.measure(loose.copy(maxWidth = (w - sp - ep - endW).coerceAtLeast(0)))
+        val leadW = leadP?.width ?: 0
+        val room = InlineBarCentre.room(w / density, (sp + leadW) / density, (ep + endW) / density)
+        val midP = if (room != null) middle.firstOrNull()?.measure(loose.copy(maxWidth = (room * density).toInt())) else null
+        layout(w, h) {
+            leadP?.place(sp, (h - leadP.height) / 2)
+            endP?.place(w - ep - endW, (h - endP.height) / 2)
+            midP?.place((w - midP.width) / 2, (h - midP.height) / 2)
+        }
     }
 }
+
+/**
+ * How wide a pushed page's context may be in the middle of a tablet's header (round 5, part C),
+ * apart from Compose so it can be tested: centred on the window, it keeps [GAP] clear of the wider
+ * of the two ends ([leading] and [trailing]: how far each reaches in from its edge), so it stays on
+ * the window's centre; under [MIN] of room it isn't shown (the arrow and the actions stay).
+ */
+object InlineBarCentre {
+    const val GAP = 16f
+    const val MIN = 72f
+
+    fun room(width: Float, leading: Float, trailing: Float): Float? {
+        val r = width - 2 * (max(leading, trailing) + GAP)
+        return if (r >= MIN) r else null
+    }
+}
+
+/** The pushed bar's title coming in once the page's own has scrolled under the header. */
+private const val TITLE_FADE_MILLIS = 160
+
+/**
+ * Whether something at the top of a list's first item has gone up under the bar laid over the
+ * list (the card's title, a person's name): the list starts on the bar's line, so it has once the
+ * first item has scrolled by as much as that thing's bottom lies below the item's top
+ * ([bottomInItem], unknown until measured) — or the first item is gone altogether.
+ */
+fun scrolledUnderBar(firstIndex: Int, firstOffset: Int, bottomInItem: Float?): Boolean =
+    firstIndex > 0 || (bottomInItem != null && firstOffset >= bottomInItem)
 
 /**
  * The inline bar's height under the status bar, without its wavy edge: its
