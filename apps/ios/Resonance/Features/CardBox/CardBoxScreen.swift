@@ -79,8 +79,9 @@ struct CardBoxScreen: View {
                     Text(me.bio ?? L10n.Me.bioEmpty).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
                 }
                 Spacer(minLength: 0)
-                // The phone's settings entry: the pen (the app's settings glyph), bare — a glyph beside the name, not a chip.
-                OrganicIconButton(.pen, label: L10n.Me.editProfile, size: 20) { openRoute(.settings) }
+                // The settings entry: the person glyph, bare — a glyph beside the name, not a chip. Not the pen,
+                // which means "write" (on a tablet it sits beside the header's own).
+                OrganicIconButton(.user, label: L10n.Me.editProfile, size: 20) { openRoute(.settings) }
             }
         } else if case .failed = session.profile {
             OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
@@ -276,17 +277,18 @@ private struct ManagedCardList: View {
 
     var body: some View {
         // Bands, or the bordered grid on a wide window (as every story-card list).
+        let palettes = CardPalette.palettes(cards.map(\.accentHue))
         CardColumns(count: cards.count) { i, bordered in
             let card = cards[i]
-            let hue = CardPalette(accentHue: card.accentHue, position: i).hue
+            let hue = CardPalette(index: palettes[i]).hue
             Group {
                 if resumesDrafts {
                     Button { writer.edit(card.id) } label: {
-                        StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1, bordered: bordered)
+                        StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1, bordered: bordered, palette: palettes[i])
                     }
                 } else {
                     NavigationLink(value: Route.card(card.routeKey)) {
-                        StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1, bordered: bordered)
+                        StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1, bordered: bordered, palette: palettes[i])
                     }
                     .onAppear { session.cardPreviews.remember(card) }
                 }

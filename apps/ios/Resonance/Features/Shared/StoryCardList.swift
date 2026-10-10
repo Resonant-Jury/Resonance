@@ -16,10 +16,13 @@ struct StoryCardList: View {
     @Environment(SessionStore.self) private var session
 
     var body: some View {
+        // One colouring for the list as shown (round 5 B3): no card wears a neighbour's family.
+        let palettes = CardPalette.palettes(cards.map(\.accentHue))
         CardColumns(count: cards.count, underBar: underBar, grid: grid) { i, bordered in
             let card = cards[i]
             NavigationLink(value: Route.card(card.routeKey)) {
-                StoryCardView(card.story, position: i, isLast: i == cards.count - 1, underBar: underBar && i == 0, bordered: bordered)
+                StoryCardView(card.story, position: i, isLast: i == cards.count - 1, underBar: underBar && i == 0, bordered: bordered,
+                              palette: palettes[i])
             }
             .buttonStyle(.plain)
             .onAppear {
@@ -80,10 +83,11 @@ struct MiniCardList: View {
     @Environment(SessionStore.self) private var session
 
     var body: some View {
+        let palettes = CardPalette.palettes(cards.map(\.accentHue))
         LazyVStack(spacing: 0) {
             ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                 NavigationLink(value: Route.card(card.routeKey)) {
-                    MiniStoryCardView(card.mini, position: i, isLast: i == cards.count - 1)
+                    MiniStoryCardView(card.mini, position: i, isLast: i == cards.count - 1, palette: palettes[i])
                 }
                 .buttonStyle(.plain)
                 .onAppear { session.cardPreviews.remember(card) }
@@ -99,8 +103,10 @@ struct FeedSkeleton: View {
     var underBar = false
 
     var body: some View {
+        // Hue-less cards by position (the rule's answer for them).
+        let palettes = CardPalette.palettes(Array(repeating: nil, count: count))
         CardColumns(count: count, underBar: underBar) { i, bordered in
-            StoryCardSkeleton(position: i, isLast: i == count - 1, underBar: underBar && i == 0, bordered: bordered)
+            StoryCardSkeleton(position: i, isLast: i == count - 1, underBar: underBar && i == 0, bordered: bordered, palette: palettes[i])
         }
         .accessibilityElement()
         .accessibilityLabel("Loading")
