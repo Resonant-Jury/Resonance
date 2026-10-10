@@ -56,8 +56,9 @@ export function HeroSection() {
 
         <div className={styles.proof}>
           <div className={styles.avatarStack}>
+            {/* Overlapping by 6px: each one's initials stay whole beside the next (10px cut into them). */}
             {AVATARS.map((a, i) => (
-              <div key={a.ini} style={{ marginLeft: i > 0 ? -10 : 0 }}>
+              <div key={a.ini} style={{ marginLeft: i > 0 ? -6 : 0 }}>
                 <HandDrawnAvatar initials={a.ini} size={30} seed={i * 55 + 3} color={a.color} />
               </div>
             ))}

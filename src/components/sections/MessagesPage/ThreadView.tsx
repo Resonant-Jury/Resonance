@@ -17,7 +17,6 @@ import { ConfirmModal } from '@/components/molecules/ConfirmModal/ConfirmModal';
 import { OrganicMenu } from '@/components/molecules/OrganicMenu/OrganicMenu';
 import { CardEmbedSourceContext, useCardEmbed } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
 import { useSafetyActions } from '@/components/molecules/SafetyActions/useSafetyActions';
-import { INK } from '@/lib/design/strokes';
 import { seedFromString } from '@/lib/design/prng';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { Link, useRouter } from '@/i18n/navigation';
@@ -41,6 +40,7 @@ import { MessageRow } from './MessageRow';
 import { MessageMenuOverlay } from './MessageMenuOverlay';
 import { SearchResults } from './ThreadSearch';
 import { ThreadComposer } from './ThreadComposer';
+import { ThreadHeaderChrome } from './ThreadHeaderChrome';
 import { ThreadActionsContext, type PressedMessage, type ThreadActions } from './threadActions';
 import { centerRow, useThreadScroll } from './useThreadScroll';
 import pageStyles from './MessagesPage.module.css';
@@ -295,6 +295,21 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   }, [lastMessageId]);
 
   const scrollerRef = useRef<HTMLDivElement>(null);
+  // Whether a message lies under the header's paper (the history scrolled under it): its pen line inks in whole.
+  const [scrollerEl, setScrollerEl] = useState<HTMLDivElement | null>(null);
+  const [under, setUnder] = useState(false);
+  useEffect(() => {
+    if (!scrollerEl) return;
+    const check = () => setUnder(scrollerEl.scrollTop > 1);
+    check();
+    scrollerEl.addEventListener('scroll', check, { passive: true });
+    const ro = new ResizeObserver(check);
+    ro.observe(scrollerEl);
+    return () => {
+      scrollerEl.removeEventListener('scroll', check);
+      ro.disconnect();
+    };
+  }, [scrollerEl]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // The「卡片與連結」modal's scroll area (hand-drawn rail replaces the native bar).
   const mediaScrollRef = useRef<HTMLDivElement>(null);
@@ -611,6 +626,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
             header steps through the matches. On single-pane phones the app
             header is gone, so a back control leads this row instead. */}
         <div className={pageStyles.threadHeader}>
+          <ThreadHeaderChrome under={under} />
           {searchOpen ? (
             <>
               <span className={pageStyles.headerSearchIcon}>
@@ -709,17 +725,19 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
             </>
           )}
         </div>
-        <div className={pageStyles.threadDivider}>
-          <Divider seed={41} spacing={0} strokeWidth={INK} />
-        </div>
-
         {connected === false && !convo ? (
           // Someone the viewer isn't connected with and has never written with: nothing to show but that.
           convo === null && notConnected
         ) : (
           <>
             <div className={styles.body}>
-              <div ref={scrollerRef} className={styles.scroller}>
+              <div
+                ref={(el) => {
+                  scrollerRef.current = el;
+                  setScrollerEl(el);
+                }}
+                className={styles.scroller}
+              >
                 {thread.ready && thread.messages.length === 0 && <p className={pageStyles.quietNote}>{t('noMessagesYet')}</p>}
                 {convo === null && !thread.ready && <p className={pageStyles.quietNote}>{t('noMessagesYet')}</p>}
                 {/* Older pages: read as the reader nears the top, said here while they come. The row

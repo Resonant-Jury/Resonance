@@ -39,7 +39,9 @@ const prefersReducedMotion = () =>
  *   on every scroll frame, no transition), so it never lags or reshapes;
  * - a grab keeps the place it was grabbed (no jump to the pointer);
  * - a press on the track above or below the thumb pages up or down;
- * - a wheel over the column scrolls the list, not the page behind it.
+ * - a wheel over the column scrolls the list, not the page behind it;
+ * - a drag ends on any release — over the bar or anywhere else, its capture
+ *   lost, the window left — and never outlives the button.
  *
  * The native scroller stays the accessible one (keyboard, wheel over the
  * list, screen readers): the drawn bar is aria-hidden. Phones and touch
@@ -147,19 +149,48 @@ export function OrganicScrollbar({ targetRef, seed = 47 }: OrganicScrollbarProps
 
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
     const d = drag.current;
-    const g = d ? geometry() : null;
-    if (!d || !g || !railRef.current) return;
+    if (!d) return;
+    // The main button is up: the release went somewhere this bar never heard (outside the window, a
+    // capture lost) — the drag is over, never a thumb left following the pointer.
+    if (e.pointerType === 'mouse' && (e.buttons & 1) === 0) {
+      stopDrag(e.pointerId);
+      return;
+    }
+    const g = geometry();
+    if (!g || !railRef.current) return;
     const railTop = railRef.current.getBoundingClientRect().top;
     // Instant, 1:1 with the pointer.
     g.el.scrollTop = scrollTopForThumb(e.clientY - railTop - d.grab, g.trackH, g.h, g.max);
   }
 
-  function endDrag(e: PointerEvent<HTMLDivElement>) {
+  /** Ends a drag however it ended: released, cancelled, its capture lost, the window left. */
+  const stopDrag = useCallback((pointerId?: number) => {
     if (!drag.current) return;
     drag.current = null;
     setDragging(false);
-    if (railRef.current?.hasPointerCapture?.(e.pointerId)) railRef.current.releasePointerCapture(e.pointerId);
+    const rail = railRef.current;
+    if (pointerId != null && rail?.hasPointerCapture?.(pointerId)) rail.releasePointerCapture(pointerId);
+  }, []);
+
+  function endDrag(e: PointerEvent<HTMLDivElement>) {
+    stopDrag(e.pointerId);
   }
+
+  // While a drag lasts, a release anywhere ends it — over the bar or not, captured or not — and so does
+  // the window losing focus (a release there is never told).
+  useEffect(() => {
+    if (!dragging) return;
+    const up = (e: globalThis.PointerEvent) => stopDrag(e.pointerId);
+    const blur = () => stopDrag();
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+      window.removeEventListener('blur', blur);
+    };
+  }, [dragging, stopDrag]);
 
   const spine = useMemo(() => (h > 0 ? brushSpine(h, seed) : ''), [h, seed]);
 
@@ -175,6 +206,7 @@ export function OrganicScrollbar({ targetRef, seed = 47 }: OrganicScrollbarProps
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onLostPointerCapture={endDrag}
     >
       <span className={styles.track} />
       {h > 0 && (

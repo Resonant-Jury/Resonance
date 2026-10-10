@@ -22,9 +22,20 @@
   min-height: 0;
   overflow-y: auto;
   padding: 18px 4px 16px 14px;
+  /* A column, so an empty state can take the pane's height. */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Beside the two panes the detail pane says "nothing yet"; the list stays empty. */
+.listEmpty {
+  display: none;
 }
 
 .vRule {
+  /* Over the thread header's paper, which reaches across the gap to it. */
+  position: relative;
+  z-index: 6;
   display: flex;
   align-self: stretch;
   /* Overshoot both ends: tuck under the header's wavy border above and run
@@ -132,26 +143,44 @@
   color: var(--color-text-muted);
 }
 
-.emptyText {
-  font-size: 14px;
-  color: var(--color-text-muted);
-  line-height: 1.7;
-}
-
 /* --- thread --- */
 
-/* Symmetric vertical padding so the avatar + name block reads centered
-   between the app header above and the divider below (the pane's own top
-   padding stays small on purpose). The fixed min-height keeps the row from
-   shifting when search mode swaps the contents. */
+/* The thread's own bar: the person (or the in-thread search) on the app
+   header's kind of paper — opaque cream that stops on a wavy pen line, the
+   messages scrolling up beneath it (the body is pulled up under the row, see
+   Thread.module.css) and vanishing exactly at the wave. The row is 58px
+   (38 + 10 above and below), whatever it holds, so the wave never moves. */
 .threadHeader {
+  position: relative;
+  z-index: 5;
   display: flex;
   align-items: center;
   gap: 10px;
   min-height: 38px;
-  /* Symmetric vertical padding now that the pane adds none — this is what
-     centres the avatar/name/menu between the top of the pane and the divider. */
+  height: 58px;
+  box-sizing: border-box;
   padding: 10px 14px 10px 0;
+}
+
+.threadHeader > :not(.threadChrome) {
+  position: relative;
+}
+
+/* The paper and its wave, 14px deeper than the row (the wave's band). Two
+   panes: it reaches back across the column gap to meet the vertical rule
+   (which draws over it); a phone: edge to edge. */
+.threadChrome {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--msg-gap) - 6px);
+  right: 0;
+  height: 72px;
+  pointer-events: none;
+}
+
+.threadChromeSvg {
+  display: block;
+  overflow: visible;
 }
 
 /* Flex, not inline: an inline link keeps text baseline metrics and floats the
@@ -163,12 +192,6 @@
 
 .threadHeaderSpacer {
   flex: 1;
-}
-
-/* The rule under the thread header stretches left across the column gap so
-   it meets (slightly crosses) the vertical rule instead of floating apart. */
-.threadDivider {
-  margin-left: calc(-1 * var(--msg-gap) - 6px);
 }
 
 .threadHandle {
@@ -360,12 +383,12 @@
   .listPane {
     padding-left: 2px;
   }
-  /* No vertical rule to meet on single-pane phones — instead the rule runs
-     edge to edge like the app header's own wavy bottom stroke (the 14px is
-     the page's single-pane side padding, pulled back out). */
-  .threadDivider {
-    margin-left: -14px;
-    margin-right: -14px;
+  /* No vertical rule to meet on single-pane phones — the header's paper and
+     wave run edge to edge like the app header's (the 14px is the page's
+     single-pane side padding, pulled back out). */
+  .threadChrome {
+    left: -14px;
+    right: -14px;
   }
   .vRule {
     display: none;
@@ -376,6 +399,9 @@
   }
   .page:not([data-thread-open]) .threadPane {
     display: none;
+  }
+  .listEmpty {
+    display: flex;
   }
   .headerBack {
     display: inline-flex;

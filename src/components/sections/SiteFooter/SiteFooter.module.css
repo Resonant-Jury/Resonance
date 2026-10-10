@@ -32,7 +32,8 @@
 .tagline {
   font-family: var(--font-body);
   font-size: 13px;
-  color: oklch(85% 0.015 75 / 0.5);
+  /* AA on the footer's ink (5.0:1), as the trademark line. */
+  color: oklch(85% 0.015 75 / 0.65);
   margin: 0;
   font-style: italic;
 }
@@ -66,7 +67,8 @@
 .link {
   font-family: var(--font-body);
   font-size: 13px;
-  color: oklch(85% 0.015 75 / 0.55);
+  /* AA on the footer's ink (5.3:1); brighter under the pointer. */
+  color: oklch(85% 0.015 75 / 0.68);
   text-decoration: none;
   transition: color 150ms;
 }
@@ -84,6 +86,7 @@
 .copyright {
   font-family: var(--font-body);
   font-size: 12px;
-  color: oklch(85% 0.015 75 / 0.3);
+  /* Quiet, still AA (5.0:1). */
+  color: oklch(85% 0.015 75 / 0.65);
   margin: 0;
 }
