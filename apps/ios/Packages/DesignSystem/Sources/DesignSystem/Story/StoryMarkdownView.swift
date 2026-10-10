@@ -155,7 +155,8 @@ nonisolated struct WavyRailShape: Shape {
 }
 
 /// OrganicStoryImage: a photo at its natural proportions (never taller than
-/// 520pt or 62% of the window), centred, in a hand-drawn clip. The photo is
+/// 520pt or 62% of the window), at the column's leading edge like the text
+/// (as the web), in a hand-drawn clip. The photo is
 /// zoomed past its box by the wobble's reach so the clip's outward swings
 /// land on real pixels, as on the web.
 struct StoryImageView: View {
@@ -190,7 +191,7 @@ struct StoryImageView: View {
             .frame(width: w + bleed * 2, height: h + bleed * 2)
             .clipShape(StoryImageClip(seed: seed, bleed: bleed))
             .frame(width: w, height: h)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityLabel(alt)
             .accessibilityAddTraits(.isImage)
         }

@@ -137,7 +137,7 @@
    a node view nests its wrapper one level down, so an image is *always* a
    first child by that rule's reading and would lose its top margin. */
 .content .imageNode {
-  margin: var(--story-image-gap) auto;
+  margin: var(--story-image-gap) 0;
 }
 
 /* Embedded card node view (mini horizontal story card). The card draws its
