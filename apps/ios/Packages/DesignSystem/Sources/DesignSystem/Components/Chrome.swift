@@ -294,6 +294,7 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     let trailing: Trailing
     private var back: (() -> Void)?
     private var showsBack = true
+    private var progress: CGFloat?
     @Environment(\.dismiss) private var dismiss
 
     public init(_ title: String, backLabel: String, scrolled: Bool = false,
@@ -316,6 +317,14 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     public func backHidden(_ hidden: Bool) -> Self {
         var bar = self
         bar.showsBack = !hidden
+        return bar
+    }
+
+    /// How far through the page's story the reader is (0…1; nil draws nothing): a terracotta pen
+    /// line rides the bar's own wave from its left end (design §3).
+    public func readingProgress(_ progress: CGFloat?) -> Self {
+        var bar = self
+        bar.progress = progress
         return bar
     }
 
@@ -344,7 +353,7 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
         .padding(.horizontal, 20)
         .padding(.top, 4)
         .padding(.bottom, HeaderEdge.height)
-        .background { HeaderEdge(scrolled: scrolled) }
+        .background { HeaderEdge(scrolled: scrolled, progress: progress) }
     }
 }
 
@@ -369,10 +378,17 @@ public struct HeaderEdge: View {
     /// Room under the bar's content for the wave (the web's HEADER_WAVE_H band).
     public static let height: CGFloat = 10
     var scrolled: Bool
+    /// Reading progress (the card page): the share of the wave inked in terracotta over the grey.
+    var progress: CGFloat?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(scrolled: Bool = false) {
+    public init(scrolled: Bool = false, progress: CGFloat? = nil) {
         self.scrolled = scrolled
+        self.progress = progress
     }
+
+    /// Below this nothing is drawn: no lone dot of a round cap at the wave's start.
+    public static let progressMin: CGFloat = 0.002
 
     public var body: some View {
         ZStack {
@@ -381,9 +397,31 @@ public struct HeaderEdge: View {
                 .stroke(Tokens.fieldBorderHover, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
                 .opacity(scrolled ? 1 : 0.5)
                 .animation(.easeInOut(duration: 0.3), value: scrolled)
+            if let progress {
+                let p = min(max(progress, 0), 1)
+                HeaderEdgeShape(closed: false)
+                    .trim(from: 0, to: p)
+                    .stroke(Tokens.terracotta, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                    .opacity(p < Self.progressMin ? 0 : 1)
+                    // It follows the scroll; with motion allowed, a short ease takes the steps out.
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: p)
+            }
         }
         .ignoresSafeArea(edges: .top)
         .accessibilityHidden(true)
+    }
+}
+
+/// How far a reader is through a story (design §3), from the scroll view's geometry and the story
+/// block's place in the scrolled content: 0 while the story's top is still below the bar's line,
+/// 1 once its bottom has reached the screen's foot; nil (nothing drawn) when the story fits on
+/// one screen.
+public nonisolated enum ReadingProgress {
+    /// `visibleTop`: the scrolled content's y at the bar's line (offset + top inset);
+    /// `visibleHeight`: what shows between the bar and the bottom inset.
+    public static func of(storyTop: CGFloat, storyHeight: CGFloat, visibleTop: CGFloat, visibleHeight: CGFloat) -> CGFloat? {
+        guard storyHeight > visibleHeight, visibleHeight > 0 else { return nil }
+        return min(max((visibleTop - storyTop) / (storyHeight - visibleHeight), 0), 1)
     }
 }
 

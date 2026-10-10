@@ -193,9 +193,12 @@ struct MainTabView: View {
 /// A `.refreshable` given to it is pulled with the Resonance loader
 /// (`sketchRefreshable`), never the system's spinner, and offered to VoiceOver
 /// as a "Refresh" action on everything in the list (`sketchRefreshAction`).
-/// Home keeps its title in the page; every other tab (`titleInBar`) names
-/// itself in the bar where "Resonance" stood, with any `trailing` control at the
-/// bar's end, and the content starts just under the bar's line.
+/// Home has no page title (an empty `title`): the brand bar alone, and the
+/// feed's first card begins right at the bar's line. Every other tab
+/// (`titleInBar`) names itself in the bar where "Resonance" stood, with any
+/// `trailing` control at the bar's end, and the content starts just under the
+/// bar's line. The height between the bar and the tab bar is handed to a
+/// filling ``OrganicEmptyState`` (`emptyStateRegion`).
 struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     let title: String
     var headerSpacing: CGFloat
@@ -212,11 +215,14 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     /// at — `RefreshPull`'s own measure of the gap a pull opens (`drawnDown`).
     @State private var nearTop: CGFloat = 0
     @State private var restingTop: CGFloat = 0
+    /// What the scroll view shows between its insets (the bar above, the home indicator below).
+    @State private var visibleHeight: CGFloat = 0
     /// How far the list is drawn down past its top (a pull, or the room a refresh keeps): the banner
     /// rides on the list, below the loader in that gap, never over it.
     private var drawnDown: CGFloat { max(0, -(nearTop + restingTop)) }
     /// The bar's row above its wavy edge: 4 of air and the 44 lockup.
     private let travel: CGFloat = 48
+    private var topPadding: CGFloat { titleInBar ? 16 : title.isEmpty ? 0 : 40 }
 
     init(_ title: String, headerSpacing: CGFloat = 20, titleInBar: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
          @ViewBuilder banner: () -> Banner, @ViewBuilder content: () -> Content) {
@@ -231,14 +237,17 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if !titleInBar {
+                if !titleInBar, !title.isEmpty {
                     OrganicLargeHeader(title) { trailing }
                         .padding(.bottom, headerSpacing)
                 }
                 content
             }
-            // --page-pad-top on a phone; with the title in the bar, 16 of air under its line.
-            .padding(.top, titleInBar ? 16 : 40)
+            // An empty state fills what is left between the bar's line and the tab bar.
+            .environment(\.emptyStateRegion, max(0, visibleHeight - topPadding - OrganicTabBar<AppTab>.height - HeaderEdge.height))
+            // --page-pad-top on a phone; with the title in the bar, 16 of air under its line; none
+            // without a title (home: the first card is the bar's edge).
+            .padding(.top, topPadding)
             .padding(.bottom, 110)
             // For whoever can't pull, the same refresh is the list's "Refresh" action (among VoiceOver's actions on any of its rows).
             .sketchRefreshAction(named: L10n.Native.refresh)
@@ -260,6 +269,10 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
         .background(Tokens.cream)
         .onScrollGeometryChange(for: CGFloat.self) { min($0.contentOffset.y, 0) } action: { _, y in nearTop = y }
         .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { restingTop = $0 }
+        // The container is the scroll view's frame inside its insets: the bar above, the home indicator below.
+        .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height } action: { _, h in
+            visibleHeight = h
+        }
         .sketchRefreshable(refresh)
         .overlay(alignment: .top) { banner.offset(y: drawnDown - hidden) }
         .safeAreaInset(edge: .top, spacing: 0) {

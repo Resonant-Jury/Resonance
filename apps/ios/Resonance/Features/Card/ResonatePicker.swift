@@ -152,7 +152,7 @@ struct ResonatePickerContent: View {
 
 /// Row 0: write a new card in answer — one line, a way rather than a card: the pen in terracotta
 /// and the words in the deep terracotta (6.3:1 on the modal's paper), 44pt tall; pressed, the
-/// words darken and underline, as a row's ink answers.
+/// words darken and the story link's pen wave runs under them, as a row's ink answers.
 private struct WriteNewRow: View {
     let action: () -> Void
 
@@ -160,7 +160,7 @@ private struct WriteNewRow: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 OrganicIcon(.pen, size: 18, color: Tokens.terracotta)
-                Text(L10n.Card.ResonatePicker.writeNew).font(AppFonts.body(15, weight: .semibold))
+                WriteNewWords()
                 Spacer(minLength: 0)
             }
             .padding(.vertical, 10).padding(.horizontal, 6)
@@ -171,13 +171,36 @@ private struct WriteNewRow: View {
     }
 }
 
+/// The words, with the story link's wave under them while pressed (LinkWaves' depth and pen).
+private struct WriteNewWords: View {
+    @Environment(\.writeNewPressed) private var pressed
+    private let size: CGFloat = 15
+
+    var body: some View {
+        Text(L10n.Card.ResonatePicker.writeNew).font(AppFonts.body(size, weight: .semibold))
+            .overlay(alignment: .bottomLeading) {
+                PenWaveShape(seed: 59, amp: 1.2)
+                    .stroke(Tokens.terracotta, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                    .frame(height: 6)
+                    // The wave's centre LinkWaves.depthEm under the baseline (the line box's foot is ~0.27em under it).
+                    .offset(y: LinkWaves.drop(fontSize: size) - size * 0.27 + 3)
+                    .opacity(pressed ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
+    }
+}
+
+private extension EnvironmentValues {
+    @Entry var writeNewPressed = false
+}
+
 private struct WriteNewStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(configuration.isPressed ? WriteNewStyle.pressedInk : Tokens.buttonOnTonal)
-            .underline(configuration.isPressed)
+            .environment(\.writeNewPressed, configuration.isPressed)
             .opacity(isEnabled ? 1 : 0.5)
     }
 

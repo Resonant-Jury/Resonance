@@ -45,11 +45,15 @@ public struct StoryCardView: View {
     let content: StoryCardContent
     let position: Int
     var isLast: Bool
+    var underBar: Bool
 
-    public init(_ content: StoryCardContent, position: Int, isLast: Bool = false) {
+    /// `underBar`: the first card of a page whose bar's pen line is its top edge (home): no rule of
+    /// its own on top, and its paper reaches up under the bar's wave (design §2).
+    public init(_ content: StoryCardContent, position: Int, isLast: Bool = false, underBar: Bool = false) {
         self.content = content
         self.position = position
         self.isLast = isLast
+        self.underBar = underBar
     }
 
     private var palette: CardPalette { CardPalette(accentHue: content.accentHue, position: position) }
@@ -100,7 +104,7 @@ public struct StoryCardView: View {
                 .padding(.top, -4)
             }
         }
-        .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 32))
+        .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 32, underBar: underBar))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
@@ -111,10 +115,12 @@ public struct StoryCardView: View {
 public struct StoryCardSkeleton: View {
     let position: Int
     var isLast: Bool
+    var underBar: Bool
 
-    public init(position: Int, isLast: Bool = false) {
+    public init(position: Int, isLast: Bool = false, underBar: Bool = false) {
         self.position = position
         self.isLast = isLast
+        self.underBar = underBar
     }
 
     public var body: some View {
@@ -151,7 +157,7 @@ public struct StoryCardSkeleton: View {
             .padding(.top, 8)
         }
         .environment(\.skeletonHue, palette.hue)
-        .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 32))
+        .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 32, underBar: underBar))
         .accessibilityHidden(true)
     }
 }
@@ -252,10 +258,16 @@ struct StoryBand: ViewModifier {
     let seed: Double
     let isLast: Bool
     let verticalPadding: CGFloat
+    /// Its top edge is the bar's pen line: no rule of its own there, and the paper runs up under the
+    /// bar's wave band (HeaderEdge.height) — the bar's cream stops on the wave, so between its crests
+    /// the band shows, never a strip of page — with the content kept where it was.
+    var underBar = false
 
     func body(content: Content) -> some View {
-        content
+        let tuck = underBar ? HeaderEdge.height : 0
+        return content
             .padding(.vertical, verticalPadding)
+            .padding(.top, tuck)
             .padding(.horizontal, 38)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(palette.interior)
@@ -264,8 +276,9 @@ struct StoryBand: ViewModifier {
                 GrainLayer(shape: Rectangle(), mode: .tile, opacity: StoryGrain.band * 2, tile: "grain-overlay")
                     .accessibilityHidden(true)
             }
-            .overlay(alignment: .top) { edge.offset(y: -3) }
+            .overlay(alignment: .top) { if !underBar { edge.offset(y: -3) } }
             .overlay(alignment: .bottom) { if isLast { edge.offset(y: 3) } }
+            .padding(.top, -tuck)
     }
 
     private var edge: some View {
@@ -339,7 +352,13 @@ public nonisolated struct FlowRow: Layout {
         // Where a row's leftover width goes: none before it (leading), half (center), all (trailing).
         let lead: CGFloat = alignment == .center ? 0.5 : alignment == .trailing ? 1 : 0
         var y = bounds.minY
-        for row in arrange(bounds.width, subviews) {
+        let rows = arrange(bounds.width, subviews)
+        // A rule left at a row's start or end parts nothing: it is put out of sight.
+        let shown = Set(rows.flatMap(\.indices))
+        for index in subviews.indices where !shown.contains(index) {
+            subviews[index].place(at: CGPoint(x: bounds.minX - 100_000, y: bounds.minY), proposal: .zero)
+        }
+        for row in rows {
             var x = bounds.minX + max(0, bounds.width - row.width) * lead
             for index in row.indices {
                 let size = subviews[index].sizeThatFits(.unspecified)
@@ -353,18 +372,47 @@ public nonisolated struct FlowRow: Layout {
     private struct Row { var indices: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
 
     private func arrange(_ maxWidth: CGFloat, _ subviews: Subviews) -> [Row] {
-        var rows: [Row] = [Row()]
-        for (i, view) in subviews.enumerated() {
-            let size = view.sizeThatFits(.unspecified)
-            let extra = rows[rows.count - 1].indices.isEmpty ? size.width : size.width + spacing
-            if rows[rows.count - 1].width + extra > maxWidth, !rows[rows.count - 1].indices.isEmpty {
-                rows.append(Row())
-            }
-            let current = rows.count - 1
-            rows[current].width += rows[current].indices.isEmpty ? size.width : size.width + spacing
-            rows[current].height = max(rows[current].height, size.height)
-            rows[current].indices.append(i)
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        return Self.rows(widths: sizes.map(\.width), rules: subviews.map { $0[FlowRowRule.self] }, maxWidth: maxWidth,
+                         spacing: spacing).map { indices in
+            Row(indices: indices,
+                width: indices.map { sizes[$0].width }.reduce(0, +) + spacing * CGFloat(max(0, indices.count - 1)),
+                height: indices.map { sizes[$0].height }.max() ?? 0)
         }
-        return rows.filter { !$0.indices.isEmpty }
     }
+
+    /// Which items go on which row, by index: as many as fit across `maxWidth`, in order. A rule
+    /// (``FlowRowRule``) that would begin a row, or is left ending one, is on no row: it parts nothing.
+    public static func rows(widths: [CGFloat], rules: [Bool], maxWidth: CGFloat, spacing: CGFloat) -> [[Int]] {
+        var rows: [[Int]] = [[]]
+        var width: CGFloat = 0
+        for (i, w) in widths.enumerated() {
+            let rule = rules[i]
+            if !rows[rows.count - 1].isEmpty, width + spacing + w > maxWidth {
+                // A rule that would begin a row stays out: there is nothing before it on that row to part.
+                if rule { continue }
+                rows.append([])
+                width = 0
+            }
+            if rule, rows[rows.count - 1].isEmpty { continue }
+            width += rows[rows.count - 1].isEmpty ? w : spacing + w
+            rows[rows.count - 1].append(i)
+        }
+        // Nor does a rule end one.
+        for r in rows.indices {
+            while let last = rows[r].last, rules[last] { rows[r].removeLast() }
+        }
+        return rows.filter { !$0.isEmpty }
+    }
+}
+
+/// A divider among a ``FlowRow``'s items (a toolbar's groups): drawn only between two items on
+/// the same row, never at a row's start or end.
+public nonisolated struct FlowRowRule: LayoutValueKey {
+    public static let defaultValue = false
+}
+
+extension View {
+    /// This item of a ``FlowRow`` is a divider (``FlowRowRule``).
+    public func flowRowRule() -> some View { layoutValue(key: FlowRowRule.self, value: true) }
 }

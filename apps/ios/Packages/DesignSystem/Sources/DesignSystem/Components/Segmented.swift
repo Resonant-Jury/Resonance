@@ -71,18 +71,20 @@ public struct SegmentedActionBar: View {
     }
 
     public var body: some View {
-        // The first row whose words all fit: every label, else the collapsible ones as their glyph.
+        // The first row whose words all fit: every label, then every label on a little less air, else
+        // the collapsible ones as their glyph.
         ViewThatFits(in: .horizontal) {
             row(collapsed: false)
+            row(collapsed: false, tight: true)
             if segments.contains(where: \.collapsible) { row(collapsed: true) }
         }
         .accessibilityElement(children: .contain)
     }
 
-    private func row(collapsed: Bool) -> some View {
+    private func row(collapsed: Bool, tight: Bool = false) -> some View {
         SegmentRowLayout(flexible: segments.map { !(collapsed && $0.collapsible) }) {
             ForEach(Array(segments.enumerated()), id: \.element.id) { i, spec in
-                SegmentButton(spec: spec, iconOnly: collapsed && spec.collapsible, index: i, count: segments.count,
+                SegmentButton(spec: spec, iconOnly: collapsed && spec.collapsible, tight: tight, index: i, count: segments.count,
                               barSeed: seed, barFill: fill, seam: seam)
             }
         }
@@ -167,6 +169,8 @@ struct SegmentRowLayout: Layout {
 private struct SegmentButton: View {
     let spec: SegmentSpec
     let iconOnly: Bool
+    /// The words' row a little closer to the seams (8 instead of 12), before a label gives way to its glyph.
+    var tight = false
     let index: Int
     let count: Int
     let barSeed: Double
@@ -175,7 +179,7 @@ private struct SegmentButton: View {
 
     var body: some View {
         Button(action: { if !spec.working { spec.action() } }) {
-            HStack(spacing: 8) {
+            HStack(spacing: OrganicButtonStyle.iconGap) {
                 if spec.working {
                     SketchLoader(size: 16, color: spec.ink).accessibilityHidden(true)
                 } else if let icon = spec.icon {
@@ -190,7 +194,7 @@ private struct SegmentButton: View {
                         .fixedSize()
                 }
             }
-            .padding(.horizontal, iconOnly ? 16 : 12)
+            .padding(.horizontal, iconOnly ? 16 : tight ? 8 : 12)
             .padding(.vertical, 14)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())

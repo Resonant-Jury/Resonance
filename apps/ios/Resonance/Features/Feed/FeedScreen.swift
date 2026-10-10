@@ -2,9 +2,11 @@ import DesignSystem
 import ResonanceKit
 import SwiftUI
 
-/// The home feed (home/page.tsx): the heading and its line, today's picks,
-/// then "load more" for the latest cards, and the prompt to write. Picks
-/// that come after the latest cards are showing wait behind a hint.
+/// The home feed (home/page.tsx): today's picks right under the brand bar (no
+/// page title: the first card's top edge is the bar's pen line), then "load
+/// more" for the latest cards, a quiet end mark once nothing more can load, and
+/// the prompt to write. Picks that come after the latest cards are showing wait
+/// behind a hint.
 struct FeedScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
@@ -13,10 +15,7 @@ struct FeedScreen: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            TabScreen(L10n.Home.heading, headerSpacing: 12, banner: { picksHint(proxy) }) {
-                CSSText(L10n.Home.subheading, font: AppFonts.scaledUIFont(.body, size: 15), lineHeight: 1.6, color: UIColor(Tokens.textMuted))
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 40)
+            TabScreen("", banner: { picksHint(proxy) }) {
                 content.id(Self.listTop)
             }
             .animation(.easeInOut(duration: 0.25), value: model?.picksReady ?? false)
@@ -81,43 +80,64 @@ struct FeedScreen: View {
     @ViewBuilder private var content: some View {
         switch model?.phase ?? .idle {
         case .idle, .loading:
-            FeedSkeleton(count: 6)
+            FeedSkeleton(count: 6, underBar: true)
         case .failed:
             OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
                 Task { await model?.load() }
             }
+            .padding(.top, 40)
         case .loaded:
             if let model, model.isEmpty {
                 OrganicEmptyState(title: L10n.Home.Empty.title, message: L10n.Home.Empty.subtitle,
                                   actionTitle: L10n.Home.Empty.cta) { writer.open() }
+                    .padding(.top, 40)
             } else if let model {
                 if let failure = model.refreshFailure {
-                    // A pull that brought nothing back: the feed stays, and a quiet line over it says why.
-                    RefreshNote(text: failure.message)
+                    // A pull that brought nothing back: the feed stays, and a quiet line over it says why
+                    // (the first card then starts below it, with its own top rule).
+                    RefreshNote(text: failure.message).padding(.top, 28)
                 }
-                StoryCardList(cards: model.cards)
+                StoryCardList(cards: model.cards, underBar: model.refreshFailure == nil)
                 footer(model)
             }
         }
     }
 
-    private func footer(_ model: FeedModel) -> some View {
-        VStack(spacing: 14) {
-            if model.latestVisible && !model.canLoadMore {
-                Text(L10n.Home.endOfDay)
-                    .font(AppFonts.heading(22, weight: .regular))
-                    .foregroundStyle(Tokens.text)
-                    .multilineTextAlignment(.center)
+    /// Under the last card: Load more while more can load (alone, no sentence); once nothing more
+    /// can, the end mark (design §2), 48 below the last card.
+    @ViewBuilder private func footer(_ model: FeedModel) -> some View {
+        if model.canLoadMore {
+            OrganicButton(model.isLoadingMore ? L10n.Home.moreLoading : L10n.Home.moreBtn, variant: .tonal) {
+                Task { await model.loadMore() }
             }
-            if model.canLoadMore {
-                OrganicButton(model.isLoadingMore ? L10n.Home.moreLoading : L10n.Home.moreBtn, variant: .tonal) {
-                    Task { await model.loadMore() }
-                }
-            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 64)
+            .padding(.horizontal, 20)
+        } else if model.latestVisible {
+            FeedEndMark()
+                .frame(maxWidth: .infinity)
+                .padding(.top, 48)
+                .padding(.horizontal, 20)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 64)
-        .padding(.horizontal, 20)
+    }
+}
+
+/// The end of the feed (design §2): a short pen wave with a terracotta dot just past its end —
+/// the pen lifted — and one quiet line under it. Not a heading.
+struct FeedEndMark: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 5) {
+                PenWaveShape(seed: 307, amp: 1.2)
+                    .stroke(Tokens.fieldBorderHover.opacity(0.7), style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                    .frame(width: 40, height: 8)
+                Circle().fill(Tokens.terracotta).frame(width: 3.2, height: 3.2)
+            }
+            .accessibilityHidden(true)
+            CSSText(L10n.Home.feedEnd, font: AppFonts.scaledUIFont(.body, size: 13.5), lineHeight: 1.5,
+                    color: UIColor(Tokens.textMuted), alignment: .center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 

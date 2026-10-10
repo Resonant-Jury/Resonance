@@ -5,9 +5,14 @@ import SwiftUI
 extension FeedCard {
     /// StoryCard's fields (lib/adapters/story.ts cardToStory). Anonymous cards
     /// get the placeholder byline: a dot, seeded from the card id.
-    var story: StoryCardContent {
-        let author = self.author?.value1
-        return StoryCardContent(
+    var story: StoryCardContent { story(author: self.author?.value1) }
+
+    /// The card as everyone sees it: an anonymous card of the viewer's own (the server names its
+    /// author to its owner) keeps the anonymous byline too — the owner's shelf marks it that way.
+    var publicStory: StoryCardContent { story(author: anonymous ? nil : self.author?.value1) }
+
+    private func story(author: Author?) -> StoryCardContent {
+        StoryCardContent(
             id: id,
             title: title,
             excerpt: excerpt,

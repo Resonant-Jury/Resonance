@@ -63,7 +63,7 @@ struct WriteScreen: View {
         .toolbar(.hidden, for: .navigationBar)
         // Leaving the app saves what is written now, not 1.5s later (the web's visibilitychange flush).
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active, let model { Task { await model.saveNow() } }
+            if phase != .active, let model { model.store() }
         }
         .task {
             if model == nil {
@@ -76,8 +76,6 @@ struct WriteScreen: View {
                         notFound = true
                         return
                     }
-                } else if request.referenceCardId == nil, let drafts = session.drafts {
-                    showGuide = await !drafts.hasAnyCards()
                 }
                 let model = WriteModel(drafts: session.drafts, writing: session.writing, referenceCardId: request.referenceCardId,
                                        opened: opened, editor: editor)
@@ -96,6 +94,12 @@ struct WriteScreen: View {
                     model.values.story = story
                 }
                 self.model = model
+                // The first-card guide is for a brand-new writer's fresh card: asked beside the open page, never
+                // before it (a read stuck on the network once held the loader ~40s), and only while nothing is written.
+                if request.cardId == nil, request.referenceCardId == nil, let drafts = session.drafts {
+                    let newcomer = await firstAnswer(within: Self.guideWait) { await !drafts.hasAnyCards() } ?? false
+                    if newcomer, !model.holdsWriting { withAnimation(.easeOut(duration: 0.2)) { showGuide = true } }
+                }
                 showsAnonymousHint = await session.hints?.claim("anonymous-publish") ?? false
             }
         }
@@ -190,15 +194,23 @@ struct WriteScreen: View {
         }
     }
 
-    /// Leaving keeps what's written: the draft is saved on the way out. `afterDialog`
-    /// lets the question's cover finish going down before the page does.
+    /// Leaving keeps what's written: the draft is handed to Firestore on the way out — kept on the
+    /// device at once, sent when the network lets it — and the page waits a moment for the server's
+    /// yes, never longer (a write stuck behind a dead connection once held it for minutes).
+    /// `afterDialog` lets the question's cover finish going down before the page does.
     private func leave(_ model: WriteModel, afterDialog: Bool = false) async {
         let settle = Task { if afterDialog { try? await Task.sleep(for: Self.dialogSettle) } }
-        await model.saveNow()
+        model.store()
+        _ = await model.settled(within: Self.leaveWait)
         writer.leave(model.change)
         await settle.value
         dismiss()
     }
+
+    /// How long leaving waits for the server to confirm the draft.
+    static let leaveWait: Duration = .seconds(2)
+    /// How long the first-card guide waits to learn whether this is a first card.
+    static let guideWait: Duration = .seconds(3)
 
     /// The card went out (published, revised, or its revision dropped): its page takes the writer's
     /// place as the web goes to it, unless the card's own page is underneath.
@@ -391,18 +403,24 @@ private struct PublishPanel: View {
                 CSSText(L10n.Write.PublishPanel.updateHint, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.7,
                         color: UIColor(Tokens.textMuted))
             }
-            if insightLoading {
-                HStack(spacing: 10) {
-                    SketchLoader(size: 28)
-                    Text(L10n.Write.PublishPanel.insightLoading).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
-                }
-            } else if let insight {
-                HStack(alignment: .top, spacing: 10) {
-                    OrganicIcon(.sparkle, size: 16, color: Tokens.terracotta).padding(.top, 2)
-                    Text(L10n.Write.PublishPanel.insight(coreInsight: insight)).font(AppFonts.body(14)).foregroundStyle(Tokens.text)
-                        .fixedSize(horizontal: false, vertical: true)
+            // The echo eases into the room its words take, rather than pushing the controls under a finger.
+            Group {
+                if insightLoading {
+                    HStack(spacing: 10) {
+                        SketchLoader(size: 28)
+                        Text(L10n.Write.PublishPanel.insightLoading).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
+                    }
+                    .transition(.opacity)
+                } else if let insight, !insight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    HStack(alignment: .top, spacing: 10) {
+                        OrganicIcon(.sparkle, size: 16, color: Tokens.terracotta).padding(.top, 2)
+                        Text(L10n.Write.PublishPanel.insight(coreInsight: insight)).font(AppFonts.body(14)).foregroundStyle(Tokens.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .transition(.opacity)
                 }
             }
+            .animation(.easeOut(duration: 0.25), value: insightLoading)
             VStack(alignment: .leading, spacing: 10) {
                 Text(L10n.Write.Visibility.label.uppercased())
                     .font(AppFonts.body(Tokens.labelSize, weight: .semibold))
@@ -414,15 +432,7 @@ private struct PublishPanel: View {
                     visibilityOption("public", L10n.Write.Visibility.`public`, icon: .globe),
                     visibilityOption("private", L10n.Write.Visibility.`private`, icon: .lock),
                 ], fill: Tokens.creamDark)
-                // Why there is no other audience for it (a connections card made anonymous has just gone public).
-                if anonymous {
-                    Text(L10n.Write.PublishPanel.anonymousVisibility)
-                        .font(AppFonts.body(Tokens.hintSize)).foregroundStyle(Tokens.textMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .transition(.opacity)
-                }
             }
-            .animation(.easeOut(duration: 0.2), value: anonymous)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
                     Text(L10n.Write.PublishPanel.anonymousToggle).font(AppFonts.body(14)).foregroundStyle(Tokens.text)
@@ -441,9 +451,18 @@ private struct PublishPanel: View {
                         .font(AppFonts.body(14, weight: .semibold))
                         .foregroundStyle(anonymous ? Tokens.textMuted : Tokens.text)
                 }
-                if showsAnonymousHint {
-                    Text(L10n.Write.PublishPanel.anonymousHint).font(AppFonts.body(Tokens.hintSize)).foregroundStyle(Tokens.textMuted)
+                // Under the switch, never above it (the switch stays under the finger): why an anonymous
+                // card has no other audience, in the place the first visits' hint holds — both are laid
+                // out, the one not meant shown clear, so turning it on moves nothing.
+                ZStack(alignment: .topLeading) {
+                    if showsAnonymousHint {
+                        hint(L10n.Write.PublishPanel.anonymousHint).opacity(anonymous ? 0 : 1)
+                    }
+                    if anonymous || showsAnonymousHint {
+                        hint(L10n.Write.PublishPanel.anonymousVisibility).opacity(anonymous ? 1 : 0)
+                    }
                 }
+                .animation(.easeOut(duration: 0.2), value: anonymous)
             }
             WavyDivider(seed: 47)
             // The foot every dialog shares: right-aligned, 再想想 the tonal way out, the verb solid and rightmost;
@@ -475,6 +494,11 @@ private struct PublishPanel: View {
             insight = try? await session.writing.insight(title: model.values.title, story: model.values.story)
             insightLoading = false
         }
+    }
+
+    private func hint(_ text: String) -> some View {
+        Text(text).font(AppFonts.body(Tokens.hintSize)).foregroundStyle(Tokens.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func visibilityOption(_ value: String, _ label: String, icon: IconName) -> SegmentSpec {

@@ -219,7 +219,7 @@ private struct ProfileSettings: View {
 
 /// Account: the sign-in email and phone (read-only), and signing out —
 /// after the web's "Sign out?" confirmation.
-private struct AccountSettings: View {
+struct AccountSettings: View {
     @Environment(SessionStore.self) private var session
     @State private var confirming = false
 
@@ -227,7 +227,8 @@ private struct AccountSettings: View {
         VStack(alignment: .leading, spacing: 24) {
             OrganicTextField(L10n.Settings.Account.email, text: .constant(session.email ?? ""), placeholder: "you@example.com", seed: 51)
                 .disabled(true)
-            OrganicTextField(L10n.Settings.Account.phone, text: .constant(session.phoneNumber ?? ""), placeholder: "—", seed: 57)
+            // 「（已驗證）」only beside a number there is.
+            OrganicTextField(Self.phoneLabel(session.phoneNumber), text: .constant(session.phoneNumber ?? ""), placeholder: "—", seed: 57)
                 .disabled(true)
             OrganicButton(L10n.Settings.Account.signOut, variant: .tonal) { confirming = true }
                 .padding(.top, 4)
@@ -237,6 +238,11 @@ private struct AccountSettings: View {
                         closeLabel: L10n.App.SignOutConfirm.cancel, seed: 67) {
             session.signOut()
         }
+    }
+
+    /// The phone field's label: verified only when the account has a number.
+    static func phoneLabel(_ number: String?) -> String {
+        (number?.isEmpty ?? true) ? L10n.Settings.Account.phone : L10n.Settings.Account.phoneVerified
     }
 }
 
@@ -265,7 +271,8 @@ private struct NotificationSettings: View {
     /// In the interface's language of the moment (a static list would keep the first one's).
     private var rows: [(name: NotificationSettingsModel.Switch, label: String, hint: String, seed: Double)] {
         [(.picks, L10n.Settings.Notifications.picks, L10n.Settings.Notifications.picksHint, 83),
-         (.connectionCards, L10n.Settings.Notifications.connectionCards, L10n.Settings.Notifications.connectionCardsHint, 89)]
+         // 91, not the web's 89: that seed's track pinched at its middle (a peanut, QA r4).
+         (.connectionCards, L10n.Settings.Notifications.connectionCards, L10n.Settings.Notifications.connectionCardsHint, 91)]
     }
 
     var body: some View {
@@ -406,7 +413,7 @@ private struct DeleteAccountSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(L10n.Settings.Delete.title).font(AppFonts.heading(20)).foregroundStyle(Tokens.text)
+            // The bar names the section already (刪除帳號): the warning comes first.
             muted(L10n.Settings.Delete.warn)
             muted(L10n.Settings.Delete.exportHint)
             VStack(spacing: 10) {
@@ -483,7 +490,7 @@ private struct BlockedListContent: View {
             ModalBody(L10n.Safety.BlockedList.subtitle).padding(.bottom, 14)
             if let people {
                 if people.isEmpty {
-                    EmptyNote(L10n.Safety.BlockedList.empty, size: 14.5).padding(.vertical, 18)
+                    OrganicEmptyState(message: L10n.Safety.BlockedList.empty, icon: .ban, seed: 61)
                 }
                 ForEach(Array(people.enumerated()), id: \.element.id) { i, person in
                     if i > 0 { WavyDivider(seed: Double(100 + i * 7)).padding(.vertical, 2) }

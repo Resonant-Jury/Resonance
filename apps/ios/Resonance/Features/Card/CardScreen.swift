@@ -17,6 +17,9 @@ struct CardScreen: View {
     @State private var bylineGone = false
     /// A link card's page on an IP address or a punycode name waits here for the reader's yes.
     @State private var linkToConfirm: ChatLinks.Parsed?
+    /// How far through the story the reader is, for the bar's terracotta line (only the bar reads it).
+    @State private var meter = ReadingMeter()
+    private static let pageSpace = "card.page"
 
     var body: some View {
         ScrollView {
@@ -36,6 +39,13 @@ struct CardScreen: View {
             }
         }
         .onHeaderScroll($scrolled)
+        // The story's progress: where the bar's line is in the scrolled content, and how much shows.
+        .onScrollGeometryChange(for: ReadingMeter.Viewport.self) { geo in
+            // The container is already what shows inside the insets (the bar, the home indicator).
+            .init(top: geo.contentOffset.y + geo.contentInsets.top, height: geo.containerSize.height)
+        } action: { _, viewport in
+            meter.viewport = viewport
+        }
         // Where the byline ends: its 16 of air and the 44 avatar.
         .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 60 } action: { _, gone in
             withAnimation(.easeOut(duration: 0.2)) { bylineGone = gone }
@@ -43,6 +53,7 @@ struct CardScreen: View {
         .scrollIndicators(.hidden)
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
+            Metered(meter: meter) { progress in
             OrganicInlineBar("", backLabel: L10n.App.Nav.back, scrolled: scrolled) {
                 if let detail = model?.detail, model?.phase == .loaded, bylineGone {
                     BarAuthor(card: detail.card, anonymous: detail.anonymous)
@@ -68,6 +79,8 @@ struct CardScreen: View {
                         SafetyMenu(target: .card(id: card.id, authorId: author?.id), handle: author?.handle, seed: hue + 3)
                     }
                 }
+            }
+            .readingProgress(model?.phase == .loaded ? progress : nil)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -120,6 +133,8 @@ struct CardScreen: View {
                                              openLabel: L10n.Card.LinkPreview.open(host: host)) { openPreview(preview) }
                     }
                 }
+                // The story block alone (not the cover, title or what follows) is what the progress measures.
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.pageSpace)) } action: { meter.story = $0 }
                 .padding(.bottom, 32)
                 if !card.tags.isEmpty {
                     // Tags are app furniture: the theme colour, not the card's hue.
@@ -143,8 +158,9 @@ struct CardScreen: View {
             .padding(.top, 16)
 
             if !model.links.isEmpty { MiniCardList(cards: model.links).padding(.bottom, 40) }
-            // The article's own bottom padding.
-            Color.clear.frame(height: 40)
+            // The article's own bottom padding — already there under a last row that keeps its own 40
+            // (the reader's actions, the tags, the linked cards): not a second band of air.
+            if detail.isOwner && card.tags.isEmpty && model.links.isEmpty { Color.clear.frame(height: 8) }
 
             let resonance = model.resonanceSection
             if !resonance.isEmpty {
@@ -156,6 +172,7 @@ struct CardScreen: View {
             // The page's own air under its last section (editing your card is in its ⋯).
             Color.clear.frame(height: 40)
         }
+        .coordinateSpace(.named(Self.pageSpace))
     }
 
     /// Byline, cover and title: what a list already knows of the card (its
@@ -390,4 +407,32 @@ struct CardEmbedView: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+/// What the bar's reading progress is made of (design §3): the story block's frame in the page and
+/// the scroll's viewport. Only ``Metered`` reads `progress`, so scrolling redraws the bar alone.
+@MainActor @Observable
+final class ReadingMeter {
+    struct Viewport: Equatable {
+        var top: CGFloat
+        var height: CGFloat
+    }
+
+    var story: CGRect = .zero { didSet { update() } }
+    var viewport = Viewport(top: 0, height: 0) { didSet { update() } }
+    private(set) var progress: CGFloat?
+
+    private func update() {
+        let p = ReadingProgress.of(storyTop: story.minY, storyHeight: story.height, visibleTop: viewport.top,
+                                   visibleHeight: viewport.height)
+        if p != progress { progress = p }
+    }
+}
+
+/// Builds `content` with the meter's progress, so only this view follows the scroll.
+private struct Metered<Content: View>: View {
+    let meter: ReadingMeter
+    @ViewBuilder let content: (CGFloat?) -> Content
+
+    var body: some View { content(meter.progress) }
 }

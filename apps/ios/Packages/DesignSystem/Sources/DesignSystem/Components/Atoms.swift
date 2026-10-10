@@ -130,6 +130,46 @@ public struct HandDrawnAvatar: View {
     }
 }
 
+/// A card's small cover in a list to pick from (design §6): the avatar's shape at a quarter of the
+/// size for its radius (one lopsided turn a side, corners that drift), the picture cover-fitted in
+/// it — or the card's hue — under an avatar photo's faint pen line. Chosen, it is washed in the
+/// accent with the button's grain and a cream tick, inside the same outline.
+public struct HandDrawnThumb: View {
+    let url: URL?
+    let fill: Color
+    var size: CGFloat
+    var seed: Double
+    var chosen: Bool
+
+    public init(url: URL?, fill: Color, size: CGFloat = 40, seed: Double, chosen: Bool = false) {
+        self.url = url
+        self.fill = fill
+        self.size = size
+        self.seed = seed
+        self.chosen = chosen
+    }
+
+    public var body: some View {
+        let shape = WobRectShape(radius: size * 0.25, seed: seed, mag: size * 0.022, options: WobRectOptions(
+            curve: 1.3, cornerJitter: 3.2, cornerOffset: size * 0.06, segmentsH: .count(1), segmentsV: .count(1)))
+        ZStack {
+            shape.fill(fill)
+            if let url { OrganicAvatarPhoto(url: url).clipShape(shape) }
+            if chosen {
+                ZStack {
+                    shape.fill(Tokens.terracotta.opacity(0.82))
+                    GrainLayer(shape: shape, mode: .tile, opacity: 0.38, tile: "grain-button")
+                    OrganicIcon(.check, size: 20, color: Tokens.cream)
+                }
+                .transition(.opacity)
+            }
+        }
+        .frame(width: size, height: size)
+        .overlay { shape.stroke(Tokens.avatarStroke, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round)) }
+        .accessibilityHidden(true)
+    }
+}
+
 /// The web's Divider: a fixed number of gentle turns (7) stretched across
 /// whatever width it gets, in the field-border ink at 35%.
 public struct WavyDivider: View {

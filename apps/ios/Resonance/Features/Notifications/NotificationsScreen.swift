@@ -12,7 +12,8 @@ struct NotificationsScreen: View {
         let store = session.notifications
         TabScreen(L10n.App.Nav.notifications, titleInBar: true) {
             if store.loaded && store.items.isEmpty {
-                EmptyNote(L10n.App.Notifications.empty).padding(.horizontal, 20)
+                OrganicEmptyState(title: L10n.App.Notifications.emptyTitle, message: L10n.App.Notifications.empty,
+                                  icon: .bell, seed: 37, fills: true)
             } else if !store.loaded, store.failed {
                 // Nothing read, and the listener failed: not a loader forever, a retry.
                 OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {

@@ -6,6 +6,8 @@ import SwiftUI
 /// its page. A card on screen is remembered, so its page opens with it drawn.
 struct StoryCardList: View {
     let cards: [FeedCard]
+    /// The first card's top edge is the bar's pen line (home: design §2).
+    var underBar = false
     var onAppearLast: (() -> Void)? = nil
     @Environment(SessionStore.self) private var session
 
@@ -13,7 +15,7 @@ struct StoryCardList: View {
         LazyVStack(spacing: 0) {
             ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                 NavigationLink(value: Route.card(card.routeKey)) {
-                    StoryCardView(card.story, position: i, isLast: i == cards.count - 1)
+                    StoryCardView(card.story, position: i, isLast: i == cards.count - 1, underBar: underBar && i == 0)
                 }
                 .buttonStyle(.plain)
                 .onAppear {
@@ -47,11 +49,12 @@ struct MiniCardList: View {
 /// when the cards arrive.
 struct FeedSkeleton: View {
     var count = 6
+    var underBar = false
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(0..<count, id: \.self) { i in
-                StoryCardSkeleton(position: i, isLast: i == count - 1)
+                StoryCardSkeleton(position: i, isLast: i == count - 1, underBar: underBar && i == 0)
             }
         }
         .accessibilityElement()

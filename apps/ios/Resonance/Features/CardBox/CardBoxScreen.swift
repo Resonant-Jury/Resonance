@@ -136,16 +136,16 @@ struct CardBoxScreen: View {
         if let note = refreshFailure?.over(shelf), shelves[shelf] != nil { RefreshNote(text: note.message) }
         if let cards = shelves[shelf] {
             if cards.isEmpty {
-                // An empty shelf is a line of muted text; the empty published
-                // shelf also points at the first story (ux §4).
-                VStack(spacing: 18) {
-                    EmptyNote(Self.empty(shelf), size: 16, centered: true)
-                    if shelf == .published {
-                        OrganicButton(L10n.Me.emptyPublishedCta) { writer.open() }
+                // The shared empty state (design §1); the empty published shelf also points at the first story (ux §4).
+                if shelf == .bookmarks {
+                    OrganicEmptyState(message: Self.empty(shelf), icon: .bookmark, seed: 59)
+                } else if shelf == .published {
+                    OrganicEmptyState(title: Self.empty(shelf), actionTitle: L10n.Me.emptyPublishedCta, icon: .cards, seed: 53) {
+                        writer.open()
                     }
+                } else {
+                    OrganicEmptyState(title: Self.empty(shelf), icon: .cards, seed: 53)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 40)
             } else if shelf == .linked {
                 MiniCardList(cards: cards)
             } else if Self.owned.contains(shelf) {
@@ -263,9 +263,9 @@ struct CardBoxScreen: View {
 }
 
 /// My own cards (ProfileTabs' managed shelves): each with the owner's ⋯ over
-/// its top-right corner, and the anonymous badge under an anonymous one (my
-/// own byline shows on it here — the badge marks it instead). A draft has no
-/// page yet, so tapping it resumes writing.
+/// its top-right corner. An anonymous one wears the anonymous byline exactly as
+/// everyone else sees it (design §13) — that is its marker, no badge. A draft
+/// has no page yet, so tapping it resumes writing.
 private struct ManagedCardList: View {
     let cards: [FeedCard]
     let resumesDrafts: Bool
@@ -279,10 +279,10 @@ private struct ManagedCardList: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Group {
                         if resumesDrafts {
-                            Button { writer.edit(card.id) } label: { StoryCardView(card.story, position: i, isLast: i == cards.count - 1) }
+                            Button { writer.edit(card.id) } label: { StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1) }
                         } else {
                             NavigationLink(value: Route.card(card.routeKey)) {
-                                StoryCardView(card.story, position: i, isLast: i == cards.count - 1)
+                                StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1)
                             }
                             .onAppear { session.cardPreviews.remember(card) }
                         }
@@ -295,12 +295,6 @@ private struct ManagedCardList: View {
                                         answering: card.referenceCardId)
                             .padding(.top, 14 - 3)
                             .padding(.trailing, 34 - 3)
-                    }
-                    if card.anonymous {
-                        TagPill(L10n.Me.anonymousBadge, fill: Tokens.creamDark, size: .sm, outlined: true)
-                            .padding(.top, 8)
-                            .padding(.horizontal, 34)
-                            .padding(.bottom, 4)
                     }
                 }
             }

@@ -18,13 +18,34 @@ struct DraftValues: Equatable {
     var isEmpty: Bool { title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && story.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && tags.isEmpty && imageURL == nil }
 }
 
+/// A write Firestore has taken: in its local cache — kept on the device, and queued for the server
+/// in the order it was made — from the moment it exists. `acknowledged()` waits for the server's
+/// answer (as long as the network takes: a stuck connection never answers), and may be awaited
+/// any number of times.
+struct IssuedWrite {
+    let answer: Task<Void, Error>
+
+    func acknowledged() async throws { try await answer.value }
+}
+
+/// What the writer needs of the draft store (DraftService; a stand-in in tests): each write is
+/// handed over at once and answered later, so leaving never waits on the network to keep a draft.
+protocol DraftStore {
+    /// The id a new draft will have (Firestore makes ids on the device).
+    func newDraftId() -> String
+    func create(_ v: DraftValues, id: String, locale: String, referenceCardId: String?) -> IssuedWrite
+    func update(_ id: String, _ v: DraftValues) -> IssuedWrite
+    func saveEdit(_ id: String, _ v: DraftValues) -> IssuedWrite
+    func discardEdit(_ id: String) async throws
+}
+
 /// Drafts, written straight to Firestore like the web editor's client
 /// (lib/db/firestore/client/cards.ts: createCardDraft, updateCardDraft) — the
 /// author's own documents under the same rules. Publishing is the server's
 /// (WritingAPI.publish), since it reaches other people; so are a card's
 /// visibility and deleting it from its ⋯ (WritingAPI.updateCard / deleteCard),
 /// which leave the site's cached pages stale unless the server refreshes them.
-struct DraftService {
+struct DraftService: DraftStore {
     let uid: String
     private var db: Firestore { FirebaseBootstrap.db }
 
@@ -42,8 +63,10 @@ struct DraftService {
         v.imageURL.map { ["type": "image", "url": $0.absoluteString, "label": v.imageLabel ?? ""] }
     }
 
-    /// createCardDraft: a new, unpublished card with zeroed counters.
-    func create(_ v: DraftValues, locale: String, referenceCardId: String?) async throws -> String {
+    func newDraftId() -> String { db.collection("cards").document().documentID }
+
+    /// createCardDraft: a new, unpublished card with zeroed counters, under `id` (``newDraftId()``).
+    func create(_ v: DraftValues, id: String, locale: String, referenceCardId: String?) -> IssuedWrite {
         var data = fields(v)
         if let media = media(v) { data["media"] = media }
         if let hue = v.accentHue { data["accentHue"] = hue }
@@ -57,18 +80,16 @@ struct DraftService {
         data["inviteCount"] = 0
         data["createdAt"] = FieldValue.serverTimestamp()
         data["updatedAt"] = FieldValue.serverTimestamp()
-        let ref = db.collection("cards").document()
-        try await write(ref, data, merge: false)
-        return ref.documentID
+        return send(db.collection("cards").document(id), data, merge: false)
     }
 
     /// updateCardDraft: the fields as they are now (a removed cover clears media and its hue).
-    func update(_ id: String, _ v: DraftValues) async throws {
+    func update(_ id: String, _ v: DraftValues) -> IssuedWrite {
         var data = fields(v)
         data["media"] = media(v) ?? FieldValue.delete()
         data["accentHue"] = v.accentHue ?? NSNull()
         data["updatedAt"] = FieldValue.serverTimestamp()
-        try await write(db.collection("cards").document(id), data, merge: true)
+        return send(db.collection("cards").document(id), data, merge: true)
     }
 
     // MARK: Opening a card to edit
@@ -123,12 +144,12 @@ struct DraftService {
 
     /// savePendingCardEdit: a published card autosaves its whole working copy
     /// here (owner-only), never onto the card readers are looking at.
-    func saveEdit(_ id: String, _ v: DraftValues) async throws {
+    func saveEdit(_ id: String, _ v: DraftValues) -> IssuedWrite {
         var data = fields(v)
         if let media = media(v) { data["media"] = media }
         data["accentHue"] = v.accentHue ?? NSNull()
         data["updatedAt"] = FieldValue.serverTimestamp()
-        try await write(editRef(id), data, merge: false)
+        return send(editRef(id), data, merge: false)
     }
 
     /// discardPendingCardEdit: the live card is left exactly as it was.
@@ -158,12 +179,14 @@ struct DraftService {
         return snap.map { !$0.documents.isEmpty } ?? true
     }
 
-    // The completion form: the payload never leaves the main actor.
-    private func write(_ ref: DocumentReference, _ data: [String: Any], merge: Bool) async throws {
-        try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
-            ref.setData(data, merge: merge) { error in
-                if let error { done.resume(throwing: error) } else { done.resume() }
-            }
+    // The completion form: the payload never leaves the main actor. Firestore applies the write to
+    // its local cache as it is called — the draft is kept from here — and the completion is the
+    // server's answer.
+    private func send(_ ref: DocumentReference, _ data: [String: Any], merge: Bool) -> IssuedWrite {
+        let (answer, answered) = AsyncThrowingStream<Void, Error>.makeStream()
+        ref.setData(data, merge: merge) { error in
+            if let error { answered.finish(throwing: error) } else { answered.finish() }
         }
+        return IssuedWrite(answer: Task { for try await _ in answer {} })
     }
 }

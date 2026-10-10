@@ -56,6 +56,9 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler, WKNavigationDel
         // The writing screen scrolls; the island only grows.
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
+        // The story is one field: the web form bar (‹ › ✓) over the keyboard has nowhere to go, and
+        // the page's own toolbar is above it.
+        webView.hideFormAccessoryBar()
         #if DEBUG
         webView.isInspectable = true
         #endif
@@ -114,6 +117,8 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler, WKNavigationDel
         switch type {
         case "ready":
             ready = true
+            // In case WebKit made its content view anew with the page.
+            webView.hideFormAccessoryBar()
             setTextScale(textScale)
             if let pendingMarkdown { setMarkdown(pendingMarkdown) }
             pendingMarkdown = nil
@@ -131,6 +136,33 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler, WKNavigationDel
         default:
             break
         }
+    }
+}
+
+extension WKWebView {
+    /// Leaves out the bar WebKit puts over the keyboard for a web form (‹ › Done). There is no
+    /// setting for it: the view that takes the keyboard (WebKit's content view) is given a subclass,
+    /// made once with public runtime calls, whose `inputAccessoryView` is nil.
+    func hideFormAccessoryBar() {
+        guard let content = scrollView.subviews.first(where: { String(describing: type(of: $0)).hasPrefix("WKContent") }) else { return }
+        let base: AnyClass = type(of: content)
+        let suffix = "_ResonanceNoAccessory"
+        // Given its subclass already.
+        if NSStringFromClass(base).hasSuffix(suffix) { return }
+        let name = NSStringFromClass(base) + suffix
+        let subclass: AnyClass
+        if let made = NSClassFromString(name) {
+            subclass = made
+        } else {
+            guard let made = objc_allocateClassPair(base, name, 0) else { return }
+            let none: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+            guard let method = class_getInstanceMethod(UIResponder.self, #selector(getter: UIResponder.inputAccessoryView)) else { return }
+            class_addMethod(made, #selector(getter: UIResponder.inputAccessoryView), imp_implementationWithBlock(none),
+                            method_getTypeEncoding(method))
+            objc_registerClassPair(made)
+            subclass = made
+        }
+        object_setClass(content, subclass)
     }
 }
 
@@ -209,6 +241,8 @@ struct StoryEditorField: View {
         OrganicVerticalRule(seed: seed + offset, amp: 1.2)
             .frame(height: 27)
             .padding(.horizontal, 4)
+            // Where the toolbar wraps, no group's rule is left alone at a row's start.
+            .flowRowRule()
     }
 
     /// ToolButton: 13pt semibold on nothing, or on its wobbly terracotta wash when on.

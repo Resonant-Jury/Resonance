@@ -13,9 +13,10 @@ struct ConversationsScreen: View {
         TabScreen(L10n.App.Nav.messages, titleInBar: true) {
             VStack(alignment: .leading, spacing: 0) {
                 if store.loaded, store.conversations.isEmpty, store.starters.isEmpty {
-                    CSSText(L10n.Messages.empty, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.7,
-                            color: UIColor(Tokens.textMuted))
-                        .padding(.top, 10)
+                    OrganicEmptyState(title: L10n.Messages.emptyTitle, message: L10n.Messages.empty, icon: .chat, seed: 23, fills: true)
+                        // Centred on the page, not on the list's inset column.
+                        .padding(.leading, -16)
+                        .padding(.trailing, -18)
                 } else if !store.loaded, store.failed {
                     // Nothing read, and a listener failed: a retry rather than an empty page.
                     OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {

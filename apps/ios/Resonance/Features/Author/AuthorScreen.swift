@@ -91,16 +91,9 @@ struct AuthorScreen: View {
             } else if !model.cards.isEmpty || profile.isSelf {
                 heading(L10n.Profile.publishedHeading)
                 if model.cards.isEmpty {
-                    // The owner's empty page teaches rather than apologizes.
-                    VStack(spacing: 18) {
-                        Text(L10n.Profile.emptyPublishedSelf)
-                            .font(AppFonts.body(15))
-                            .foregroundStyle(Tokens.textMuted)
-                            .multilineTextAlignment(.center)
-                        OrganicButton(L10n.Profile.emptyPublishedCta) { writer.open() }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 24)
+                    // The owner's empty page teaches rather than apologizes (the shared empty state, design §1).
+                    OrganicEmptyState(title: L10n.Profile.emptyPublishedSelf, actionTitle: L10n.Profile.emptyPublishedCta,
+                                      icon: .cards, seed: 71) { writer.open() }
                 } else {
                     StoryCardList(cards: model.cards) { Task { await model.loadMore() } }
                 }
