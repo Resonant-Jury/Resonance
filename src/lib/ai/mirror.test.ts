@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { acceptInsight, draftScript, draftUnits, MIN_DRAFT_UNITS } from './mirror';
+import { acceptInsight, DRAFT_READ_CHARS, draftScript, draftUnits, MIN_DRAFT_UNITS } from './mirror';
 
 // The publish panel's mirror moment: the draft's language, enough to read, and
 // what of the model's answer is a line worth showing. The model is mocked
@@ -31,6 +31,17 @@ describe('draftScript', () => {
     expect(draftScript('朝', 'はじめての朝、コーヒーを淹れた。自分だけの時間だと思った。')).toBe('kana');
     expect(draftScript('아침', '처음으로 혼자 맞는 아침이었다. 커피를 내리며 생각했다.')).toBe('hangul');
     expect(draftScript('', '')).toBe('other');
+  });
+
+  it("reads the draft's start only: its language there, and quickly whatever follows", () => {
+    // Chinese for its first DRAFT_READ_CHARS characters, then far more English: the model reads the start, and so is the language judged.
+    const zh = ZH.repeat(Math.ceil(DRAFT_READ_CHARS / ZH.length) + 1);
+    expect(draftScript(ZH_TITLE, `${zh}${EN.repeat(200)}`)).toBe('han');
+    expect(draftUnits('', `${'x'.repeat(DRAFT_READ_CHARS)} ${EN}`)).toBe(1);
+    const started = performance.now();
+    expect(draftUnits('', '['.repeat(1_000_000))).toBe(0);
+    expect(draftScript('', '[a]('.repeat(250_000))).toBe('latin');
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 
   it('reads the prose, not the Markdown, the addresses or the entities around it', () => {

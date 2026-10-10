@@ -17,6 +17,15 @@ import { plainText } from '@/lib/markdown/plainText';
 export const MIN_DRAFT_UNITS = 15;
 /** The longest line the panel shows; longer is commentary, not a mirror. */
 export const MAX_INSIGHT_CHARS = 160;
+/**
+ * How much of a draft, title and story together, is read from its start —
+ * the route keeps no more of the story than this, and its length and
+ * language are measured on no more. The model is shown the first 1 200
+ * characters (./tasks), so the language is judged on about the text it
+ * answers; and a story may be 200 000 characters, which nothing here should
+ * read through before the author's budget is spent (or at all).
+ */
+export const DRAFT_READ_CHARS = 4_000;
 
 export type DraftScript = 'han' | 'kana' | 'hangul' | 'latin' | 'other';
 
@@ -42,9 +51,14 @@ function measure(text: string) {
   return { han, kana, hangul, cjk: han + kana + hangul, words: words.length, latinWords };
 }
 
-/** How much there is to read: CJK characters and other words, as the read time counts them. */
+/** The prose of the draft's first DRAFT_READ_CHARS characters. */
+function draftProse(title: string, story: string): string {
+  return plainText(`${title}\n\n${story}`.slice(0, DRAFT_READ_CHARS));
+}
+
+/** How much there is to read: CJK characters and other words, as the read time counts them (of the first DRAFT_READ_CHARS). */
 export function draftUnits(title: string, story: string): number {
-  const m = measure(plainText(`${title}\n\n${story}`));
+  const m = measure(draftProse(title, story));
   return m.cjk + m.words;
 }
 
@@ -54,7 +68,7 @@ export function draftUnits(title: string, story: string): number {
  * may hold a Chinese name and stays Latin.
  */
 export function draftScript(title: string, story: string): DraftScript {
-  const m = measure(plainText(`${title}\n\n${story}`));
+  const m = measure(draftProse(title, story));
   if (m.cjk === 0 && m.words === 0) return 'other';
   if (m.cjk >= m.words) {
     if (m.hangul > m.han + m.kana) return 'hangul';
