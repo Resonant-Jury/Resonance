@@ -14,7 +14,11 @@
   overflow: visible;
 }
 
+/* Its own pen: a marker over the bar's 1.8 line, not the line inked in. */
 .line {
+  stroke: var(--reading-progress);
+  stroke-width: var(--reading-progress-width);
+  stroke-linecap: round;
   transition: stroke-dashoffset 120ms ease-out;
 }
 
