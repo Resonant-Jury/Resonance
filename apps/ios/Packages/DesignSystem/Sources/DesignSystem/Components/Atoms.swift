@@ -466,3 +466,72 @@ public struct SketchLoader: View {
         }
     }
 }
+
+/// A button's work in progress (round 5 B6, the web's ButtonLoader): SketchLoader's caravan on one
+/// lap of a small wobbly ring — four links nose to tail, ink-lighter back to front, one trip every
+/// 1.1 s — in the button's own label ink, at the pen's width. With motion reduced, the ring drawn
+/// whole, breathing. Decorative: the button says it is busy.
+public struct ButtonLoader: View {
+    var size: CGFloat
+    var color: Color
+
+    public init(size: CGFloat = 16, color: Color) {
+        self.size = size
+        self.color = color
+    }
+
+    static let links: [Double] = [0.22, 0.42, 0.68, 1]
+    static let seg = 0.17
+    static let trip = 1.1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
+
+    /// `wobCircle(c, c, 0.36 × box, seed 29, {segments 6, mag 0.035 × box, cpJitter 0.6})`.
+    static func ring(_ size: CGFloat) -> Path {
+        let c = Double(size / 2)
+        return wobCircle(c, c, Double(size) * 0.36, seed: 29,
+                         options: WobCircleOptions(segments: 6, mag: Double(size) * 0.035, cpJitter: 0.6)).path()
+    }
+
+    public var body: some View {
+        let path = Self.ring(size)
+        Group {
+            if reduceMotion {
+                // At rest 0.75; breathing between 0.45 and 0.9 (1.6 s each way).
+                path.stroke(color, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, lineJoin: .round))
+                    .opacity(breathing ? 0.9 : 0.45)
+                    .onAppear {
+                        withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { breathing = true }
+                    }
+            } else {
+                TimelineView(.animation) { timeline in
+                    let t = timeline.date.timeIntervalSinceReferenceDate / Self.trip
+                    ZStack {
+                        ForEach(Self.links.indices, id: \.self) { k in
+                            let head = (t + Double(k) * Self.seg).truncatingRemainder(dividingBy: 1)
+                            LoopDash(path: path, from: head, length: Self.seg)
+                                .stroke(color.opacity(Self.links[k]), style: StrokeStyle(
+                                    lineWidth: Tokens.ink, lineCap: k == Self.links.count - 1 ? .round : .butt, lineJoin: .round))
+                        }
+                    }
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// One dash along a closed path, wrapping across its closing point.
+nonisolated struct LoopDash: Shape {
+    let path: Path
+    let from: Double
+    let length: Double
+    func path(in rect: CGRect) -> Path {
+        let to = from + length
+        if to <= 1 { return path.trimmedPath(from: from, to: to) }
+        var p = path.trimmedPath(from: from, to: 1)
+        p.addPath(path.trimmedPath(from: 0, to: to - 1))
+        return p
+    }
+}

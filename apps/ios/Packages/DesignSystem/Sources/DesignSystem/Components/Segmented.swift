@@ -177,14 +177,19 @@ private struct SegmentButton: View {
     let barFill: Color
     let seam: Color
 
+    @Environment(\.organicBusyLabel) private var busyLabel
+
     var body: some View {
+        // At work (round 5 B6): the pen loop takes the glyph's place, or stands 6 before the words.
+        let beside = spec.working && spec.icon == nil
+        let box: CGFloat = 16
         Button(action: { if !spec.working { spec.action() } }) {
             HStack(spacing: OrganicButtonStyle.iconGap) {
-                if spec.working {
-                    SketchLoader(size: 16, color: spec.ink).accessibilityHidden(true)
-                } else if let icon = spec.icon {
+                if let icon = spec.icon {
                     OrganicIcon(icon, size: 16, color: spec.ink, strokeWidth: spec.iconFilled ? 2 : 1.6,
                                 fill: spec.iconFilled ? spec.ink : nil)
+                        .opacity(spec.working ? 0 : 1)
+                        .overlay { if spec.working { ButtonLoader(size: 16, color: spec.ink).transition(.opacity) } }
                 }
                 if !iconOnly {
                     Text(spec.label)
@@ -192,8 +197,15 @@ private struct SegmentButton: View {
                         .foregroundStyle(spec.ink)
                         .lineLimit(1)
                         .fixedSize()
+                        .overlay(alignment: .leading) {
+                            if beside {
+                                ButtonLoader(size: box, color: spec.ink).offset(x: -(box + OrganicButtonStyle.iconGap)).transition(.opacity)
+                            }
+                        }
+                        .offset(x: beside ? (box + OrganicButtonStyle.iconGap) / 2 : 0)
                 }
             }
+            .animation(.easeOut(duration: 0.12), value: spec.working)
             .padding(.horizontal, iconOnly ? 16 : tight ? 8 : 12)
             .padding(.vertical, 14)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -204,6 +216,7 @@ private struct SegmentButton: View {
         .accessibilityLabel(spec.accessibilityLabel ?? spec.label)
         .accessibilityAddTraits(spec.selected == true ? .isSelected : [])
         .accessibilityAddTraits(spec.working ? .updatesFrequently : [])
+        .accessibilityValue(spec.working ? busyLabel : "")
     }
 
     /// SegmentedActionBar.tsx: the seam after segment i is seeded `seed + i·37 + 11`.

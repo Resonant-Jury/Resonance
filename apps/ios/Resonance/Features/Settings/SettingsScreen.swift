@@ -158,8 +158,9 @@ private struct ProfileSettings: View {
                            options: ProfileRegion.allCases.map { (Optional($0.rawValue), $0.label) },
                            selection: $region, seed: 43, flag: { $0 })
                 VStack(alignment: .leading, spacing: 12) {
-                    OrganicButton(saving ? L10n.Write.saving : L10n.Write.saveChanges) { Task { await save(me) } }
-                        .disabled(!canSave(me) || saving)
+                    OrganicButton(L10n.Write.saveChanges) { Task { await save(me) } }
+                        .loading(saving)
+                        .disabled(!canSave(me) && !saving)
                     if let error { ModalError(error) }
                 }
                 .padding(.top, 4)
@@ -427,11 +428,11 @@ private struct DeleteAccountSettings: View {
                     }
                     .buttonStyle(OrganicPressStyle(inset: 0))
                 } else {
-                    OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .tonal) {
+                    OrganicButton(L10n.Settings.Delete.export, icon: .document, variant: .tonal) {
                         Task { await export() }
                     }
                     .fillingWidth()
-                    .disabled(exporting)
+                    .loading(exporting)
                 }
                 OrganicButton(L10n.Settings.Delete.button, icon: .trash, variant: .dangerTonal) { confirming = true }
                     .fillingWidth()
@@ -523,10 +524,11 @@ private struct BlockedListContent: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            OrganicButton(pending == person.id ? "…" : L10n.Safety.unblock, variant: .tonal, size: .sm) {
+            OrganicButton(L10n.Safety.unblock, variant: .tonal, size: .sm) {
                 Task { await unblock(person.id) }
             }
-            .disabled(pending != nil)
+            .loading(pending == person.id)
+            .disabled(pending != nil && pending != person.id)
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 2)

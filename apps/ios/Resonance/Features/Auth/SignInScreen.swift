@@ -11,6 +11,8 @@ struct SignInScreen: View {
     @Environment(SessionStore.self) private var session
     @State private var email = ""
     @State private var password = ""
+    /// The provider button tapped last: it shows the loader while the sign-in runs, the other waits.
+    @State private var tapped: String?
 
     var body: some View {
         GeometryReader { geo in
@@ -54,16 +56,20 @@ struct SignInScreen: View {
             // asks for a black (or white) button as prominent as the others: ink, first.
             VStack(spacing: 12) {
                 OrganicButton(L10n.Auth.continueWithApple, image: "AppleMark", variant: .ink, size: .lg) {
+                    tapped = "apple"
                     Task { await session.signInWithApple() }
                 }
                 .fillingWidth()
-                .busy(session.isSigningIn, label: L10n.Auth.signingIn)
+                .loading(session.isSigningIn && tapped == "apple")
+                .disabled(session.isSigningIn && tapped != "apple")
                 OrganicButton(L10n.Auth.continueWithGoogle, image: "GoogleMark", variant: .solid, size: .lg) {
+                    tapped = "google"
                     Task { await session.signInWithGoogle() }
                 }
                 .markOnDisc()
                 .fillingWidth()
-                .busy(session.isSigningIn, label: L10n.Auth.signingIn)
+                .loading(session.isSigningIn && tapped == "google")
+                .disabled(session.isSigningIn && tapped != "google")
             }
             if let error = session.signInError {
                 Text(error)

@@ -107,7 +107,7 @@ struct ResonatePickerContent: View {
                 OrganicButton(L10n.Card.ResonatePicker.confirm, icon: .wave, variant: .solid, size: .sm) {
                     Task { await confirm() }
                 }
-                .working(busy)
+                .loading(busy)
                 .disabled(selectedId == nil)
             }
         }

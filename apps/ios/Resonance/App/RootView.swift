@@ -1,4 +1,5 @@
 import DesignSystem
+import ResonanceKit
 import SwiftUI
 
 /// Signed out → sign-in; signed in → the tabs, or first the pen-name step
@@ -47,6 +48,8 @@ struct RootView: View {
         .animation(phaseChange, value: session.phase)
         .animation(phaseChange, value: session.landing)
         .tint(Tokens.terracotta)
+        // What VoiceOver says of a button at work (round 5 B6), in the interface's language.
+        .environment(\.organicBusyLabel, L10n.App.busy)
         .launchCover(ready: launchReady, covering: $launchCovering)
         #if DEBUG
         .modifier(DebugWindow())

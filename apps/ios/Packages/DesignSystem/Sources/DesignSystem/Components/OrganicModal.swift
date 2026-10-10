@@ -115,7 +115,7 @@ public struct OrganicConfirmContent: View {
             ModalActions(busy: busy) {
                 OrganicButton(cancelLabel, variant: .tonal, size: .sm, action: onCancel)
             } verb: {
-                OrganicButton(busy ? "…" : confirmLabel, variant: destructive ? .danger : .solid, size: .sm, action: onConfirm)
+                OrganicButton(confirmLabel, variant: destructive ? .danger : .solid, size: .sm, action: onConfirm)
             }
         }
     }
@@ -165,9 +165,9 @@ public struct ModalError: View {
 /// width. A pair too wide for one row (a narrow phone, long English words, a large text size)
 /// stacks rather than squeezing its labels: the verb on top, the way out under it, both still at
 /// the right (Material's stacked dialog buttons, iOS's stacked alerts). Each button is at least
-/// 44pt tall, a finger's. `busy` (the action on its way): the row dims as one to 0.6 and takes
-/// no tap, VoiceOver's included (the web's `ModalActions[data-busy]`) — not `.disabled`, whose
-/// 0.45 says "not yet possible" of each button rather than "working on it".
+/// 44pt tall, a finger's. `busy` (the action on its way, round 5 B6): the verb shows its pen loop
+/// at full colour (``OrganicButton/loading(_:)``), the way out is disabled (its usual fade), and
+/// neither takes a tap, VoiceOver's included.
 public struct ModalActions<Cancel: View, Verb: View>: View {
     let busy: Bool
     let cancel: Cancel
@@ -180,23 +180,22 @@ public struct ModalActions<Cancel: View, Verb: View>: View {
     }
 
     public var body: some View {
+        let way = cancel.disabled(busy)
+        let doing = verb.environment(\.organicButtonLoading, busy)
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 10) {
-                cancel
-                verb
+                way
+                doing
             }
             VStack(alignment: .trailing, spacing: 10) {
-                verb
-                cancel
+                doing
+                way
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .environment(\.organicButtonMinHeight, ModalMetrics.minButtonHeight)
         .environment(\.organicButtonsHeld, busy)
         .allowsHitTesting(!busy)
-        // One layer, as the web's opacity on the row is: a face's grain doesn't show through it.
-        .compositingGroup()
-        .opacity(busy ? ModalMetrics.busyOpacity : 1)
         .animation(.easeOut(duration: 0.16), value: busy)
     }
 }
@@ -204,8 +203,8 @@ public struct ModalActions<Cancel: View, Verb: View>: View {
 public enum ModalMetrics {
     /// A dialog's buttons are never shorter than a finger needs (the small pills are about 38pt).
     public static let minButtonHeight: CGFloat = 44
-    /// A dialog's foot while its action is on its way (the web's `.actions[data-busy]`).
-    public static let busyOpacity = 0.6
+    /// A button that can't be pressed yet (the way out while the verb works): the disabled fade.
+    public static let disabledOpacity = 0.45
 }
 
 /// The way out of a modal with nothing else at its foot (a list to look through, a note just

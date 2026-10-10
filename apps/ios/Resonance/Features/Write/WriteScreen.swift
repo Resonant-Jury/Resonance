@@ -328,7 +328,7 @@ struct WriteScreen: View {
             Group {
                 if compact {
                     VStack(spacing: 10) {
-                        primaryAction(model).fillingWidth()
+                        primaryAction(model, fillsWidth: true)
                         secondaryAction(model, fillsWidth: true)
                     }
                 } else {
@@ -338,7 +338,7 @@ struct WriteScreen: View {
                     }
                 }
             }
-            .opacity(discarding ? 0.6 : 1)
+            // Discarding: that button is at work, and the row waits on it.
             .allowsHitTesting(!discarding)
             if let actionError {
                 Text(actionError)
@@ -351,11 +351,13 @@ struct WriteScreen: View {
         .padding(.top, 6)
     }
 
-    private func primaryAction(_ model: WriteModel) -> OrganicButton {
-        OrganicButton(model.isPublished ? (discarding ? L10n.Write.saving : L10n.Write.saveChanges) : L10n.Write.publish) {
+    private func primaryAction(_ model: WriteModel, fillsWidth: Bool = false) -> some View {
+        OrganicButton(model.isPublished ? L10n.Write.saveChanges : L10n.Write.publish) {
             actionError = nil
             publishing = true
         }
+        .fillingWidth(fillsWidth)
+        .disabled(discarding)
     }
 
     @ViewBuilder
@@ -366,6 +368,7 @@ struct WriteScreen: View {
         } else if model.hasPendingEdit {
             OrganicButton(L10n.Write.discardChanges, variant: .tonal) { Task { await discard(model) } }
                 .fillingWidth(fillsWidth)
+                .loading(discarding)
         }
     }
 
@@ -491,9 +494,7 @@ private struct PublishPanel: View {
                 ModalActions(busy: pending) {
                     OrganicButton(L10n.Write.PublishPanel.cancel, variant: .tonal, size: .sm, action: onCancel)
                 } verb: {
-                    OrganicButton(updating
-                                  ? (pending ? L10n.Write.PublishPanel.updating : L10n.Write.PublishPanel.update)
-                                  : (pending ? L10n.Write.PublishPanel.publishing : L10n.Write.PublishPanel.publish),
+                    OrganicButton(updating ? L10n.Write.PublishPanel.update : L10n.Write.PublishPanel.publish,
                                   variant: .solid, size: .sm) {
                         Task { await publish() }
                     }
