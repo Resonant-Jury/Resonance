@@ -57,18 +57,71 @@ object PlainText {
     /**
      * A story's prose without Markdown syntax (links keep their text). A bare address is left out
      * ([withoutLinks]): the story shows it as a link or its page's card, and in an excerpt it is only
-     * a string of characters taking the prose's place.
+     * a string of characters taking the prose's place. What the writer typed as a character stays
+     * that character, as the reader shows it: an entity the editor wrote for it (`-&gt;` reads `->`,
+     * `&lt;b&gt;` reads `<b>`) and a Markdown escape (`\#`, `1\.`, `\*`) are the character itself,
+     * never syntax ([literals]).
      */
     fun plainText(markdown: String): String =
-        withoutLinks(markdown.replace(CodeFence, " ").replace(Image, " ").replace(Link, "$1"))
-            // After the addresses go: an address's `_`, `~` and `*` are not emphasis.
-            .replace(Heading, "")
-            .replace(Quote, "")
-            .replace(ListMarker, "")
-            .replace(Rule, "")
-            .replace(Marks, "")
-            .replace(Spaces, " ")
-            .trim()
+        restore(
+            withoutLinks(literals(markdown).replace(CodeFence, " ").replace(Image, " ").replace(Link, "$1"))
+                // After the addresses go: an address's `_`, `~` and `*` are not emphasis.
+                .replace(Heading, "")
+                .replace(Quote, "")
+                .replace(ListMarker, "")
+                .replace(Rule, "")
+                .replace(Marks, "")
+                .replace(Spaces, " ")
+                .trim(),
+        )
+
+    /** CommonMark's backslash escapes: a backslash before ASCII punctuation. */
+    private val Escape = Regex("""\\([!-/:-@\[-`{-~])""")
+    /** CommonMark's entity references: decimal, hexadecimal, named. */
+    private val Entity = Regex("&(?:#([0-9]{1,7})|#[xX]([0-9a-fA-F]{1,6})|([A-Za-z][A-Za-z0-9]{1,31}));")
+    /** The named entities a story can carry (the editor writes the first three; the rest are typed by hand). */
+    private val Named = mapOf(
+        "amp" to '&'.code, "lt" to '<'.code, "gt" to '>'.code, "quot" to '"'.code, "apos" to '\''.code,
+        "nbsp" to 0xA0, "hellip" to 0x2026, "mdash" to 0x2014, "ndash" to 0x2013, "lsquo" to 0x2018, "rsquo" to 0x2019,
+        "ldquo" to 0x201C, "rdquo" to 0x201D, "middot" to 0xB7, "bull" to 0x2022, "laquo" to 0xAB, "raquo" to 0xBB,
+        "copy" to 0xA9, "reg" to 0xAE, "trade" to 0x2122, "times" to 0xD7, "divide" to 0xF7, "deg" to 0xB0,
+    )
+    /** Where a literal ASCII mark waits while the syntax is taken out (a private-use plane no story types in). */
+    private const val LITERAL = 0xF0000
+
+    /** One character as written: ASCII punctuation set aside where no syntax rule can take it, anything else as it is. */
+    private fun literal(code: Int): String =
+        if (code in 0x21..0x7E && !Character.isLetterOrDigit(code)) String(Character.toChars(LITERAL + code))
+        else String(Character.toChars(code))
+
+    /** The escapes and entities of [markdown] as the characters they stand for (ASCII marks set aside, [restore]). */
+    private fun literals(markdown: String): String {
+        if ('\\' !in markdown && '&' !in markdown) return markdown
+        val escaped = Escape.replace(markdown) { literal(it.groupValues[1][0].code) }
+        return Entity.replace(escaped) { m ->
+            val (dec, hex, name) = m.destructured
+            val code = when {
+                dec.isNotEmpty() -> dec.toInt()
+                hex.isNotEmpty() -> hex.toInt(16)
+                else -> Named[name] ?: return@replace m.value
+            }
+            // CommonMark: an invalid code point reads as the replacement character.
+            if (code == 0 || code > 0x10FFFF || code in 0xD800..0xDFFF) "\uFFFD" else literal(code)
+        }
+    }
+
+    /** The set-aside marks back as themselves. */
+    private fun restore(text: String): String {
+        if (text.none { it.isSurrogate() }) return text
+        val out = StringBuilder(text.length)
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            if (cp in (LITERAL + 0x21)..(LITERAL + 0x7E)) out.append((cp - LITERAL).toChar()) else out.appendCodePoint(cp)
+            i += Character.charCount(cp)
+        }
+        return out.toString()
+    }
 
     /**
      * The first [max] characters, cut between code points (never half an emoji: slicing UTF-16 units
