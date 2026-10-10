@@ -302,7 +302,7 @@ private data class PushSwitchRow(val switch: NotificationSwitch, val label: Stri
 private val pushSwitchRows: List<PushSwitchRow>
     get() = listOf(
         PushSwitchRow(NotificationSwitch.Picks, L10n.Settings.Notifications.picks, L10n.Settings.Notifications.picksHint, 83.0),
-        PushSwitchRow(NotificationSwitch.ConnectionCards, L10n.Settings.Notifications.connectionCards, L10n.Settings.Notifications.connectionCardsHint, 89.0),
+        PushSwitchRow(NotificationSwitch.ConnectionCards, L10n.Settings.Notifications.connectionCards, L10n.Settings.Notifications.connectionCardsHint, 91.0), // 91, as the web and iOS: 89's track pinched at its middle
     )
 
 /** What turning a push switch on takes ([turnOn]). */

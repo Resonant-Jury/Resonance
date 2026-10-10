@@ -9,7 +9,8 @@ import styles from './NotificationsSection.module.css';
 
 const SWITCHES: { name: NotificationSwitch; label: 'picks' | 'connectionCards'; hint: 'picksHint' | 'connectionCardsHint'; seed: number }[] = [
   { name: 'picks', label: 'picks', hint: 'picksHint', seed: 83 },
-  { name: 'connectionCards', label: 'connectionCards', hint: 'connectionCardsHint', seed: 89 },
+  // 91, as the apps: 89's track pinched at its middle (QA r4).
+  { name: 'connectionCards', label: 'connectionCards', hint: 'connectionCardsHint', seed: 91 },
 ];
 
 /**
