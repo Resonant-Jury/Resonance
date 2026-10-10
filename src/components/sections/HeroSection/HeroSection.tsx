@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
+import { DriftingBlobs, type DriftPaint } from '@/components/atoms/DriftingBlobs/DriftingBlobs';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { GetTheApp } from '@/components/molecules/GetTheApp/GetTheApp';
@@ -16,19 +17,31 @@ const AVATARS: { ini: string; color: string }[] = [
   { ini: 'TE', color: 'var(--color-yellow)' },
 ];
 
+/** The colours a newcomer among the hero's blobs is drawn in, and how strongly each shows. */
+const BLOB_PAINTS: DriftPaint[] = [
+  { color: '--color-terracotta-light', alpha: 0.32 },
+  { color: '--color-lavender', alpha: 0.26 },
+  { color: '--color-sage', alpha: 0.22 },
+  { color: '--color-yellow', alpha: 0.3 },
+];
+
 export function HeroSection() {
   const t = useTranslations('hero');
   return (
     <section id="about" className={styles.hero}>
-      <div className={styles.blob1}>
-        <OrganiBlob variant={1} fill="var(--color-terracotta-light)" size={380} />
-      </div>
-      <div className={styles.blob2}>
-        <OrganiBlob variant={3} fill="var(--color-lavender)" size={300} />
-      </div>
-      <div className={styles.blob3}>
-        <OrganiBlob variant={2} fill="var(--color-sage)" size={180} />
-      </div>
+      {/* Still here as the server draws the page; on the client they come alive and drift away
+          (data-drift is each one's heading), new ones drift in, and two that meet melt into one. */}
+      <DriftingBlobs palette={BLOB_PAINTS}>
+        <div className={styles.blob1} data-drift="1,0.12" data-drift-color="--color-terracotta-light">
+          <OrganiBlob variant={1} fill="var(--color-terracotta-light)" size={380} />
+        </div>
+        <div className={styles.blob2} data-drift="-1,-0.08" data-drift-color="--color-lavender">
+          <OrganiBlob variant={3} fill="var(--color-lavender)" size={300} />
+        </div>
+        <div className={styles.blob3} data-drift="1,-0.2" data-drift-color="--color-sage">
+          <OrganiBlob variant={2} fill="var(--color-sage)" size={180} />
+        </div>
+      </DriftingBlobs>
 
       <div className={styles.content}>
         <div className={styles.tagWrap}>

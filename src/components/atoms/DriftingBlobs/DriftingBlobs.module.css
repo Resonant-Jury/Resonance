@@ -1,0 +1,29 @@
+.root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* The stand-ins (server HTML, and what reduced motion keeps) give way to the
+   live blobs, which start exactly where they lie. */
+.root > :not(canvas) {
+  transition: opacity 1.6s ease;
+}
+
+.root[data-live] > :not(canvas) {
+  opacity: 0;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+}
+
+.root[data-live] .canvas {
+  opacity: 1;
+}
