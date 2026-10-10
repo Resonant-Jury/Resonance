@@ -86,6 +86,23 @@ describe('unfurlCardLinks', () => {
     expect(store.docs['rateLimits/alice_unfurl']).toMatchObject({ used: 3 });
   });
 
+  it("gives a story's YouTube links their cards from YouTube's oEmbed answer (backlog 15)", async () => {
+    store = fakeAdminDb({ 'cards/c1': published('一首歌。\n\nhttps://youtu.be/dQw4w9WgXcQ\n\n[另一首](https://www.youtube.com/watch?v=abcdefghijk)') });
+    const fetch = vi.fn<PreviewFetch>(async (url, options) => {
+      expect(options.mode).toBe('json');
+      const id = new URL(new URL(url).searchParams.get('url')!).searchParams.get('v');
+      const answer = { title: `Video ${id}`, author_name: 'A channel', thumbnail_url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` };
+      return { url, status: 200, contentType: 'application/json', charset: null, body: Buffer.from(JSON.stringify(answer)), truncated: false };
+    });
+    const result = await unfurl({ fetch });
+    expect(result).toMatchObject({ links: 2, previews: 2, written: true });
+    expect(card().linkPreviews).toMatchObject([
+      { url: 'https://youtu.be/dQw4w9WgXcQ', title: 'Video dQw4w9WgXcQ', description: 'A channel', siteName: 'YouTube' },
+      { url: 'https://www.youtube.com/watch?v=abcdefghijk', title: 'Video abcdefghijk', siteName: 'YouTube' },
+    ]);
+    expect(fetch.mock.calls.every(([url]) => url.startsWith('https://www.youtube.com/oembed?'))).toBe(true);
+  });
+
   it('reuses what is stored for links still in the story, drops the rest, and fetches only the new ones', async () => {
     const kept = { url: 'https://example.com/kept', title: 'Kept as it was' };
     const gone = { url: 'https://example.com/gone', title: 'No longer in the story' };

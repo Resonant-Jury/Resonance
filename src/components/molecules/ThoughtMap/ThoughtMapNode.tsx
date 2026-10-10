@@ -8,6 +8,7 @@ import { seedFromString } from '@/lib/design/prng';
 import { wobRect } from '@/lib/design/wobRect';
 import { wobTabRect } from '@/lib/design/wobTabRect';
 import { plainExcerpt } from '@/lib/adapters/story';
+import { firstPicture } from '@/lib/markdown/plainText';
 import type { Card, Visibility } from '@/lib/db/types';
 import { NODE_H, NODE_W } from './mapMath';
 import styles from './ThoughtMap.module.css';
@@ -35,8 +36,7 @@ export function nodeHue(card: Card): number {
     first inline markdown image. */
 function cardThumb(card: Card): string | null {
   if (card.media?.type === 'image') return card.media.url;
-  const m = card.story.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
-  return m ? m[1] : null;
+  return firstPicture(card.story);
 }
 
 export interface ThoughtMapNodeProps {

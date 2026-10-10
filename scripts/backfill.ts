@@ -25,10 +25,11 @@
  *   npx tsx scripts/backfill.ts orphan-notes  [--apply] [--emulator]
  *       delete notes whose card is gone (left by older builds' client deletes, or a clean-up that failed
  *       after the card went); notes naming no card are reported, not deleted — production runs are the owner's call
- *   npx tsx scripts/backfill.ts link-previews [--apply] [--emulator]
+ *   npx tsx scripts/backfill.ts link-previews [--missing] [--apply] [--emulator]
  *       published cards get the previews of their stories' standalone links (fetches the pages;
  *       --apply against production needs LINK_PREVIEW_SECRET or FIREBASE_PRIVATE_KEY — the deployment's —
- *       to sign their pictures)
+ *       to sign their pictures); --missing also asks again for every link that has no preview yet
+ *       (after previews learn a site, as YouTube's videos in round 5)
  *
  * Production credentials come from .env; `--emulator` runs against the local
  * emulators (EMULATOR_FIRESTORE_PORT etc., see scripts/emulator-env.mjs) and
@@ -131,7 +132,7 @@ async function main() {
       }
       console.log(`pictures signed with ${source ?? 'the development key (emulators only)'}`);
       const { backfillLinkPreviews } = await import('./backfills/linkPreviews');
-      await backfillLinkPreviews(db, { apply });
+      await backfillLinkPreviews(db, { apply, missing: args.includes('--missing') });
       return;
     }
     default:

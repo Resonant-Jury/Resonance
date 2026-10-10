@@ -539,4 +539,20 @@ describe('link-previews', () => {
 
     expect(await backfillLinkPreviews(db, { apply: true, log: quiet, fetch: fetchPages })).toMatchObject({ candidates: 0, written: 0 });
   });
+
+  it('with --missing, asks again for the links that have no preview yet, keeping the ones that do', async () => {
+    await backfillLinkPreviews(db, { apply: true, log: quiet, fetch: fetchPages });
+    asked.length = 0;
+    expect(await backfillLinkPreviews(db, { apply: false, missing: true, log: quiet, fetch: fetchPages })).toMatchObject({ candidates: 1, links: 2 });
+    const report = await backfillLinkPreviews(db, { apply: true, missing: true, log: quiet, fetch: fetchPages });
+    expect(report).toMatchObject({ candidates: 1, written: 1, previews: 2 });
+    expect(asked).toEqual(['https://example.com/quiet']);
+    const done = (await data('cards/done'))!;
+    expect(done.linkPreviews).toEqual([
+      { url: 'https://example.com/done', title: 'Done' },
+      { url: 'https://example.com/quiet', title: 'Page /quiet' },
+    ]);
+    expect((done.updatedAt as Timestamp).isEqual(stamp)).toBe(true);
+    expect(await backfillLinkPreviews(db, { apply: true, missing: true, log: quiet, fetch: fetchPages })).toMatchObject({ candidates: 0 });
+  });
 });

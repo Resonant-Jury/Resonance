@@ -9,11 +9,11 @@ import { GET } from './route';
 const ask = (search: string) => GET(new Request(`http://localhost/api/link-image${search}`));
 
 describe('GET /api/link-image', () => {
-  it('answers a bare 404, cacheable for a moment only, when asked for nothing or for something unsigned', async () => {
+  it('answers a bare 404, kept by no cache, when asked for nothing or for something unsigned', async () => {
     for (const search of ['', '?u=https%3A%2F%2Fexample.com%2Fa.png', `?u=https%3A%2F%2Fexample.com%2Fa.png&s=${'A'.repeat(43)}`, '?s=abc']) {
       const res = await ask(search);
       expect(res.status, search).toBe(404);
-      expect(res.headers.get('cache-control')).toBe('public, max-age=300');
+      expect(res.headers.get('cache-control')).toBe('no-store');
       expect(res.headers.get('x-content-type-options')).toBe('nosniff');
       expect(await res.text()).toBe('');
     }

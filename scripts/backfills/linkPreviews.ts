@@ -1,6 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { unfurlCardLinks } from '../../src/lib/links/cardLinks';
 import { createPreviewMemo, type PreviewFetch } from '../../src/lib/links/preview';
+import { linkPreviewsOf } from '../../src/lib/links/previewShape';
 import { standaloneLinks } from '../../src/lib/links/storyLinks';
 
 /**
@@ -14,22 +15,34 @@ import { standaloneLinks } from '../../src/lib/links/storyLinks';
  * as after a save, no card's `updatedAt` or `excerptAt` moves.
  *
  * Idempotent: a card done (its links tried, whether or not their pages said
- * anything) is not a candidate again until its links change. With
+ * anything) is not a candidate again until its links change — unless
+ * `missing` (`--missing`) asks again for every link that has no preview yet:
+ * after the previews learn a site they couldn't read (YouTube's videos, read
+ * through oEmbed since round 5), its links already tried get their cards. With
  * `apply: false` it only counts. Pictures are signed with the running
  * process's key (imageProxy `signingKey`): run it with the deployment's own
  * LINK_PREVIEW_SECRET / FIREBASE_PRIVATE_KEY, or the pictures 404.
  */
 export async function backfillLinkPreviews(
   db: Firestore,
-  opts: { apply: boolean; log?: (line: string) => void; fetch?: PreviewFetch; concurrency?: number },
+  opts: { apply: boolean; missing?: boolean; log?: (line: string) => void; fetch?: PreviewFetch; concurrency?: number },
 ) {
   const log = opts.log ?? console.log;
-  const snap = await db.collection('cards').where('publishedAt', '!=', null).select('story', 'linkPreviewsFor').get();
+  const snap = await db.collection('cards').where('publishedAt', '!=', null).select('story', 'linkPreviewsFor', 'linkPreviews').get();
   const candidates = snap.docs
-    .map((doc) => ({ id: doc.id, links: standaloneLinks(String(doc.get('story') ?? '')), storedFor: doc.get('linkPreviewsFor') }))
-    .filter(({ links, storedFor }) => !sameLinks(links, Array.isArray(storedFor) ? storedFor : []));
+    .map((doc) => ({
+      id: doc.id,
+      links: standaloneLinks(String(doc.get('story') ?? '')),
+      storedFor: doc.get('linkPreviewsFor'),
+      previewed: new Set(linkPreviewsOf(doc.get('linkPreviews')).map((p) => p.url)),
+    }))
+    .filter(
+      ({ links, storedFor, previewed }) =>
+        !sameLinks(links, Array.isArray(storedFor) ? storedFor : []) || (opts.missing === true && links.some((link) => !previewed.has(link))),
+    );
   const links = candidates.reduce((n, c) => n + c.links.length, 0);
-  log(`published cards: ${snap.size}, whose previews are not for the links they hold: ${candidates.length} (${links} link(s))`);
+  const which = opts.missing ? 'or with a link that has no preview' : '';
+  log(`published cards: ${snap.size}, whose previews are not for the links they hold${which ? ` ${which}` : ''}: ${candidates.length} (${links} link(s))`);
   const report = { cards: snap.size, candidates: candidates.length, links, written: 0, previews: 0 };
   if (!opts.apply || !candidates.length) return report;
 

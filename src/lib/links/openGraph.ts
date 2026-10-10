@@ -1,3 +1,4 @@
+import { decodeEntities } from '@/lib/text/entities';
 import { normalizeLink } from './url';
 
 /**
@@ -28,25 +29,7 @@ export interface OpenGraph {
   image?: string;
 }
 
-const NAMED: Record<string, string> = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', copy: '©', reg: '®', trade: '™', hellip: '…',
-  mdash: '—', ndash: '–', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', laquo: '«', raquo: '»', middot: '·',
-  bull: '•', times: '×', deg: '°', euro: '€', pound: '£', yen: '¥', cent: '¢', sect: '§', para: '¶', iexcl: '¡',
-  iquest: '¿', eacute: 'é', egrave: 'è', ecirc: 'ê', agrave: 'à', aacute: 'á', acirc: 'â', ccedil: 'ç',
-  uuml: 'ü', ouml: 'ö', auml: 'ä', szlig: 'ß', ntilde: 'ñ', oacute: 'ó', iacute: 'í', uacute: 'ú',
-};
-
-/** HTML character references, decoded once (`&amp;lt;` is `&lt;`). Unknown names are left as written. */
-export function decodeEntities(text: string): string {
-  return text.replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z][a-z0-9]{1,31});/gi, (whole, body: string) => {
-    if (body[0] === '#') {
-      const code = body[1].toLowerCase() === 'x' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
-      if (!Number.isFinite(code) || code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return '�';
-      return String.fromCodePoint(code);
-    }
-    return NAMED[body.toLowerCase()] ?? whole;
-  });
-}
+export { decodeEntities };
 
 /**
  * Characters that draw nothing or reorder what is drawn: removed rather than

@@ -30,22 +30,26 @@ import { normalizeLink } from './url';
  *  - One deadline for the whole fetch, DNS and redirects and body (a server
  *    that dribbles a byte a second is cut at it).
  *  - The body is read up to a cap and no further: a page stops at `</head>`
- *    or 512 KB, an image at 5 MB (refused up front when its Content-Length
- *    says more). A compressed page is inflated only up to the same cap, so a
- *    gzip bomb costs what a big page does. Images are asked for uncompressed
- *    and refused if they come compressed anyway.
+ *    or 512 KB, an image at 5 MB, a JSON answer (an oEmbed endpoint's, see
+ *    oembed.ts) at 64 KB — an image or JSON past its cap is refused, up front
+ *    when its Content-Length says so, since a cut one is none. A compressed
+ *    page or JSON is inflated only up to the same cap, so a gzip bomb costs
+ *    what a big page does. Images are asked for uncompressed and refused if
+ *    they come compressed anyway.
  *  - Only what we asked for is accepted: a page as text/html or
- *    application/xhtml+xml, an image as image/* but never SVG (the caller
- *    sniffs the bytes as well — a Content-Type is only a claim).
+ *    application/xhtml+xml, JSON as application/json, an image as image/* but
+ *    never SVG (the caller sniffs the bytes as well — a Content-Type is only
+ *    a claim).
  *  - Nothing of ours goes with it: no cookies, no Referer, no credentials, a
  *    plain User-Agent that names us.
  */
 
-export type FetchMode = 'page' | 'image';
+export type FetchMode = 'page' | 'image' | 'json';
 
 export const USER_AGENT = 'Mozilla/5.0 (compatible; ResonanceBot/1.0; +https://resonance.channel)';
 export const PAGE_MAX_BYTES = 512 * 1024;
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const JSON_MAX_BYTES = 64 * 1024;
 export const FETCH_TIMEOUT_MS = 5000;
 export const MAX_REDIRECTS = 3;
 /** More addresses than this for one name is not a website. */
@@ -184,9 +188,11 @@ function headersFor(mode: FetchMode): Record<string, string> {
     Accept:
       mode === 'page'
         ? 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1'
-        : 'image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1',
-    // A page is inflated by us, up to the cap; an image is never compressed.
-    'Accept-Encoding': mode === 'page' ? 'gzip, deflate, br' : 'identity',
+        : mode === 'json'
+          ? 'application/json'
+          : 'image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1',
+    // A page or JSON is inflated by us, up to the cap; an image is never compressed.
+    'Accept-Encoding': mode === 'image' ? 'identity' : 'gzip, deflate, br',
     'Accept-Language': 'en, zh-TW;q=0.9',
     Connection: 'close',
   };
@@ -225,6 +231,7 @@ function mediaTypeOf(res: http.IncomingMessage): { type: string; charset: string
 
 function acceptable(mode: FetchMode, type: string): boolean {
   if (mode === 'page') return type === 'text/html' || type === 'application/xhtml+xml';
+  if (mode === 'json') return type === 'application/json';
   return type.startsWith('image/') && type !== 'image/svg+xml' && !type.startsWith('image/svg');
 }
 
@@ -257,7 +264,7 @@ function readBody(
   signal: AbortSignal,
 ): Promise<{ body: Buffer; truncated: boolean }> {
   const encoding = String(res.headers['content-encoding'] ?? 'identity').trim().toLowerCase();
-  const decoder = encoding === 'identity' || encoding === '' ? null : mode === 'page' ? decoderFor(encoding) : null;
+  const decoder = encoding === 'identity' || encoding === '' ? null : mode === 'image' ? null : decoderFor(encoding);
   if (encoding !== 'identity' && encoding !== '' && !decoder) {
     res.destroy();
     return Promise.reject(new SafeFetchError('encoding', encoding));
@@ -292,7 +299,8 @@ function readBody(
 
     source.on('data', (piece: Buffer) => {
       if (settled) return;
-      if (mode === 'image') {
+      if (mode !== 'page') {
+        // Part of a picture or of a JSON answer is neither.
         if (size + piece.length > maxBytes) return fail(new SafeFetchError('too_large'));
       } else if (size + piece.length > maxBytes) {
         piece = piece.subarray(0, maxBytes - size);
@@ -323,7 +331,10 @@ export function createSafeFetch(overrides: Partial<FetchPolicy> = {}) {
   return async function safeFetch(link: string, options: SafeFetchOptions): Promise<SafeFetchResult> {
     const deadline = AbortSignal.timeout(options.timeoutMs ?? FETCH_TIMEOUT_MS);
     const signal = options.signal ? AbortSignal.any([deadline, options.signal]) : deadline;
-    const cap = Math.min(options.maxBytes ?? Infinity, options.mode === 'page' ? PAGE_MAX_BYTES : IMAGE_MAX_BYTES);
+    const cap = Math.min(
+      options.maxBytes ?? Infinity,
+      options.mode === 'page' ? PAGE_MAX_BYTES : options.mode === 'json' ? JSON_MAX_BYTES : IMAGE_MAX_BYTES,
+    );
 
     let current = normalizeLink(link, { anyPort: policy.allowAnyPort });
     if (!current) throw new SafeFetchError('bad_url');
@@ -357,7 +368,7 @@ export function createSafeFetch(overrides: Partial<FetchPolicy> = {}) {
         res.destroy();
         throw new SafeFetchError('content_type', type);
       }
-      if (options.mode === 'image') {
+      if (options.mode !== 'page') {
         const declared = Number(res.headers['content-length']);
         if (Number.isFinite(declared) && declared > cap) {
           res.destroy();

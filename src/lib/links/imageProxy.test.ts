@@ -8,9 +8,12 @@ import {
   LINK_IMAGE_PATH,
   PROXY_EDGE,
   PROXY_MAX_PIXELS,
+  REMEMBER_FAILURE_MS,
+  REMEMBER_RETRY_MS,
   createImageCache,
   createLimiter,
   imageProxyPath,
+  mayPass,
   serveLinkImage,
   signImageUrl,
   signingKey,
@@ -337,7 +340,8 @@ describe('GET /api/link-image', () => {
   async function expectBareNotFound(res: Response) {
     expect(res.status).toBe(404);
     expect(await res.text()).toBe('');
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=300');
+    // No browser, CDN or app keeps a failure: the next view of the preview asks again (backlog 12).
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(res.headers.get('Content-Type')).toBeNull();
   }
@@ -498,28 +502,95 @@ describe('GET /api/link-image', () => {
       expect(fetchImage).toHaveBeenCalledTimes(1);
     });
 
-    it('forgets a picture and a failure after a while, the failure sooner', async () => {
+    it('forgets a picture after a while, a refusal sooner, and a failure that may pass within seconds', async () => {
       let now = 1_000_000;
-      cache = createImageCache({ pictureMs: 600_000, failureMs: 300_000, now: () => now });
+      cache = createImageCache({ pictureMs: 600_000, failureMs: 300_000, retryMs: 15_000, now: () => now });
+      const REFUSED = 'https://example.com/page.html';
+      const SLOW = 'https://example.com/slow.png';
       await signed(TARGET);
-      fetchImage.mockRejectedValueOnce(new SafeFetchError('status'));
-      await signed('https://example.com/broken.png');
-      expect(fetchImage).toHaveBeenCalledTimes(2);
-
-      now += 299_000;
-      await signed(TARGET);
-      await signed('https://example.com/broken.png');
-      expect(fetchImage).toHaveBeenCalledTimes(2);
-
-      now += 2_000; // the failure has expired, the picture has not
-      await signed(TARGET);
-      expect(fetchImage).toHaveBeenCalledTimes(2);
-      expect((await signed('https://example.com/broken.png')).status).toBe(200);
+      fetchImage.mockRejectedValueOnce(new SafeFetchError('content_type', 'text/html'));
+      await signed(REFUSED);
+      fetchImage.mockRejectedValueOnce(new SafeFetchError('timeout'));
+      expect((await signed(SLOW)).status).toBe(404);
       expect(fetchImage).toHaveBeenCalledTimes(3);
+
+      now += 14_000; // a thread asking again at once still costs no fetch
+      await signed(SLOW);
+      expect(fetchImage).toHaveBeenCalledTimes(3);
+
+      now += 2_000; // the passing failure is forgotten: the next view gets the picture
+      expect((await signed(SLOW)).status).toBe(200);
+      await signed(REFUSED);
+      await signed(TARGET);
+      expect(fetchImage).toHaveBeenCalledTimes(4);
+
+      now += 285_000; // the refusal has expired, the picture has not
+      await signed(TARGET);
+      expect(fetchImage).toHaveBeenCalledTimes(4);
+      expect((await signed(REFUSED)).status).toBe(200);
+      expect(fetchImage).toHaveBeenCalledTimes(5);
 
       now += 600_000;
       await signed(TARGET);
-      expect(fetchImage).toHaveBeenCalledTimes(4);
+      expect(fetchImage).toHaveBeenCalledTimes(6);
+    });
+
+    it('remembers a failure that may pass longer each time in a row, up to as long as a refusal, so a site that never answers is not a way to hold the decode slots', async () => {
+      let now = 1_000_000;
+      cache = createImageCache({ now: () => now });
+      fetchImage.mockRejectedValue(new SafeFetchError('timeout'));
+      /** How long the failure just remembered is held: asked a moment before then, nothing is fetched; at then, it is. */
+      const heldFor = async (ms: number) => {
+        const calls = fetchImage.mock.calls.length;
+        now += ms - 1;
+        await signed(TARGET);
+        expect(fetchImage).toHaveBeenCalledTimes(calls);
+        now += 1;
+        await signed(TARGET);
+        expect(fetchImage).toHaveBeenCalledTimes(calls + 1);
+      };
+      await signed(TARGET);
+      await heldFor(REMEMBER_RETRY_MS); // the first: a reader's next view asks again
+      await heldFor(4 * REMEMBER_RETRY_MS); // the second in a row: a minute
+      await heldFor(REMEMBER_FAILURE_MS); // the third: as long as a refusal
+      await heldFor(REMEMBER_FAILURE_MS); // and so on
+      expect(fetchImage).toHaveBeenCalledTimes(5);
+    });
+
+    it('starts the run again after a picture that comes, or a quiet spell', async () => {
+      let now = 1_000_000;
+      // Pictures kept a second here, so no quiet spell comes between a picture and the next failure.
+      cache = createImageCache({ pictureMs: 1_000, now: () => now });
+      fetchImage.mockRejectedValue(new SafeFetchError('network'));
+      const fetchesAfter = async (url: string, ms: number, status: number) => {
+        const calls = fetchImage.mock.calls.length;
+        now += ms;
+        expect((await signed(url)).status).toBe(status);
+        return fetchImage.mock.calls.length - calls;
+      };
+      const FLAKY = 'https://example.com/flaky.png';
+      await fetchesAfter(FLAKY, 0, 404);
+      await fetchesAfter(FLAKY, REMEMBER_RETRY_MS, 404); // the second in a row: a minute
+      fetchImage.mockImplementationOnce(async (url: string) => served(url, png));
+      expect(await fetchesAfter(FLAKY, 4 * REMEMBER_RETRY_MS, 200)).toBe(1);
+      await fetchesAfter(FLAKY, 1_000, 404); // after the picture, a first failure again…
+      expect(await fetchesAfter(FLAKY, REMEMBER_RETRY_MS, 404)).toBe(1); // …kept 15 s, not a refusal's 5 min
+
+      const SLOW = 'https://example.com/slow.png';
+      await fetchesAfter(SLOW, 0, 404);
+      await fetchesAfter(SLOW, REMEMBER_RETRY_MS, 404); // a minute
+      // A reader coming back long after it was forgotten: a first failure again, kept 15 s.
+      expect(await fetchesAfter(SLOW, 4 * REMEMBER_RETRY_MS + REMEMBER_FAILURE_MS + 1, 404)).toBe(1);
+      expect(await fetchesAfter(SLOW, REMEMBER_RETRY_MS, 404)).toBe(1);
+    });
+
+    it('tells a failure that may pass from a refusal the address would earn again', () => {
+      for (const reason of ['timeout', 'network', 'dns', 'status'] as const) expect(mayPass(new SafeFetchError(reason)), reason).toBe(true);
+      for (const reason of ['blocked', 'bad_url', 'content_type', 'too_large', 'encoding', 'redirects'] as const) {
+        expect(mayPass(new SafeFetchError(reason)), reason).toBe(false);
+      }
+      expect(mayPass(new ImageRefused('not a picture we take'))).toBe(false);
+      expect(mayPass(new Error('boom'))).toBe(true);
     });
 
     it('keeps no more than it is allowed to, dropping the oldest', async () => {

@@ -3,6 +3,7 @@ import type { LinkPreview } from '@/lib/db/types';
 import { createMemo } from './memo';
 import { parseOpenGraph } from './openGraph';
 import { imageProxyPath } from './imageProxy';
+import { parseYouTubeOEmbed, youTubeOEmbedUrl, youTubeVideoId } from './oembed';
 import { safeFetch as defaultFetch, SafeFetchError, type SafeFetchOptions, type SafeFetchResult } from './safeFetch';
 import { firstLink } from './url';
 
@@ -47,8 +48,27 @@ export type PreviewMemo = ReturnType<typeof createPreviewMemo>;
 
 const sharedMemo = createPreviewMemo();
 
-/** What a link says about itself — or null when it can't be fetched or says no title. Never throws for a page's faults. */
+/**
+ * What a link says about itself — or null when it can't be fetched or says no
+ * title. Never throws for a page's faults. A YouTube video is asked of
+ * YouTube's oEmbed endpoint instead of its page (./oembed), and only that.
+ */
 export async function fetchLinkPreview(link: string, options: { signal?: AbortSignal; fetch?: Fetch } = {}): Promise<LinkPreview | null> {
+  const video = youTubeVideoId(link);
+  if (video) {
+    let answer: SafeFetchResult;
+    try {
+      answer = await (options.fetch ?? defaultFetch)(youTubeOEmbedUrl(video), { mode: 'json', signal: options.signal });
+    } catch (e) {
+      // A private, removed or unembeddable video answers 401/403/404: no card, as for a page that says nothing.
+      if (e instanceof SafeFetchError) {
+        console.warn('[unfurl] oembed', e.reason);
+        return null;
+      }
+      throw e;
+    }
+    return parseYouTubeOEmbed(link, video, answer.body);
+  }
   let page: SafeFetchResult;
   try {
     page = await (options.fetch ?? defaultFetch)(link, { mode: 'page', signal: options.signal });

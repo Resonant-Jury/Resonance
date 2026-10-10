@@ -61,6 +61,11 @@ describe('summarize', () => {
     expect(summarize('寫信到 foo@www.example.com 就好').excerpt).toBe('寫信到 foo@www.example.com 就好');
   });
 
+  it('stores the excerpt a reader sees: `->` as written, not the editor\'s `-&gt;`, and no escape backslashes', () => {
+    // The Android feed showed "-&gt;" for a story written with "->" (backlog 3).
+    expect(summarize('早上 -&gt; 下午 &amp; 晚上，\\*星號\\* 與 \\# 井號').excerpt).toBe('早上 -> 下午 & 晚上，*星號* 與 # 井號');
+  });
+
   it('reads a missing or malformed story as empty, a minute long', () => {
     expect(summarize(undefined)).toEqual({ excerpt: '', readMinutes: 1 });
     expect(summarize({ text: 'x' })).toEqual({ excerpt: '', readMinutes: 1 });

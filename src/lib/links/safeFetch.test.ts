@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import zlib from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
 import { isPublicAddress } from './ip';
-import { IMAGE_MAX_BYTES, PAGE_MAX_BYTES, USER_AGENT, SafeFetchError, createSafeFetch, safeFetch, type SafeFetchFailure } from './safeFetch';
+import { IMAGE_MAX_BYTES, JSON_MAX_BYTES, PAGE_MAX_BYTES, USER_AGENT, SafeFetchError, createSafeFetch, safeFetch, type SafeFetchFailure } from './safeFetch';
 
 // The fetcher against real HTTP servers on this machine. Loopback is refused
 // by default (that is the point), so the tests that need to reach a server
@@ -527,6 +527,74 @@ describe('compression', () => {
     const { fetcher } = trusting();
     expect(await failure(fetcher(`http://site.test:${local.port}/`, { mode: 'image' }))).toBe('encoding');
     expect(local.hits[0].headers['accept-encoding']).toBe('identity');
+  });
+});
+
+describe('JSON (an oEmbed answer)', () => {
+  const answer = JSON.stringify({ title: 'A video', thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg' });
+
+  it('asks for JSON and gives it whole, inflated when it came compressed', async () => {
+    const local = await serve((req, res) => {
+      if (req.url === '/gz') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip' });
+        res.end(zlib.gzipSync(Buffer.from(answer)));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(answer);
+      }
+    });
+    const { fetcher } = trusting();
+    for (const path of ['/', '/gz']) {
+      const result = await fetcher(`http://site.test:${local.port}${path}`, { mode: 'json' });
+      expect(JSON.parse(result.body.toString())).toEqual(JSON.parse(answer));
+      expect(result).toMatchObject({ contentType: 'application/json', truncated: false });
+    }
+    expect(local.hits[0].headers.accept).toBe('application/json');
+    expect(local.hits[0].headers['accept-encoding']).toBe('gzip, deflate, br');
+  });
+
+  it.each([['text/html'], ['text/javascript'], ['application/javascript'], ['text/plain'], ['image/png'], ['']])('refuses %j as JSON', async (type) => {
+    const local = await serve((_req, res) => {
+      if (type) res.setHeader('Content-Type', type);
+      res.end(answer);
+    });
+    const { fetcher } = trusting();
+    expect(await failure(fetcher(`http://site.test:${local.port}/`, { mode: 'json' }))).toBe('content_type');
+  });
+
+  it('refuses JSON over 64 KB rather than cut it, said up front, found on the way, or inflated from a bomb', async () => {
+    const big = Buffer.from(JSON.stringify({ title: 'x'.repeat(JSON_MAX_BYTES) }));
+    const bomb = zlib.gzipSync(Buffer.alloc(50 * 1024 * 1024, 0x20), { level: 9 });
+    const local = await serve((req, res) => {
+      if (req.url === '/declared') res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': String(big.length) }).end(big);
+      else if (req.url === '/bomb') res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip' }).end(bomb);
+      else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.write(big.subarray(0, 40_000));
+        res.end(big.subarray(40_000));
+      }
+    });
+    const { fetcher } = trusting();
+    for (const path of ['/declared', '/chunked', '/bomb']) {
+      expect(await failure(fetcher(`http://site.test:${local.port}${path}`, { mode: 'json' })), path).toBe('too_large');
+    }
+  });
+
+  it('gives nothing of a JSON answer whose connection dropped', async () => {
+    const local = await serve((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': '1000' });
+      res.write(answer.slice(0, 10));
+      setTimeout(() => res.socket?.destroy(), 20);
+    });
+    const { fetcher } = trusting();
+    expect(await failure(fetcher(`http://site.test:${local.port}/`, { mode: 'json' }))).toBe('network');
+  });
+
+  it('is held to the same addresses as a page: a JSON endpoint on the private network is never asked', async () => {
+    const local = await serve((_req, res) => res.writeHead(200, { 'Content-Type': 'application/json' }).end(answer));
+    expect(await failure(safeFetch(`http://127.0.0.1:${local.port}/`, { mode: 'json' }))).toBe('bad_url');
+    const { fetcher } = trusting();
+    expect(await failure(fetcher(`http://inside.test:${local.port}/`, { mode: 'json' }))).toBe('blocked');
+    expect(local.hits).toHaveLength(0);
   });
 });
 
