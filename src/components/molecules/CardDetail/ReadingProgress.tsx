@@ -24,9 +24,10 @@ export function readingProgress(top: number, height: number, viewportH: number, 
  * The card page's reading progress (design note §3): a marker drawn on the
  * app bar's own wavy pen line — the same points, so centred on it and
  * covering it — from the left edge to the share of the story read, in its own
- * pen (`--reading-progress`, `--reading-progress-width`, round caps; the
- * module CSS), wide enough that the unread rest of the line reads as its
- * track. Decorative — no space, no pointer, no words.
+ * pen (`--reading-progress`, at the line's own width `--reading-progress-width`,
+ * round caps, a soft glow of its colour `--reading-progress-glow`; the module
+ * CSS), so the unread rest of the line reads as its track. Decorative — no
+ * space, no pointer, no words.
  */
 export function ReadingProgress({ targetRef }: { targetRef: RefObject<HTMLElement | null> }) {
   const boxRef = useRef<HTMLDivElement>(null);

@@ -65,5 +65,10 @@ describe('ReadingProgress', () => {
     expect(line).toMatch(/stroke:\s*var\(--reading-progress\)/);
     expect(line).toMatch(/stroke-width:\s*var\(--reading-progress-width\)/);
     expect(line).toMatch(/stroke-linecap:\s*round/);
+    // A soft glow of its own colour behind it, as wide as the glow token, at 55 %.
+    const svg = css.match(/\.svg\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(svg).toMatch(
+      /filter:\s*drop-shadow\(0 0 var\(--reading-progress-glow\) color-mix\(in oklch, var\(--reading-progress\) 55%, transparent\)\)/,
+    );
   });
 });
