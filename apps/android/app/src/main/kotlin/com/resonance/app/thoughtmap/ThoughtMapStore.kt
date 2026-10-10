@@ -163,6 +163,10 @@ class ThoughtMapStore(private val reading: ReadingApi) {
         const val minGroupW = mapNodeW + 60
         const val minGroupH = mapNodeH + 80
 
+        /** [cam] moved, at its own zoom, so the middle of [rect] sits at the middle of a [vw] × [vh] viewport. */
+        fun centredOn(cam: MapCamera, rect: Rect, vw: Double, vh: Double): MapCamera =
+            cam.copy(x = vw / 2 - (rect.x + rect.w / 2) * cam.s, y = vh / 2 - (rect.y + rect.h / 2) * cam.s)
+
         fun hue(card: MapCard): Double = card.accentHue ?: nodeHues[seedFromString(card.id) % nodeHues.size]
 
         /** As the feed: what was read longer ago than this is read again. */
@@ -402,6 +406,16 @@ class ThoughtMapStore(private val reading: ReadingApi) {
         val rects = nodeOrder.mapNotNull { nodeRect(it) } + groupOrder.mapNotNull { groups[it]?.rect }
         camera = fitCamera(rects, viewportW, viewportH)
     }
+
+    /** The camera that shows card [id] in the middle of the map as it is laid out now, at the zoom it is at; null when the card isn't on the map. */
+    fun centring(id: String): MapCamera? {
+        val r = nodeRect(id) ?: return null
+        if (viewportW <= 0 || viewportH <= 0) return null
+        return centredOn(camera, r, viewportW, viewportH)
+    }
+
+    /** A finger is on the map: a glide toward a card gives way to it. */
+    val touching: Boolean get() = touches.isNotEmpty()
 
     // Geometry the layers share
 

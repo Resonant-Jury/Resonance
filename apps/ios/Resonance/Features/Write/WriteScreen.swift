@@ -115,6 +115,7 @@ struct WriteScreen: View {
                     // The lists hear of it (the map's titles, the card box) once the server has it, as on leaving.
                     Task { _ = await model.settled(within: Self.leaveWait); writer.leave(model.change) }
                 }
+                pane.cardId = { [weak model] in model?.draftId }
                 pane.holds = { [weak model] in model.map { $0.holdsWriting || $0.needsSave } ?? false }
                 pane.goBack = { [weak model] in if let model { goBack(model) } }
                 // The first-card guide is for a brand-new writer's fresh card: asked beside the open page, never

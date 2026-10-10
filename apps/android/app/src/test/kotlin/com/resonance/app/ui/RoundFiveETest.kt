@@ -1,7 +1,10 @@
 package com.resonance.app.ui
 
 import androidx.compose.ui.unit.dp
+import com.resonance.app.thoughtmap.ThoughtMapStore
 import com.resonance.design.LayoutClass
+import com.resonance.geometry.MapCamera
+import com.resonance.geometry.mapNodeRect
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -109,14 +112,32 @@ class RoundFiveETest {
 
     @Test fun theWorkspacesPaneKeepsWhatItShowsAndWhereItWasLeft() {
         val state = PaneState(PaneCard(ROUTE_SLOT, null, null, "words", fromMap = false), open = true, frac = 0.4f)
+        state.settled += 2
         val saved = with(PaneState.Saver) { androidx.compose.runtime.saveable.SaverScope { true }.save(state) }!!
         val back = PaneState.Saver.restore(saved)!!
         assertEquals(state.card, back.card)
         assertTrue(back.open)
         assertEquals(0.4f, back.frac)
         assertEquals(0.4f, back.drawn)
+        // The settlings the map has centred on come back with it: returning to the page moves nothing.
+        assertEquals(3, back.settled)
         // Nothing to show: never open.
         assertFalse(PaneState(null, open = true, frac = 0.5f).open)
         assertEquals(0f, PaneState(null, open = true, frac = 0.5f).drawn)
+        // Opened with the writer, the map's width has settled once beside it; the map come into, not yet.
+        assertEquals(1, PaneState(PaneCard(ROUTE_SLOT, null, "c1", null, fromMap = false), open = true, frac = 0.5f).settled)
+        assertEquals(0, PaneState(null, open = false, frac = 0.5f).settled)
+    }
+
+    @Test fun theMapCentresThePanesCardInWhatItShowsAtTheZoomItIsAt() {
+        val cam = MapCamera(-40.0, 25.0, 0.8)
+        val card = mapNodeRect(300.0, 120.0)
+        // The map 600 wide beside the pane, 800 high: the card's middle lands at (300, 400).
+        val centred = ThoughtMapStore.centredOn(cam, card, 600.0, 800.0)
+        assertEquals(0.8, centred.s, 0.0)
+        assertEquals(300.0, (card.x + card.w / 2) * centred.s + centred.x, 1e-9)
+        assertEquals(400.0, (card.y + card.h / 2) * centred.s + centred.y, 1e-9)
+        // Already there: it stays.
+        assertEquals(centred, ThoughtMapStore.centredOn(centred, card, 600.0, 800.0))
     }
 }

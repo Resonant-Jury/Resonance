@@ -57,6 +57,10 @@ final class ThoughtMapStore {
     /// Cards' summaries from the server, for the cards the rules won't read here (ThoughtMapService.summaries).
     private let summaries: @Sendable ([String]) async throws -> [FeedCard]
     @ObservationIgnored private var fitted = false
+    /// The card to centre (see `centre(on:animated:)`): while the camera glides to it, or until the map
+    /// can (not loaded yet, no size yet).
+    @ObservationIgnored private var focus: (id: String, animated: Bool)?
+    @ObservationIgnored private var glide: CameraGlide?
     /// When everything was last read, and the writer's change count it had seen
     /// then (the session keeps this store between visits: see `open`).
     @ObservationIgnored private var readAt: Date?
@@ -159,6 +163,7 @@ final class ThoughtMapStore {
             failed = false
             readAt = started
             fitIfReady()
+            applyFocus()
         } catch {
             failed = !loaded
         }
@@ -214,12 +219,14 @@ final class ThoughtMapStore {
         guard size != viewport else { return }
         viewport = size
         fitIfReady()
+        // A glide under way aims again at the centre of the width the map settled at.
+        applyFocus()
     }
 
     private func fitIfReady() {
         guard !fitted, loaded, viewport.width > 0, viewport.height > 0 else { return }
         fitted = true
-        fit()
+        camera = fittedCamera
     }
 
     // MARK: - Derived
@@ -263,12 +270,75 @@ final class ThoughtMapStore {
     // MARK: - Camera
 
     func zoom(by factor: Double) {
+        stopGlide()
         camera = zoomAt(camera, viewport.width / 2, viewport.height / 2, factor)
     }
 
     func fit() {
+        stopGlide()
+        camera = fittedCamera
+    }
+
+    private var fittedCamera: MapCamera {
         let rects = nodeOrder.compactMap(nodeRect) + groupOrder.compactMap { groups[$0] }.map { Rect(x: $0.x, y: $0.y, w: $0.w, h: $0.h) }
-        camera = fitCamera(rects, viewport.width, viewport.height)
+        return fitCamera(rects, viewport.width, viewport.height)
+    }
+
+    /// The split workspace's map, once its visible width settles beside the editor pane (the pane opens
+    /// or is shown again, another card opens in it, a divider drag ends): the camera glides (300 ms,
+    /// ease-out; reduced motion: jumps) so the card the pane shows sits at the centre of the map's
+    /// visible area, at the current zoom. A card not on the map leaves the camera where it is.
+    func centre(on cardId: String, animated: Bool) {
+        focus = (cardId, animated)
+        applyFocus()
+    }
+
+    static let glideDuration: Double = 0.3
+
+    /// The camera that puts `rect` (world) at the centre of a viewport `size` across, at `cam`'s own zoom.
+    static func centred(_ cam: MapCamera, on rect: Rect, in size: CGSize) -> MapCamera {
+        MapCamera(x: Double(size.width) / 2 - (rect.x + rect.w / 2) * cam.s,
+                  y: Double(size.height) / 2 - (rect.y + rect.h / 2) * cam.s, s: cam.s)
+    }
+
+    /// The camera `progress` (0…1) of the way through a glide, eased out (cubic).
+    static func glided(from: MapCamera, to: MapCamera, progress: Double) -> MapCamera {
+        let p = min(max(progress, 0), 1)
+        let k = 1 - pow(1 - p, 3)
+        return MapCamera(x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k, s: from.s + (to.s - from.s) * k)
+    }
+
+    private func applyFocus() {
+        guard let focus, loaded, viewport.width > 0, viewport.height > 0 else { return }
+        glide?.stop()
+        glide = nil
+        guard let rect = nodeRect(focus.id) else {
+            self.focus = nil
+            return
+        }
+        let target = Self.centred(camera, on: rect, in: viewport)
+        guard focus.animated, target != camera else {
+            camera = target
+            self.focus = nil
+            return
+        }
+        let from = camera
+        glide = CameraGlide { [weak self] elapsed in
+            guard let self else { return false }
+            let progress = elapsed / Self.glideDuration
+            camera = Self.glided(from: from, to: target, progress: progress)
+            guard progress >= 1 else { return true }
+            self.focus = nil
+            glide = nil
+            return false
+        }
+    }
+
+    /// A finger, the zoom buttons or the fit take the camera over: a glide stops where it is.
+    private func stopGlide() {
+        glide?.stop()
+        glide = nil
+        focus = nil
     }
 
     // MARK: - Hit-testing (the web's paint order, top first)
@@ -404,6 +474,7 @@ final class ThoughtMapStore {
     }
 
     func touchDown(_ id: ObjectIdentifier, at p: CGPoint) {
+        stopGlide()
         touches.append((id, p))
         if touches.count == 2 {
             // A second finger turns whatever the first was doing into a pinch (finishing a move it had made).
@@ -702,5 +773,30 @@ final class ThoughtMapStore {
     func commitEditors() {
         if editingGroupId != nil { commitGroupTitle() }
         if editingEdgeId != nil { commitEdgeLabel() }
+    }
+}
+
+/// Moves the camera a frame at a time through a glide: the canvases draw the camera as it is, so a
+/// SwiftUI animation can't carry it. `step` gets the seconds since the start and answers whether to go on.
+private final class CameraGlide: NSObject {
+    private var link: CADisplayLink?
+    private let start = CACurrentMediaTime()
+    private let step: (Double) -> Bool
+
+    init(step: @escaping (Double) -> Bool) {
+        self.step = step
+        super.init()
+        let link = CADisplayLink(target: self, selector: #selector(tick))
+        link.add(to: .main, forMode: .common)
+        self.link = link
+    }
+
+    @objc private func tick() {
+        if !step(CACurrentMediaTime() - start) { stop() }
+    }
+
+    func stop() {
+        link?.invalidate()
+        link = nil
     }
 }

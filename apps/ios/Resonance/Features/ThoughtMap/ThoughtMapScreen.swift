@@ -13,12 +13,20 @@ struct ThoughtMapScreen: View {
     /// The Back on the canvas (the workspace's way out, which asks the writer's question first while
     /// its pane holds writing). Nil: the page goes back.
     var back: (() -> Void)? = nil
+    /// In the split workspace: the card its pane shows (nil while it shows none, or a new draft not saved yet)…
+    var focus: () -> String? = { nil }
+    /// …and a count it bumps each time the map's visible width settles beside the pane: the camera then
+    /// centres that card (see ThoughtMapStore.centre).
+    var settled = 0
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.openRoute) private var openRoute
     @Environment(\.dismiss) private var dismiss
     /// The window's own controls (an iPad's app in a window): the Back on the canvas steps past them.
     @State private var controls = WindowControlsInset.zero
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The last `settled` centred on.
+    @State private var centred = 0
     /// Kept by the session between visits (see ThoughtMapStore.open).
     private var store: ThoughtMapStore { session.thoughtMap }
 
@@ -53,6 +61,15 @@ struct ThoughtMapScreen: View {
         .task {
             store.onOpen = openCard ?? { card in open(card) }
             if let uid = session.uid { await store.open(uid: uid, changes: writer.changes, lastChange: writer.lastChange) }
+            // Shown beside a pane already open (the writer's own): the card in it, at once.
+            if settled > centred {
+                centred = settled
+                if let id = focus() { store.centre(on: id, animated: false) }
+            }
+        }
+        .onChange(of: settled) { _, now in
+            centred = now
+            if let id = focus() { store.centre(on: id, animated: !reduceMotion) }
         }
         // The workspace crossed the split: its taps open in the pane, or push the writer again.
         .onChange(of: openCard != nil) { store.onOpen = openCard ?? { card in open(card) } }

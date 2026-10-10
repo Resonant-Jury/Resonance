@@ -1,5 +1,6 @@
 package com.resonance.app.thoughtmap
 
+import androidx.compose.animation.core.EaseOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -31,11 +32,15 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +55,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
@@ -77,10 +83,13 @@ import com.resonance.design.WobRectShape
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.organicSurface
+import com.resonance.design.prefersReducedMotion
 import com.resonance.design.plainClickable
 import com.resonance.design.wavyLinePath
+import com.resonance.geometry.MapCamera
 import com.resonance.geometry.seedFromString
 import com.resonance.kit.l10n.L10n
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
@@ -103,12 +112,24 @@ fun ThoughtMapScreen(
      * beside the map, in place — instead of in the writer pushed over it. Null: the writer is pushed.
      */
     openMine: ((String) -> Unit)? = null,
+    /** The card the split workspace's pane shows beside the map (null: none, or the pane closed). */
+    paneCardId: String? = null,
+    /**
+     * Bumped by the workspace each time the map's visible width settles beside the pane — the pane
+     * opened or shown again, another card opened in it, the divider let go: the map then glides
+     * [paneCardId] to the middle of what it shows, at the zoom it is at.
+     */
+    paneSettled: Int = 0,
 ) {
     val uid = session.uid
     val changes by session.cardChanges.collectAsStateWithLifecycle()
     val currentOpen by rememberUpdatedState(open)
     val currentOpenMine by rememberUpdatedState(openMine)
+    val currentPaneCard by rememberUpdatedState(paneCardId)
     val scope = rememberCoroutineScope()
+    val reduced = LocalContext.current.prefersReducedMotion()
+    // The last settling handled, saved with the page: coming back to it (or rotating) moves nothing.
+    var centred by rememberSaveable { mutableIntStateOf(0) }
 
     // A card of mine opens in the writer (a published one with its pending edit); a card I resonated with opens on its page.
     LaunchedEffect(store, uid) {
@@ -128,6 +149,18 @@ fun ThoughtMapScreen(
         if (uid != null) store.cardsChanged(uid, changes, session.lastCardChange)
     }
 
+    // The map's width settled beside the pane: the card the pane shows to the middle of it (a card not on the map: nothing moves).
+    LaunchedEffect(store, paneSettled) {
+        if (paneSettled == centred) return@LaunchedEffect
+        centred = paneSettled
+        val id = currentPaneCard ?: return@LaunchedEffect
+        snapshotFlow { store.loaded }.first { it }
+        // A frame on, so the viewport is the width the map was just laid out at.
+        withFrameNanos { }
+        val target = store.centring(id) ?: return@LaunchedEffect
+        glide(store, target, reduced)
+    }
+
     // Leaving the map (or opening a card from it) while a title or arrow's words are being typed keeps them, as the web's blur does.
     DisposableEffect(store) { onDispose { store.commitEditors() } }
 
@@ -144,6 +177,26 @@ fun ThoughtMapScreen(
         if (store.trayOpen) MapTray(store)
     }
 }
+
+/** The camera to [target] in [CENTRE_MILLIS], easing out (at once with the system's animations off); a finger on the map stops it where it is. */
+private suspend fun glide(store: ThoughtMapStore, target: MapCamera, reduced: Boolean) {
+    val from = store.camera
+    if (reduced) {
+        store.camera = target
+        return
+    }
+    val start = withFrameNanos { it }
+    while (true) {
+        val t = withFrameNanos { (it - start) / 1_000_000f / CENTRE_MILLIS }.coerceAtMost(1f)
+        if (store.touching) return
+        val k = EaseOut.transform(t).toDouble()
+        store.camera = MapCamera(from.x + (target.x - from.x) * k, from.y + (target.y - from.y) * k, from.s)
+        if (t >= 1f) return
+    }
+}
+
+/** The map gliding a card to the middle beside the workspace's pane. */
+private const val CENTRE_MILLIS = 300f
 
 @Composable
 private fun BoxScope.Chrome(store: ThoughtMapStore, session: Session, leave: () -> Unit, addGroup: () -> Unit) {

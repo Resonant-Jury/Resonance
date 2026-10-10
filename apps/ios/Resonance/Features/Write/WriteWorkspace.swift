@@ -58,6 +58,8 @@ enum EditorSplit {
 @MainActor final class WritePane {
     /// Saves what is written now (hiding the pane, opening another card in it).
     var saveNow: () -> Void = {}
+    /// The card it writes, once it has an id (a new card's once first saved): what the map centres.
+    var cardId: () -> String? = { nil }
     /// Whether the page should ask before it goes back (writing to put away).
     var holds: () -> Bool = { false }
     /// The writer's way back: the question first while there is writing, then the page goes.
@@ -65,6 +67,7 @@ enum EditorSplit {
 
     func clear() {
         saveNow = {}
+        cardId = { nil }
         holds = { false }
         goBack = nil
     }
@@ -106,6 +109,10 @@ struct WriteWorkspace: View {
     @State private var fade: Double = 1
     /// Each hiding, for its tick.
     @State private var hidings = 0
+    /// Each time the map's visible width settles beside the pane — it opens or is shown again, another
+    /// card opens in it, a drag on its grip is let go at a width, VoiceOver steps it — for the map to
+    /// centre the card the pane shows. The writer's pane is open from the start.
+    @State private var settled: Int
     @State private var pane = WritePane()
     private static let space = "write.workspace"
 
@@ -117,8 +124,10 @@ struct WriteWorkspace: View {
         if case let .writer(request) = entry {
             _card = State(initialValue: request)
             _open = State(initialValue: true)
+            _settled = State(initialValue: 1)
         } else {
             _open = State(initialValue: false)
+            _settled = State(initialValue: 0)
         }
     }
 
@@ -150,7 +159,10 @@ struct WriteWorkspace: View {
         let shown = paneShown * w
         ZStack(alignment: .topLeading) {
             if showsMap {
-                ThoughtMapScreen(openCard: split ? { openFromMap($0) } : nil, back: { back() })
+                // The card the pane shows: the one opened over the writer's (or from the map), else the
+                // writer's own once it has an id.
+                ThoughtMapScreen(openCard: split ? { openFromMap($0) } : nil, back: { back() },
+                                 focus: { card?.cardId ?? pane.cardId() }, settled: settled)
                     .frame(width: split ? max(0, w - shown) : w)
             }
             if let card, split || isWriter {
@@ -216,8 +228,8 @@ struct WriteWorkspace: View {
                     .accessibilityValue(open ? Double(fraction).formatted(.percent.precision(.fractionLength(0))) : "")
                     .accessibilityAdjustableAction { direction in
                         switch direction {
-                        case .increment: if open { fraction = EditorSplit.adjusted(fraction, steps: 1) } else { show() }
-                        case .decrement: if open { fraction = EditorSplit.adjusted(fraction, steps: -1) }
+                        case .increment: if open { step(1) } else { show() }
+                        case .decrement: if open { step(-1) }
                         @unknown default: break
                         }
                     }
@@ -257,6 +269,7 @@ struct WriteWorkspace: View {
                             fraction = share
                             drag = nil
                         }
+                        settled += 1
                     }
                 } else if EditorSplit.showsAgain(translation: value.translation) {
                     show()
@@ -264,6 +277,12 @@ struct WriteWorkspace: View {
                     withAnimation(.easeOut(duration: 0.2)) { docking = nil }
                 }
             }
+    }
+
+    /// One VoiceOver swipe on the grip.
+    private func step(_ steps: Int) {
+        fraction = EditorSplit.adjusted(fraction, steps: steps)
+        settled += 1
     }
 
     // MARK: - Showing, hiding, opening
@@ -290,6 +309,7 @@ struct WriteWorkspace: View {
 
     /// Shows the pane again at its last width, with its card as it was.
     private func show() {
+        settled += 1
         if reduceMotion {
             fade = 0
             open = true
@@ -321,7 +341,7 @@ struct WriteWorkspace: View {
         }
         card = WriteLauncher.Request(cardId: tapped.id, showsCard: false)
         fromMap = true
-        if !open { show() }
+        if open { settled += 1 } else { show() }
     }
 
     /// Done with a card the map opened (published, revised, dropped, saved and left): the pane hides

@@ -63,6 +63,35 @@ import Testing
     }
 }
 
+/// When the map's visible width settles beside the editor pane, the card the pane shows glides to the
+/// centre of the map's visible area, at the same zoom (round 5 E5).
+@MainActor @Suite struct MapCentringTests {
+    let card = mapNodeRect(400, -120)
+
+    @Test func theCardSitsAtTheCentreOfTheNarrowedMapAtTheSameZoom() {
+        let camera = MapCamera(x: -35, y: 60, s: 0.8)
+        // The map beside a pane at half of a 1376-wide window.
+        let size = CGSize(width: 688, height: 1032)
+        let centred = ThoughtMapStore.centred(camera, on: card, in: size)
+        #expect(centred.s == camera.s)
+        let middle = screenToWorld(centred, 344, 516)
+        #expect(abs(middle.x - (card.x + card.w / 2)) < 0.0001 && abs(middle.y - (card.y + card.h / 2)) < 0.0001)
+    }
+
+    @Test func theGlideEasesOutAndEndsOnTheCentredCamera() {
+        let from = MapCamera(x: 0, y: 0, s: 1.2)
+        let to = MapCamera(x: -300, y: 120, s: 1.2)
+        #expect(ThoughtMapStore.glided(from: from, to: to, progress: 0) == from)
+        #expect(ThoughtMapStore.glided(from: from, to: to, progress: 1) == to)
+        // Past the end it stays there.
+        #expect(ThoughtMapStore.glided(from: from, to: to, progress: 1.4) == to)
+        // Ease-out: more than half the way in the first half of the time; the zoom never changes.
+        let half = ThoughtMapStore.glided(from: from, to: to, progress: 0.5)
+        #expect(half.x < -150 && half.y > 60 && half.s == 1.2)
+        #expect(ThoughtMapStore.glideDuration == 0.3)
+    }
+}
+
 /// On a tablet a conversation opened from anywhere but the Messages tab is the Messages tab's
 /// (round 5 E3); a phone pushes it where it is.
 @MainActor @Suite struct ThreadPlacementTests {

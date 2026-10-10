@@ -31,6 +31,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -121,7 +122,7 @@ internal object PaneDrag {
 
 /** The pane: what it shows, whether it is open, its last width, and the width it is drawn at now (all of the window). */
 @Stable
-internal class PaneState(card: PaneCard?, open: Boolean, frac: Float) {
+internal class PaneState(card: PaneCard?, open: Boolean, frac: Float, settled: Int = if (open && card != null) 1 else 0) {
     var card by mutableStateOf(card)
     var open by mutableStateOf(open && card != null)
     /** The width the person last left it at (32 %…50 %): showing it again brings it back there. */
@@ -132,17 +133,22 @@ internal class PaneState(card: PaneCard?, open: Boolean, frac: Float) {
     var drag by mutableStateOf<Float?>(null)
     /** Hiding with the system's animations off: it fades instead of sliding. */
     val fade = Animatable(1f)
+    /**
+     * Counts the times the map's width settled beside the pane (opened with it, shown again, another
+     * card opened in it, the divider let go — never while it is held): the map centres the pane's card on each.
+     */
+    var settled by mutableIntStateOf(settled)
 
     val drawn: Float get() = drag ?: shown.value
     val inHideZone: Boolean get() = drag?.let(PaneDrag::inHideZone) == true
 
     companion object {
         val Saver = listSaver<PaneState, Any?>(
-            save = { listOf(it.card?.slot, it.card?.referenceCardId, it.card?.cardId, it.card?.story, it.card?.fromMap, it.open, it.frac) },
+            save = { listOf(it.card?.slot, it.card?.referenceCardId, it.card?.cardId, it.card?.story, it.card?.fromMap, it.open, it.frac, it.settled) },
             restore = {
                 val slot = it[0] as String?
                 val card = slot?.let { s -> PaneCard(s, it[1] as String?, it[2] as String?, it[3] as String?, it[4] as Boolean? ?: false) }
-                PaneState(card, it[5] as Boolean, it[6] as Float)
+                PaneState(card, it[5] as Boolean, it[6] as Float, it[7] as Int)
             },
         )
     }
@@ -160,6 +166,10 @@ internal class PaneState(card: PaneCard?, open: Boolean, frac: Float) {
  * The divider's grip is the only way to hide the pane ([PaneDrag]); hidden, the map takes the
  * whole width and the grip waits docked at the trailing edge while there is a card to show again.
  * Hiding saves the draft at once and keeps the writer as it was, composed off screen.
+ *
+ * Each time the map's width settles beside the pane — opened with it or shown again, another card
+ * opened in it, the divider let go — the map glides the card the pane shows (one opened from the
+ * map; the writer's own card once it has an id) to the middle of what it shows, at its zoom.
  *
  * Below the split nothing changes: the writer is its own page with its bar, the map its own with
  * its Leave and its cards opening the writer pushed over it — but a card the pane held as the
@@ -214,6 +224,7 @@ internal fun Workspace(
         scope.launch {
             pane.fade.snapTo(1f)
             if (reduced) pane.shown.snapTo(pane.frac) else pane.shown.animateTo(pane.frac, tween(PANE_SLIDE_MILLIS, easing = EaseOut))
+            pane.settled++
         }
     }
 
@@ -298,6 +309,8 @@ internal fun Workspace(
                 session, session.thoughtMap, open,
                 leave = { if (split) leavePage() else leave() },
                 openMine = if (split) ::openFromMap else null,
+                paneCardId = card?.cardId?.takeIf { split && pane.open },
+                paneSettled = pane.settled,
             )
         }
         if (card != null) {
@@ -351,7 +364,10 @@ internal fun Workspace(
                 },
                 resize = { f ->
                     pane.frac = f.coerceIn(PaneDrag.MIN, PaneDrag.MAX)
-                    scope.launch { pane.shown.snapTo(pane.frac) }
+                    scope.launch {
+                        pane.shown.snapTo(pane.frac)
+                        pane.settled++
+                    }
                 },
             )
             if (pane.inHideZone) ReleasePill(pane)
@@ -415,8 +431,12 @@ private fun PaneGrip(pane: PaneState, window: Float, reduced: Boolean, show: () 
                             pane.frac = PaneDrag.MIN
                             if (reduced) pane.shown.snapTo(PaneDrag.MIN)
                             else pane.shown.animateTo(PaneDrag.MIN, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+                            pane.settled++
                         }
-                        PaneDrag.Release.Stay -> pane.frac = PaneDrag.settle(f)
+                        PaneDrag.Release.Stay -> {
+                            pane.frac = PaneDrag.settle(f)
+                            pane.settled++
+                        }
                     } else if (PaneDrag.reveals(-moved, reveal)) show()
                     else if (reduced) pane.shown.snapTo(0f) else pane.shown.animateTo(0f, tween(PANE_SLIDE_MILLIS, easing = EaseOut))
                 },
