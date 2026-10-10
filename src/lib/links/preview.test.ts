@@ -129,6 +129,55 @@ describe('fetchLinkPreview', () => {
   });
 });
 
+describe('a YouTube video (backlog 15: its page head is over 512 KB of script, with no title in reach)', () => {
+  const ID = 'dQw4w9WgXcQ';
+  const oembedOf = (data: unknown, url = 'https://www.youtube.com/oembed'): SafeFetchResult => ({
+    url,
+    status: 200,
+    contentType: 'application/json',
+    charset: null,
+    body: Buffer.from(JSON.stringify(data)),
+    truncated: false,
+  });
+  const ANSWER = { title: '雨後的散步', author_name: 'Some Channel', thumbnail_url: `https://i.ytimg.com/vi/${ID}/hqdefault.jpg` };
+
+  it('is asked of the oEmbed endpoint in JSON mode, never its page, and keeps the link as written', async () => {
+    const fetch = vi.fn<Fetch>(async () => oembedOf(ANSWER));
+    const link = `https://youtu.be/${ID}?si=share123`;
+    const preview = (await fetchLinkPreview(link, { fetch }))!;
+    expect(preview).toMatchObject({ url: link, title: '雨後的散步', description: 'Some Channel', siteName: 'YouTube' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [asked, options] = fetch.mock.calls[0];
+    expect(asked).toBe(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${ID}`)}`);
+    expect(options.mode).toBe('json');
+    const params = new URL(preview.image!, 'https://resonance.channel').searchParams;
+    expect(params.get('u')).toBe(`https://i.ytimg.com/vi/${ID}/hqdefault.jpg`);
+    expect(verifyImageSignature(params.get('u')!, params.get('s')!)).toBe(true);
+  });
+
+  it('is nothing for a private, removed or unembeddable video (oEmbed answers 401/403/404) and for an answer with no title', async () => {
+    const refused = vi.fn<Fetch>(async () => {
+      throw new SafeFetchError('status', '401');
+    });
+    expect(await fetchLinkPreview(`https://www.youtube.com/watch?v=${ID}`, { fetch: refused })).toBeNull();
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(ID);
+    expect(await fetchLinkPreview(`https://www.youtube.com/shorts/${ID}`, { fetch: async () => oembedOf({ author_name: 'x' }) })).toBeNull();
+  });
+
+  it('reads a YouTube link that is not a video (a channel, a playlist) as the page it is', async () => {
+    const fetch = vi.fn<Fetch>(async () => pageOf(GOOD, 'https://www.youtube.com/@channel'));
+    await fetchLinkPreview('https://www.youtube.com/@channel', { fetch });
+    expect(fetch).toHaveBeenCalledWith('https://www.youtube.com/@channel', expect.objectContaining({ mode: 'page' }));
+  });
+
+  it('gives a chat message its card', async () => {
+    const { db, docs } = stubDb({ [MESSAGE]: { senderId: 'alice', text: `聽這首 https://m.youtube.com/watch?v=${ID}` } });
+    const fetch = vi.fn<Fetch>(async () => oembedOf(ANSWER));
+    await unfurl(db, 'alice_bob', 'm1', { fetch });
+    expect(docs[MESSAGE].preview).toMatchObject({ url: `https://m.youtube.com/watch?v=${ID}`, title: '雨後的散步', siteName: 'YouTube' });
+  });
+});
+
 /** A Firestore with only the two calls the unfurl makes, over a map of paths. */
 function stubDb(docs: Record<string, Record<string, unknown>>, updateError?: unknown) {
   const reads: string[] = [];
