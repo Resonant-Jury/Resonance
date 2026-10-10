@@ -171,6 +171,13 @@ private fun <T> TabFace(item: OrganicTabItem<T>, index: Int, selected: Boolean, 
     }
 }
 
+/**
+ * The side rail's items top to bottom (design note §9, as iOS): the pen first, then the tabs in their
+ * bar order, each with its place in the bar (the seed of its wash).
+ */
+internal fun <T> railOrder(items: List<OrganicTabItem<T>>): List<IndexedValue<OrganicTabItem<T>>> =
+    items.withIndex().sortedBy { if (it.value.isAction) 0 else 1 }
+
 /** A pointer over a tab: the wash at α 0.25 (of the selected one's 0.55). */
 private const val HOVER_WASH = 0.25f / 0.55f
 
@@ -207,8 +214,7 @@ fun <T> OrganicSideRail(items: List<OrganicTabItem<T>>, selection: T, onSelect: 
     ) {
         // The bars' content line sits 26 under the status bar (BrandBarHeight 58 / 2 less the wave's room).
         Spacer(Modifier.height(26.dp - 20.dp))
-        // The pen first, then the tabs in their bar order (each keeps the bar's seed for its wash).
-        items.withIndex().sortedBy { if (it.value.isAction) 0 else 1 }.forEach { (index, item) ->
+        railOrder(items).forEach { (index, item) ->
             val selected = item.id == selection
             val select = {
                 haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
