@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { excerpt, plainText, withoutLinks } from './plainText';
+import { excerpt, firstPicture, plainText, withoutLinks } from './plainText';
 
 // The prose lists and previews show of a story, on the server (the stored list
 // excerpt) and in the browser (story cards, thought-map nodes, a shared card,
@@ -65,6 +65,30 @@ describe('plainText', () => {
     expect(plainText('see https://example.com/?a=1&amp;b=2, then &lt;https://example.org&gt; done')).toBe('see, then done');
   });
 
+  it('reads any story the rules take in well under a second: no run of brackets or blank lines is read again from each place in it', () => {
+    // Each took seconds to minutes before (a quadratic pattern), on the server at publish and in every browser showing the excerpt.
+    const floods = ['[', '![', '[a](', '[](', '\n', ' \n', '-\n', '\t\n\n'].map((unit) => unit.repeat(Math.floor(200_000 / unit.length)));
+    for (const story of floods) {
+      const started = performance.now();
+      plainText(story);
+      expect(performance.now() - started, JSON.stringify(story.slice(0, 4))).toBeLessThan(1_000);
+    }
+    // Links, pictures, list markers and rules on their own lines read as before.
+    expect(plainText('a [link](https://x.y "title") b ![pic](https://x.y/p.png) c')).toBe('a link b c');
+    expect(plainText('\n\n  - one\n\t* two\n\n   1. three\n\n  ---  \n\nend')).toBe('one two three end');
+  });
+
+});
+
+describe('firstPicture', () => {
+  it("is the address of the story's first picture on the web, and quick to say there is none", () => {
+    expect(firstPicture('text ![rain](https://cdn.example.com/a.avif) and ![b](https://x.y/b.png)')).toBe('https://cdn.example.com/a.avif');
+    expect(firstPicture('[a link](https://x.y) ![local](/p.png) ![](ftp://x.y/p.png)')).toBeNull();
+    const started = performance.now();
+    expect(firstPicture('!['.repeat(100_000))).toBeNull();
+    expect(firstPicture('![a](https://'.repeat(15_000))).toBeNull();
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
 });
 
 describe('excerpt', () => {

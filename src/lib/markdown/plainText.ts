@@ -1,4 +1,4 @@
-import { findLinks } from '@/lib/links/url';
+import { findLinks, LINK_MAX_LENGTH } from '@/lib/links/url';
 import { ENTITY, entityValue } from '@/lib/text/entities';
 
 /**
@@ -76,6 +76,26 @@ export function withoutLinks(text: string): string {
 }
 
 /**
+ * A picture, `![alt](src)`, and a link, `[text](destination)` (its text is
+ * group 1), on one line. Every run is bounded — a link's text by
+ * LINK_TEXT_MAX, its destination by the longest address the link rule takes —
+ * so no attempt reads on to the story's end: unbounded, a story of 200 000
+ * unclosed `[` (or `[a](` over and over) took 14 s to read, on the server at
+ * publish and in every browser showing its excerpt. A link whose text runs
+ * longer shows its brackets in an excerpt, which is harmless.
+ */
+const LINK_TEXT_MAX = 500;
+const PICTURE = new RegExp(`!\\[[^\\]\\n]{0,${LINK_TEXT_MAX}}\\]\\([^)\\n]{0,${LINK_MAX_LENGTH}}\\)`, 'g');
+const LINK = new RegExp(`\\[([^\\]\\n]{0,${LINK_TEXT_MAX}})\\]\\([^)\\n]{0,${LINK_MAX_LENGTH}}\\)`, 'g');
+/** A picture with a web address, `![alt](https://…)` (the address is group 1), bounded as PICTURE is. */
+const WEB_PICTURE = new RegExp(`!\\[[^\\]\\n]{0,${LINK_TEXT_MAX}}\\]\\((https?:\\/\\/[^\\s)]{1,${LINK_MAX_LENGTH}})\\)`);
+
+/** The address of the story's first picture on the web — a thought-map node's little visual — or null. */
+export function firstPicture(markdown: string): string | null {
+  return WEB_PICTURE.exec(markdown)?.[1] ?? null;
+}
+
+/**
  * A story's prose without Markdown syntax (links keep their text), as a
  * reader sees it: character references decoded (`-&gt;` reads `->`) and
  * backslash escapes gone (`\*` reads `*`), without either ever making
@@ -86,12 +106,13 @@ export function withoutLinks(text: string): string {
 export function plainText(markdown: string): string {
   const text = literals(markdown.replace(LITERALS, '').replace(/```[\s\S]*?```/g, ' '));
   return restore(
-    withoutLinks(text.replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'))
+    withoutLinks(text.replace(PICTURE, ' ').replace(LINK, '$1'))
       // After the addresses go: an address's `_`, `~` and `*` are not emphasis.
       .replace(/^#{1,6}\s+/gm, '')
       .replace(/^>\s?/gm, '')
-      .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
-      .replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, '')
+      // A marker's indent is spaces and tabs on its own line: `^\s*` would read on across every blank line after it, at each one (quadratic).
+      .replace(/^[ \t]*(?:[-*+]|\d+\.)\s+/gm, '')
+      .replace(/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/gm, '')
       .replace(/[*~`]+/g, '')
       // An underscore inside a word is the word's (snake_case, a_b_c): only one at a word's edge can be emphasis.
       .replace(/(?<![\p{L}\p{N}])_+|_+(?![\p{L}\p{N}])/gu, '')
