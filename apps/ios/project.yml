@@ -72,7 +72,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.resonance.stories
         PRODUCT_NAME: Resonance
-        MARKETING_VERSION: "2.0.0"
+        MARKETING_VERSION: "2.1.0"
         CURRENT_PROJECT_VERSION: "7"
         SWIFT_VERSION: "6.0"
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
