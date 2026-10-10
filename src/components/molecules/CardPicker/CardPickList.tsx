@@ -1,11 +1,12 @@
 'use client';
 
-import { Fragment, useId, useMemo, useRef, type ReactNode } from 'react';
+import { useId, useMemo, useRef, type ReactNode } from 'react';
 import { useLocale } from 'next-intl';
-import { Divider } from '@/components/atoms/Divider/Divider';
 import { Icon } from '@/components/atoms/Icon';
-import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
+import { ShapeGrain } from '@/components/atoms/ShapeGrain/ShapeGrain';
 import { OrganicScrollbar, organicScrollTarget } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
+import { wobRect } from '@/lib/design/wobRect';
+import { INK } from '@/lib/design/strokes';
 import type { Card } from '@/lib/db/types';
 import styles from './CardPickList.module.css';
 
@@ -49,11 +50,13 @@ export function pickDate(locale: string): (d: Date) => string {
 /**
  * The author's own cards as a scrollable pick list, quiet enough to scan: on
  * each row a 40px cover thumb, the title on one line, and one muted line
- * under it — when it came out, led by 匿名 for an anonymous card. Rows are
- * parted by a wavy pen rule (the notification modal's language) — no boxed
- * hover region; hover speaks through the ink. As a choice, the chosen row's
- * thumb takes a terracotta wash with a tick and its title the accent, so the
- * pick reads before it is confirmed.
+ * under it — when it came out, led by 匿名 for an anonymous card. The rows
+ * stand in one group with no rule between them (a single wavy rule parts the
+ * group from what leads it) — no boxed hover region; hover speaks through
+ * the ink. The thumb is an avatar's kind of shape at a smaller radius. As a
+ * choice, the chosen row's thumb takes a terracotta wash with the buttons'
+ * grain and a tick, and its title the deep accent, so the pick reads before
+ * it is confirmed.
  */
 export function CardPickList({
   cards,
@@ -94,52 +97,31 @@ export function CardPickList({
                 .filter(Boolean)
                 .join(' · ');
               return (
-                <Fragment key={c.id}>
-                  {i > 0 && (
-                    <li aria-hidden role={choosing ? 'none' : undefined}>
-                      <Divider seed={67 + i * 31} spacing={0} />
-                    </li>
-                  )}
-                  <li role={choosing ? 'none' : undefined}>
-                    <button
-                      type="button"
-                      className={styles.cardRow}
-                      role={choosing ? 'radio' : undefined}
-                      aria-checked={choosing ? chosen : undefined}
-                      data-chosen={chosen || undefined}
-                      disabled={disabled}
-                      onClick={() => onPick(c)}
-                      aria-labelledby={`${ids}-${i}-title`}
-                      aria-describedby={meta ? `${ids}-${i}-meta` : undefined}
-                    >
-                      <span className={styles.thumb}>
-                        <OrganicImage src={c.media?.url} alt="" seed={i * 7 + 3} ratio={1}>
-                          {!c.media?.url && (
-                            <span
-                              className={styles.thumbFallback}
-                              style={{ background: `oklch(90% 0.06 ${c.accentHue ?? 55})` }}
-                            />
-                          )}
-                          {chosen && (
-                            <span className={styles.thumbChosen} aria-hidden>
-                              <Icon name="check" size={20} color="var(--color-cream)" />
-                            </span>
-                          )}
-                        </OrganicImage>
+                <li key={c.id} role={choosing ? 'none' : undefined}>
+                  <button
+                    type="button"
+                    className={styles.cardRow}
+                    role={choosing ? 'radio' : undefined}
+                    aria-checked={choosing ? chosen : undefined}
+                    data-chosen={chosen || undefined}
+                    disabled={disabled}
+                    onClick={() => onPick(c)}
+                    aria-labelledby={`${ids}-${i}-title`}
+                    aria-describedby={meta ? `${ids}-${i}-meta` : undefined}
+                  >
+                    <PickThumb src={c.media?.url} hue={c.accentHue ?? 55} seed={i * 7 + 3} chosen={chosen} />
+                    <span className={styles.rowText}>
+                      <span id={`${ids}-${i}-title`} className={styles.cardTitle}>
+                        {c.thoughtCore}
                       </span>
-                      <span className={styles.rowText}>
-                        <span id={`${ids}-${i}-title`} className={styles.cardTitle}>
-                          {c.thoughtCore}
+                      {meta && (
+                        <span id={`${ids}-${i}-meta`} className={styles.meta}>
+                          {meta}
                         </span>
-                        {meta && (
-                          <span id={`${ids}-${i}-meta`} className={styles.meta}>
-                            {meta}
-                          </span>
-                        )}
-                      </span>
-                    </button>
-                  </li>
-                </Fragment>
+                      )}
+                    </span>
+                  </button>
+                </li>
               );
             })}
           </ul>
@@ -148,5 +130,46 @@ export function CardPickList({
       </div>
       <OrganicScrollbar targetRef={scrollRef} seed={61} />
     </div>
+  );
+}
+
+/** The thumb's size, and its outline: HandDrawnAvatar's recipe at a quarter of the size for a radius. */
+const THUMB = 40;
+
+/** A pick row's cover thumb, in an avatar's hand-drawn outline (design note §6). */
+export function thumbPath(seed: number): string {
+  return wobRect(THUMB, THUMB, THUMB * 0.25, seed, THUMB * 0.022, {
+    segmentsH: 1,
+    segmentsV: 1,
+    curve: 1.3,
+    cornerJitter: 3.2,
+    cornerOffset: THUMB * 0.06,
+  });
+}
+
+function PickThumb({ src, hue, seed, chosen }: { src?: string; hue: number; seed: number; chosen: boolean }) {
+  const d = useMemo(() => thumbPath(seed), [seed]);
+  const clip = `path('${d}')`;
+  return (
+    <span className={styles.thumb} data-thumb>
+      <span className={styles.thumbFace} style={{ clipPath: clip }}>
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt="" width={THUMB} height={THUMB} loading="lazy" decoding="async" className={styles.thumbImg} />
+        ) : (
+          <span className={styles.thumbFallback} style={{ background: `oklch(90% 0.06 ${hue})` }} />
+        )}
+        {chosen && <span className={styles.thumbChosen} aria-hidden />}
+      </span>
+      {chosen && <ShapeGrain w={THUMB} h={THUMB} d={d} opacity={0.38} frequency={1.1} seed={seed} zIndex={1} />}
+      <svg width={THUMB} height={THUMB} viewBox={`0 0 ${THUMB} ${THUMB}`} className={styles.thumbPen} aria-hidden>
+        <path d={d} fill="none" stroke="oklch(36% 0.06 60 / 0.55)" strokeWidth={INK} strokeLinejoin="round" />
+      </svg>
+      {chosen && (
+        <span className={styles.thumbTick} aria-hidden>
+          <Icon name="check" size={20} color="var(--color-cream)" />
+        </span>
+      )}
+    </span>
   );
 }

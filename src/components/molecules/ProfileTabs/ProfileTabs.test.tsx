@@ -93,7 +93,7 @@ describe('ProfileTabs — the card box shelves', () => {
     expect(strokedShapePaths(moved)).toHaveLength(0);
   });
 
-  it('draws the tags on a shelf card as bare fills, and the owner-only anonymous badge with its rim', () => {
+  it('draws the tags on a shelf card as bare fills, and the owner\'s anonymous card with the anonymous byline, no badge', () => {
     renderWithIntl(
       <ProfileTabs
         manageable
@@ -109,15 +109,21 @@ describe('ProfileTabs — the card box shelves', () => {
     );
 
     const pillOf = (label: string) => screen.getByText(label).parentElement as HTMLElement;
-    for (const label of ['tea', 'rest', 'quiet', 'Anonymous']) {
-      // Every pill has its own shape (a fill) …
-      expect(pillOf(label).querySelectorAll(':scope > svg path[fill]').length).toBeGreaterThan(0);
-    }
-    // … tags are data inside a framed card, so nothing is stroked round them …
     for (const label of ['tea', 'rest', 'quiet']) {
+      // Every pill has its own shape (a fill), and tags are data inside a framed card: nothing stroked round them.
+      expect(pillOf(label).querySelectorAll(':scope > svg path[fill]').length).toBeGreaterThan(0);
       expect(strokedShapePaths(pillOf(label))).toHaveLength(0);
     }
-    // … but the badge sits on the bare page, cream-dark on cream, and keeps its rim.
-    expect(strokedShapePaths(pillOf('Anonymous'))).toHaveLength(1);
+    // The anonymous card reads as everyone sees it: the anonymous byline once (no pill under it), the
+    // owner's pen name only on the named card.
+    expect(screen.getAllByText('Anonymous')).toHaveLength(1);
+    expect(screen.getAllByText('@me')).toHaveLength(1);
+  });
+
+  it('says an empty shelf with the shared empty state: a mark, the shelf\'s line as its title, and the way to write on Published', () => {
+    renderWithIntl(<ProfileTabs manageable tabs={['published', 'bookmarks']} data={{ published: [], bookmarks: [] }} />);
+    const title = screen.getByRole('heading', { level: 2 });
+    expect(title.textContent).toMatch(/first card/i);
+    expect(screen.getByRole('link', { name: /story/i })).toHaveAttribute('href', '/write');
   });
 });

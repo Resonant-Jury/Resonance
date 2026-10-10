@@ -18,6 +18,7 @@ import { ReadAfterArea } from '@/components/molecules/CardDetail/ReadAfterArea';
 import { ResonanceCards } from '@/components/molecules/CardDetail/ResonanceCards';
 import { OrganicImage } from '@/components/atoms/OrganicImage/OrganicImage';
 import { StoryMarkdown } from '@/components/molecules/CardDetail/StoryMarkdown';
+import { ReadingProgress } from '@/components/molecules/CardDetail/ReadingProgress';
 import { CardEmbedSourceContext } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
 import { StoryLinkPreviewsContext } from '@/components/molecules/StoryLinkCard/StoryLinkPreviews';
 import { useSWRConfig } from 'swr';
@@ -205,6 +206,7 @@ export function CardDetailClient({ slug, seed }: CardDetailClientProps) {
       style={held ? { visibility: 'hidden' } : undefined}
       aria-busy={held || undefined}
     >
+      <ReadingProgress targetRef={storyRef} />
       <div style={mainContainerStyle}>
         <div className={styles.layout}>
           <article className={styles.article}>

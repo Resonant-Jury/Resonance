@@ -293,7 +293,7 @@ export function SettingsClient({ initial }: SettingsClientProps) {
                 disabled
               />
             </Field>
-            <Field label={t('account.phone')}>
+            <Field label={t(auth.user?.phoneNumber ? 'account.phoneVerified' : 'account.phone')}>
               <Input
                 seed={57}
                 value={auth.user?.phoneNumber ?? ''}

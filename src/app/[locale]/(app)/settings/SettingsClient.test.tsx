@@ -181,6 +181,16 @@ describe('SettingsClient sign out', () => {
   });
 });
 
+describe('SettingsClient account', () => {
+  it('calls the phone field verified only when the account has a number', async () => {
+    const u = userEvent.setup({ pointerEventsCheck: 0 });
+    renderWithIntl(<SettingsClient initial={initial} />);
+    await u.click(screen.getByRole('tab', { name: 'Account' }));
+    expect(screen.getByText('Phone')).toBeInTheDocument();
+    expect(screen.queryByText('Phone (verified)')).not.toBeInTheDocument();
+  });
+});
+
 describe('SettingsClient account deletion', () => {
   it('schedules deletion only after confirming, then signs out', async () => {
     vi.mocked(scheduleMyAccountDeletion).mockResolvedValue({

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SWRConfig } from 'swr';
-import { renderWithIntl, screen, waitFor } from '@/../test/render';
+import { renderWithIntl, screen } from '@/../test/render';
 import type { User } from '@/lib/db/types';
 import { CardAuthorAside } from './CardAuthorAside';
 
@@ -46,24 +46,19 @@ beforeEach(() => {
 });
 afterEach(() => vi.clearAllMocks());
 
-describe('CardAuthorAside message entry', () => {
-  it('offers「傳訊息」to a connected viewer, linking to the thread', async () => {
+describe('CardAuthorAside', () => {
+  it('offers no「傳訊息」on the card page, even to a connected reader (a conversation starts from the profile or Messages)', async () => {
     render(<CardAuthorAside author={author} verifiedLabel="Verified" />);
-    const link = await screen.findByRole('link', { name: /Message/ });
-    expect(link).toHaveAttribute('href', '/messages/storyteller');
-  });
-
-  it('shows nothing extra to strangers', async () => {
-    mockIsConnected.mockResolvedValue(false);
-    render(<CardAuthorAside author={author} verifiedLabel="Verified" />);
-    // let the connection check settle before asserting absence
-    await waitFor(() => expect(mockIsConnected).toHaveBeenCalled());
+    expect(screen.getAllByRole('link', { name: 'storyteller' }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('link', { name: /Message/ })).not.toBeInTheDocument();
-  });
-
-  it('never leaks the entry on an anonymous byline', () => {
-    render(<CardAuthorAside author={author} verifiedLabel="Verified" anonymous />);
+    expect(screen.queryByText(/Message/)).not.toBeInTheDocument();
+    // Nothing is asked about the connection either.
     expect(mockIsConnected).not.toHaveBeenCalled();
-    expect(screen.queryByRole('link', { name: /Message/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the anonymous byline without a profile link', () => {
+    render(<CardAuthorAside author={author} verifiedLabel="Verified" anonymous />);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByText('storyteller')).not.toBeInTheDocument();
   });
 });

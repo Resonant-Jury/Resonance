@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/molecules/Modal/Modal';
 import { ModalActions } from '@/components/molecules/Modal/ModalActions';
@@ -16,6 +16,7 @@ import { useResonanceRefresh } from '@/lib/data/resonate';
 import { ApiError } from '@/lib/db/firestore/client/api';
 import { resonateWith } from '@/lib/db/firestore/client/cards';
 import type { Card } from '@/lib/db/types';
+import { storyLinkWaveVars } from '@/lib/design/storyLinkWave';
 import styles from './ResonatePicker.module.css';
 
 /**
@@ -27,6 +28,10 @@ import styles from './ResonatePicker.module.css';
  * cards there are to choose from, left out or not — none at all is when the
  * viewer has "no public cards yet".
  */
+
+/** The story link's pen wave, which the「寫一張新卡片」row wears under a pointer. */
+const WRITE_NEW_WAVE = storyLinkWaveVars('resonate:write-new') as CSSProperties;
+
 export function resonateChoices(
   cards: Card[],
   targetId: string,
@@ -126,7 +131,9 @@ export function ResonatePicker({ open, onClose, targetId, targetReferenceId, onR
     <>
       <button type="button" className={styles.writeNew} onClick={writeNew} disabled={busy}>
         <Icon name="pen" size={18} color="var(--color-terracotta)" />
-        <span className={styles.writeTitle}>{t('writeNew')}</span>
+        <span className={styles.writeTitle} style={WRITE_NEW_WAVE}>
+          {t('writeNew')}
+        </span>
       </button>
       {/* Nothing to pick and nothing to say: no rule over an empty list. */}
       {!nothingToPick && <Divider seed={59} spacing={8} />}

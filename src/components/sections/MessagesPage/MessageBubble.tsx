@@ -7,6 +7,7 @@ import { markedSegments, type MarkedPiece } from '@/lib/chat/marks';
 import type { TextRange } from '@/lib/chat/search';
 import type { RunPosition } from '@/lib/chat/rows';
 import { useElementSize } from '@/lib/hooks/useElementSize';
+import { storyLinkWaveVars } from '@/lib/design/storyLinkWave';
 import styles from './Thread.module.css';
 
 /** A link in a message as the thread opens it: its normalized address, its host, and whether to ask first. */
@@ -180,7 +181,12 @@ export function BubbleWords({ text, note, ranges, strong = false, followed = fal
           seg.type === 'text' ? (
             <span key={i}>{marks(seg.pieces, strong)}</span>
           ) : (
-            <a key={i} className={styles.link} {...messageLinkProps({ url: seg.url, host: seg.host, suspicious: seg.suspicious }, onLink)}>
+            <a
+              key={i}
+              className={styles.link}
+              style={storyLinkWaveVars(seg.url) as CSSProperties}
+              {...messageLinkProps({ url: seg.url, host: seg.host, suspicious: seg.suspicious }, onLink)}
+            >
               {marks(seg.pieces, strong)}
             </a>
           ),

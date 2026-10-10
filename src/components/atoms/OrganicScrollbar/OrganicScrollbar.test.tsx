@@ -182,6 +182,53 @@ describe('OrganicScrollbar', () => {
     expect(list.scrollTop).toBeCloseTo(300);
   });
 
+  it('never leaves the thumb stuck to the pointer: a drag ends on a release anywhere, a lost capture, a move with the button up, or the window losing focus', () => {
+    const { rail, thumb, el } = mount();
+    scrollTo(el, 300);
+    const top = RAIL_TOP + thumbTop(thumb()!);
+    const grab = () => {
+      fireEvent.pointerDown(rail, { clientY: top + 20, button: 0, buttons: 1, pointerId: 1, pointerType: 'mouse' });
+      expect(rail).toHaveAttribute('data-dragging');
+    };
+    const movesNothing = () => {
+      const before = list.scrollTop;
+      fireEvent.pointerMove(rail, { clientY: top + 120, buttons: 0, pointerId: 1, pointerType: 'mouse' });
+      fireEvent.pointerMove(rail, { clientY: top + 160, buttons: 1, pointerId: 1, pointerType: 'mouse' });
+      expect(list.scrollTop).toBe(before);
+      expect(rail).not.toHaveAttribute('data-dragging');
+    };
+
+    // Released outside the bar (the window hears it; the rail doesn't).
+    grab();
+    act(() => {
+      window.dispatchEvent(new Event('pointerup'));
+    });
+    movesNothing();
+
+    // The capture taken away (the browser's lostpointercapture).
+    grab();
+    fireEvent(rail, new Event('lostpointercapture', { bubbles: true }));
+    movesNothing();
+
+    // A release no one heard: the next move over the bar has no button down.
+    grab();
+    fireEvent.pointerMove(rail, { clientY: top + 60, buttons: 0, pointerId: 1, pointerType: 'mouse' });
+    expect(rail).not.toHaveAttribute('data-dragging');
+    movesNothing();
+
+    // The window left mid-drag.
+    grab();
+    act(() => {
+      window.dispatchEvent(new Event('blur'));
+    });
+    movesNothing();
+
+    // A drag held down still drags.
+    grab();
+    fireEvent.pointerMove(rail, { clientY: top + 40, buttons: 1, pointerId: 1, pointerType: 'mouse' });
+    expect(list.scrollTop).toBeGreaterThan(300);
+  });
+
   it('pages down for a press on the track under the thumb, up for one above it', () => {
     const { rail, el } = mount();
     const scrollBy = vi.fn();

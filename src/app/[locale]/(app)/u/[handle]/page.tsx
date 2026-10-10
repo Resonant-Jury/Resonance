@@ -16,6 +16,7 @@ import { useProfilePage } from '@/lib/data/hooks';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { BlockedNotice, ProfileSafetyMenu } from './ProfileSafety';
 import { regionDisplayName } from '@/lib/regionName';
+import { EmptyState } from '@/components/molecules/EmptyState/EmptyState';
 import styles from './page.module.css';
 
 /** Route segments arrive percent-encoded (e.g. a CJK handle like `念誠` →
@@ -168,14 +169,17 @@ export default function PublicProfilePage() {
             <CardLinkGrid cards={cards} authors={authors} />
           ) : (
             // The owner's empty profile teaches instead of apologizing (ux §4).
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
-              <p className={styles.empty} style={{ padding: 0 }}>
-                {t('emptyPublishedSelf')}
-              </p>
-              <Link href="/write" style={{ textDecoration: 'none' }}>
-                <OrganicButton variant="primary">{t('emptyPublishedCta')}</OrganicButton>
-              </Link>
-            </div>
+            <EmptyState
+              icon="cards"
+              seed={71}
+              titleAs="h3"
+              title={t('emptyPublishedSelf')}
+              action={
+                <Link href="/write" style={{ textDecoration: 'none' }}>
+                  <OrganicButton variant="primary" size="sm">{t('emptyPublishedCta')}</OrganicButton>
+                </Link>
+              }
+            />
           )}
         </section>
       )}

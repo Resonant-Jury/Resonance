@@ -13,12 +13,20 @@ export const HEADER_TOTAL_H = HEADER_BODY_H + HEADER_WAVE_H;
 // midpoint (rather than the top HEADER_BODY_H, which reads a couple px high).
 export const HEADER_STROKE_Y = HEADER_BODY_H + HEADER_WAVE_H * 0.35;
 
+/** The width the bar's paper and pen line are drawn at, stretched across the bar. */
+export const HEADER_DRAW_W = 1440;
+
+/**
+ * The points of the bar's pen line on its {@link HEADER_DRAW_W}-wide drawing
+ * (what a reading-progress line drawn on it follows).
+ */
+export function headerStrokePoints(seed = 211): [number, number][] {
+  return wavyPoints(HEADER_DRAW_W, HEADER_STROKE_Y, 1.4, seed, 12);
+}
+
 function buildHeaderPaths(seed: number) {
-  const W = 1440;
-  const baseY = HEADER_STROKE_Y;
-  const amp = 1.4;
-  const steps = 12;
-  const pts = wavyPoints(W, baseY, amp, seed, steps);
+  const W = HEADER_DRAW_W;
+  const pts = headerStrokePoints(seed);
   const strokeD = pointsToBezier(pts);
   const f = (n: number) => +n.toFixed(2);
   const last = pts[pts.length - 1];

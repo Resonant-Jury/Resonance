@@ -73,6 +73,9 @@
      in the line's lower half-leading, so the line keeps its height. */
   background-image: var(--wave);
   background-repeat: repeat-x;
+  /* Whole tiles along each line fragment: the wave ends on a crest at both
+     ends of the link, never cut mid-stroke. */
+  background-repeat: round no-repeat;
   background-size: var(--wave-size);
   background-position: 0 100%;
   padding-bottom: calc(3px - 0.02em);

@@ -12,6 +12,9 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Up under the thread header's row (THREAD_HEADER_H), so the messages pass
+     beneath its paper and vanish at its wave. */
+  margin-top: -58px;
 }
 
 .scroller {
@@ -28,7 +31,8 @@
   flex-direction: column;
   /* The foot is the edge's 12px deeper than the air under the last bubble:
      at rest the newest message sits clear of the fade. */
-  padding: 4px 16px 26px 4px;
+  /* The top clears the header's row and its wave (58 + 12). */
+  padding: 70px 16px 26px 4px;
 }
 
 /* Where the thread meets the composer (or the reply bar over it): no line —
@@ -109,18 +113,20 @@
   display: flex;
 }
 
-/* At most 72% of the row (their face's column not counted). */
+/* At most 72% of the row (their face's column not counted), and never wider
+   than --bubble-max (520): a wide pane keeps a line short enough to read —
+   the apps' bubbleMax(listWidth) on every platform. */
 .core {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
-  max-width: calc((100% - 36px) * 0.72);
+  max-width: min(calc((100% - 36px) * 0.72), var(--bubble-max));
 }
 
 .row[data-own] .core {
   align-items: flex-end;
-  max-width: 72%;
+  max-width: min(72%, var(--bubble-max));
 }
 
 /* The message itself — its quote and its bubble — which a long-press lifts. */
@@ -287,21 +293,33 @@
   white-space: normal;
 }
 
-/* A link in a bubble: underlined, terracotta in theirs and a deeper
-   terracotta in your own (plain terracotta sinks into its wash). The line
-   runs whole under descenders, never cut around them. */
+/* A link in a bubble wears the story's pen wave (StoryMarkdown's .prose
+   .link recipe: --wave / --wave-size from lib/design/storyLinkWave, set per
+   link), at the same depth under the baseline; its words in the buttons'
+   deep terracotta, which clears 4.5:1 on both bubbles' washes (plain
+   terracotta is 3.45:1). The tiles fit whole along each line fragment
+   (`round`), so the wave ends on a crest rather than a cut. */
 .link {
-  color: var(--color-terracotta);
+  color: var(--button-on-tonal);
   cursor: pointer;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  text-decoration-skip-ink: none;
+  text-decoration: none;
   overflow-wrap: anywhere;
+  background-image: var(--wave);
+  background-repeat: repeat-x;
+  background-repeat: round no-repeat;
+  background-size: var(--wave-size);
+  background-position: 0 100%;
+  padding-bottom: calc(3px - 0.02em);
+  padding-bottom: calc(0.29em + 3px - round(0.31em, 1px));
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: background-image 160ms ease;
 }
 
-.bubble[data-own] .link {
-  color: color-mix(in oklch, var(--color-terracotta), black 25%);
+.link:hover,
+.link:focus-visible,
+.link:active {
+  background-image: var(--wave-strong);
 }
 
 /* A search's matches: the hit being looked at stronger than the others. */
@@ -806,7 +824,8 @@ span.pill {
   z-index: 4;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 16px 24px 4px;
+  /* Under the header's paper too, as the messages are. */
+  padding: 70px 16px 24px 4px;
   background: var(--color-cream);
 }
 
