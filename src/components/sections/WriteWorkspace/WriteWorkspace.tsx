@@ -150,6 +150,8 @@ export function WriteWorkspace({
         onHide={() => void saveAll()}
         leftOverride={referenceCardId ? <OriginalCardPanel cardId={referenceCardId} /> : undefined}
         onOpenCard={openCard}
+        // The card opened over the draft, else the draft's own (a fresh one is on no map yet).
+        focusCardId={openedCard?.id ?? initial?.id}
       >
         {/* The draft stays mounted under a card opened from the map, so its
             own card brings it back as it was — remounted from `initial`, a new

@@ -106,6 +106,11 @@ export function resolveOverlap(
   return { x, y };
 }
 
+/** The camera, at its own scale, that puts the rect's centre at the centre of a vw × vh viewport. */
+export function centerOn(cam: Camera, r: RectLike, vw: number, vh: number): Camera {
+  return { s: cam.s, x: vw / 2 - (r.x + r.w / 2) * cam.s, y: vh / 2 - (r.y + r.h / 2) * cam.s };
+}
+
 /**
  * Camera that frames all content rects with breathing room. An empty map gets
  * a 1:1 camera looking at the origin area.

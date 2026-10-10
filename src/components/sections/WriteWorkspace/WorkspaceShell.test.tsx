@@ -13,8 +13,18 @@ vi.mock('@/i18n/navigation', () => ({
 // for a card (its tab's 開啟卡片 shown while `map.tabShown`) and an arrow's label field.
 const map = { tabShown: true };
 vi.mock('@/components/molecules/ThoughtMap/ThoughtMapBoard', () => ({
-  ThoughtMapBoard: ({ onOpenCard, paneOpen }: { onOpenCard?: (card: Card) => void; paneOpen?: boolean }) => (
-    <div data-testid="map">
+  ThoughtMapBoard: ({
+    onOpenCard,
+    paneOpen,
+    focusCardId,
+    settleKey,
+  }: {
+    onOpenCard?: (card: Card) => void;
+    paneOpen?: boolean;
+    focusCardId?: string | null;
+    settleKey?: number;
+  }) => (
+    <div data-testid="map" data-focus={focusCardId ?? ''} data-settle={settleKey}>
       <div role="button" tabIndex={-1} data-card-id="c1" onDoubleClick={() => onOpenCard?.({ id: 'c1' } as Card)}>
         A card
       </div>
@@ -455,6 +465,28 @@ describe('the workspace at the split', () => {
     drag(500, 680);
     expect(divider()).toHaveAttribute('aria-valuenow', '32');
     expect(screen.queryByText('Release to hide the editor')).toBeNull();
+  });
+
+  // The map brings the card the pane shows to its centre once its width settles: not on every frame of a
+  // drag, once the divider is released (or stepped by a key) — a release that folds the pane is its own.
+  it('tells the map its width has settled when the divider is released, not while it is dragged', () => {
+    renderWithIntl(
+      <WorkspaceShell open onClose={vi.fn()} focusCardId="c1">
+        <p>editor</p>
+      </WorkspaceShell>,
+    );
+    const map = screen.getByTestId('map');
+    expect(map).toHaveAttribute('data-focus', 'c1');
+    const settled = () => Number(map.getAttribute('data-settle'));
+    const before = settled();
+    fireEvent.pointerDown(divider(), { button: 0, pointerId: 1, clientX: 500 });
+    fireEvent.pointerMove(divider(), { pointerId: 1, clientX: 560 });
+    fireEvent.pointerMove(divider(), { pointerId: 1, clientX: 600 });
+    expect(settled()).toBe(before);
+    fireEvent.pointerUp(divider(), { pointerId: 1, clientX: 600 });
+    expect(settled()).toBe(before + 1);
+    fireEvent.keyDown(divider(), { key: 'ArrowLeft' });
+    expect(settled()).toBe(before + 2);
   });
 
   // Dragged on toward the edge the pane follows; narrower than 18 % it dims and the pill says what releasing

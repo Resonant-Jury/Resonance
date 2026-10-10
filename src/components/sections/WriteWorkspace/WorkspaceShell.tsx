@@ -62,6 +62,12 @@ export interface WorkspaceShellProps {
   paneKey?: string;
   /** Host override for the map's「開啟卡片」. */
   onOpenCard?: (card: Card) => void;
+  /**
+   * The card the pane shows, when it may be on the map: the map brings it to
+   * the centre of what is left of it whenever its width settles (the pane
+   * opened or shown again, another card opened, the divider released).
+   */
+  focusCardId?: string | null;
   /** Replaces the map entirely (resonance writing shows the original card). */
   leftOverride?: ReactNode;
   /**
@@ -96,6 +102,7 @@ export function WorkspaceShell({
   paneTitle,
   paneKey,
   onOpenCard,
+  focusCardId,
   leftOverride,
   bar,
   onLeave,
@@ -132,6 +139,9 @@ export function WorkspaceShell({
   const drag = useRef<{ id: number; from: number; x: number; docked: boolean; shown: boolean } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [over, setOver] = useState<number | null>(null);
+  // Bumped once the divider has been released (or stepped by a key): the map's width has settled.
+  const [settleKey, setSettleKey] = useState(0);
+  const settle = () => setSettleKey((k) => k + 1);
   const inHideZone = over != null && over < HIDE_EDITOR_FRAC;
 
   const hide = () => {
@@ -192,7 +202,7 @@ export function WorkspaceShell({
     if (!cancelled && inHideZone) {
       setEditorFrac(d.from);
       hide();
-    }
+    } else settle();
     setOver(null);
   };
 
@@ -206,10 +216,16 @@ export function WorkspaceShell({
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
       if (folded) show();
-      else setEditorFrac((f) => Math.min(MAX_EDITOR_FRAC, +(f + KEY_STEP).toFixed(2)));
+      else {
+        setEditorFrac((f) => Math.min(MAX_EDITOR_FRAC, +(f + KEY_STEP).toFixed(2)));
+        settle();
+      }
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      if (!folded) setEditorFrac((f) => Math.max(MIN_EDITOR_FRAC, +(f - KEY_STEP).toFixed(2)));
+      if (!folded) {
+        setEditorFrac((f) => Math.max(MIN_EDITOR_FRAC, +(f - KEY_STEP).toFixed(2)));
+        settle();
+      }
     }
   };
 
@@ -360,6 +376,8 @@ export function WorkspaceShell({
               flush
               onOpenCard={openFromMap}
               paneOpen={open && !folded}
+              focusCardId={focusCardId}
+              settleKey={settleKey}
             />
           ))}
         {(!bar || split !== false) && (

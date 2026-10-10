@@ -63,6 +63,7 @@ export function ThoughtMapPage() {
       onHide={() => void editor.current?.saveNow().catch((err) => console.error('Save failed:', err))}
       paneTitle={paneTitle}
       paneKey={openedCard?.id}
+      focusCardId={openedCard?.id}
       onOpenCard={openCard}
     >
       {openedCard && <OpenedCardPane key={openedCard.id} card={openedCard} titled={false} editorRef={editor} />}

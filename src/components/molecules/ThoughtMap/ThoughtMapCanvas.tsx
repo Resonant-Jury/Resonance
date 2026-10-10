@@ -44,6 +44,7 @@ import {
   updateMapGroup,
 } from '@/lib/db/firestore/client/thoughtMap';
 import {
+  centerOn,
   fitCamera,
   inflateRect,
   majorityGroupId,
@@ -140,10 +141,19 @@ export interface ThoughtMapCanvasProps {
   /**
    * Whether the host's editor pane is open. Toggling it changes the map's
    * width, which moves where "center" sits — the canvas pans to keep the same
-   * world point centered (see the recenter effect). Dragging the divider does
-   * NOT toggle this, so a manual resize leaves the content anchored in place.
+   * world point centered (see the recenter effect), or brings `focusCardId`
+   * to the centre when that card is on the map.
    */
   paneOpen?: boolean;
+  /**
+   * The card the host's open pane shows. When the map's width settles — the
+   * pane opens or shows again, another card opens in it, a divider drag ends
+   * (`settleKey`) — the camera glides to put that card at the centre of what
+   * is left of the map, at its zoom. Nothing moves while the divider is dragged.
+   */
+  focusCardId?: string | null;
+  /** Bumped by the host when the map's width has settled after a resize of its own (a divider released). */
+  settleKey?: number;
   /**
    * Reports the board after every local change. The canvas owns its state
    * optimistically, so without this the host's cached copy would still hold
@@ -154,6 +164,11 @@ export interface ThoughtMapCanvasProps {
    */
   onBoardChange?: (board: BoardSnapshot) => void;
 }
+
+/** How long the camera glides to the card the pane shows: past the pane's own width easing (220 ms). */
+const GLIDE_MS = 360;
+/** How long past its start the glide may keep following a width still easing. */
+const GLIDE_FOLLOW_MS = 1000;
 
 /**
  * The Heptabase-style board: pan/zoom camera, draggable card nodes, labeled
@@ -167,6 +182,8 @@ export function ThoughtMapCanvas({
   flush = false,
   onOpenCard,
   paneOpen = false,
+  focusCardId = null,
+  settleKey = 0,
   onBoardChange,
 }: ThoughtMapCanvasProps) {
   const t = useTranslations('me.thoughtMap');
@@ -248,7 +265,11 @@ export function ThoughtMapCanvas({
   const { w: vw, h: vh } = useElementSize(viewportRef);
   const fittedRef = useRef(false);
 
-  // Frame the existing content once the viewport has a size.
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+
+  // Frame the existing content once the viewport has a size — and with the
+  // pane already open beside it (the writer), its card at the centre.
   useEffect(() => {
     if (fittedRef.current || !vw || !vh) return;
     fittedRef.current = true;
@@ -256,16 +277,58 @@ export function ThoughtMapCanvas({
       ...Object.values(nodes).map(nodeRect),
       ...Object.values(groups).map((g) => ({ x: g.x, y: g.y, w: g.w, h: g.h })),
     ];
-    setCamera(fitCamera(rects, vw, vh));
+    const fitted = fitCamera(rects, vw, vh);
+    const focus = paneOpen && focusCardId ? nodes[focusCardId] : undefined;
+    setCamera(focus ? centerOn(fitted, nodeRect(focus), vw, vh) : fitted);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vw, vh]);
 
+  // A glide of the camera to the focused card. The pane's width eases after
+  // it opens or a divider is released, so each frame aims at the card's centre
+  // in the map as wide as it is then, and past the glide it keeps on the card
+  // until the width holds still (GLIDE_FOLLOW_MS at most). A pan or zoom of
+  // the reader's own meanwhile ends it there.
+  const glideRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (glideRef.current != null) cancelAnimationFrame(glideRef.current);
+  }, []);
+  const glideToCard = (cardId: string) => {
+    if (glideRef.current != null) cancelAnimationFrame(glideRef.current);
+    glideRef.current = null;
+    const from = cameraRef.current;
+    let last = from;
+    let lastW = -1;
+    const t0 = performance.now();
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const step = (now: number) => {
+      const el = viewportRef.current;
+      const node = nodesRef.current[cardId];
+      // Someone else moved the camera (or the card or the map went): stay where it is.
+      if (!el || !node || cameraRef.current !== last) {
+        glideRef.current = null;
+        return;
+      }
+      const w = el.offsetWidth;
+      const to = centerOn(from, nodeRect(node), w, el.offsetHeight);
+      const t = Math.min(1, (now - t0) / GLIDE_MS);
+      const k = still ? 1 : 1 - (1 - t) ** 3;
+      last = { s: from.s, x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
+      cameraRef.current = last;
+      setCamera(last);
+      const settling = w !== lastW && now - t0 < GLIDE_FOLLOW_MS;
+      lastW = w;
+      glideRef.current = t < 1 || settling ? requestAnimationFrame(step) : null;
+    };
+    glideRef.current = requestAnimationFrame(step);
+  };
+
   // Keep the same world point centered when the editor pane opens or closes.
   // That toggle changes the map's width, so the visual center shifts; we pan
-  // the camera by half the width delta to compensate. Keyed on `paneOpen` (not
-  // the measured width) because a manual divider drag also changes the width
-  // but must NOT recenter — dragging leaves paneOpen untouched, so it's exempt
-  // for free.
+  // the camera by half the width delta to compensate — unless the pane shows a
+  // card on the map, which glides to the centre instead (as it does when
+  // another card opens in the pane, or the divider is released: `settleKey`).
+  // Keyed on those (not the measured width) because the width changes on
+  // every frame of a divider drag, and nothing moves until it is released.
   //
   // `widthRef` holds the width the map was laid out at before the toggle. It's
   // fed from `vw` (which reliably fires on the initial 0 -> real measurement
@@ -279,17 +342,27 @@ export function ThoughtMapCanvas({
     if (vw) widthRef.current = vw;
   }, [vw]);
   const prevPaneOpenRef = useRef(paneOpen);
+  const prevFocusRef = useRef({ focusCardId, settleKey });
   useLayoutEffect(() => {
-    if (paneOpen === prevPaneOpenRef.current) return;
+    const toggled = paneOpen !== prevPaneOpenRef.current;
+    const prevFocus = prevFocusRef.current;
+    const settled = focusCardId !== prevFocus.focusCardId || settleKey !== prevFocus.settleKey;
+    if (!toggled && !settled) return;
     prevPaneOpenRef.current = paneOpen;
+    prevFocusRef.current = { focusCardId, settleKey };
     const w = viewportRef.current?.offsetWidth ?? 0;
     const prev = widthRef.current;
-    widthRef.current = w || prev;
-    if (!prev || !w || !fittedRef.current) return;
+    if (toggled) widthRef.current = w || prev;
+    if (!w || !fittedRef.current) return;
+    if (paneOpen && focusCardId && nodesRef.current[focusCardId]) {
+      glideToCard(focusCardId);
+      return;
+    }
+    if (!toggled || !prev) return;
     const delta = (w - prev) / 2;
     if (Math.abs(delta) < 0.5) return;
     setCamera((cam) => ({ ...cam, x: cam.x + delta }));
-  }, [paneOpen]);
+  }, [paneOpen, focusCardId, settleKey]);
 
   // Wheel: trackpad/wheel pans, ctrl/cmd (and pinch) zooms about the cursor.
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  centerOn,
   coverage,
   fitCamera,
   majorityGroupId,
@@ -131,5 +132,16 @@ describe('fitCamera', () => {
   it('handles an empty map without exploding', () => {
     const cam = fitCamera([], 800, 500);
     expect(cam.s).toBe(1);
+  });
+});
+
+describe('centerOn', () => {
+  it('puts the rect’s centre at the viewport’s centre, keeping the zoom', () => {
+    const cam: Camera = { x: 40, y: -20, s: 0.8 };
+    const r = { x: 300, y: 120, w: 232, h: 178 };
+    const next = centerOn(cam, r, 700, 900);
+    expect(next.s).toBe(0.8);
+    expect((r.x + r.w / 2) * next.s + next.x).toBeCloseTo(350);
+    expect((r.y + r.h / 2) * next.s + next.y).toBeCloseTo(450);
   });
 });

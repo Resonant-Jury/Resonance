@@ -15,6 +15,10 @@ export interface ThoughtMapBoardProps {
   onOpenCard?: (card: Card) => void;
   /** Whether the host's editor pane is open — drives the camera recenter. */
   paneOpen?: boolean;
+  /** The card the open pane shows, centred on the map as its width settles (see {@link ThoughtMapCanvas}). */
+  focusCardId?: string | null;
+  /** Bumped by the host when the map's width has settled (a divider released). */
+  settleKey?: number;
 }
 
 /**
@@ -30,6 +34,8 @@ export function ThoughtMapBoard({
   flush = false,
   onOpenCard,
   paneOpen = false,
+  focusCardId,
+  settleKey,
 }: ThoughtMapBoardProps) {
   const { data, mutate } = useMyThoughtMap();
 
@@ -85,6 +91,8 @@ export function ThoughtMapBoard({
       flush={flush}
       onOpenCard={onOpenCard}
       paneOpen={paneOpen}
+      focusCardId={focusCardId}
+      settleKey={settleKey}
       onBoardChange={onBoardChange}
     />
   );
