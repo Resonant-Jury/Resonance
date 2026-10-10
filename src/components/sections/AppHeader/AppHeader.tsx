@@ -84,7 +84,7 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
     // header steps aside (the module CSS, 900px — MessagesPage's breakpoint)
     // and the thread's own header (back + person) takes over.
     <header className={styles.header} style={{ height: HEADER_TOTAL_H }} data-on-thread={onThread || undefined}>
-      <HeaderChrome scrolled={scrolled} />
+      <HeaderChrome scrolled={scrolled} splitPen={onMessages} />
 
       <div className={styles.row} style={{ height: HEADER_BODY_H }}>
         <Link href="/home" className={styles.logo}>

@@ -46,8 +46,12 @@ function buildHeaderPaths(seed: number) {
  * the line, what scrolls passing beneath it. The line is half ink at rest and
  * whole once something is under it (`scrolled`). Shared by the app header and
  * every bar drawn in its likeness (a page's own back + title).
+ *
+ * `splitPen`: the Messages page, whose two panes (wider than 900px) draw the
+ * line in the pen of the rule between them, constant, over solid paper that
+ * hides the rule's top tucked under it (the module CSS).
  */
-export function HeaderChrome({ scrolled }: { scrolled: boolean }) {
+export function HeaderChrome({ scrolled, splitPen = false }: { scrolled: boolean; splitPen?: boolean }) {
   const { maskD, strokeD, W } = useMemo(() => buildHeaderPaths(211), []);
   const maskUrl = useMemo(() => {
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${W} ${HEADER_TOTAL_H}' preserveAspectRatio='none'><path d='${maskD}' fill='white'/></svg>`;
@@ -62,6 +66,7 @@ export function HeaderChrome({ scrolled }: { scrolled: boolean }) {
         // Phones keep the header fully opaque (the module CSS: the PWA wants
         // a solid band there); wider, it firms up once the page scrolls.
         data-scrolled={scrolled || undefined}
+        data-split-pen={splitPen || undefined}
         style={{
           WebkitMaskImage: maskUrl,
           maskImage: maskUrl,
@@ -72,7 +77,9 @@ export function HeaderChrome({ scrolled }: { scrolled: boolean }) {
         viewBox={`0 0 ${W} ${HEADER_TOTAL_H}`}
         preserveAspectRatio="none"
         className={styles.waveStroke}
-        style={{ height: HEADER_TOTAL_H, opacity: scrolled ? 1 : 0.5 }}
+        data-scrolled={scrolled || undefined}
+        data-split-pen={splitPen || undefined}
+        style={{ height: HEADER_TOTAL_H }}
       >
         <path
           d={strokeD}

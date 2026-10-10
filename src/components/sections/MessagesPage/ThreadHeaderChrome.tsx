@@ -33,7 +33,8 @@ export function threadHeaderPaths(w: number): { paper: string; line: string } {
  * The thread header's paper and wavy pen line — the app header's treatment
  * (design note §4): opaque cream that stops on the wave, the messages
  * scrolling beneath it and vanishing exactly there. The line is half ink
- * while the whole history fits (nothing under it), whole otherwise.
+ * while the whole history fits (nothing under it), whole otherwise — on a
+ * phone; beside the list it is the rule's pen, constant (the module CSS).
  */
 export function ThreadHeaderChrome({ under }: { under: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -52,7 +53,7 @@ export function ThreadHeaderChrome({ under }: { under: boolean }) {
             strokeWidth={INK}
             strokeLinecap="round"
             opacity={under ? 1 : 0.5}
-            style={{ transition: 'opacity 300ms ease' }}
+            className={pageStyles.threadChromeLine}
           />
         </svg>
       )}
