@@ -248,7 +248,7 @@ struct CardScreen: View {
         .padding(.top, 16)
     }
 
-    /// The phone byline: avatar, pen name (→ their page), verified mark, region · date.
+    /// The phone byline: avatar, pen name (→ their page), region flag, verified mark; the published date under them.
     private func byline(_ card: FeedCard, anonymous: Bool) -> some View {
         let author = card.author?.value1
         return HStack(spacing: 12) {
@@ -265,6 +265,7 @@ struct CardScreen: View {
                             .font(AppFonts.body(16, weight: .semibold))
                             .foregroundStyle(Tokens.text)
                             .buttonStyle(.plain)
+                        AuthorRegionFlag(region: author.region, size: 14)
                         if author.verified {
                             OrganicIcon(.verified, size: 14, color: Tokens.sage, strokeWidth: 1.8)
                                 .accessibilityLabel(L10n.Card.verified)
@@ -273,18 +274,11 @@ struct CardScreen: View {
                         Text(L10n.Card.anonymousAuthor).font(AppFonts.body(16, weight: .semibold)).foregroundStyle(Tokens.textMuted)
                     }
                 }
-                Text(subline(card, region: anonymous ? nil : author?.region))
-                    .font(AppFonts.body(13))
-                    .foregroundStyle(Tokens.textMuted)
+                if let date = publishedDate(card) {
+                    Text(date).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+                }
             }
         }
-    }
-
-    private func subline(_ card: FeedCard, region: String?) -> String {
-        let date = card.publishedAt.flatMap(ISO8601.date).map {
-            $0.formatted(.dateTime.month(.abbreviated).day().locale(Strings.shared.locale))
-        }
-        return [region, date].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// A section under the article. On phones the web drops the tinted band
@@ -345,8 +339,9 @@ private struct CardChrome: ViewModifier {
 }
 
 /// The author beside a wide window's article (the web's CardAuthorAside, design §11): their avatar,
-/// pen name (→ their page) with the verified mark, and region; an anonymous card's dot and
-/// 「匿名」, with a word for its owner. No way to message from here: that is the profile's.
+/// pen name (→ their page) with the region's flag and the verified mark, and the published date;
+/// an anonymous card's dot and 「匿名」, with a word for its owner. No way to message from here:
+/// that is the profile's.
 private struct CardAuthorRail: View {
     let card: FeedCard
     let anonymous: Bool
@@ -368,28 +363,28 @@ private struct CardAuthorRail: View {
                         .font(AppFonts.body(16, weight: .semibold))
                         .foregroundStyle(Tokens.text)
                         .buttonStyle(.plain)
+                    AuthorRegionFlag(region: author.region, size: 15)
                     if author.verified {
                         OrganicIcon(.verified, size: 14, color: Tokens.sage, strokeWidth: 1.8)
                             .accessibilityLabel(L10n.Card.verified)
                     }
                 }
-                if let region = author.region, !region.isEmpty {
-                    Text(region).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+                if let date = publishedDate(card) {
+                    Text(date).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
                 }
             } else {
                 HandDrawnAvatar(initials: "·", color: Tokens.creamDark, size: 56, seed: 97)
                     .accessibilityHidden(true)
                     .padding(.bottom, 8)
                 Text(L10n.Card.anonymousAuthor).font(AppFonts.body(16, weight: .semibold)).foregroundStyle(Tokens.textMuted)
+                if let date = publishedDate(card) {
+                    Text(date).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+                }
                 if isOwner {
                     Text(L10n.Card.anonymousOwnerNote)
                         .font(AppFonts.body(14)).lineSpacing(14 * 0.6).foregroundStyle(Tokens.textMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            }
-            if let date = card.publishedAt.flatMap(ISO8601.date) {
-                Text(date.formatted(.dateTime.month(.abbreviated).day().locale(Strings.shared.locale)))
-                    .font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
             }
         }
         .accessibilityElement(children: .contain)
@@ -542,4 +537,27 @@ private struct Metered<Content: View>: View {
     @ViewBuilder let content: (CGFloat?, Bool) -> Content
 
     var body: some View { content(meter.progress, meter.titleGone) }
+}
+
+/// The author's region as a small square flag right after the pen name (the web's AuthorRegionFlag):
+/// a quiet mark, not a line of its own, its name read out by VoiceOver; nothing without flag art.
+private struct AuthorRegionFlag: View {
+    let region: String?
+    var size: CGFloat = 15
+
+    var body: some View {
+        if let region, let code = ProfileRegion.flagCode(region) {
+            SquareFlag(code, size: size)
+                .accessibilityElement()
+                .accessibilityLabel(ProfileRegion.label(region))
+        }
+    }
+}
+
+/// A card's published date with its year in the reader's language (2026年10月10日, Oct 10, 2026),
+/// the web's publishedDate.
+private func publishedDate(_ card: FeedCard) -> String? {
+    card.publishedAt.flatMap(ISO8601.date).map {
+        $0.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Strings.shared.locale))
+    }
 }
