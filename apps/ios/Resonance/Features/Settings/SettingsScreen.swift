@@ -70,6 +70,7 @@ struct SettingsScreen: View {
             }
             .padding(20)
             .padding(.bottom, 40)
+            .readableColumn()
         }
         .onHeaderScroll($scrolled)
         .background(Tokens.cream)
@@ -118,6 +119,7 @@ struct SettingsSectionScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
             .padding(.bottom, 40)
+            .readableColumn()
         }
         .onHeaderScroll($scrolled)
         .background(Tokens.cream)

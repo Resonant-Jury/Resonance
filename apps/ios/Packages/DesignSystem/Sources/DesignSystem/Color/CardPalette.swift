@@ -13,6 +13,8 @@ public nonisolated struct CardPalette: Sendable {
     public var border: Color { Tokens.cardBorders[index] }
     /// `oklch(97.5% 0.012 hue)` — the card's paper.
     public var interior: Color { OKLCHColor.parse("oklch(97.5% 0.012 \(hue))") ?? Tokens.cardBg }
+    /// `oklch(92.5% 0.024 hue)` — the bordered card's paper under a pointer (the web's BrushWash).
+    public var hovered: Color { OKLCHColor.parse("oklch(92.5% 0.024 \(hue))") ?? Tokens.cardBg }
     /// `oklch(55% 0.04 hue / 0.4)` — the wavy rule above the byline.
     public var separator: Color { OKLCHColor.parse("oklch(55% 0.04 \(hue) / 0.4)") ?? Tokens.fieldBorder }
     /// `oklch(44% 0.08 hue)` — Resonance's handwritten margin note.

@@ -28,6 +28,7 @@ struct NotificationsScreen: View {
                         row(item)
                     }
                 }
+                .readableColumn()
             }
         }
     }

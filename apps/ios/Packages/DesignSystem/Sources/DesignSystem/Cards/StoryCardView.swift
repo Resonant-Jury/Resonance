@@ -46,14 +46,19 @@ public struct StoryCardView: View {
     let position: Int
     var isLast: Bool
     var underBar: Bool
+    var bordered: Bool
+    @State private var hovered = false
 
     /// `underBar`: the first card of a page whose bar's pen line is its top edge (home): no rule of
-    /// its own on top, and its paper reaches up under the bar's wave (design §2).
-    public init(_ content: StoryCardContent, position: Int, isLast: Bool = false, underBar: Bool = false) {
+    /// its own on top, and its paper reaches up under the bar's wave (design §2). `bordered`: the
+    /// web's desktop card instead of the band — its own hand-drawn outline, for a grid of columns on a
+    /// wide window (design §10).
+    public init(_ content: StoryCardContent, position: Int, isLast: Bool = false, underBar: Bool = false, bordered: Bool = false) {
         self.content = content
         self.position = position
         self.isLast = isLast
         self.underBar = underBar
+        self.bordered = bordered
     }
 
     private var palette: CardPalette { CardPalette(accentHue: content.accentHue, position: position) }
@@ -104,9 +109,69 @@ public struct StoryCardView: View {
                 .padding(.top, -4)
             }
         }
-        .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 32, underBar: underBar))
+        .modifier(StoryCardChrome(palette: palette, seed: seed, isLast: isLast, underBar: underBar, bordered: bordered, hovered: hovered))
         .contentShape(Rectangle())
+        .onHover { hovered = $0 }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The band on a phone (and down a medium window's middle), or the bordered card of a wide grid.
+struct StoryCardChrome: ViewModifier {
+    let palette: CardPalette
+    let seed: Double
+    let isLast: Bool
+    let underBar: Bool
+    let bordered: Bool
+    var hovered = false
+
+    func body(content: Content) -> some View {
+        if bordered {
+            content
+                .padding(22)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background { BorderedCardChrome(palette: palette, seed: seed, hovered: hovered) }
+        } else {
+            content.modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 32, underBar: underBar))
+        }
+    }
+}
+
+/// StoryCard's desktop chrome (StoryCard.tsx `desktopChrome`, design §10): the card's paper in its
+/// own wobbly outline (R 22, three or four turns across, five or six down), paper grain clipped to
+/// it, the pen line in the palette's border ink; under a pointer the paper washes a shade deeper.
+struct BorderedCardChrome: View {
+    let palette: CardPalette
+    let seed: Double
+    var hovered = false
+
+    var body: some View {
+        let shape = CardOutlineShape(seed: seed)
+        ZStack {
+            shape.fill(hovered ? palette.hovered : palette.interior)
+                .animation(.easeOut(duration: 0.32), value: hovered)
+            GrainLayer(shape: shape, mode: .tile, opacity: 0.2, tile: "grain-card")
+            shape.stroke(palette.border, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, lineJoin: .round))
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// The bordered card's outline: `wobRect(w, h, 22, seed, mag = min(w, h) × 0.025, {segmentsH [3, 4],
+/// segmentsV [5, 6], curve 0.55, cornerJitter 0.7, cornerOffset 4})`.
+public nonisolated struct CardOutlineShape: Shape {
+    public var seed: Double
+
+    public init(seed: Double) { self.seed = seed }
+
+    public func path(in rect: CGRect) -> Path {
+        let w = Double(rect.width), h = Double(rect.height)
+        guard w > 0, h > 0 else { return Path() }
+        return GeometryCache.shared.path(key: "card|\(w)|\(h)|\(seed)") {
+            wobRect(w, h, min(22, min(w, h) / 2), seed: seed, mag: min(w, h) * 0.025, options: WobRectOptions(
+                curve: 0.55, cornerJitter: 0.7, cornerOffset: 4, segmentsH: .range(3, 4), segmentsV: .range(5, 6)))
+        }
+        .path(offsetX: Double(rect.minX), offsetY: Double(rect.minY))
     }
 }
 
@@ -116,11 +181,13 @@ public struct StoryCardSkeleton: View {
     let position: Int
     var isLast: Bool
     var underBar: Bool
+    var bordered: Bool
 
-    public init(position: Int, isLast: Bool = false, underBar: Bool = false) {
+    public init(position: Int, isLast: Bool = false, underBar: Bool = false, bordered: Bool = false) {
         self.position = position
         self.isLast = isLast
         self.underBar = underBar
+        self.bordered = bordered
     }
 
     public var body: some View {
@@ -157,7 +224,7 @@ public struct StoryCardSkeleton: View {
             .padding(.top, 8)
         }
         .environment(\.skeletonHue, palette.hue)
-        .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 32, underBar: underBar))
+        .modifier(StoryCardChrome(palette: palette, seed: seed, isLast: isLast, underBar: underBar, bordered: bordered))
         .accessibilityHidden(true)
     }
 }
@@ -269,7 +336,10 @@ struct StoryBand: ViewModifier {
             .padding(.vertical, verticalPadding)
             .padding(.top, tuck)
             .padding(.horizontal, 38)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Down a medium window's middle the paper stays full-bleed and the content keeps to the
+            // reading measure (design §10); a phone is never that wide.
+            .frame(maxWidth: Tokens.measure + 76, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .background(palette.interior)
             // GrainOverlay at StoryGrain.band: ink at 2× so the mean darkening is the band's.
             .overlay {

@@ -7,12 +7,14 @@ import SwiftUI
 /// and the tab's badge follow Firestore as messages arrive.
 struct ConversationsScreen: View {
     @Environment(SessionStore.self) private var session
+    /// Beside the conversation in two panes: the empty state is the detail pane's to show.
+    @Environment(\.chosenThread) private var chosen
 
     var body: some View {
         let store = session.conversations
         TabScreen(L10n.App.Nav.messages, titleInBar: true) {
             VStack(alignment: .leading, spacing: 0) {
-                if store.loaded, store.conversations.isEmpty, store.starters.isEmpty {
+                if chosen == nil, store.loaded, store.conversations.isEmpty, store.starters.isEmpty {
                     OrganicEmptyState(title: L10n.Messages.emptyTitle, message: L10n.Messages.empty, icon: .chat, seed: 23, fills: true)
                         // Centred on the page, not on the list's inset column.
                         .padding(.leading, -16)
@@ -43,6 +45,7 @@ struct ConversationsScreen: View {
             // The page's 14 plus the list pane's own 2 / 4.
             .padding(.leading, 16)
             .padding(.trailing, 18)
+            .readableColumn()
         }
     }
 
@@ -67,9 +70,22 @@ private struct ConversationRow: View {
     let preview: String
     let time: String?
     let unread: Int
+    @Environment(\.chosenThread) private var chosen
 
     var body: some View {
-        NavigationLink(value: Route.thread(handle: person.handle, uid: person.id, note: nil)) {
+        let route = Route.thread(handle: person.handle, uid: person.id, note: nil)
+        if let chosen {
+            // Two panes: the row puts its conversation beside the list, wearing the active wash while it is there.
+            Button { chosen.choose(route) } label: { label }
+                .buttonStyle(RowWashStyle(seed: Double(seedFromString(person.id)), chosen: chosen.isChosen(person)))
+                .accessibilityAddTraits(chosen.isChosen(person) ? .isSelected : [])
+        } else {
+            NavigationLink(value: route) { label }
+                .buttonStyle(RowWashStyle(seed: Double(seedFromString(person.id))))
+        }
+    }
+
+    private var label: some View {
             HStack(spacing: 12) {
                 HandDrawnAvatar(initials: person.initials, imageURL: person.avatarURL,
                                 color: person.accentColor.flatMap(OKLCHColor.parse) ?? Tokens.terracottaLight,
@@ -88,23 +104,41 @@ private struct ConversationRow: View {
             .padding(.vertical, 12)
             .padding(.horizontal, 14)
             .contentShape(Rectangle())
-        }
-        .buttonStyle(RowWashStyle(seed: Double(seedFromString(person.id))))
     }
 }
 
-/// RowWash: the row's hand-drawn wash (R h·0.28, three turns across), shown while pressed.
+/// RowWash: the row's hand-drawn wash (R h·0.28, three turns across), shown while pressed or under
+/// a pointer; the chosen row of a two-pane list wears it in terracotta.
 private struct RowWashStyle: ButtonStyle {
     let seed: Double
+    var chosen = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.background {
-            GeometryReader { geo in
-                let h = Double(geo.size.height)
-                WobRectShape(radius: h * 0.28, seed: seed, mag: 2.4, options: WobRectOptions(
-                    curve: 1.3, cornerJitter: 2.4, cornerOffset: h * 0.05, segmentsH: .count(3), segmentsV: .count(1)))
-                    .fill(Color.black.opacity(configuration.isPressed ? 0.045 : 0))
+        RowWash(label: configuration.label, seed: seed, pressed: configuration.isPressed, chosen: chosen)
+    }
+}
+
+private struct RowWash<Label: View>: View {
+    let label: Label
+    let seed: Double
+    let pressed: Bool
+    let chosen: Bool
+    @State private var hovered = false
+
+    var body: some View {
+        label
+            .background {
+                GeometryReader { geo in
+                    let h = Double(geo.size.height)
+                    let shape = WobRectShape(radius: h * 0.28, seed: seed, mag: 2.4, options: WobRectOptions(
+                        curve: 1.3, cornerJitter: 2.4, cornerOffset: h * 0.05, segmentsH: .count(3), segmentsV: .count(1)))
+                    ZStack {
+                        shape.fill(Tokens.terracottaLight.opacity(chosen ? 0.55 : 0))
+                        shape.fill(Color.black.opacity(pressed || hovered ? 0.045 : 0))
+                    }
+                }
             }
-        }
+            .onHover { hovered = $0 }
+            .animation(.easeOut(duration: 0.16), value: chosen)
     }
 }

@@ -77,7 +77,8 @@ targets:
         SWIFT_VERSION: "6.0"
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         SWIFT_APPROACHABLE_CONCURRENCY: "YES"
-        TARGETED_DEVICE_FAMILY: "1"
+        # iPhone and iPad (round 5: the iPad layouts — side rail, two-pane Messages, the feed grid).
+        TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_ENTITLEMENTS: Resonance/Resonance.entitlements
         # Device builds sign automatically with the team signed into Xcode
         # (archives: xcodebuild … -allowProvisioningUpdates). Simulator builds
@@ -102,7 +103,14 @@ targets:
           UIImageName: LaunchMark
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+        # iPhone stays portrait; an iPad turns every way (no UIRequiresFullScreen: its windows resize,
+        # and every layout decides from the measured width — WindowLayout).
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # Drawn on paper in light and dark mode alike: a dark status bar, light system sheets.
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false

@@ -170,6 +170,7 @@ struct MenuStage: View {
         }
         .ignoresSafeArea()
         .accessibilityAction(.escape) { close(nil) }
+        .onEscapeKey { close(nil) }
         .onAppear { withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.18)) { shown = true } }
     }
 

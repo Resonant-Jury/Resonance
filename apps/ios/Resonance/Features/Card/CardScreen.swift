@@ -19,10 +19,35 @@ struct CardScreen: View {
     @State private var linkToConfirm: ChatLinks.Parsed?
     /// How far through the story the reader is, for the bar's terracotta line (only the bar reads it).
     @State private var meter = ReadingMeter()
+    @Environment(\.window) private var window
+    /// What the page has across (beside the side rail, when there is one).
+    @State private var width: CGFloat?
     private static let pageSpace = "card.page"
+
+    /// The article's column, and the author rail beside it on a wide window.
+    private var layout: CardPageLayout { .of(width: width ?? window.contentWidth, window: window.width) }
 
     var body: some View {
         ScrollView {
+            column
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        // The author's rail stays put beside the article as it scrolls (the web's sticky aside).
+        .overlay(alignment: .topLeading) {
+            if layout.rail, let model, let card = model.detail?.card ?? model.placeholder {
+                CardAuthorRail(card: card, anonymous: model.detail?.anonymous ?? card.anonymous, isOwner: model.detail?.isOwner ?? false)
+                    .frame(width: Tokens.cardRailW, alignment: .leading)
+                    .padding(.leading, layout.railX)
+                    .padding(.top, 24)
+                    .transition(.opacity)
+            }
+        }
+        .modifier(CardChrome(screen: self))
+    }
+
+    /// The page inside the article's column (centred; beside the rail on a wide window).
+    private var column: some View {
+        Group {
             switch model?.phase ?? .loading {
             case .loading:
                 // Opened from a list: that list's byline, cover and title at once; the rest while it loads.
@@ -38,6 +63,13 @@ struct CardScreen: View {
                 if let model, let detail = model.detail { page(model, detail) }
             }
         }
+        .frame(width: max(0, layout.article))
+        .padding(.leading, max(0, layout.leading))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    fileprivate func chrome(_ content: some View) -> some View {
+        content
         .onHeaderScroll($scrolled)
         // The story's progress: where the bar's line is in the scrolled content, and how much shows.
         .onScrollGeometryChange(for: ReadingMeter.Viewport.self) { geo in
@@ -55,7 +87,8 @@ struct CardScreen: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Metered(meter: meter) { progress in
             OrganicInlineBar("", backLabel: L10n.App.Nav.back, scrolled: scrolled) {
-                if let detail = model?.detail, model?.phase == .loaded, bylineGone {
+                // Beside a rail the author is always in view: the bar has no need to name them.
+                if let detail = model?.detail, model?.phase == .loaded, bylineGone, !layout.rail {
                     BarAuthor(card: detail.card, anonymous: detail.anonymous)
                         .transition(.opacity.combined(with: .offset(y: 8)))
                 }
@@ -167,7 +200,7 @@ struct CardScreen: View {
                 section(L10n.Card.ResonanceSection.title, headingGap: 40) { MiniCardList(cards: resonance) }
             }
             if !model.related.isEmpty {
-                section(L10n.Card.related, headingGap: 56) { StoryCardList(cards: model.related) }
+                section(L10n.Card.related, headingGap: 56) { StoryCardList(cards: model.related, grid: false) }
             }
             // The page's own air under its last section (editing your card is in its ⋯).
             Color.clear.frame(height: 40)
@@ -180,8 +213,10 @@ struct CardScreen: View {
     private func head(_ card: FeedCard, anonymous: Bool) -> some View {
         let hue = card.accentHue ?? 55
         return VStack(alignment: .leading, spacing: 0) {
-            byline(card, anonymous: anonymous)
-                .padding(.bottom, 28)
+            if !layout.rail {
+                byline(card, anonymous: anonymous)
+                    .padding(.bottom, 28)
+            }
             if let url = card.imageUrl.flatMap(URL.init(string:)) {
                 OrganicImage(url: url, seed: hue + 11, fill: Tokens.creamDark)
                     .aspectRatio(1 / 0.52, contentMode: .fit)
@@ -294,6 +329,66 @@ struct CardScreen: View {
 /// The author in the bar once the byline has scrolled away: the avatar small
 /// and the pen name (→ their page); an anonymous card shows its dot and
 /// "anonymous".
+/// The card page's own chrome around its scroll view: the bar with its reading progress, the dialogs,
+/// and what reloads the card.
+private struct CardChrome: ViewModifier {
+    let screen: CardScreen
+
+    func body(content: Content) -> some View { screen.chrome(content) }
+}
+
+/// The author beside a wide window's article (the web's CardAuthorAside, design §11): their avatar,
+/// pen name (→ their page) with the verified mark, and region; an anonymous card's dot and
+/// 「匿名」, with a word for its owner. No way to message from here: that is the profile's.
+private struct CardAuthorRail: View {
+    let card: FeedCard
+    let anonymous: Bool
+    let isOwner: Bool
+    @Environment(\.openRoute) private var openRoute
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let author = card.author?.value1, !anonymous {
+                Button { openRoute(.author(author.handle)) } label: {
+                    HandDrawnAvatar(initials: author.initials, imageURL: author.avatarUrl.flatMap(URL.init(string:)),
+                                    color: author.accent, size: 56, seed: author.avatarSeedValue)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHidden(true)
+                .padding(.bottom, 8)
+                HStack(spacing: 6) {
+                    Button(author.handle) { openRoute(.author(author.handle)) }
+                        .font(AppFonts.body(16, weight: .semibold))
+                        .foregroundStyle(Tokens.text)
+                        .buttonStyle(.plain)
+                    if author.verified {
+                        OrganicIcon(.verified, size: 14, color: Tokens.sage, strokeWidth: 1.8)
+                            .accessibilityLabel(L10n.Card.verified)
+                    }
+                }
+                if let region = author.region, !region.isEmpty {
+                    Text(region).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+                }
+            } else {
+                HandDrawnAvatar(initials: "·", color: Tokens.creamDark, size: 56, seed: 97)
+                    .accessibilityHidden(true)
+                    .padding(.bottom, 8)
+                Text(L10n.Card.anonymousAuthor).font(AppFonts.body(16, weight: .semibold)).foregroundStyle(Tokens.textMuted)
+                if isOwner {
+                    Text(L10n.Card.anonymousOwnerNote)
+                        .font(AppFonts.body(14)).lineSpacing(14 * 0.6).foregroundStyle(Tokens.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if let date = card.publishedAt.flatMap(ISO8601.date) {
+                Text(date.formatted(.dateTime.month(.abbreviated).day().locale(Strings.shared.locale)))
+                    .font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
 private struct BarAuthor: View {
     let card: FeedCard
     let anonymous: Bool

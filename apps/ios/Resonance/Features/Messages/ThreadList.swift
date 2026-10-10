@@ -132,8 +132,9 @@ struct MessageList: View {
                 }
                 .scrollTargetLayout()
                 .padding(.horizontal, 16)
-                // Exactly as wide as the list: a vertical list never has anything to move sideways to.
-                .containerRelativeFrame(.horizontal)
+                // Exactly as wide as the list: a vertical list never has anything to move sideways to. (Not
+                // containerRelativeFrame: in a pane beside the conversations it took the window's width.)
+                .frame(maxWidth: .infinity)
             }
             .scrollPosition($position, anchor: .center)
             .upsideDown()

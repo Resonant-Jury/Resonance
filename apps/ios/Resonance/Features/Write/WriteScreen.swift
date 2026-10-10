@@ -17,8 +17,9 @@ struct WriteScreen: View {
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.openRoute) private var openRoute
+    /// The writer takes the whole window; from 1200 across, the thought map beside it (design §12).
+    @Environment(\.window) private var window
     @State private var model: WriteModel?
     @State private var scrolled = false
     /// The "leave for now?" question is open.
@@ -105,7 +106,22 @@ struct WriteScreen: View {
         }
     }
 
+    /// The editor, alone in a centred writing column — or, on a window 1200 across or more, beside the
+    /// thought map: the map on the left, the editor's half on the right past a hairline that begins
+    /// at the bar's pen line.
     private func form(_ model: WriteModel) -> some View {
+        HStack(spacing: 0) {
+            if window.writerSplit {
+                ThoughtMapScreen(embedded: true)
+                    .frame(maxWidth: .infinity)
+                Rectangle().fill(Tokens.fieldBorder).frame(width: 1).accessibilityHidden(true)
+            }
+            editor(model)
+                .frame(width: window.writerSplit ? window.width * 0.5 : nil)
+        }
+    }
+
+    private func editor(_ model: WriteModel) -> some View {
         @Bindable var model = model
         return ScrollView {
             VStack(alignment: .leading, spacing: 28) {
@@ -128,9 +144,12 @@ struct WriteScreen: View {
                 cover(model)
                 actions(model)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, window.layoutClass == .compact ? 20 : window.pad)
             .padding(.top, 16)
             .padding(.bottom, 48)
+            // Wider than a phone, the web's writing measure (680 and the page's pads), centred.
+            .frame(maxWidth: window.layoutClass == .compact ? .infinity : Tokens.measure + 2 * window.pad)
+            .frame(maxWidth: .infinity)
         }
         .onHeaderScroll($scrolled)
         .scrollDismissesKeyboard(.interactively)
@@ -304,7 +323,7 @@ struct WriteScreen: View {
     /// width, the tonal way out (Save draft and leave / Discard changes) as wide on its
     /// own row under it, the error centred under both; a wider layout keeps them in a row.
     private func actions(_ model: WriteModel) -> some View {
-        let compact = sizeClass == .compact
+        let compact = window.layoutClass == .compact
         return VStack(alignment: compact ? .center : .leading, spacing: compact ? 4 : 8) {
             Group {
                 if compact {

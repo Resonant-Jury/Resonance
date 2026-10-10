@@ -7,6 +7,7 @@ import SwiftUI
 /// mine, bookmarks.
 struct CardBoxScreen: View {
     @Environment(SessionStore.self) private var session
+    @Environment(\.window) private var window
     @Environment(\.openRoute) private var openRoute
     @Environment(WriteLauncher.self) private var writer
     @State private var shelf: ReadingAPI.CardBoxShelf = .published
@@ -27,7 +28,7 @@ struct CardBoxScreen: View {
 
     var body: some View {
         TabScreen(L10n.App.Nav.me, titleInBar: true) {
-            header.padding(.horizontal, 20).padding(.bottom, 24)
+            header.alignedWithCardGrid().padding(.bottom, 24)
             tabs.padding(.bottom, 28)
             shelfContent
         }
@@ -124,8 +125,9 @@ struct CardBoxScreen: View {
                 }
                 .buttonStyle(.plain)
             }
-            // Room for the wobble, which bleeds a few points past the tab.
-            .padding(.horizontal, 20)
+            // Room for the wobble, which bleeds a few points past the tab; on a wide window the strip
+            // starts where the head and the grid do.
+            .padding(.horizontal, window.layoutClass == .compact ? 20 : max(0, (window.contentWidth - 1200) / 2) + window.pad)
             .padding(.vertical, 7)
         }
         .scrollIndicators(.hidden)
@@ -273,30 +275,30 @@ private struct ManagedCardList: View {
     @Environment(SessionStore.self) private var session
 
     var body: some View {
-        LazyVStack(spacing: 0) {
-            ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
-                let hue = CardPalette(accentHue: card.accentHue, position: i).hue
-                VStack(alignment: .leading, spacing: 0) {
-                    Group {
-                        if resumesDrafts {
-                            Button { writer.edit(card.id) } label: { StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1) }
-                        } else {
-                            NavigationLink(value: Route.card(card.routeKey)) {
-                                StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1)
-                            }
-                            .onAppear { session.cardPreviews.remember(card) }
-                        }
+        // Bands, or the bordered grid on a wide window (as every story-card list).
+        CardColumns(count: cards.count) { i, bordered in
+            let card = cards[i]
+            let hue = CardPalette(accentHue: card.accentHue, position: i).hue
+            Group {
+                if resumesDrafts {
+                    Button { writer.edit(card.id) } label: {
+                        StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1, bordered: bordered)
                     }
-                    .buttonStyle(.plain)
-                    // .actions: the chip 14 in from the card's corner (the card's box sits 20 in from
-                    // the screen); the trigger's 44pt hit box reaches 3 past the 38pt chip.
-                    .overlay(alignment: .topTrailing) {
-                        CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, seed: hue, hue: hue,
-                                        answering: card.referenceCardId)
-                            .padding(.top, 14 - 3)
-                            .padding(.trailing, 34 - 3)
+                } else {
+                    NavigationLink(value: Route.card(card.routeKey)) {
+                        StoryCardView(card.publicStory, position: i, isLast: i == cards.count - 1, bordered: bordered)
                     }
+                    .onAppear { session.cardPreviews.remember(card) }
                 }
+            }
+            .buttonStyle(.plain)
+            // .actions: the chip 14 in from the card's corner (a band's box sits 20 in from the screen;
+            // a bordered card's corner is its own); the trigger's 44pt hit box reaches 3 past the 38pt chip.
+            .overlay(alignment: .topTrailing) {
+                CardActionsMenu(cardId: card.id, visibility: card.visibility.rawValue, seed: hue, hue: hue,
+                                answering: card.referenceCardId)
+                    .padding(.top, 14 - 3)
+                    .padding(.trailing, (bordered ? 14 : 34) - 3)
             }
         }
     }

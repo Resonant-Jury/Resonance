@@ -7,6 +7,9 @@ import SwiftUI
 /// screen is the map (no tab bar, no header); Leave, the toolbar and the zoom
 /// controls float over it.
 struct ThoughtMapScreen: View {
+    /// Beside the writer on a wide window (design §12): the same map, without Leave, and a card tapped
+    /// there opens nothing (the writer stays).
+    var embedded = false
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.openRoute) private var openRoute
@@ -40,8 +43,10 @@ struct ThoughtMapScreen: View {
         .toolbar(.hidden, for: .navigationBar)
         // The canvas takes every drag: going back is from the screen's edge only.
         .swipeBackFromEdgeOnly()
+        // Whichever map shows last says what a tapped card does (the writer's beside one does nothing).
+        .onAppear { store.onOpen = embedded ? { _ in } : { card in open(card) } }
         .task {
-            store.onOpen = { card in open(card) }
+            store.onOpen = embedded ? { _ in } : { card in open(card) }
             if let uid = session.uid { await store.open(uid: uid, changes: writer.changes, lastChange: writer.lastChange) }
         }
         // Back from the writer: the card's title and tags may have changed.
@@ -64,10 +69,12 @@ struct ThoughtMapScreen: View {
     @ViewBuilder private func chrome(insets: EdgeInsets, size: CGSize) -> some View {
         let top = insets.top + 8
         ZStack(alignment: .topLeading) {
-            OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .tonal, size: .sm) { dismiss() }
-                .mirroringIcon()
-                .roomy()
-                .offset(x: 20, y: top)
+            if !embedded {
+                OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .tonal, size: .sm) { dismiss() }
+                    .mirroringIcon()
+                    .roomy()
+                    .offset(x: 20, y: top)
+            }
             HStack(spacing: 10) {
                 OrganicButton(L10n.Me.ThoughtMap.addGroupShort, icon: .frame, variant: .tonal, size: .sm) {
                     Task { await store.addGroup() }

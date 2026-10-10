@@ -53,6 +53,7 @@ struct CardPickList<Lead: View, Empty: View>: View {
     let onPick: (FeedCard) -> Void
     @ViewBuilder let lead: Lead
     @ViewBuilder let empty: Empty
+    @Environment(\.window) private var window
 
     var body: some View {
         ScrollView {
@@ -80,7 +81,7 @@ struct CardPickList<Lead: View, Empty: View>: View {
                 }
             }
         }
-        .frame(maxHeight: UIScreen.main.bounds.height * 0.5)
+        .frame(maxHeight: window.height * 0.5)
         .fixedSize(horizontal: false, vertical: true)
         .scrollIndicators(.hidden)
         .padding(.bottom, choosing ? 18 : 0)

@@ -85,6 +85,7 @@ struct AuthorScreen: View {
             .padding(.horizontal, 24)
             .padding(.top, 20)
             .padding(.bottom, 36)
+            .readableColumn()
 
             if profile.isBlocked {
                 blockedNotice(author)
@@ -188,6 +189,7 @@ private struct ProfileSkeleton: View {
             .padding(.horizontal, 24)
             .padding(.top, 20)
             .padding(.bottom, 36)
+            .readableColumn()
             FeedSkeleton(count: 4)
         }
     }
