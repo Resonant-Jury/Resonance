@@ -8,6 +8,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
@@ -483,21 +484,25 @@ private fun edgeInk(scrolled: Boolean): () -> Float {
 /** The root bar's height under the status bar, without its wavy edge. */
 val BrandBarHeight = 58.dp
 
+/** The wordmark. */
+private const val BRAND = "Resonance"
+
 /**
  * The root screens' pinned header (AppHeader on a phone): the brand lockup —
  * ResonanceIcon (the wave glyph, 38, terracotta, INK) and "Resonance" in
  * Playfair 22/700 — on an opaque cream bar that ends on the wavy pen line;
  * content scrolls under it. Lay it over the list.
  *
- * A tab other than the feed hangs its own title where the brand would be
- * (`brand` = the title, `isHeading`), in the same size, and its actions at the end.
+ * On a phone a tab other than the feed hangs its own title where the brand would be
+ * (`brand` = the title, `isHeading`), in the same size, and its actions at the end; beside a
+ * tablet header's tabs the brand stays.
  */
 @Composable
 fun OrganicBrandBar(
     scrolled: Boolean,
     modifier: Modifier = Modifier,
-    brand: String = "Resonance",
-    /** `brand` is the screen's title: announced as its heading (the wordmark is no heading). */
+    brand: String = BRAND,
+    /** `brand` is the screen's title: announced as its heading (the wordmark is no heading). A phone's only: a tablet's header shows the brand. */
     isHeading: Boolean = false,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
@@ -507,7 +512,7 @@ fun OrganicBrandBar(
         modifier
             .fillMaxWidth()
             .blocksTouches()
-            .headerEdge(edgeInk(scrolled))
+            .headerEdge(edgeInk(scrolled), pen = LocalBarPen.current, lead = LocalBarLineLead.current)
             .statusBarsPadding()
             .padding(bottom = HeaderEdgeHeight)
             .height(if (chrome != null) TopBarRow else BrandBarHeight)
@@ -523,21 +528,19 @@ fun OrganicBrandBar(
                 modifier = Modifier.weight(1f).then(if (isHeading) Modifier.semantics { heading() } else Modifier),
             )
         } else {
-            // Beside the header's tabs (design note B2): the leading part keeps clear of them. A title
-            // truncates; the wordmark that doesn't fit leaves the mark alone, named for TalkBack.
+            // Beside the header's tabs (design note B2): the leading part keeps clear of them. It is
+            // always the brand (round 5 D5) — the tab group already says which tab this is, so a
+            // tab's title stays a phone's. The wordmark that doesn't fit leaves the mark alone, named for TalkBack.
             val measurer = rememberTextMeasurer()
             val density = LocalDensity.current
-            val wordmark = with(density) { measurer.measure(brand, style, maxLines = 1, softWrap = false).size.width.toDp() }
-            val markAlone = !isHeading && 38.dp + 10.dp + wordmark > chrome.leadingMax
+            val wordmark = with(density) { measurer.measure(BRAND, style, maxLines = 1, softWrap = false).size.width.toDp() }
+            val markAlone = 38.dp + 10.dp + wordmark > chrome.leadingMax
             Row(Modifier.widthIn(max = chrome.leadingMax), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OrganicIcon(
-                    IconName.Wave, Modifier.offset(y = (38 * 0.07).dp).then(if (markAlone) Modifier.semantics { contentDescription = brand } else Modifier),
+                    IconName.Wave, Modifier.offset(y = (38 * 0.07).dp).then(if (markAlone) Modifier.semantics { contentDescription = BRAND } else Modifier),
                     size = 38.dp, color = Tokens.Terracotta, strokeWidth = Tokens.Ink.value,
                 )
-                if (!markAlone) BasicText(
-                    brand, maxLines = 1, overflow = TextOverflow.Ellipsis, style = style,
-                    modifier = Modifier.weight(1f, fill = false).then(if (isHeading) Modifier.semantics { heading() } else Modifier),
-                )
+                if (!markAlone) BasicText(BRAND, maxLines = 1, overflow = TextOverflow.Ellipsis, style = style, modifier = Modifier.weight(1f, fill = false))
             }
             Spacer(Modifier.weight(1f))
         }
@@ -595,10 +598,14 @@ fun OrganicInlineBar(
     val back: @Composable () -> Unit = {
         if (showBack && !LocalBarBackHidden.current) OrganicIconButton(IconName.ArrowRight, backLabel, mirrored = true, onClick = onBack) else Spacer(Modifier.width(12.dp))
     }
+    // A phone's title beside the arrow is 22 bold; a tablet header's context, an inline title's 17
+    // semibold (round 5 D5: iPadOS's inline title), one line, truncated.
+    val titleStyle = if (chrome != null) AppFonts.heading(17f, 600, lineHeight = 1.25f).copy(letterSpacing = (-0.01).em)
+        else AppFonts.heading(22f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em)
     val titleText: @Composable (Modifier) -> Unit = { m ->
         BasicText(
             title.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
-            style = AppFonts.heading(22f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em),
+            style = titleStyle,
             modifier = m
                 .graphicsLayer { alpha = titleAlpha }
                 .then(if (titleShown) Modifier.semantics { heading() } else Modifier.clearAndSetSemantics { }),
@@ -607,7 +614,7 @@ fun OrganicInlineBar(
     val bar = modifier
         .fillMaxWidth()
         .blocksTouches()
-        .headerEdge(edgeInk(scrolled), progress)
+        .headerEdge(edgeInk(scrolled), progress, LocalBarPen.current, LocalBarLineLead.current)
         .statusBarsPadding()
     if (chrome == null) {
         Row(
@@ -729,14 +736,74 @@ val HeaderEdgeHeight = 10.dp
  * on the wavy pen line (the web masks its backdrop to the same curve), so the
  * line *is* the bar's edge — no band of fill below it, and content scrolled
  * beneath shows right up to the line. Uses the header's curve: wavyPoints
- * across the width, seed 211, 12 steps. `lineAlpha` is read while drawing, so
- * fading the line redraws without rebuilding the paths.
+ * across the width, seed 211, 12 steps ([headerEdgePaths]). `lineAlpha` is read
+ * while drawing, so fading the line redraws without rebuilding the paths.
+ *
+ * With a [pen] (the two-pane Messages, [LocalBarPen]) the line is that colour at full strength
+ * whatever `lineAlpha` says, and reaches [lead] past the bar's start in a level stroke — to the
+ * rule beside the pane, where it meets it.
  */
-fun Modifier.headerEdge(lineAlpha: () -> Float = { 1f }, progress: (() -> Float)? = null): Modifier = drawWithCache {
-    val d = density
+fun Modifier.headerEdge(
+    lineAlpha: () -> Float = { 1f },
+    progress: (() -> Float)? = null,
+    pen: Color? = null,
+    lead: Dp = 0.dp,
+): Modifier = drawWithCache {
     val ink = Tokens.Ink.toPx()
-    val y0 = size.height / d - 1.4 - Tokens.Ink.value
-    val pts = wavyPoints((size.width / d).toDouble(), y0.toDouble(), 1.4, 211.0, 12).map { (it.x * d).toFloat() to (it.y * d).toFloat() }
+    val (line, fill) = headerEdgePaths(size.width, size.height, density)
+    val leadIn = if (pen != null && lead > 0.dp) {
+        val y = headerLineY(size.height, density)
+        Path().apply { moveTo(-lead.toPx(), y); lineTo(0f, y) }
+    } else null
+    val measure = if (progress != null) PathMeasure().apply { setPath(line, false) } else null
+    val read = Path()
+    val readPen = Stroke(ReadingProgressPen.width.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+    val stroke = Stroke(ink, cap = StrokeCap.Round)
+    onDrawBehind {
+        drawPath(fill, Tokens.Cream)
+        if (pen != null) {
+            // Opaque, so the lead-in, the line and the rule they meet never darken where they overlap.
+            leadIn?.let { drawPath(it, pen, style = stroke) }
+            drawPath(line, pen, style = stroke)
+        } else {
+            drawPath(line, Tokens.FieldBorderHover, alpha = lineAlpha(), style = stroke)
+        }
+        // How far the story has been read: a marker over the pen line itself, centred on it and
+        // covering it, from the leading edge; nothing at all before the first step (no lone cap dot).
+        val p = progress?.invoke() ?: 0f
+        if (measure != null && p >= READ_MIN) {
+            read.reset()
+            measure.getSegment(0f, p.coerceAtMost(1f) * measure.length, read, true)
+            drawPath(read, ReadingProgressPen.color, style = readPen)
+        }
+    }
+}
+
+/**
+ * The reading progress's pen (round 5 D1): `--reading-progress-width` (4, round caps) in
+ * `--reading-progress`, a brighter terracotta-orange — a marker over the header's 1.8 line, so the
+ * unread rest of that line reads as its track.
+ */
+object ReadingProgressPen {
+    val color: Color get() = Tokens.ReadingProgress
+    val width: Dp get() = Tokens.ReadingProgressWidth.dp
+}
+
+/** The header's pen line and the paper above it, for a bar [width] × [height] px at [density]: [headerEdge]'s geometry. */
+data class HeaderEdgePaths(val line: Path, val fill: Path)
+
+/** Where the header's line sits at the bar's two ends (its wave starts and ends level there), in px from the bar's top. */
+fun headerLineY(height: Float, density: Float): Float = (height / density - 1.4f - Tokens.Ink.value) * density
+
+/**
+ * [headerEdge]'s line — wavyPoints across the width, 1.4 above the bar's foot plus the pen,
+ * seed 211, 12 steps — and the fill that stops on it. Anything that must meet the header's
+ * wave (the rule between the Messages panes, tucked under its paper) cuts itself with [fill].
+ */
+fun headerEdgePaths(width: Float, height: Float, density: Float): HeaderEdgePaths {
+    val d = density
+    val y0 = headerLineY(height, d) / d
+    val pts = wavyPoints((width / d).toDouble(), y0.toDouble(), 1.4, 211.0, 12).map { (it.x * d).toFloat() to (it.y * d).toFloat() }
     val line = Path().apply {
         moveTo(pts[0].first, pts[0].second)
         for (i in 1 until pts.size) {
@@ -748,7 +815,7 @@ fun Modifier.headerEdge(lineAlpha: () -> Float = { 1f }, progress: (() -> Float)
     }
     val fill = Path().apply {
         moveTo(0f, 0f)
-        lineTo(size.width, 0f)
+        lineTo(width, 0f)
         lineTo(pts.last().first, pts.last().second)
         for (i in pts.size - 2 downTo 0) {
             val (x0, y0p) = pts[i + 1]
@@ -758,21 +825,19 @@ fun Modifier.headerEdge(lineAlpha: () -> Float = { 1f }, progress: (() -> Float)
         }
         close()
     }
-    val measure = if (progress != null) PathMeasure().apply { setPath(line, false) } else null
-    val read = Path()
-    onDrawBehind {
-        drawPath(fill, Tokens.Cream)
-        drawPath(line, Tokens.FieldBorderHover, alpha = lineAlpha(), style = Stroke(ink, cap = StrokeCap.Round))
-        // How far the story has been read, in terracotta on the pen line itself; nothing at all
-        // before the first step (no lone cap dot).
-        val p = progress?.invoke() ?: 0f
-        if (measure != null && p >= READ_MIN) {
-            read.reset()
-            measure.getSegment(0f, p.coerceAtMost(1f) * measure.length, read, true)
-            drawPath(read, Tokens.Terracotta, style = Stroke(ink, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        }
-    }
+    return HeaderEdgePaths(line, fill)
 }
+
+/**
+ * One pen for every bar's edge here, constant (round 5 D4): the two-pane Messages draws the
+ * header's line, the thread pane bar's line and the rule between the panes as one stroke — the
+ * same width and colour, which content scrolling under a bar never inks in. Null elsewhere: a
+ * bar's line rests at half ink and inks in fully once its page has scrolled.
+ */
+val LocalBarPen = staticCompositionLocalOf<Color?> { null }
+
+/** How far a bar's pen line reaches past the bar's start to meet what is beside it (a pane's bar, the rule); 0 elsewhere. */
+val LocalBarLineLead = staticCompositionLocalOf { 0.dp }
 
 /** Less read than this draws no progress (design note §3). */
 private const val READ_MIN = 0.002f

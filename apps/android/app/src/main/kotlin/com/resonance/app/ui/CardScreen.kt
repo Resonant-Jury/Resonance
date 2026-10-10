@@ -40,6 +40,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -84,7 +85,6 @@ import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.CardDetailSkeleton
 import com.resonance.design.CssText
-import com.resonance.design.EmbedStoryCard
 import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.OrganicEmptyState
@@ -94,6 +94,8 @@ import com.resonance.design.MenuTrigger
 import com.resonance.design.OrganicMenuChip
 import com.resonance.design.inlineBarTop
 import com.resonance.design.StoryLinkCards
+import com.resonance.design.StoryLinkCardFrame
+import com.resonance.design.StoryLinkCardLook
 import com.resonance.design.StoryMarkdown
 import com.resonance.design.StorySkeleton
 import com.resonance.design.TagPill
@@ -101,7 +103,6 @@ import com.resonance.design.cream
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.design.plainClickable
-import com.resonance.geometry.seedFromString
 import com.resonance.kit.api.ApiFailure
 import com.resonance.kit.chat.Linkify
 import com.resonance.kit.l10n.L10n
@@ -274,7 +275,8 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
             else -> detail?.let { d ->
                 val card = d.card
                 val resonance = (listOfNotNull(d.referenceCard) + resonances).distinctBy { it.id }
-                // Related cards are the feed's kind of list: bands, or the bordered grid when expanded.
+                // Related cards are the feed's kind of list: bands, or the bordered grid when expanded;
+                // the page's other lists follow it.
                 val relatedLayout = cardListLayout()
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 40.dp)) {
                     item(key = "article") {
@@ -297,20 +299,21 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                             )
                         }
                     }
+                    // The owner's linked cards and the resonances take the related list's layout (round 5 D3).
                     if (d.isOwner && linked.isNotEmpty()) {
                         item {
                             BasicText(
                                 L10n.Card.linkedCards,
                                 style = AppFonts.heading(20f, lineHeight = 1.3f).copy(letterSpacing = (-0.01).em),
-                                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp).semantics { heading() },
+                                modifier = Modifier.padding(start = relatedLayout.headerInset, end = 20.dp, bottom = 24.dp).semantics { heading() },
                             )
                         }
-                        miniCards(linked, open, keyPrefix = "linked:")
+                        answerCards(linked, open, keyPrefix = "linked:", related = relatedLayout)
                         item { Spacer(Modifier.height(40.dp)) }
                     }
                     if (resonance.isNotEmpty()) {
                         sectionHeading(L10n.Card.ResonanceSection.title, below = 40)
-                        miniCards(resonance, open, keyPrefix = "resonance:")
+                        answerCards(resonance, open, keyPrefix = "resonance:", related = relatedLayout)
                         item { Spacer(Modifier.height(16.dp)) }
                     }
                     if (related.isNotEmpty()) {
@@ -527,17 +530,29 @@ private fun AuthorRail(card: FeedCard, anonymous: Boolean, isOwner: Boolean, x: 
 }
 
 /**
- * A card link standing alone in a story (CardEmbedLink): the embedded card, as the page brought
- * it along — or, when it didn't (a card the reader may not see), the plain link.
+ * A card link standing alone in a story (CardEmbedLink), drawn as a block like a story link card
+ * (round 5 D2): the link card's own container ([StoryLinkCardFrame], seeded by the link) holding
+ * the card as a message shares it ([SharedCard]: byline — an anonymous card's mark, never its
+ * author —, cover edge to edge, title, excerpt, source line). The whole block is one press that
+ * opens the card, read out as its title. The page brings the cards its story embeds with it, so a
+ * card is there with the story or not at all: one it didn't bring (a card the reader may not see)
+ * is the plain link.
  */
 @Composable
 private fun CardEmbed(card: FeedCard?, href: String, title: String, open: (Route) -> Unit) {
-    val key = cardKeyOf(href) ?: href.substringAfterLast('/')
-    val go = Modifier.plainClickable(onClickLabel = title) { open(Route.Card(card?.routeKey ?: key, card)) }
     if (card != null) {
-        EmbedStoryCard(card.title, card.author?.handle ?: L10n.Card.anonymousAuthor, card.imageUrl, card.accentHue, seedFromString(href).toDouble(), go)
+        StoryLinkCardFrame(href, card.title, onOpen = { open(Route.Card(card.routeKey, card)) }) {
+            // One element: the block says the card's title, not each of its lines again.
+            Column(Modifier.fillMaxWidth().clearAndSetSemantics { }) {
+                SharedCard(card, onClick = null, onLongPress = null, pictureBleed = StoryLinkCardLook.BLEED.dp)
+            }
+        }
     } else {
-        BasicText(title, style = AppFonts.body(17f, lineHeight = 1.8f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline), modifier = go)
+        val key = cardKeyOf(href) ?: href.substringAfterLast('/')
+        BasicText(
+            title, style = AppFonts.body(17f, lineHeight = 1.8f, color = Tokens.Terracotta).copy(textDecoration = TextDecoration.Underline),
+            modifier = Modifier.plainClickable(onClickLabel = title) { open(Route.Card(key)) },
+        )
     }
 }
 

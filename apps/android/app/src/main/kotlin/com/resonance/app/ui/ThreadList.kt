@@ -83,6 +83,7 @@ import com.resonance.design.OrganicIcon
 import com.resonance.design.QuoteBubble
 import com.resonance.design.REPLY_OVERLAP
 import com.resonance.design.SharedCardSection
+import com.resonance.design.BubblePictureBleed
 import com.resonance.design.SharedCardSkeleton
 import com.resonance.design.SketchLoader
 import com.resonance.design.WobRectShape
@@ -592,6 +593,20 @@ private fun ColumnScope.PreviewPart(
 /** A shared card inside its bubble: a tap opens its page in the app. */
 @Composable
 private fun ColumnScope.CardPart(card: FeedCard, ctx: ThreadContext, interactive: Boolean, press: (String?) -> Unit) {
+    SharedCard(
+        card,
+        onClick = if (interactive) { { ctx.open(Route.Card(card.routeKey, card)) } } else null,
+        onLongPress = if (interactive) { { press(null) } } else null,
+    )
+}
+
+/**
+ * A Resonance card as a message shares it ([SharedCardSection]) — in a bubble, or in a story's
+ * embedded block (CardEmbed): its byline (an anonymous card's mark, never its author), cover, title,
+ * excerpt and the source line.
+ */
+@Composable
+internal fun ColumnScope.SharedCard(card: FeedCard, onClick: (() -> Unit)?, onLongPress: (() -> Unit)?, pictureBleed: Dp = BubblePictureBleed) {
     val author = card.author?.takeIf { !card.anonymous }
     SharedCardSection(
         byline = if (author != null) CardByline(author.handle, author.initials, author.avatarUrl, author.accent(), author.avatarSeedValue())
@@ -602,8 +617,9 @@ private fun ColumnScope.CardPart(card: FeedCard, ctx: ThreadContext, interactive
         imageUrl = card.imageUrl,
         accentHue = card.accentHue,
         source = L10n.Messages.cardSource,
-        onClick = if (interactive) { { ctx.open(Route.Card(card.routeKey, card)) } } else null,
-        onLongPress = if (interactive) { { press(null) } } else null,
+        onClick = onClick,
+        onLongPress = onLongPress,
+        pictureBleed = pictureBleed,
     )
 }
 

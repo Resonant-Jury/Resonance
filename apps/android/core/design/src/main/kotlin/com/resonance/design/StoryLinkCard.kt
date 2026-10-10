@@ -7,6 +7,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -59,29 +60,10 @@ import com.resonance.kit.chat.LinkPreview
  */
 @Composable
 fun StoryLinkCard(preview: LinkPreview, host: String, label: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    val seed = remember(preview.url) { seedFromString(preview.url).toDouble() }
-    val shape = remember(seed) { WobRectShape(StoryLinkCardLook.RADIUS, seed) }
-    val source = remember { MutableInteractionSource() }
-    val pressed by source.collectIsPressedAsState()
     val picture = preview.imageUrl
     // One that failed before is left out at once (FailedPictures), not drawn as a box and dropped again.
     var showsPicture by remember(picture) { mutableStateOf(picture != null && !FailedPictures.shared.has(picture)) }
-    Column(
-        modifier
-            .widthIn(max = 520.dp)
-            .fillMaxWidth()
-            // The fill, then everything on it — the press wash, the picture, the words — cut by the same outline.
-            .drawWithCache {
-                val outline = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
-                onDrawWithContent {
-                    drawPath(outline, StoryLinkCardLook.fill)
-                    clipPath(outline) { this@onDrawWithContent.drawContent() }
-                }
-            }
-            // The wash spreads from the finger over the fill, under the picture and the words.
-            .clickable(source, indication = remember(shape) { OrganicIndication(StoryLinkCardLook.wash, shape = shape) }, role = Role.Button, onClickLabel = label, onClick = onOpen)
-            .semantics { contentDescription = label },
-    ) {
+    StoryLinkCardFrame(preview.url, label, onOpen, modifier) { pressed ->
         if (picture != null && showsPicture) {
             Box(
                 Modifier
@@ -118,6 +100,45 @@ fun StoryLinkCard(preview: LinkPreview, host: String, label: String, onOpen: () 
             }
         }
     }
+}
+
+/**
+ * The story link card's block, whatever it holds — a link's page ([StoryLinkCard]) or a Resonance
+ * card the story embeds (round 5 D2): at most 520 wide, the chat card bubble's fill
+ * ([StoryLinkCardLook.fill]) in a wobbly outline (radius 16, the size's own wobble) seeded by
+ * [seedKey] (the link), with no pen line; everything on it cut by that same outline, so a picture
+ * across it ends on its edge. The whole block is one press, labelled [label]: the wash
+ * ([StoryLinkCardLook.wash]) spreads from the finger over the fill, under what it holds, and
+ * [content] knows whether it is pressed.
+ */
+@Composable
+fun StoryLinkCardFrame(
+    seedKey: String,
+    label: String,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.(pressed: Boolean) -> Unit,
+) {
+    val seed = remember(seedKey) { seedFromString(seedKey).toDouble() }
+    val shape = remember(seed) { WobRectShape(StoryLinkCardLook.RADIUS, seed) }
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    Column(
+        modifier
+            .widthIn(max = 520.dp)
+            .fillMaxWidth()
+            // The fill, then everything on it — the press wash, the picture, the words — cut by the same outline.
+            .drawWithCache {
+                val outline = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
+                onDrawWithContent {
+                    drawPath(outline, StoryLinkCardLook.fill)
+                    clipPath(outline) { this@onDrawWithContent.drawContent() }
+                }
+            }
+            // The wash spreads from the finger over the fill, under the picture and the words.
+            .clickable(source, indication = remember(shape) { OrganicIndication(StoryLinkCardLook.wash, shape = shape) }, role = Role.Button, onClickLabel = label, onClick = onOpen)
+            .semantics { contentDescription = label },
+    ) { content(pressed) }
 }
 
 /**

@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import com.resonance.design.generated.IconName
 import androidx.compose.runtime.Composable
@@ -440,43 +439,6 @@ fun MiniStoryCard(content: StoryCardContent, position: Int, isLast: Boolean = fa
         Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             HandDrawnAvatar(content.authorInitials, content.authorImageUrl, accent, 30.dp, content.avatarSeed)
             BasicText(content.authorName, style = AppFonts.body(13f, 600, lineHeight = 1.4f))
-        }
-    }
-}
-
-/**
- * EmbedStoryCard: the smallest of the family, set inside an article — a chip
- * at most 360 wide, a 52 thumbnail, the title in the body face (14.5/600, two
- * lines) over a one-line author.
- */
-@Composable
-fun EmbedStoryCard(title: String, author: String?, imageUrl: String?, hue: Double?, seed: Double, modifier: Modifier = Modifier) {
-    val h = hue ?: 55.0
-    val interior = OklchColor.parse("oklch(97.5% 0.012 $h)") ?: Tokens.CardBg
-    val accent = OklchColor.parse("oklch(90% 0.06 $h)") ?: Tokens.TerracottaLight
-    val border = OklchColor.parse("oklch(52% 0.11 $h)") ?: Tokens.Terracotta
-    Row(
-        modifier
-            .widthIn(max = 360.dp)
-            .fillMaxWidth()
-            .drawWithCache {
-                val o = WobRectShape(16.0, seed).createOutline(size, layoutDirection, this)
-                val s = Stroke(Tokens.Ink.toPx())
-                onDrawBehind {
-                    drawOutline(o, interior)
-                    drawOutline(o, border, style = s)
-                }
-            }
-            .padding(start = 10.dp, top = 10.dp, bottom = 10.dp, end = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        OrganicImage(imageUrl, seed + 5, Modifier.size(52.dp), grain = StoryGrain.Cover) {
-            if (imageUrl == null) Box(Modifier.fillMaxSize().background(accent))
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = AppFonts.body(14.5f, 600, lineHeight = 1.35f))
-            if (author != null) BasicText(author, maxLines = 1, overflow = TextOverflow.Ellipsis, style = AppFonts.body(12f, lineHeight = 1.4f, color = Tokens.TextMuted))
         }
     }
 }

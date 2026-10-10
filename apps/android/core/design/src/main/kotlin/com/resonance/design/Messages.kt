@@ -512,6 +512,9 @@ private fun highlightRects(layout: StaticLayout, ranges: List<IntRange>, lift: F
 /** How much wider than the bubble a picture inside it is drawn on each side: past its wobbly edge's widest swing, so the clip, not the picture, ends it. */
 private val PictureBleed = 4.dp
 
+/** How far a picture reaches past a bubble's sides ([SharedCardSection]'s default). */
+val BubblePictureBleed: Dp get() = PictureBleed
+
 /** Wider than its box by [by] on each side, centred on it (the bubble's clip cuts it at the bubble's edge). */
 private fun Modifier.bleedSides(by: Dp): Modifier = layout { measurable, constraints ->
     val extra = by.roundToPx()
@@ -522,12 +525,12 @@ private fun Modifier.bleedSides(by: Dp): Modifier = layout { measurable, constra
 
 /** A picture edge to edge across a bubble at 1.91:1 (the share-image ratio); [onError] when it won't load. */
 @Composable
-private fun BubblePicture(url: String, onError: () -> Unit) {
+private fun BubblePicture(url: String, bleed: Dp = PictureBleed, onError: () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
             .aspectRatio(1.91f)
-            .bleedSides(PictureBleed)
+            .bleedSides(bleed)
             .background(Tokens.Text.copy(alpha = 0.06f)),
     ) {
         AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(), onError = { onError() })
@@ -605,7 +608,9 @@ data class CardByline(
  * [source] · the read time under it), the cover edge to edge at 1.91:1 (or, without one, a band of
  * the card's own colour with the wave mark), the title in the heading face (16 bold, three lines),
  * the excerpt (two) and a source line — the wave and [source], like the "Facebook" under a shared
- * post. A tap opens the card; a hold is the message's menu.
+ * post. A tap opens the card; a hold is the message's menu. Without either, what holds it takes the
+ * press (a story's embedded card, [StoryLinkCardFrame]). [pictureBleed]: how far past the sides
+ * the cover reaches, past the widest swing of the outline that cuts it (a bubble's, by default).
  */
 @Composable
 fun ColumnScope.SharedCardSection(
@@ -618,6 +623,7 @@ fun ColumnScope.SharedCardSection(
     source: String,
     onClick: (() -> Unit)?,
     onLongPress: (() -> Unit)?,
+    pictureBleed: Dp = PictureBleed,
 ) {
     Column(Modifier.fillMaxWidth().bubblePart(title, onClick, onLongPress)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -631,11 +637,11 @@ fun ColumnScope.SharedCardSection(
             }
         }
         if (imageUrl != null && !FailedPictures.shared.has(imageUrl)) {
-            BubblePicture(imageUrl) { FailedPictures.shared.note(imageUrl) }
+            BubblePicture(imageUrl, pictureBleed) { FailedPictures.shared.note(imageUrl) }
         } else {
             val palette = CardPalette(accentHue, 0)
             Box(
-                Modifier.fillMaxWidth().height(SharedCardBand).bleedSides(PictureBleed).background(palette.fill).grainOverlay(0.04f),
+                Modifier.fillMaxWidth().height(SharedCardBand).bleedSides(pictureBleed).background(palette.fill).grainOverlay(0.04f),
                 contentAlignment = Alignment.Center,
             ) { OrganicIcon(IconName.Wave, size = 40.dp, color = palette.border.copy(alpha = 0.32f)) }
         }
@@ -666,7 +672,7 @@ private val SharedCardBand = 96.dp
  * yet: the band of one without (most cards a note is left on); one with a cover grows into it.
  */
 @Composable
-fun ColumnScope.SharedCardSkeleton() {
+fun ColumnScope.SharedCardSkeleton(pictureBleed: Dp = PictureBleed) {
     Column(Modifier.fillMaxWidth().semantics { contentDescription = L10n.Home.moreLoading }) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Skeleton(height = 32.dp, circle = true)
@@ -675,7 +681,7 @@ fun ColumnScope.SharedCardSkeleton() {
                 SkeletonLines(AppFonts.body(12f, lineHeight = 1.35f), 10.dp, Modifier.width(64.dp))
             }
         }
-        Box(Modifier.fillMaxWidth().height(SharedCardBand).bleedSides(PictureBleed).background(Tokens.Text.copy(alpha = 0.06f)))
+        Box(Modifier.fillMaxWidth().height(SharedCardBand).bleedSides(pictureBleed).background(Tokens.Text.copy(alpha = 0.06f)))
         Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             SkeletonLines(AppFonts.heading(16f, 700, lineHeight = 1.3f), 15.dp, Modifier.fillMaxWidth(0.85f))
             SkeletonLines(AppFonts.body(13f, lineHeight = 1.45f), 11.dp, Modifier.fillMaxWidth(0.9f), Modifier.fillMaxWidth(0.6f))
