@@ -7,13 +7,18 @@ import SwiftUI
 /// screen is the map (no tab bar, no header); Leave, the toolbar and the zoom
 /// controls float over it.
 struct ThoughtMapScreen: View {
-    /// Beside the writer on a wide window (design §12): the same map, without Leave, and a card tapped
-    /// there opens nothing (the writer stays).
-    var embedded = false
+    /// In the split workspace (round 5 E5): what a tapped card does there (one of mine opens in the
+    /// editor pane, in place). Nil: the map page's own — mine in the writer, pushed; others on their page.
+    var openCard: ((MapCard) -> Void)? = nil
+    /// The Back on the canvas (the workspace's way out, which asks the writer's question first while
+    /// its pane holds writing). Nil: the page goes back.
+    var back: (() -> Void)? = nil
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.openRoute) private var openRoute
     @Environment(\.dismiss) private var dismiss
+    /// The window's own controls (an iPad's app in a window): the Back on the canvas steps past them.
+    @State private var controls = WindowControlsInset.zero
     /// Kept by the session between visits (see ThoughtMapStore.open).
     private var store: ThoughtMapStore { session.thoughtMap }
 
@@ -43,12 +48,14 @@ struct ThoughtMapScreen: View {
         .toolbar(.hidden, for: .navigationBar)
         // The canvas takes every drag: going back is from the screen's edge only.
         .swipeBackFromEdgeOnly()
-        // Whichever map shows last says what a tapped card does (the writer's beside one does nothing).
-        .onAppear { store.onOpen = embedded ? { _ in } : { card in open(card) } }
+        // Whichever map shows last says what a tapped card does.
+        .onAppear { store.onOpen = openCard ?? { card in open(card) } }
         .task {
-            store.onOpen = embedded ? { _ in } : { card in open(card) }
+            store.onOpen = openCard ?? { card in open(card) }
             if let uid = session.uid { await store.open(uid: uid, changes: writer.changes, lastChange: writer.lastChange) }
         }
+        // The workspace crossed the split: its taps open in the pane, or push the writer again.
+        .onChange(of: openCard != nil) { store.onOpen = openCard ?? { card in open(card) } }
         // Back from the writer: the card's title and tags may have changed.
         .onChange(of: writer.changes) {
             guard let uid = session.uid else { return }
@@ -69,12 +76,16 @@ struct ThoughtMapScreen: View {
     @ViewBuilder private func chrome(insets: EdgeInsets, size: CGSize) -> some View {
         let top = insets.top + 8
         ZStack(alignment: .topLeading) {
-            if !embedded {
-                OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .tonal, size: .sm) { dismiss() }
-                    .mirroringIcon()
-                    .roomy()
-                    .offset(x: 20, y: top)
+            OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .tonal, size: .sm) {
+                if let back { back() } else { dismiss() }
             }
+            .mirroringIcon()
+            .roomy()
+            // Clear of a window's controls in its corner, as a bar's leading item is.
+            .padding(.leading, controls.leading)
+            .windowControlsInset($controls)
+            .padding(.leading, 20)
+            .padding(.top, top)
             HStack(spacing: 10) {
                 OrganicButton(L10n.Me.ThoughtMap.addGroupShort, icon: .frame, variant: .tonal, size: .sm) {
                     Task { await store.addGroup() }

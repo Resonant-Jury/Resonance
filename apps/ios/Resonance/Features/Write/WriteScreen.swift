@@ -10,9 +10,19 @@ import SwiftUI
 /// Opened on one of your cards (write/[id]) it resumes a draft, or revises a
 /// published card: then Save changes / Discard changes.
 /// A page on the tab's stack like the others: the bar's arrow (or the edge
-/// swipe) goes back, asking first when there is writing to put away.
+/// swipe) goes back, asking first when there is writing to put away. It is
+/// always the card of a ``WriteWorkspace``: alone under its bar below the split
+/// width, the editor pane beside the thought map from 1200 across (round 5 E5),
+/// where the workspace's own Back and edge swipe ask through `pane`.
 struct WriteScreen: View {
     let request: WriteLauncher.Request
+    /// What the workspace asks of this card (saving now, the way back); filled in here.
+    let pane: WritePane
+    /// The writer's bar (back and title) over the editor: not in the split workspace's pane.
+    var showsBar = true
+    /// A card opened from the thought map in the workspace's pane: being done with it (published,
+    /// revised, dropped, saved and left) hides the pane rather than leaving the page.
+    var onDone: (() -> Void)? = nil
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
     @Environment(\.scenePhase) private var scenePhase
@@ -44,7 +54,7 @@ struct WriteScreen: View {
     var body: some View {
         Group {
             if let model {
-                form(model)
+                editor(model)
             } else if notFound {
                 missing
             } else {
@@ -56,10 +66,12 @@ struct WriteScreen: View {
         }
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
-            // The title is the one a visit has once the card is known; a new card's is known at once.
-            OrganicInlineBar(model?.title ?? (request.cardId == nil ? L10n.Write.title : ""), backLabel: L10n.App.Nav.back,
-                             scrolled: scrolled)
-                .onBack { if let model { goBack(model) } else { dismiss() } }
+            if showsBar {
+                // The title is the one a visit has once the card is known; a new card's is known at once.
+                OrganicInlineBar(model?.title ?? (request.cardId == nil ? L10n.Write.title : ""), backLabel: L10n.App.Nav.back,
+                                 scrolled: scrolled)
+                    .onBack { if let model { goBack(model) } else { dismiss() } }
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
         // Leaving the app saves what is written now, not 1.5s later (the web's visibilitychange flush).
@@ -75,6 +87,7 @@ struct WriteScreen: View {
                     opened = try? await session.drafts?.open(cardId)
                     guard opened != nil else {
                         notFound = true
+                        pane.goBack = { dismiss() }
                         return
                     }
                 }
@@ -95,6 +108,15 @@ struct WriteScreen: View {
                     model.values.story = story
                 }
                 self.model = model
+                // The workspace's Back, its edge swipe and its hiding of the pane come here.
+                pane.saveNow = { [weak model, writer] in
+                    guard let model else { return }
+                    model.store()
+                    // The lists hear of it (the map's titles, the card box) once the server has it, as on leaving.
+                    Task { _ = await model.settled(within: Self.leaveWait); writer.leave(model.change) }
+                }
+                pane.holds = { [weak model] in model.map { $0.holdsWriting || $0.needsSave } ?? false }
+                pane.goBack = { [weak model] in if let model { goBack(model) } }
                 // The first-card guide is for a brand-new writer's fresh card: asked beside the open page, never
                 // before it (a read stuck on the network once held the loader ~40s), and only while nothing is written.
                 if request.cardId == nil, request.referenceCardId == nil, let drafts = session.drafts {
@@ -106,21 +128,8 @@ struct WriteScreen: View {
         }
     }
 
-    /// The editor, alone in a centred writing column — or, on a window 1200 across or more, beside the
-    /// thought map: the map on the left, the editor's half on the right past a hairline that begins
-    /// at the bar's pen line.
-    private func form(_ model: WriteModel) -> some View {
-        HStack(spacing: 0) {
-            if window.writerSplit {
-                ThoughtMapScreen(embedded: true)
-                    .frame(maxWidth: .infinity)
-                Rectangle().fill(Tokens.fieldBorder).frame(width: 1).accessibilityHidden(true)
-            }
-            editor(model)
-                .frame(width: window.writerSplit ? window.width * 0.5 : nil)
-        }
-    }
-
+    /// The editor in a centred writing column (the workspace sizes it: the window below the split, its
+    /// pane beside the map from 1200 across).
     private func editor(_ model: WriteModel) -> some View {
         @Bindable var model = model
         return ScrollView {
@@ -145,7 +154,8 @@ struct WriteScreen: View {
                 actions(model)
             }
             .padding(.horizontal, window.layoutClass == .compact ? 20 : window.pad)
-            .padding(.top, 16)
+            // In the pane there is no bar: its first line sits level with the Back on the canvas.
+            .padding(.top, showsBar ? 16 : WriteWorkspace.paneTop)
             .padding(.bottom, 48)
             // Wider than a phone, the web's writing measure (680 and the page's pads), centred.
             .frame(maxWidth: window.layoutClass == .compact ? .infinity : Tokens.measure + 2 * window.pad)
@@ -153,9 +163,9 @@ struct WriteScreen: View {
         }
         .onHeaderScroll($scrolled)
         .scrollDismissesKeyboard(.interactively)
-        // The edge swipe asks what the arrow asks while there is writing to put away, and a draft
-        // cleared since its last save still goes through leaving, which saves it.
-        .takesSwipeBack(while: { model.holdsWriting || model.needsSave }) { goBack(model) }
+        // The edge swipe asks what the arrow asks while there is writing to put away (the workspace
+        // takes it, through `pane`), and a draft cleared since its last save still goes through
+        // leaving, which saves it.
         .photosPicker(isPresented: $pickingInline, selection: $inlineItem, matching: .images)
         .onChange(of: inlineItem) { _, item in
             guard let item else { return }
@@ -216,14 +226,16 @@ struct WriteScreen: View {
     /// Leaving keeps what's written: the draft is handed to Firestore on the way out — kept on the
     /// device at once, sent when the network lets it — and the page waits a moment for the server's
     /// yes, never longer (a write stuck behind a dead connection once held it for minutes).
-    /// `afterDialog` lets the question's cover finish going down before the page does.
-    private func leave(_ model: WriteModel, afterDialog: Bool = false) async {
+    /// `afterDialog` lets the question's cover finish going down before the page does. Leaving the
+    /// card only (`exits` false: Save draft and leave) on a card the map opened in the pane hides the
+    /// pane instead; the page stays.
+    private func leave(_ model: WriteModel, afterDialog: Bool = false, exits: Bool = true) async {
         let settle = Task { if afterDialog { try? await Task.sleep(for: Self.dialogSettle) } }
         model.store()
         _ = await model.settled(within: Self.leaveWait)
         writer.leave(model.change)
         await settle.value
-        dismiss()
+        if !exits, let onDone { onDone() } else { dismiss() }
     }
 
     /// How long leaving waits for the server to confirm the draft.
@@ -236,7 +248,13 @@ struct WriteScreen: View {
     private func finish(card key: String, change: WriteLauncher.Change, afterDialog: Bool = false) async {
         writer.leave(change)
         if afterDialog { try? await Task.sleep(for: Self.dialogSettle) }
-        if request.showsCard { openRoute.replacingTop(with: .card(key)) } else { dismiss() }
+        if let onDone {
+            onDone()
+        } else if request.showsCard {
+            openRoute.replacingTop(with: .card(key))
+        } else {
+            dismiss()
+        }
     }
 
     /// A dialog's fade (0.16s) and the cover it rides on.
@@ -363,7 +381,7 @@ struct WriteScreen: View {
     @ViewBuilder
     private func secondaryAction(_ model: WriteModel, fillsWidth: Bool = false) -> some View {
         if !model.isPublished {
-            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .tonal) { Task { await leave(model) } }
+            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .tonal) { Task { await leave(model, exits: false) } }
                 .fillingWidth(fillsWidth)
         } else if model.hasPendingEdit {
             OrganicButton(L10n.Write.discardChanges, variant: .tonal) { Task { await discard(model) } }
@@ -389,7 +407,7 @@ struct WriteScreen: View {
     /// then Back as the tonal pill (every button has a fill; a bare terracotta word didn't read as one).
     private var missing: some View {
         OrganicEmptyState(title: L10n.Card.NotFound.title, titleSize: 24, actionTitle: L10n.Card.NotFound.back,
-                          actionStyle: .link) { dismiss() }
+                          actionStyle: .link) { if let onDone { onDone() } else { dismiss() } }
             .padding(.top, 56)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
