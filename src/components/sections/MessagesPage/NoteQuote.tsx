@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { Carried } from '@/lib/chat/carried';
 import { QUOTE_RADIUS, bubbleStandInRadius, seedFromId } from '@/lib/design/bubble';
 import { useBubbleClip } from './MessageBubble';
-import { SharedCardPart, SharedCardSkeleton } from './BubbleParts';
+import { SharedCardPart, SharedCardSkeleton } from '@/components/molecules/SharedCard/SharedCard';
 import styles from './Thread.module.css';
 
 export interface NoteQuoteProps {

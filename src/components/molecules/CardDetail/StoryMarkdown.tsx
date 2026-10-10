@@ -111,9 +111,9 @@ const components: Components = {
 };
 
 /**
- * Paragraphs that hold a single card link become mini embedded story cards;
- * a paragraph that is a single web link the server previewed becomes that
- * page's link card; a paragraph holding a single photo becomes an image block
+ * Paragraphs that hold a single card link become that card as a block (the
+ * shared card a thread draws, in a link card's container); a paragraph that
+ * is a single web link the server previewed becomes that page's link card; a paragraph holding a single photo becomes an image block
  * with its own breathing room (a photo should never touch the sentence above
  * it, and nobody should have to type blank lines to get that). A paragraph
  * the writer deliberately left blank renders as extra space. Everything else

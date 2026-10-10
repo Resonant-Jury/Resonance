@@ -1,28 +1,13 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { useImageRetry } from '@/lib/hooks/useImageRetry';
 import { useTranslations } from 'next-intl';
-import { BrushWash } from '@/components/atoms/BrushWash/BrushWash';
-import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { Icon } from '@/components/atoms/Icon';
-import { seedFromString } from '@/lib/design/prng';
-import { autoCurve, autoMag, autoSegments } from '@/lib/design/wobAuto';
-import { wobRect } from '@/lib/design/wobRect';
 import type { LinkPreview } from '@/lib/db/types';
-import { useElementSize } from '@/lib/hooks/useElementSize';
 import { parseLink } from '@/lib/links/linkify';
+import { useStoryBlock } from './useStoryBlock';
 import styles from './StoryLinkCard.module.css';
-
-const R = 16;
-/**
- * How far the picture reaches past the card's box on its top and sides, so
- * the outline's outward swings (a few px at most) still land on picture.
- */
-const BLEED = 8;
-/** The card's fill (the chat's card bubble's) and its hover wash. No pen line: the fill is its edge. */
-const FILL = 'var(--bubble-theirs)';
-const WASH = 'var(--bubble-quote)';
 
 export interface StoryLinkCardProps {
   preview: LinkPreview;
@@ -41,6 +26,9 @@ export interface StoryLinkCardProps {
  * one edge, not a frame around a framed picture; its foot meets the words
  * directly. Without a picture: just the fill with the words.
  *
+ * Its container (fill, outline, wash, stand-in) is `useStoryBlock`'s, which
+ * an embedded Resonance card wears too.
+ *
  * The whole card is one link to the address, opened in a new tab without
  * our page as its opener or referrer. Its host is always the real one, in
  * ASCII (punycode for an international name), whatever the page called
@@ -51,20 +39,9 @@ export interface StoryLinkCardProps {
 export function StoryLinkCard({ preview }: StoryLinkCardProps) {
   const t = useTranslations('card.linkPreview');
   const titleId = useId();
-  const ref = useRef<HTMLAnchorElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-  const { w, h } = useElementSize(ref);
   const image = useImageRetry(preview.image);
-  const [hovered, setHovered] = useState(false);
-  const [pointer, setPointer] = useState({ x: 0, y: 0 });
-  const seed = seedFromString(preview.url);
-
-  // The card's outline, measured: the fill, the hover wash and the picture's clip all follow this one path.
-  const shape = useMemo(() => {
-    if (!w || !h) return null;
-    const outline = { mag: autoMag(w, h), curve: autoCurve(w, h), segmentsH: autoSegments(w), segmentsV: autoSegments(h) };
-    return { outline, d: wobRect(w, h, R, seed, outline.mag, outline) };
-  }, [w, h, seed]);
+  const block = useStoryBlock<HTMLAnchorElement>(preview.url);
 
   // The server's HTML starts loading the picture before the page comes alive,
   // and an error then reaches no handler: ask the picture itself once it is
@@ -82,50 +59,23 @@ export function StoryLinkCard({ preview }: StoryLinkCardProps) {
   // One that fails is hidden and asked for once more a little later (`useImageRetry`).
   const picture = preview.image && !image.hidden ? preview.image : null;
 
-  const track = (e: MouseEvent<HTMLElement>) => {
-    const box = e.currentTarget.getBoundingClientRect();
-    setPointer({ x: e.clientX - box.left, y: e.clientY - box.top });
-  };
-
   return (
     <a
-      ref={ref}
-      className={`${styles.card} res-shape-stand-in`}
-      // A plain rounded block of the same fill until measured (the server's HTML).
-      data-shape-pending={shape ? undefined : ''}
-      style={
-        {
-          '--shape-fill': FILL,
-          '--shape-radius': `${R}px`,
-          '--picture-bleed': `${BLEED}px`,
-        } as CSSProperties
-      }
+      ref={block.ref}
+      {...block.rootProps}
       href={link.url}
       target="_blank"
       rel="noopener noreferrer nofollow ugc"
       aria-label={t('open', { host })}
       aria-describedby={titleId}
-      onMouseEnter={(e) => {
-        track(e);
-        setHovered(true);
-      }}
-      onMouseLeave={(e) => {
-        track(e);
-        setHovered(false);
-      }}
     >
-      {shape && (
-        <>
-          <HandDrawnBorder w={w} h={h} R={R} seed={seed} fillColor={FILL} chalkSeed={seed + 1} {...shape.outline} />
-          <BrushWash w={w} h={h} d={shape.d} color={WASH} x={pointer.x} y={pointer.y} on={hovered} duration={460} />
-        </>
-      )}
+      {block.layers}
       {picture && (
         <span
           className={styles.picture}
           // The card's own outline cuts the picture's top and sides; its foot is the box's.
-          style={shape ? { clipPath: `path('${shape.d}')` } : undefined}
-          data-clipped={shape ? '' : undefined}
+          style={block.d ? { clipPath: `path('${block.d}')` } : undefined}
+          data-clipped={block.d ? '' : undefined}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- our own /api/link-image route, clipped by the card's outline */}
           <img

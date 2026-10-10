@@ -6,6 +6,7 @@ import { BareIconButton } from '@/components/atoms/BareIconButton/BareIconButton
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { OrganicMenu } from '@/components/molecules/OrganicMenu/OrganicMenu';
 import { useCardEmbed } from '@/components/molecules/EmbedStoryCard/useCardEmbed';
+import { SharedCardPart, SharedCardSkeleton } from '@/components/molecules/SharedCard/SharedCard';
 import { Link } from '@/i18n/navigation';
 import { carriedOf, carriedWords, type Carried } from '@/lib/chat/carried';
 import { messageCard } from '@/lib/chat/cardLink';
@@ -16,7 +17,7 @@ import { seedFromId } from '@/lib/design/bubble';
 import type { User } from '@/lib/db/types';
 import { firstLinkOf, parseLink } from '@/lib/links/linkify';
 import { BubbleWords, MessageBubble, type MessageLink } from './MessageBubble';
-import { LinkPreviewPart, SharedCardPart, SharedCardSkeleton } from './BubbleParts';
+import { LinkPreviewPart } from './BubbleParts';
 import { NoteQuote } from './NoteQuote';
 import { ReplyQuote } from './ReplyQuote';
 import { chooseMenuItem, messageMenuItems, useThreadActions } from './threadActions';

@@ -416,8 +416,12 @@
 
 /* ── What a bubble carries: a link's preview, a shared card ───────── */
 
-.previewPart,
-.cardPart {
+/* A shared card is molecules/SharedCard; an own bubble gives its title a deeper hover colour. */
+.bubble[data-own] {
+  --shared-card-hover: color-mix(in oklch, var(--color-terracotta), black 25%);
+}
+
+.previewPart {
   display: block;
   color: inherit;
   cursor: pointer;
@@ -499,119 +503,13 @@
 
 /* Under a pointer, the title takes the link colour of its bubble. */
 @media (hover: hover) {
-  .previewPart:hover .previewTitle,
-  .cardPart:hover .cardTitle {
+  .previewPart:hover .previewTitle {
     color: var(--color-terracotta);
   }
 
-  .bubble[data-own] .previewPart:hover .previewTitle,
-  .bubble[data-own] .cardPart:hover .cardTitle {
-    color: color-mix(in oklch, var(--color-terracotta), black 25%);
+  .bubble[data-own] .previewPart:hover .previewTitle {
+    color: var(--shared-card-hover);
   }
-}
-
-.cardHead {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
-}
-
-.cardByline {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.cardAuthor {
-  overflow: hidden;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cardAuthor[data-anonymous] {
-  color: var(--color-text-muted);
-}
-
-.cardMeta {
-  overflow: hidden;
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--color-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* A card with no cover: a band of its own colour, the wave faint on it. */
-.cardBand {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 96px;
-  margin: 0 -4px;
-  overflow: hidden;
-  background: var(--band-fill);
-}
-
-.cardBandWave {
-  color: color-mix(in oklch, var(--band-ink) 32%, transparent);
-}
-
-.cardText {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px 0;
-}
-
-.cardTitle {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-family: var(--font-heading);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-  transition: color 120ms ease;
-}
-
-.cardExcerpt {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--color-text-muted);
-  overflow-wrap: anywhere;
-}
-
-/* The source line under a shared post: the wave and「共振」. */
-.cardSource {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 12px 12px;
-  font-size: 12px;
-  line-height: 1.3;
-  color: var(--color-text-muted);
-}
-
-.cardSourceWave {
-  color: var(--color-terracotta);
-}
-
-.cardPart[aria-busy] .cardText {
-  gap: 8px;
-  padding-top: 12px;
 }
 
 /* ── Beside a bubble: its tools, its line ─────────────────────────── */

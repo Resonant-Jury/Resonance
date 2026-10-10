@@ -23,8 +23,8 @@ export interface EmbedStoryCardProps {
 /**
  * The smallest member of the story-card family — a horizontal chip embedded
  * inside an article body: thumbnail on the left, title above author on the
- * right. Used both by the published article (wrapped in a Link) and by the
- * editor's card node view. Chrome is the same hand-drawn wobble as its bigger
+ * right. The editor's card node view draws it; the published story draws a
+ * card standing alone as a block (CardEmbedLink). Chrome is the same hand-drawn wobble as its bigger
  * siblings, with size-adaptive wobble (no hardcoded segments).
  */
 export function EmbedStoryCard({

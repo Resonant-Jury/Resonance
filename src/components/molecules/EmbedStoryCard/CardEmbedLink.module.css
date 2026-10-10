@@ -1,0 +1,30 @@
+/* A Resonance card standing alone in a story: the story link card's block
+   (StoryLinkCard.module.css `.card`, through useStoryBlock) holding the
+   shared card's content. */
+
+/* The content over the fill and the wash. Measured, the block's outline cuts
+   it, and the cover or band reaches past the box's sides (--picture-bleed) so
+   the outline's outward swings land on it; until then (the stand-in) it keeps
+   inside the plain rounded block. */
+.content {
+  position: relative;
+  z-index: 1;
+  display: block;
+  min-width: 0;
+  --shared-card-bleed: 0px;
+  overflow: hidden;
+  border-radius: var(--shape-radius);
+}
+
+.content[data-clipped] {
+  --shared-card-bleed: var(--picture-bleed);
+  overflow: visible;
+  border-radius: 0;
+}
+
+/* The source line takes the link colour when the block is pointed at, as a
+   link card's host does: the deep terracotta (4.8:1 on the hover wash). */
+.embed:hover .content > :last-child,
+.embed:focus-visible .content > :last-child {
+  color: var(--button-on-tonal);
+}
