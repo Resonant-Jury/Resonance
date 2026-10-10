@@ -1,0 +1,92 @@
+/* The profile photo's crop dialog (B7): title → 6 → hint → 16 → stage → 14 →
+   zoom row → (error, 12 above) → actions. */
+.title {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.hint {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  margin: 0 0 16px;
+}
+
+/* The content's width, which the stage takes up to 320 of. */
+.room {
+  display: flex;
+  justify-content: center;
+}
+
+.stage {
+  position: relative;
+  flex: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  border-radius: 16px;
+}
+.stage:active {
+  cursor: grabbing;
+}
+.stage[data-busy] {
+  cursor: progress;
+}
+.stage:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 3px;
+}
+
+/* The paper, cut to HandDrawnImage's outline: what the picture and the scrim are clipped to. */
+.paper {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--color-cream-dark);
+}
+
+.holder {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.zoomGlyph {
+  flex: none;
+  color: var(--color-text-muted);
+}
+.slider {
+  flex: 1;
+  min-width: 0;
+}
+
+.error {
+  margin: 12px 0 0;
+}
+
+.foot {
+  margin-top: 18px;
+}

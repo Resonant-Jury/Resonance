@@ -240,14 +240,12 @@ export function SettingsClient({ initial }: SettingsClientProps) {
               initials={initial.initials || handle.slice(0, 2).toUpperCase()}
               accentColor={initial.accentColor}
               seed={77}
-              onUploaded={(url) => {
+              onUploaded={async (url) => {
+                // Saved before the crop dialog closes, so a failure is said there;
+                // then the public profile — under the last-saved handle — is refreshed.
+                await updateProfile({ avatarUrl: url });
                 setAvatarUrl(url);
-                // Persist immediately so the header avatar updates right away;
-                // the public profile lives under the last-saved handle, so
-                // bust that cache entry.
-                void updateProfile({ avatarUrl: url }).then(() =>
-                  requestRevalidate(profilePaths(savedProfileRef.current.handle)),
-                );
+                void requestRevalidate(profilePaths(savedProfileRef.current.handle));
               }}
             />
             <Field

@@ -1,14 +1,15 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   HandDrawnAvatar,
   avatarWobPath,
 } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
-import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { Icon } from '@/components/atoms/Icon';
 import { uploadImageFile } from '@/lib/images/upload';
+import { loadCropSource, releaseCropSource, type CropSource } from '@/lib/images/avatarCropImage';
+import { AvatarCropModal } from './AvatarCropModal';
 import styles from './AvatarUpload.module.css';
 
 export interface AvatarUploadProps {
@@ -19,8 +20,12 @@ export interface AvatarUploadProps {
   accentColor?: string;
   size?: number;
   seed?: number;
-  /** called with the public R2 URL once an upload succeeds */
-  onUploaded: (url: string) => void;
+  /**
+   * Called with the public R2 URL once the framed photo is stored. May return
+   * the save's promise: the crop dialog waits for it, and says it failed when
+   * it rejects.
+   */
+  onUploaded: (url: string) => void | Promise<void>;
 }
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif';
@@ -28,8 +33,10 @@ const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif';
 /**
  * A large, click- or drag-to-upload avatar block for the profile editor. The
  * avatar itself is the dropzone: hovering reveals a "change" overlay, dragging
- * highlights it, and an upload swaps in a SketchLoader until the new picture is
- * stored. Reuses the card image upload's path (uploadImageFile → /api/upload → R2).
+ * highlights it. A picture chosen or dropped opens the crop dialog (B7) —
+ * framed there, then sent as a square through the card image upload's path
+ * (uploadImageFile → /api/upload → R2, `purpose: 'avatar'`); the dialog shows
+ * the progress and any failure.
  */
 export function AvatarUpload({
   src,
@@ -41,9 +48,14 @@ export function AvatarUpload({
 }: AvatarUploadProps) {
   const t = useTranslations('settings.profile');
   const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const [source, setSource] = useState<CropSource | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The decoded picture's pixels go when the dialog closes (or the page does).
+  useEffect(() => () => {
+    if (source) releaseCropSource(source);
+  }, [source]);
 
   // Clip the hover/upload wash to the avatar's exact wobbly outline so the dark
   // overlay follows the hand-drawn curve instead of leaking past it.
@@ -52,20 +64,23 @@ export function AvatarUpload({
     [size, seed]
   );
 
-  async function upload(file: File) {
-    if (uploading) return;
+  /** A chosen or dropped picture: decoded for the crop dialog, or said to be unreadable. */
+  async function open(file: File) {
+    if (source) return;
     setError(null);
-    setUploading(true);
     try {
-      // Compressed and size-checked in the browser like any picture; the
-      // server then scales a profile photo to 256 px.
-      const { publicUrl } = await uploadImageFile(file, { purpose: 'avatar' });
-      onUploaded(publicUrl);
+      setSource(await loadCropSource(file));
     } catch {
-      setError(t('avatarError'));
-    } finally {
-      setUploading(false);
+      setError(t('avatarOpenError'));
     }
+  }
+
+  /** The framed square: stored (the server scales a profile photo to 256 px), then saved by the caller. */
+  async function use(blob: Blob) {
+    const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+    const { publicUrl } = await uploadImageFile(file, { purpose: 'avatar' });
+    await onUploaded(publicUrl);
+    setSource(null);
   }
 
   return (
@@ -75,8 +90,7 @@ export function AvatarUpload({
         className={styles.dropzone}
         style={{ width: size, height: size }}
         data-drag={dragOver || undefined}
-        disabled={uploading}
-        aria-label={t('avatarChange')}
+        aria-label={src ? t('avatarChange') : t('avatarAdd')}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
@@ -87,7 +101,7 @@ export function AvatarUpload({
           e.preventDefault();
           setDragOver(false);
           const file = e.dataTransfer.files?.[0];
-          if (file) void upload(file);
+          if (file) void open(file);
         }}
       >
         <HandDrawnAvatar
@@ -102,11 +116,7 @@ export function AvatarUpload({
           style={{ clipPath, WebkitClipPath: clipPath }}
           aria-hidden="true"
         >
-          {uploading ? (
-            <SketchLoader size={size * 0.5} seed={seed} ariaLabel={t('avatarUploading')} />
-          ) : (
-            <Icon name="image" size={26} color="var(--color-cream)" />
-          )}
+          <Icon name="image" size={26} color="var(--color-cream)" />
         </span>
       </button>
 
@@ -117,18 +127,22 @@ export function AvatarUpload({
         className={styles.fileInputHidden}
         onChange={(e) => {
           const file = e.currentTarget.files?.[0];
-          if (file) void upload(file);
+          if (file) void open(file);
           e.currentTarget.value = '';
         }}
       />
 
       <div className={styles.meta}>
         <span className={styles.label}>{t('avatar')}</span>
-        <span className={styles.hint}>
-          {uploading ? t('avatarUploading') : t('avatarHint')}
-        </span>
-        {error && <span className={styles.error}>{error}</span>}
+        <span className={styles.hint}>{t('avatarHint')}</span>
+        {error && (
+          <span className={styles.error} role="alert">
+            {error}
+          </span>
+        )}
       </div>
+
+      <AvatarCropModal source={source} onCancel={() => setSource(null)} onUse={use} />
     </div>
   );
 }

@@ -15,11 +15,8 @@
   cursor: pointer;
   flex-shrink: 0;
 }
-.dropzone:disabled {
-  cursor: default;
-}
 
-/* Dim wash + icon revealed on hover, focus, drag, or while uploading. */
+/* Dim wash + icon revealed on hover, focus or drag. */
 .overlay {
   position: absolute;
   inset: 0;
@@ -33,8 +30,7 @@
 }
 .dropzone:hover .overlay,
 .dropzone:focus-visible .overlay,
-.dropzone[data-drag] .overlay,
-.dropzone:disabled .overlay {
+.dropzone[data-drag] .overlay {
   opacity: 1;
 }
 
@@ -54,8 +50,8 @@
   color: var(--color-text-muted);
 }
 .error {
-  font-size: 12px;
-  color: var(--color-terracotta);
+  font-size: 13px;
+  color: var(--color-danger, oklch(58% 0.16 25));
 }
 
 /* Visually hidden but still focusable / clickable via the button. */
