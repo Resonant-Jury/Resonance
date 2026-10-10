@@ -20,7 +20,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   padding: clamp(13px, 1.6vw, 16px) clamp(18px, 2.8vw, 28px);
   border: none;
   background: none;

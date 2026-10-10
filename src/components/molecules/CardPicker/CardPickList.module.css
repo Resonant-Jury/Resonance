@@ -31,6 +31,8 @@
   padding: 0;
   display: flex;
   flex-direction: column;
+  /* One group: rows a little apart, no rule between them. */
+  gap: 2px;
 }
 
 .cardRow {
@@ -76,9 +78,24 @@
 }
 
 .thumb {
+  position: relative;
   width: 40px;
   height: 40px;
   flex-shrink: 0;
+}
+
+/* The cover (or its hue) clipped to the avatar-like outline. */
+.thumbFace {
+  position: absolute;
+  inset: 0;
+}
+
+.thumbImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .thumbFallback {
@@ -86,15 +103,30 @@
   inset: 0;
 }
 
-/* The chosen row's mark: its own cover washed in the accent (clipped to the
-   thumb's wobbly outline by OrganicImage), a cream tick on it. */
+/* The outline's faint pen line, as on an avatar's photo. */
+.thumbPen {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  z-index: 2;
+}
+
+/* The chosen row's mark: its own cover washed in the accent (clipped with it
+   to the outline), the buttons' grain over the wash, a cream tick on it. */
 .thumbChosen {
   position: absolute;
   inset: 0;
+  background: color-mix(in oklch, var(--color-terracotta) 82%, transparent);
+  animation: chosenIn 180ms ease-out;
+}
+
+.thumbTick {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in oklch, var(--color-terracotta) 82%, transparent);
   animation: chosenIn 180ms ease-out;
 }
 
@@ -108,7 +140,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .thumbChosen {
+  .thumbChosen,
+  .thumbTick {
     animation: none;
   }
 }

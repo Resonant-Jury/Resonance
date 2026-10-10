@@ -1,0 +1,25 @@
+/* Over the app bar (fixed, the bar's box), above its own grey pen line. */
+.progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 82px;
+  z-index: 101;
+  pointer-events: none;
+}
+
+.svg {
+  display: block;
+  overflow: visible;
+}
+
+.line {
+  transition: stroke-dashoffset 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line {
+    transition: none;
+  }
+}

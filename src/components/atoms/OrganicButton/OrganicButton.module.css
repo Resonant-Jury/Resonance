@@ -43,7 +43,7 @@
      in flex layout, so plain-text buttons are unaffected). */
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
 }
 
 .sm {

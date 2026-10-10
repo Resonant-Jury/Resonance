@@ -29,18 +29,22 @@
   font-family: var(--font-body);
   font-size: 15px;
   font-weight: 600;
-  text-decoration: underline transparent;
-  text-underline-offset: 4px;
-  transition:
-    color 120ms ease,
-    text-decoration-color 120ms ease;
+  /* The story link's pen wave (StoryMarkdown's .prose .link: --wave-size and
+     the depth under the baseline), shown only under the pointer. */
+  background-repeat: repeat-x;
+  background-repeat: round no-repeat;
+  background-size: var(--wave-size);
+  background-position: 0 100%;
+  padding-bottom: calc(3px - 0.02em);
+  padding-bottom: calc(0.29em + 3px - round(0.31em, 1px));
+  transition: color 120ms ease;
 }
 
-/* The ink answers, as the rows' does: deeper, and underlined. */
+/* The ink answers, as the rows' does: deeper, and the pen's wave under it. */
 @media (hover: hover) {
   .writeNew:hover:not(:disabled) .writeTitle {
     color: color-mix(in oklch, var(--color-terracotta), black 34%);
-    text-decoration-color: currentColor;
+    background-image: var(--wave-strong);
   }
 }
 
