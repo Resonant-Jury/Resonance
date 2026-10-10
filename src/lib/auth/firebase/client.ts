@@ -3,7 +3,6 @@
 import { getApps, initializeApp } from 'firebase/app';
 import {
   GoogleAuthProvider,
-  OAuthProvider,
   browserLocalPersistence,
   browserPopupRedirectResolver,
   browserSessionPersistence,
@@ -20,7 +19,6 @@ import {
   type Auth,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { isNativeApp, signInWithAppleNative, signInWithGoogleNative } from './native';
 import { startAppCheck } from './appCheck';
 import type { IAuthProvider } from '../interfaces';
 import type { AuthSession, AuthUser, PhoneVerificationInput, SignInInput, SignUpInput } from '../types';
@@ -191,11 +189,10 @@ const SIGN_IN_PATH = /^\/(?:[A-Za-z-]+\/)?(?:signin|signup)(?:\/|$)/;
  * (and with it every Firestore read). So the resolver is set up where a popup
  * may follow: the sign-in pages, and for anyone not signed in in this browser
  * (a client-side navigation to the sign-in page keeps this Auth instance).
- * Signed-in readers elsewhere skip it; the shell apps sign in natively.
+ * Signed-in readers elsewhere skip it.
  */
 function wantsPopupResolver(): boolean {
   if (typeof window === 'undefined') return true;
-  if (isNativeApp()) return false;
   if (SIGN_IN_PATH.test(window.location.pathname)) return true;
   return readSessionMark() === null;
 }
@@ -257,33 +254,10 @@ export class FirebaseClientAuthProvider implements IAuthProvider {
   }
 
   async signInWithGoogle(): Promise<AuthUser> {
-    let user: FirebaseUser;
-    if (isNativeApp()) {
-      // Google blocks OAuth in WebViews, so the shell app authenticates
-      // through the native account picker instead of signInWithPopup.
-      ({ user } = await signInWithGoogleNative(getFirebaseClientAuth()));
-    } else {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      // Named explicitly: Auth may have been set up without a default resolver.
-      ({ user } = await signInWithPopup(getFirebaseClientAuth(), provider, browserPopupRedirectResolver));
-    }
-    return signedIn(user);
-  }
-
-  async signInWithApple(): Promise<AuthUser> {
-    let user: FirebaseUser;
-    if (isNativeApp()) {
-      ({ user } = await signInWithAppleNative(getFirebaseClientAuth()));
-    } else {
-      // Web fallback; requires the Apple provider (Services ID) to be
-      // configured in the Firebase console before it can succeed.
-      ({ user } = await signInWithPopup(
-        getFirebaseClientAuth(),
-        new OAuthProvider('apple.com'),
-        browserPopupRedirectResolver,
-      ));
-    }
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    // Named explicitly: Auth may have been set up without a default resolver.
+    const { user } = await signInWithPopup(getFirebaseClientAuth(), provider, browserPopupRedirectResolver);
     return signedIn(user);
   }
 

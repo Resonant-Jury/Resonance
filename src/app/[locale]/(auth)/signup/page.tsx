@@ -10,14 +10,13 @@ import { AuthCard, Field } from '@/components/molecules/AuthCard/AuthCard';
 import { OrganicInput, OrganicSelect } from '@/components/atoms/OrganicInput/OrganicInput';
 import { HandDrawnCheckmark } from '@/components/atoms/HandDrawnCheckmark/HandDrawnCheckmark';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { isIosNativeApp } from '@/lib/auth/firebase/native';
 import {
   HANDLE_FORBIDDEN,
   checkHandleAvailable,
   createCurrentUserProfile,
   isHandleTaken,
 } from '@/lib/db/firestore/client/profile';
-import { ProviderButtons, type Provider } from '../ProviderButtons';
+import { ProviderButtons } from '../ProviderButtons';
 import styles from '../auth.module.css';
 
 type Step = 'google' | 'profile';
@@ -72,20 +71,12 @@ export default function SignUpPage() {
     };
   }, [handle, step]);
 
-  // Apple ID is offered inside the iOS shell only (App Store requirement).
-  // Detected in an effect so SSR and first client render agree.
-  const [showApple, setShowApple] = useState(false);
-  useEffect(() => {
-    setShowApple(isIosNativeApp());
-  }, []);
-
-  async function startWith(provider: Provider) {
+  async function start() {
     if (pending) return;
     setPending(true);
     setError(null);
     try {
-      if (provider === 'apple') await auth.signInWithApple();
-      else await auth.signInWithGoogle();
+      await auth.signInWithGoogle();
       setStep('profile');
     } catch {
       setError(t('signUpError'));
@@ -113,9 +104,9 @@ export default function SignUpPage() {
   return (
     <AuthCard
       title={t('signUpTitle')}
-      intro={step === 'google' ? t(showApple ? 'appleGoogleIntro' : 'googleIntro') : undefined}
+      intro={step === 'google' ? t('googleIntro') : undefined}
     >
-      {step === 'google' && <ProviderButtons showApple={showApple} pending={pending} onPick={startWith} />}
+      {step === 'google' && <ProviderButtons pending={pending} onPick={start} />}
 
       {step === 'profile' && (
         <>

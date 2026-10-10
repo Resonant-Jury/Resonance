@@ -40,11 +40,6 @@ vi.mock('firebase/auth', () => ({
   browserLocalPersistence: 'local',
   browserSessionPersistence: 'session',
 }));
-vi.mock('./native', () => ({
-  isNativeApp: () => false,
-  signInWithGoogleNative: vi.fn(),
-  signInWithAppleNative: vi.fn(),
-}));
 
 const DAY = 24 * 60 * 60 * 1000;
 const MARK = 'resonance:session';

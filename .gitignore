@@ -11,8 +11,7 @@ dist
 !.env.example
 .vercel
 
-# Android release signing (back up the keystore privately; never commit)
-android/keystore.properties
+# Signing material of any kind: never committed
 *.keystore
 # Signing keys and their passwords (Play upload key, APNs .p8): kept here, never committed
 /keys/

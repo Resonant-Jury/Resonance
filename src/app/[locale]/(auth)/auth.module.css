@@ -203,7 +203,7 @@
   gap: 10px;
 }
 
-/* A provider's mark in a 30px slot, so both sheet buttons' labels sit alike. */
+/* Google's mark in a 30px slot. */
 .mark {
   display: inline-grid;
   place-items: center;

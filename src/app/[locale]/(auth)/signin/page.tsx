@@ -5,9 +5,8 @@ import { useTranslations, useLocale } from 'next-intl';
 import { AuthCard } from '@/components/molecules/AuthCard/AuthCard';
 import { TermsConsent } from '@/components/molecules/TermsConsent/TermsConsent';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { isIosNativeApp } from '@/lib/auth/firebase/native';
 import { sanitizeNextPath } from '@/lib/auth/nextPath';
-import { ProviderButtons, type Provider } from '../ProviderButtons';
+import { ProviderButtons } from '../ProviderButtons';
 import styles from '../auth.module.css';
 
 const RESUME_KEY = 'resonance:signin-resume';
@@ -46,12 +45,8 @@ export default function SignInPage() {
   const auth = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  // Apple ID is offered inside the iOS shell only (App Store requirement).
-  // Detected in an effect so SSR and first client render agree.
-  const [showApple, setShowApple] = useState(false);
   const [deletionScheduled, setDeletionScheduled] = useState(false);
   useEffect(() => {
-    setShowApple(isIosNativeApp());
     setDeletionScheduled(queryParam('notice') === 'deletion-scheduled');
   }, []);
 
@@ -74,13 +69,12 @@ export default function SignInPage() {
     );
   }, [authLoading, signedInId, refreshSession]);
 
-  async function signInWith(provider: Provider) {
+  async function signIn() {
     if (pending) return;
     setPending(true);
     setError(null);
     try {
-      if (provider === 'apple') await auth.signInWithApple();
-      else await auth.signInWithGoogle();
+      await auth.signInWithGoogle();
       const next = sanitizeNextPath(queryParam('next')) ?? `/${locale}/home`;
       window.location.href = next;
     } catch {
@@ -91,13 +85,13 @@ export default function SignInPage() {
   }
 
   return (
-    <AuthCard title={t('signInTitle')} intro={t(showApple ? 'appleGoogleIntro' : 'googleIntro')}>
+    <AuthCard title={t('signInTitle')} intro={t('googleIntro')}>
       {deletionScheduled && (
         <p role="status" className={styles.notice}>
           {t('deletionScheduled')}
         </p>
       )}
-      <ProviderButtons showApple={showApple} pending={pending} onPick={signInWith} />
+      <ProviderButtons pending={pending} onPick={signIn} />
       {error && <p className={styles.error}>{error}</p>}
       <div className={styles.terms}>
         <TermsConsent />

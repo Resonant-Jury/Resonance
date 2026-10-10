@@ -9,14 +9,11 @@ import buttonStyles from '@/components/atoms/OrganicButton/OrganicButton.module.
 const auth = vi.hoisted(() => ({
   refreshSession: vi.fn(),
   signInWithGoogle: vi.fn(),
-  signInWithApple: vi.fn(),
 }));
-const shell = vi.hoisted(() => ({ ios: false }));
 
 vi.mock('@/components/providers/AuthProvider', () => ({
   useAuth: () => ({ user: null, loading: false, ...auth }),
 }));
-vi.mock('@/lib/auth/firebase/native', () => ({ isIosNativeApp: () => shell.ios }));
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
@@ -25,7 +22,6 @@ import SignInPage from './page';
 
 afterEach(() => {
   window.history.replaceState(null, '', '/');
-  shell.ios = false;
   vi.clearAllMocks();
 });
 
@@ -74,32 +70,16 @@ describe('the buttons on the phone sheet', () => {
     expect(onCard.classList).not.toContain(buttonStyles.block);
   });
 
-  it('offer no Apple button outside the iOS app', () => {
+  it('offer Google alone (Sign in with Apple lives in the iOS app)', () => {
     const { container } = renderWithIntl(<SignInPage />);
     expect(sheet(container).getAllByRole('button')).toHaveLength(1);
+    expect(card(container).getAllByRole('button')).toHaveLength(1);
   });
 
-  // Apple asks for a black Sign in with Apple button, as prominent as the others.
-  it('put Apple first in the iOS app, an ink button the size of Google’s', async () => {
-    shell.ios = true;
-    const { container } = renderWithIntl(<SignInPage />);
-    await sheet(container).findByRole('button', { name: en.auth.continueWithApple });
-    const [apple, google] = sheet(container).getAllByRole('button');
-    expect(apple).toHaveAccessibleName(en.auth.continueWithApple);
-    expect(apple).toHaveAttribute('data-variant', 'ink');
-    // Sized alike: full width, the same height and label.
-    expect(apple.className).toBe(google.className);
-    expect(google).toHaveAccessibleName(en.auth.continueWithGoogle);
-    // Apple's logo stands bare in the cream label; only Google's sits on a disc.
-    expect(apple.querySelector('path[fill="#FFFFFF"]')).toBeNull();
-  });
-
-  // B6: the pressed one keeps its words and draws the pen loop in its mark's slot; the other rests.
-  it('show the pressed one working, rest the other, and take no second tap meanwhile', async () => {
-    shell.ios = true;
+  // B6: the pressed one keeps its words and draws the pen loop in its mark's slot.
+  it('show the button working and take no second tap meanwhile', async () => {
     auth.signInWithGoogle.mockReturnValue(new Promise(() => {}));
     const { container } = renderWithIntl(<SignInPage />);
-    const apple = await sheet(container).findByRole('button', { name: en.auth.continueWithApple });
     const google = sheet(container).getByRole('button', { name: en.auth.continueWithGoogle });
 
     await userEvent.click(google);
@@ -108,11 +88,8 @@ describe('the buttons on the phone sheet', () => {
     // One loader, in the G's place (not beside it).
     expect(google.querySelectorAll('[data-button-loader]')).toHaveLength(1);
     expect(google.querySelector('path[fill="#FFFFFF"]')).toBeNull();
-    expect(apple).toBeDisabled();
 
     await userEvent.click(google);
-    await userEvent.click(apple);
     expect(auth.signInWithGoogle).toHaveBeenCalledTimes(1);
-    expect(auth.signInWithApple).not.toHaveBeenCalled();
   });
 });

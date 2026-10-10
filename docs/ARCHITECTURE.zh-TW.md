@@ -136,7 +136,7 @@ docs/                        # PRD（共振_產品需求書）、開發計畫、
 
 ### 影像管線
 
-客戶端先壓縮（`src/lib/images/compress.ts`），經 `/api/upload` 或 `/api/generate-image` 上傳；伺服器端以 sharp 轉 AVIF（`src/lib/storage/image.ts`）後寫入 R2，回傳 `R2_PUBLIC_BASE` 公開 URL。R2 CORS 設定在根目錄 `r2-cors.json`。
+客戶端先壓縮（`src/lib/images/compress.ts`），經 `/api/upload` 或 `/api/generate-image` 上傳；伺服器端以 sharp 轉 AVIF（`src/lib/storage/image.ts`）後寫入 R2，回傳 `R2_PUBLIC_BASE` 公開 URL。R2 CORS 設定在 `infra/r2-cors.json`。
 
 圖片網域搬家（r2.dev → `img.resonance.channel`，同一個 bucket，兩個網域都能讀到每個 key）：舊網域放進 `R2_FORMER_PUBLIC_BASES`，規則的 `storedFile()` 也接受 `config/storage.formerHosts` 裡的舊網域；`npx tsx scripts/backfill.ts storage-host --apply` 會把被取代的網域記進 `formerHosts`，`rehost-images --apply` 再把頭像、封面、故事內圖片（含待套用的修改）的網址改到新網域（不動 `updatedAt`，檢舉證據保持原樣）。步驟順序見 CLAUDE.md 的 Storage 一節。
 
