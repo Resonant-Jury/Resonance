@@ -542,6 +542,8 @@ public struct OrganicBrandBar<Trailing: View>: View {
 
     @Environment(\.headerChrome) private var chrome
     @Environment(\.window) private var window
+    /// The window's controls in the row's corner (an iPad's app in a window): the row's content clears them.
+    @State private var controls = WindowControlsInset.zero
 
     public var body: some View {
         if let chrome {
@@ -549,11 +551,15 @@ public struct OrganicBrandBar<Trailing: View>: View {
             // alone when the wordmark doesn't fit), the page's actions 8 before the window's pen.
             HStack(spacing: 0) {
                 lockup
-                    .frame(maxWidth: HeaderChrome.leadingRoom(width: window.width, groupWidth: chrome.groupWidth), alignment: .leading)
+                    .frame(maxWidth: max(0, HeaderChrome.leadingRoom(width: window.width, groupWidth: chrome.groupWidth) - controls.leading),
+                           alignment: .leading)
                 Spacer(minLength: 12)
                 trailing
             }
+            .padding(.leading, controls.leading)
+            .padding(.trailing, controls.trailing)
             .frame(minHeight: HeaderChrome.rowHeight)
+            .windowControlsInset($controls)
             .padding(.leading, window.pad)
             .padding(.trailing, window.pad + chrome.trailingReserve)
             .padding(.bottom, HeaderEdge.height)
@@ -566,7 +572,10 @@ public struct OrganicBrandBar<Trailing: View>: View {
                 Spacer(minLength: 12)
                 trailing
             }
+            .padding(.leading, controls.leading)
+            .padding(.trailing, controls.trailing)
             .frame(minHeight: 44)
+            .windowControlsInset($controls)
             .padding(.horizontal, 20)
             .padding(.top, 4)
             .padding(.bottom, HeaderEdge.height)
@@ -656,6 +665,8 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     private var inset: CGFloat = 0
     /// The page's actions as drawn (a tablet centres the context clear of them).
     @State private var trailingWidth: CGFloat = 0
+    /// The window's controls in the row's corner (an iPad's app in a window): the arrow and the actions clear them.
+    @State private var controls = WindowControlsInset.zero
     @Environment(\.dismiss) private var dismiss
 
     public init(_ title: String, backLabel: String, scrolled: Bool = false,
@@ -713,13 +724,18 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { trailingWidth = $0 }
                         .padding(.trailing, -12)
                 }
+                .padding(.leading, controls.leading)
+                .padding(.trailing, controls.trailing)
                 HStack(spacing: 10) {
                     titleText
                     leading
                 }
-                .frame(maxWidth: HeaderChrome.centreRoom(width: window.width, side: trailingWidth - 12))
+                // On the window's centre line, clear of the arrow (and the controls before it) and the actions.
+                .frame(maxWidth: HeaderChrome.centreRoom(width: window.width,
+                                                         side: max(trailingWidth - 12 + controls.trailing, HeaderChrome.backReserve + controls.leading)))
             }
             .frame(minHeight: HeaderChrome.rowHeight)
+            .windowControlsInset($controls)
             .padding(.leading, window.pad + inset)
             .padding(.trailing, window.pad)
             .padding(.bottom, HeaderEdge.height)
@@ -734,7 +750,10 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
                 HStack(spacing: 0) { trailing }
                     .padding(.trailing, -12)
             }
+            .padding(.leading, controls.leading)
+            .padding(.trailing, controls.trailing)
             .frame(minHeight: 44)
+            .windowControlsInset($controls)
             .padding(.horizontal, 20)
             .padding(.leading, inset)
             .padding(.top, 4)

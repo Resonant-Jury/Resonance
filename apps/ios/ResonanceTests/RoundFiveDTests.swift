@@ -1,6 +1,7 @@
 import DesignSystem
 import ResonanceKit
 import SwiftUI
+import UIKit
 import Testing
 @testable import Resonance
 
@@ -40,5 +41,20 @@ import Testing
         let byline = CardByline.of(Fixture.card("b", by: "bob"))
         #expect(!byline.isAnonymous)
         #expect(byline.name == "bob")
+    }
+}
+
+/// A bar's row clears the window's controls (an iPad's app in a window) by what the corner adds to
+/// the plain safe area, never less than nothing — and by nothing where no controls are.
+@Suite struct WindowControlsInsetTests {
+    @Test func padsByWhatTheCornerAdds() {
+        let plain = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+        let adapted = NSDirectionalEdgeInsets(top: 0, leading: 17.5, bottom: 0, trailing: 0)
+        #expect(WindowControlsInset.added(adapted: adapted, plain: plain) == WindowControlsInset(leading: 18, trailing: 0))
+        // Full screen, a phone, a row the controls don't reach: the regions agree.
+        #expect(WindowControlsInset.added(adapted: plain, plain: plain) == .zero)
+        // A safe area of its own (a landscape phone's notch) is the row's pad's business, not this.
+        let notch = NSDirectionalEdgeInsets(top: 0, leading: 59, bottom: 0, trailing: 59)
+        #expect(WindowControlsInset.added(adapted: notch, plain: notch) == .zero)
     }
 }
