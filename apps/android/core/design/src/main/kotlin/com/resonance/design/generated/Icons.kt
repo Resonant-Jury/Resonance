@@ -227,16 +227,16 @@ enum class IconName(val key: String) {
                 IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 15f, 14.1f, 2f, 16.2f, 14f, 17.1f, 15f, 17.1f, 16.2f, 2f, 17.1f, 17.4f, 16.1f, 18.3f, 14.9f, 18.3f, 2f, 13.7f, 18.2f, 12.9f, 17.3f, 12.9f, 16.1f, 2f, 13f, 15f, 13.9f, 14.2f, 15f, 14.1f, 3f)),
             ))
             Send -> IconGlyph(24f, fillable = false, strokes = listOf(
-                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 3f, 11.6f, 2f, 7.9f, 8.7f, 15f, 5.9f, 20.2f, 3.8f, 2f, 18.3f, 9.1f, 16f, 15.5f, 13.1f, 21.3f, 2f, 11.6f, 18.5f, 10.8f, 16.2f, 9.9f, 14.3f, 2f, 7.7f, 13.8f, 4.8f, 12.6f, 2.3f, 11.4f)),
-                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 19.6f, 4.4f, 2f, 17.2f, 7.2f, 14.4f, 10f, 11.7f, 12.4f)),
+                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 3f, 12.4f, 2f, 7.2f, 9.3f, 13.9f, 6.3f, 20.2f, 3.5f, 2f, 18.7f, 8.8f, 16.4f, 15.2f, 12.9f, 21.3f, 2f, 11.8f, 19f, 10.9f, 16.7f, 9.7f, 14.5f, 2f, 7.2f, 13.7f, 4.2f, 12.3f, 1.7f, 11f)),
+                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 19.6f, 4.2f, 2f, 16.3f, 6.3f, 14.2f, 9.4f, 11.4f, 12.1f)),
             ))
             Reply -> IconGlyph(24f, fillable = false, strokes = listOf(
                 IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 19.7f, 18.7f, 2f, 19.9f, 14.7f, 18.4f, 11.5f, 14.7f, 10.5f, 2f, 12.4f, 9.9f, 9.6f, 9.9f, 5.6f, 10.1f)),
                 IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 9.6f, 5.6f, 2f, 8.1f, 7.2f, 6.6f, 8.6f, 5.1f, 10.1f, 2f, 6.6f, 11.7f, 8.1f, 13.1f, 9.8f, 14.7f)),
             ))
             Copy -> IconGlyph(24f, fillable = false, strokes = listOf(
-                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 9.2f, 6.5f, 2f, 9.2f, 5.6f, 9.4f, 4.8f, 9.8f, 4.2f, 2f, 12.8f, 3.9f, 16.2f, 4f, 19.3f, 4.4f, 2f, 19.7f, 7.6f, 19.6f, 11.2f, 19.3f, 14.4f, 2f, 18.7f, 14.7f, 18f, 14.8f, 17.2f, 14.8f)),
-                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 4.8f, 8.1f, 2f, 8f, 7.6f, 11.6f, 7.7f, 14.6f, 8.2f, 2f, 15f, 11.6f, 14.9f, 15.7f, 14.6f, 19.5f, 2f, 11.3f, 20f, 7.8f, 19.9f, 4.9f, 19.5f, 2f, 4.4f, 15.8f, 4.6f, 11.7f, 4.8f, 8.1f, 3f)),
+                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 9f, 5.7f, 2f, 9f, 5f, 9.3f, 4.4f, 9.8f, 3.9f, 2f, 13f, 3.4f, 16.4f, 3.6f, 19.6f, 4.2f, 2f, 20f, 7.6f, 19.9f, 11.1f, 19.5f, 14.6f, 2f, 18.9f, 14.9f, 18.2f, 15f, 17.5f, 15f)),
+                IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 5.7f, 7.9f, 2f, 8.7f, 7.4f, 11.9f, 7.3f, 14.9f, 7.7f, 2f, 15.5f, 11.3f, 15.6f, 15.4f, 15f, 19.6f, 2f, 11.6f, 20.3f, 7.7f, 20.2f, 4.4f, 19.6f, 2f, 4f, 15.6f, 4.1f, 11.3f, 4.6f, 7.6f, 2f, 4.7f, 6.9f, 4.8f, 6.3f, 5f, 5.8f)),
             ))
             Link -> IconGlyph(24f, fillable = false, strokes = listOf(
                 IconStroke(filled = false, width = 1f, commands = floatArrayOf(0f, 10.6f, 13.4f, 2f, 9.4f, 12f, 9.6f, 10f, 10.9f, 8.7f, 2f, 11.8f, 7.8f, 12.7f, 6.9f, 13.6f, 6f, 2f, 15f, 4.6f, 17.3f, 4.7f, 18.6f, 6f, 2f, 20f, 7.4f, 19.9f, 9.6f, 18.5f, 11f, 2f, 18f, 11.5f, 17.5f, 12f, 17f, 12.4f)),

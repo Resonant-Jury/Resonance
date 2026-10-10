@@ -87,7 +87,8 @@
       "editThisCard": "Edit this card"
     },
     "notifications": {
-      "empty": "When someone resonates with your card — or sends you a little note — it will show up here",
+      "emptyTitle": "No notifications yet",
+      "empty": "When someone resonates with your card or leaves you a note, you'll see it here",
       "invite": "{handle} wants to connect",
       "inviteAccepted": "{handle} accepted your invite — you're connected ✿",
       "resonanceSummary": "{count} people resonated with you yesterday",
@@ -120,6 +121,7 @@
     "moreBtn": "Load more",
     "moreLoading": "Loading…",
     "endOfDay": "You are caught up on the latest public cards",
+    "feedEnd": "That's all for now",
     "writeResponse": "Write a card",
     "empty": {
       "title": "Write your first card",
@@ -225,7 +227,8 @@
   "messages": {
     "title": "Messages",
     "subtitle": "Quiet conversations with the people you're connected with",
-    "empty": "Once you form a connection, your conversations will live here",
+    "emptyTitle": "No conversations yet",
+    "empty": "Leave a note on a card you love, or resonate with it, and your conversations begin here",
     "startSection": "Connected — no conversation yet",
     "pickOne": "Pick a conversation from the left",
     "noMessagesYet": "No messages yet — say hello",
@@ -351,8 +354,8 @@
     "tagsHelp": "Press Enter to add one, or let AI suggest from your story",
     "mediaLabel": "Image (optional)",
     "mediaRemove": "Remove image",
-    "mediaPlaceholder": "Click, or drag an image here",
-    "mediaHint": "PNG, JPG, WebP · up to 5MB",
+    "mediaPlaceholder": "Add an image",
+    "mediaHint": "PNG, JPG, WebP · up to 4MB",
     "mediaUploadError": "Couldn’t upload the image — please try again",
     "mediaUploading": "Sketching it in…",
     "mediaGenerate": "Generate",
@@ -600,7 +603,8 @@
     },
     "account": {
       "email": "Email",
-      "phone": "Phone (verified)",
+      "phone": "Phone",
+      "phoneVerified": "Phone (verified)",
       "password": "Password",
       "signOut": "Sign out"
     },

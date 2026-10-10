@@ -107,6 +107,26 @@ public nonisolated enum Tokens {
     public static let pageMaxW: CGFloat = 1080
     /// --page-max-w-wide
     public static let pageMaxWWide: CGFloat = 1200
+    /// --bp-medium
+    public static let bpMedium: CGFloat = 600
+    /// --bp-expanded
+    public static let bpExpanded: CGFloat = 900
+    /// --bp-wide
+    public static let bpWide: CGFloat = 1200
+    /// --measure
+    public static let measure: CGFloat = 680
+    /// --card-rail-w
+    public static let cardRailW: CGFloat = 260
+    /// --side-rail-w
+    public static let sideRailW: CGFloat = 88
+    /// --msg-list-w
+    public static let msgListW: CGFloat = 300
+    /// --bubble-max
+    public static let bubbleMax: CGFloat = 520
+    /// --feed-gap
+    public static let feedGap: CGFloat = 24
+    /// --feed-three-col-min
+    public static let feedThreeColMin: CGFloat = 960
     /// --radius-sm
     public static let radiusSm: CGFloat = 12
     /// --radius-md

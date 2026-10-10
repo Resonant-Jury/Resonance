@@ -111,6 +111,26 @@ object Tokens {
     const val PageMaxW = 1080f
     /** --page-max-w-wide */
     const val PageMaxWWide = 1200f
+    /** --bp-medium */
+    const val BpMedium = 600f
+    /** --bp-expanded */
+    const val BpExpanded = 900f
+    /** --bp-wide */
+    const val BpWide = 1200f
+    /** --measure */
+    const val Measure = 680f
+    /** --card-rail-w */
+    const val CardRailW = 260f
+    /** --side-rail-w */
+    const val SideRailW = 88f
+    /** --msg-list-w */
+    const val MsgListW = 300f
+    /** --bubble-max */
+    const val BubbleMax = 520f
+    /** --feed-gap */
+    const val FeedGap = 24f
+    /** --feed-three-col-min */
+    const val FeedThreeColMin = 960f
     /** --radius-sm */
     const val RadiusSm = 12f
     /** --radius-md */

@@ -87,7 +87,8 @@
       "editThisCard": "編輯這張卡片"
     },
     "notifications": {
-      "empty": "當有人共振你的卡片、或寄來一張小紙條，會出現在這裡",
+      "emptyTitle": "還沒有通知",
+      "empty": "有人與你的卡片共振、或留下一張小紙條時，會在這裡告訴你",
       "invite": "{handle} 想和你連結",
       "inviteAccepted": "{handle} 接受了你的邀請，你們連上線了 ✿",
       "resonanceSummary": "昨天有 {count} 個人與你共振",
@@ -120,9 +121,10 @@
     "moreBtn": "載入更多",
     "moreLoading": "載入中…",
     "endOfDay": "你已經看完最新公開卡片",
+    "feedEnd": "暫時就這些了",
     "writeResponse": "寫一張卡片",
     "empty": {
-      "title": "先寫下你的第一張卡片，",
+      "title": "先寫下你的第一張卡片",
       "subtitle": "發布後，大家就能在最新公開 feed 看見你的故事",
       "cta": "開始寫"
     },
@@ -225,7 +227,8 @@
   "messages": {
     "title": "私訊",
     "subtitle": "與你連結的人，安靜地把話說下去",
-    "empty": "建立連結後，你們的對話會住在這裡",
+    "emptyTitle": "還沒有對話",
+    "empty": "在喜歡的卡片留一張小紙條，或與它共振，對話就會從這裡開始",
     "startSection": "已連結、還沒說過話",
     "pickOne": "從左邊選一段對話",
     "noMessagesYet": "還沒有訊息——說聲嗨吧",
@@ -351,8 +354,8 @@
     "tagsHelp": "按 Enter 新增，或讓 AI 從故事裡建議",
     "mediaLabel": "搭配一張圖片（選填）",
     "mediaRemove": "移除圖片",
-    "mediaPlaceholder": "點一下，或把圖片拖進來",
-    "mediaHint": "PNG、JPG、WebP，最大 5MB",
+    "mediaPlaceholder": "加一張圖片",
+    "mediaHint": "PNG、JPG、WebP，最大 4MB",
     "mediaUploadError": "圖片上傳失敗，請稍後再試",
     "mediaUploading": "正在描繪中⋯",
     "mediaGenerate": "生成圖片",
@@ -600,7 +603,8 @@
     },
     "account": {
       "email": "電子郵件",
-      "phone": "手機 (已驗證)",
+      "phone": "手機",
+      "phoneVerified": "手機（已驗證）",
       "password": "密碼",
       "signOut": "登出"
     },
@@ -639,7 +643,7 @@
       "exporting": "準備中⋯",
       "button": "刪除帳號",
       "confirmTitle": "確定要刪除帳號？",
-      "confirmBody": "你會被登出。{date} 之後，帳號與所有內容會永久刪除，無法復原。",
+      "confirmBody": "你會被登出。{date}之後，帳號與所有內容會永久刪除，無法復原。",
       "confirm": "刪除帳號",
       "cancel": "先不要",
       "error": "沒送出去，再試一次"

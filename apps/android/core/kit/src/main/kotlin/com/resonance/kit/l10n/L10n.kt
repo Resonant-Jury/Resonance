@@ -161,7 +161,9 @@ object L10n {
             val editThisCard: String get() = Strings.string("app.nav.editThisCard")
         }
         object Notifications {
-            /** When someone resonates with your card — or sends you a little note — it will show up here */
+            /** No notifications yet */
+            val emptyTitle: String get() = Strings.string("app.notifications.emptyTitle")
+            /** When someone resonates with your card or leaves you a note, you'll see it here */
             val empty: String get() = Strings.string("app.notifications.empty")
             /** {handle} wants to connect */
             fun invite(handle: String): String = Strings.format("app.notifications.invite", mapOf("handle" to handle))
@@ -222,6 +224,8 @@ object L10n {
         val moreLoading: String get() = Strings.string("home.moreLoading")
         /** You are caught up on the latest public cards */
         val endOfDay: String get() = Strings.string("home.endOfDay")
+        /** That's all for now */
+        val feedEnd: String get() = Strings.string("home.feedEnd")
         /** Write a card */
         val writeResponse: String get() = Strings.string("home.writeResponse")
         object Empty {
@@ -402,7 +406,9 @@ object L10n {
         val title: String get() = Strings.string("messages.title")
         /** Quiet conversations with the people you're connected with */
         val subtitle: String get() = Strings.string("messages.subtitle")
-        /** Once you form a connection, your conversations will live here */
+        /** No conversations yet */
+        val emptyTitle: String get() = Strings.string("messages.emptyTitle")
+        /** Leave a note on a card you love, or resonate with it, and your conversations begin here */
         val empty: String get() = Strings.string("messages.empty")
         /** Connected — no conversation yet */
         val startSection: String get() = Strings.string("messages.startSection")
@@ -648,9 +654,9 @@ object L10n {
         val mediaLabel: String get() = Strings.string("write.mediaLabel")
         /** Remove image */
         val mediaRemove: String get() = Strings.string("write.mediaRemove")
-        /** Click, or drag an image here */
+        /** Add an image */
         val mediaPlaceholder: String get() = Strings.string("write.mediaPlaceholder")
-        /** PNG, JPG, WebP · up to 5MB */
+        /** PNG, JPG, WebP · up to 4MB */
         val mediaHint: String get() = Strings.string("write.mediaHint")
         /** Couldn’t upload the image — please try again */
         val mediaUploadError: String get() = Strings.string("write.mediaUploadError")
@@ -1115,8 +1121,10 @@ object L10n {
         object Account {
             /** Email */
             val email: String get() = Strings.string("settings.account.email")
-            /** Phone (verified) */
+            /** Phone */
             val phone: String get() = Strings.string("settings.account.phone")
+            /** Phone (verified) */
+            val phoneVerified: String get() = Strings.string("settings.account.phoneVerified")
             /** Password */
             val password: String get() = Strings.string("settings.account.password")
             /** Sign out */

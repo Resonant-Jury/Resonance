@@ -159,7 +159,9 @@ public enum L10n {
             public static var editThisCard: String { Strings.shared.string("app.nav.editThisCard") }
         }
         public enum Notifications {
-            /// When someone resonates with your card — or sends you a little note — it will show up here
+            /// No notifications yet
+            public static var emptyTitle: String { Strings.shared.string("app.notifications.emptyTitle") }
+            /// When someone resonates with your card or leaves you a note, you'll see it here
             public static var empty: String { Strings.shared.string("app.notifications.empty") }
             /// {handle} wants to connect
             public static func invite(handle: String) -> String { Strings.shared.format("app.notifications.invite", ["handle": handle]) }
@@ -220,6 +222,8 @@ public enum L10n {
         public static var moreLoading: String { Strings.shared.string("home.moreLoading") }
         /// You are caught up on the latest public cards
         public static var endOfDay: String { Strings.shared.string("home.endOfDay") }
+        /// That's all for now
+        public static var feedEnd: String { Strings.shared.string("home.feedEnd") }
         /// Write a card
         public static var writeResponse: String { Strings.shared.string("home.writeResponse") }
         public enum Empty {
@@ -400,7 +404,9 @@ public enum L10n {
         public static var title: String { Strings.shared.string("messages.title") }
         /// Quiet conversations with the people you're connected with
         public static var subtitle: String { Strings.shared.string("messages.subtitle") }
-        /// Once you form a connection, your conversations will live here
+        /// No conversations yet
+        public static var emptyTitle: String { Strings.shared.string("messages.emptyTitle") }
+        /// Leave a note on a card you love, or resonate with it, and your conversations begin here
         public static var empty: String { Strings.shared.string("messages.empty") }
         /// Connected — no conversation yet
         public static var startSection: String { Strings.shared.string("messages.startSection") }
@@ -646,9 +652,9 @@ public enum L10n {
         public static var mediaLabel: String { Strings.shared.string("write.mediaLabel") }
         /// Remove image
         public static var mediaRemove: String { Strings.shared.string("write.mediaRemove") }
-        /// Click, or drag an image here
+        /// Add an image
         public static var mediaPlaceholder: String { Strings.shared.string("write.mediaPlaceholder") }
-        /// PNG, JPG, WebP · up to 5MB
+        /// PNG, JPG, WebP · up to 4MB
         public static var mediaHint: String { Strings.shared.string("write.mediaHint") }
         /// Couldn’t upload the image — please try again
         public static var mediaUploadError: String { Strings.shared.string("write.mediaUploadError") }
@@ -1113,8 +1119,10 @@ public enum L10n {
         public enum Account {
             /// Email
             public static var email: String { Strings.shared.string("settings.account.email") }
-            /// Phone (verified)
+            /// Phone
             public static var phone: String { Strings.shared.string("settings.account.phone") }
+            /// Phone (verified)
+            public static var phoneVerified: String { Strings.shared.string("settings.account.phoneVerified") }
             /// Password
             public static var password: String { Strings.shared.string("settings.account.password") }
             /// Sign out

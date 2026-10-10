@@ -66,9 +66,34 @@
   --page-pad-x: clamp(20px, 4vw, 48px);
   --page-pad-top: clamp(40px, 6vw, 72px);
   --page-pad-bottom: clamp(64px, 8vw, 112px);
-  --page-max-w-narrow: calc(680px + var(--page-pad-x) + var(--page-pad-x));
+  --page-max-w-narrow: calc(var(--measure) + var(--page-pad-x) + var(--page-pad-x));
   --page-max-w: 1080px;
   --page-max-w-wide: 1200px;
+
+  /* Width classes and measures shared with the apps (scripts/native/tokens.ts
+     exports every plain px value to Tokens.swift / Tokens.kt). The apps'
+     LayoutClass.of(width) is compact below --bp-medium, medium below
+     --bp-expanded and expanded from it; the writer sits beside the thought
+     map from --bp-wide. A media query can't read a custom property, so the
+     web's own queries keep their literals (640 / 720 / 900 / 1024 / 1200).
+     The surfaces are specified in notes/r5/design.md. */
+  --bp-medium: 600px;
+  --bp-expanded: 900px;
+  --bp-wide: 1200px;
+  /* A reading column: the writer, the medium feed's cards, settings. */
+  --measure: 680px;
+  /* The card page's author rail beside the article (expanded). */
+  --card-rail-w: 260px;
+  /* The apps' OrganicSideRail, in place of the tab bar from medium up. */
+  --side-rail-w: 88px;
+  /* The conversations column beside an open thread (expanded). */
+  --msg-list-w: 300px;
+  /* A chat bubble's widest, on every platform: min(72% of the row, this). */
+  --bubble-max: 520px;
+  /* Between the bordered feed cards, across and down. */
+  --feed-gap: 24px;
+  /* The feed's content width from which the bordered grid takes 3 columns (else 2). */
+  --feed-three-col-min: 960px;
 
   /* Story images (article body + the editor, so both look the same).
      A photo is its own beat in the text: it carries its own breathing room,
