@@ -148,3 +148,37 @@ describe('SegmentedActionBar', () => {
     });
   });
 });
+
+// B6: a segment whose action is on its way keeps its word, draws the pen loop in
+// its icon's place (or just before a bare label), says it is busy and takes no press.
+describe('SegmentedActionBar in progress', () => {
+  it('puts the loader in the icon’s place, keeps the word and ignores presses', async () => {
+    const onPublish = vi.fn();
+    render(
+      <SegmentedActionBar
+        segments={[
+          { key: 'publish', icon: <svg data-icon width={16} height={16} />, label: 'Publish', onClick: onPublish, loading: true },
+          { key: 'draft', label: 'Save draft' },
+        ]}
+      />,
+    );
+    const publish = screen.getByRole('button', { name: 'Publish' });
+    expect(publish).toHaveAttribute('aria-busy', 'true');
+    expect(publish.querySelector('[data-icon]')).toBeNull();
+    expect(publish.querySelectorAll('[data-button-loader]')).toHaveLength(1);
+    await userEvent.click(publish);
+    expect(onPublish).not.toHaveBeenCalled();
+    // The other segment is untouched.
+    const draft = screen.getByRole('button', { name: 'Save draft' });
+    expect(draft).not.toHaveAttribute('aria-busy');
+    expect(draft.querySelector('[data-button-loader]')).toBeNull();
+  });
+
+  it('stands the loader before a bare label and moves the label half its room', () => {
+    render(<SegmentedActionBar segments={[{ key: 'send', label: 'Send', loading: true }]} />);
+    const label = screen.getByRole('button', { name: 'Send' }).querySelector('[data-label]') as HTMLElement;
+    expect(label).toHaveAttribute('data-loading-shift');
+    expect(label.style.getPropertyValue('--loader-shift')).toBe('11px');
+    expect(label.querySelector('[data-button-loader]')).toHaveAttribute('width', '16');
+  });
+});

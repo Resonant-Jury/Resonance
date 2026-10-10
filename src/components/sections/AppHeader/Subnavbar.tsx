@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
+import { ButtonLoader } from '@/components/atoms/ButtonLoader/ButtonLoader';
 import { Icon, type IconName } from '@/components/atoms/Icon';
 import { RowInkWash, useRowInk } from '@/components/atoms/RowInk/RowInk';
 import { SignOutConfirmModal } from '@/components/molecules/SignOutConfirmModal/SignOutConfirmModal';
@@ -366,16 +367,22 @@ function SubnavPanel({
             data-active={i === ink.index || undefined}
             data-tone={item.tone}
             disabled={item.key === 'signOut' && signingOut}
+            aria-busy={(item.key === 'signOut' && signingOut) || undefined}
             onClick={() => onChoose(i)}
             {...ink.rowProps(i, () => {
               onActivate(i);
               setInteractionMode('mouse');
             })}
           >
-            <Icon name={item.icon} size={18} strokeWidth={INK} className={styles.optionIcon} />
-            <span className={styles.optionLabel}>
-              {item.key === 'signOut' && signingOut ? '…' : label(item.key)}
-            </span>
+            {/* Signing out: the row keeps its words, its icon's place draws the pen loop (B6). */}
+            {item.key === 'signOut' && signingOut ? (
+              <span className={styles.optionIcon}>
+                <ButtonLoader size={18} />
+              </span>
+            ) : (
+              <Icon name={item.icon} size={18} strokeWidth={INK} className={styles.optionIcon} />
+            )}
+            <span className={styles.optionLabel}>{label(item.key)}</span>
           </button>
         ))}
       </div>

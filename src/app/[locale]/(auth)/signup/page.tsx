@@ -167,8 +167,8 @@ export default function SignUpPage() {
                 pointerEvents: handleState === 'available' ? 'auto' : 'none',
               }}
             >
-              <OrganicButton variant="primary" onClick={finish}>
-                {pending ? t('creating') : t('finish')}
+              <OrganicButton variant="primary" onClick={finish} loading={pending}>
+                {t('finish')}
               </OrganicButton>
             </div>
           </div>

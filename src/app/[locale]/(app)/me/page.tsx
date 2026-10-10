@@ -5,10 +5,13 @@ import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { BareIconButton } from '@/components/atoms/BareIconButton/BareIconButton';
+import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
+import { Icon } from '@/components/atoms/Icon';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { ProfileTabs, type TabKey } from '@/components/molecules/ProfileTabs/ProfileTabs';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import { useMyCardBox, useMyProfile, type CardBoxShelf } from '@/lib/data/hooks';
+import styles from './page.module.css';
 
 // Answering an older invite — none are sent any more — loads after the page.
 const InvitesInbox = dynamic(() => import('@/components/molecules/InvitesInbox/InvitesInbox').then((m) => m.InvitesInbox));
@@ -24,6 +27,7 @@ export default function MyCardBoxPage() {
   const [shelf, setShelf] = useState<CardBoxShelf | null>(null);
   const { data: box } = useMyCardBox(shelf);
   const isMobile = useIsMobile(640);
+  const router = useRouter();
   // From the card box, tapping your own avatar/name steps out to the public
   // profile — the page a connected reader would see.
   const publicHref = user ? (`/u/${user.handle}` as const) : undefined;
@@ -59,7 +63,7 @@ export default function MyCardBoxPage() {
         ) : (
           <HandDrawnAvatar initials="··" size={72} color="oklch(88% 0.08 55)" seed={0} />
         )}
-        {/* No min-width on phones — reserving 200px would push the pen
+        {/* No min-width on phones — reserving 200px would push the glyph
             onto its own row instead of keeping it at the right edge. */}
         <div style={{ flex: 1, minWidth: isMobile ? 0 : 200 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -105,10 +109,20 @@ export default function MyCardBoxPage() {
               })}
             </p>
           )}
+          {/* Wide: the way to the profile settings says what it is, with the profile's own lines —
+              a labelled tonal button under them, not a lone glyph at the far end (B5). */}
+          <div className={styles.editWide}>
+            <OrganicButton variant="tonal" size="sm" onClick={() => router.push('/settings')}>
+              <Icon name="user" size={16} />
+              {t('editProfile')}
+            </OrganicButton>
+          </div>
         </div>
-        {/* The identity row ends on the pen, the app's settings glyph (see the header Subnavbar): a bare
-            glyph on the page's paper, as in the apps, its name in its tooltip. */}
-        <BareIconButton href="/settings" icon="pen" label={t('editProfile')} iconSize={20} tone="ink" tipAlign="end" seed={11} />
+        {/* Phone: the identity row ends on a bare glyph on the page's paper, as in the apps, its name
+            in its tooltip — the person, not the pen (the pen means writing). */}
+        <span className={styles.editPhone}>
+          <BareIconButton href="/settings" icon="user" label={t('editProfile')} iconSize={20} tone="ink" tipAlign="end" seed={11} />
+        </span>
       </header>
 
       <InvitesInbox />

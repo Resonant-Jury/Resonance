@@ -156,6 +156,8 @@ export function TagField({ tags, onChange, onSuggest, suggesting, error, id }: T
               size="sm"
               className={styles.action}
               onClick={canAdd ? commit : onSuggest}
+              // Asking the model: the sparkle's place draws the pen loop until the tags arrive.
+              loading={!canAdd && busy}
             >
               {canAdd ? (
                 <>
@@ -164,10 +166,8 @@ export function TagField({ tags, onChange, onSuggest, suggesting, error, id }: T
                 </>
               ) : (
                 <>
-                  <span className={styles.sparkle} data-busy={busy || undefined}>
-                    <Icon name="sparkle" size={15} />
-                  </span>
-                  {busy ? t('tagsSuggesting') : t('tagsSuggest')}
+                  <Icon name="sparkle" size={15} />
+                  {t('tagsSuggest')}
                 </>
               )}
             </OrganicButton>

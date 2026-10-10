@@ -13,7 +13,7 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { wobRect } from '@/lib/design/wobRect';
 import { wavyLine } from '@/lib/design/wavyPath';
 import { INK, INK_LIGHT } from '@/lib/design/strokes';
-import { cardHueIndex, nearestCardHue } from '@/lib/design/dominantHue';
+import { preferredPalette } from '@/lib/design/cardColours';
 import styles from './MiniStoryCard.module.css';
 
 const CARD_BORDERS = [
@@ -39,6 +39,8 @@ export interface MiniStoryCardProps {
   accentHue?: number;
   index?: number;
   isLast?: boolean;
+  /** The colour family its list chose (`cardPalettes`); unset: its own (cover hue, else position). */
+  palette?: number;
 }
 
 /**
@@ -59,6 +61,7 @@ export function MiniStoryCard({
   accentHue,
   index = 0,
   isLast = false,
+  palette,
 }: MiniStoryCardProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -71,9 +74,8 @@ export function MiniStoryCard({
     setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
   };
 
-  // Cover-image hue family when known, else the position-based rotation.
-  const hueIdx = accentHue != null ? cardHueIndex(nearestCardHue(accentHue)) : -1;
-  const paletteIdx = hueIdx >= 0 ? hueIdx : index % CARD_HUES.length;
+  // The list's choice (no neighbour shares it), else the cover's family or the position's.
+  const paletteIdx = palette ?? preferredPalette(accentHue, index);
   const bc1 = CARD_BORDERS[paletteIdx];
   const hue = CARD_HUES[paletteIdx];
   const accent = authorAccent ?? `oklch(90% 0.06 ${hue})`;

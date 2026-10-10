@@ -22,6 +22,8 @@ export function InvitesInbox() {
   const [items, setItems] = useState<Invite[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  // Which of the two was pressed: it shows the loader, the other rests.
+  const [pendingVerb, setPendingVerb] = useState<'accept' | 'decline' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, start] = useTransition();
 
@@ -44,6 +46,7 @@ export function InvitesInbox() {
 
   function accept(invite: Invite) {
     setPendingId(invite.id);
+    setPendingVerb('accept');
     setError(null);
     start(async () => {
       try {
@@ -61,6 +64,7 @@ export function InvitesInbox() {
 
   function decline(invite: Invite) {
     setPendingId(invite.id);
+    setPendingVerb('decline');
     setError(null);
     start(async () => {
       try {
@@ -133,14 +137,18 @@ export function InvitesInbox() {
                 <OrganicButton
                   variant="solid"
                   onClick={() => accept(invite)}
+                  loading={pendingId === invite.id && pendingVerb === 'accept'}
+                  disabled={pendingId === invite.id && pendingVerb === 'decline'}
                 >
-                  {pendingId === invite.id ? '…' : t('accept')}
+                  {t('accept')}
                 </OrganicButton>
                 <OrganicButton
                   variant="text"
                   onClick={() => decline(invite)}
+                  loading={pendingId === invite.id && pendingVerb === 'decline'}
+                  disabled={pendingId === invite.id && pendingVerb === 'accept'}
                 >
-                  {pendingId === invite.id ? '…' : t('decline')}
+                  {t('decline')}
                 </OrganicButton>
                 <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
                   {t('expiresAt', {

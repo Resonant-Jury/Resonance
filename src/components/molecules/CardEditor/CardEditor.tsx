@@ -203,6 +203,8 @@ export function CardEditor({
   // const [titleSuggestions, setTitleSuggestions] = useState<string[]>([]);
   // const [polishPreview, setPolishPreview] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Which action `pending` is for: its button shows the loader (B6), the other rests.
+  const [busyVerb, setBusyVerb] = useState<'publish' | 'leave'>('publish');
   const [publishError, setPublishError] = useState<string | null>(null);
   // Revising a live card: the primary action saves changes rather than
   // publishing, and autosave buffers instead of writing through. Fixed for the
@@ -431,6 +433,7 @@ export function CardEditor({
       setPublishError(t('titleRequired'));
       return;
     }
+    setBusyVerb('publish');
     setPending(true);
     setPublishError(null);
     try {
@@ -480,6 +483,7 @@ export function CardEditor({
       setPublishError(t('titleRequired'));
       return;
     }
+    setBusyVerb('publish');
     setPending(true);
     setPublishError(null);
     try {
@@ -515,6 +519,7 @@ export function CardEditor({
   async function discardEdits() {
     const id = draftIdRef.current;
     if (pending || !id) return;
+    setBusyVerb('leave');
     setPending(true);
     setPublishError(null);
     try {
@@ -540,6 +545,7 @@ export function CardEditor({
    */
   async function saveDraftAndLeave() {
     if (pending) return;
+    setBusyVerb('leave');
     setPending(true);
     setPublishError(null);
     try {
@@ -813,7 +819,8 @@ export function CardEditor({
                 {
                   key: 'publish',
                   icon: <Icon name="wave" size={16} color="var(--color-cream)" />,
-                  label: pending ? t('publishing') : tCard('publishResonance'),
+                  label: tCard('publishResonance'),
+                  loading: pending && busyVerb === 'publish',
                   textColor: 'var(--color-cream)',
                   fill: 'var(--button-fill)',
                   hoverOverlay: 'oklch(0% 0 0 / 0.14)',
@@ -823,8 +830,10 @@ export function CardEditor({
                   key: 'draft',
                   icon: <Icon name="pen" size={16} />,
                   label: tCard('saveResonanceDraft'),
+                  loading: pending && busyVerb === 'leave',
                   onClick: () => {
                     if (pending) return;
+                    setBusyVerb('leave');
                     setPending(true);
                     setPublishError(null);
                     saveDraft()
@@ -849,27 +858,25 @@ export function CardEditor({
               card: put the revision in front of readers, or drop it. On a
               phone they are one centred column: the verb across the width,
               the quiet way out under it. */}
-          <div className={styles.primaryAction} data-pending={pending || undefined}>
+          <div className={styles.primaryAction}>
             <OrganicButton
               variant="primary"
+              loading={pending && busyVerb === 'publish'}
+              disabled={pending && busyVerb !== 'publish'}
               onClick={() => {
                 setPublishError(null);
                 setPublishOpen(true);
               }}
             >
-              {isPublished
-                ? pending
-                  ? t('saving')
-                  : t('saveChanges')
-                : pending
-                ? t('publishing')
-                : t('publish')}
+              {isPublished ? t('saveChanges') : t('publish')}
             </OrganicButton>
           </div>
           {(isPublished ? hasPendingEdit : true) && (
-            <div className={styles.secondaryAction} data-pending={pending || undefined}>
+            <div className={styles.secondaryAction}>
               <OrganicButton
                 variant="text"
+                loading={pending && busyVerb === 'leave'}
+                disabled={pending && busyVerb !== 'leave'}
                 onClick={() => void (isPublished ? discardEdits() : saveDraftAndLeave())}
               >
                 {isPublished ? t('discardChanges') : t('saveDraftAndLeave')}

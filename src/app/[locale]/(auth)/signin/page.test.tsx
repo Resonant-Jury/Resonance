@@ -5,7 +5,6 @@ import { NextIntlClientProvider } from 'next-intl';
 import en from '@/messages/en.json';
 import { renderWithIntl, screen, userEvent, within } from '@/../test/render';
 import buttonStyles from '@/components/atoms/OrganicButton/OrganicButton.module.css';
-import styles from '../auth.module.css';
 
 const auth = vi.hoisted(() => ({
   refreshSession: vi.fn(),
@@ -95,7 +94,8 @@ describe('the buttons on the phone sheet', () => {
     expect(apple.querySelector('path[fill="#FFFFFF"]')).toBeNull();
   });
 
-  it('say they are signing in, dim, and take no second tap meanwhile', async () => {
+  // B6: the pressed one keeps its words and draws the pen loop in its mark's slot; the other rests.
+  it('show the pressed one working, rest the other, and take no second tap meanwhile', async () => {
     shell.ios = true;
     auth.signInWithGoogle.mockReturnValue(new Promise(() => {}));
     const { container } = renderWithIntl(<SignInPage />);
@@ -103,10 +103,12 @@ describe('the buttons on the phone sheet', () => {
     const google = sheet(container).getByRole('button', { name: en.auth.continueWithGoogle });
 
     await userEvent.click(google);
-    expect(google).toHaveAccessibleName(en.auth.signingIn);
-    expect(apple).toHaveAccessibleName(en.auth.signingIn);
-    expect(google.classList).toContain(styles.busy);
-    expect(apple.classList).toContain(styles.busy);
+    expect(google).toHaveAccessibleName(en.auth.continueWithGoogle);
+    expect(google).toHaveAttribute('aria-busy', 'true');
+    // One loader, in the G's place (not beside it).
+    expect(google.querySelectorAll('[data-button-loader]')).toHaveLength(1);
+    expect(google.querySelector('path[fill="#FFFFFF"]')).toBeNull();
+    expect(apple).toBeDisabled();
 
     await userEvent.click(google);
     await userEvent.click(apple);

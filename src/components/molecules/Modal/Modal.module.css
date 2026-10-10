@@ -66,11 +66,8 @@
   white-space: nowrap;
 }
 
-/* A request on its way: the row rests. */
-.actions[data-busy] {
-  opacity: 0.6;
-  pointer-events: none;
-}
+/* A request on its way: the verb shows its loader and the way out rests
+   (the buttons' own loading / disabled looks); nothing else dims. */
 
 /* A finger needs 44px to land on (the small pills are about 38px). */
 @media (pointer: coarse) {

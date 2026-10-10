@@ -15,7 +15,8 @@ import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 import { wobRect } from '@/lib/design/wobRect';
 import { wavyLine } from '@/lib/design/wavyPath';
-import { CARD_HUES, cardHueIndex, nearestCardHue } from '@/lib/design/dominantHue';
+import { CARD_HUES } from '@/lib/design/dominantHue';
+import { preferredPalette } from '@/lib/design/cardColours';
 import styles from './StoryCard.module.css';
 
 export interface Story {
@@ -153,9 +154,15 @@ export interface StoryCardProps {
    * scribbled margin note from Resonance, unmistakably not the author's story.
    */
   quote?: string;
+  /**
+   * The card's colour family (palette index, CARD_HUES order) as its list
+   * chose it (`cardPalettes`, lib/design/cardColours), so it never wears its
+   * neighbours' family. Unset: the card's own (cover hue, else position).
+   */
+  palette?: number;
 }
 
-export function StoryCard({ story, index = 0, isLast = false, isFirst = false, loading = false, quote }: StoryCardProps) {
+export function StoryCard({ story, index = 0, isLast = false, isFirst = false, loading = false, quote, palette }: StoryCardProps) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const cardRef = useRef<HTMLElement>(null);
@@ -166,10 +173,9 @@ export function StoryCard({ story, index = 0, isLast = false, isFirst = false, l
     setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
   };
 
-  // Palette family: the cover image's dominant hue when known (snapped to the
-  // designed families), otherwise the legacy position-based rotation.
-  const hueIdx = story?.accentHue != null ? cardHueIndex(nearestCardHue(story.accentHue)) : -1;
-  const paletteIdx = hueIdx >= 0 ? hueIdx : index % CARD_FILLS.length;
+  // Palette family: the list's choice (no neighbour shares it) when given,
+  // else the card's own — its cover's family, or its position's.
+  const paletteIdx = palette ?? preferredPalette(story?.accentHue, index);
   const accentFill = CARD_FILLS[paletteIdx];
   // The tag pills are unstroked, and on desktop hover the card's interior
   // washes to near accentFill — a pill in accentFill itself would blend into

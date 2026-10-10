@@ -7,7 +7,10 @@ import styles from './Modal.module.css';
 export interface ModalActionsProps {
   /** In scanning order: the way out (tonal) first, the verb (solid / danger) last. */
   children: ReactNode;
-  /** A request is on its way: the row dims and takes no pointer. */
+  /**
+   * A request is on its way. The caller marks its buttons — the verb
+   * `loading`, the way out `disabled` — as the apps' ModalActions do.
+   */
   busy?: boolean;
 }
 

@@ -157,11 +157,11 @@ export function ReportModal({ open, target, offerBlock = true, onClose, onReport
           )}
           <div className={styles.foot}>
             <ModalActions busy={busy}>
-              <OrganicButton variant="tonal" size="sm" onClick={onClose}>
+              <OrganicButton variant="tonal" size="sm" onClick={onClose} disabled={busy}>
                 {tSafety('cancel')}
               </OrganicButton>
-              <OrganicButton variant="solid" size="sm" onClick={() => void send()}>
-                {busy ? '…' : t('submit')}
+              <OrganicButton variant="solid" size="sm" onClick={() => void send()} loading={busy}>
+                {t('submit')}
               </OrganicButton>
             </ModalActions>
           </div>

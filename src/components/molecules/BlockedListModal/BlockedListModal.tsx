@@ -82,9 +82,16 @@ export function BlockedListModal({ open, onClose }: BlockedListModalProps) {
                     </span>
                   )}
                 </span>
-                <span style={pending ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
-                  <OrganicButton variant="textAccent" size="sm" onClick={() => void unblock(row.uid)}>
-                    {pending === row.uid ? '…' : tSafety('unblock')}
+                <span>
+                  {/* One at a time: the row on its way shows the loader, the others rest. */}
+                  <OrganicButton
+                    variant="textAccent"
+                    size="sm"
+                    onClick={() => void unblock(row.uid)}
+                    loading={pending === row.uid}
+                    disabled={pending != null && pending !== row.uid}
+                  >
+                    {tSafety('unblock')}
                   </OrganicButton>
                 </span>
               </li>

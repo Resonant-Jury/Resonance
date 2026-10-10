@@ -55,9 +55,9 @@ export function BlockedNotice({ user }: { user: User }) {
     <section className={styles.blockedNotice} aria-live="polite">
       <p className={styles.blockedTitle}>{t('blockedNotice', { handle: user.handle })}</p>
       <p className={styles.blockedBody}>{t('blockedNoticeBody')}</p>
-      <div style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
-        <OrganicButton variant="textAccent" size="sm" onClick={() => void unblock()}>
-          {busy ? '…' : t('unblock')}
+      <div>
+        <OrganicButton variant="textAccent" size="sm" onClick={() => void unblock()} loading={busy}>
+          {t('unblock')}
         </OrganicButton>
       </div>
     </section>

@@ -197,10 +197,6 @@
   text-wrap: balance;
 }
 
-.sheetButtons .busy {
-  opacity: 0.6;
-}
-
 .markLabel {
   display: inline-flex;
   align-items: center;

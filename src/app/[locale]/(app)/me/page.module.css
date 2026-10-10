@@ -1,0 +1,21 @@
+/* Where the way to the profile settings sits (B5). Both are in the HTML; the
+   width shows one, so the first paint is already the right one. */
+
+/* Wide: a labelled tonal button under the joined line, left-aligned with the name. */
+.editWide {
+  margin-top: 14px;
+}
+
+/* Phone: the bare glyph at the identity row's end, as in the apps. */
+.editPhone {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .editWide {
+    display: none;
+  }
+  .editPhone {
+    display: flex;
+  }
+}

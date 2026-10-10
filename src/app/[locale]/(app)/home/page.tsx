@@ -109,8 +109,9 @@ export default function HomeFeedPage() {
               <OrganicButton
                 variant="textAccent"
                 onClick={() => (latestVisible ? loadMore() : setShowLatest(true))}
+                loading={isLoadingMore}
               >
-                {isLoadingMore ? t('moreLoading') : t('moreBtn')}
+                {t('moreBtn')}
               </OrganicButton>
             ) : (
               // Nothing more can load: a small end mark and one quiet line, not a heading.

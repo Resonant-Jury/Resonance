@@ -142,6 +142,9 @@ describe('TagField', () => {
   it('shows the model is thinking in the action, which stays the AI one', () => {
     renderWithIntl(<Harness suggesting />);
 
-    expect(screen.getByRole('button', { name: 'Thinking…' })).toBeInTheDocument();
+    // B6: the words stay, the sparkle's place draws the pen loop.
+    const action = screen.getByRole('button', { name: 'Suggest with AI' });
+    expect(action).toHaveAttribute('aria-busy', 'true');
+    expect(action.querySelector('[data-button-loader]')).not.toBeNull();
   });
 });

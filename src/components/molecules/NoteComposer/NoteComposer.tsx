@@ -158,12 +158,12 @@ export function NoteComposer({
       <div style={{ marginTop: 18 }}>
         <ModalActions busy={pending}>
           {onClose && (
-            <OrganicButton variant="tonal" size="sm" onClick={onClose}>
+            <OrganicButton variant="tonal" size="sm" onClick={onClose} disabled={pending}>
               {t('cancel')}
             </OrganicButton>
           )}
-          <OrganicButton variant="solid" size="sm" onClick={submit} disabled={!valid}>
-            {pending ? '…' : t('send')}
+          <OrganicButton variant="solid" size="sm" onClick={submit} disabled={!valid} loading={pending}>
+            {t('send')}
           </OrganicButton>
         </ModalActions>
       </div>

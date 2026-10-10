@@ -44,6 +44,35 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: transform 120ms ease-out;
+}
+
+/* In progress (loading): the face keeps its colour, takes no click, and the
+   pointer says it is working. The label moves half the loader's room toward
+   the end, so the loader and the label stay centred together. */
+.btn[aria-busy='true'] {
+  cursor: progress;
+}
+
+.label[data-loading-shift] {
+  transform: translateX(var(--loader-shift));
+}
+
+/* The loader before a label with no icon: outside the label's box, so the
+   button is measured exactly as when idle. */
+.loaderSlot {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  margin-right: 6px;
+  transform: translateY(-50%);
+  display: flex;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .label {
+    transition: none;
+  }
 }
 
 .sm {
