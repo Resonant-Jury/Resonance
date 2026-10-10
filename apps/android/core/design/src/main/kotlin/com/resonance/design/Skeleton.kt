@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.resonance.design.generated.Tokens
 import com.resonance.kit.l10n.L10n
 
 /** The shimmer's highlight: the theme's light accent, or a card's own hue inside a card. */
@@ -76,9 +77,31 @@ fun Skeleton(modifier: Modifier = Modifier, height: Dp = 14.dp, radius: Dp = 7.d
 }
 
 /** Six (or `count`) StoryCards in their loading dress, as the web's FeedSkeleton. */
-fun androidx.compose.foundation.lazy.LazyListScope.storyCardSkeletons(count: Int = 6, firstUnderBar: Boolean = false) {
-    items(count) { i -> StoryCardSkeleton(i, isLast = i == count - 1, isFirst = firstUnderBar && i == 0) }
+fun androidx.compose.foundation.lazy.LazyListScope.storyCardSkeletons(count: Int = 6, firstUnderBar: Boolean = false, layout: CardListLayout = CardListLayout.Phone) {
+    if (!layout.isGrid) {
+        items(count) { i -> StoryCardSkeleton(i, isLast = i == count - 1, isFirst = firstUnderBar && i == 0, inset = layout.inset) }
+        return
+    }
+    // The bordered grid's skeleton: the same outlines in the same columns, the first row clear of the bar.
+    item(key = "grid-skeleton") {
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth().padding(horizontal = layout.gridInset).padding(top = if (firstUnderBar) GridUnderBar else 0.dp),
+            horizontalArrangement = Arrangement.spacedBy(Tokens.FeedGap.dp),
+        ) {
+            for (c in 0 until layout.columns) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Tokens.FeedGap.dp)) {
+                    for (i in c until count step layout.columns) BorderedStoryCardSkeleton(i)
+                }
+            }
+        }
+    }
 }
+
+/**
+ * Where a bordered grid's first row starts in a list that begins under the bar's wavy band:
+ * 28 below the bar's pen line (design note §2), so no outline is under the bar at rest.
+ */
+val GridUnderBar = HeaderEdgeHeight + 28.dp - (1.4f + Tokens.Ink.value).dp
 
 /**
  * CardDetailSkeleton.tsx on a phone: the byline, the cover, two title lines,

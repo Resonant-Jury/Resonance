@@ -1,5 +1,17 @@
 package com.resonance.app.ui
 
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import com.resonance.app.thoughtmap.ThoughtMapScreen
+import com.resonance.design.HeaderEdgeHeight
+import com.resonance.design.LayoutClass
+import com.resonance.design.LocalWindowLayout
+
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -10,9 +22,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asImageBitmap
 import com.resonance.design.HandDrawnImage
@@ -45,7 +55,6 @@ import androidx.compose.animation.core.Ease
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -252,13 +261,29 @@ private fun WriteForm(
     BackHandler(onBack = goBack)
 
     val scroll = rememberScrollState()
-    Box(Modifier.fillMaxSize().cream().imePadding()) { Column(
+    // The writer takes the whole window (the side rail slides away). From 1200 wide the thought map
+    // sits beside it, the editor in the window's right half (design note §12); otherwise the editor
+    // alone, in a centred reading column on anything wider than a phone. The editor keeps its place
+    // in the tree either way, so a rotation or a resize across 1200 keeps the story's editor as it is.
+    val window = LocalWindowLayout.current
+    val split = window.writerSplit
+    val compactWindow = window.cls == LayoutClass.Compact
+    val pad = window.pad
+    val columnMax = Tokens.Measure.dp + pad * 2
+    val editorWidth = minOf(if (split) window.width / 2 else window.width, if (compactWindow) window.width else columnMax)
+    Box(Modifier.fillMaxSize().cream().imePadding()) { Row(Modifier.fillMaxSize()) {
+    if (split) Box(Modifier.weight(1f).fillMaxHeight().padding(top = inlineBarTop() - HeaderEdgeHeight)) {
+        ThoughtMapScreen(session, session.thoughtMap, open = {}, leave = {}, embedded = true)
+    }
+    Column(
         Modifier
-            .fillMaxSize()
+            .then(if (split) Modifier.width(window.width / 2).editorBoundary(inlineBarTop()) else Modifier.fillMaxWidth())
+            .fillMaxHeight()
             .verticalScroll(scroll)
+            .then(if (compactWindow) Modifier else Modifier.fillMaxWidth().wrapContentWidth().widthIn(max = columnMax))
             // The bar lies over the page, so what scrolls shows right up to its pen line.
             .padding(top = inlineBarTop())
-            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 48.dp),
+            .padding(start = pad, end = pad, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
         // The title is the bar's; the save state stays here (an unsaved draft has none).
@@ -281,7 +306,7 @@ private fun WriteForm(
         // Everything autosaves; these are only about intent. A draft: publish it, or step away.
         // A live card: put the revision in front of readers, or drop it.
         WriteActions(
-            compact = LocalConfiguration.current.screenWidthDp < WIDE_SCREEN_DP,
+            compact = editorWidth < WIDE_SCREEN_DP.dp,
             error = actionError,
             primary = { modifier ->
                 if (model.isPublished) {
@@ -319,6 +344,7 @@ private fun WriteForm(
                 else -> null
             },
         )
+    }
     }
         // Leaving keeps what's written: the draft is saved on the way out.
         OrganicInlineBar(L10n.App.Nav.back, goBack, title = model.title, scrolled = scroll.scrolledPast20())
@@ -639,3 +665,9 @@ internal fun publishError(e: Exception, updating: Boolean): String = when {
  */
 internal fun anonymousVisibility(visibility: String, anonymous: Boolean): String =
     if (anonymous && visibility == "connections") "public" else visibility
+
+/** The editor pane's leading edge beside the map: a 1-wide line in the fields' border ink, from the bar's pen line down. */
+private fun Modifier.editorBoundary(barBottom: Dp): Modifier = drawBehind {
+    val top = (barBottom - (1.4f + Tokens.Ink.value).dp).toPx()
+    drawLine(Tokens.FieldBorder, Offset(0.5f, top), Offset(0.5f, size.height), strokeWidth = 1.dp.toPx())
+}

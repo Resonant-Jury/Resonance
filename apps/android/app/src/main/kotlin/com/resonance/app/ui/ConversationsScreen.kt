@@ -1,5 +1,13 @@
 package com.resonance.app.ui
 
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import com.resonance.design.readableColumn
+
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.clickable
@@ -54,8 +62,11 @@ import java.util.Date
 @Composable
 fun ConversationsScreen(session: Session, open: (Route) -> Unit) {
     val state by session.conversations.state.collectAsStateWithLifecycle()
+    // Beside the thread pane, the pane says there is nothing yet; the list stays empty.
+    val twoPane = LocalTwoPane.current
+    val chosen = LocalSelectedThread.current
     TabScreen(L10n.App.Nav.messages, titleInBar = true) {
-        if (state.loaded && state.conversations.isEmpty() && state.starters.isEmpty()) {
+        if (state.loaded && state.conversations.isEmpty() && state.starters.isEmpty() && !twoPane) {
             // Nothing yet: the shared empty state, in the middle of the room between the bar and the tab bar.
             item {
                 OrganicEmptyState(
@@ -68,7 +79,7 @@ fun ConversationsScreen(session: Session, open: (Route) -> Unit) {
             item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { session.conversations.resume() }, action = EmptyAction.Outline) }
         }
         items(state.conversations, key = { "c:${it.id}" }) { convo ->
-            ConversationRow(convo.other, preview(convo), convo.sentAt?.let(::rowTime), convo.unread, open)
+            ConversationRow(convo.other, preview(convo), convo.sentAt?.let(::rowTime), convo.unread, open, chosen = chosen?.isWith(convo.other) == true)
         }
         if (state.starters.isNotEmpty()) {
             item {
@@ -76,11 +87,11 @@ fun ConversationsScreen(session: Session, open: (Route) -> Unit) {
                     L10n.Messages.startSection.uppercase(),
                     style = AppFonts.body(11f, lineHeight = 1.3f, color = Tokens.TextMuted).copy(letterSpacing = 0.08.em),
                     // The page's 14 plus the list pane's own 2 / 4.
-                    modifier = Modifier.padding(start = 16.dp, end = 18.dp).padding(top = 16.dp, bottom = 4.dp).padding(horizontal = 14.dp),
+                    modifier = Modifier.readableColumn().padding(start = 16.dp, end = 18.dp).padding(top = 16.dp, bottom = 4.dp).padding(horizontal = 14.dp),
                 )
             }
             items(state.starters, key = { "s:${it.id}" }) { person ->
-                ConversationRow(person, L10n.Messages.noMessagesYet, null, 0, open)
+                ConversationRow(person, L10n.Messages.noMessagesYet, null, 0, open, chosen = chosen?.isWith(person) == true)
             }
         }
     }
@@ -103,30 +114,42 @@ internal fun rowTime(date: Date, today: LocalDate = LocalDate.now()): String {
     return zoned.format(DateTimeFormatter.ofPattern(pattern, locale))
 }
 
+/** Whether this pane's thread is the conversation with [person] (by uid when the route knows it). */
+private fun Route.Thread.isWith(person: Person): Boolean = if (uid != null) uid == person.id else handle.equals(person.handle, ignoreCase = true)
+
 /**
  * One row: the avatar, the pen name over the last line, the time and the
- * unread badge on the right; a faint hand-drawn wash while pressed (RowWash:
- * R h·0.28, three turns across).
+ * unread badge on the right; a faint hand-drawn wash while pressed or under a
+ * pointer (RowWash: R h·0.28, three turns across) — and beside the thread pane,
+ * the chosen row's terracotta wash (MessagesPage's active row).
  */
 @Composable
-private fun ConversationRow(person: Person, preview: String, time: String?, unread: Int, open: (Route) -> Unit) {
+private fun ConversationRow(person: Person, preview: String, time: String?, unread: Int, open: (Route) -> Unit, chosen: Boolean = false) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
+    val hovered by source.collectIsHoveredAsState()
     val seed = seedFromString(person.id).toDouble()
     Row(
         Modifier
+            .readableColumn()
             // The page's 14 plus the list pane's own 2 / 4.
             .padding(start = 16.dp, end = 18.dp)
             .fillMaxWidth()
+            .hoverable(source)
+            .pointerHoverIcon(PointerIcon.Hand)
             .drawWithCache {
                 val h = (size.height / density).toDouble()
                 val outline = WobRectShape(
                     h * 0.28, seed, mag = 2.4,
                     options = WobRectOptions(curve = 1.3, cornerJitter = 2.4, cornerOffset = h * 0.05, segmentsH = SegValue.Count(3.0), segmentsV = SegValue.Count(1.0)),
                 ).createOutline(size, layoutDirection, this)
-                onDrawBehind { if (pressed) drawOutline(outline, Color.Black.copy(alpha = 0.045f)) }
+                onDrawBehind {
+                    if (chosen) drawOutline(outline, Tokens.TerracottaLight.copy(alpha = 0.55f))
+                    else if (pressed || hovered) drawOutline(outline, Color.Black.copy(alpha = 0.045f))
+                }
             }
             .clickable(source, indication = null, role = Role.Button) { open(Route.Thread(person.handle, uid = person.id)) }
+            .semantics { selected = chosen }
             .padding(vertical = 12.dp, horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),

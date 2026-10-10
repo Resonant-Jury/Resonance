@@ -1,6 +1,20 @@
 package com.resonance.app.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
+import androidx.navigation3.scene.SinglePaneSceneStrategy
+import com.resonance.design.LayoutClass
+import com.resonance.design.LocalWindowLayout
+import com.resonance.design.OrganicSideRail
+import com.resonance.design.WindowLayout
+import com.resonance.design.sideRailWidth
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -238,7 +252,10 @@ private fun rememberStackEntries(
     val entries = remember(routes) {
         routes.mapIndexed { i, route ->
             val onStack = { stack.getOrNull(i) === route }
-            NavEntry(route, contentKey = "$tab/$i/${route.contentKey}", metadata = mapOf(PageMotion.TAB_METADATA to tab)) { content(it, onStack) }
+            NavEntry(
+                route, contentKey = "$tab/$i/${route.contentKey}",
+                metadata = mapOf(PageMotion.TAB_METADATA to tab, ROUTE_METADATA to route, INDEX_METADATA to i),
+            ) { content(it, onStack) }
         }
     }
     return rememberDecoratedNavEntries(entries, decorators)
@@ -255,12 +272,25 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     var tab by rememberSaveable { mutableStateOf(Tab.Feed) }
     val stacks: Map<Tab, NavBackStack<Route>> = Tab.entries.associateWith { rememberRouteStack(Route.Root(it)) }
     val stack: NavBackStack<Route> = stacks.getValue(tab)
+    // The window as it is now (a rotation, a fold or a split resizes it without a new activity).
+    val windowWidth = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+    val cls = LayoutClass.of(windowWidth.value)
+    val expanded = cls == LayoutClass.Expanded
 
     // A site path from a link or a push. A conversation belongs to the Messages tab's stack; other pages open on the current tab.
+    // Beside the conversations (an expanded window) it takes the thread pane's place.
     fun open(route: Route) {
         if (route is Route.Thread) {
             tab = Tab.Messages
-            openThread(stacks.getValue(Tab.Messages), route)
+            val messages = stacks.getValue(Tab.Messages)
+            if (expanded && drawsAsPanes(messages)) {
+                // The pane already showing that conversation keeps it (a note to quote takes its place).
+                val shown = messages.getOrNull(1) as? Route.Thread
+                val same = shown != null && shown.samePerson(route)
+                if (!same || messages.size > 2 || (route.note != null && route.note != shown.note)) {
+                    messages.chooseInPane(if (same) route.copy(uid = route.uid ?: shown.uid) else route)
+                }
+            } else openThread(messages, route)
             return
         }
         stacks.getValue(tab).add(route)
@@ -293,6 +323,13 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         if (route != null) open(route) else tab = pushedTab(opened.route)
     }
 
+    // Ctrl-N / Cmd-N on a keyboard: a new card, over the current tab, as the pen does (not over a writer already open).
+    val currentStack by rememberUpdatedState(stack)
+    DisposableEffect(Unit) {
+        KeyShortcuts.newCard = { if (currentStack.lastOrNull() !is Route.Write) currentStack.add(Route.Write()) }
+        onDispose { KeyShortcuts.newCard = null }
+    }
+
     val notifications by session.notifications.items.collectAsStateWithLifecycle()
     val unread = notifications.count { it.isUnread }
     val conversations by session.conversations.state.collectAsStateWithLifecycle()
@@ -304,50 +341,90 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     val languageEpoch by session.languageEpoch.collectAsStateWithLifecycle()
 
     val motion = remember { PageMotion() }
-
-    Box(Modifier.fillMaxSize().cream()) {
-        key(languageEpoch) {
-            val entries: Map<Tab, List<NavEntry<Route>>> = Tab.entries.associateWith { t ->
-                val own = stacks.getValue(t)
-                rememberStackEntries(t, own) { route, onStack -> PageFrame(motion, onStack) { Page(session, route, own) } }
-            }
-            NavDisplay(
-                entries = entries.getValue(tab),
-                onBack = { stack.popPage() },
-                transitionSpec = motion.push,
-                popTransitionSpec = motion.pop,
-                predictivePopTransitionSpec = motion.predictivePop,
-            )
-        }
-        // The undo banner floats above the tab bar (or the bottom edge on pushed screens) on every screen.
-        deletionDate?.let { date ->
-            Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = if (stack.size == 1) 96.dp else 12.dp)) {
-                AccountDeletionBanner(session, date)
-            }
-        }
-        TabBarSlot(stack.size == 1, Modifier.align(Alignment.BottomCenter)) {
-            OrganicTabBar(
-                listOf(
-                    // The web's glyphs for the same places (Subnavbar, NotificationBell, the header's pen).
-                    OrganicTabItem(Tab.Feed, L10n.Native.tabFeed, IconName.Sparkle),
-                    OrganicTabItem(Tab.Messages, L10n.App.Nav.messages, IconName.Chat, badge = conversations.unreadTotal),
-                    OrganicTabItem(Tab.Write, L10n.App.Nav.write, IconName.Pen, isAction = true),
-                    OrganicTabItem(Tab.Notifications, L10n.App.Nav.notifications, IconName.Bell, badge = unread),
-                    OrganicTabItem(Tab.CardBox, L10n.App.Nav.me, IconName.Cards),
-                ),
-                selection = tab,
-                onSelect = { picked ->
-                    // The pen opens the writer over the current tab, like the web header's pen.
-                    if (picked == Tab.Write) {
-                        stack.add(Route.Write())
-                        return@OrganicTabBar
-                    }
-                    if (picked == tab) stacks.getValue(tab).popToRoot()
-                    tab = picked
-                },
-            )
+    val tabItems = listOf(
+        // The web's glyphs for the same places (Subnavbar, NotificationBell, the header's pen).
+        OrganicTabItem(Tab.Feed, L10n.Native.tabFeed, IconName.Sparkle),
+        OrganicTabItem(Tab.Messages, L10n.App.Nav.messages, IconName.Chat, badge = conversations.unreadTotal),
+        OrganicTabItem(Tab.Write, L10n.App.Nav.write, IconName.Pen, isAction = true),
+        OrganicTabItem(Tab.Notifications, L10n.App.Nav.notifications, IconName.Bell, badge = unread),
+        OrganicTabItem(Tab.CardBox, L10n.App.Nav.me, IconName.Cards),
+    )
+    val select: (Tab) -> Unit = { picked ->
+        // The pen opens the writer over the current tab, like the web header's pen.
+        if (picked == Tab.Write) stack.add(Route.Write())
+        else {
+            if (picked == tab) stacks.getValue(tab).popToRoot()
+            tab = picked
         }
     }
+    // Medium and expanded windows: the side rail down the start edge on every page (the writer
+    // covers it); compact: the bottom bar on a tab's first page.
+    val rail = cls.sideRail
+    val railWidth = if (rail) sideRailWidth() else 0.dp
+    val panes = remember(expanded, session) { listOf(MessagesPanesStrategy(expanded, session), SinglePaneSceneStrategy()) }
+
+    CompositionLocalProvider(LocalWindowLayout provides WindowLayout(windowWidth, railWidth), LocalRailInset provides railWidth) {
+        Box(Modifier.fillMaxSize().cream()) {
+            key(languageEpoch) {
+                val entries: Map<Tab, List<NavEntry<Route>>> = Tab.entries.associateWith { t ->
+                    val own = stacks.getValue(t)
+                    rememberStackEntries(t, own) { route, onStack -> PageFrame(motion, onStack) { BesideRail(route) { Page(session, route, own) } } }
+                }
+                NavDisplay(
+                    entries = entries.getValue(tab),
+                    sceneStrategies = panes,
+                    onBack = { stack.popPage() },
+                    transitionSpec = motion.push,
+                    popTransitionSpec = motion.pop,
+                    predictivePopTransitionSpec = motion.predictivePop,
+                )
+            }
+            // The rail lies over the pages' start (they leave it room); the writer slides it away as it opens.
+            if (rail) RailSlot(shown = stack.lastOrNull() !is Route.Write, width = railWidth) {
+                OrganicSideRail(tabItems, selection = tab, onSelect = select)
+            }
+            // The undo banner floats above the tab bar (or the bottom edge on pushed screens) on every screen.
+            deletionDate?.let { date ->
+                Box(Modifier.align(Alignment.BottomCenter).padding(start = railWidth).navigationBarsPadding().padding(bottom = if (!rail && stack.size == 1) 96.dp else 12.dp)) {
+                    AccountDeletionBanner(session, date)
+                }
+            }
+            if (!rail) TabBarSlot(stack.size == 1, Modifier.align(Alignment.BottomCenter)) {
+                OrganicTabBar(tabItems, selection = tab, onSelect = select)
+            }
+        }
+    }
+}
+
+/** A page beside the side rail starts past it; the writer takes the whole window. */
+@Composable
+private fun BesideRail(route: Route, page: @Composable () -> Unit) {
+    val inset = if (route is Route.Write) 0.dp else LocalRailInset.current
+    Box(Modifier.fillMaxSize().padding(start = inset)) { page() }
+}
+
+/**
+ * Where the side rail is: in place on every page but the writer, which it slides out of the way
+ * of (to the start, with the writer's push) and comes back with once the writer has gone.
+ */
+@Composable
+private fun RailSlot(shown: Boolean, width: Dp, rail: @Composable () -> Unit) {
+    val hidden by animateFloatAsState(if (shown) 0f else 1f, tween(if (shown) PageMove.Pop.millis else PageMove.Push.millis, easing = PageMotionSpec.EmphasizedDecelerate), label = "rail")
+    val widthPx = with(LocalDensity.current) { width.toPx() }
+    Box(
+        Modifier.fillMaxHeight().layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            layout(placeable.width, placeable.height) {
+                if (hidden < 1f) placeable.placeWithLayer(0, 0) { translationX = -hidden * widthPx }
+            }
+        },
+    ) { rail() }
+}
+
+/** Keyboard shortcuts the activity hears before any screen: the screens say what they do. */
+object KeyShortcuts {
+    /** Ctrl-N / Cmd-N: open the writer (set while the signed-in tabs are shown). */
+    var newCard: (() -> Unit)? = null
 }
 
 /**
@@ -402,7 +479,11 @@ private fun Page(session: Session, route: Route, stack: NavBackStack<Route>) {
     when (route) {
         is Route.Root -> when (route.tab) {
             Tab.Feed -> FeedScreen(session, push)
-            Tab.Messages -> ConversationsScreen(session, push)
+            // Beside the thread pane, a row puts its thread in the pane rather than stacking it.
+            Tab.Messages -> {
+                val twoPane = LocalTwoPane.current
+                ConversationsScreen(session) { r -> if (twoPane && r is Route.Thread) stack.chooseInPane(r) else stack.add(r) }
+            }
             Tab.Notifications -> NotificationsScreen(session, push)
             Tab.CardBox -> CardBoxScreen(session, push)
             Tab.Write -> {}

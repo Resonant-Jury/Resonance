@@ -47,6 +47,7 @@ import com.resonance.api.models.NotificationSettings
 import com.resonance.app.PushCenter
 import com.resonance.app.SafetyService
 import com.resonance.app.Session
+import com.resonance.design.readableColumn
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.CssText
@@ -130,7 +131,7 @@ fun SettingsScreen(open: (Route) -> Unit, back: () -> Unit) {
     val scroll = rememberScrollState()
     // The bar lies over the page, so what scrolls shows right up to its pen line.
     Box(Modifier.fillMaxSize().cream()) {
-        Column(Modifier.verticalScroll(scroll).padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
+        Column(Modifier.verticalScroll(scroll).readableColumn().padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
             BasicText(
                 L10n.Settings.title,
                 style = AppFonts.heading(28f, lineHeight = 1.2f),
@@ -173,7 +174,7 @@ fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -
     val scroll = rememberScrollState()
     // The keyboard shortens the page, so the profile's fields scroll into view above it.
     Box(Modifier.fillMaxSize().cream().imePadding()) {
-        Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(scroll).readableColumn().padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
             when (section) {
                 SettingsSection.Profile -> ProfileSettings(session)
                 SettingsSection.Account -> AccountSettings(session)

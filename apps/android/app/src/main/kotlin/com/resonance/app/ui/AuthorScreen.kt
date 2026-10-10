@@ -50,6 +50,7 @@ import com.resonance.design.ButtonVariant
 import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicButton
 import com.resonance.design.Skeleton
+import com.resonance.design.cardListLayout
 import com.resonance.design.storyCardSkeletons
 import com.resonance.geometry.seedFromString
 import com.resonance.design.cream
@@ -142,13 +143,14 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
     val list = rememberLazyListState()
     // The bar lies over the page, so what scrolls shows right up to its pen line.
     val top = inlineBarTop()
+    val layout = cardListLayout()
     Box(Modifier.fillMaxSize().cream()) {
     Column(Modifier.fillMaxSize()) {
         when (phase) {
             // The web's profile skeleton: the masthead's blocks, then four loading cards.
             "loading" -> LazyColumn(Modifier.fillMaxSize(), userScrollEnabled = false, contentPadding = PaddingValues(top = top)) {
                 item { ProfileHeroSkeleton() }
-                storyCardSkeletons(4)
+                storyCardSkeletons(if (layout.isGrid) layout.columns * 2 else 4, layout = layout)
             }
             "notFound" -> Box(Modifier.padding(top = top)) {
                 OrganicEmptyState(title = L10n.Profile.notFound, actionTitle = L10n.Profile.backHome, onAction = back, action = EmptyAction.Outline, verticalPadding = 40.dp)
@@ -207,7 +209,7 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                                     onAction = { open(Route.Write()) }, icon = IconName.Cards, seed = 71.0, fill = true,
                                 )
                             }
-                        } else storyCards(cards, open, onLast = model::loadMore)
+                        } else storyCards(cards, open, onLast = model::loadMore, layout = layout)
                     }
                     if (linked.isNotEmpty()) {
                         item { SectionHeading(L10n.Profile.linkedCards, Modifier.padding(top = 48.dp)) }
@@ -280,7 +282,7 @@ private fun SectionHeading(title: String, modifier: Modifier = Modifier) {
     BasicText(
         title,
         style = AppFonts.heading(20f, lineHeight = 1.3f).copy(letterSpacing = (-0.01).em),
-        modifier = modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 24.dp).semantics { heading() },
+        modifier = modifier.fillMaxWidth().padding(horizontal = cardListLayout().headerInset).padding(bottom = 24.dp).semantics { heading() },
     )
 }
 

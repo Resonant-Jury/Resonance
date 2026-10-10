@@ -1,13 +1,28 @@
 package com.resonance.design
 
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalLayoutDirection
+import kotlin.math.max
+import kotlin.math.roundToInt
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.draw.scale
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -109,41 +124,165 @@ fun <T> OrganicTabBar(items: List<OrganicTabItem<T>>, selection: T, onSelect: (T
                 ) { PenChip(pressed, item.icon) }
             } else {
                 val wash by animateFloatAsState(if (selected) 1f else if (pressed) 0.5f else 0f, tween(160), label = "tabWash")
-                Column(
+                TabFace(
+                    item, index, selected, { wash },
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .clickable(source, indication = null, role = Role.Tab, onClickLabel = item.title, onClick = select)
                         .semantics { this.selected = selected },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Box(
-                        Modifier.size(56.dp, 32.dp).drawWithCache {
-                            // A scrap of torn paper, not a pill: a radius well under half
-                            // the height, wavy long edges and lopsided corners, each tab
-                            // its own seed.
-                            val o = WobRectShape(12.0, index * 29.0 + 7, mag = 3.2, options = WobRectOptions(
-                                curve = 1.2, cornerJitter = 3.6, cornerOffset = 3.0, segmentsH = SegValue.Count(2.0), segmentsV = SegValue.Count(1.0),
-                            )).createOutline(size, layoutDirection, this)
-                            onDrawBehind { if (wash > 0f) drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.55f * wash)) }
-                        },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box {
-                            OrganicIcon(item.icon, size = 24.dp, color = if (selected) Tokens.Terracotta else Tokens.TextMuted)
-                            // NotificationBell's chip hangs off the glyph's top-right corner.
-                            if (item.badge > 0) CountBadge(item.badge, Modifier.align(Alignment.TopEnd).offset(x = 9.dp, y = (-8).dp))
-                        }
-                    }
-                    Spacer(Modifier.height(3.dp))
-                    BasicText(
-                        item.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        style = AppFonts.body(10.5f, if (selected) 600 else 400, lineHeight = 1.3f, color = if (selected) Tokens.Terracotta else Tokens.TextMuted),
-                    )
-                }
+                )
             }
         }
+    }
+}
+
+/**
+ * A tab as the bar and the rail draw it: the glyph over its label, the selected one inked
+ * terracotta on a scrap of torn paper (`wash` 0…1, read while drawing), its unread count hung
+ * off the glyph's corner.
+ */
+@Composable
+private fun <T> TabFace(item: OrganicTabItem<T>, index: Int, selected: Boolean, wash: () -> Float, modifier: Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Box(
+            Modifier.size(56.dp, 32.dp).drawWithCache {
+                // A scrap of torn paper, not a pill: a radius well under half
+                // the height, wavy long edges and lopsided corners, each tab
+                // its own seed.
+                val o = WobRectShape(12.0, index * 29.0 + 7, mag = 3.2, options = WobRectOptions(
+                    curve = 1.2, cornerJitter = 3.6, cornerOffset = 3.0, segmentsH = SegValue.Count(2.0), segmentsV = SegValue.Count(1.0),
+                )).createOutline(size, layoutDirection, this)
+                onDrawBehind { val w = wash(); if (w > 0f) drawOutline(o, Tokens.TerracottaLight.copy(alpha = 0.55f * w)) }
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box {
+                OrganicIcon(item.icon, size = 24.dp, color = if (selected) Tokens.Terracotta else Tokens.TextMuted)
+                // NotificationBell's chip hangs off the glyph's top-right corner.
+                if (item.badge > 0) CountBadge(item.badge, Modifier.align(Alignment.TopEnd).offset(x = 9.dp, y = (-8).dp))
+            }
+        }
+        Spacer(Modifier.height(3.dp))
+        BasicText(
+            item.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = AppFonts.body(10.5f, if (selected) 600 else 400, lineHeight = 1.3f, color = if (selected) Tokens.Terracotta else Tokens.TextMuted),
+        )
+    }
+}
+
+/** A pointer over a tab: the wash at α 0.25 (of the selected one's 0.55). */
+private const val HOVER_WASH = 0.25f / 0.55f
+
+/** The side rail's width, without the window's own start inset (a cutout, a side navigation bar). */
+val SideRailWidth = Tokens.SideRailW.dp
+
+/** What the side rail takes at the window's start: [SideRailWidth] and the start inset its paper runs under. */
+@Composable
+fun sideRailWidth(): Dp = SideRailWidth + WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Start).asPaddingValues()
+    .calculateStartPadding(LocalLayoutDirection.current)
+
+/**
+ * The tab bar stood on its side for medium and expanded windows (design note §9): the same
+ * items, selection and haptics, down the window's start edge on every page. Cream paper ending
+ * on a vertical pen line at its trailing edge (seed 227, half ink: nothing scrolls under it);
+ * the pen first, its centre level with the bars' content, then the tabs 28 below it, 64 tall and
+ * 4 apart. A pointer over a tab lays a faint wash; the hand cursor marks them.
+ */
+@Composable
+fun <T> OrganicSideRail(items: List<OrganicTabItem<T>>, selection: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
+    val haptic = LocalHapticFeedback.current
+    val start = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Start).asPaddingValues()
+        .calculateStartPadding(LocalLayoutDirection.current)
+    Column(
+        modifier
+            .fillMaxHeight()
+            .width(SideRailWidth + start)
+            .blocksTouches()
+            .railEdge()
+            .padding(start = start)
+            .statusBarsPadding()
+            .selectableGroup(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // The bars' content line sits 26 under the status bar (BrandBarHeight 58 / 2 less the wave's room).
+        Spacer(Modifier.height(26.dp - 20.dp))
+        // The pen first, then the tabs in their bar order (each keeps the bar's seed for its wash).
+        items.withIndex().sortedBy { if (it.value.isAction) 0 else 1 }.forEach { (index, item) ->
+            val selected = item.id == selection
+            val select = {
+                haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                onSelect(item.id)
+            }
+            val source = remember { MutableInteractionSource() }
+            val pressed by source.collectIsPressedAsState()
+            val hovered by source.collectIsHoveredAsState()
+            if (item.isAction) {
+                Box(
+                    Modifier
+                        .size(SideRailWidth, 40.dp)
+                        .hoverable(source)
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(source, indication = null, role = Role.Button, onClickLabel = item.title, onClick = select)
+                        .semantics { contentDescription = item.title },
+                    contentAlignment = Alignment.Center,
+                ) { PenChip(pressed, item.icon) }
+                Spacer(Modifier.height(28.dp))
+            } else {
+                val wash by animateFloatAsState(
+                    if (selected) 1f else if (pressed) 0.5f else if (hovered) HOVER_WASH else 0f, tween(160), label = "railWash",
+                )
+                TabFace(
+                    item, index, selected, { wash },
+                    Modifier
+                        .size(SideRailWidth, 64.dp)
+                        .hoverable(source)
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(source, indication = null, role = Role.Tab, onClickLabel = item.title, onClick = select)
+                        .semantics { this.selected = selected },
+                )
+                Spacer(Modifier.height(4.dp))
+            }
+        }
+    }
+}
+
+/**
+ * The rail's paper and trailing edge — [footerEdge] stood on its side: the cream stops on a
+ * vertical wavy pen line (wavyPoints turned 90°, seed 227, a step every 90), half ink.
+ */
+fun Modifier.railEdge(lineAlpha: Float = 0.5f): Modifier = drawWithCache {
+    val d = density
+    val ink = Tokens.Ink.toPx()
+    val x0 = size.width / d - 1.4 - Tokens.Ink.value
+    val h = (size.height / d).toDouble()
+    val steps = max(6, (h / 90).roundToInt())
+    // Along the height, the wobble across: (x, y) of a level line read as (y, x).
+    val pts = wavyPoints(h, x0.toDouble(), 1.4, 227.0, steps).map { (it.y * d).toFloat() to (it.x * d).toFloat() }
+    val line = Path().apply {
+        moveTo(pts[0].first, pts[0].second)
+        for (i in 1 until pts.size) {
+            val (x0p, y0p) = pts[i - 1]
+            val (x1, y1) = pts[i]
+            val mid = (y0p + y1) / 2
+            cubicTo(x0p, mid, x1, mid, x1, y1)
+        }
+    }
+    val fill = Path().apply {
+        moveTo(0f, 0f)
+        lineTo(pts[0].first, pts[0].second)
+        for (i in 1 until pts.size) {
+            val (x0p, y0p) = pts[i - 1]
+            val (x1, y1) = pts[i]
+            val mid = (y0p + y1) / 2
+            cubicTo(x0p, mid, x1, mid, x1, y1)
+        }
+        lineTo(0f, size.height)
+        close()
+    }
+    onDrawBehind {
+        drawPath(fill, Tokens.Cream)
+        drawPath(line, Tokens.FieldBorderHover, alpha = lineAlpha, style = Stroke(ink, cap = StrokeCap.Round))
     }
 }
 
@@ -287,10 +426,10 @@ fun OrganicInlineBar(
             // Puts the arrow on the page's 20 margin, as the web's -8 margin + 8 padding does.
             .padding(start = 4.dp, end = 8.dp)
             .padding(top = 4.dp, bottom = HeaderEdgeHeight)
-            .height(InlineBarHeight - 4.dp),
+            .height(LocalInlineBarHeight.current - 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (showBack) OrganicIconButton(IconName.ArrowRight, backLabel, mirrored = true, onClick = onBack) else Spacer(Modifier.width(12.dp))
+        if (showBack && !LocalBarBackHidden.current) OrganicIconButton(IconName.ArrowRight, backLabel, mirrored = true, onClick = onBack) else Spacer(Modifier.width(12.dp))
         if (title != null) {
             Spacer(Modifier.width(4.dp))
             BasicText(
@@ -315,7 +454,16 @@ val InlineBarHeight = 52.dp
 
 /** Where a pushed page's content starts under its overlaid [OrganicInlineBar]. */
 @Composable
-fun inlineBarTop(): Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + InlineBarHeight + HeaderEdgeHeight
+fun inlineBarTop(): Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + LocalInlineBarHeight.current + HeaderEdgeHeight
+
+/**
+ * How tall the pushed pages' bars are here: [InlineBarHeight], or in a pane beside a root list the
+ * list's [BrandBarHeight], so the two bars' waves run level (design note §9).
+ */
+val LocalInlineBarHeight = staticCompositionLocalOf { InlineBarHeight }
+
+/** The page is a pane's first (a thread beside the conversations): its bar has no way back. */
+val LocalBarBackHidden = staticCompositionLocalOf { false }
 
 /**
  * A bar lies over the page's scrolling content, so it must take the touches

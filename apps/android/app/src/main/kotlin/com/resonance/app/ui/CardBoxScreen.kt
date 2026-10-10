@@ -60,6 +60,8 @@ import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicIconButton
 import com.resonance.design.Skeleton
 import com.resonance.design.plainClickable
+import com.resonance.design.cardListLayout
+import com.resonance.design.CardListLayout
 import com.resonance.design.storyCardSkeletons
 import com.resonance.design.WobRectShape
 import com.resonance.design.generated.IconName
@@ -214,6 +216,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     LaunchedEffect(shelf) { model.shelfShown(shelf) }
     LaunchedEffect(shelf, changes, foregrounded) { model.refresh(shelf, changes) }
     val view = LocalView.current
+    val layout = cardListLayout()
 
     TabScreen(
         L10n.App.Nav.me,
@@ -233,7 +236,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     ) {
         item {
             when (val p = profile) {
-                is Session.Profile.Loaded -> Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                is Session.Profile.Loaded -> Row(Modifier.padding(horizontal = layout.headerInset), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Box(Modifier.clickable(onClickLabel = L10n.Me.viewPublicProfile) { open(Route.Author(p.me.handle)) }) {
                         HandDrawnAvatar(p.me.initials, p.me.avatarUrl, OklchColor.parse(p.me.accentColor) ?: Tokens.TerracottaLight, 72.dp, seedFromString(p.me.id).toDouble())
                     }
@@ -247,7 +250,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
                 Session.Profile.Missing -> OrganicEmptyState(L10n.Auth.stepHandle)
                 Session.Profile.Failed -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { session.loadMe() } }, action = EmptyAction.Outline)
                 // Still loading: the identity row's shape in shimmering blocks.
-                else -> Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                else -> Row(Modifier.padding(horizontal = layout.headerInset), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Skeleton(height = 72.dp, circle = true)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Skeleton(Modifier.width(140.dp), height = 24.dp)
@@ -256,12 +259,12 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
                 }
             }
         }
-        item { ShelfTabs(shelf, openMap = { open(Route.ThoughtMap) }) { shelf = it } }
+        item { ShelfTabs(shelf, layout.headerInset, openMap = { open(Route.ThoughtMap) }) { shelf = it } }
         refreshNote(model.failureOver(shelf))
         val cards = shelves[shelf]
         when {
             cards == null && failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { model.refresh(shelf, changes, retry = true) }, action = EmptyAction.Outline) }
-            cards == null -> storyCardSkeletons(6)
+            cards == null -> storyCardSkeletons(if (layout.isGrid) layout.columns * 2 else 6, layout = layout)
             // An empty shelf: the shared empty state (its own words as the title; the bookmarks' as its line),
             // and the empty published shelf points at the first story (ux §4).
             cards.isEmpty() -> item {
@@ -278,8 +281,8 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
             }
             // The linked shelf lists the pared-back cards, as the web's MiniCardGrid does.
             shelf == TabGetCardBox.linked -> miniCards(cards, open, keyPrefix = "linked:")
-            shelf in OwnedShelves -> managedCards(session, cards, open, resumesDrafts = shelf == TabGetCardBox.draft)
-            else -> storyCards(cards, open)
+            shelf in OwnedShelves -> managedCards(session, cards, open, resumesDrafts = shelf == TabGetCardBox.draft, layout = layout)
+            else -> storyCards(cards, open, layout = layout)
         }
     }
 }
@@ -293,18 +296,23 @@ private val OwnedShelves = setOf(TabGetCardBox.published, TabGetCardBox.`private
  * as everyone else sees it ([story]) — that is its mark here, no badge. A
  * draft has no page yet, so tapping it resumes writing.
  */
-private fun LazyListScope.managedCards(session: Session, cards: List<FeedCard>, open: (Route) -> Unit, resumesDrafts: Boolean) {
+private fun LazyListScope.managedCards(session: Session, cards: List<FeedCard>, open: (Route) -> Unit, resumesDrafts: Boolean, layout: CardListLayout) {
+    val tap: (FeedCard) -> Route = { card -> if (resumesDrafts) Route.Write(cardId = card.id) else Route.Card(card.routeKey, card) }
+    if (layout.isGrid) return borderedCards(cards, open, null, false, layout, tap) { card, i ->
+        val hue = CardPalette(card.accentHue, i).hue
+        // 14 in from the card's corner, as on a band; the trigger's 44dp hit box reaches 3 past the chip.
+        Box(Modifier.align(Alignment.TopEnd).padding(top = 14.dp - 3.dp, end = 14.dp - 3.dp)) {
+            CardActionsMenu(session, card.id, card.visibility.value, open, seed = hue, hue = hue, referenceCardId = card.referenceCardId)
+        }
+    }
     itemsIndexed(cards, key = { _, c -> c.id }) { i, card ->
         val hue = CardPalette(card.accentHue, i).hue
         Column(Modifier.fillMaxWidth()) {
             Box {
-                StoryCard(
-                    card.story(), i, i == cards.lastIndex,
-                    Modifier.plainClickable { open(if (resumesDrafts) Route.Write(cardId = card.id) else Route.Card(card.routeKey, card)) },
-                )
-                // The chip 14 in from the card's corner (the card's box sits 20 in from the screen);
-                // the trigger's 44dp hit box reaches 3 past the 38dp chip.
-                Box(Modifier.align(Alignment.TopEnd).padding(top = 14.dp - 3.dp, end = 34.dp - 3.dp)) {
+                StoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(tap(card)) }, inset = layout.inset)
+                // The chip 14 in from the card's corner (the card's box sits 20 in from the screen, or
+                // its column's inset less the band's 18); the trigger's 44dp hit box reaches 3 past the 38dp chip.
+                Box(Modifier.align(Alignment.TopEnd).padding(top = 14.dp - 3.dp, end = layout.inset - 4.dp - 3.dp)) {
                     CardActionsMenu(session, card.id, card.visibility.value, open, seed = hue, hue = hue, referenceCardId = card.referenceCardId)
                 }
             }
@@ -321,11 +329,11 @@ private val ShelfOrder = listOf(TabGetCardBox.published, TabGetCardBox.`private`
  * and the tab is one of its own, so the wash marks it without a pen line.
  */
 @Composable
-private fun ShelfTabs(selection: TabGetCardBox, openMap: () -> Unit, onSelect: (TabGetCardBox) -> Unit) {
+private fun ShelfTabs(selection: TabGetCardBox, edge: Dp, openMap: () -> Unit, onSelect: (TabGetCardBox) -> Unit) {
     val haptic = LocalHapticFeedback.current
     val scroll = rememberScrollState()
     Row(
-        Modifier.fadingEdges(scroll).horizontalScroll(scroll).padding(horizontal = 20.dp, vertical = 7.dp).padding(top = 20.dp, bottom = 28.dp),
+        Modifier.fadingEdges(scroll).horizontalScroll(scroll).padding(horizontal = edge, vertical = 7.dp).padding(top = 20.dp, bottom = 28.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ShelfOrder.forEach { s ->

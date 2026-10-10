@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.NotificationsStore
 import com.resonance.app.Session
+import com.resonance.design.readableColumn
 import com.resonance.design.AppFonts
 import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicEmptyState
@@ -53,7 +54,7 @@ fun NotificationsScreen(session: Session, open: (Route) -> Unit) {
                 )
             }
             else -> itemsIndexed(items, key = { _, it -> it.id }) { i, item ->
-                Column(Modifier.padding(horizontal = 20.dp)) {
+                Column(Modifier.readableColumn().padding(horizontal = 20.dp)) {
                     if (i > 0) WavyDivider(seed = 29.0 + i * 7)
                     NotificationRow(item, session, open)
                 }

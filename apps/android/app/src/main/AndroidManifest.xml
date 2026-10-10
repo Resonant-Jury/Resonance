@@ -34,7 +34,11 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.Resonance.Starting"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|density">
+            <!-- configChanges: a rotation, a fold, a split or a window resized relays the Compose
+                 screens out instead of recreating the activity, so the writer keeps its WebView —
+                 cursor, undo history and the keyboard — through them (scout-tablet §2.1). -->
             <!-- singleTop: a site link (or the debug route) opened while the app is
                  running arrives in onNewIntent instead of being dropped. -->
             <intent-filter>

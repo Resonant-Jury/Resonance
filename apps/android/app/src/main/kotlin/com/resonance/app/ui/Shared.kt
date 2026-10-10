@@ -1,6 +1,15 @@
 package com.resonance.app.ui
 
 import androidx.compose.animation.core.animate
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import com.resonance.design.BorderedStoryCard
+import com.resonance.design.CardListLayout
+import com.resonance.design.GridBlockRows
+import com.resonance.design.GridUnderBar
+import com.resonance.design.LocalWindowLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -118,10 +127,64 @@ fun mediumDate(iso: String?): String? = iso?.let {
  * Cards as the web lists them on a phone: full-bleed bands, each opening its page (a plain link —
  * no press chrome), which draws the card as the list had it while it reads the rest.
  */
-fun LazyListScope.storyCards(cards: List<FeedCard>, open: (Route) -> Unit, onLast: (() -> Unit)? = null, firstUnderBar: Boolean = false) {
+fun LazyListScope.storyCards(
+    cards: List<FeedCard>,
+    open: (Route) -> Unit,
+    onLast: (() -> Unit)? = null,
+    firstUnderBar: Boolean = false,
+    layout: CardListLayout = CardListLayout.Phone,
+) {
+    if (layout.isGrid) return borderedCards(cards, open, onLast, firstUnderBar, layout)
     itemsIndexed(cards, key = { _, c -> c.id }) { i, card ->
-        StoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(Route.Card(card.routeKey, card)) }, isFirst = firstUnderBar && i == 0)
+        StoryCard(
+            card.story(), i, i == cards.lastIndex,
+            Modifier.plainClickable { open(Route.Card(card.routeKey, card)) }.pointerHoverIcon(PointerIcon.Hand),
+            isFirst = firstUnderBar && i == 0, inset = layout.inset,
+        )
         if (i == cards.lastIndex) onLast?.invoke()
+    }
+}
+
+/**
+ * An expanded window's cards (design note §10): the web desktop's bordered cards in columns,
+ * row-major — card i in column i mod n, each column stacking its own cards (CardLinkGrid) —
+ * [GridBlockRows] rows to a block of the lazy list, so a long feed still composes as it scrolls.
+ */
+internal fun LazyListScope.borderedCards(
+    cards: List<FeedCard>,
+    open: (Route) -> Unit,
+    onLast: (() -> Unit)?,
+    firstUnderBar: Boolean,
+    layout: CardListLayout,
+    /** Where a card leads (its page; a draft, its writer). */
+    tap: (FeedCard) -> Route = { Route.Card(it.routeKey, it) },
+    /** Laid over a card's top-end corner (the owner's ⋯ on their shelves). */
+    overlay: (@Composable BoxScope.(FeedCard, Int) -> Unit)? = null,
+) {
+    val n = layout.columns
+    val blocks = cards.indices.chunked(n * GridBlockRows)
+    itemsIndexed(blocks, key = { b, block -> "grid:$b:${cards[block.first()].id}" }) { b, block ->
+        val gap = Tokens.FeedGap.dp
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = layout.gridInset)
+                .padding(top = if (b == 0) (if (firstUnderBar) GridUnderBar else 0.dp) else gap),
+            horizontalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            for (c in 0 until n) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(gap)) {
+                    for (i in block) if (i % n == c) {
+                        val card = cards[i]
+                        Box {
+                            BorderedStoryCard(card.story(), i, Modifier.plainClickable { open(tap(card)) })
+                            overlay?.invoke(this, card, i)
+                        }
+                    }
+                }
+            }
+        }
+        if (b == blocks.lastIndex) onLast?.invoke()
     }
 }
 
@@ -158,7 +221,12 @@ internal fun View.announce(text: String) = announceForAccessibility(text)
 /** MiniCardGrid on a phone: the resonance and linked-cards lists, as pared-back bands. */
 fun LazyListScope.miniCards(cards: List<FeedCard>, open: (Route) -> Unit, keyPrefix: String) {
     itemsIndexed(cards, key = { _, c -> "$keyPrefix${c.id}" }) { i, card ->
-        MiniStoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(Route.Card(card.routeKey, card)) })
+        // Wider than a phone, the band's content keeps to the centred reading column.
+        MiniStoryCard(
+            card.story(), i, i == cards.lastIndex,
+            Modifier.plainClickable { open(Route.Card(card.routeKey, card)) }.pointerHoverIcon(PointerIcon.Hand),
+            inset = LocalWindowLayout.current.bandInset,
+        )
     }
 }
 
@@ -219,7 +287,9 @@ fun TabScreen(
             title == null -> top - HeaderEdgeHeight
             else -> top
         }
-        LazyColumn(Modifier.fillMaxSize().pulledDown(pull).then(refreshAction), state = list, contentPadding = PaddingValues(top = listTop, bottom = 120.dp)) {
+        // Room for the docked tab bar; beside the side rail, only the navigation bar's.
+        val bottom = if (LocalWindowLayout.current.sideRail) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 40.dp else 120.dp
+        LazyColumn(Modifier.fillMaxSize().pulledDown(pull).then(refreshAction), state = list, contentPadding = PaddingValues(top = listTop, bottom = bottom)) {
             if (!titleInBar && title != null) item {
                 // The web's page padding: 40 under the header, the title block 40 above the content (home's header).
                 Column(

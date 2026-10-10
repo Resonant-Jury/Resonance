@@ -34,6 +34,7 @@ import com.resonance.design.HeaderEdgeHeight
 import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.generated.IconName
+import com.resonance.design.cardListLayout
 import com.resonance.design.storyCardSkeletons
 import com.resonance.kit.l10n.L10n
 import com.resonance.kit.reading.FeedLoader
@@ -72,6 +73,8 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
     val blocked by session.blocked.collectAsStateWithLifecycle()
     val cards = remember(state.cards, blocked) { state.cards.withoutAuthors(blocked) }
     val view = LocalView.current
+    // Bands on a phone, a centred column of them on a medium window, the bordered grid on an expanded one.
+    val layout = cardListLayout()
 
     // No page title: the brand bar is the feed's only heading, and the first card starts right under its wave.
     TabScreen(
@@ -100,7 +103,7 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
     ) {
         when (state.phase) {
             // The web's FeedSkeleton: the real cards' bands with shimmering blocks, so nothing jumps on arrival.
-            FeedLoader.Phase.Loading -> storyCardSkeletons(6, firstUnderBar = true)
+            FeedLoader.Phase.Loading -> storyCardSkeletons(if (layout.isGrid) layout.columns * 3 else 6, firstUnderBar = true, layout = layout)
             FeedLoader.Phase.Failed -> item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { feed.load() }, action = EmptyAction.Outline) }
             FeedLoader.Phase.Loaded -> {
                 if (cards.isEmpty()) {
@@ -114,7 +117,7 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
                 } else {
                     refreshNote(state.refreshFailure, underBar = true)
                     // A note over the cards parts the first one from the bar: it keeps its own top rule then.
-                    storyCards(cards, open, firstUnderBar = state.refreshFailure == null)
+                    storyCards(cards, open, firstUnderBar = state.refreshFailure == null, layout = layout)
                     item {
                         Column(Modifier.fillMaxWidth().padding(top = 48.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             // While more can load, only the button; the end mark once nothing more can.

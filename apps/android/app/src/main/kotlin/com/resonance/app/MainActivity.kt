@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
@@ -12,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import com.resonance.app.ui.KeyShortcuts
 import com.resonance.app.ui.ResonanceRoot
 import com.resonance.kit.chat.ChatPush
 import com.resonance.kit.push.PushPlacement
@@ -106,6 +108,19 @@ class MainActivity : ComponentActivity() {
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+    }
+
+    // Ctrl-N / Cmd-N on a hardware keyboard opens the writer, whatever has focus (a text field doesn't use the chord).
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val chord = event.isCtrlPressed || event.isMetaPressed
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_N && chord && !event.isAltPressed && !event.isShiftPressed) {
+            val open = KeyShortcuts.newCard
+            if (open != null) {
+                if (event.repeatCount == 0) open()
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onStart() {
