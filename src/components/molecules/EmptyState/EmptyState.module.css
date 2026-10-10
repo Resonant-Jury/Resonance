@@ -73,6 +73,8 @@
   line-height: 1.6;
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
+  /* Two even lines rather than a full one and a word cut off it (對／話). */
+  text-wrap: balance;
 }
 
 .line[data-after='title'] {
