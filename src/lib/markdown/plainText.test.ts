@@ -65,15 +65,19 @@ describe('plainText', () => {
     expect(plainText('see https://example.com/?a=1&amp;b=2, then &lt;https://example.org&gt; done')).toBe('see, then done');
   });
 
-  it('reads any story the rules take in well under a second: no run of brackets or blank lines is read again from each place in it', () => {
+  it('reads any story the rules take in a moment: no run of brackets or blank lines is read again from each place in it', () => {
     // Each took seconds to minutes before (a quadratic pattern), on the server at publish and in every browser showing the excerpt.
     const floods = ['[', '![', '[a](', '[](', '\n', ' \n', '-\n', '\t\n\n'].map((unit) => unit.repeat(Math.floor(200_000 / unit.length)));
     // A long run of spaces before the words in front of an address and its full stop (17 s once).
     floods.push(`a${' '.repeat(199_000)}b https://example.com.`, `a${'\n'.repeat(199_000)}b https://example.com.`);
+    // The bounded patterns read each flood in about 0.2 s on a laptop and up to about 1 s on a shared CI runner
+    // busy with the rest of the suite; a pattern that reads again from each place takes seconds to minutes even
+    // on the laptop. Three seconds sits far from both.
+    const BUDGET_MS = 3_000;
     for (const story of floods) {
       const started = performance.now();
       plainText(story);
-      expect(performance.now() - started, JSON.stringify(story.slice(0, 4))).toBeLessThan(1_000);
+      expect(performance.now() - started, JSON.stringify(story.slice(0, 4))).toBeLessThan(BUDGET_MS);
     }
     // Links, pictures, list markers and rules on their own lines read as before.
     expect(plainText('a [link](https://x.y "title") b ![pic](https://x.y/p.png) c')).toBe('a link b c');
