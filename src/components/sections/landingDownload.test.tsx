@@ -34,15 +34,16 @@ const stores = (el: HTMLElement) =>
     .filter((href) => href === APP_STORE_URL || href === PLAY_STORE_URL);
 
 describe('the download badges on the landing page', () => {
-  it('puts the download block, QR code and all, in the hero under its calls to action', () => {
+  it('puts the download block, QR code and all, in the hero as its one call to action', () => {
     vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(UA.macChrome);
     renderWithIntl(<HeroSection />);
     const block = screen.getByRole('group', { name: en.download.title });
     expect(block).toHaveAttribute('id', 'download');
     expect(stores(block)).toEqual([APP_STORE_URL, PLAY_STORE_URL]);
     expect(within(block).getByRole('img', { name: en.download.qr })).toBeInTheDocument();
-    const share = screen.getByRole('link', { name: en.hero.share });
-    expect(share.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const description = screen.getByText(en.hero.description);
+    expect(description.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /explore stories|share your story/i })).toBeNull();
   });
 
   it('repeats the badges, without the QR code, in the footer — the stores’ trademark line under them', () => {

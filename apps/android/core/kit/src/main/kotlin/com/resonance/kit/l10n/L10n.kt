@@ -38,10 +38,6 @@ object L10n {
         val headlineSuffix: String get() = Strings.string("hero.headlineSuffix")
         /** A space for real life stories from around the world to connect. Read, share, and resonate with the experiences that shap */
         val description: String get() = Strings.string("hero.description")
-        /** Explore stories */
-        val explore: String get() = Strings.string("hero.explore")
-        /** Share your story */
-        val share: String get() = Strings.string("hero.share")
         /** Be among the first storytellers here */
         val proof: String get() = Strings.string("hero.proof")
     }

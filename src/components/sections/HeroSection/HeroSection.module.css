@@ -64,13 +64,6 @@
   text-wrap: pretty;
 }
 
-.ctaRow {
-  display: flex;
-  gap: 14px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
 .download {
   margin-top: 40px;
 }

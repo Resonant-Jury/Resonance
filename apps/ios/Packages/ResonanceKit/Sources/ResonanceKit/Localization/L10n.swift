@@ -36,10 +36,6 @@ public enum L10n {
         public static var headlineSuffix: String { Strings.shared.string("hero.headlineSuffix") }
         /// A space for real life stories from around the world to connect. Read, share, and resonate with the experiences that shap
         public static var description: String { Strings.shared.string("hero.description") }
-        /// Explore stories
-        public static var explore: String { Strings.shared.string("hero.explore") }
-        /// Share your story
-        public static var share: String { Strings.shared.string("hero.share") }
         /// Be among the first storytellers here
         public static var proof: String { Strings.shared.string("hero.proof") }
     }

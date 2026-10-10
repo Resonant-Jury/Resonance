@@ -3,19 +3,17 @@
 import { useTranslations } from 'next-intl';
 import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
-import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { GetTheApp } from '@/components/molecules/GetTheApp/GetTheApp';
 import { DOWNLOAD_ANCHOR } from '@/lib/appStores';
-import { Link } from '@/i18n/navigation';
 import styles from './HeroSection.module.css';
 import { INK_STRONG } from '@/lib/design/strokes';
 
 const AVATARS: { ini: string; color: string }[] = [
-  { ini: 'AC', color: 'var(--color-terracotta-light)' },
-  { ini: 'MS', color: 'var(--color-lavender)' },
-  { ini: 'JP', color: 'var(--color-sage)' },
-  { ini: 'AO', color: 'var(--color-yellow)' },
+  { ini: '念', color: 'var(--color-terracotta-light)' },
+  { ini: '蕭', color: 'var(--color-lavender)' },
+  { ini: '方', color: 'var(--color-sage)' },
+  { ini: 'TE', color: 'var(--color-yellow)' },
 ];
 
 export function HeroSection() {
@@ -42,15 +40,6 @@ export function HeroSection() {
         </h1>
 
         <p className={styles.description}>{t('description')}</p>
-
-        <div className={styles.ctaRow}>
-          <Link href="/home" style={{ textDecoration: 'none' }}>
-            <OrganicButton variant="primary">{t('explore')}</OrganicButton>
-          </Link>
-          <Link href="/write" style={{ textDecoration: 'none' }}>
-            <OrganicButton variant="ghost">{t('share')}</OrganicButton>
-          </Link>
-        </div>
 
         <GetTheApp id={DOWNLOAD_ANCHOR} className={styles.download} />
 
