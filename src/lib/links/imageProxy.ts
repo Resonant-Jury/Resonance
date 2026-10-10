@@ -32,6 +32,12 @@ import { LINK_MAX_LENGTH, normalizeLink } from './url';
  * so it is fetched once however often it is asked for; only a few pictures
  * are decoded at a time; and a picture may not have more than PROXY_MAX_PIXELS
  * pixels.
+ *
+ * A failure is remembered by this instance alone, and only briefly when it
+ * may pass (a slow or unreachable site, an error page): no browser, CDN or
+ * app keeps a 404 from here, so the next view of the preview asks again and
+ * gets the picture — a first try that failed once must not hide it for
+ * minutes (as it did, held five minutes by every cache on the way).
  */
 
 /** The longest side of the picture we send (a card shows it at most ~300 dp wide). */
@@ -47,9 +53,19 @@ export const PROXY_MAX_PIXELS = 30_000_000;
 /** How many pictures are fetched and decoded at once, and how many more may wait their turn. */
 export const MAX_CONCURRENT = 3;
 export const MAX_WAITING = 16;
-/** How long the outcome for a picture is remembered by an instance: a picture, and a failure. */
+/**
+ * How long an instance remembers the outcome for a picture: the picture; a
+ * refusal that the same address would earn again (an address off the public
+ * internet, not a picture, too big, unreadable); and a failure that may pass
+ * at the next try (a timeout, a dropped connection, a name that didn't
+ * resolve, a status that wasn't 2xx) — remembered just long enough that a
+ * thread asking for it many times at once still costs one fetch.
+ */
 export const REMEMBER_PICTURE_MS = 10 * 60_000;
 export const REMEMBER_FAILURE_MS = 5 * 60_000;
+export const REMEMBER_RETRY_MS = 15_000;
+/** The fetch failures that may pass when asked again (see REMEMBER_RETRY_MS). */
+const PASSING: ReadonlySet<string> = new Set(['timeout', 'network', 'dns', 'status']);
 const REMEMBER_MAX = 100;
 
 /** What sharp may report after the bytes passed `sniffImage` (it names an AVIF `heif`). */
@@ -138,8 +154,9 @@ export async function toPreviewWebp(bytes: Uint8Array): Promise<Buffer> {
 }
 
 const NOT_FOUND_HEADERS = {
-  // Short, so a picture that was only slow comes back, but not at every load.
-  'Cache-Control': 'public, max-age=300',
+  // Kept by nobody: a picture that failed once comes back at the next view. The instance's own memory
+  // (createImageCache) is what spares the site a fetch at every request.
+  'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
 };
 
@@ -179,17 +196,27 @@ export interface ImageCacheOptions {
   max?: number;
   pictureMs?: number;
   failureMs?: number;
+  retryMs?: number;
   now?: () => number;
+}
+
+/** Whether a failure may pass when the same address is asked for again. */
+export function mayPass(error: unknown): boolean {
+  return error instanceof SafeFetchError ? PASSING.has(error.reason) : !(error instanceof ImageRefused);
 }
 
 /**
  * What became of each picture asked for, by address: the WebP, or the failure
- * (see `createMemo`). `Busy` is never remembered: it says nothing about the
- * picture.
+ * (see `createMemo`) — a refusal for a while, a failure that may pass only
+ * briefly. `Busy` is never remembered: it says nothing about the picture.
  */
 export function createImageCache(options: ImageCacheOptions = {}) {
-  const { max = REMEMBER_MAX, pictureMs = REMEMBER_PICTURE_MS, failureMs = REMEMBER_FAILURE_MS, now } = options;
-  return createMemo<Buffer>({ max, now, keep: (outcome) => (outcome.ok ? pictureMs : outcome.error instanceof Busy ? 0 : failureMs) });
+  const { max = REMEMBER_MAX, pictureMs = REMEMBER_PICTURE_MS, failureMs = REMEMBER_FAILURE_MS, retryMs = REMEMBER_RETRY_MS, now } = options;
+  return createMemo<Buffer>({
+    max,
+    now,
+    keep: (outcome) => (outcome.ok ? pictureMs : outcome.error instanceof Busy ? 0 : mayPass(outcome.error) ? retryMs : failureMs),
+  });
 }
 
 const sharedCache = createImageCache();
