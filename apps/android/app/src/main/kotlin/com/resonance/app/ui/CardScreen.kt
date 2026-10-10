@@ -24,6 +24,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import com.resonance.design.scrolledUnderBar
+import com.resonance.design.LocalHeaderChrome
 import androidx.compose.ui.unit.Dp
 import com.resonance.design.prefersReducedMotion
 import com.resonance.design.readingProgress
@@ -250,6 +252,13 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
         derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > bylinePx }
     }
     val progress = rememberReadingProgress(list, top)
+    // On a tablet the bar's middle takes the card's title once the article's own has gone up under
+    // it (round 5, part C): where the title ends below the article's top, and whether it has.
+    val chrome = LocalHeaderChrome.current
+    val heading = remember { HeadingUnderBar() }
+    val titleGone by remember(list) {
+        derivedStateOf { scrolledUnderBar(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset, heading.bottom) }
+    }
     // One centred column on phones and medium windows; on an expanded one the article and the author's rail.
     val columns = LocalWindowLayout.current.cardPage()
     val railed = columns.railStart != null
@@ -269,8 +278,8 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                 val relatedLayout = cardListLayout()
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 40.dp)) {
                     item(key = "article") {
-                        Column(Modifier.padding(start = columns.start, end = columns.end).padding(top = 16.dp)) {
-                            ArticleHead(card, d.anonymous, byline = !railed) { open(Route.Author(it)) }
+                        Column(heading.onItem.padding(start = columns.start, end = columns.end).padding(top = 16.dp)) {
+                            ArticleHead(card, d.anonymous, byline = !railed, titleModifier = heading.onHeading) { open(Route.Author(it)) }
                             // The story alone is what the bar's progress measures (not the cover, title or lists).
                             Box(Modifier.onGloballyPositioned(progress::story)) {
                                 StoryMarkdown(blocks, openUrl, linkCards) { href, title -> CardEmbed(embeds.embedFor(href), href, title, open) }
@@ -323,7 +332,10 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     }
     OrganicInlineBar(
         L10n.App.Nav.back, back, scrolled = list.scrolledPast20(),
-        leading = { detail?.let { d -> BarAuthor(d.card, d.anonymous, visible = phase == "loaded" && bylineGone && !railed) { open(Route.Author(it)) } } },
+        // A tablet's header has the card's title in its middle instead of the author beside the arrow.
+        title = if (chrome != null) detail?.card?.title else null,
+        titleShown = phase == "loaded" && titleGone,
+        leading = { if (chrome == null) detail?.let { d -> BarAuthor(d.card, d.anonymous, visible = phase == "loaded" && bylineGone && !railed) { open(Route.Author(it)) } } },
         progress = if (phase == "loaded") progress::shown else null,
     ) {
         detail?.let { d ->
@@ -404,7 +416,14 @@ private fun BarAuthor(card: FeedCard, anonymous: Boolean, visible: Boolean, open
  * and 20 below, then the title (the page's actions live in the bar).
  */
 @Composable
-private fun ArticleHead(card: FeedCard, anonymous: Boolean, byline: Boolean = true, openAuthor: (String) -> Unit) {
+private fun ArticleHead(
+    card: FeedCard,
+    anonymous: Boolean,
+    byline: Boolean = true,
+    /** On the title: a tablet's bar takes it once it has gone up under the bar. */
+    titleModifier: Modifier = Modifier,
+    openAuthor: (String) -> Unit,
+) {
     // Beside the author's rail the byline isn't drawn: the rail carries it.
     if (byline) {
         Byline(card, anonymous, openAuthor)
@@ -418,7 +437,10 @@ private fun ArticleHead(card: FeedCard, anonymous: Boolean, byline: Boolean = tr
     }
     CssText(
         card.title, AppFonts.Family.Heading, 28f, 700, lineHeight = 1.2f, letterSpacing = -0.015f,
-        modifier = Modifier.padding(bottom = 28.dp).semantics { heading() },
+        modifier = Modifier
+            .padding(bottom = 28.dp)
+            .then(titleModifier)
+            .semantics { heading() },
     )
 }
 

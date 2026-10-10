@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.runtime.derivedStateOf
+import com.resonance.design.LocalHeaderChrome
+import com.resonance.design.scrolledUnderBar
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -141,6 +144,12 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
     val retry: () -> Unit = { model.refresh(changes, force = true) }
 
     val list = rememberLazyListState()
+    // On a tablet the bar's middle takes the person's name once the page's own has gone up under it (round 5, part C).
+    val chrome = LocalHeaderChrome.current
+    val heading = remember { HeadingUnderBar() }
+    val nameGone by remember(list) {
+        derivedStateOf { scrolledUnderBar(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset, heading.bottom) }
+    }
     // The bar lies over the page, so what scrolls shows right up to its pen line.
     val top = inlineBarTop()
     val layout = cardListLayout()
@@ -162,9 +171,9 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
                 val a = p.author
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 48.dp)) {
                     item {
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Column(heading.onItem.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             HandDrawnAvatar(a.initials, a.avatarUrl, a.accent(), 96.dp, a.avatarSeedValue())
-                            BasicText(a.handle, style = AppFonts.heading(32f, lineHeight = 1.2f))
+                            BasicText(a.handle, style = AppFonts.heading(32f, lineHeight = 1.2f), modifier = heading.onHeading)
                             BasicText(p.bio ?: L10n.Profile.bioEmpty, style = AppFonts.body(15f, lineHeight = 1.6f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center))
                             // page.module.css .meta: centred, 6 × 14 apart, 13 muted; the count leads with the cards glyph.
                             val meta = AppFonts.body(13f, color = Tokens.TextMuted)
@@ -219,7 +228,11 @@ fun AuthorScreen(session: Session, handle: String, open: (Route) -> Unit, back: 
             }
         }
     }
-    OrganicInlineBar(L10n.App.Nav.back, back, scrolled = list.scrolledPast20()) {
+    OrganicInlineBar(
+        L10n.App.Nav.back, back, scrolled = list.scrolledPast20(),
+        title = if (chrome != null) profile?.author?.handle else null,
+        titleShown = nameGone,
+    ) {
         profile?.takeIf { !it.isSelf }?.let { p ->
             SafetyMenu(session, SafetyService.Target.User(p.author.id), p.author.handle, p.isBlocked, seed = seedFromString(p.author.id).toDouble(), onChange = reload)
         }

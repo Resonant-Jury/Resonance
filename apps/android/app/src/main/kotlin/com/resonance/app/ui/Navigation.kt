@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.navigation3.scene.SinglePaneSceneStrategy
@@ -67,6 +68,9 @@ import com.resonance.design.generated.IconName
 import com.resonance.kit.api.MessagingApi
 import com.resonance.kit.l10n.L10n
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
@@ -228,6 +232,32 @@ internal fun MutableList<Route>.popToRoot() {
 }
 
 /**
+ * The tab shown chosen again (its tab, its header segment, Ctrl-1…4): back to its root, as every
+ * tab bar does; already there, true — its list then scrolls to the top (round 5, part C).
+ */
+internal fun MutableList<Route>.reselect(): Boolean {
+    if (size > 1) {
+        popToRoot()
+        return false
+    }
+    return true
+}
+
+/**
+ * Whether the header's tabs and pen lie over a tab's page on a medium or expanded window (round 5,
+ * part C): on its root, and on an expanded window's Messages drawn as two panes (whose header is
+ * the root's) — never over a pushed page, which leads out by its back arrow alone.
+ */
+internal fun headerTabsShown(stack: List<Route>, expanded: Boolean): Boolean =
+    (stack.size == 1 && stack.first() is Route.Root) || (expanded && stack.size > 1 && drawsAsPanes(stack))
+
+/** The tab shown chosen again while at its root ([reselect]): its root page's list scrolls to the top. */
+internal val LocalRootTaps = staticCompositionLocalOf<Flow<Tab>> { emptyFlow() }
+
+/** Which tab's stack the page is on. */
+internal val LocalPageTab = staticCompositionLocalOf<Tab?> { null }
+
+/**
  * Back one page, never past the root: a second back that lands before the first one has been drawn
  * (the system back pressed twice quickly, a double tap on the arrow) would otherwise empty the stack,
  * which NavDisplay refuses.
@@ -335,8 +365,9 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     // Ctrl-N / Cmd-N on a keyboard: a new card, over the current tab, as the pen does (not over a writer already open).
     // Ctrl-1…4: Feed, Messages, Notifications, Card Box, as a tap on that tab.
     val currentStack by rememberUpdatedState(stack)
+    val rootTaps = remember { MutableSharedFlow<Tab>(extraBufferCapacity = 1) }
     val pick = rememberUpdatedState<(Tab) -> Unit> { picked ->
-        if (picked == tab) stacks.getValue(tab).popToRoot()
+        if (picked == tab && stacks.getValue(tab).reselect()) rootTaps.tryEmit(tab)
         tab = picked
     }
     DisposableEffect(Unit) {
@@ -370,13 +401,10 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     val select: (Tab) -> Unit = { picked ->
         // The pen opens the writer over the current tab, like the web header's pen.
         if (picked == Tab.Write) stack.add(Route.Write())
-        else {
-            if (picked == tab) stacks.getValue(tab).popToRoot()
-            tab = picked
-        }
+        else pick.value(picked)
     }
     // Medium and expanded windows: the tabs in the middle of a full-width header and the pen at its
-    // end, over every page but the writer (design note B2); compact: the bottom bar on a tab's first page.
+    // end, over a tab's root (round 5, part C); compact: the bottom bar on a tab's first page.
     val topTabs = cls.topTabs
     val tabs = topTabsOrder(tabItems)
     val pad = LayoutClass.pad(windowWidth.value).dp
@@ -386,12 +414,12 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
     val chrome = if (topTabs) HeaderChrome(windowWidth, TopTabsFit.groupWidth(tabWidths.map { it.value }).dp, pad, labels) else null
     val panes = remember(expanded, session) { listOf(MessagesPanesStrategy(expanded, session), SinglePaneSceneStrategy()) }
 
-    CompositionLocalProvider(LocalWindowLayout provides WindowLayout(windowWidth)) {
+    CompositionLocalProvider(LocalWindowLayout provides WindowLayout(windowWidth), LocalRootTaps provides rootTaps) {
         Box(Modifier.fillMaxSize().cream()) {
             key(languageEpoch) {
                 val entries: Map<Tab, List<NavEntry<Route>>> = Tab.entries.associateWith { t ->
                     val own = stacks.getValue(t)
-                    rememberStackEntries(t, own) { route, onStack -> PageFrame(motion, onStack) { WithHeader(route, chrome) { Page(session, route, own) } } }
+                    rememberStackEntries(t, own) { route, onStack -> PageFrame(motion, onStack) { WithHeader(t, route, chrome) { Page(session, route, own) } } }
                 }
                 NavDisplay(
                     entries = entries.getValue(tab),
@@ -402,9 +430,9 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                     predictivePopTransitionSpec = motion.predictivePop,
                 )
             }
-            // The header's tabs and pen lie over the pages' bars (which leave them room), still while pages
-            // move under them; the writer fades them away as it opens.
-            if (chrome != null) HeaderTabsSlot(shown = stack.lastOrNull() !is Route.Write) {
+            // The header's tabs and pen lie over a root's bar (which leaves them room), still while pages
+            // move under them; a page pushed over the root (the writer too) fades them away as it comes.
+            if (chrome != null) HeaderTabsSlot(shown = headerTabsShown(stack, expanded)) {
                 Box(Modifier.fillMaxWidth().statusBarsPadding().height(TopBarRow)) {
                     TopTabs(tabs, tab, select, tabWidths, chrome.labels, L10n.App.Nav.main, Modifier.align(Alignment.Center))
                     val pen = tabItems.first { it.isAction }
@@ -425,15 +453,31 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
 }
 
 /**
- * A page under the header's tabs (design note B2): its bar leaves them room ([chrome]) and is the
- * root bars' 56 tall. The writer has the window to itself — no tabs over it, its bar as a phone's.
+ * A page on a medium or expanded window (design note B2, round 5 part C): a tab's root has the
+ * header's tabs over its bar, which leaves them room ([chrome]); a pushed page's bar is the whole
+ * header, without them. Both are the header's 72 tall. The writer has the window to itself, its
+ * bar as a phone's.
  */
 @Composable
-private fun WithHeader(route: Route, chrome: HeaderChrome?, page: @Composable () -> Unit) {
-    val own = if (route is Route.Write) null else chrome
+private fun WithHeader(tab: Tab, route: Route, chrome: HeaderChrome?, page: @Composable () -> Unit) {
+    // A page in the thread pane beside the conversations keeps the pane's own small bar (MessagesPanes
+    // gives it no header chrome and the pane's row): the header above it is the Messages root's.
+    val inPane = LocalTwoPane.current && route !is Route.Root
+    val own = when {
+        inPane -> LocalHeaderChrome.current
+        chrome == null || route is Route.Write -> null
+        route is Route.Root -> chrome
+        else -> chrome.copy(tabs = false)
+    }
+    val row = when {
+        inPane -> LocalInlineBarHeight.current
+        own != null -> TopBarRow
+        else -> InlineBarHeight
+    }
     CompositionLocalProvider(
+        LocalPageTab provides tab,
         LocalHeaderChrome provides own,
-        LocalInlineBarHeight provides if (own != null) TopBarRow else InlineBarHeight,
+        LocalInlineBarHeight provides row,
         content = page,
     )
 }

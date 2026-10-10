@@ -38,7 +38,7 @@ import com.resonance.design.LocalBarBackHidden
 import com.resonance.design.LocalHeaderChrome
 import com.resonance.design.LocalInlineBarHeight
 import com.resonance.design.TopBarRow
-import com.resonance.design.brandBarHeight
+import com.resonance.design.PaneBarRow
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.cream
 import com.resonance.design.generated.IconName
@@ -121,7 +121,8 @@ private fun MessagesPanes(entries: List<NavEntry<Route>>, session: Session) {
     val chosen = entries.getOrNull(1)?.route as? Route.Thread
     val detail = entries.drop(1).lastOrNull()
     val status = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val header = brandBarHeight() + HeaderEdgeHeight
+    // The Messages root's bar is the header's row (an expanded window always has the header's tabs).
+    val header = TopBarRow + HeaderEdgeHeight
     val listWidth = Tokens.MsgListW.dp
     Box(Modifier.fillMaxSize().cream()) {
         CompositionLocalProvider(LocalTwoPane provides true, LocalSelectedThread provides chosen, LocalListPane provides listWidth) { entries[0].Content() }
@@ -138,8 +139,8 @@ private fun MessagesPanes(entries: List<NavEntry<Route>>, session: Session) {
                     layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(0, -lift) }
                 },
         ) {
-            // A pane's bar is a phone's bar (nothing of the header's to keep clear of), the header's row tall.
-            CompositionLocalProvider(LocalHeaderChrome provides null, LocalInlineBarHeight provides TopBarRow, LocalTwoPane provides true) {
+            // A pane's bar is a phone's bar (nothing of the header's to keep clear of), a row smaller than the header's.
+            CompositionLocalProvider(LocalHeaderChrome provides null, LocalInlineBarHeight provides PaneBarRow, LocalTwoPane provides true) {
                 AnimatedContent(
                     detail,
                     contentKey = { it?.contentKey },

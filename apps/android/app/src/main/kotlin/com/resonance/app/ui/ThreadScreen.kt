@@ -454,6 +454,7 @@ private fun ThreadBar(
         return
     }
     val pair = model.pairId
+    val other = model.other
     OrganicInlineBar(
         L10n.Messages.back, back,
         scrolled = scrolled,
@@ -470,22 +471,25 @@ private fun ThreadBar(
                         onOlder = { onPick(hits[at + 1]) }, onNewer = { onPick(hits[at - 1]) },
                     )
                 }
-            } else {
-                model.other?.let { other ->
-                    Row(
-                        Modifier
-                            .weight(1f, fill = false)
-                            .plainClickable(role = Role.Button, onClickLabel = L10n.Messages.viewProfile) { open(Route.Author(other.handle)) },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        HandDrawnAvatar(other.initials, other.avatarUrl, OklchColor.parse(other.accentColor) ?: Tokens.TerracottaLight, 36.dp, seedOr(other.avatarSeed, 3.0))
-                        BasicText(
-                            other.handle, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            style = AppFonts.heading(18f, 700, lineHeight = 1.2f),
-                            modifier = Modifier.weight(1f, fill = false).semantics { heading() },
-                        )
-                    }
+            }
+        },
+        // The person: beside the arrow on a phone and in a pane, in the middle of a tablet's header
+        // when the thread fills the window (round 5, part C) — the thread's bar is the header there.
+        centre = if (searching || other == null) null else {
+            {
+                Row(
+                    Modifier
+                        .weight(1f, fill = false)
+                        .plainClickable(role = Role.Button, onClickLabel = L10n.Messages.viewProfile) { open(Route.Author(other.handle)) },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    HandDrawnAvatar(other.initials, other.avatarUrl, OklchColor.parse(other.accentColor) ?: Tokens.TerracottaLight, 36.dp, seedOr(other.avatarSeed, 3.0))
+                    BasicText(
+                        other.handle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = AppFonts.heading(18f, 700, lineHeight = 1.2f),
+                        modifier = Modifier.weight(1f, fill = false).semantics { heading() },
+                    )
                 }
             }
         },
