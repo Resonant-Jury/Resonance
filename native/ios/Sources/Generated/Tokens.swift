@@ -32,6 +32,8 @@ public enum Tokens {
     public static let bubbleQuote = Color(.displayP3, red: 0.8683, green: 0.8475, blue: 0.819, opacity: 1)
     /// --link-card-muted · sRGB #64523d
     public static let linkCardMuted = Color(.displayP3, red: 0.3801, green: 0.3227, blue: 0.2494, opacity: 1)
+    /// --reading-progress · sRGB #ef7926
+    public static let readingProgress = Color(.displayP3, red: 0.8777, green: 0.4985, blue: 0.2387, opacity: 1)
     /// --field-border · sRGB #c5bcb0
     public static let fieldBorder = Color(.displayP3, red: 0.7681, green: 0.7392, blue: 0.695, opacity: 1)
     /// --field-border-hover · sRGB #937b69
@@ -99,6 +101,8 @@ public enum Tokens {
     public static let inkLight: CGFloat = 1.2
     public static let inkStrong: CGFloat = 2.2
 
+    /// --reading-progress-width
+    public static let readingProgressWidth: CGFloat = 4
     /// --grain-opacity
     public static let grainOpacity: CGFloat = 0.1
     /// --app-header-h
