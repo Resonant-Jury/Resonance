@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -60,7 +61,6 @@ import androidx.navigation3.ui.NavDisplay
 import com.resonance.api.models.FeedCard
 import com.resonance.app.PushCenter
 import com.resonance.app.Session
-import com.resonance.app.thoughtmap.ThoughtMapScreen
 import com.resonance.design.OrganicTabBar
 import com.resonance.design.OrganicTabItem
 import com.resonance.design.cream
@@ -205,6 +205,16 @@ internal fun openThread(stack: MutableList<Route>, route: Route.Thread) {
 }
 
 /**
+ * Whether a conversation opened from a page of [fromTab] goes to the Messages tab instead of onto
+ * that tab's stack (round 5 E3): on a tablet (the header's tabs, medium and expanded) a thread
+ * opened anywhere but Messages — a bell's row, a profile's message action — is shown there: beside
+ * the conversations on an expanded window, over their list on a medium one; the tab it came from
+ * keeps its stack. A phone pushes it where it was opened.
+ */
+internal fun opensInMessages(route: Route, fromTab: Tab, cls: LayoutClass): Boolean =
+    route is Route.Thread && cls.topTabs && fromTab != Tab.Messages
+
+/**
  * Where a tapped push leads: its page (`route`, parsed), a conversation by the sender's uid —
  * the push's own `fromUserId`, or else what its bell row says once the list has it ([sender]) —
  * or null: the notifications. With the uid the thread listens at once and still opens after a
@@ -335,6 +345,9 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
         stacks.getValue(tab).add(route)
     }
 
+    // A page's conversation on a tablet goes to the Messages tab (read when opened: the pages keep this lambda).
+    val toMessages = rememberUpdatedState<(Route.Thread) -> Unit> { open(it) }
+
     // Just past onboarding: the writer opens on the first tab, as the web's signup goes to /write
     // (unless a link brought the person here, which wins, as the web's `next` does).
     LaunchedEffect(Unit) {
@@ -419,7 +432,7 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
             key(languageEpoch) {
                 val entries: Map<Tab, List<NavEntry<Route>>> = Tab.entries.associateWith { t ->
                     val own = stacks.getValue(t)
-                    rememberStackEntries(t, own) { route, onStack -> PageFrame(motion, onStack) { WithHeader(t, route, chrome) { Page(session, route, own) } } }
+                    rememberStackEntries(t, own) { route, onStack -> PageFrame(motion, onStack) { WithHeader(t, route, chrome) { Page(session, t, route, own, toMessages) } } }
                 }
                 NavDisplay(
                     entries = entries.getValue(tab),
@@ -463,9 +476,10 @@ private fun WithHeader(tab: Tab, route: Route, chrome: HeaderChrome?, page: @Com
     // A page in the thread pane beside the conversations keeps the pane's own small bar (MessagesPanes
     // gives it no header chrome and the pane's row): the header above it is the Messages root's.
     val inPane = LocalTwoPane.current && route !is Route.Root
+    // The writer at the split is the workspace, with no bar; below it, on a tablet, its bar is a pushed page's header (round 5 E5).
     val own = when {
         inPane -> LocalHeaderChrome.current
-        chrome == null || route is Route.Write -> null
+        chrome == null || (route is Route.Write && LocalWindowLayout.current.writerSplit) -> null
         route is Route.Root -> chrome
         else -> chrome.copy(tabs = false)
     }
@@ -557,10 +571,14 @@ private const val TAB_BAR_FADE_MILLIS = 90
 private const val TAB_BAR_RISE_MILLIS = 150
 private const val TAB_BAR_RISE_FROM = 1f / 3f
 
-/** A page of a tab's stack: what it opens goes on the same stack, and back pops it. */
+/**
+ * A page of a tab's stack: what it opens goes on the same stack — but a conversation on a tablet,
+ * which goes to the Messages tab ([opensInMessages]) — and back pops it.
+ */
 @Composable
-private fun Page(session: Session, route: Route, stack: NavBackStack<Route>) {
-    val push: (Route) -> Unit = { stack.add(it) }
+private fun Page(session: Session, tab: Tab, route: Route, stack: NavBackStack<Route>, toMessages: State<(Route.Thread) -> Unit>) {
+    val cls = LocalWindowLayout.current.cls
+    val push: (Route) -> Unit = { if (opensInMessages(it, tab, cls)) toMessages.value(it as Route.Thread) else stack.add(it) }
     val pop: () -> Unit = { stack.popPage() }
     when (route) {
         is Route.Root -> when (route.tab) {
@@ -576,17 +594,13 @@ private fun Page(session: Session, route: Route, stack: NavBackStack<Route>) {
         }
         is Route.Card -> CardScreen(session, route.key, route.preview, push, popToRoot = { stack.popToRoot() }, back = pop)
         is Route.Author -> AuthorScreen(session, route.handle, push, pop)
-        is Route.Write -> WriteScreen(
-            session, route.referenceCardId, route.cardId, route.story,
+        // The writer and the map are one workspace (round 5 E5): at the split the map beside the editor
+        // pane; below it the writer alone. Closed with the draft or revision saved, the screens showing
+        // cards read them again — not when the visit wrote nothing (the workspace says so as it goes).
+        is Route.Write -> Workspace(
+            session, writer = route, open = push, leave = pop,
             onCreated = { id -> stack.rememberDraft(route, id) },
-            // Closed with the draft or revision saved: the screens showing cards read them again — not
-            // when the visit wrote nothing.
-            close = {
-                session.takeWriterChange()?.let(session::noteCardChange)
-                pop()
-            },
         ) { key ->
-            session.noteCardChange(session.takeWriterChange() ?: Session.CardChange())
             pop()
             // The card takes the writer's place, as the web goes to it — unless its own page is underneath.
             if (route.showsCard) stack.add(Route.Card(key))
@@ -595,7 +609,8 @@ private fun Page(session: Session, route: Route, stack: NavBackStack<Route>) {
         Route.Settings -> SettingsScreen(push, pop)
         // The session keeps the map between visits (ThoughtMapStore.open): within a while, a visit
         // shows it as it was left, reading again only the cards the writer changed.
-        Route.ThoughtMap -> ThoughtMapScreen(session, session.thoughtMap, push, pop)
+        // At the split, the workspace with its pane closed (my cards open in it); below it, the map alone.
+        Route.ThoughtMap -> Workspace(session, writer = null, open = push, leave = pop)
         is Route.SettingsSection -> SettingsSectionScreen(session, route.section, pop)
     }
 }

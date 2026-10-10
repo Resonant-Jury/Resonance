@@ -1,6 +1,7 @@
 package com.resonance.design
 
 import androidx.compose.ui.unit.dp
+import com.resonance.design.generated.Tokens
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -82,5 +83,23 @@ class LayoutClassTest {
         // Just expanded (900): the article gives way to the rail and its 48.
         val narrow = WindowLayout(900.dp).cardPage()
         assertEquals(900f - 2 * 36f - 260f - 48f, 900f - narrow.start.value - narrow.end.value, 1e-2f)
+    }
+
+    @Test fun aTabletsPagesStart32UnderTheHeadersPenLineAndAPhonesKeepTheirOwn() {
+        // Round 5 E2: measured from the bar's foot, its pen line 1.4 + INK above it.
+        assertEquals(16f, LayoutClass.Compact.firstContentGap(16.dp).value, 0.001f)
+        assertEquals(20f, LayoutClass.Compact.firstContentGap(20.dp).value, 0.001f)
+        for (cls in listOf(LayoutClass.Medium, LayoutClass.Expanded)) {
+            assertEquals(32f - 1.4f - Tokens.Ink.value, cls.firstContentGap(16.dp).value, 0.001f)
+            assertEquals(cls.firstContentGap(16.dp), cls.firstContentGap(20.dp))
+        }
+        // The feed's grid (an expanded window, its list starting under the bar's wave band): 32 under the line too.
+        assertEquals(HeaderEdgeHeight.value + 32f - BarLineInset.value, GridUnderBar.value, 0.001f)
+    }
+
+    @Test fun aTabletsPullIsHalfAsBigAgain() {
+        assertEquals(1f, LayoutClass.Compact.pullScale())
+        assertEquals(1.5f, LayoutClass.Medium.pullScale())
+        assertEquals(1.5f, LayoutClass.Expanded.pullScale())
     }
 }

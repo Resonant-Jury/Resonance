@@ -29,7 +29,10 @@ import com.resonance.design.LocalHeaderChrome
 import androidx.compose.ui.unit.Dp
 import com.resonance.design.prefersReducedMotion
 import com.resonance.design.readingProgress
+import com.resonance.design.LayoutClass
+import com.resonance.design.firstContentGap
 import kotlinx.coroutines.flow.collectLatest
+import kotlin.math.abs
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -263,13 +266,16 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     // One centred column on phones and medium windows; on an expanded one the article and the author's rail.
     val columns = LocalWindowLayout.current.cardPage()
     val railed = columns.railStart != null
+    // A tablet's article starts 32 under the header's pen line; its lists' headings have more air (round 5 E2).
+    val cls = LocalWindowLayout.current.cls
+    val articleTop = cls.firstContentGap(16.dp)
     Box(Modifier.fillMaxSize().cream().onGloballyPositioned { progress.page = it }) {
     Column(Modifier.fillMaxSize().padding(top = if (phase == "loaded") 0.dp else top)) {
         when (phase) {
             // The card as the list drew it, the story still shimmering below; or, knowing nothing yet,
             // CardDetailSkeleton: the article's own layout in shimmering blocks.
             "loading" -> if (placeholder != null) CardPreview(placeholder, columns) { open(Route.Author(it)) }
-                else CardDetailSkeleton(Modifier.padding(start = columns.start, end = columns.end).padding(top = 16.dp))
+                else CardDetailSkeleton(Modifier.padding(start = columns.start, end = columns.end).padding(top = articleTop))
             "notFound" -> OrganicEmptyState(title = L10n.Card.NotFound.title, titleSize = 24f, actionTitle = L10n.Card.NotFound.back, onAction = back, action = EmptyAction.Outline)
             "failed" -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { model.refresh(changes, session.lastCardChange, retry = true) }, action = EmptyAction.Outline)
             else -> detail?.let { d ->
@@ -280,7 +286,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                 val relatedLayout = cardListLayout()
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 40.dp)) {
                     item(key = "article") {
-                        Column(heading.onItem.padding(start = columns.start, end = columns.end).padding(top = 16.dp)) {
+                        Column(heading.onItem.padding(start = columns.start, end = columns.end).padding(top = articleTop)) {
                             ArticleHead(card, d.anonymous, byline = !railed, titleModifier = heading.onHeading) { open(Route.Author(it)) }
                             // The story alone is what the bar's progress measures (not the cover, title or lists).
                             Box(Modifier.onGloballyPositioned(progress::story)) {
@@ -301,23 +307,24 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                     }
                     // The owner's linked cards and the resonances take the related list's layout (round 5 D3).
                     if (d.isOwner && linked.isNotEmpty()) {
+                        val air = cardSectionAir(cls, phoneTop = 0, phoneBelow = 24)
                         item {
                             BasicText(
                                 L10n.Card.linkedCards,
                                 style = AppFonts.heading(20f, lineHeight = 1.3f).copy(letterSpacing = (-0.01).em),
-                                modifier = Modifier.padding(start = relatedLayout.headerInset, end = 20.dp, bottom = 24.dp).semantics { heading() },
+                                modifier = Modifier.padding(start = relatedLayout.headerInset, end = 20.dp, top = air.top.dp, bottom = air.below.dp).semantics { heading() },
                             )
                         }
                         answerCards(linked, open, keyPrefix = "linked:", related = relatedLayout)
                         item { Spacer(Modifier.height(40.dp)) }
                     }
                     if (resonance.isNotEmpty()) {
-                        sectionHeading(L10n.Card.ResonanceSection.title, below = 40)
+                        sectionHeading(L10n.Card.ResonanceSection.title, cardSectionAir(cls, phoneBelow = 40))
                         answerCards(resonance, open, keyPrefix = "resonance:", related = relatedLayout)
                         item { Spacer(Modifier.height(16.dp)) }
                     }
                     if (related.isNotEmpty()) {
-                        sectionHeading(L10n.Card.related, below = 56)
+                        sectionHeading(L10n.Card.related, cardSectionAir(cls, phoneBelow = 56))
                         storyCards(related, open, layout = relatedLayout)
                         item { Spacer(Modifier.height(16.dp)) }
                     }
@@ -371,15 +378,26 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
  * band and its wavy edge (the cards are bands already — "double chrome"), so
  * the heading sits on the page: 32 above, 22/700 centred.
  */
-private fun LazyListScope.sectionHeading(title: String, below: Int) {
+private fun LazyListScope.sectionHeading(title: String, air: SectionAir) {
     item {
         BasicText(
             title,
             style = AppFonts.heading(22f, lineHeight = 1.3f).copy(textAlign = TextAlign.Center, letterSpacing = (-0.01).em),
-            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = below.dp).semantics { heading() },
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = air.top.dp, bottom = air.below.dp).semantics { heading() },
         )
     }
 }
+
+/** The air above a card page's list heading and between it and its cards, in dp. */
+internal data class SectionAir(val top: Int, val below: Int)
+
+/**
+ * A card page's list headings (the resonances, the related cards, the owner's linked cards): on a
+ * phone each keeps its own ([phoneTop] above, [phoneBelow] under); on a tablet every one has 64
+ * above it and 56 between it and its cards (round 5 E2).
+ */
+internal fun cardSectionAir(cls: LayoutClass, phoneTop: Int = 32, phoneBelow: Int): SectionAir =
+    if (cls == LayoutClass.Compact) SectionAir(phoneTop, phoneBelow) else SectionAir(64, 56)
 
 /** Where the byline ends under the bar: its 16 of air and the 44 avatar. */
 private val BylineBottom = 60.dp
@@ -453,7 +471,7 @@ private fun ArticleHead(
  */
 @Composable
 private fun CardPreview(card: FeedCard, columns: CardPageColumns, openAuthor: (String) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(start = columns.start, end = columns.end).padding(top = 16.dp)) {
+    Column(Modifier.fillMaxSize().padding(start = columns.start, end = columns.end).padding(top = LocalWindowLayout.current.cls.firstContentGap(16.dp))) {
         ArticleHead(card, card.anonymous, byline = columns.railStart == null, openAuthor = openAuthor)
         StorySkeleton(Modifier.semantics { contentDescription = L10n.Home.moreLoading })
     }
@@ -492,7 +510,8 @@ private fun Byline(card: FeedCard, anonymous: Boolean, openAuthor: (String) -> U
 private fun AuthorRail(card: FeedCard, anonymous: Boolean, isOwner: Boolean, x: Dp, list: LazyListState?, top: Dp, openAuthor: (String) -> Unit) {
     val density = LocalDensity.current
     var height by remember { mutableIntStateOf(0) }
-    val pinned = with(density) { (top + 24.dp).roundToPx() }
+    // Level with the article's first line (a tablet's 32 under the header's pen line, round 5 E2).
+    val pinned = with(density) { (top + LocalWindowLayout.current.cls.firstContentGap(24.dp)).roundToPx() }
     val y by remember(list, pinned) {
         derivedStateOf {
             val info = list?.layoutInfo ?: return@derivedStateOf pinned
@@ -574,9 +593,11 @@ internal fun openStoryLink(context: Context, origin: String, href: String, open:
 
 /**
  * The card page's reading progress (design note §3): where the story is on the page, measured as
- * it scrolls, turned into 0…1 by [readingProgress] and eased over 120 ms on its way to the bar
- * (straight to it with the system's animations off). [shown] is read while the bar draws, so
- * scrolling redraws the line and recomposes nothing.
+ * it scrolls, turned into 0…1 by [readingProgress]. It follows the scroll frame by frame — the
+ * finger still down included (round 5 E1) — and only a jump on its own (the story's height
+ * changing under a still page) eases there over 120 ms ([easesProgress]; straight to it with the
+ * system's animations off). [shown] is read while the bar draws, so scrolling redraws the line and
+ * recomposes nothing.
  */
 @Stable
 internal class ReadingProgress(private val list: LazyListState, private val lineY: Float, private val bottomInset: Float, private val barBottom: Float) {
@@ -615,9 +636,34 @@ private fun rememberReadingProgress(list: LazyListState, top: Dp): ReadingProgre
         }
     }
     LaunchedEffect(progress, reduced) {
+        // Restarting a 120 ms ease on every frame of a drag never moved it (each restart begins where
+        // the last one was): while the list scrolls, or an ease is still on its way, it snaps.
+        var easing = false
         snapshotFlow { progress.target }.collectLatest { p ->
-            if (reduced) progress.eased.snapTo(p) else progress.eased.animateTo(p, tween(120, easing = EaseOut))
+            val jump = abs(p - progress.eased.value)
+            if (!easesProgress(jump, scrolling = list.isScrollInProgress, interrupted = easing, reduced = reduced)) {
+                easing = false
+                progress.eased.snapTo(p)
+            } else {
+                easing = true
+                progress.eased.animateTo(p, tween(PROGRESS_EASE_MILLIS, easing = EaseOut))
+                easing = false
+            }
         }
     }
     return progress
 }
+
+/**
+ * Whether the reading progress eases to a new place (over [PROGRESS_EASE_MILLIS]) or is put there
+ * at once: only a jump of at least [PROGRESS_JUMP] on its own eases — never while the list is
+ * scrolling (a drag, a fling: it follows the scroll), never one that lands while the last ease is
+ * still running (a run of changes would restart it on every frame and it would never move), never
+ * with the system's animations off.
+ */
+internal fun easesProgress(jump: Float, scrolling: Boolean, interrupted: Boolean, reduced: Boolean): Boolean =
+    !reduced && !scrolling && !interrupted && jump >= PROGRESS_JUMP
+
+/** The smallest change of the reading progress that eases rather than snaps (2 % of the story). */
+internal const val PROGRESS_JUMP = 0.02f
+private const val PROGRESS_EASE_MILLIS = 120

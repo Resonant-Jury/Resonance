@@ -64,6 +64,8 @@ import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicInlineBar
 import com.resonance.design.inlineBarTop
+import com.resonance.design.LocalWindowLayout
+import com.resonance.design.firstContentGap
 import com.resonance.design.OrganicLink
 import com.resonance.design.OrganicModal
 import com.resonance.design.OrganicRadio
@@ -131,7 +133,7 @@ fun SettingsScreen(open: (Route) -> Unit, back: () -> Unit) {
     val scroll = rememberScrollState()
     // The bar lies over the page, so what scrolls shows right up to its pen line.
     Box(Modifier.fillMaxSize().cream()) {
-        Column(Modifier.verticalScroll(scroll).readableColumn().padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
+        Column(Modifier.verticalScroll(scroll).readableColumn().padding(top = inlineBarTop()).settingsPadding().padding(bottom = 40.dp)) {
             BasicText(
                 L10n.Settings.title,
                 style = AppFonts.heading(28f, lineHeight = 1.2f),
@@ -145,6 +147,11 @@ fun SettingsScreen(open: (Route) -> Unit, back: () -> Unit) {
         OrganicInlineBar(L10n.App.Nav.back, back, scrolled = scroll.scrolledPast20())
     }
 }
+
+/** The settings pages' 20 all round — on a tablet their first line 32 under the header's pen line (round 5 E2). */
+@Composable
+private fun Modifier.settingsPadding(): Modifier =
+    padding(start = 20.dp, end = 20.dp, bottom = 20.dp, top = LocalWindowLayout.current.cls.firstContentGap(20.dp))
 
 @Composable
 private fun MenuRow(section: SettingsSection, onClick: () -> Unit) {
@@ -174,7 +181,7 @@ fun SettingsSectionScreen(session: Session, section: SettingsSection, back: () -
     val scroll = rememberScrollState()
     // The keyboard shortens the page, so the profile's fields scroll into view above it.
     Box(Modifier.fillMaxSize().cream().imePadding()) {
-        Column(Modifier.fillMaxWidth().verticalScroll(scroll).readableColumn().padding(top = inlineBarTop()).padding(20.dp).padding(bottom = 40.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(scroll).readableColumn().padding(top = inlineBarTop()).settingsPadding().padding(bottom = 40.dp)) {
             when (section) {
                 SettingsSection.Profile -> ProfileSettings(session)
                 SettingsSection.Account -> AccountSettings(session)

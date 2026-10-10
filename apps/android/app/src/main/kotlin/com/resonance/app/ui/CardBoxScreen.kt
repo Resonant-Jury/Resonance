@@ -1,5 +1,8 @@
 package com.resonance.app.ui
 
+import com.resonance.design.LayoutClass
+import com.resonance.design.LocalWindowLayout
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -218,9 +221,12 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
     val view = LocalView.current
     val layout = cardListLayout()
 
+    // A phone's card box has 8 more under the bar's line, and 8 more either side of the shelves (round 5 E2).
+    val air = CardBoxAir.of(LocalWindowLayout.current.cls)
     TabScreen(
         L10n.App.Nav.me,
         titleInBar = true,
+        phoneExtraTop = air.extraTop,
         // Pulled down: who I am and the shelf in view, read again now from the server rather than the HTTP cache.
         // Nothing back for the shelf: it stays, and says why — read out only while that shelf is still the one
         // on screen (another chosen meanwhile, the failure isn't about what is shown).
@@ -259,7 +265,7 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
                 }
             }
         }
-        item { ShelfTabs(shelf, layout.headerInset, openMap = { open(Route.ThoughtMap) }) { shelf = it } }
+        item { ShelfTabs(shelf, layout.headerInset, air, openMap = { open(Route.ThoughtMap) }) { shelf = it } }
         refreshNote(model.failureOver(shelf))
         val cards = shelves[shelf]
         when {
@@ -321,6 +327,18 @@ private fun LazyListScope.managedCards(session: Session, cards: List<FeedCard>, 
     }
 }
 
+/**
+ * My Card Box's air (round 5 E2): on a phone 8 more under the bar's line than the other tabs (in
+ * [TabScreen]), and 8 more above and below the shelves' strip; a tablet's page starts as every
+ * tablet page does (32 under the header's pen line) and keeps the strip's 20 / 28.
+ */
+internal data class CardBoxAir(val extraTop: Dp, val shelvesTop: Dp, val shelvesBottom: Dp) {
+    companion object {
+        fun of(cls: LayoutClass): CardBoxAir =
+            if (cls == LayoutClass.Compact) CardBoxAir(8.dp, 28.dp, 36.dp) else CardBoxAir(0.dp, 20.dp, 28.dp)
+    }
+}
+
 private val ShelfOrder = listOf(TabGetCardBox.published, TabGetCardBox.`private`, TabGetCardBox.draft, TabGetCardBox.resonated, TabGetCardBox.linked, TabGetCardBox.bookmarks)
 
 /**
@@ -330,11 +348,11 @@ private val ShelfOrder = listOf(TabGetCardBox.published, TabGetCardBox.`private`
  * and the tab is one of its own, so the wash marks it without a pen line.
  */
 @Composable
-private fun ShelfTabs(selection: TabGetCardBox, edge: Dp, openMap: () -> Unit, onSelect: (TabGetCardBox) -> Unit) {
+private fun ShelfTabs(selection: TabGetCardBox, edge: Dp, air: CardBoxAir, openMap: () -> Unit, onSelect: (TabGetCardBox) -> Unit) {
     val haptic = LocalHapticFeedback.current
     val scroll = rememberScrollState()
     Row(
-        Modifier.fadingEdges(scroll).horizontalScroll(scroll).padding(horizontal = edge, vertical = 7.dp).padding(top = 20.dp, bottom = 28.dp),
+        Modifier.fadingEdges(scroll).horizontalScroll(scroll).padding(horizontal = edge, vertical = 7.dp).padding(top = air.shelvesTop, bottom = air.shelvesBottom),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ShelfOrder.forEach { s ->

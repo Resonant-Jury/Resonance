@@ -65,7 +65,6 @@ import androidx.compose.ui.unit.em
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.Session
 import com.resonance.app.ui.Route
-import com.resonance.design.HeaderEdgeHeight
 import com.resonance.design.AppFonts
 import com.resonance.design.ButtonVariant
 import com.resonance.design.EmptyAction
@@ -100,21 +99,26 @@ fun ThoughtMapScreen(
     open: (Route) -> Unit,
     leave: () -> Unit,
     /**
-     * Beside the writer on a wide window (design note §12): no way out of its own, its controls
-     * under the writer's bar, and a card tapped opens nothing — the writer stays.
+     * The split workspace's map (round 5 E5): a card of mine tapped opens here — in the editor pane
+     * beside the map, in place — instead of in the writer pushed over it. Null: the writer is pushed.
      */
-    embedded: Boolean = false,
+    openMine: ((String) -> Unit)? = null,
 ) {
     val uid = session.uid
     val changes by session.cardChanges.collectAsStateWithLifecycle()
     val currentOpen by rememberUpdatedState(open)
+    val currentOpenMine by rememberUpdatedState(openMine)
     val scope = rememberCoroutineScope()
 
     // A card of mine opens in the writer (a published one with its pending edit); a card I resonated with opens on its page.
     LaunchedEffect(store, uid) {
         store.onOpen = { card ->
-            if (embedded) Unit
-            else if (card.authorId == uid) currentOpen(Route.Write(cardId = card.id, showsCard = false)) else currentOpen(Route.Card(card.slug ?: card.id))
+            val mine = currentOpenMine
+            when {
+                card.authorId != uid -> currentOpen(Route.Card(card.slug ?: card.id))
+                mine != null -> mine(card.id)
+                else -> currentOpen(Route.Write(cardId = card.id, showsCard = false))
+            }
         }
         // The session keeps the map between visits: this one shows it at once, reading again what is due.
         if (uid != null) store.open(uid, changes, session.lastCardChange)
@@ -136,22 +140,22 @@ fun ThoughtMapScreen(
         MapEdgeLabels(store)
         MapTouchSurface(store)
         MapEditors(store)
-        Chrome(store, session, leave, embedded) { scope.launch { store.addGroup() } }
+        Chrome(store, session, leave) { scope.launch { store.addGroup() } }
         if (store.trayOpen) MapTray(store)
     }
 }
 
 @Composable
-private fun BoxScope.Chrome(store: ThoughtMapStore, session: Session, leave: () -> Unit, embedded: Boolean, addGroup: () -> Unit) {
-    // Beside the writer the map's pane starts under the writer's bar.
-    val top = if (embedded) 8.dp + HeaderEdgeHeight else WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp
+private fun BoxScope.Chrome(store: ThoughtMapStore, session: Session, leave: () -> Unit, addGroup: () -> Unit) {
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val scope = rememberCoroutineScope()
 
     // The controls float over the map's boxes and arrows, so none is framed in a pen line
     // that would tangle with theirs: the tools are tonal pills, the one verb (add a card) solid.
-    // Leave: the web's back control, arrow-right mirrored (icon only on a phone).
-    if (!embedded) OrganicButton(
+    // Leave: the web's back control, arrow-right mirrored (icon only on a phone) — the workspace's way
+    // back too, whichever way it was come into (round 5 E5).
+    OrganicButton(
         L10n.Me.ThoughtMap.leave,
         Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = top),
         variant = ButtonVariant.Tonal, icon = IconName.ArrowRight, small = true, iconOnly = true, iconSize = 15.dp, mirrorIcon = true, roomy = true,

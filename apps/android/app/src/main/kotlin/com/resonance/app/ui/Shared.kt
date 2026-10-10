@@ -11,6 +11,12 @@ import com.resonance.design.CardPalette
 import com.resonance.design.GridBlockRows
 import com.resonance.design.GridUnderBar
 import com.resonance.design.LocalWindowLayout
+import com.resonance.design.LayoutClass
+import com.resonance.design.PullLoaderSize
+import com.resonance.design.PullThreshold
+import com.resonance.design.firstContentGap
+import com.resonance.design.pullScale
+import androidx.compose.ui.unit.Dp
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -67,6 +73,7 @@ import com.resonance.design.OklchColor
 import com.resonance.design.OrganicBrandBar
 import com.resonance.design.OrganicPageTitle
 import com.resonance.design.SketchPullIndicator
+import com.resonance.design.SketchPullPaper
 import com.resonance.design.pulledDown
 import com.resonance.design.rememberSketchPull
 import com.resonance.design.sketchPull
@@ -345,6 +352,10 @@ fun TabScreen(
      * a pull opens wears it, so the band looks taller rather than parted from the bar (design note B1).
      */
     pullPaper: Color? = null,
+    /** Whether a tablet's page starts its first row 32 below the header's pen line (round 5 E2); Messages keeps its panes as they are. */
+    tabletAir: Boolean = true,
+    /** More air under the bar's line on a phone, for this page alone (My Card Box's 8, round 5 E2). */
+    phoneExtraTop: Dp = 0.dp,
     content: LazyListScope.() -> Unit,
 ) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + brandBarHeight() + HeaderEdgeHeight
@@ -355,7 +366,10 @@ fun TabScreen(
     val rootTaps = LocalRootTaps.current
     val pageTab = LocalPageTab.current
     LaunchedEffect(rootTaps, pageTab, list) { rootTaps.collect { if (it == pageTab) list.animateScrollToItem(0) } }
-    val pull = rememberSketchPull(onRefresh ?: {})
+    val cls = LocalWindowLayout.current.cls
+    // A tablet's pull: the gap and the loader half as big again (round 5 E2).
+    val pullScale = cls.pullScale()
+    val pull = rememberSketchPull(onRefresh ?: {}, threshold = PullThreshold * pullScale)
     // The pull is the outer of the two: pushing a pulled list back up is the pull's, not the bar's to slide away on.
     val pulling = Modifier.sketchPull(pull, enabled = onRefresh != null && (refreshEnabled || pull.refreshing))
     // The conversations beside a thread: the list keeps to its pane, the bar is the window's header.
@@ -365,12 +379,14 @@ fun TabScreen(
         // For whoever can't pull, the same refresh is the list's "Refresh" action (in TalkBack's Actions on any of its rows).
         val refreshAction = Modifier.sketchPullAction(pull, L10n.Native.refresh, enabled = onRefresh != null && refreshEnabled) { !list.canScrollBackward }
         val listTop = when {
-            titleInBar -> top + TitledBarGap
+            titleInBar -> top + titledBarGap(cls, tabletAir, phoneExtraTop)
             title == null -> top - HeaderEdgeHeight
             else -> top
         }
         // Room for the docked tab bar; with the tabs in the header, only the navigation bar's.
         val bottom = if (LocalWindowLayout.current.topTabs) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 40.dp else 120.dp
+        // Behind the list: the first band's paper, for whatever a pull opens above it (design note B1, round 5 E4).
+        if (pullPaper != null) Box(if (pane != null) Modifier.width(pane).fillMaxHeight() else Modifier.fillMaxSize()) { SketchPullPaper(pull, top, pullPaper) }
         LazyColumn(
             Modifier.then(if (pane != null) Modifier.width(pane).fillMaxHeight() else Modifier.fillMaxSize()).pulledDown(pull).then(refreshAction),
             state = list, contentPadding = PaddingValues(top = listTop, bottom = bottom),
@@ -387,7 +403,7 @@ fun TabScreen(
             }
             content()
         }
-        Box(if (pane != null) Modifier.width(pane).fillMaxHeight() else Modifier.fillMaxSize()) { SketchPullIndicator(pull, top, paper = pullPaper) }
+        Box(if (pane != null) Modifier.width(pane).fillMaxHeight() else Modifier.fillMaxSize()) { SketchPullIndicator(pull, top, size = PullLoaderSize * pullScale) }
         // The bar slides up under the status bar while reading down and comes back on the way up
         // (the brand has nothing to press, so it gives the stories the room); the status bar keeps its paper.
         val bar = if (pinned) Modifier else Modifier.offset { IntOffset(0, quickReturn.offset.roundToInt()) }
@@ -398,8 +414,19 @@ fun TabScreen(
     }
 }
 
-/** Under the bar's line to the first row, on a tab whose title is in the bar. */
+/** Under the bar's foot to the first row, on a phone's tab whose title is in the bar. */
 private val TitledBarGap = 16.dp
+
+/**
+ * Under the bar's foot to the first row of a tab whose title is in the bar: a phone's
+ * [TitledBarGap] (and the page's own [phoneExtra]); a tablet's 32 below the header's pen line
+ * (round 5 E2) unless the page keeps its panes as they are (Messages: not [tabletAir]).
+ */
+internal fun titledBarGap(cls: LayoutClass, tabletAir: Boolean, phoneExtra: Dp = 0.dp): Dp = when {
+    cls == LayoutClass.Compact -> TitledBarGap + phoneExtra
+    tabletAir -> cls.firstContentGap(TitledBarGap)
+    else -> TitledBarGap
+}
 
 /**
  * The brand bar's quick return: how far it has slid up (−bar height…0), fed by
