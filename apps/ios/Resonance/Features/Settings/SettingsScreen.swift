@@ -69,7 +69,8 @@ struct SettingsScreen: View {
                     row(section)
                 }
             }
-            .padding(20)
+            .padding([.horizontal, .bottom], 20)
+            .headerGap(phone: 20)
             .padding(.bottom, 40)
             .readableColumn()
         }
@@ -118,7 +119,8 @@ struct SettingsSectionScreen: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
+            .padding([.horizontal, .bottom], 20)
+            .headerGap(phone: 20)
             .padding(.bottom, 40)
             .readableColumn()
         }

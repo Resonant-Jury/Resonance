@@ -20,19 +20,34 @@ public struct RefreshPull: Equatable {
     public var holding: Bool
     /// A refresh has finished since the list was last at rest or held.
     public var ending: Bool
+    /// How much larger than a phone's the loader and the room it keeps open are (a tablet's
+    /// ``tablet``, round 5 E2).
+    public var factor: CGFloat
 
-    public init(gap: CGFloat, pulling: Bool = false, refreshing: Bool = false, holding: Bool = false, ending: Bool = false) {
+    public init(gap: CGFloat, pulling: Bool = false, refreshing: Bool = false, holding: Bool = false, ending: Bool = false,
+                factor: CGFloat = 1) {
         self.gap = gap
         self.pulling = pulling
         self.refreshing = refreshing
         self.holding = holding
         self.ending = ending
+        self.factor = factor
     }
 
     /// The loader's size, in the gap it opens.
     public static let size: CGFloat = 36
     /// The room the system's refresh keeps open while it runs.
     public static let dock: CGFloat = 60
+    /// A tablet's loader and the gap it keeps open: half again a phone's (round 5 E2).
+    public static let tablet: CGFloat = 1.5
+
+    /// The loader as drawn here.
+    public var loaderSize: CGFloat { Self.size * factor }
+    /// The room kept open while the refresh runs: the system's, and on a tablet the room the list
+    /// adds over it (``extraRoom``).
+    public var kept: CGFloat { Self.dock * factor }
+    /// What the list keeps open over the system's own room while a refresh runs.
+    public static func extraRoom(factor: CGFloat) -> CGFloat { Self.dock * max(factor - 1, 0) }
     /// How far the list is pulled before the loop shows at all, and when it is
     /// closed: just before the system starts the refresh (about 170 down).
     static let lead: CGFloat = 8
@@ -64,7 +79,7 @@ public struct RefreshPull: Equatable {
         switch look {
         case .none: 0
         case let .tracing(traced): min(traced / 0.35, 1)
-        case .travelling: refreshing ? 1 : Double(min(max(gap / Self.dock, 0), 1))
+        case .travelling: refreshing ? 1 : Double(min(max(gap / kept, 0), 1))
         }
     }
 
@@ -79,7 +94,7 @@ public struct RefreshPull: Equatable {
     /// just above the list.
     public var center: CGFloat {
         let open = max(gap, 0)
-        return open - min(open, Self.dock) / 2
+        return open - min(open, kept) / 2
     }
 }
 
@@ -136,6 +151,34 @@ extension EnvironmentValues {
     @Entry var sketchRefreshInPlace: SketchInPlaceRefresh? = nil
     /// The first band's palette, for the gap a pull opens (`pullPaper`).
     @Entry var pullPaper: CardPalette? = nil
+    /// The room a tablet's refresh keeps open over the system's while it runs (``SketchRefreshRoom``).
+    @Entry var sketchRefreshRoom: CGFloat = 0
+}
+
+/// Put at the top of a `sketchRefreshable` scroll view's content: the room a tablet's running refresh
+/// keeps open over the system's own (round 5 E2: the gap half again a phone's), eased in once the
+/// finger lets go and out with the system's as the refresh ends. Nothing on a phone.
+public struct SketchRefreshRoom: View {
+    @Environment(\.sketchRefreshRoom) private var room
+
+    public init() {}
+
+    public var body: some View {
+        Color.clear.frame(height: room).accessibilityHidden(true)
+    }
+}
+
+/// Hands what floats over a refreshable list's top (a banner riding on it) the room a running
+/// refresh adds there, so it keeps riding on the list. Apply it under `sketchRefreshable`.
+public struct SketchRefreshRiding<Content: View>: View {
+    @Environment(\.sketchRefreshRoom) private var room
+    let content: (CGFloat) -> Content
+
+    public init(@ViewBuilder content: @escaping (CGFloat) -> Content) {
+        self.content = content
+    }
+
+    public var body: some View { content(room) }
 }
 
 /// A list's refresh, pulled or asked for, one at a time: a pull while an asked-for refresh runs (or
@@ -207,8 +250,13 @@ private struct SketchRefresh: ViewModifier {
     let action: RefreshAction
     @Environment(\.sketchRefreshInPlace) private var inPlace
     @Environment(\.pullPaper) private var paper
+    /// A tablet's loader and gap are half again a phone's (round 5 E2).
+    @Environment(\.window) private var window
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The refresh itself, shared with the content's accessibility action (`sketchRefreshAction`).
     @State private var run = SketchRefreshRun()
+    /// The room the list keeps open over the system's while the refresh runs (``SketchRefreshRoom``).
+    @State private var room: CGFloat = 0
     /// The scroll view's content offset, and its top safe area: where the list rests.
     @State private var offset: CGFloat = 0
     @State private var top: CGFloat = 0
@@ -222,7 +270,9 @@ private struct SketchRefresh: ViewModifier {
     private let shortest: Duration = .milliseconds(500)
 
     func body(content: Content) -> some View {
-        let pull = RefreshPull(gap: -(offset + top), pulling: pulling, refreshing: refreshing, holding: holding, ending: ending)
+        let factor = window.topTabs ? RefreshPull.tablet : 1
+        let pull = RefreshPull(gap: -(offset + top) + room, pulling: pulling, refreshing: refreshing, holding: holding,
+                               ending: ending, factor: factor)
         let _ = run.action = action
         let _ = run.inPlace = inPlace
         content
@@ -243,6 +293,14 @@ private struct SketchRefresh: ViewModifier {
                 settle()
             }
             .environment(\.sketchRefreshRun, run)
+            .environment(\.sketchRefreshRoom, room)
+            // Let go of with the refresh running: the list eases down into the taller gap; the refresh
+            // over, it eases back up with the system's room.
+            .onChange(of: refreshing && !holding) { _, open in
+                let extra = open ? RefreshPull.extraRoom(factor: factor) : 0
+                guard extra != room else { return }
+                withAnimation(reduceMotion ? nil : .easeOut(duration: open ? 0.25 : 0.3)) { room = extra }
+            }
             .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: {
                 top = $0
                 run.atTop = -(offset + top) > -1
@@ -311,13 +369,13 @@ private struct PullLoader: View {
         ZStack(alignment: .top) {
             switch pull.look {
             case .none: EmptyView()
-            case let .tracing(traced): SketchLoader(size: RefreshPull.size, progress: traced)
-            case .travelling: SketchLoader(size: RefreshPull.size).transition(.opacity)
+            case let .tracing(traced): SketchLoader(size: pull.loaderSize, progress: traced)
+            case .travelling: SketchLoader(size: pull.loaderSize).transition(.opacity)
             }
         }
         .scaleEffect(reduceMotion ? 1 : pull.scale)
         .opacity(pull.opacity)
-        .offset(y: pull.center - RefreshPull.size / 2)
+        .offset(y: pull.center - pull.loaderSize / 2)
         .animation(.easeOut(duration: 0.2), value: pull.look == .travelling)
         .frame(maxWidth: .infinity, maxHeight: max(pull.gap, 0), alignment: .top)
         .clipped()

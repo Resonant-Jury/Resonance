@@ -100,7 +100,7 @@ struct AuthorScreen: View {
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.top, 20)
+            .headerGap(phone: 20)
             .padding(.bottom, 36)
             .readableColumn()
 
@@ -204,7 +204,7 @@ private struct ProfileSkeleton: View {
             // The blocks are centred like the hero they stand in for.
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
-            .padding(.top, 20)
+            .headerGap(phone: 20)
             .padding(.bottom, 36)
             .readableColumn()
             FeedSkeleton(count: 4)

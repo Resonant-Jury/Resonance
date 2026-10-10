@@ -152,6 +152,11 @@ public nonisolated struct HeaderChrome: Equatable, Sendable {
     public static let penReserve: CGFloat = 64
     /// What a pushed page's back arrow takes past the page pad (its 44 target hanging 13 into the gutter).
     public static let backReserve: CGFloat = 31
+    /// How far under the header's pen line a tablet page's first content starts (round 5 E2).
+    public static let contentGap: CGFloat = 32
+    /// The same gap from the bar's foot, where a page's scrolled content begins (its line rests
+    /// ``HeaderEdge/lineDepth`` above the foot).
+    public static let contentTop: CGFloat = contentGap - HeaderEdge.lineDepth
 
     /// How wide a root's leading content may be in a window `width` wide: up to 16 short of the group,
     /// `L = (W − G) / 2 − P − 16`.
@@ -175,6 +180,23 @@ public nonisolated struct HeaderChrome: Equatable, Sendable {
 extension EnvironmentValues {
     /// Set on every stack while the header carries the tabs (``HeaderChrome``).
     @Entry public var headerChrome: HeaderChrome? = nil
+}
+
+extension View {
+    /// The air above a page's first content, under its bar: `phone` on a phone; on a tablet (the tabs
+    /// in the header) 32 under the header's pen line (round 5 E2: ``HeaderChrome/contentTop``).
+    public func headerGap(phone: CGFloat) -> some View {
+        modifier(HeaderGap(phone: phone))
+    }
+}
+
+private struct HeaderGap: ViewModifier {
+    let phone: CGFloat
+    @Environment(\.window) private var window
+
+    func body(content: Content) -> some View {
+        content.padding(.top, window.topTabs ? HeaderChrome.contentTop : phone)
+    }
 }
 
 /// When a pushed page's context (the card's title, the person's name) fades into its header: once
@@ -805,6 +827,8 @@ extension OrganicInlineBar where Leading == EmptyView, Trailing == EmptyView {
 public struct HeaderEdge: View {
     /// Room under the bar's content for the wave (the web's HEADER_WAVE_H band).
     public static let height: CGFloat = 10
+    /// How far above the bar's foot its pen line rests: the wave's swing (1.4) and the pen's width.
+    nonisolated public static let lineDepth: CGFloat = 1.4 + Tokens.ink
     var scrolled: Bool
     /// Reading progress (the card page): the share of the wave overdrawn by the progress marker.
     var progress: CGFloat?
@@ -818,6 +842,8 @@ public struct HeaderEdge: View {
 
     /// Below this nothing is drawn: no lone dot of a round cap at the wave's start.
     public static let progressMin: CGFloat = 0.002
+    /// The progress glow's ink: the marker's own, at 55 % (round 5 E1).
+    public static let glowOpacity: Double = 0.55
 
     public var body: some View {
         ZStack {
@@ -835,12 +861,14 @@ public struct HeaderEdge: View {
                 EmptyView()
             }
             if let progress {
-                // A marker over the line (round 5 D1): wider than the pen and brighter, on the same path —
-                // so centred on it, covering it — leaving the unread rest of the line as its track.
+                // The pen's own width over the line, in the brighter ink, on the same path — so centred on
+                // it, covering it — leaving the unread rest of the line as its track; a soft glow of the same
+                // ink behind it (round 5 E1: blur `readingProgressGlow`, the ink at 55 %).
                 let p = min(max(progress, 0), 1)
                 HeaderEdgeShape(closed: false)
                     .trim(from: 0, to: p)
                     .stroke(Tokens.readingProgress, style: StrokeStyle(lineWidth: Tokens.readingProgressWidth, lineCap: .round))
+                    .shadow(color: Tokens.readingProgress.opacity(Self.glowOpacity), radius: Tokens.readingProgressGlow)
                     .opacity(p < Self.progressMin ? 0 : 1)
                     // It follows the scroll; with motion allowed, a short ease takes the steps out.
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: p)
@@ -898,7 +926,7 @@ nonisolated struct HeaderEdgeShape: Shape {
 
     /// The wave's resting height in a bar's box: 1.4 (its swing) and the pen's width above the foot.
     static func lineY(in rect: CGRect) -> CGFloat {
-        rect.maxY - 1.4 - Tokens.ink
+        rect.maxY - HeaderEdge.lineDepth
     }
 
     func path(in rect: CGRect) -> Path {

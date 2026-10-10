@@ -12,7 +12,9 @@ struct ConversationsScreen: View {
 
     var body: some View {
         let store = session.conversations
-        TabScreen(L10n.App.Nav.messages, titleInBar: true) {
+        ScrollViewReader { proxy in
+        // Its panes are fixed: the list keeps its place under the bar on a tablet too (round 5 E2).
+        TabScreen(L10n.App.Nav.messages, titleInBar: true, tabletGap: false) {
             VStack(alignment: .leading, spacing: 0) {
                 if chosen == nil, store.loaded, store.conversations.isEmpty, store.starters.isEmpty {
                     OrganicEmptyState(title: L10n.Messages.emptyTitle, message: L10n.Messages.empty, icon: .chat, seed: 23, fills: true)
@@ -28,6 +30,7 @@ struct ConversationsScreen: View {
                 ForEach(store.conversations) { convo in
                     ConversationRow(person: convo.other, preview: preview(convo), time: convo.sentAt.map(Self.time),
                                     unread: convo.unread)
+                        .id(convo.other.id)
                 }
                 if !store.starters.isEmpty {
                     Text(L10n.Messages.startSection.uppercased())
@@ -39,6 +42,7 @@ struct ConversationsScreen: View {
                         .padding(.horizontal, 14)
                     ForEach(store.starters) { person in
                         ConversationRow(person: person, preview: L10n.Messages.noMessagesYet, time: nil, unread: 0)
+                            .id(person.id)
                     }
                 }
             }
@@ -47,6 +51,20 @@ struct ConversationsScreen: View {
             .padding(.trailing, 18)
             .readableColumn()
         }
+        // Two panes: a conversation chosen from elsewhere (a bell, a profile) has its row brought into
+        // view, once the list has it (round 5 E3).
+        .onChange(of: chosenRow, initial: true) { _, id in
+            guard let id else { return }
+            withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id) }
+        }
+        }
+    }
+
+    /// The row of the conversation in the detail pane, when the list holds it.
+    private var chosenRow: String? {
+        guard let chosen else { return nil }
+        let store = session.conversations
+        return (store.conversations.map(\.other) + store.starters).first(where: chosen.isChosen)?.id
     }
 
     private func preview(_ convo: ConversationsStore.Conversation) -> String {
