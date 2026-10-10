@@ -33,13 +33,13 @@ struct CardPickerContent: View {
 
 /// The author's own cards as a list to pick from (CardPickList.tsx), quiet enough to scan: on each
 /// row a 40pt cover thumb (the card's hue when it has none), the title on one line and one muted
-/// line under it — when it came out, led by 匿名 for an anonymous card (`anonymousLabel`). Rows are
-/// parted by a wavy pen rule — no boxed press region; the ink answers instead. What comes first
+/// line under it — when it came out, led by 匿名 for an anonymous card (`anonymousLabel`). No rule
+/// between rows (the one wavy rule parts the lead from them) and no boxed press region. What comes first
 /// (`lead`) scrolls with the rows; `empty` stands in for rows when there are none, and `footnote`
 /// is a quiet line under them (why some cards aren't listed).
 ///
 /// As a choice (`choosing`, named `label` for VoiceOver), a tap marks a row instead of being the
-/// pick — its cover washed in the accent with a cream tick, its title in the accent — so the pick
+/// pick — its cover washed in the accent with a cream tick, its title in the deep accent — so the pick
 /// reads before the modal's verb confirms it (VoiceOver hears which is chosen). `disabled` rests
 /// the rows while a request is on its way (the chosen one stays as it was).
 struct CardPickList<Lead: View, Empty: View>: View {
@@ -53,6 +53,7 @@ struct CardPickList<Lead: View, Empty: View>: View {
     let onPick: (FeedCard) -> Void
     @ViewBuilder let lead: Lead
     @ViewBuilder let empty: Empty
+    @Environment(\.window) private var window
 
     var body: some View {
         ScrollView {
@@ -62,8 +63,9 @@ struct CardPickList<Lead: View, Empty: View>: View {
                     empty
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
+                        // One wavy rule parts the way to write from the cards (the lead's); the rows
+                        // themselves need none — their thumbs and titles line them up.
                         ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
-                            if i > 0 { WavyDivider(seed: Double(67 + i * 31)) }
                             row(card, at: i)
                         }
                     }
@@ -79,7 +81,7 @@ struct CardPickList<Lead: View, Empty: View>: View {
                 }
             }
         }
-        .frame(maxHeight: UIScreen.main.bounds.height * 0.5)
+        .frame(maxHeight: window.height * 0.5)
         .fixedSize(horizontal: false, vertical: true)
         .scrollIndicators(.hidden)
         .padding(.bottom, choosing ? 18 : 0)
@@ -104,23 +106,13 @@ struct CardPickList<Lead: View, Empty: View>: View {
         let meta = Self.meta(card, anonymousLabel: anonymousLabel)
         return Button { onPick(card) } label: {
             HStack(spacing: 12) {
-                OrganicImage(url: card.imageUrl.flatMap(URL.init(string:)), seed: Double(i * 7 + 3),
-                             fill: OKLCHColor.color(0.9, 0.06, card.accentHue ?? 55))
-                    .overlay {
-                        if chosen {
-                            // Washed in the accent inside the thumb's own outline, with the tick on it.
-                            ZStack {
-                                OrganicImage(url: nil, seed: Double(i * 7 + 3), fill: Tokens.terracotta.opacity(0.82))
-                                OrganicIcon(.check, size: 20, color: Tokens.cream)
-                            }
-                            .transition(.opacity)
-                        }
-                    }
-                    .frame(width: 40, height: 40)
+                // The avatar's shape at a smaller radius (design §6); chosen, washed in the accent with the grain and a tick.
+                HandDrawnThumb(url: card.imageUrl.flatMap(URL.init(string:)), fill: OKLCHColor.color(0.9, 0.06, card.accentHue ?? 55),
+                               size: 40, seed: Double(i * 7 + 3), chosen: chosen)
                 VStack(alignment: .leading, spacing: 3) {
                     // One line: a long title ends in an ellipsis rather than making its row taller.
                     Text(card.title).font(AppFonts.body(15, weight: .semibold))
-                        .foregroundStyle(chosen ? Tokens.terracotta : Tokens.text)
+                        .foregroundStyle(chosen ? Tokens.buttonOnTonal : Tokens.text)
                         .lineLimit(1).truncationMode(.tail)
                     if !meta.isEmpty {
                         Text(meta).font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)

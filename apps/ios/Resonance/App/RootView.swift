@@ -48,6 +48,9 @@ struct RootView: View {
         .animation(phaseChange, value: session.landing)
         .tint(Tokens.terracotta)
         .launchCover(ready: launchReady, covering: $launchCovering)
+        #if DEBUG
+        .modifier(DebugWindow())
+        #endif
         // Back in the foreground after a while, the screens ask again behind what they
         // show (`cameBack`). Otherwise a profile that failed to load is asked for again
         // (a new account that was offline at first still reaches onboarding).
@@ -61,3 +64,32 @@ struct RootView: View {
         }
     }
 }
+
+#if DEBUG
+/// `-debugWindow 1376x1032` lays the app out in a window of that size, scaled down to fit the
+/// screen (screen checks of another window — an iPad's landscape, a split — where the simulator
+/// can't be turned or split from the command line). Layout only: the safe areas stay the screen's.
+private struct DebugWindow: ViewModifier {
+    private let size: CGSize? = {
+        guard let spec = UserDefaults.standard.string(forKey: "debugWindow") else { return nil }
+        let parts = spec.split(separator: "x").compactMap { Double($0) }
+        return parts.count == 2 ? CGSize(width: parts[0], height: parts[1]) : nil
+    }()
+
+    func body(content: Content) -> some View {
+        if let size {
+            GeometryReader { geo in
+                let scale = min(geo.size.width / size.width, geo.size.height / size.height, 1)
+                // Laid out at the size asked for, drawn scaled into the middle of the screen.
+                content
+                    .frame(width: size.width, height: size.height)
+                    .border(Color.red.opacity(0.4))
+                    .scaleEffect(scale)
+                    .frame(width: geo.size.width, height: geo.size.height)
+            }
+        } else {
+            content
+        }
+    }
+}
+#endif

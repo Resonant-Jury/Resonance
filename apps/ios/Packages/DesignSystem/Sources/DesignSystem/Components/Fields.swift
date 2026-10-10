@@ -139,11 +139,16 @@ public struct OrganicTextArea: View {
     }
 }
 
-/// A page-level empty, not-found or error state as the web sets them: a
-/// Playfair line, the muted explanation, then one way forward — the solid
-/// button for "start writing", the tonal pill for a retry or "back"
-/// (`outline` and `link` both wear it now: every button has a fill).
-/// (No blob: the web keeps OrganiBlob for its landing page.)
+/// A page-level empty, not-found or error state — one component on every page (design note §1),
+/// so every empty list sits the same way: a small organic mark (`icon`: the avatar's blob at 64, the
+/// tonal ink's glyph on it), a Playfair title, one quiet line, then one way forward — the solid
+/// button for "start writing", the tonal pill for anything else (`outline` and `link` both wear
+/// it now: every button has a fill).
+///
+/// `fills`: the state takes the height of the region it is given (``SwiftUI/EnvironmentValues/emptyStateRegion``,
+/// set by a tab's page, a pane or a modal body) and puts its centre at 45% of it; a parent that
+/// can't give one (a lazy list) leaves it a 300pt box, centred. Without a mark (not-found and error
+/// pages) it keeps its larger title and the old air above and below, in the same column and gaps.
 public struct OrganicEmptyState: View {
     public enum ActionStyle: Sendable { case primary, outline, link }
 
@@ -152,47 +157,128 @@ public struct OrganicEmptyState: View {
     let message: String?
     let actionTitle: String?
     let actionStyle: ActionStyle
+    let icon: IconName?
+    let seed: Double
+    let fills: Bool
     let action: (() -> Void)?
+    @Environment(\.emptyStateRegion) private var region
 
     public init(title: String? = nil, titleSize: CGFloat = 22, message: String? = nil,
-                actionTitle: String? = nil, actionStyle: ActionStyle = .primary, action: (() -> Void)? = nil) {
+                actionTitle: String? = nil, actionStyle: ActionStyle = .primary,
+                icon: IconName? = nil, seed: Double = 23, fills: Bool = false, action: (() -> Void)? = nil) {
         self.title = title
         self.titleSize = titleSize
         self.message = message
         self.actionTitle = actionTitle
         self.actionStyle = actionStyle
+        self.icon = icon
+        self.seed = seed
+        self.fills = fills
         self.action = action
     }
 
+    /// The content column: at most 340 wide, 24 in from either side.
+    static let columnMax: CGFloat = 340
+
     public var body: some View {
+        if fills || icon != nil {
+            // A tab's region, else (a lazy list, a modal without one) a 300pt box with the mark centred in it.
+            let height = fills ? max(region ?? 300, 0) : 300
+            EmptyStatePlacement(height: height, bias: fills && region != nil ? 0.45 : 0.5) { column }
+                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity)
+        } else {
+            column
+                .padding(.horizontal, 24)
+                .padding(.vertical, 64)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var column: some View {
         VStack(spacing: 0) {
+            if let icon {
+                EmptyStateMark(icon: icon, seed: seed)
+                    .padding(.bottom, title != nil ? 18 : 14)
+            }
             if let title {
-                Text(title)
-                    .font(AppFonts.heading(titleSize, weight: .regular))
-                    .foregroundStyle(Tokens.text)
+                let size = icon != nil ? 20 : titleSize
+                CSSText(title, font: AppFonts.scaledUIFont(.heading, size: size, weight: .regular), lineHeight: 1.3,
+                        alignment: .center)
                     .accessibilityAddTraits(.isHeader)
-                    .padding(.bottom, message == nil ? 12 : 8)
+                    .padding(.bottom, message != nil ? 8 : (actionTitle != nil ? 20 : 0))
             }
             if let message {
-                Text(message)
-                    .font(AppFonts.body(16))
-                    .foregroundStyle(Tokens.textMuted)
-                    .padding(.bottom, 24)
+                // The quiet line: the list's own size under a mark, the older 16 on a page without one.
+                CSSText(message, font: AppFonts.scaledUIFont(.body, size: icon != nil ? 14.5 : 16), lineHeight: 1.6,
+                        color: UIColor(Tokens.textMuted), lineLimit: icon != nil ? 3 : 0, alignment: .center)
+                    .padding(.bottom, actionTitle != nil ? 20 : 0)
             }
             if let actionTitle, let action {
                 switch actionStyle {
-                case .primary: OrganicButton(actionTitle, action: action)
+                case .primary: OrganicButton(actionTitle, size: icon != nil ? .sm : .md, action: action)
                 // A retry, or the page's only way out (Back home): every button has a fill — a lone
                 // terracotta word (3.5:1) did not read as one.
-                case .outline, .link: OrganicButton(actionTitle, variant: .tonal, action: action)
+                case .outline, .link: OrganicButton(actionTitle, variant: .tonal, size: icon != nil ? .sm : .md, action: action)
                 }
             }
         }
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 64)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: Self.columnMax)
+    }
+}
+
+extension EnvironmentValues {
+    /// The height a filling ``OrganicEmptyState`` may take: the visible region between a page's bar
+    /// and its tab bar (or a pane's, a modal body's). Nil where nobody says (it keeps 300).
+    @Entry public var emptyStateRegion: CGFloat? = nil
+}
+
+/// The empty state's mark (design §1): the avatar's blob at 64 (`HandDrawnAvatar`'s geometry,
+/// R 0.4 × size, one lopsided turn a side) in the light terracotta at half strength, the paper's
+/// grain on it and no pen line, the glyph centred in the tonal ink. Decorative.
+public struct EmptyStateMark: View {
+    let icon: IconName
+    let seed: Double
+    var size: CGFloat
+
+    public init(icon: IconName, seed: Double, size: CGFloat = 64) {
+        self.icon = icon
+        self.seed = seed
+        self.size = size
+    }
+
+    public var body: some View {
+        let shape = WobRectShape(radius: size * 0.4, seed: seed, mag: size * 0.022, options: WobRectOptions(
+            curve: 1.3, cornerJitter: 3.2, cornerOffset: size * 0.06, segmentsH: .count(1), segmentsV: .count(1)))
+        ZStack {
+            shape.fill(Tokens.terracottaLight.opacity(0.5))
+            GrainLayer(shape: shape, mode: .tile, opacity: 0.3, tile: "grain-card")
+            OrganicIcon(icon, size: 28, color: Tokens.buttonOnTonal, strokeWidth: Tokens.ink)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// One child in a box `height` tall (or as tall as the child, if taller), its centre at `bias` of
+/// the box's height — a little above the middle reads as centred on a page.
+private struct EmptyStatePlacement: Layout {
+    let height: CGFloat
+    let bias: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let child = subviews.first?.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil)) ?? .zero
+        return CGSize(width: proposal.width ?? child.width, height: max(height, child.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let first = subviews.first else { return }
+        let child = first.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+        let top = min(max(0, bounds.height * bias - child.height / 2), max(0, bounds.height - child.height))
+        first.place(at: CGPoint(x: bounds.midX, y: bounds.minY + top), anchor: .top,
+                    proposal: ProposedViewSize(width: bounds.width, height: child.height))
     }
 }
 

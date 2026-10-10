@@ -42,13 +42,17 @@ final class WriteModel {
     let referenceCardId: String?
     let editor: StoryEditorBridge
 
-    @ObservationIgnored private let drafts: DraftService?
+    @ObservationIgnored private let drafts: (any DraftStore)?
     @ObservationIgnored private let writing: WritingAPI
     @ObservationIgnored private var saveTask: Task<Void, Never>?
-    /// Writes run one after another, so a slow create can't race the next update.
+    /// The server's answers to the writes handed over, awaited one after another (Firestore sends
+    /// the writes themselves in the order they were made).
     @ObservationIgnored private var chain: Task<Void, Never>?
-    /// What the last successful write stored; an unchanged working copy isn't written again.
+    /// What the last write the server confirmed stored ("Saved at …", and what publishing relies on).
     @ObservationIgnored private var lastSaved: DraftValues?
+    /// What the last write handed to Firestore stores — on the device from that moment; an
+    /// unchanged working copy isn't written again.
+    @ObservationIgnored private var lastStored: DraftValues?
     /// The first-card guide's question as it was seeded: a starting point, not writing.
     @ObservationIgnored private var seeded: DraftValues?
 
@@ -56,7 +60,7 @@ final class WriteModel {
     static let autosaveDelay: Duration = .milliseconds(1500)
     static let titleMax = 60
 
-    init(drafts: DraftService?, writing: WritingAPI, referenceCardId: String? = nil, opened: DraftService.OpenedCard? = nil,
+    init(drafts: (any DraftStore)?, writing: WritingAPI, referenceCardId: String? = nil, opened: DraftService.OpenedCard? = nil,
          editor bridge: StoryEditorBridge? = nil) {
         self.drafts = drafts
         self.writing = writing
@@ -70,6 +74,7 @@ final class WriteModel {
             draftId = opened.id
             values = opened.values
             lastSaved = opened.values
+            lastStored = opened.values
             editor.setMarkdown(opened.values.story)
         }
         editor.onChange = { [weak self] markdown in self?.values.story = markdown }
@@ -87,7 +92,7 @@ final class WriteModel {
 
     /// Typed since the last write stored anything (autosave is still a moment away).
     var needsSave: Bool {
-        !(values.isEmpty && draftId == nil) && values != lastSaved
+        !(values.isEmpty && draftId == nil) && values != lastStored
     }
 
     /// What this visit changed, for the screens behind the writer; nil when it wrote nothing.
@@ -107,36 +112,69 @@ final class WriteModel {
     }
 
     /// Writes the draft now (creating it the first time there is something to
-    /// keep); returns its id. Queued behind any write in flight.
+    /// keep) and waits for the server to confirm it; returns its id.
     @discardableResult
     func saveNow() async -> String? {
+        store()
+        await chain?.value
+        return draftId
+    }
+
+    /// Hands the draft as it is now to Firestore — which keeps it on the device from this moment and
+    /// sends it after any write before it — without waiting for the server (leaving, going to the
+    /// background). Nothing new to keep, nothing is written.
+    func store() {
         saveTask?.cancel()
+        guard let drafts, needsSave else { return }
+        let v = values
+        let write: IssuedWrite
+        var created: String?
+        if isPublished, let id = draftId {
+            // A live card: the revision waits privately in its buffer.
+            write = drafts.saveEdit(id, v)
+            hasPendingEdit = true
+        } else if let id = draftId {
+            write = drafts.update(id, v)
+        } else {
+            let id = drafts.newDraftId()
+            write = drafts.create(v, id: id, locale: Strings.shared.language.rawValue, referenceCardId: referenceCardId)
+            draftId = id
+            created = id
+        }
+        lastStored = v
+        wrote = true
         let previous = chain
-        let task = Task { [weak self] () -> Void in
+        chain = Task { [weak self] in
             await previous?.value
-            guard let self, let drafts = self.drafts else { return }
-            let v = self.values
-            guard self.needsSave else { return }
             do {
-                if self.isPublished, let id = self.draftId {
-                    // A live card: the revision waits privately in its buffer.
-                    try await drafts.saveEdit(id, v)
-                    self.hasPendingEdit = true
-                } else if let id = self.draftId {
-                    try await drafts.update(id, v)
-                } else {
-                    self.draftId = try await drafts.create(v, locale: Strings.shared.language.rawValue, referenceCardId: self.referenceCardId)
-                }
-                self.lastSaved = v
-                self.savedAt = Date()
-                self.wrote = true
+                try await write.acknowledged()
+                self?.confirmed(v)
             } catch {
-                // Kept in memory; the next edit (or leaving) tries again.
+                self?.refused(v, created: created)
             }
         }
-        chain = task
-        await task.value
-        return draftId
+    }
+
+    /// Waits at most `limit` for the server to confirm what was handed over (leaving: the draft is
+    /// kept either way, and goes up when the network lets it). True when it did.
+    func settled(within limit: Duration) async -> Bool {
+        guard let chain else { return true }
+        return await firstAnswer(within: limit) { await chain.value } != nil
+    }
+
+    private func confirmed(_ v: DraftValues) {
+        lastSaved = v
+        savedAt = Date()
+    }
+
+    /// The server refused a write (kept in memory; the next edit, or leaving, tries again): what it
+    /// held counts as unwritten — a draft it was to create has no document.
+    private func refused(_ v: DraftValues, created: String?) {
+        if let created, draftId == created {
+            draftId = nil
+            lastSaved = nil
+        }
+        if lastStored == v { lastStored = lastSaved }
     }
 
     /// The first-card guide's question, as the story to write against: it is
@@ -145,6 +183,7 @@ final class WriteModel {
         editor.setMarkdown(story)
         values.story = story
         lastSaved = values
+        lastStored = values
         seeded = values
     }
 
@@ -316,6 +355,30 @@ final class WriteModel {
         wrote = true
         hasPendingEdit = false
         lastSaved = values
+        lastStored = values
         return slug ?? id
     }
 }
+
+/// `work`'s answer if it comes within `limit`, else nil — `work` carries on unawaited either way
+/// (a write the server hasn't answered, a read stuck on the network).
+func firstAnswer<T: Sendable>(within limit: Duration, _ work: @escaping () async -> T) async -> T? {
+    let once = AnswerOnce()
+    return await withCheckedContinuation { (finish: CheckedContinuation<T?, Never>) in
+        Task {
+            let value = await work()
+            guard !once.done else { return }
+            once.done = true
+            finish.resume(returning: value)
+        }
+        Task {
+            try? await Task.sleep(for: limit)
+            guard !once.done else { return }
+            once.done = true
+            finish.resume(returning: nil)
+        }
+    }
+}
+
+/// Whether ``firstAnswer(within:_:)`` has answered (both of its tasks run on the main actor).
+private final class AnswerOnce { var done = false }

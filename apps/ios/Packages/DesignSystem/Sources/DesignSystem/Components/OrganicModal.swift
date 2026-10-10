@@ -302,6 +302,7 @@ struct OrganicModalStage<Card: View>: View {
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
             .accessibilityAction(.escape, close)
+            .onEscapeKey(close)
         }
         .onAppear {
             withAnimation(.timingCurve(0.2, 0.9, 0.3, 1.05, duration: 0.28)) { shown = true }

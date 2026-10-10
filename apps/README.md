@@ -125,6 +125,18 @@ keys checks where tapping a push leads.
 `-feedPicksDelay <seconds>` holds back the recommended feed, to see the
 late-picks hint.
 
+iPad: the app runs on iPhone (portrait only) and iPad (every orientation,
+resizable windows, one scene). Every layout decision is made from the window's
+width as `MainTabView` measures it (`WindowLayout` in the `window` environment
+value, `LayoutClass` in DesignSystem `Components/Layout.swift`: compact < 600 ≤
+medium < 900 ≤ expanded, the writer split from 1200) — never `UIScreen` or the
+device. Medium and up: the side rail instead of the tab bar; expanded: the
+bordered feed grid, two-pane Messages (`MessagesPanes`: the conversation at the
+foot of the Messages stack is the detail pane), the card page's author rail.
+The simulator can't be turned or split from the command line:
+`-debugWindow 1376x1032` (any `WxH`) lays the app out at that size, scaled into
+the screen, for layout checks only (the safe areas stay the screen's).
+
 The launch screen (`UILaunchScreen`: the paper and `LaunchMark`, which
 `LaunchCover.swift` draws again and dissolves into the first screen) is a
 picture the system takes once and keeps, and its renderer keeps the app's asset

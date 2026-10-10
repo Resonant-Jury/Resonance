@@ -17,9 +17,11 @@ public struct CSSText: UIViewRepresentable {
     var lineLimit: Int
     /// Take the text's own width (a bubble shrink-wrapping its words) rather than all that's offered.
     var fitsContent: Bool
+    /// CSS `text-align` (an empty state's centred lines).
+    var alignment: NSTextAlignment
 
     public init(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor = UIColor(Tokens.text),
-                tracking: CGFloat = 0, lineLimit: Int = 0, fitsContent: Bool = false) {
+                tracking: CGFloat = 0, lineLimit: Int = 0, fitsContent: Bool = false, alignment: NSTextAlignment = .natural) {
         self.text = text
         self.font = font
         self.lineHeight = lineHeight
@@ -27,6 +29,7 @@ public struct CSSText: UIViewRepresentable {
         self.tracking = tracking
         self.lineLimit = lineLimit
         self.fitsContent = fitsContent
+        self.alignment = alignment
     }
 
     public func makeUIView(context: Context) -> UILabel {
@@ -37,7 +40,8 @@ public struct CSSText: UIViewRepresentable {
 
     public func updateUIView(_ label: UILabel, context: Context) {
         label.numberOfLines = lineLimit
-        label.attributedText = CSSText.attributed(text, font: font, lineHeight: lineHeight, color: color, tracking: tracking)
+        label.attributedText = CSSText.attributed(text, font: font, lineHeight: lineHeight, color: color, tracking: tracking,
+                                                  alignment: alignment)
         // After the text: its paragraph style would otherwise reset the mode.
         if lineLimit > 0 { label.lineBreakMode = .byTruncatingTail }
     }
@@ -48,9 +52,11 @@ public struct CSSText: UIViewRepresentable {
         return CGSize(width: fitsContent ? min(width, size.width.rounded(.up)) : width, height: size.height)
     }
 
-    public static func attributed(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor, tracking: CGFloat = 0) -> NSAttributedString {
+    public static func attributed(_ text: String, font: UIFont, lineHeight: CGFloat, color: UIColor, tracking: CGFloat = 0,
+                                  alignment: NSTextAlignment = .natural) -> NSAttributedString {
         let lineBox = font.pointSize * lineHeight
         let style = NSMutableParagraphStyle()
+        style.alignment = alignment
         style.minimumLineHeight = lineBox
         style.maximumLineHeight = lineBox
         // UIKit bottom-aligns glyphs in a fixed line (baseline = box − descent);

@@ -36,12 +36,19 @@ extension EnvironmentValues {
 
 /// Four tabs and the pen. Each tab keeps its own navigation stack alive, so
 /// switching tabs preserves where you were; re-tapping the current tab pops
-/// to its root. The bar hides on pushed screens, like the system one.
+/// to its root. The bar hides on pushed screens, like the system one. A window
+/// medium or wider (an iPad) shows the side rail instead, on every page; the
+/// writer covers it. One navigation state, drawn either way, so rotating or
+/// resizing the window never loses the place (design §9). On an expanded
+/// window the Messages tab draws its conversation beside the list
+/// (``MessagesPanes``).
 struct MainTabView: View {
     @Environment(SessionStore.self) private var session
     @State private var tab: AppTab = .feed
     @State private var paths: [AppTab: [Route]] = [:]
     @State private var writer = WriteLauncher()
+    /// The window as measured here (never the screen: an iPad window can be any width).
+    @State private var window = WindowLayout.phone
     private let push = PushCenter.shared
 
     private let tabs: [AppTab] = [.feed, .messages, .notifications, .cardBox]
@@ -49,7 +56,56 @@ struct MainTabView: View {
     private static var openedLaunchRoute = false
     #endif
 
+    /// The writer takes the whole window: no rail beside it (the web writer has its own bar).
+    private var writing: Bool {
+        if case .write? = paths[tab]?.last { return true }
+        return false
+    }
+
+    private var rail: Bool { window.sideRail && !writing }
+
+    /// The conversation beside the list (expanded windows).
+    private var twoPane: Bool { window.layoutClass == .expanded }
+
+    private var tabItems: [OrganicTabItem<AppTab>] {
+        AppTab.allCases.map {
+            OrganicTabItem(id: $0, title: $0.title, icon: $0.icon, isAction: $0 == .write,
+                           badge: $0 == .notifications ? session.notifications.unreadCount
+                               : $0 == .messages ? session.conversations.unreadTotal : 0)
+        }
+    }
+
     var body: some View {
+        effects(chrome)
+    }
+
+    private var chrome: some View {
+        HStack(spacing: 0) {
+            if rail {
+                OrganicSideRail(items: tabItems, selection: tab, onSelect: select)
+                    .transition(.move(edge: .leading))
+                    .zIndex(1)
+            }
+            stacks
+        }
+        .animation(.easeOut(duration: 0.2), value: rail)
+        // The window's width: the root's own plus the safe areas at its sides (a landscape iPhone's notch).
+        .onGeometryChange(for: WindowLayout.self) { geo in
+            WindowLayout(width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
+                         height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom)
+        } action: { window = $0 }
+        .environment(\.window, window)
+        // The hardware keyboard's ⌘N opens the writer, as the pen does.
+        .background {
+            Button(L10n.App.Nav.write) { writer.open() }
+                .keyboardShortcut("n", modifiers: .command)
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var stacks: some View {
         ZStack(alignment: .bottom) {
             ForEach(tabs, id: \.self) { t in
                 NavigationStack(path: path(t)) {
@@ -71,17 +127,18 @@ struct MainTabView: View {
                 .allowsHitTesting(t == tab)
                 .accessibilityHidden(t != tab)
             }
-            if paths[tab]?.isEmpty ?? true {
-                OrganicTabBar(items: AppTab.allCases.map {
-                    OrganicTabItem(id: $0, title: $0.title, icon: $0.icon, isAction: $0 == .write,
-                                   badge: $0 == .notifications ? session.notifications.unreadCount
-                                       : $0 == .messages ? session.conversations.unreadTotal : 0)
-                }, selection: tab, onSelect: select)
+            if !window.sideRail, paths[tab]?.isEmpty ?? true {
+                OrganicTabBar(items: tabItems, selection: tab, onSelect: select)
                     // In place, fading: back on a tab's first page it is simply there again (a slide up after
                     // the pop has finished read as arriving late), and on a push it gives way as quickly.
                     .transition(.opacity)
             }
         }
+    }
+
+    /// What the tab view does around its stacks: the banner, the writer's requests, links and pushes.
+    private func effects(_ content: some View) -> some View {
+        content
         // Content moves down under the banner rather than behind it.
         .safeAreaInset(edge: .top, spacing: 0) {
             if let date = session.deletionDate {
@@ -146,6 +203,11 @@ struct MainTabView: View {
         if case .thread = route { tab = .messages }
         // Its message tapped while the conversation is open: it is on screen already, not opened again over itself.
         if let top = paths[tab]?.last, route.reopens(top) { return }
+        // Two panes: the conversation takes the detail pane's place, over nothing.
+        if case .thread = route, twoPane {
+            paths[.messages] = MessagesPanes.choose(route, in: paths[.messages] ?? [])
+            return
+        }
         paths[tab, default: []].append(route)
     }
 
@@ -163,7 +225,14 @@ struct MainTabView: View {
     @ViewBuilder private func root(_ t: AppTab) -> some View {
         switch t {
         case .feed: FeedScreen()
-        case .messages: ConversationsScreen()
+        case .messages:
+            if twoPane {
+                MessagesTwoPane(detail: MessagesPanes.split(paths[.messages] ?? []).detail) { route in
+                    paths[.messages] = MessagesPanes.choose(route, in: paths[.messages] ?? [])
+                }
+            } else {
+                ConversationsScreen()
+            }
         case .notifications: NotificationsScreen()
         case .cardBox: CardBoxScreen()
         case .write: EmptyView()
@@ -179,8 +248,12 @@ struct MainTabView: View {
         tab = picked
     }
 
+    /// The stack a tab's NavigationStack draws: in two panes, the Messages tab's conversation is the
+    /// root's detail pane, so only what is pushed over it is.
     private func path(_ t: AppTab) -> Binding<[Route]> {
-        Binding(get: { paths[t] ?? [] }, set: { paths[t] = $0 })
+        guard t == .messages, twoPane else { return Binding(get: { paths[t] ?? [] }, set: { paths[t] = $0 }) }
+        return Binding(get: { MessagesPanes.split(paths[.messages] ?? []).pushed },
+                       set: { paths[.messages] = MessagesPanes.merge(detail: MessagesPanes.split(paths[.messages] ?? []).detail, pushed: $0) })
     }
 }
 
@@ -193,9 +266,12 @@ struct MainTabView: View {
 /// A `.refreshable` given to it is pulled with the Resonance loader
 /// (`sketchRefreshable`), never the system's spinner, and offered to VoiceOver
 /// as a "Refresh" action on everything in the list (`sketchRefreshAction`).
-/// Home keeps its title in the page; every other tab (`titleInBar`) names
-/// itself in the bar where "Resonance" stood, with any `trailing` control at the
-/// bar's end, and the content starts just under the bar's line.
+/// Home has no page title (an empty `title`): the brand bar alone, and the
+/// feed's first card begins right at the bar's line. Every other tab
+/// (`titleInBar`) names itself in the bar where "Resonance" stood, with any
+/// `trailing` control at the bar's end, and the content starts just under the
+/// bar's line. The height between the bar and the tab bar is handed to a
+/// filling ``OrganicEmptyState`` (`emptyStateRegion`).
 struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     let title: String
     var headerSpacing: CGFloat
@@ -205,6 +281,8 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     let content: Content
     /// The screen's `.refreshable` (the feed, the card box), handed on to the scroll view drawn with the loader.
     @Environment(\.refresh) private var refresh
+    /// Beside the side rail there is no tab bar to keep room for.
+    @Environment(\.window) private var window
     @State private var scrolled = false
     /// How far the brand bar has slid up (0…`travel`).
     @State private var hidden: CGFloat = 0
@@ -212,11 +290,16 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     /// at — `RefreshPull`'s own measure of the gap a pull opens (`drawnDown`).
     @State private var nearTop: CGFloat = 0
     @State private var restingTop: CGFloat = 0
+    /// What the scroll view shows between its insets (the bar above, the home indicator below).
+    @State private var visibleHeight: CGFloat = 0
     /// How far the list is drawn down past its top (a pull, or the room a refresh keeps): the banner
     /// rides on the list, below the loader in that gap, never over it.
     private var drawnDown: CGFloat { max(0, -(nearTop + restingTop)) }
     /// The bar's row above its wavy edge: 4 of air and the 44 lockup.
     private let travel: CGFloat = 48
+    private var topPadding: CGFloat { titleInBar ? 16 : title.isEmpty ? 0 : 40 }
+    /// What the tab bar takes at the foot (nothing beside the rail).
+    private var bottomRoom: CGFloat { window.sideRail ? 0 : OrganicTabBar<AppTab>.height + HeaderEdge.height }
 
     init(_ title: String, headerSpacing: CGFloat = 20, titleInBar: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
          @ViewBuilder banner: () -> Banner, @ViewBuilder content: () -> Content) {
@@ -231,15 +314,18 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if !titleInBar {
+                if !titleInBar, !title.isEmpty {
                     OrganicLargeHeader(title) { trailing }
                         .padding(.bottom, headerSpacing)
                 }
                 content
             }
-            // --page-pad-top on a phone; with the title in the bar, 16 of air under its line.
-            .padding(.top, titleInBar ? 16 : 40)
-            .padding(.bottom, 110)
+            // An empty state fills what is left between the bar's line and the tab bar.
+            .environment(\.emptyStateRegion, max(0, visibleHeight - topPadding - bottomRoom))
+            // --page-pad-top on a phone; with the title in the bar, 16 of air under its line; none
+            // without a title (home: the first card is the bar's edge).
+            .padding(.top, topPadding)
+            .padding(.bottom, window.sideRail ? 40 : 110)
             // For whoever can't pull, the same refresh is the list's "Refresh" action (among VoiceOver's actions on any of its rows).
             .sketchRefreshAction(named: L10n.Native.refresh)
         }
@@ -260,6 +346,10 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
         .background(Tokens.cream)
         .onScrollGeometryChange(for: CGFloat.self) { min($0.contentOffset.y, 0) } action: { _, y in nearTop = y }
         .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { restingTop = $0 }
+        // The container is the scroll view's frame inside its insets: the bar above, the home indicator below.
+        .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height } action: { _, h in
+            visibleHeight = h
+        }
         .sketchRefreshable(refresh)
         .overlay(alignment: .top) { banner.offset(y: drawnDown - hidden) }
         .safeAreaInset(edge: .top, spacing: 0) {

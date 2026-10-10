@@ -21,7 +21,9 @@ struct SignInScreen: View {
                         AuthLockup(fold: .compact).fixedSize(horizontal: false, vertical: true)
                         AuthLockup(fold: .bare).fixedSize(horizontal: false, vertical: true)
                     }
-                    AuthSheet(width: geo.size.width) { sheet }
+                    // On a window wider than a phone the sheet's paper still runs edge to edge; what is on it
+                    // keeps to a 480 column in the middle (design §14).
+                    AuthSheet(width: geo.size.width) { sheet.frame(maxWidth: 480).frame(maxWidth: .infinity) }
                 }
             }
             .scrollBounceBehavior(.basedOnSize)

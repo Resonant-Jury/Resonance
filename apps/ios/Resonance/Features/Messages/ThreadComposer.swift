@@ -50,6 +50,15 @@ struct ThreadComposer: View {
                 .onChange(of: model.draft) { _, new in
                     if new.utf16.count > ThreadModel.maxLength { model.draft = String(new.utf16.prefix(ThreadModel.maxLength)) ?? new }
                 }
+                // A hardware keyboard (an iPad's): Return sends, Shift-Return starts a new line — and while an
+                // input method is composing (zhuyin, pinyin), Return is its own, choosing the words.
+                .onKeyPress(.return, phases: .down) { press in
+                    guard ComposerKeys.sends(shift: press.modifiers.contains(.shift), composing: FirstResponder.hasMarkedText()) else {
+                        return .ignored
+                    }
+                    if model.canSend { model.send() }
+                    return .handled
+                }
                 OrganicSendButton(label: L10n.Messages.send, enabled: model.canSend) { model.send() }
                     .padding(.bottom, 2)
             }
@@ -128,4 +137,32 @@ private struct AttachmentChip: View {
         .background(Tokens.terracottaLight.opacity(0.4),
                     in: UnevenRoundedRectangle(topLeadingRadius: 12, bottomLeadingRadius: 14, bottomTrailingRadius: 12, topTrailingRadius: 14))
     }
+}
+
+/// What Return does in the composer on a hardware keyboard (the web's ThreadComposer onKeyDown).
+nonisolated enum ComposerKeys {
+    /// Return sends unless Shift is held (a new line) or an input method is composing (its candidate).
+    static func sends(shift: Bool, composing: Bool) -> Bool { !shift && !composing }
+}
+
+/// The text view holding the keyboard, found by the responder chain (UIKit says no other way).
+enum FirstResponder {
+    private static weak var found: UIResponder?
+
+    static func current() -> UIResponder? {
+        found = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.resonanceCaptureFirstResponder), to: nil, from: nil, for: nil)
+        return found
+    }
+
+    /// An input method is composing in it (marked text, as zhuyin's underlined candidate).
+    static func hasMarkedText() -> Bool {
+        (current() as? UITextInput)?.markedTextRange != nil
+    }
+
+    fileprivate static func capture(_ responder: UIResponder) { found = responder }
+}
+
+extension UIResponder {
+    @objc fileprivate func resonanceCaptureFirstResponder() { FirstResponder.capture(self) }
 }

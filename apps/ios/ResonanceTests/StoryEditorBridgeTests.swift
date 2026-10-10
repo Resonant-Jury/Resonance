@@ -21,6 +21,19 @@ import WebKit
         #expect(webView.value == nil)
     }
 
+    /// The story is one field: the web form bar (‹ › Done) WebKit puts over the keyboard is left
+    /// out — the view that takes the keyboard answers no accessory view.
+    @Test func theEditorHasNoFormBarOverTheKeyboard() {
+        let editor = StoryEditorBridge(placeholder: "Write")
+        let content = editor.webView.scrollView.subviews.first { String(describing: type(of: $0)).hasPrefix("WKContent") }
+        #expect(content != nil)
+        #expect(content.map { NSStringFromClass(type(of: $0)).hasSuffix("_ResonanceNoAccessory") } == true)
+        #expect(content?.inputAccessoryView == nil)
+        // Asked again (the page's "ready"), nothing changes.
+        editor.webView.hideFormAccessoryBar()
+        #expect(content.map { NSStringFromClass(type(of: $0)).hasSuffix("_ResonanceNoAccessory") } == true)
+    }
+
     /// An editor as the writer holds one, loaded and talking — the island has
     /// said "ready" through the script message handler — then let go.
     private func openEditor(_ bridge: Weak<StoryEditorBridge>, _ webView: Weak<WKWebView>) async throws {

@@ -342,11 +342,14 @@ struct OrganicButtonStyle {
     /// The least height a dialog's foot asks of its buttons (44pt: a finger's), if any.
     var minHeight: CGFloat? = nil
 
+    /// A glyph beside its words, every button and segment alike (design §7: was 7, the segments' 8).
+    static let iconGap: CGFloat = 6
+
     var face: OrganicButtonFace { .of(variant) }
     var seed: Double { face.seed }
     var textColor: Color { face.label }
 
-    /// Label row: 16pt glyphs 7 apart; brand marks are 18pt, 10 from the text.
+    /// Label row: 16pt glyphs 6 apart (design §7); brand marks are 18pt, 10 from the text.
     /// With a `busyTitle`, both labels share one spot (the one not showing is
     /// clear), so the button is as wide in either state.
     func label(_ title: String, icon: IconName?, image: String?, onDisc: Bool = false, busyTitle: String? = nil,
@@ -375,7 +378,7 @@ struct OrganicButtonStyle {
         }
         // No glyph to stand in for: the loader takes the words' place, in their room.
         let inkingWords = working && icon == nil && image == nil
-        return HStack(spacing: image != nil ? 10 : 7) {
+        return HStack(spacing: image != nil ? 10 : Self.iconGap) {
             if working, !inkingWords {
                 SketchLoader(size: 16, color: textColor).accessibilityHidden(true)
             } else if let icon {

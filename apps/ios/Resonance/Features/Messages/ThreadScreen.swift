@@ -18,6 +18,8 @@ struct ThreadScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isSelectedTab) private var onSelectedTab
+    /// Beside the list in two panes: no way back (the list is there), the rule along its side.
+    @Environment(\.inDetailPane) private var inPane
     @State private var model: ThreadModel?
     /// Closes the model once the screen is gone for good (`ScreenLifetime`).
     @State private var lifetime = ScreenLifetime()
@@ -142,6 +144,9 @@ struct ThreadScreen: View {
             VStack(spacing: 0) {
                 if let model { content(model) }
             }
+            .padding(.leading, inPane ? PaneRule.gutter : 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(alignment: .leading) { if inPane { PaneRule() } }
             .accessibilityHidden(menu != nil)
             bar
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
@@ -229,6 +234,9 @@ struct ThreadScreen: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.bottom, 14)
+                // A wide pane keeps the field to a writing width, centred under the thread.
+                .frame(maxWidth: 720)
+                .frame(maxWidth: .infinity)
             case .awaitingReply:
                 ThreadFootNote(text: L10n.Messages.awaitingReply)
                     .padding(.horizontal, 28)
@@ -253,8 +261,9 @@ struct ThreadScreen: View {
         let marking = searching && !showResults && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return ThreadContext(
             model: model,
-            // The row is the list's width inside its 16 margins; their face's column is not counted.
-            rowMax: (listWidth - 32) * 0.72,
+            // The row is the list's width inside its 16 margins; their face's column is not counted;
+            // never wider than a bubble may be (design §9).
+            rowMax: LayoutClass.bubbleMax(listWidth),
             highlights: marking ? Dictionary(model.searchHits.map { ($0.messageId, $0.ranges) }, uniquingKeysWith: { a, _ in a }) : [:],
             currentHit: marking ? currentHit : nil,
             flash: flash,
@@ -365,7 +374,8 @@ struct ThreadScreen: View {
                 }
             }
         }
-        .backHidden(searching)
+        .backHidden(searching || inPane)
+        .leadingInset(inPane ? PaneRule.gutter : 0)
     }
 
     /// Where in the matches the thread is (1 is the newest), once one was chosen and the list put away.
@@ -528,6 +538,7 @@ private struct SharedMediaContent: View {
     let onClose: () -> Void
     let onOpenLink: (URL) -> Void
     @Environment(\.openRoute) private var openRoute
+    @Environment(\.window) private var window
 
     var body: some View {
         let shared = model.shared
@@ -579,7 +590,7 @@ private struct SharedMediaContent: View {
                     }
                 }
             }
-            .frame(maxHeight: min(420, UIScreen.main.bounds.height * 0.55))
+            .frame(maxHeight: min(420, window.height * 0.55))
             .scrollIndicators(.hidden)
             // Nothing to choose here, only to look through: the way out is under the list.
             ModalCloseButton(L10n.Safety.Report.close, action: onClose)

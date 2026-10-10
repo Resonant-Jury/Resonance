@@ -169,8 +169,9 @@ public struct MessageBubble<Attachment: View>: View {
                     }
                     if !text.isEmpty {
                         ChatText(text, links: links,
-                                 // The terracotta of a link would sink into your own bubble's wash.
-                                 linkColor: mine ? Tokens.terracottaDeep : Tokens.terracotta,
+                                 // The tonal ink clears 4.5:1 on both bubbles (plain terracotta is 3.45:1); the
+                                 // story's pen wave under it says it is a link (design §5).
+                                 linkColor: Tokens.buttonOnTonal,
                                  highlights: highlights, highlightColor: highlightWash(strong: highlightStrong),
                                  onLinkTap: onLinkTap)
                     }
@@ -712,7 +713,7 @@ private nonisolated struct ReplyRuleShape: Shape {
 // MARK: - Words
 
 /// A bubble's words on CSS line boxes (the twin of Android's ChatText; `CSSText` has no spans):
-/// `links` are coloured and underlined, `highlights` washed behind the glyphs on rounded rects (the
+/// `links` are coloured and wear the story's pen wave under them (``LinkWaves``), `highlights` washed behind the glyphs on rounded rects (the
 /// matches of a search; `highlightWeight` sets them in a heavier face too), and a tap on a link goes
 /// to `onLinkTap`. Takes its words' own width when they wrap (a bubble hugs its words), and at most
 /// `maxLines` lines (cut with …). A press anywhere else is left to the bubble.
@@ -762,11 +763,7 @@ public struct ChatText: UIViewRepresentable {
         for link in links {
             let r = NSIntersectionRange(link.range, all)
             guard r.length > 0 else { continue }
-            out.addAttributes([
-                .foregroundColor: UIColor(linkColor),
-                .underlineStyle: NSUnderlineStyle.single.rawValue,
-                .underlineColor: UIColor(linkColor),
-            ], range: r)
+            out.addAttributes([.foregroundColor: UIColor(linkColor)], range: r)
         }
         if let highlightWeight {
             let heavier = AppFonts.scaledUIFont(.body, size: size, weight: highlightWeight)
@@ -843,12 +840,47 @@ public final class ChatTextView: UIView, UIGestureRecognizerDelegate {
         setNeedsDisplay()
     }
 
-    /// The words laid out across `width`: as wide as their longest line, as tall as their lines.
+    /// The words laid out across `width`: as wide as their longest line, as tall as their lines —
+    /// and as deep as a link's wave under the last line reaches past its line box.
     /// Drawn at the width it took, the lines break where they did (none of them is wider).
     func measure(width: CGFloat) -> CGSize {
         lay(width)
         let used = layout.usedRect(for: container)
-        return CGSize(width: min(width, ceil(used.width)), height: ceil(used.height))
+        let waveFoot = waveFragments().map { $0.baseline + LinkWaves.reach(fontSize: fontSize) }.max() ?? 0
+        return CGSize(width: min(width, ceil(used.width)), height: ceil(max(used.height, waveFoot)))
+    }
+
+    private var fontSize: CGFloat { lineBoxes?.font.pointSize ?? BubbleMetrics.textSize }
+
+    /// Each link's share of each line it covers.
+    private func waveFragments() -> [LinkFragment] {
+        let all = NSRange(location: 0, length: storage.length)
+        return links.flatMap { link -> [LinkFragment] in
+            let r = NSIntersectionRange(link.range, all)
+            guard r.length > 0 else { return [] }
+            return LinkWaves.fragments(of: r, layoutManager: layout, container: container)
+        }
+    }
+
+    /// The story link's wave (LinkWaveTextView's recipe): terracotta at 70%, INK wide, round caps,
+    /// ``LinkWaves/depthEm`` under the baseline, seeded per link and line — beneath the glyphs.
+    private func drawWaves() {
+        let all = NSRange(location: 0, length: storage.length)
+        let drop = LinkWaves.drop(fontSize: fontSize)
+        UIColor(Tokens.terracotta).withAlphaComponent(0.7).setStroke()
+        for link in links {
+            let r = NSIntersectionRange(link.range, all)
+            guard r.length > 0 else { continue }
+            for (i, f) in LinkWaves.fragments(of: r, layoutManager: layout, container: container).enumerated() {
+                let wave = penWave(Double(f.maxX - f.minX), seed: Double(seedFromString(link.url.absoluteString) + i))
+                    .path(offsetX: Double(f.minX), offsetY: Double(f.baseline + drop))
+                let path = UIBezierPath(cgPath: wave.cgPath)
+                path.lineWidth = Tokens.ink
+                path.lineCapStyle = .round
+                path.lineJoinStyle = .round
+                path.stroke()
+            }
+        }
     }
 
     private func lay(_ width: CGFloat) {
@@ -863,6 +895,7 @@ public final class ChatTextView: UIView, UIGestureRecognizerDelegate {
             highlightColor.setFill()
             for box in highlightRects() { UIBezierPath(roundedRect: box, cornerRadius: 4).fill() }
         }
+        if !links.isEmpty { drawWaves() }
         let glyphs = layout.glyphRange(for: container)
         layout.drawBackground(forGlyphRange: glyphs, at: .zero)
         layout.drawGlyphs(forGlyphRange: glyphs, at: .zero)

@@ -35,6 +35,31 @@ import Testing
         #expect(StoryProse.plainText(md) == "Title a quote Some bold and light text with a link and .")
     }
 
+    @Test func snakeCaseKeepsItsUnderscoresAndEmphasisAtAWordsEdgeGoes() {
+        #expect(StoryProse.plainText("__bold__ and snake_case_name, _light_") == "bold and snake_case_name, light")
+    }
+
+    /// plainText.test.ts, case for case: what the editor stores for text typed with <, > and &
+    /// and Markdown's own marks reads as that text, never as syntax.
+    @Test func referencesAndEscapesReadAsTheTextTheyStandFor() {
+        #expect(StoryProse.plainText("A -&gt; B &amp; C &lt;3") == "A -> B & C <3")
+        #expect(StoryProse.plainText("&lt;b&gt;不是 HTML&lt;/b&gt;") == "<b>不是 HTML</b>")
+        #expect(StoryProse.plainText("\\*不是粗體\\*，1\\. 不是清單，\\# 不是標題，a_b_c。") == "*不是粗體*，1. 不是清單，# 不是標題，a_b_c。")
+        #expect(StoryProse.plainText("\\# 開頭不是標題\n\n1\\. 開頭不是清單\n\n\\- 開頭不是項目\n\n&gt; 開頭不是引用")
+            == "# 開頭不是標題 1. 開頭不是清單 - 開頭不是項目 > 開頭不是引用")
+        // Decoded once, numeric ones too; an escaped & starts no reference; a name it doesn't know stays as written.
+        #expect(StoryProse.plainText("&amp;gt; &#42;star&#x2A; &#x1F600; \\&amp; &unknown;") == "&gt; *star* 😀 &amp; &unknown;")
+        // A hard break is a space; an escaped bracket makes no link; a reference in a link's text is read too.
+        #expect(StoryProse.plainText("第一行\\\n第二行 \\[not a link\\](x) [Tom &amp; Jerry](https://example.com)")
+            == "第一行 第二行 [not a link](x) Tom & Jerry")
+        // The excerpt the thought map shows of `->` (the Android feed's `-&gt;`).
+        #expect(plainExcerpt("我想 -&gt; 你") == "我想 -> 你")
+    }
+
+    @Test func anAddressWhoseTextHoldsAReferenceIsStillLeftOut() {
+        #expect(StoryProse.plainText("see https://example.com/?a=1&amp;b=2, then &lt;https://example.org&gt; done") == "see, then done")
+    }
+
     @Test func theCutFallsBetweenCodePointsNeverInsideAnEmoji() {
         #expect(StoryProse.excerpt(String(repeating: "a", count: 95) + "😀b", max: 96) == String(repeating: "a", count: 95) + "😀…")
         #expect(StoryProse.excerpt("short", max: 96) == "short")

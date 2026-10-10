@@ -155,7 +155,7 @@ nonisolated struct WavyRailShape: Shape {
 }
 
 /// OrganicStoryImage: a photo at its natural proportions (never taller than
-/// 520pt or 62% of the screen), centred, in a hand-drawn clip. The photo is
+/// 520pt or 62% of the window), centred, in a hand-drawn clip. The photo is
 /// zoomed past its box by the wobble's reach so the clip's outward swings
 /// land on real pixels, as on the web.
 struct StoryImageView: View {
@@ -163,10 +163,13 @@ struct StoryImageView: View {
     let alt: String
     let seed: Double
     @State private var aspect: CGFloat?
+    /// The column it is laid out in, measured (an iPad window is neither the screen nor a phone).
+    @State private var column: CGFloat?
+    @Environment(\.window) private var window
 
     var body: some View {
         GeometryReader { geo in
-            let maxH = min(520, UIScreen.main.bounds.height * 0.62)
+            let maxH = min(520, window.height * 0.62)
             let a = aspect ?? 1.5
             let w = min(geo.size.width, maxH * a)
             let h = w / a
@@ -192,14 +195,15 @@ struct StoryImageView: View {
             .accessibilityAddTraits(.isImage)
         }
         .frame(height: height)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { column = $0 }
     }
 
-    /// The laid-out height for the reader's column (width ≈ the screen minus gutters).
+    /// The laid-out height for the reader's column (until measured, the window's minus the gutters).
     private var height: CGFloat {
-        let maxH = min(520, UIScreen.main.bounds.height * 0.62)
+        let maxH = min(520, window.height * 0.62)
         let a = aspect ?? 1.5
-        let column = UIScreen.main.bounds.width - 40
-        return min(column, maxH * a) / a
+        let width = column ?? min(window.contentWidth, 760) - 40
+        return min(width, maxH * a) / a
     }
 }
 

@@ -27,7 +27,7 @@ struct OnboardingScreen: View {
                         .padding(.top, 16)
                         .padding(.bottom, 20 - AuthSheetShape.waveY)
                     // The sheet's paper runs on to the foot of the screen under a short form.
-                    AuthSheet(width: geo.size.width) { form }
+                    AuthSheet(width: geo.size.width) { form.frame(maxWidth: 480).frame(maxWidth: .infinity) }
                 }
                 .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
             }

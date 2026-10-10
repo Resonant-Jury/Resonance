@@ -64,8 +64,35 @@ public struct OrganicTabBar<ID: Hashable>: View {
     }
 
     private func tabButton(_ item: OrganicTabItem<ID>, index: Int) -> some View {
-        let selected = item.id == selection
-        return Button { onSelect(item.id) } label: {
+        OrganicTabButton(item: item, index: index, selected: item.id == selection) { onSelect(item.id) }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The pen: a solid terracotta squircle as tall as a tab, the nib in cream; it darkens while pressed.
+    private func actionButton(_ item: OrganicTabItem<ID>) -> some View {
+        Button { onSelect(item.id) } label: {
+            PenChip(icon: item.icon)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PenPressStyle())
+        .accessibilityLabel(item.title)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
+    }
+}
+
+/// A tab as the bar and the rail draw it: the glyph over its label, the chosen one inked terracotta
+/// on a wash cut like torn paper; under a pointer, the wash half-shown.
+struct OrganicTabButton<ID: Hashable>: View {
+    let item: OrganicTabItem<ID>
+    let index: Int
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
             VStack(spacing: 3) {
                 OrganicIcon(item.icon, size: 24)
                     .overlay(alignment: .topTrailing) {
@@ -80,8 +107,9 @@ public struct OrganicTabBar<ID: Hashable>: View {
                         WobRectShape(radius: 12, seed: Double(index * 29 + 7), mag: 3.2, options: WobRectOptions(
                             curve: 1.2, cornerJitter: 3.6, cornerOffset: 3, segmentsH: .count(2), segmentsV: .count(1)))
                             .fill(Tokens.terracottaLight.opacity(0.55))
-                            .opacity(selected ? 1 : 0)
+                            .opacity(selected ? 1 : hovered ? 0.45 : 0)
                             .animation(.easeOut(duration: 0.16), value: selected)
+                            .animation(.easeOut(duration: 0.16), value: hovered)
                     }
                 Text(item.title).font(AppFonts.body(10.5, weight: selected ? .semibold : .regular)).lineLimit(1)
             }
@@ -90,22 +118,104 @@ public struct OrganicTabBar<ID: Hashable>: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(TabPressStyle())
+        .onHover { hovered = $0 }
         .accessibilityLabel(item.badge > 0 ? "\(item.title), \(item.badge)" : item.title)
         .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
         .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
     }
+}
 
-    /// The pen: a solid terracotta squircle as tall as a tab, the nib in cream; it darkens while pressed.
-    private func actionButton(_ item: OrganicTabItem<ID>) -> some View {
-        Button { onSelect(item.id) } label: {
-            PenChip(icon: item.icon)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
+/// The side rail (design §9): the tab bar stood on its end along the window's leading edge, for
+/// windows wide enough (medium and up) — the pen first, then the tabs in the bar's order, on cream
+/// that ends on a vertical pen line. The same items, selection and haptics as the bar.
+public struct OrganicSideRail<ID: Hashable>: View {
+    let items: [OrganicTabItem<ID>]
+    let selection: ID
+    let onSelect: (ID) -> Void
+
+    public init(items: [OrganicTabItem<ID>], selection: ID, onSelect: @escaping (ID) -> Void) {
+        self.items = items
+        self.selection = selection
+        self.onSelect = onSelect
+    }
+
+    public var body: some View {
+        let pens = items.filter(\.isAction)
+        let tabs = Array(items.enumerated()).filter { !$0.element.isAction }
+        VStack(spacing: 0) {
+            // The pen's centre on the bars' content line (safe top + 26).
+            ForEach(pens) { item in
+                Button { onSelect(item.id) } label: {
+                    PenChip(icon: item.icon).frame(width: Tokens.sideRailW, height: 40).contentShape(Rectangle())
+                }
+                .buttonStyle(PenPressStyle())
+                .accessibilityLabel(item.title)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
+            }
+            .padding(.top, 6)
+            VStack(spacing: 4) {
+                ForEach(tabs, id: \.element.id) { index, item in
+                    OrganicTabButton(item: item, index: index, selected: item.id == selection) { onSelect(item.id) }
+                        .frame(width: Tokens.sideRailW, height: 64)
+                }
+            }
+            .padding(.top, 28)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(PenPressStyle())
-        .accessibilityLabel(item.title)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityShowsLargeContentViewer { Label { Text(item.title) } icon: { OrganicIcon(item.icon) } }
+        .frame(width: Tokens.sideRailW)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background { SideRailEdge() }
+        .sensoryFeedback(.selection, trigger: selection)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// The rail's paper and its trailing edge: cream that stops on a vertical wavy pen line at half ink
+/// (nothing scrolls under the rail), reaching under the status bar, the home indicator and the
+/// leading safe area.
+struct SideRailEdge: View {
+    var body: some View {
+        ZStack {
+            SideRailEdgeShape(closed: true).fill(Tokens.cream)
+            SideRailEdgeShape(closed: false)
+                .stroke(Tokens.fieldBorderHover, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                .opacity(0.5)
+        }
+        .ignoresSafeArea(edges: [.top, .bottom, .leading])
+        .accessibilityHidden(true)
+    }
+}
+
+/// `wavyPoints` turned 90°: down the rail's trailing edge at x = width − 1.4 − INK, seed 227, a turn
+/// every 90 or so (at least six).
+nonisolated struct SideRailEdgeShape: Shape {
+    var closed: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let h = Double(rect.height)
+        guard h > 0 else { return Path() }
+        let x0 = Double(rect.maxX) - 1.4 - Double(Tokens.ink)
+        let steps = max(6, Int((h / 90).rounded()))
+        let pts = wavyPoints(h, y0: x0, amp: 1.4, seed: 227, steps: steps)
+            .map { CGPoint(x: $0.y, y: Double(rect.minY) + $0.x) }
+        var p = Path()
+        if closed {
+            p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            p.addLine(to: pts[0])
+        } else {
+            p.move(to: pts[0])
+        }
+        for i in 1..<pts.count {
+            let a = pts[i - 1], b = pts[i]
+            let midY = (a.y + b.y) / 2
+            p.addCurve(to: b, control1: CGPoint(x: a.x, y: midY), control2: CGPoint(x: b.x, y: midY))
+        }
+        if closed {
+            p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            p.closeSubpath()
+        }
+        return p
     }
 }
 
@@ -294,6 +404,8 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     let trailing: Trailing
     private var back: (() -> Void)?
     private var showsBack = true
+    private var progress: CGFloat?
+    private var inset: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
 
     public init(_ title: String, backLabel: String, scrolled: Bool = false,
@@ -316,6 +428,21 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
     public func backHidden(_ hidden: Bool) -> Self {
         var bar = self
         bar.showsBack = !hidden
+        return bar
+    }
+
+    /// More room before the bar's content than the page's 20 (a pane's gutter), the paper still from the edge.
+    public func leadingInset(_ inset: CGFloat) -> Self {
+        var bar = self
+        bar.inset = inset
+        return bar
+    }
+
+    /// How far through the page's story the reader is (0…1; nil draws nothing): a terracotta pen
+    /// line rides the bar's own wave from its left end (design §3).
+    public func readingProgress(_ progress: CGFloat?) -> Self {
+        var bar = self
+        bar.progress = progress
         return bar
     }
 
@@ -342,9 +469,10 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
         }
         .frame(minHeight: 44)
         .padding(.horizontal, 20)
+        .padding(.leading, inset)
         .padding(.top, 4)
         .padding(.bottom, HeaderEdge.height)
-        .background { HeaderEdge(scrolled: scrolled) }
+        .background { HeaderEdge(scrolled: scrolled, progress: progress) }
     }
 }
 
@@ -369,10 +497,17 @@ public struct HeaderEdge: View {
     /// Room under the bar's content for the wave (the web's HEADER_WAVE_H band).
     public static let height: CGFloat = 10
     var scrolled: Bool
+    /// Reading progress (the card page): the share of the wave inked in terracotta over the grey.
+    var progress: CGFloat?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(scrolled: Bool = false) {
+    public init(scrolled: Bool = false, progress: CGFloat? = nil) {
         self.scrolled = scrolled
+        self.progress = progress
     }
+
+    /// Below this nothing is drawn: no lone dot of a round cap at the wave's start.
+    public static let progressMin: CGFloat = 0.002
 
     public var body: some View {
         ZStack {
@@ -381,9 +516,31 @@ public struct HeaderEdge: View {
                 .stroke(Tokens.fieldBorderHover, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
                 .opacity(scrolled ? 1 : 0.5)
                 .animation(.easeInOut(duration: 0.3), value: scrolled)
+            if let progress {
+                let p = min(max(progress, 0), 1)
+                HeaderEdgeShape(closed: false)
+                    .trim(from: 0, to: p)
+                    .stroke(Tokens.terracotta, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round))
+                    .opacity(p < Self.progressMin ? 0 : 1)
+                    // It follows the scroll; with motion allowed, a short ease takes the steps out.
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: p)
+            }
         }
         .ignoresSafeArea(edges: .top)
         .accessibilityHidden(true)
+    }
+}
+
+/// How far a reader is through a story (design §3), from the scroll view's geometry and the story
+/// block's place in the scrolled content: 0 while the story's top is still below the bar's line,
+/// 1 once its bottom has reached the screen's foot; nil (nothing drawn) when the story fits on
+/// one screen.
+public nonisolated enum ReadingProgress {
+    /// `visibleTop`: the scrolled content's y at the bar's line (offset + top inset);
+    /// `visibleHeight`: what shows between the bar and the bottom inset.
+    public static func of(storyTop: CGFloat, storyHeight: CGFloat, visibleTop: CGFloat, visibleHeight: CGFloat) -> CGFloat? {
+        guard storyHeight > visibleHeight, visibleHeight > 0 else { return nil }
+        return min(max((visibleTop - storyTop) / (storyHeight - visibleHeight), 0), 1)
     }
 }
 
