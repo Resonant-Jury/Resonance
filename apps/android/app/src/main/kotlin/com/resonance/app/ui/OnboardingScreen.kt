@@ -84,7 +84,7 @@ fun OnboardingScreen(session: Session) {
             ChoiceList(L10n.Auth.primaryLocaleLabel, WritingLanguages, primaryLocale, seed = 151.0) { primaryLocale = it }
             // The web's Finish sits at the end of the row, dimmed until the name is free.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OrganicButton(if (pending) L10n.Auth.creating else L10n.Auth.finish, enabled = ready, onClick = ::finish)
+                OrganicButton(L10n.Auth.finish, enabled = ready, loading = pending, onClick = ::finish)
             }
         }
         error?.let { BasicText(it, style = AppFonts.body(13f, color = Tokens.Terracotta), modifier = Modifier.padding(top = 12.dp)) }

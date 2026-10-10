@@ -7,6 +7,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import com.resonance.design.BorderedStoryCard
 import com.resonance.design.CardListLayout
+import com.resonance.design.CardPalette
 import com.resonance.design.GridBlockRows
 import com.resonance.design.GridUnderBar
 import com.resonance.design.LocalWindowLayout
@@ -54,7 +55,11 @@ import androidx.compose.ui.unit.dp
 import com.resonance.api.models.Author
 import com.resonance.api.models.FeedCard
 import com.resonance.design.AppFonts
-import com.resonance.design.BrandBarHeight
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.Color
+import com.resonance.design.LocalHeaderChrome
+import com.resonance.design.brandBarHeight
 import com.resonance.design.CssText
 import com.resonance.design.HeaderEdgeHeight
 import com.resonance.design.MiniStoryCard
@@ -105,6 +110,13 @@ fun FeedCard.story(): StoryCardContent {
     )
 }
 
+/**
+ * The colour family of each card of a list as it is shown (design note B3, CardPalette.palettes):
+ * none shares one with the three before it, so neither neighbouring bands nor a grid's row or
+ * column ever repeat one.
+ */
+fun cardFamilies(cards: List<FeedCard>): List<Int> = CardPalette.palettes(cards.map { it.accentHue })
+
 /** Where the card lives on the site (its slug, or its id before it had one). */
 val FeedCard.routeKey: String get() = slug ?: id
 
@@ -135,11 +147,13 @@ fun LazyListScope.storyCards(
     layout: CardListLayout = CardListLayout.Phone,
 ) {
     if (layout.isGrid) return borderedCards(cards, open, onLast, firstUnderBar, layout)
+    // No card wears the family of any of the three before it (design note B3), over the list as shown.
+    val palettes = cardFamilies(cards)
     itemsIndexed(cards, key = { _, c -> c.id }) { i, card ->
         StoryCard(
             card.story(), i, i == cards.lastIndex,
             Modifier.plainClickable { open(Route.Card(card.routeKey, card)) }.pointerHoverIcon(PointerIcon.Hand),
-            isFirst = firstUnderBar && i == 0, inset = layout.inset,
+            isFirst = firstUnderBar && i == 0, inset = layout.inset, palette = palettes[i],
         )
         if (i == cards.lastIndex) onLast?.invoke()
     }
@@ -163,6 +177,8 @@ internal fun LazyListScope.borderedCards(
 ) {
     val n = layout.columns
     val blocks = cards.indices.chunked(n * GridBlockRows)
+    // The same families as the list read top to bottom: row-major, so none shares one with the cards beside or above it.
+    val palettes = cardFamilies(cards)
     itemsIndexed(blocks, key = { b, block -> "grid:$b:${cards[block.first()].id}" }) { b, block ->
         val gap = Tokens.FeedGap.dp
         Row(
@@ -177,7 +193,7 @@ internal fun LazyListScope.borderedCards(
                     for (i in block) if (i % n == c) {
                         val card = cards[i]
                         Box {
-                            BorderedStoryCard(card.story(), i, Modifier.plainClickable { open(tap(card)) })
+                            BorderedStoryCard(card.story(), i, Modifier.plainClickable { open(tap(card)) }, palette = palettes[i])
                             overlay?.invoke(this, card, i)
                         }
                     }
@@ -220,12 +236,13 @@ internal fun View.announce(text: String) = announceForAccessibility(text)
 
 /** MiniCardGrid on a phone: the resonance and linked-cards lists, as pared-back bands. */
 fun LazyListScope.miniCards(cards: List<FeedCard>, open: (Route) -> Unit, keyPrefix: String) {
+    val palettes = cardFamilies(cards)
     itemsIndexed(cards, key = { _, c -> "$keyPrefix${c.id}" }) { i, card ->
         // Wider than a phone, the band's content keeps to the centred reading column.
         MiniStoryCard(
             card.story(), i, i == cards.lastIndex,
             Modifier.plainClickable { open(Route.Card(card.routeKey, card)) }.pointerHoverIcon(PointerIcon.Hand),
-            inset = LocalWindowLayout.current.bandInset,
+            inset = LocalWindowLayout.current.bandInset, palette = palettes[i],
         )
     }
 }
@@ -271,14 +288,23 @@ fun TabScreen(
     onRefresh: (suspend () -> Unit)? = null,
     /** Whether a pull may start now (not while a first read still shows its skeleton). */
     refreshEnabled: Boolean = true,
+    /**
+     * The paper of the band the list starts with right under the bar (the feed's first card): the gap
+     * a pull opens wears it, so the band looks taller rather than parted from the bar (design note B1).
+     */
+    pullPaper: Color? = null,
     content: LazyListScope.() -> Unit,
 ) {
-    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BrandBarHeight + HeaderEdgeHeight
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + brandBarHeight() + HeaderEdgeHeight
+    // Beside the header's tabs the bar carries the navigation: it stays put (design note B2).
+    val pinned = LocalHeaderChrome.current != null
     val quickReturn = rememberQuickReturn(list)
     val pull = rememberSketchPull(onRefresh ?: {})
     // The pull is the outer of the two: pushing a pulled list back up is the pull's, not the bar's to slide away on.
     val pulling = Modifier.sketchPull(pull, enabled = onRefresh != null && (refreshEnabled || pull.refreshing))
-    Box(Modifier.fillMaxSize().cream().then(pulling).nestedScroll(quickReturn.connection)) {
+    // The conversations beside a thread: the list keeps to its pane, the bar is the window's header.
+    val pane = LocalListPane.current
+    Box(Modifier.fillMaxSize().cream().then(pulling).then(if (pinned) Modifier else Modifier.nestedScroll(quickReturn.connection))) {
         // Without the title block, the first row still starts clear of the bar's line.
         // For whoever can't pull, the same refresh is the list's "Refresh" action (in TalkBack's Actions on any of its rows).
         val refreshAction = Modifier.sketchPullAction(pull, L10n.Native.refresh, enabled = onRefresh != null && refreshEnabled) { !list.canScrollBackward }
@@ -287,9 +313,12 @@ fun TabScreen(
             title == null -> top - HeaderEdgeHeight
             else -> top
         }
-        // Room for the docked tab bar; beside the side rail, only the navigation bar's.
-        val bottom = if (LocalWindowLayout.current.sideRail) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 40.dp else 120.dp
-        LazyColumn(Modifier.fillMaxSize().pulledDown(pull).then(refreshAction), state = list, contentPadding = PaddingValues(top = listTop, bottom = bottom)) {
+        // Room for the docked tab bar; with the tabs in the header, only the navigation bar's.
+        val bottom = if (LocalWindowLayout.current.topTabs) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 40.dp else 120.dp
+        LazyColumn(
+            Modifier.then(if (pane != null) Modifier.width(pane).fillMaxHeight() else Modifier.fillMaxSize()).pulledDown(pull).then(refreshAction),
+            state = list, contentPadding = PaddingValues(top = listTop, bottom = bottom),
+        ) {
             if (!titleInBar && title != null) item {
                 // The web's page padding: 40 under the header, the title block 40 above the content (home's header).
                 Column(
@@ -302,10 +331,10 @@ fun TabScreen(
             }
             content()
         }
-        SketchPullIndicator(pull, top)
+        Box(if (pane != null) Modifier.width(pane).fillMaxHeight() else Modifier.fillMaxSize()) { SketchPullIndicator(pull, top, paper = pullPaper) }
         // The bar slides up under the status bar while reading down and comes back on the way up
         // (the brand has nothing to press, so it gives the stories the room); the status bar keeps its paper.
-        val bar = Modifier.offset { IntOffset(0, quickReturn.offset.roundToInt()) }
+        val bar = if (pinned) Modifier else Modifier.offset { IntOffset(0, quickReturn.offset.roundToInt()) }
         if (titleInBar && title != null) OrganicBrandBar(list.scrolledPast20(), bar, brand = title, isHeading = true, trailing = trailing)
         else OrganicBrandBar(list.scrolledPast20(), bar)
         overlay()
@@ -334,7 +363,7 @@ class QuickReturn(private val range: Float, private val list: LazyListState) {
 
 @Composable
 private fun rememberQuickReturn(list: LazyListState): QuickReturn {
-    val range = with(LocalDensity.current) { BrandBarHeight.toPx() }
+    val range = with(LocalDensity.current) { brandBarHeight().toPx() }
     val q = remember(range, list) { QuickReturn(range, list) }
     // Let go half-way and it settles, shown or hidden — and it is always shown back at the top.
     LaunchedEffect(q, list.isScrollInProgress) {

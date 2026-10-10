@@ -19,6 +19,7 @@ import kotlin.test.assertContains
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Publishing, the editor's AI helpers and photo uploads, against a local HTTP server. */
@@ -148,6 +149,18 @@ class WritingApiTest {
         assertContains(text, "Content-Disposition: form-data; name=\"file\"; filename=\"cover.jpg\"")
         assertContains(text, "Content-Type: image/jpeg")
         assertContains(text, String(photo, Charsets.ISO_8859_1))
+        // A cover says nothing of what it is for.
+        assertFalse(text.contains("name=\"purpose\""))
+    }
+
+    @Test fun aProfilePhotoSaysItIsAnAvatar() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"publicUrl":"https://img.test/avatar/2026-10/a.webp","key":"avatar/2026-10/a.webp"}"""))
+        val photo = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 3, 4)
+        assertEquals("https://img.test/avatar/2026-10/a.webp", api().upload(photo, "avatar.jpg", purpose = "avatar"))
+        val text = String(server.takeRequest().body.readByteArray(), Charsets.ISO_8859_1)
+        assertContains(text, "Content-Disposition: form-data; name=\"file\"; filename=\"avatar.jpg\"")
+        // The route fits it to 256 when the form's `purpose` is `avatar`.
+        assertContains(text, "Content-Disposition: form-data; name=\"purpose\"\r\nContent-Length: 6\r\n\r\navatar")
     }
 
     @Test fun refreshesARejectedTokenOnce() = runBlocking {

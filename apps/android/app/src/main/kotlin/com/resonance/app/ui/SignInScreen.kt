@@ -65,8 +65,7 @@ fun SignInScreen(session: Session) {
             image = painterResource(R.drawable.google_mark),
             markOnDisc = true,
             block = true,
-            busyTitle = L10n.Auth.signingIn,
-            busy = signingIn,
+            loading = signingIn,
         ) {
             scope.launch { session.signInWithGoogle(context) }
         }

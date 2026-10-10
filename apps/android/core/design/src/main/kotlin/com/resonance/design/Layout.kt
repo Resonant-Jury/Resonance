@@ -19,8 +19,11 @@ import com.resonance.design.generated.Tokens
 enum class LayoutClass {
     Compact, Medium, Expanded;
 
-    /** A side rail instead of the bottom tab bar. */
-    val sideRail: Boolean get() = this != Compact
+    /** The tabs in the middle of a full-width header (design note B2) instead of the bottom tab bar. */
+    val topTabs: Boolean get() = this != Compact
+
+    /** The header's tabs carry their labels (an expanded window, unless they don't fit: [TopTabsFit]); else glyphs alone. */
+    val tabLabels: Boolean get() = this == Expanded
 
     companion object {
         fun of(width: Float): LayoutClass = when {
@@ -48,17 +51,18 @@ enum class LayoutClass {
 }
 
 /**
- * The window as the app's root measured it (MainTabs), handed down to every screen: its width,
- * its class, and whether the side rail takes [railWidth] at its start. Pane widths (a thread
- * beside the conversations, the writer beside the map) are measured where they are used.
+ * The window as the app's root measured it (MainTabs), handed down to every screen: its width and
+ * its class. Pane widths (a thread beside the conversations, the writer beside the map) are
+ * measured where they are used.
  */
 @Immutable
-data class WindowLayout(val width: Dp, val railWidth: Dp = 0.dp) {
+data class WindowLayout(val width: Dp) {
     val cls: LayoutClass get() = LayoutClass.of(width.value)
-    val sideRail: Boolean get() = cls.sideRail
+    /** The tabs in the header (medium and expanded), not the bottom bar. */
+    val topTabs: Boolean get() = cls.topTabs
     val pad: Dp get() = LayoutClass.pad(width.value).dp
-    /** What the pages have beside the rail. */
-    val contentWidth: Dp get() = width - railWidth
+    /** What the pages have: the whole window (the header carries the tabs; nothing stands beside the pages). */
+    val contentWidth: Dp get() = width
     val writerSplit: Boolean get() = LayoutClass.writerSplit(width.value)
 
     /** The feed's bordered grid: its columns, and its box — at most 1200 wide with [pad] on each side, centred. */

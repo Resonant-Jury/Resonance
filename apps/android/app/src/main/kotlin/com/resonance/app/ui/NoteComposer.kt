@@ -133,7 +133,7 @@ fun NoteComposer(session: Session, cardId: String, onClose: () -> Unit, onUpgrad
         // The modal is the frame: cancel the tonal pill, Send the solid verb, rightmost — the foot
         // every dialog shares; Send waits, faded, until there is something to send.
         ModalActions(
-            L10n.Card.Note.cancel, onClose, if (pending) "…" else L10n.Card.Note.send,
+            L10n.Card.Note.cancel, onClose, L10n.Card.Note.send,
             busy = pending, verbEnabled = valid, topPadding = NoteFootTop,
             onVerb = {
                 if (valid && !pending) {

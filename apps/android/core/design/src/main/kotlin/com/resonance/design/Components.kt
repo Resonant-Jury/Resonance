@@ -69,6 +69,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.stateDescription
+import com.resonance.geometry.wobCircle
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -324,7 +326,8 @@ fun OrganicLink(
  * OrganicButton: a filled wobbly pill with the buttons' grain, and never a pen line — an outline
  * marks a floating surface, a container or an input, not a button ([ButtonVariant] says which
  * face). A press spreads the web's hover wash from the touch point ([OrganicIndication], the same
- * ink every control uses); a disabled button fades to the web's 0.45, a busy one to 0.6. Its
+ * ink every control uses); a disabled button fades to the web's 0.45, one in progress keeps its
+ * face and shows its loader ([ButtonLoader]). Its
  * content sits in the middle of the pill, however wide the caller makes it.
  */
 @Composable
@@ -347,13 +350,6 @@ fun OrganicButton(
     /** An icon-only chip at the size's own padding (sm: 9×18) instead of the tight 9×11. */
     roomy: Boolean = false,
     /**
-     * The label while [busy] ("Signing in…"). Both labels are laid out in the
-     * same spot, so the button keeps one size when it turns busy and back.
-     */
-    busyTitle: String? = null,
-    /** Working on the last tap: dimmed like a disabled button, showing [busyTitle], ignoring taps. */
-    busy: Boolean = false,
-    /**
      * The brand [image] on a small white wobbly disc (30, the mark 18 on it):
      * Google's G keeps the white ground its guidelines ask for on a filled pill.
      */
@@ -364,9 +360,15 @@ fun OrganicButton(
      * that keeps to one line by shrinking to 85% before it wraps.
      */
     block: Boolean = false,
+    /**
+     * Working on the last tap (design note B6): the label stays, a [ButtonLoader] takes the glyph's
+     * place (or stands 6 before the label, the pair kept centred), the face keeps its full colour
+     * and its size, and the button takes no tap — TalkBack hears it as busy.
+     */
+    loading: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val active = enabled && !busy
+    val active = enabled && !loading
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val haptic = LocalHapticFeedback.current
@@ -384,7 +386,7 @@ fun OrganicButton(
     Row(
         modifier
             .then(if (block) Modifier.fillMaxWidth().heightIn(min = 52.dp) else Modifier)
-            .fade(if (!enabled) ButtonFace.DISABLED_ALPHA else if (busy) ButtonFace.BUSY_ALPHA else 1f)
+            .fade(if (loading || enabled) 1f else ButtonFace.DISABLED_ALPHA)
             .scale(if (pressed) 0.97f else 1f)
             .drawWithCache {
                 val o = shape.createOutline(size, layoutDirection, this)
@@ -400,17 +402,22 @@ fun OrganicButton(
                 onClick()
             }
             .then(if (iconOnly) Modifier.semantics { contentDescription = title } else Modifier)
+            .then(if (loading) Modifier.semantics { stateDescription = L10n.App.busy } else Modifier)
             .padding(padding),
         verticalAlignment = Alignment.CenterVertically,
         // A glyph sits 6 from its label (design note §7); a brand mark in its own 10-gap span (signin/page.tsx).
         // Centred, so a pill wider than its content (a block) keeps it in the middle.
         horizontalArrangement = Arrangement.spacedBy(if (image != null) 10.dp else 6.dp, Alignment.CenterHorizontally),
     ) {
-        if (icon != null) OrganicIcon(
-            icon, if (iconOnly) Modifier else Modifier.offset(y = labelInkDrop(if (block) 16f else if (small) 14f else 15f)),
-            size = iconSize ?: if (iconOnly) 17.dp else 16.dp, color = text, mirrored = mirrorIcon,
-        )
-        if (image != null) {
+        if (icon != null) {
+            val glyph = iconSize ?: if (iconOnly) 17.dp else 16.dp
+            val drop = if (iconOnly) Modifier else Modifier.offset(y = labelInkDrop(if (block) 16f else if (small) 14f else 15f))
+            // In progress, the loop takes the glyph's place at its size.
+            if (loading) ButtonLoader(text, glyph, drop) else OrganicIcon(icon, drop, size = glyph, color = text, mirrored = mirrorIcon)
+        }
+        if (image != null && loading) {
+            Box(Modifier.size(if (markOnDisc) 30.dp else 18.dp), contentAlignment = Alignment.Center) { ButtonLoader(text, 18.dp) }
+        } else if (image != null) {
             // The same disc as the web's (signin/page.tsx) and iOS's: seed 12, 8 segments, mag 0.7.
             if (markOnDisc) Box(
                 Modifier.size(30.dp).drawWithCache {
@@ -426,17 +433,83 @@ fun OrganicButton(
                 else AppFonts.body(if (small) 14f else 15f, 600, lineHeight = 1.3f, color = text).copy(letterSpacing = 0.02.em)
             // A block's label takes the largest step down to 85% that fits one line, then wraps at 85%.
             val autoSize = if (block) remember(style.fontSize) { OneLineFirst(style.fontSize) } else null
-            if (busyTitle == null) BasicText(title, style = style, autoSize = autoSize)
-            else Box(contentAlignment = if (block) Alignment.Center else Alignment.CenterStart) {
-                // The label not showing still takes its room (drawn as nothing, not read out).
-                val unseen = Modifier.drawWithContent { }.clearAndSetSemantics { }
-                val lines = if (block) Int.MAX_VALUE else 1
-                BasicText(title, style = style, maxLines = lines, autoSize = autoSize, modifier = if (busy) unseen else Modifier)
-                BasicText(busyTitle, style = style, maxLines = lines, autoSize = autoSize, modifier = if (busy) Modifier else unseen)
-            }
+            val label: @Composable () -> Unit = { BasicText(title, style = style, autoSize = autoSize) }
+            // Nothing for the loop to stand in for: it goes 6 before the label, outside the label's
+            // measured room, and the two slide half that over so the pair stays centred.
+            if (icon == null && image == null) LoaderBeforeLabel(loading, text, if (small) ButtonLoaderSmall else ButtonLoaderSize, label)
+            else label()
         }
     }
 }
+
+/** The button loop's box: 16 in md and lg buttons, 14 in sm (design note B6). */
+val ButtonLoaderSize = 16.dp
+val ButtonLoaderSmall = 14.dp
+
+/**
+ * A label that a [ButtonLoader] stands before while [loading]: the loop [size] wide, 6 before the
+ * label's start, drawn outside the label's measured width; both slide (size + 6) / 2 toward the
+ * end so the pair keeps the label's centre — the button measures the same either way. The loop
+ * fades in and the label slides in 120 ms (at once with animations off).
+ */
+@Composable
+private fun LoaderBeforeLabel(loading: Boolean, color: Color, size: Dp, label: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val still = remember(context) { context.prefersReducedMotion() }
+    val shown by animateFloatAsState(if (loading) 1f else 0f, tween(if (still) 0 else 120, easing = ButtonEaseOut), label = "buttonLoader")
+    val density = LocalDensity.current
+    val shiftPx = with(density) { ((size + 6.dp) / 2).toPx() }
+    Box(Modifier.graphicsLayer { translationX = shiftPx * shown }, contentAlignment = Alignment.CenterStart) {
+        label()
+        if (shown > 0f) ButtonLoader(color, size, Modifier.offset(x = -(size + 6.dp)).alpha(shown))
+    }
+}
+
+/** CSS `ease-out`, the label's slide. */
+private val ButtonEaseOut = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.58f, 1f)
+
+/**
+ * ButtonLoader (design note B6): a pen loop drawing itself round inside a button in progress —
+ * SketchLoader's caravan on one lap. A wobbly circle (wobCircle, r 0.36 of the box, seed 29, six
+ * turns) carries four links, each 0.17 of the loop, nose to tail, α 0.22 → 1 back to front, one trip
+ * every 1100 ms; the pen is INK whatever the box, joins round, only the leading link's cap round.
+ * With animations off it rests as the whole loop at 0.75. In the label's own [color]; decoration
+ * only (the button says it is busy).
+ */
+@Composable
+fun ButtonLoader(color: Color, size: Dp = ButtonLoaderSize, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val still = remember(context) { context.prefersReducedMotion() }
+    val t = if (still) null else rememberInfiniteTransition(label = "buttonLoop").animateFloat(
+        0f, 1f, infiniteRepeatable(tween(BUTTON_LOOP_MILLIS, easing = LinearEasing)), label = "t",
+    )
+    Canvas(modifier.size(size).clearAndSetSemantics { }) {
+        val box = size.value.toDouble()
+        val c = box / 2
+        val path = wobCircle(c, c, 0.36 * box, 29.0, WobCircleOptions(segments = 6, mag = 0.035 * box, cpJitter = 0.6)).toPath(density)
+        val pen = Tokens.Ink.toPx()
+        if (t == null) {
+            drawPath(path, color.copy(alpha = color.alpha * 0.75f), style = Stroke(pen, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            return@Canvas
+        }
+        val measure = PathMeasure().apply { setPath(path, false) }
+        val length = measure.length
+        ButtonLoopLinks.forEachIndexed { k, alpha ->
+            val head = (t.value + k * BUTTON_LINK) % 1f
+            val end = head + BUTTON_LINK
+            val seg = Path()
+            measure.getSegment(head * length, minOf(end, 1f) * length, seg, true)
+            if (end > 1f) measure.getSegment(0f, (end - 1f) * length, seg, true)
+            val cap = if (k == ButtonLoopLinks.lastIndex) StrokeCap.Round else StrokeCap.Butt
+            drawPath(seg, color.copy(alpha = color.alpha * alpha), style = Stroke(pen, cap = cap, join = StrokeJoin.Round))
+        }
+    }
+}
+
+/** The button loop's links back to front, and each one's share of the loop. */
+private val ButtonLoopLinks = listOf(0.22f, 0.42f, 0.68f, 1f)
+private const val BUTTON_LINK = 0.17f
+private const val BUTTON_LOOP_MILLIS = 1100
 
 /**
  * How far below its line box's middle a label's ink sits (design note §7): about 0.06em for our
@@ -508,8 +581,6 @@ class ButtonFace private constructor(
     companion object {
         /** Not pressable yet: the face stays, faded (the web's `:disabled`). */
         const val DISABLED_ALPHA = 0.45f
-        /** Working on the last tap (the web's busy row). */
-        const val BUSY_ALPHA = 0.6f
 
         private val Solid = ButtonFace(Mixes.ButtonFill, Tokens.Cream, OrganicIndication.OnFill, 3.0)
         private fun tonal(seed: Double) = ButtonFace(Mixes.ButtonTonal, Mixes.ButtonOnTonal, OrganicIndication.Wash, seed)

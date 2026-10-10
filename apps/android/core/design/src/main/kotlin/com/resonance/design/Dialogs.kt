@@ -288,10 +288,7 @@ fun OrganicConfirmDialog(
             ModalBody(body)
         }
         if (error != null) ModalError(error)
-        ModalActions(
-            cancelLabel, onCancel, if (busy) "…" else confirmLabel, onConfirm,
-            busy = busy, destructive = destructive,
-        )
+        ModalActions(cancelLabel, onCancel, confirmLabel, onConfirm, busy = busy, destructive = destructive)
     }
 }
 
@@ -365,7 +362,8 @@ fun ModalActions(topPadding: Dp = ModalActionsTop, content: @Composable () -> Un
 /**
  * ModalActions' (cancel, verb) form, the foot most dialogs end in: [cancelLabel] tonal, then the
  * verb — solid, or danger when [destructive] — with an optional glyph ([verbIcon]); [verbEnabled]
- * false while there is nothing to act on yet. While [busy] both rest (faded, taking no tap).
+ * false while there is nothing to act on yet. While [busy] the verb shows its loader (its words
+ * kept, design note B6) and the way out rests, faded; neither takes a tap.
  */
 @Composable
 fun ModalActions(
@@ -380,10 +378,10 @@ fun ModalActions(
     topPadding: Dp = ModalActionsTop,
 ) {
     ModalActions(topPadding) {
-        OrganicButton(cancelLabel, variant = ButtonVariant.Tonal, small = true, busy = busy, onClick = onCancel)
+        OrganicButton(cancelLabel, variant = ButtonVariant.Tonal, small = true, enabled = !busy, onClick = onCancel)
         OrganicButton(
             verbLabel, variant = if (destructive) ButtonVariant.Danger else ButtonVariant.Solid, icon = verbIcon,
-            small = true, enabled = verbEnabled, busy = busy, onClick = onVerb,
+            small = true, enabled = verbEnabled, loading = busy, onClick = onVerb,
         )
     }
 }

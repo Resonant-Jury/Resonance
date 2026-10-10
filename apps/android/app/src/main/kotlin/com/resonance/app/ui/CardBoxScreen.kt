@@ -244,8 +244,8 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
                         BasicText(p.me.handle, style = AppFonts.heading(24f))
                         BasicText(p.me.bio ?: L10n.Me.bioEmpty, style = AppFonts.body(14f, color = Tokens.TextMuted))
                     }
-                    // The identity row ends on the pen alone, the app's settings glyph: a bare glyph, no frame of its own.
-                    OrganicIconButton(IconName.Pen, L10n.Me.editProfile, size = 20.dp) { open(Route.Settings) }
+                    // The identity row ends on the person glyph alone (the pen means write): a bare glyph, no frame of its own.
+                    OrganicIconButton(IconName.User, L10n.Me.editProfile, size = 20.dp) { open(Route.Settings) }
                 }
                 Session.Profile.Missing -> OrganicEmptyState(L10n.Auth.stepHandle)
                 Session.Profile.Failed -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { session.loadMe() } }, action = EmptyAction.Outline)
@@ -298,18 +298,19 @@ private val OwnedShelves = setOf(TabGetCardBox.published, TabGetCardBox.`private
  */
 private fun LazyListScope.managedCards(session: Session, cards: List<FeedCard>, open: (Route) -> Unit, resumesDrafts: Boolean, layout: CardListLayout) {
     val tap: (FeedCard) -> Route = { card -> if (resumesDrafts) Route.Write(cardId = card.id) else Route.Card(card.routeKey, card) }
+    val palettes = cardFamilies(cards)
     if (layout.isGrid) return borderedCards(cards, open, null, false, layout, tap) { card, i ->
-        val hue = CardPalette(card.accentHue, i).hue
+        val hue = CardPalette.of(palettes[i]).hue
         // 14 in from the card's corner, as on a band; the trigger's 44dp hit box reaches 3 past the chip.
         Box(Modifier.align(Alignment.TopEnd).padding(top = 14.dp - 3.dp, end = 14.dp - 3.dp)) {
             CardActionsMenu(session, card.id, card.visibility.value, open, seed = hue, hue = hue, referenceCardId = card.referenceCardId)
         }
     }
     itemsIndexed(cards, key = { _, c -> c.id }) { i, card ->
-        val hue = CardPalette(card.accentHue, i).hue
+        val hue = CardPalette.of(palettes[i]).hue
         Column(Modifier.fillMaxWidth()) {
             Box {
-                StoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(tap(card)) }, inset = layout.inset)
+                StoryCard(card.story(), i, i == cards.lastIndex, Modifier.plainClickable { open(tap(card)) }, inset = layout.inset, palette = palettes[i])
                 // The chip 14 in from the card's corner (the card's box sits 20 in from the screen, or
                 // its column's inset less the band's 18); the trigger's 44dp hit box reaches 3 past the 38dp chip.
                 Box(Modifier.align(Alignment.TopEnd).padding(top = 14.dp - 3.dp, end = layout.inset - 4.dp - 3.dp)) {

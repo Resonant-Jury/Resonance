@@ -246,7 +246,7 @@ private fun BlockedNotice(session: Session, userId: String, handle: String, onUn
             style = AppFonts.body(14.5f, lineHeight = 1.6f, color = Tokens.TextMuted).copy(textAlign = TextAlign.Center),
             modifier = Modifier.padding(bottom = 8.dp),
         )
-        OrganicButton(if (busy) "…" else L10n.Safety.unblock, variant = ButtonVariant.Tonal, small = true, enabled = !busy) {
+        OrganicButton(L10n.Safety.unblock, variant = ButtonVariant.Tonal, small = true, loading = busy) {
             busy = true
             scope.launch {
                 runCatching { session.safety?.unblock(userId) }.onSuccess { onUnblocked() }

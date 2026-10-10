@@ -53,10 +53,12 @@ object OklchColor {
 
 /**
  * The story-card palette (StoryCard.tsx, lib/design/dominantHue): the slot
- * nearest the cover's dominant hue, or by position when there is none.
+ * nearest the cover's dominant hue, or by position when there is none — a
+ * card's own preference. A card in a list wears the family [palettes] gives it
+ * there instead ([of]), so no card shares one with the three before it.
  */
-class CardPalette(accentHue: Double?, position: Int) {
-    val index: Int = accentHue?.let(::nearest) ?: Math.floorMod(position, HUES.size)
+class CardPalette private constructor(val index: Int) {
+    constructor(accentHue: Double?, position: Int) : this(preferred(accentHue, position))
     val hue: Double get() = HUES[index]
     val fill: Color get() = Tokens.CardFills[index]
     val border: Color get() = Tokens.CardBorders[index]
@@ -77,12 +79,47 @@ class CardPalette(accentHue: Double?, position: Int) {
         /** CARD_FILLS' lightness (%) and chroma, in palette order. */
         private val FILL_LC = listOf(90.0 to 0.065, 94.0 to 0.032, 93.0 to 0.042, 92.0 to 0.075, 92.0 to 0.033, 89.0 to 0.047)
 
-        fun nearest(hue: Double): Int {
-            fun distance(a: Double, b: Double): Double {
-                val d = abs(a - b) % 360
-                return min(d, 360 - d)
+        private fun distance(a: Double, b: Double): Double {
+            val d = abs(a - b) % 360
+            return min(d, 360 - d)
+        }
+
+        fun nearest(hue: Double): Int = HUES.indices.minBy { distance(hue, HUES[it]) }
+
+        /** The palette of family [index] (0…5, in [HUES] order): a card coloured by its list ([palettes]). */
+        fun of(index: Int): CardPalette = CardPalette(Math.floorMod(index, HUES.size))
+
+        /** A card's own family (cardColours.ts `preferredPalette`): nearest its cover's hue, else its position's. */
+        fun preferred(accentHue: Double?, position: Int): Int = accentHue?.let(::nearest) ?: Math.floorMod(position, HUES.size)
+
+        /** How many cards before a card its family must differ from (`CARD_COLOUR_WINDOW`). */
+        const val WINDOW = 3
+
+        /**
+         * For each family, the other five, nearest hue first, equally near the lower index first
+         * (`CARD_FAMILY_ORDER`): where a clash moves a card.
+         */
+        val ORDER: List<List<Int>> = HUES.indices.map { family ->
+            HUES.indices.filter { it != family }.sortedWith(compareBy<Int>({ distance(HUES[family], HUES[it]) }, { it }))
+        }
+
+        /**
+         * The family of every card of a list, in display order, from the cards' cover hues (null:
+         * none) — cardColours.ts `cardPalettes`, pinned by native/fixtures/card-colours.json. A card
+         * keeps its preference unless one of the [WINDOW] cards before it wears it, then takes the
+         * first family of [ORDER] none of them wears. Colour the list as it is shown (after blocks,
+         * across every loaded page, skeletons after the cards as hue-less cards): each card depends
+         * only on those before it, so appending a page recolours nothing, and one rule serves one
+         * column, two and three (row-major) alike.
+         */
+        fun palettes(hues: List<Double?>): List<Int> {
+            val out = ArrayList<Int>(hues.size)
+            for (i in hues.indices) {
+                val near = out.subList(maxOf(0, i - WINDOW), i)
+                val own = preferred(hues[i], i)
+                out.add(if (own in near) ORDER[own].first { it !in near } else own)
             }
-            return HUES.indices.minBy { distance(hue, HUES[it]) }
+            return out
         }
     }
 }

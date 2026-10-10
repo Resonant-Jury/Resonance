@@ -38,11 +38,13 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
+import com.resonance.kit.l10n.L10n
 import com.resonance.geometry.SegValue
 import com.resonance.geometry.WobRectOptions
 import com.resonance.geometry.wobRect
@@ -70,6 +72,8 @@ class Segment(
     /** The glyph drawn filled (a saved bookmark), and its pen. */
     val iconFill: Color? = null,
     val iconStroke: Float = Tokens.InkStrong.value,
+    /** Working on its tap (design note B6): its loader in the glyph's place, its words kept, no tap; heard as busy. */
+    val loading: Boolean = false,
     val onClick: () -> Unit,
 )
 
@@ -164,17 +168,19 @@ fun SegmentedActionBar(
                         .width(widths[i].dp)
                         .fillMaxHeight()
                         .heightIn(min = 48.dp)
-                        .clickable(source, indication = null, enabled = enabled, role = if (seg.selected != null) Role.RadioButton else Role.Button, onClick = seg.onClick)
+                        .clickable(source, indication = null, enabled = enabled && !seg.loading, role = if (seg.selected != null) Role.RadioButton else Role.Button, onClick = seg.onClick)
                         .semantics {
                             (seg.contentDescription ?: seg.label.takeIf { collapsed })?.let { contentDescription = it }
                             seg.selected?.let { selected = it }
+                            if (seg.loading) stateDescription = L10n.App.busy
                         }
                         .padding(horizontal = if (collapsed) 16.dp else SegmentedLayout.PAD.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(SegmentedLayout.GAP.dp, Alignment.CenterHorizontally),
                 ) {
                     seg.icon?.let {
-                        OrganicIcon(
+                        if (seg.loading) ButtonLoader(seg.textColor, SegmentedLayout.ICON.dp, Modifier.offset(y = labelInkDrop(14f)))
+                        else OrganicIcon(
                             it, Modifier.offset(y = labelInkDrop(14f)), size = SegmentedLayout.ICON.dp,
                             color = seg.textColor, strokeWidth = seg.iconStroke, fill = seg.iconFill,
                         )
