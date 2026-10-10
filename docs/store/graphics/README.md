@@ -20,6 +20,9 @@ raw/android-en/<key>.png   模擬器截圖（App 設成英文）  ─┘
 | `out/play/feature-graphic.jpg` | 1024×500（zh-TW） | 不用截圖 |
 | `out/play/feature-graphic.en.jpg` | 1024×500（en-US） | 不用截圖 |
 | `out/play/icon-512.png` | 512×512（32-bit PNG） | `AppIcon-1024.png` 縮小，沒有重繪 |
+| `out/ipad/<nn>-<key>.jpg` | 2752×2064（App Store 13" iPad，橫向） | 只用 `raw/ipad`（iPad Pro 13-inch 模擬器，橫向） |
+| `out/tablet/<nn>-<key>.jpg` | 2560×1440（Play 7 吋與 10 吋平板，16:9） | 只用 `raw/tablet`（Pixel Tablet AVD，橫向） |
+| `out/ipad-en/`、`out/tablet-en/` | 同上（English） | `raw/ipad-en`、`raw/tablet-en` |
 
 iOS 與 Android 一定各自用自己的截圖：商店會退回拿另一個平台截圖的版本。英文那組也一樣各用各的 `-en` 資料夾，上傳到各商店的 English 本地化。缺哪一張（中英文都一樣），就會用 `raw/_placeholder/` 的假畫面頂替（畫面上有紅色「PLACEHOLDER」標籤，英文那組是英文標籤），並在結尾警告；上傳前確認沒有警告。
 
@@ -31,6 +34,7 @@ iOS 與 Android 一定各自用自己的截圖：商店會退回拿另一個平�
 - Android：手機模擬器：`adb exec-out screencap -p > docs/store/graphics/raw/android/feed.png`
 - 英文版：把 App 切到 English（設定裡的語言，或模擬器 / 手機的系統語言），用同一批資料和同樣的畫面各拍一次，存到 `raw/ios-en/`、`raw/android-en/`，檔名與 key 都和中文那組相同。
 - 資料用 `npx tsx scripts/seed-emulator.ts` 灌進 Firebase emulator，只會碰到本機的 emulator。
+- 平板（`ipad`、`tablet`）都拍橫向。iPad 的狀態列會被裁掉（模擬器覆寫的日期一律是英文），拍之前把 iPad 的多工設定改成「全螢幕 App」，右下角才不會有視窗縮放把手。思緒地圖那張用 `seed-store-demo.ts --wide-map`（兩個區域左右並排，填滿橫向畫面）；寫作那張用一般的上下排（地圖在編輯區旁邊）。平板有幾張換成專屬的副標（`SLIDES` 的 `tabletCopy`）。
 
 ## 重新產圖
 

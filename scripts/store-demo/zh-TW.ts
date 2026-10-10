@@ -211,6 +211,34 @@ const CARDS: CardSpec[] = [
       '謝謝你寫下它。',
     ],
   },
+  {
+    id: 'my-first-night-in-kyoto',
+    author: 'shiguang',
+    title: '京都的第一個晚上',
+    hue: 18,
+    ago: 1100,
+    reads: 76,
+    ref: 'first-lamp-in-my-rental',
+    tags: ['回應', '旅居'],
+    paragraphs: [
+      '剛到京都那晚，六疊大的房間只有一顆光禿禿的燈泡。我坐在還沒拆的紙箱上，聽著隔壁電車經過的聲音，一點都不覺得這裡是家。',
+      '隔天我去百元商店買了一盞紙燈罩。讀到你的卡片才想起來，那天晚上燈一亮，我第一次在這座城市睡得很好。',
+    ],
+  },
+  {
+    id: 'the-lamp-after-a-night-shift',
+    author: 'haiyan',
+    title: '下夜班的那盞燈',
+    hue: 215,
+    ago: 1200,
+    reads: 64,
+    ref: 'first-lamp-in-my-rental',
+    tags: ['回應', '夜晚'],
+    paragraphs: [
+      '下夜班回到家，通常天都快亮了。我總是先開玄關那盞小燈，換好鞋，才覺得這一天真的結束了。',
+      '讀到你的那一圈光，我才知道，原來我每天打開的不只是一盞燈。',
+    ],
+  },
 
   // ---- older cards ----
   {

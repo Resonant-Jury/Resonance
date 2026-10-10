@@ -216,6 +216,34 @@ const CARDS: CardSpec[] = [
       'Thank you for writing it.',
     ],
   },
+  {
+    id: 'my-first-night-in-kyoto',
+    author: 'noor',
+    title: 'My First Night in Kyoto',
+    hue: 18,
+    ago: 1100,
+    reads: 76,
+    ref: 'first-lamp-in-my-rental',
+    tags: ['response', 'abroad'],
+    paragraphs: [
+      'My first night in Kyoto, my six-tatami room had one bare bulb. I sat on a box I hadn’t opened yet, listening to the trains go by next door, and nothing about it felt like home.',
+      'The next day I bought a paper lampshade at the hundred-yen shop. Your card reminded me: the night that lamp came on was the first night I slept well in this city.',
+    ],
+  },
+  {
+    id: 'the-lamp-after-a-night-shift',
+    author: 'kai',
+    title: 'The Lamp After a Night Shift',
+    hue: 215,
+    ago: 1200,
+    reads: 64,
+    ref: 'first-lamp-in-my-rental',
+    tags: ['response', 'night'],
+    paragraphs: [
+      'When I get home from a night shift it’s nearly dawn. I always switch on the little lamp by the door first, take off my shoes, and only then does the day feel over.',
+      'Reading about your circle of light, I realised it isn’t just a lamp I switch on every morning.',
+    ],
+  },
 
   // ---- older cards ----
   {

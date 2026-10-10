@@ -118,6 +118,22 @@ export function thoughtMap(
   };
 }
 
+/**
+ * The same map laid out for a landscape tablet (`seed-store-demo.ts --wide-map`): the second zone beside the
+ * first instead of under it, so the whole map fills a wide screen at a zoom where the cards can be read. The
+ * phones' shots and the tablets' writer (the map beside the editor pane) use the stacked one.
+ */
+export function wideThoughtMap(map: DemoThoughtMap): DemoThoughtMap {
+  const [first, second] = map.zones;
+  const dx = first.x + first.w + 110 - second.x;
+  const dy = first.y - second.y;
+  return {
+    zones: map.zones.map((z) => (z.id === second.id ? { ...z, x: z.x + dx, y: z.y + dy } : z)),
+    nodes: map.nodes.map((n) => (n.zone === second.id ? { ...n, x: n.x + dx, y: n.y + dy } : n)),
+    edges: map.edges,
+  };
+}
+
 /** The web's limits on a pen name and a bio (lib/api/v1/schemas.ts Handle, BIO_MAX). */
 const HANDLE_MIN = 2;
 const HANDLE_MAX = 20;

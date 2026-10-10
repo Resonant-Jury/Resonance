@@ -15,7 +15,8 @@ import { wobCircle } from '../../../src/lib/design/wobCircle';
 import { wobRect } from '../../../src/lib/design/wobRect';
 import { BUILD, RAW, mkdirp, readTokens, screenshot, variantDir, type Lang } from './lib';
 
-export type Platform = 'ios' | 'android';
+/** The phones (ios, android) and the tablets: an iPad 13" (ipad) and an Android tablet (tablet), both landscape. */
+export type Platform = 'ios' | 'android' | 'ipad' | 'tablet';
 export const KEYS = ['feed', 'card', 'write', 'resonance', 'messages', 'thoughtmap'] as const;
 export type Key = (typeof KEYS)[number];
 
@@ -23,6 +24,8 @@ export type Key = (typeof KEYS)[number];
 export const PLACEHOLDER_DIMS: Record<Platform, { w: number; h: number }> = {
   ios: { w: 1320, h: 2868 }, // iPhone 6.9"
   android: { w: 1080, h: 2400 }, // Pixel-class
+  ipad: { w: 2752, h: 2064 }, // iPad Pro 13" (M5) simulator, landscape
+  tablet: { w: 2560, h: 1600 }, // Pixel Tablet AVD, landscape
 };
 
 const T = readTokens();
@@ -236,7 +239,7 @@ function mockHtml(platform: Platform, key: Key, lang: Lang): string {
   const zoom = w / LOGICAL_W;
   const LH = Math.round(h / zoom);
   boxSeed = 3 + KEYS.indexOf(key) * 40;
-  const ios = platform === 'ios';
+  const ios = platform === 'ios' || platform === 'ipad';
   const statusH = ios ? 54 : 34;
   const showAppBar = key === 'feed' || key === 'thoughtmap';
   const nav = ['首頁', '寫', '訊息', '我'];

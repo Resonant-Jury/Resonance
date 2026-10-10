@@ -5,6 +5,7 @@
  *
  *   npx tsx scripts/seed-store-demo.ts             # the zh-TW world (default)
  *   npx tsx scripts/seed-store-demo.ts --lang=en   # the English world
+ *   npx tsx scripts/seed-store-demo.ts --wide-map  # her thought map's zones side by side (the tablets' map shot)
  *
  * It first CLEARS both emulators (Auth and Firestore, project demo-resonance),
  * so it replaces whatever the test world (or the other language) held — the
@@ -38,7 +39,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { emulatorEnv, EMULATOR_AUTH_PORT, EMULATOR_FIRESTORE_PORT, EMULATOR_PROJECT_ID } from './emulator-env.mjs';
 import { en } from './store-demo/en';
-import { checkWorld, type CardSpec, type DemoLang, type DemoWorld, type Writer } from './store-demo/shared';
+import { checkWorld, wideThoughtMap, type CardSpec, type DemoLang, type DemoWorld, type Writer } from './store-demo/shared';
 import { zhTW } from './store-demo/zh-TW';
 
 export type { CardSpec, DemoLang, DemoWorld, Writer };
@@ -293,10 +294,11 @@ async function main() {
 
   // ---- her thought map ----
   const map = `thoughtMaps/${viewer.uid}`;
-  for (const z of world.map.zones) {
+  const layout = process.argv.includes('--wide-map') ? wideThoughtMap(world.map) : world.map;
+  for (const z of layout.zones) {
     put(`${map}/groups/${z.id}`, { title: z.title, hue: z.hue, x: z.x, y: z.y, w: z.w, h: z.h, createdAt: at(60) });
   }
-  for (const n of world.map.nodes) {
+  for (const n of layout.nodes) {
     put(`${map}/nodes/${n.cardId}`, { cardId: n.cardId, x: n.x, y: n.y, groupId: n.zone, createdAt: at(60), updatedAt: at(60) });
   }
   for (const e of world.map.edges) {

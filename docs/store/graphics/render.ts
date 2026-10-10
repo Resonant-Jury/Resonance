@@ -3,7 +3,7 @@
  * feature graphic and the Play icon, in Traditional Chinese (zh-TW) and English (en-US).
  *
  *   npx tsx docs/store/graphics/render.ts                 # everything, both languages
- *   npx tsx docs/store/graphics/render.ts ios             # one target: ios | android | play
+ *   npx tsx docs/store/graphics/render.ts ios             # one target: ios | android | ipad | tablet | play
  *   npx tsx docs/store/graphics/render.ts ios --only=feed,card
  *   npx tsx docs/store/graphics/render.ts --lang=en       # one language: --lang=zh-TW | --lang=en (default: both)
  *   npx tsx docs/store/graphics/render.ts ios android --lang=en --check
@@ -14,6 +14,9 @@
  *         raw/android/<key>.png      (emulator captures, zh-TW app)   → out/android/<nn>-<key>.jpg      1080×1920
  *         raw/ios-en/<key>.png       (the same, app set to English)   → out/ios-en/<nn>-<key>.jpg       1320×2868
  *         raw/android-en/<key>.png                                    → out/android-en/<nn>-<key>.jpg   1080×1920
+ *         raw/ipad/<key>.png         (iPad Pro 13" simulator, landscape) → out/ipad/<nn>-<key>.jpg         2752×2064
+ *         raw/tablet/<key>.png       (Pixel Tablet AVD, landscape)       → out/tablet/<nn>-<key>.jpg       2560×1440
+ *         raw/ipad-en/, raw/tablet-en/ (the same, app set to English)   → out/ipad-en/, out/tablet-en/
  * Writes  out/play/feature-graphic.jpg (1024×500, zh-TW), out/play/feature-graphic.en.jpg (the en-US
  *         listing's) and out/play/icon-512.png. --lang picks which feature graphic is made (the icon always is).
  * iOS and Android are built ONLY from their own raw folder (the stores reject a
@@ -62,6 +65,8 @@ import { KEYS, ensurePlaceholder, type Key, type Platform } from './placeholders
 const CANVAS: Record<Platform, { w: number; h: number }> = {
   ios: { w: 1320, h: 2868 }, // App Store, 6.9" iPhone
   android: { w: 1080, h: 1920 }, // Play phone, 9:16
+  ipad: { w: 2752, h: 2064 }, // App Store, 13" iPad, landscape
+  tablet: { w: 2560, h: 1440 }, // Play 7" and 10" tablet, 16:9 (each side within 1080–3840 for both)
 };
 const FEATURE = { w: 1024, h: 500 };
 
@@ -74,11 +79,41 @@ const FEATURE = { w: 1024, h: 500 };
  *   Write shot keeps its icons whole (~2818) without a sliver of the labels below them (~2850).
  * Re-check both against a new capture.
  */
-const CROP_BOTTOM: Record<Platform, number> = { ios: 0.014, android: 0.019 };
+const CROP_BOTTOM: Record<Platform, number> = { ios: 0.014, android: 0.019, ipad: 0.006, tablet: 0.0263 };
+/**
+ * Crop this fraction off the very top of a raw capture.
+ * ipad 0.024 (the 24 pt status bar of the 13" iPad, 50 of 2064 px): the simulator's status-bar override writes its
+ *   date in English whatever the language, so the iPad sets show the app from its header down.
+ * The phones and the Android tablet keep their (demo-mode) status bars.
+ * (tablet's CROP_BOTTOM 0.0263, 1600 → 1558 px, drops the gesture handle at rows 1564–1571; ipad's 0.006 the home
+ * indicator at the very bottom.)
+ */
+const CROP_TOP: Record<Platform, number> = { ios: 0, android: 0, ipad: 0.024, tablet: 0 };
 /** Clear paper kept between the subline and the top of the big background blob, as a fraction of the canvas width. */
 const BLOB_CLEAR = 0.03;
 /** Screen corner radius as a fraction of the screenshot width (the raw captures are square). */
-const SCREEN_RADIUS: Record<Platform, number> = { ios: 0.13, android: 0.1 };
+const SCREEN_RADIUS: Record<Platform, number> = { ios: 0.13, android: 0.1, ipad: 0.026, tablet: 0.02 };
+
+/**
+ * How a platform's slide is laid out, as fractions of the canvas's SHORT side (the width of a phone slide, the
+ * height of a tablet one): the type scale (× TYPE), the pen scale (× the 390-wide phone unit), the space above
+ * the headline, between the subline and the device, under the device, the bezel; the device's widest share of
+ * the canvas width; and the capture aspect (width / height) a raw file is expected to have.
+ */
+interface Layout {
+  text: number;
+  pen: number;
+  padTop: number;
+  gap: number;
+  bottom: number;
+  bezel: number;
+  maxW: number;
+  aspect: [number, number];
+}
+const PHONE: Layout = { text: 1, pen: 1, padTop: 0.085, gap: 0.055, bottom: 0.06, bezel: 0.022, maxW: 0.86, aspect: [0.4, 0.62] };
+const TABLET: Layout = { text: 0.74, pen: 0.62, padTop: 0.06, gap: 0.04, bottom: 0.05, bezel: 0.015, maxW: 0.86, aspect: [1.25, 1.8] };
+const LAYOUT: Record<Platform, Layout> = { ios: PHONE, android: PHONE, ipad: TABLET, tablet: TABLET };
+const isTablet = (p: Platform) => LAYOUT[p] === TABLET;
 
 type AccentName = 'terracotta' | 'sage' | 'yellow' | 'lavender' | 'sky' | 'peach';
 
@@ -91,6 +126,8 @@ interface Copy {
 interface Slide {
   key: Key;
   copy: Record<Lang, Copy>; // one line each at the slide's size (--check fails on a wrap or a shrunk font)
+  /** The tablets' copy where it differs (what the wide layout shows that a phone doesn't). */
+  tabletCopy?: Record<Lang, Copy>;
   accent: AccentName;
   side: 1 | -1; // which side the big blob leans to
   seed: number;
@@ -109,6 +146,10 @@ const SLIDES: Slide[] = [
       'zh-TW': { headline: '用故事回應故事', em: '回應', subline: '讀到觸動你的卡片，寫下你自己的經歷' },
       en: { headline: 'Answer stories with stories', em: 'Answer', subline: 'When a card moves you, write your own' },
     },
+    tabletCopy: {
+      'zh-TW': { headline: '用故事回應故事', em: '回應', subline: '在大螢幕上，一次攤開更多卡片' },
+      en: { headline: 'Answer stories with stories', em: 'Answer', subline: 'More cards at a glance on the big screen' },
+    },
   },
   {
     key: 'card', accent: 'sage', side: -1, seed: 23, cropBottom: { ios: 0.028 },
@@ -123,6 +164,10 @@ const SLIDES: Slide[] = [
       'zh-TW': { headline: '寫下你的故事', em: '故事', subline: '在手繪紙張上，決定給誰看' },
       en: { headline: 'Write your story', em: 'your story', subline: 'On hand-drawn paper, shared as you choose' },
     },
+    tabletCopy: {
+      'zh-TW': { headline: '寫下你的故事', em: '故事', subline: '思緒地圖就在旁邊，邊寫邊看見關聯' },
+      en: { headline: 'Write your story', em: 'your story', subline: 'With your thought map right beside the page' },
+    },
   },
   {
     key: 'resonance', accent: 'lavender', side: -1, seed: 41, cropBottom: { ios: 0.0377 },
@@ -136,6 +181,10 @@ const SLIDES: Slide[] = [
     copy: {
       'zh-TW': { headline: '因故事相遇，繼續聊', em: '相遇', subline: '連結之間的私訊' },
       en: { headline: 'Meet through a story', em: 'a story', subline: 'Private messages between connections' },
+    },
+    tabletCopy: {
+      'zh-TW': { headline: '因故事相遇，繼續聊', em: '相遇', subline: '對話清單和聊天並排，一眼看完' },
+      en: { headline: 'Meet through a story', em: 'a story', subline: 'Your conversations and the chat side by side' },
     },
   },
   {
@@ -181,10 +230,16 @@ const SLIDE_FONTS: Record<Lang, string[]> = {
  */
 const waveUnits = (em: string, lang: Lang) => (lang === 'en' ? Math.max(2, Math.round(em.length * 0.55)) : [...em].length);
 
+/** The words a slide wears on a platform: the tablets' own where the slide has them. */
+const copyFor = (slide: Slide, p: Platform, lang: Lang): Copy => (isTablet(p) && slide.tabletCopy ? slide.tabletCopy[lang] : slide.copy[lang]);
+
 for (const s of SLIDES) {
-  for (const lang of Object.keys(s.copy) as Lang[]) {
-    const { headline, em } = s.copy[lang];
-    if (headline.split(em).length !== 2) throw new Error(`${s.key} (${lang}): "${em}" must occur exactly once in "${headline}"`);
+  for (const copy of [s.copy, s.tabletCopy]) {
+    if (!copy) continue;
+    for (const lang of Object.keys(copy) as Lang[]) {
+      const { headline, em } = copy[lang];
+      if (headline.split(em).length !== 2) throw new Error(`${s.key} (${lang}): "${em}" must occur exactly once in "${headline}"`);
+    }
   }
 }
 
@@ -316,7 +371,8 @@ function htmlDoc(title: string, css: string, fonts: string, body: string, lang =
 interface Geometry {
   W: number;
   H: number;
-  s: number; // canvas width in "390-wide phone" units, so pen weights match the app's
+  U: number; // the canvas's short side: what type, pads and shapes are measured in
+  s: number; // pen scale: the short side in "390-wide phone" units (× the layout's pen), so pen weights match the app's
   padTop: number;
   hFs: number;
   sFs: number;
@@ -330,24 +386,26 @@ interface Geometry {
   innerH: number;
 }
 
-/** Lay the phone out under the text; the screenshot keeps its aspect ratio, nothing is squashed. */
+/** Lay the device out under the text; the screenshot keeps its aspect ratio, nothing is squashed. */
 function geometry(p: Platform, lang: Lang, rawW: number, rawH: number): Geometry {
   const { w: W, h: H } = CANVAS[p];
-  const padTop = Math.round(W * 0.085);
-  const hFs = Math.round(W * TYPE[lang].h);
-  const sFs = Math.round(W * TYPE[lang].s);
+  const L = LAYOUT[p];
+  const U = Math.min(W, H);
+  const padTop = Math.round(U * L.padTop);
+  const hFs = Math.round(U * TYPE[lang].h * L.text);
+  const sFs = Math.round(U * TYPE[lang].s * L.text);
   const textH = Math.round(hFs * 1.2 + hFs * 0.34 + sFs * 1.45);
-  const gap = Math.round(W * 0.055);
+  const gap = Math.round(U * L.gap);
   const top = padTop + textH + gap;
-  const bottom = Math.round(W * 0.06);
-  const bezel = Math.round(W * 0.022);
-  const aspect = rawW / (rawH * (1 - CROP_BOTTOM[p]));
+  const bottom = Math.round(U * L.bottom);
+  const bezel = Math.round(U * L.bezel);
+  const aspect = rawW / (rawH * (1 - CROP_TOP[p] - CROP_BOTTOM[p]));
 
   let outerH = H - top - bottom;
   let innerH = outerH - 2 * bezel;
   let innerW = Math.round(innerH * aspect);
   let outerW = innerW + 2 * bezel;
-  const maxW = Math.round(W * 0.86);
+  const maxW = Math.round(W * L.maxW);
   if (outerW > maxW) {
     outerW = maxW;
     innerW = outerW - 2 * bezel;
@@ -355,11 +413,11 @@ function geometry(p: Platform, lang: Lang, rawW: number, rawH: number): Geometry
     outerH = innerH + 2 * bezel;
   }
   const y = top + Math.round((H - top - bottom - outerH) / 2);
-  return { W, H, s: W / 390, padTop, hFs, sFs, bezel, textBottom: padTop + textH, x: Math.round((W - outerW) / 2), y, outerW, outerH, innerW, innerH };
+  return { W, H, U, s: (U / 390) * L.pen, padTop, hFs, sFs, bezel, textBottom: padTop + textH, x: Math.round((W - outerW) / 2), y, outerW, outerH, innerW, innerH };
 }
 
 function doodles(g: Geometry, slide: Slide, A: Accent) {
-  const { W, H, s } = g;
+  const { W, H, U, s } = g;
   const sd = slide.side;
   const pen = INK * s;
   const rnd = makePrng(slide.seed);
@@ -368,23 +426,23 @@ function doodles(g: Geometry, slide: Slide, A: Accent) {
   const grainId = 'blobgrain';
   // The big blob sits behind the phone. Its top edge must never run through the headline or subline, so keep it
   // BLOB_CLEAR below them (1.12 covers how far the wobble can push the outline past the radius).
-  const bigBlobR = W * 0.5;
-  const bigBlobY = Math.max(g.y + g.outerH * 0.3, g.textBottom + W * BLOB_CLEAR + bigBlobR * 1.12);
+  const bigBlobR = U * 0.5;
+  const bigBlobY = Math.max(g.y + g.outerH * 0.3, g.textBottom + U * BLOB_CLEAR + bigBlobR * 1.12);
   const parts: string[] = [
     `<defs><filter id="${grainId}" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${num(0.9 / s)}" numOctaves="2" stitchTiles="stitch" seed="${slide.seed % 9}"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer><feComposite in2="SourceGraphic" operator="in"/></filter></defs>`,
     blob(W / 2 + sd * W * 0.27, bigBlobY, bigBlobR, slide.seed, A.tone, 0.62, grainId),
-    blob(W / 2 - sd * W * 0.44, g.y + g.outerH * 0.92, W * 0.3, slide.seed + 3, A.companion, 0.5, grainId),
-    blob(W / 2 + sd * W * 0.55, g.padTop * 0.2, W * 0.2, slide.seed + 5, A.companion, 0.4, grainId),
+    blob(W / 2 - sd * W * 0.44, g.y + g.outerH * 0.92, U * 0.3, slide.seed + 3, A.companion, 0.5, grainId),
+    blob(W / 2 + sd * W * 0.55, g.padTop * 0.2, U * 0.2, slide.seed + 5, A.companion, 0.4, grainId),
     // top corners, clear of the (centred) headline
-    ring(W / 2 - sd * W * 0.44, g.padTop * 0.62, W * 0.024, slide.seed + 1, A.mid, pen),
-    squiggle(W / 2 + sd * W * 0.33, g.padTop * 0.5, W * 0.1, -8, slide.seed + 2, A.mid, pen),
-    dot(W / 2 - sd * W * 0.36, g.padTop * 0.42, W * 0.008, slide.seed + 6, A.mid),
-    // peeking out of the margins beside the phone
+    ring(W / 2 - sd * W * 0.44, g.padTop * 0.62, U * 0.024, slide.seed + 1, A.mid, pen),
+    squiggle(W / 2 + sd * W * 0.33, g.padTop * 0.5, U * 0.1, -8, slide.seed + 2, A.mid, pen),
+    dot(W / 2 - sd * W * 0.36, g.padTop * 0.42, U * 0.008, slide.seed + 6, A.mid),
+    // peeking out of the margins beside the device
     squiggle(sideX(-sd), g.y + g.outerH * (0.36 + rnd() * 0.06), g.outerH * 0.13, 90, slide.seed + 7, A.mid, pen),
-    sparkle(sideX(sd), g.y + g.outerH * 0.16, W * 0.028, slide.seed + 8, A.mid, pen * 0.85),
-    ring(sideX(sd), g.y + g.outerH * 0.72, W * 0.02, slide.seed + 9, A.mid, pen),
-    dot(sideX(-sd), g.y + g.outerH * 0.62, W * 0.009, slide.seed + 10, A.mid),
-    dot(sideX(-sd) + W * 0.02, g.y + g.outerH * 0.64, W * 0.006, slide.seed + 11, A.mid),
+    sparkle(sideX(sd), g.y + g.outerH * 0.16, U * 0.028, slide.seed + 8, A.mid, pen * 0.85),
+    ring(sideX(sd), g.y + g.outerH * 0.72, U * 0.02, slide.seed + 9, A.mid, pen),
+    dot(sideX(-sd), g.y + g.outerH * 0.62, U * 0.009, slide.seed + 10, A.mid),
+    dot(sideX(-sd) + U * 0.02, g.y + g.outerH * 0.64, U * 0.006, slide.seed + 11, A.mid),
   ];
   void H;
   return parts.join('');
@@ -401,23 +459,24 @@ async function slideHtml(
 ): Promise<{ html: string; g: Geometry }> {
   const raw = imageSize(rawFile);
   const g = geometry(p, lang, raw.w, raw.h);
-  const { headline: headlineText, em, subline } = slide.copy[lang];
+  const { headline: headlineText, em, subline } = copyFor(slide, p, lang);
   const ty = TYPE[lang];
-  const { W, H, s } = g;
+  const { W, H, U, s } = g;
   const pen = INK * s;
   const penLight = INK_LIGHT * s;
 
-  // Keep the rows above the crop line; if this slide crops deeper than the platform default, trim the sides
-  // (centred) by the same ratio so the picture still fits the one phone frame every slide shares.
+  // Keep the rows between the crop lines; if this slide crops deeper than the platform default, trim the sides
+  // (centred) by the same ratio so the picture still fits the one device frame every slide shares.
   const cropBottom = slide.cropBottom?.[p] ?? CROP_BOTTOM[p];
   if (cropBottom < CROP_BOTTOM[p]) throw new Error(`${p}/${slide.key}: cropBottom ${cropBottom} is below the platform default ${CROP_BOTTOM[p]}`);
-  const rows = Math.round(raw.h * (1 - cropBottom));
-  const cols = Math.min(raw.w, Math.round(rows * (raw.w / (raw.h * (1 - CROP_BOTTOM[p])))));
+  const top = Math.round(raw.h * CROP_TOP[p]);
+  const rows = Math.round(raw.h * (1 - CROP_TOP[p] - cropBottom));
+  const cols = Math.min(raw.w, Math.round(rows * (raw.w / (raw.h * (1 - CROP_TOP[p] - CROP_BOTTOM[p])))));
   const left = Math.floor((raw.w - cols) / 2);
 
   // Resample once (lanczos) to the exact drawn size so Chrome doesn't rescale it again.
   const resized = await sharp(rawFile)
-    .extract({ left, top: 0, width: cols, height: rows })
+    .extract({ left, top, width: cols, height: rows })
     .flatten({ background: '#faf2e9' })
     .resize({ width: g.innerW, height: g.innerH, fit: 'fill', kernel: 'lanczos3' })
     .png()
@@ -425,8 +484,10 @@ async function slideHtml(
   const dataUri = `data:image/png;base64,${resized.data.toString('base64')}`;
 
   const R = Math.round(g.innerW * SCREEN_RADIUS[p]);
-  const outerD = wobRect(g.outerW, g.outerH, R + g.bezel, slide.seed, W * 0.0045, { segmentsH: 3, segmentsV: 5 });
-  const innerD = wobRect(g.innerW, g.innerH, R, slide.seed + 1, W * 0.0012, { cornerJitter: 0.25, segmentsH: 2, segmentsV: 2 });
+  // A landscape tablet's long sides run across: more wobble segments along them.
+  const wide = g.outerW > g.outerH;
+  const outerD = wobRect(g.outerW, g.outerH, R + g.bezel, slide.seed, U * 0.0045, { segmentsH: wide ? 5 : 3, segmentsV: wide ? 3 : 5 });
+  const innerD = wobRect(g.innerW, g.innerH, R, slide.seed + 1, U * 0.0012, { cornerJitter: 0.25, segmentsH: wide ? 3 : 2, segmentsV: 2 });
 
   const [before, after] = headlineText.split(em);
   const headline = `${esc(before)}<span class="em" style="color:${A.ink}">${esc(em)}${underline(waveUnits(em, lang), slide.seed + 4, A.mid)}</span>${esc(after)}`;
@@ -440,7 +501,7 @@ async function slideHtml(
     lang === 'en' ? `\n  .uline{bottom:${ty.uline}}` : ''
   }
   .phone{position:absolute;left:${g.x}px;top:${g.y}px;width:${g.outerW}px;height:${g.outerH}px;overflow:visible;
-    filter:drop-shadow(0 ${Math.round(W * 0.034)}px ${Math.round(W * 0.05)}px oklch(20% 0.04 60 / 0.24)) drop-shadow(0 ${Math.round(W * 0.006)}px ${Math.round(W * 0.012)}px oklch(20% 0.04 60 / 0.18))}`;
+    filter:drop-shadow(0 ${Math.round(U * 0.034)}px ${Math.round(U * 0.05)}px oklch(20% 0.04 60 / 0.24)) drop-shadow(0 ${Math.round(U * 0.006)}px ${Math.round(U * 0.012)}px oklch(20% 0.04 60 / 0.18))}`;
 
   const body = `<div class="canvas" data-slide="${variantDir(p, lang)}-${slide.key}">
   <svg class="layer" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
@@ -588,8 +649,9 @@ async function renderScreens(p: Platform, lang: Lang, T: Tokens, fonts: string, 
     const raw = await rawFor(p, lang, slide.key, regen);
     const rawSize = imageSize(raw.file);
     const aspect = rawSize.w / rawSize.h;
-    if (!raw.placeholder && (aspect < 0.4 || aspect > 0.62)) {
-      console.warn(`  ! ${path.relative(ROOT, raw.file)} is ${rawSize.w}x${rawSize.h}: that is not a portrait phone capture`);
+    const [lo, hi] = LAYOUT[p].aspect;
+    if (!raw.placeholder && (aspect < lo || aspect > hi)) {
+      console.warn(`  ! ${path.relative(ROOT, raw.file)} is ${rawSize.w}x${rawSize.h}: that is not a ${isTablet(p) ? 'landscape tablet' : 'portrait phone'} capture`);
       warnings.push(`${dir}/${slide.key} (odd aspect ${aspect.toFixed(2)})`);
     }
     const { html, g } = await slideHtml(T, fonts, p, lang, slide, A[slide.accent], raw.file);
@@ -602,7 +664,7 @@ async function renderScreens(p: Platform, lang: Lang, T: Tokens, fonts: string, 
     toJpeg(png, jpg);
     assertSize(jpg, w, h);
     const kb = Math.round(fs.statSync(jpg).size / 1024);
-    console.log(`  ${path.relative(ROOT, jpg)}  ${kb} KB  from ${rawSize.w}x${rawSize.h}, phone ${g.outerW}x${g.outerH}${raw.placeholder ? '  [PLACEHOLDER]' : ''}`);
+    console.log(`  ${path.relative(ROOT, jpg)}  ${kb} KB  from ${rawSize.w}x${rawSize.h}, device ${g.outerW}x${g.outerH}${raw.placeholder ? '  [PLACEHOLDER]' : ''}`);
     if (check) report(`${dir}/${name}`, SLIDE_FONTS[lang], await measure(htmlPath, w, h), w, h);
   }
 }
@@ -649,8 +711,8 @@ async function renderPlay(T: Tokens, fonts: string, langs: Lang[], check: boolea
 
 async function main() {
   const argv = process.argv.slice(2);
-  const targets = (['ios', 'android', 'play'] as const).filter((t) => argv.includes(t));
-  const run = targets.length ? targets : (['ios', 'android', 'play'] as const);
+  const targets = (['ios', 'android', 'ipad', 'tablet', 'play'] as const).filter((t) => argv.includes(t));
+  const run = targets.length ? targets : (['ios', 'android', 'ipad', 'tablet', 'play'] as const);
   const only = argv.find((a) => a.startsWith('--only='))?.slice(7).split(',') ?? null;
   const check = argv.includes('--check');
   const regen = argv.includes('--regen-placeholders');
@@ -662,7 +724,7 @@ async function main() {
   const T = readTokens();
   // The zh-TW screenshots and both feature graphics (the en one needs Playfair from this set).
   const copy = [
-    ...SLIDES.flatMap((s) => [s.copy['zh-TW'].headline, s.copy['zh-TW'].subline]),
+    ...SLIDES.flatMap((s) => [s.copy['zh-TW'], s.tabletCopy?.['zh-TW']].flatMap((c) => (c ? [c.headline, c.subline] : []))),
     TAGLINE.text,
     TAGLINE_EN.text,
     BRAND.latin,
@@ -678,7 +740,7 @@ async function main() {
         ])
       : '';
   // The English screenshots: Playfair Display for the headline, DM Sans for the subline, Latin glyphs only.
-  const copyEn = [...SLIDES.flatMap((s) => [s.copy.en.headline, s.copy.en.subline]), ' 0123456789'].join('');
+  const copyEn = [...SLIDES.flatMap((s) => [s.copy.en, s.tabletCopy?.en].flatMap((c) => (c ? [c.headline, c.subline] : []))), ' 0123456789'].join('');
   const fontsEn =
     langs.includes('en') && screens.length
       ? await embeddedFonts([
