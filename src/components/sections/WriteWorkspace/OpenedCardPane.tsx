@@ -1,8 +1,9 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
+import type { Ref } from 'react';
 import useSWR from 'swr';
-import { CardEditor } from '@/components/molecules/CardEditor/CardEditor';
+import { CardEditor, type CardEditorHandle } from '@/components/molecules/CardEditor/CardEditor';
 import { PageTitle } from '@/components/molecules/PageShell/PageShell';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { LoadError } from '@/components/molecules/LoadError/LoadError';
@@ -25,9 +26,18 @@ import styles from './WriteWorkspace.module.css';
  * than mounting an editor that would write straight through to readers.
  *
  * `titled={false}` leaves the title to the host: the writer's bar, or the
- * thought map pane's own header row.
+ * thought map pane's own header row. `editorRef` hands the host the editor's
+ * handle (folding the pane away saves at once).
  */
-export function OpenedCardPane({ card, titled = true }: { card: Card; titled?: boolean }) {
+export function OpenedCardPane({
+  card,
+  titled = true,
+  editorRef,
+}: {
+  card: Card;
+  titled?: boolean;
+  editorRef?: Ref<CardEditorHandle>;
+}) {
   const t = useTranslations('write');
   const locale = useLocale() as Locale;
   const { user } = useAuth();
@@ -64,6 +74,7 @@ export function OpenedCardPane({ card, titled = true }: { card: Card; titled?: b
       {titled && <PageTitle>{card.publishedAt ? t('editPublishedTitle') : t('editTitle')}</PageTitle>}
       <CardEditor
         key={card.id}
+        ref={editorRef}
         locale={locale}
         referenceCardId={card.referenceCardId}
         initial={{
