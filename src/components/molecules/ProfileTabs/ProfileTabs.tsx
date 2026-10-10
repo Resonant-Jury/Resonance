@@ -14,7 +14,6 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { Link, useRouter } from '@/i18n/navigation';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
 import { CARD_HUES } from '@/components/molecules/StoryCard/StoryCard';
-import { nearestCardHue } from '@/lib/design/dominantHue';
 import type { Card, User } from '@/lib/db/types';
 
 export type TabKey =
@@ -211,11 +210,9 @@ export function ProfileTabs({
           cardHref={managed && active === 'draft' ? (c) => `/write/${c.id}` : undefined}
           renderActions={
             managed
-              ? (c, i) => {
-                  // Match the card's own palette family (cover-image hue when
-                  // known, else StoryCard's position-based rotation).
-                  const cardHue =
-                    c.accentHue != null ? nearestCardHue(c.accentHue) : CARD_HUES[i % CARD_HUES.length];
+              ? (c, _i, palette) => {
+                  // Match the family the card wears (the list's choice).
+                  const cardHue = CARD_HUES[palette];
                   return (
                     <CardActionsMenu
                       card={{ id: c.id, visibility: c.visibility, slug: c.slug, referenceCardId: c.referenceCardId }}

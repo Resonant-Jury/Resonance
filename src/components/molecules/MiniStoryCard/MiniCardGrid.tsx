@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
+import { cardPalettes } from '@/lib/design/cardColours';
 import { MiniStoryCard } from './MiniStoryCard';
 import type { Card, User } from '@/lib/db/types';
 import { anonymousByline } from '@/lib/adapters/story';
@@ -13,6 +15,8 @@ export interface MiniCardGridProps {
 /** Grid of simplified, clickable mini cards (image + title + author only). */
 export function MiniCardGrid({ cards, authors }: MiniCardGridProps) {
   const t = useTranslations('card');
+  // No card wears the family of the three before it (one column or a row of three alike).
+  const palettes = useMemo(() => cardPalettes(cards.map((c) => c.accentHue)), [cards]);
   return (
     <div data-card-grid className={styles.grid}>
       {cards.map((card, i) => {
@@ -43,6 +47,7 @@ export function MiniCardGrid({ cards, authors }: MiniCardGridProps) {
               imageLabel={card.media?.label ?? card.thoughtCore.slice(0, 24)}
               accentHue={card.accentHue}
               index={i}
+              palette={palettes[i]}
               isLast={i === cards.length - 1}
             />
           </Link>

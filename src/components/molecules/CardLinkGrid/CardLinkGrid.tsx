@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { StoryCard } from '@/components/molecules/StoryCard/StoryCard';
 import type { Card, User } from '@/lib/db/types';
 import { cardToStory } from '@/lib/adapters/story';
+import { cardPalettes } from '@/lib/design/cardColours';
 import { Link } from '@/i18n/navigation';
 import { usePrefillCard } from '@/lib/data/cardPrefill';
 import styles from './CardLinkGrid.module.css';
@@ -17,9 +18,10 @@ export interface CardLinkGridProps {
   /**
    * Owner-management affordance rendered over the card's top-right corner
    * (outside the Link, so its clicks never navigate). Hover-revealed on
-   * pointer devices, always visible on touch.
+   * pointer devices, always visible on touch. `palette` is the colour family
+   * the card wears (CARD_HUES order), for a control that matches it.
    */
-  renderActions?: (card: Card, index: number) => ReactNode;
+  renderActions?: (card: Card, index: number, palette: number) => ReactNode;
   /**
    * Optional caption rendered directly under a card (e.g. the recommender's
    * 「為什麼這篇可能對你有共鳴」line). Sits outside the Link so it doesn't
@@ -68,6 +70,9 @@ export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCa
   const t = useTranslations('card');
   const cols = useFeedColumns();
   const prefill = usePrefillCard();
+  // One colouring for every width (no card wears the family of the three
+  // before it): the server's grid, one column and two or three alike.
+  const palettes = useMemo(() => cardPalettes(cards.map((c) => c.accentHue)), [cards]);
 
   const renderItem = (card: Card, i: number) => {
     const author = authors[card.authorId];
@@ -90,12 +95,13 @@ export function CardLinkGrid({ cards, authors, cardHref, renderActions, renderCa
           <StoryCard
             story={story}
             index={i}
+            palette={palettes[i]}
             isLast={i === cards.length - 1}
             isFirst={seamTop && i === 0}
             quote={quoteFor ? quoteFor(card, i) ?? undefined : undefined}
           />
         </Link>
-        {renderActions && <div className={styles.actions}>{renderActions(card, i)}</div>}
+        {renderActions && <div className={styles.actions}>{renderActions(card, i, palettes[i])}</div>}
         {renderCaption && <div className={styles.caption}>{renderCaption(card, i)}</div>}
       </div>
     );
