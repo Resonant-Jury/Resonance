@@ -86,9 +86,10 @@ extension View {
             case .settings: SettingsScreen()
             case let .settingsSection(section): SettingsSectionScreen(section: section)
             case let .thread(handle, uid, note): ThreadScreen(handle: handle, uid: uid, note: note)
-            case .thoughtMap: ThoughtMapScreen()
-            // The writer has its own bar and covers the header's tabs: it keeps no room for them.
-            case let .write(request): WriteScreen(request: request).environment(\.headerChrome, nil)
+            // The writer and the map are one workspace from 1200 across (round 5 E5); below it, the map
+            // alone and the writer under its bar — on a tablet the pushed page's header, as the card page's.
+            case .thoughtMap: WriteWorkspace(entry: .map)
+            case let .write(request): WriteWorkspace(entry: .writer(request))
             }
         }
     }

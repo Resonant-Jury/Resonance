@@ -53,6 +53,18 @@ enum TabChrome {
     }
 }
 
+/// Where a conversation opened from a page goes (round 5 E3). On a tablet a conversation belongs to
+/// the Messages tab wherever it is opened from (a bell row, a profile's message action, any `thread`
+/// route): that tab is chosen and shows it — beside the list in two panes, or pushed over the list —
+/// while the tab it came from keeps its own stack. In two panes the Messages tab's own pages (a
+/// profile pushed over the panes) hand it to the detail pane too. A phone pushes it where it is.
+enum ThreadPlacement {
+    static func opensInMessages(_ route: Route, from tab: AppTab, layout: LayoutClass) -> Bool {
+        guard case .thread = route, layout.topTabs else { return false }
+        return tab != .messages || layout == .expanded
+    }
+}
+
 /// What a tap on a tab does: the pen writes; another tab is chosen (where it was left); the chosen one
 /// goes back to its root, or, already there, back to the top of its list.
 enum TabTap: Equatable {
@@ -179,7 +191,13 @@ struct MainTabView: View {
                         .appRoutes()
                 }
                 .environment(\.openRoute, OpenRouteAction(
-                    push: { paths[t, default: []].append($0) },
+                    push: { route in
+                        if ThreadPlacement.opensInMessages(route, from: t, layout: window.layoutClass) {
+                            open(route)
+                        } else {
+                            paths[t, default: []].append(route)
+                        }
+                    },
                     popToRoot: { paths[t] = [] },
                     replaceTop: { route in
                         var path = paths[t] ?? []
@@ -345,6 +363,11 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     let title: String
     var headerSpacing: CGFloat
     var titleInBar: Bool
+    /// With the title in the bar, how far under its line the content starts on a phone (the card box
+    /// keeps 8 more: round 5 E2), and whether a tablet gives it the header's 32 (not the Messages
+    /// list, whose panes are fixed).
+    var phoneTop: CGFloat
+    var tabletGap: Bool
     let trailing: Trailing
     let banner: Banner
     let content: Content
@@ -373,15 +396,21 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     /// The bar's row above its wavy edge: 4 of air and the 44 lockup. A tablet's header carries the
     /// navigation and never slides away.
     private var travel: CGFloat { window.topTabs ? 0 : 48 }
-    private var topPadding: CGFloat { titleInBar ? 16 : title.isEmpty ? 0 : 40 }
+    private var topPadding: CGFloat {
+        guard titleInBar else { return title.isEmpty ? 0 : 40 }
+        return window.topTabs && tabletGap ? HeaderChrome.contentTop : phoneTop
+    }
     /// What the tab bar takes at the foot (nothing when the tabs are in the header).
     private var bottomRoom: CGFloat { window.topTabs ? 0 : OrganicTabBar<AppTab>.height + HeaderEdge.height }
 
-    init(_ title: String, headerSpacing: CGFloat = 20, titleInBar: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
+    init(_ title: String, headerSpacing: CGFloat = 20, titleInBar: Bool = false, phoneTop: CGFloat = 16, tabletGap: Bool = true,
+         @ViewBuilder trailing: () -> Trailing = { EmptyView() },
          @ViewBuilder banner: () -> Banner, @ViewBuilder content: () -> Content) {
         self.title = title
         self.headerSpacing = headerSpacing
         self.titleInBar = titleInBar
+        self.phoneTop = phoneTop
+        self.tabletGap = tabletGap
         self.trailing = trailing()
         self.banner = banner()
         self.content = content()
@@ -390,6 +419,8 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // A tablet's refresh keeps a taller gap open than the system's (round 5 E2).
+                SketchRefreshRoom()
                 if !titleInBar, !title.isEmpty {
                     OrganicLargeHeader(title) { trailing }
                         .padding(.bottom, headerSpacing)
@@ -432,8 +463,9 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height } action: { _, h in
             visibleHeight = h
         }
+        // Under the refresh, so the banner keeps riding on the list over a tablet's taller gap.
+        .overlay(alignment: .top) { SketchRefreshRiding { room in banner.offset(y: drawnDown + room - hidden) } }
         .sketchRefreshable(refresh)
-        .overlay(alignment: .top) { banner.offset(y: drawnDown - hidden) }
         .safeAreaInset(edge: .top, spacing: 0) {
             if headerAbove == nil {
                 OrganicBrandBar(title: titleInBar ? title : nil, scrolled: scrolled) { if titleInBar { trailing } }
@@ -448,9 +480,9 @@ struct TabScreen<Trailing: View, Banner: View, Content: View>: View {
 }
 
 extension TabScreen where Banner == EmptyView {
-    init(_ title: String, headerSpacing: CGFloat = 20, titleInBar: Bool = false, @ViewBuilder trailing: () -> Trailing = { EmptyView() },
-         @ViewBuilder content: () -> Content) {
-        self.init(title, headerSpacing: headerSpacing, titleInBar: titleInBar, trailing: trailing, banner: { EmptyView() },
-                  content: content)
+    init(_ title: String, headerSpacing: CGFloat = 20, titleInBar: Bool = false, phoneTop: CGFloat = 16, tabletGap: Bool = true,
+         @ViewBuilder trailing: () -> Trailing = { EmptyView() }, @ViewBuilder content: () -> Content) {
+        self.init(title, headerSpacing: headerSpacing, titleInBar: titleInBar, phoneTop: phoneTop, tabletGap: tabletGap,
+                  trailing: trailing, banner: { EmptyView() }, content: content)
     }
 }

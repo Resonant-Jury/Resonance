@@ -26,10 +26,13 @@ struct CardBoxScreen: View {
     /// The shelves of my own cards (OWNED_TABS): each card gets its ⋯.
     static let owned: Set<ReadingAPI.CardBoxShelf> = [.published, ._private, .draft]
 
+    private var phone: Bool { window.layoutClass == .compact }
+
     var body: some View {
-        TabScreen(L10n.App.Nav.me, titleInBar: true) {
-            header.alignedWithCardGrid().padding(.bottom, 24)
-            tabs.padding(.bottom, 28)
+        // A phone's card box keeps 8 more air under the bar's line and around the shelf tabs (round 5 E2).
+        TabScreen(L10n.App.Nav.me, titleInBar: true, phoneTop: 24) {
+            header.alignedWithCardGrid().padding(.bottom, phone ? 32 : 24)
+            tabs.padding(.bottom, phone ? 36 : 28)
             shelfContent
         }
         .refreshable {

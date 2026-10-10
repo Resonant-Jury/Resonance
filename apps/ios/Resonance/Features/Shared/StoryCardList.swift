@@ -61,8 +61,9 @@ struct CardColumns<Item: View>: View {
                 .padding(.horizontal, window.pad)
                 .frame(maxWidth: 1200)
                 .frame(maxWidth: .infinity)
-                // Under the bar a card's outline is never beneath it at rest (design §2).
-                .padding(.top, underBar ? 28 : 4)
+                // Under the bar a card's outline is never beneath it at rest (design §2): it starts the
+                // tablet header's 32 under its line (round 5 E2).
+                .padding(.top, underBar ? HeaderChrome.contentTop : 4)
                 .padding(.bottom, 8)
             } else {
                 LazyVStack(spacing: 0) {

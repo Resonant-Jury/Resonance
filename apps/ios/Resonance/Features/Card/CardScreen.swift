@@ -26,6 +26,12 @@ struct CardScreen: View {
     @State private var width: CGFloat?
     private static let pageSpace = "card.page"
 
+    /// A tablet's card page sets its lists' headings apart (round 5 E2): 64 above each, 56 down to its
+    /// cards — the same for every list.
+    private var tablet: Bool { window.topTabs }
+    static let tabletHeadingAbove: CGFloat = 64
+    static let tabletHeadingGap: CGFloat = 56
+
     /// The article's column, and the author rail beside it on a wide window.
     private var layout: CardPageLayout { .of(width: width ?? window.contentWidth, window: window.width) }
 
@@ -40,7 +46,9 @@ struct CardScreen: View {
                 CardAuthorRail(card: card, anonymous: model.detail?.anonymous ?? card.anonymous, isOwner: model.detail?.isOwner ?? false)
                     .frame(width: Tokens.cardRailW, alignment: .leading)
                     .padding(.leading, layout.railX)
-                    .padding(.top, 24)
+                    // 8 under the article's top, as it has been (a tablet's 32 under the header's line, round 5 E2).
+                    .headerGap(phone: 16)
+                    .padding(.top, 8)
                     .transition(.opacity)
             }
         }
@@ -189,11 +197,13 @@ struct CardScreen: View {
                         .font(AppFonts.heading(20))
                         .tracking(-0.01 * 20)
                         .foregroundStyle(Tokens.text)
-                        .padding(.bottom, 24)
+                        // A tablet's headings: 64 above (the 40 of the row before it, and 24), 56 to its cards.
+                        .padding(.top, tablet ? Self.tabletHeadingAbove - 40 : 0)
+                        .padding(.bottom, tablet ? Self.tabletHeadingGap : 24)
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .headerGap(phone: 16)
 
             if !model.links.isEmpty { MiniCardList(cards: model.links).padding(.bottom, 40) }
             // The article's own bottom padding — already there under a last row that keeps its own 40
@@ -202,11 +212,11 @@ struct CardScreen: View {
 
             let resonance = model.resonanceSection
             if !resonance.isEmpty {
-                section(L10n.Card.ResonanceSection.title, headingGap: 40) { MiniCardList(cards: resonance) }
+                section(L10n.Card.ResonanceSection.title, headingGap: tablet ? Self.tabletHeadingGap : 40) { MiniCardList(cards: resonance) }
             }
             if !model.related.isEmpty {
                 // Bands, and on an expanded window the bordered grid — as the lists above it (round 5 D3).
-                section(L10n.Card.related, headingGap: 56) { StoryCardList(cards: model.related) }
+                section(L10n.Card.related, headingGap: tablet ? Self.tabletHeadingGap : 56) { StoryCardList(cards: model.related) }
             }
             // The page's own air under its last section (editing your card is in its ⋯).
             Color.clear.frame(height: 40)
@@ -246,7 +256,7 @@ struct CardScreen: View {
             StorySkeleton()
         }
         .padding(.horizontal, 20)
-        .padding(.top, 16)
+        .headerGap(phone: 16)
     }
 
     /// The phone byline: avatar, pen name (→ their page), verified mark, region · date.
@@ -304,7 +314,7 @@ struct CardScreen: View {
                 .accessibilityAddTraits(.isHeader)
             cards()
         }
-        .padding(.top, 32)
+        .padding(.top, tablet ? Self.tabletHeadingAbove : 32)
         .padding(.bottom, 16)
     }
 
@@ -454,7 +464,7 @@ private struct CardDetailSkeleton: View {
             StorySkeleton()
         }
         .padding(.horizontal, 20)
-        .padding(.top, 16)
+        .headerGap(phone: 16)
         .accessibilityElement()
         .accessibilityLabel("Loading")
     }
