@@ -58,8 +58,9 @@ struct OnboardingScreen: View {
             // Finish sits at the end of the row, as on the web; it only works once the name is free.
             HStack {
                 Spacer(minLength: 0)
-                OrganicButton(creating ? L10n.Auth.creating : L10n.Auth.finish) { Task { await finish() } }
-                    .disabled(status != .available || creating)
+                OrganicButton(L10n.Auth.finish) { Task { await finish() } }
+                    .loading(creating)
+                    .disabled(status != .available && !creating)
             }
             .padding(.top, 24)
             if let error {

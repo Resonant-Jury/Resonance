@@ -47,21 +47,27 @@ public struct StoryCardView: View {
     var isLast: Bool
     var underBar: Bool
     var bordered: Bool
+    var family: Int?
     @State private var hovered = false
 
     /// `underBar`: the first card of a page whose bar's pen line is its top edge (home): no rule of
     /// its own on top, and its paper reaches up under the bar's wave (design §2). `bordered`: the
     /// web's desktop card instead of the band — its own hand-drawn outline, for a grid of columns on a
-    /// wide window (design §10).
-    public init(_ content: StoryCardContent, position: Int, isLast: Bool = false, underBar: Bool = false, bordered: Bool = false) {
+    /// wide window (design §10). `palette`: the family its list chose (``CardPalette/palettes(_:)``),
+    /// else its own preference.
+    public init(_ content: StoryCardContent, position: Int, isLast: Bool = false, underBar: Bool = false, bordered: Bool = false,
+                palette: Int? = nil) {
         self.content = content
         self.position = position
         self.isLast = isLast
         self.underBar = underBar
         self.bordered = bordered
+        self.family = palette
     }
 
-    private var palette: CardPalette { CardPalette(accentHue: content.accentHue, position: position) }
+    private var palette: CardPalette {
+        family.map(CardPalette.init(index:)) ?? CardPalette(accentHue: content.accentHue, position: position)
+    }
     private var seed: Double { Double(position * 77 + 13) }
 
     public var body: some View {
@@ -182,16 +188,18 @@ public struct StoryCardSkeleton: View {
     var isLast: Bool
     var underBar: Bool
     var bordered: Bool
+    var family: Int?
 
-    public init(position: Int, isLast: Bool = false, underBar: Bool = false, bordered: Bool = false) {
+    public init(position: Int, isLast: Bool = false, underBar: Bool = false, bordered: Bool = false, palette: Int? = nil) {
         self.position = position
         self.isLast = isLast
         self.underBar = underBar
         self.bordered = bordered
+        self.family = palette
     }
 
     public var body: some View {
-        let palette = CardPalette(accentHue: nil, position: position)
+        let palette = family.map(CardPalette.init(index:)) ?? CardPalette(accentHue: nil, position: position)
         let seed = Double(position * 77 + 13)
         VStack(alignment: .leading, spacing: 14) {
             // OrganicImage's pre-wobble radius, where the curve will land.
@@ -264,15 +272,17 @@ public struct MiniStoryCardView: View {
     let content: MiniStoryCardContent
     let position: Int
     var isLast: Bool
+    var family: Int?
 
-    public init(_ content: MiniStoryCardContent, position: Int, isLast: Bool = false) {
+    public init(_ content: MiniStoryCardContent, position: Int, isLast: Bool = false, palette: Int? = nil) {
         self.content = content
         self.position = position
         self.isLast = isLast
+        self.family = palette
     }
 
     public var body: some View {
-        let palette = CardPalette(accentHue: content.accentHue, position: position)
+        let palette = family.map(CardPalette.init(index:)) ?? CardPalette(accentHue: content.accentHue, position: position)
         let seed = Double(position * 71 + 19)
         let accent = content.authorAccent ?? palette.accent
         VStack(alignment: .leading, spacing: 12) {

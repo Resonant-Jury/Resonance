@@ -123,12 +123,18 @@ public struct WritingAPI: Sendable {
     }
 
     /// Uploads a (already compressed) photo through /api/upload and returns its public URL.
-    public func upload(_ image: Data, filename: String, contentType: String = "image/jpeg") async throws -> URL {
+    /// `purpose` adds the form's `purpose` part: `"avatar"` has the server fit a profile photo
+    /// (256, WebP) rather than a cover (round 5 B7); nil sends the file alone, as before.
+    public func upload(_ image: Data, filename: String, contentType: String = "image/jpeg",
+                       purpose: String? = nil) async throws -> URL {
         struct Reply: Decodable { let publicUrl: String }
         let boundary = "resonance-\(UUID().uuidString)"
         var body = Data()
         body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\nContent-Type: \(contentType)\r\n\r\n".utf8))
         body.append(image)
+        if let purpose {
+            body.append(Data("\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\n\(purpose)".utf8))
+        }
         body.append(Data("\r\n--\(boundary)--\r\n".utf8))
         let data = try await send("api/upload", body: body, contentType: "multipart/form-data; boundary=\(boundary)")
         guard let url = URL(string: try JSONDecoder().decode(Reply.self, from: data).publicUrl) else {

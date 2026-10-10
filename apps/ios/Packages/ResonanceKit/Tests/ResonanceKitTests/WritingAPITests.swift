@@ -174,6 +174,21 @@ actor TokenLog {
         #expect(body == head + photo + Data("\r\n--\(boundary)--\r\n".utf8))
     }
 
+    @Test func aProfilePhotoSaysItIsAnAvatar() async throws {
+        StubURLProtocol.reset([(200, #"{"publicUrl":"https://img.test/avatar/2026-10/a.webp","key":"avatar/2026-10/a.webp"}"#)])
+        let photo = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x03])
+        let url = try await api().upload(photo, filename: "avatar.jpg", purpose: "avatar")
+        #expect(url.absoluteString == "https://img.test/avatar/2026-10/a.webp")
+
+        let (request, body) = try #require(StubURLProtocol.sent.first)
+        let contentType = try #require(request.value(forHTTPHeaderField: "Content-Type"))
+        let boundary = try #require(contentType.split(separator: "boundary=").last.map(String.init))
+        // The file, then `purpose=avatar` (the route reads form.get('purpose') === 'avatar').
+        let head = Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"avatar.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n".utf8)
+        let purpose = Data("\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\navatar".utf8)
+        #expect(body == head + photo + purpose + Data("\r\n--\(boundary)--\r\n".utf8))
+    }
+
     @Test func refreshesARejectedTokenOnce() async throws {
         StubURLProtocol.reset([(401, "{}"), (200, #"{"tags":["散步","雨天"]}"#)])
         let tags = try await api().suggestTags(title: "一場雨後的散步", story: "雨停的時候…", tags: ["日常"])

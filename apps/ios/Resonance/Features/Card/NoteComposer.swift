@@ -99,7 +99,7 @@ struct NoteComposer: View {
             } verb: {
                 // While the server answers, the pen inks where the word was (the resonate picker's way): one size throughout.
                 OrganicButton(L10n.Card.Note.send, variant: .solid, size: .sm) { Task { await send() } }
-                    .working(pending)
+                    .loading(pending)
                     .disabled(!valid && !pending)
             }
             .padding(.top, 18)

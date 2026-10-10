@@ -43,9 +43,29 @@ import UIKit
             UIHostingController(rootView: button.fixedSize()).sizeThatFits(in: CGSize(width: 400, height: 400))
         }
         let idle = size(OrganicButton(L10n.Card.Note.send, variant: .solid, size: .sm) {})
-        let working = size(OrganicButton(L10n.Card.Note.send, variant: .solid, size: .sm) {}.working(true))
+        let working = size(OrganicButton(L10n.Card.Note.send, variant: .solid, size: .sm) {}.loading(true))
         #expect(idle.width > 20)
         #expect(abs(working.width - idle.width) < 0.5)
         #expect(abs(working.height - idle.height) < 0.5)
+    }
+
+    /// Round 5 B6: every button at work keeps its exact size — the loader in the glyph's place, or
+    /// beside the words by offsets alone — whatever its rank and size.
+    @Test func everyButtonKeepsItsSizeWhileItLoads() {
+        func size(_ button: OrganicButton) -> CGSize {
+            UIHostingController(rootView: button.fixedSize()).sizeThatFits(in: CGSize(width: 600, height: 400))
+        }
+        for variant in [OrganicButton.Variant.solid, .tonal, .danger] {
+            for buttonSize in [OrganicButton.Size.sm, .md, .lg] {
+                for icon in [nil, IconName.image] {
+                    let idle = size(OrganicButton(L10n.Write.publish, icon: icon, variant: variant, size: buttonSize) {})
+                    let busy = size(OrganicButton(L10n.Write.publish, icon: icon, variant: variant, size: buttonSize) {}.loading(true))
+                    #expect(abs(busy.width - idle.width) < 0.5 && abs(busy.height - idle.height) < 0.5,
+                            "\(variant) \(buttonSize) icon \(String(describing: icon))")
+                }
+            }
+        }
+        let chip = size(OrganicButton(icon: .pen, label: "Edit") {})
+        #expect(size(OrganicButton(icon: .pen, label: "Edit") {}.loading(true)) == chip)
     }
 }

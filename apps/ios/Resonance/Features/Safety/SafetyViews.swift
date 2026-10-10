@@ -72,8 +72,8 @@ struct ReportForm: View {
                 ModalActions(busy: sending) {
                     OrganicButton(L10n.Safety.cancel, variant: .tonal, size: .sm, action: onClose)
                 } verb: {
-                    OrganicButton(sending ? "…" : L10n.Safety.Report.submit, variant: .solid, size: .sm) { Task { await submit() } }
-                        .disabled(reason == nil)
+                    OrganicButton(L10n.Safety.Report.submit, variant: .solid, size: .sm) { Task { await submit() } }
+                        .disabled(reason == nil && !sending)
                 }
                 .padding(.top, 4)
             }
@@ -216,8 +216,8 @@ struct AccountDeletionBanner: View {
                 .lineSpacing(14.5 * 0.5)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            OrganicButton(busy ? "…" : L10n.AccountDeletion.cancel, variant: .tonal, size: .sm) { Task { await cancel() } }
-                .disabled(busy)
+            OrganicButton(L10n.AccountDeletion.cancel, variant: .tonal, size: .sm) { Task { await cancel() } }
+                .loading(busy)
         }
         .frame(maxWidth: .infinity)
         .padding(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 14))

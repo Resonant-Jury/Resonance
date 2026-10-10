@@ -1,4 +1,5 @@
 import DesignSystem
+import PhotosUI
 import ResonanceAPI
 import ResonanceKit
 import SwiftUI
@@ -130,11 +131,11 @@ struct SettingsSectionScreen: View {
     }
 }
 
-/// Profile: the pen name (checked as it's typed; your own counts as free),
+/// Profile: the photo (picked, framed, uploaded and saved at once — round 5
+/// B7), then the pen name (checked as it's typed; your own counts as free),
 /// the one-line bio (empty clears it) and the region, in the web's order and
 /// seeds. The web autosaves these; here they wait for Save changes, so a
-/// rename is never sent half-typed. Only what changed is sent. (The profile
-/// photo stays on the web for now.)
+/// rename is never sent half-typed. Only what changed is sent.
 private struct ProfileSettings: View {
     @Environment(SessionStore.self) private var session
     @State private var handle = ""
@@ -148,23 +149,28 @@ private struct ProfileSettings: View {
     var body: some View {
         if let me = session.me {
             VStack(alignment: .leading, spacing: 24) {
-                PenNameField(label: L10n.Settings.Profile.handle, text: $handle, status: $status, current: me.handle, seed: 31)
-                OrganicTextField(L10n.Settings.Profile.bio, text: $bio, seed: 37)
-                    .onChange(of: bio) { _, typed in
-                        let capped = typed.prefix(utf16Units: PenName.bioMax)
-                        if capped != typed { bio = capped }
-                    }
-                ChoiceList(label: L10n.Settings.Profile.region,
-                           options: ProfileRegion.allCases.map { (Optional($0.rawValue), $0.label) },
-                           selection: $region, seed: 43, flag: { $0 })
+                ProfilePhotoRow(me: me)
+                Group {
+                    PenNameField(label: L10n.Settings.Profile.handle, text: $handle, status: $status, current: me.handle, seed: 31)
+                    OrganicTextField(L10n.Settings.Profile.bio, text: $bio, seed: 37)
+                        .onChange(of: bio) { _, typed in
+                            let capped = typed.prefix(utf16Units: PenName.bioMax)
+                            if capped != typed { bio = capped }
+                        }
+                    ChoiceList(label: L10n.Settings.Profile.region,
+                               options: ProfileRegion.allCases.map { (Optional($0.rawValue), $0.label) },
+                               selection: $region, seed: 43, flag: { $0 })
+                }
+                // The fields wait while a save is on its way; the button shows it is at work.
+                .disabled(saving)
                 VStack(alignment: .leading, spacing: 12) {
-                    OrganicButton(saving ? L10n.Write.saving : L10n.Write.saveChanges) { Task { await save(me) } }
-                        .disabled(!canSave(me) || saving)
+                    OrganicButton(L10n.Write.saveChanges) { Task { await save(me) } }
+                        .loading(saving)
+                        .disabled(!canSave(me) && !saving)
                     if let error { ModalError(error) }
                 }
                 .padding(.top, 4)
             }
-            .disabled(saving)
             .onAppear {
                 guard !filled else { return }
                 filled = true
@@ -215,6 +221,95 @@ private struct ProfileSettings: View {
             status = .taken
         } catch {
             self.error = L10n.Native.saveError
+        }
+    }
+}
+
+/// The profile photo's row (round 5 B7, the web's settings avatar): the avatar 88 across, then
+/// what it is, how it works, and the button that picks one — the avatar picks one too. A photo
+/// from the system's picker opens the crop modal; 使用 uploads the framed square and saves it.
+private struct ProfilePhotoRow: View {
+    let me: Components.Schemas.Me
+    @Environment(SessionStore.self) private var session
+    @State private var picking = false
+    @State private var picked: PhotosPickerItem?
+    @State private var framing: CGImage?
+    @State private var openFailed = false
+    @State private var uploading = false
+    @State private var uploadError: String?
+
+    private var hasPhoto: Bool { !(me.avatarUrl ?? "").isEmpty }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            Button { picking = true } label: {
+                HandDrawnAvatar(initials: me.initials, imageURL: me.avatarUrl.flatMap(URL.init(string:)),
+                                color: OKLCHColor.parse(me.accentColor) ?? Tokens.terracottaLight, size: 88, seed: 77)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(hasPhoto ? L10n.Settings.Profile.avatarChange : L10n.Settings.Profile.avatarAdd)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(L10n.Settings.Profile.avatar)
+                    .font(AppFonts.body(14, weight: .semibold))
+                    .foregroundStyle(Tokens.text)
+                Text(L10n.Settings.Profile.avatarHint)
+                    .font(AppFonts.body(13))
+                    .foregroundStyle(Tokens.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+                if openFailed {
+                    Text(L10n.Settings.Profile.avatarOpenError)
+                        .font(AppFonts.body(13))
+                        .foregroundStyle(Tokens.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                }
+                OrganicButton(hasPhoto ? L10n.Settings.Profile.avatarChange : L10n.Settings.Profile.avatarAdd,
+                              icon: .image, variant: .tonal, size: .sm) { picking = true }
+                    .padding(.top, 8)
+            }
+        }
+        .photosPicker(isPresented: $picking, selection: $picked, matching: .images, preferredItemEncoding: .current)
+        .onChange(of: picked) { _, item in
+            guard let item else { return }
+            picked = nil
+            Task { await open(item) }
+        }
+        .organicModal(isPresented: Binding(get: { framing != nil }, set: { if !$0 { framing = nil; uploadError = nil } }),
+                      seed: 83, maxWidth: 400, closeLabel: L10n.Settings.Profile.cropCancel, dismissible: !uploading) {
+            if let framing {
+                AvatarCropContent(image: framing, busy: uploading, error: uploadError,
+                                  onCancel: { self.framing = nil; uploadError = nil }) { crop, side in
+                    Task { await use(framing, crop: crop, side: side) }
+                }
+            }
+        }
+    }
+
+    private func open(_ item: PhotosPickerItem) async {
+        let picked = ContinuousClock.now
+        openFailed = false
+        guard let data = try? await item.loadTransferable(type: Data.self), let image = AvatarImage.load(data) else {
+            openFailed = true
+            return
+        }
+        // The system picker is still sliding away: a cover presented over it now would never show.
+        try? await Task.sleep(until: picked + .milliseconds(650))
+        uploadError = nil
+        framing = image
+    }
+
+    private func use(_ image: CGImage, crop: CGRect, side: Int) async {
+        guard !uploading, let uid = session.uid else { return }
+        uploading = true
+        uploadError = nil
+        defer { uploading = false }
+        do {
+            guard let jpeg = AvatarImage.render(image, crop: crop, side: side) else { throw URLError(.cannotDecodeContentData) }
+            try await AvatarSaver.live(session, uid: uid).save(jpeg)
+            framing = nil
+        } catch {
+            uploadError = L10n.Settings.Profile.avatarError
         }
     }
 }
@@ -427,11 +522,11 @@ private struct DeleteAccountSettings: View {
                     }
                     .buttonStyle(OrganicPressStyle(inset: 0))
                 } else {
-                    OrganicButton(exporting ? L10n.Settings.Delete.exporting : L10n.Settings.Delete.export, icon: .document, variant: .tonal) {
+                    OrganicButton(L10n.Settings.Delete.export, icon: .document, variant: .tonal) {
                         Task { await export() }
                     }
                     .fillingWidth()
-                    .disabled(exporting)
+                    .loading(exporting)
                 }
                 OrganicButton(L10n.Settings.Delete.button, icon: .trash, variant: .dangerTonal) { confirming = true }
                     .fillingWidth()
@@ -523,10 +618,11 @@ private struct BlockedListContent: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            OrganicButton(pending == person.id ? "…" : L10n.Safety.unblock, variant: .tonal, size: .sm) {
+            OrganicButton(L10n.Safety.unblock, variant: .tonal, size: .sm) {
                 Task { await unblock(person.id) }
             }
-            .disabled(pending != nil)
+            .loading(pending == person.id)
+            .disabled(pending != nil && pending != person.id)
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 2)

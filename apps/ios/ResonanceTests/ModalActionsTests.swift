@@ -91,13 +91,21 @@ import UIKit
         .frame(width: 320)
     }
 
-    @Test func aBusyFootDimsAsOneToTheWebsBusyNotTheDisabledFade() throws {
+    @Test func aBusyFootKeepsTheVerbsColourAndFadesTheWayOut() throws {
         #expect(try strongest(busyFoot(false)) > 0.98)
-        // The whole row at 0.6 — faces, grain and words as one layer (the web's opacity on the row) —
-        // never 0.45 (a disabled button: "not yet possible") nor a face's grain showing stronger through it.
-        let busy = try strongest(busyFoot(true))
-        #expect(abs(busy - ModalMetrics.busyOpacity) < 0.02, "drawn at \(busy)")
-        #expect(ModalMetrics.busyOpacity == 0.6)
+        // Round 5 B6: the verb at work keeps its full face (its loader says it is busy)…
+        #expect(try strongest(busyFoot(true)) > 0.98)
+        // …while the way out takes the disabled fade.
+        let way = ModalActions(busy: true) {
+            OrganicButton("Cancel", variant: .tonal, size: .sm) {}
+        } verb: {
+            EmptyView()
+        }
+        .frame(width: 320)
+        // (Its layers are faded each, not as one: the words over the face add up a little past 0.45.)
+        let faded = try strongest(way)
+        #expect(faded < 0.8, "drawn at \(faded)")
+        #expect(ModalMetrics.disabledOpacity == 0.45)
     }
 
     /// The accessibility elements of `view` shown in a window, once VoiceOver's tree has them.

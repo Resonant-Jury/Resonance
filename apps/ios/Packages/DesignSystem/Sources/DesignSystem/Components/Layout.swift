@@ -13,8 +13,12 @@ public nonisolated enum LayoutClass: Sendable, Equatable {
     /// The writer and the thought map side by side (the web's ≥ 1200 workspace).
     public static func writerSplit(_ width: CGFloat) -> Bool { width >= Tokens.bpWide }
 
-    /// The side rail stands in for the tab bar from medium up.
-    public var sideRail: Bool { self != .compact }
+    /// The tabs sit in the middle of a full-width header from medium up (round 5 B2: iPadOS's top
+    /// tab bar, drawn our way); a phone keeps the bottom tab bar.
+    public var topTabs: Bool { self != .compact }
+
+    /// The header's tabs carry their words (expanded, room allowing); on medium, glyphs alone.
+    public var tabLabels: Bool { self == .expanded }
 
     /// The page's side padding for a window `width` (the web's `--page-pad-x`: clamp(20, 4vw, 48)).
     public static func pad(_ width: CGFloat) -> CGFloat { min(max(width * 0.04, 20), 48) }
@@ -29,9 +33,9 @@ public nonisolated enum LayoutClass: Sendable, Equatable {
         min((listWidth - 32) * 0.72, Tokens.bubbleMax)
     }
 
-    /// The bordered grid's content width beside the rail: at most 1200 with the page's pads inside it.
-    public static func feedContentWidth(window: CGFloat, rail: CGFloat) -> CGFloat {
-        max(0, min(window - rail, 1200) - 2 * pad(window))
+    /// The bordered grid's content width: at most 1200 with the page's pads inside it.
+    public static func feedContentWidth(window: CGFloat) -> CGFloat {
+        max(0, min(window, 1200) - 2 * pad(window))
     }
 
     /// The side inset that keeps content in a centred `measure` column inside `width`, never under `pad`.
@@ -54,10 +58,10 @@ public nonisolated struct WindowLayout: Sendable, Equatable {
     }
 
     public var layoutClass: LayoutClass { .of(width) }
-    public var sideRail: Bool { layoutClass.sideRail }
+    public var topTabs: Bool { layoutClass.topTabs }
     public var pad: CGFloat { LayoutClass.pad(width) }
-    /// What the pages beside the rail (or above the tab bar) have across.
-    public var contentWidth: CGFloat { max(0, width - (sideRail ? Tokens.sideRailW : 0)) }
+    /// What the pages have across: the whole window (the tabs are in the header, or at the foot).
+    public var contentWidth: CGFloat { width }
     public var writerSplit: Bool { LayoutClass.writerSplit(width) }
 
     /// A phone in portrait: what every view assumed before windows could be wide.
@@ -108,7 +112,7 @@ public nonisolated struct CardPageLayout: Sendable, Equatable {
         self.railX = railX
     }
 
-    /// `width`: what the page has across (beside the side rail); `window`: the window's width.
+    /// `width`: what the page has across; `window`: the window's width.
     public static func of(width: CGFloat, window: CGFloat) -> CardPageLayout {
         guard LayoutClass.of(window) == .expanded else {
             let article = min(width, 760)

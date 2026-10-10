@@ -462,7 +462,7 @@ struct ThreadScreen: View {
                 if let model { Task { await block(model) } }
             }
             .organicConfirm(isPresented: $confirmingDelete, title: L10n.Messages.deleteConfirmTitle, message: L10n.Messages.deleteConfirmBody,
-                            cancelLabel: L10n.Messages.deleteCancel, confirmLabel: busy ? "…" : L10n.Messages.deleteConfirm,
+                            cancelLabel: L10n.Messages.deleteCancel, confirmLabel: L10n.Messages.deleteConfirm,
                             closeLabel: L10n.Messages.deleteCancel, busy: busy, destructive: true, seed: 59) {
                 guard let model else { return }
                 Task {

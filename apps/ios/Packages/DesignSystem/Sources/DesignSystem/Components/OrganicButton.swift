@@ -110,36 +110,23 @@ public struct OrganicButton: View {
         return copy
     }
 
-    /// Working on the last tap ("Signing in…"): dimmed like a disabled
-    /// button, showing `label`, ignoring taps. Both labels are laid out in the
-    /// same spot, so the button keeps one size when it turns busy and back.
-    var busyTitle: String?
-    var isBusy = false
+    /// Working on the last tap (round 5 B6): the words stay what they were ("發布", never "發布中…"),
+    /// a small pen loop (``ButtonLoader``) inks where the glyph was — or, with none, 6 before the
+    /// words, the pair kept centred — and the button keeps its exact size and full colour (not the
+    /// disabled fade: it isn't "not yet possible", it is working), takes no tap, no press ink, no
+    /// haptic, and tells VoiceOver it is in progress.
+    var isLoading = false
 
-    public func busy(_ busy: Bool, label: String) -> OrganicButton {
+    public func loading(_ loading: Bool) -> OrganicButton {
         var copy = self
-        copy.busyTitle = label
-        copy.isBusy = busy
+        copy.isLoading = loading
         return copy
     }
 
-    /// Working on the last tap, the web's way for a dialog's verb (the resonate picker's 共振): the
-    /// pen keeps inking where the glyph was — a small SketchLoader in the label's ink — the words
-    /// stay, and taps are ignored. Not dimmed: the loader is what says it is busy. The loader
-    /// takes the glyph's 16pt, so the button keeps its size. A verb without a glyph (the note's
-    /// 寄出) has the loader inking where its words were, which keep their room.
-    var isWorking = false
-
-    public func working(_ working: Bool) -> OrganicButton {
-        var copy = self
-        copy.isWorking = working
-        return copy
-    }
-
-    private var active: Bool { isEnabled && !isBusy }
-    /// Takes a tap now: not while its dialog's foot waits on the last one (``ModalActions``'s
-    /// `busy`, which dims the row itself rather than each button).
-    private var tappable: Bool { active && !isWorking && !held }
+    /// Its own `loading`, or its dialog's foot's (``ModalActions`` `busy` puts the verb to work).
+    private var showsLoader: Bool { isLoading || footLoading }
+    /// Takes a tap now: not while it works, nor while its dialog's foot waits on the last tap.
+    private var tappable: Bool { isEnabled && !showsLoader && !held }
 
     @State private var pressPoint: CGPoint? = nil
     @State private var revealed = false
@@ -155,6 +142,9 @@ public struct OrganicButton: View {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.organicButtonMinHeight) private var minHeight
     @Environment(\.organicButtonsHeld) private var held
+    @Environment(\.organicButtonLoading) private var footLoading
+    @Environment(\.organicBusyLabel) private var busyLabel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public var body: some View {
         let style = OrganicButtonStyle(variant: variant, size: size, minHeight: minHeight)
@@ -178,8 +168,10 @@ public struct OrganicButton: View {
                     }
                 }
             }
-            // The web dims the whole button (fill, grain, ink, label): not pressable yet 0.45, busy 0.6.
-            .opacity(!isEnabled ? 0.45 : isBusy ? 0.6 : 1)
+            // The web dims the whole button (fill, grain, ink, label) while it isn't pressable yet; one at
+            // work keeps its colour.
+            .opacity(!isEnabled ? 0.45 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: showsLoader)
             .scaleEffect(pressed ? 0.97 : 1)
             .contentShape(shape)
             .onGeometryChange(for: CGSize.self) { $0.size } action: { bounds = $0 }
@@ -201,9 +193,10 @@ public struct OrganicButton: View {
             }
             .sensoryFeedback(.impact(weight: .light), trigger: pressed) { _, new in new }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(isBusy ? busyTitle ?? title : title)
+            .accessibilityLabel(title)
+            .accessibilityValue(showsLoader ? busyLabel : "")
             .accessibilityAddTraits(.isButton)
-            .accessibilityAddTraits(isWorking ? .updatesFrequently : [])
+            .accessibilityAddTraits(showsLoader ? .updatesFrequently : [])
             .accessibilityAction { if tappable { action() } }
     }
 
@@ -239,12 +232,14 @@ extension OrganicButton {
         if let iconOnlySize, let icon {
             OrganicIcon(icon, size: iconOnlySize)
                 .scaleEffect(x: mirrorsIcon ? -1 : 1)
+                .opacity(showsLoader ? 0 : 1)
+                .overlay { if showsLoader { ButtonLoader(size: iconOnlySize, color: style.textColor).transition(.opacity) } }
                 .foregroundStyle(style.textColor)
                 .padding(.horizontal, roomyIcon ? (size == .sm ? 18 : 32) : 11)
                 .padding(.vertical, roomyIcon ? (size == .sm ? 9 : 14) : 9)
                 .frame(minHeight: style.minHeight)
         } else {
-            style.label(title, icon: icon, image: image, onDisc: marksOnDisc, busyTitle: busyTitle, busy: isBusy, working: isWorking)
+            style.label(title, icon: icon, image: image, onDisc: marksOnDisc, loading: showsLoader)
         }
     }
 }
@@ -255,6 +250,10 @@ extension EnvironmentValues {
     /// The buttons inside take no tap (VoiceOver's included) and keep their faces: a dialog's foot
     /// while its action is on its way, the row dimmed as one (``ModalActions``'s `busy`).
     @Entry public var organicButtonsHeld = false
+    /// The buttons inside are at work (``OrganicButton/loading(_:)``): a dialog's verb while its foot is busy.
+    @Entry public var organicButtonLoading = false
+    /// What VoiceOver says of a button at work (the app sets its `app.busy`).
+    @Entry public var organicBusyLabel = "In progress"
 }
 
 /// The button's face without its gesture, for system controls that bring
@@ -350,10 +349,10 @@ struct OrganicButtonStyle {
     var textColor: Color { face.label }
 
     /// Label row: 16pt glyphs 6 apart (design §7); brand marks are 18pt, 10 from the text.
-    /// With a `busyTitle`, both labels share one spot (the one not showing is
-    /// clear), so the button is as wide in either state.
-    func label(_ title: String, icon: IconName?, image: String?, onDisc: Bool = false, busyTitle: String? = nil,
-               busy: Bool = false, working: Bool = false) -> some View {
+    /// `loading` (round 5 B6): the pen loop takes the glyph's (or the mark's) place; with neither, it
+    /// is drawn 6 before the words and the pair is kept centred — by offsets alone, so the button
+    /// measures the same either way.
+    func label(_ title: String, icon: IconName?, image: String?, onDisc: Bool = false, loading: Bool = false) -> some View {
         let fontSize: CGFloat = switch size { case .sm: 14; case .md: 15; case .lg: 16 }
         let padX: CGFloat = switch size { case .sm: 18; case .md: 32; case .lg: 16 }
         let padY: CGFloat = switch size { case .sm: 9; case .md: 14; case .lg: 12 }
@@ -376,37 +375,40 @@ struct OrganicButtonStyle {
                 text(s).lineLimit(1)
             }
         }
-        // No glyph to stand in for: the loader takes the words' place, in their room.
-        let inkingWords = working && icon == nil && image == nil
+        // No glyph to stand in for: the loader goes before the words, which move half its room over.
+        let beside = loading && icon == nil && image == nil
+        let box = Self.loaderBox(size)
         return HStack(spacing: image != nil ? 10 : Self.iconGap) {
-            if working, !inkingWords {
-                SketchLoader(size: 16, color: textColor).accessibilityHidden(true)
-            } else if let icon {
+            if let icon {
                 OrganicIcon(icon, size: 16)
+                    .opacity(loading ? 0 : 1)
+                    .overlay { if loading { ButtonLoader(size: 16, color: textColor).transition(.opacity) } }
             }
-            if let image { mark(image, onDisc: onDisc) }
+            if let image {
+                mark(image, onDisc: onDisc)
+                    .opacity(loading ? 0 : 1)
+                    .overlay { if loading { ButtonLoader(size: 18, color: textColor).transition(.opacity) } }
+            }
             Group {
-                if let busyTitle {
-                    ZStack(alignment: .leading) {
-                        oneLine(title).opacity(busy ? 0 : 1)
-                        oneLine(busyTitle).opacity(busy ? 1 : 0)
+                if size == .lg { oneLine(title) } else { text(title) }
+            }
+                .overlay(alignment: .leading) {
+                    if beside {
+                        ButtonLoader(size: box, color: textColor)
+                            .offset(x: -(box + Self.iconGap))
+                            .transition(.opacity)
                     }
-                } else if size == .lg {
-                    oneLine(title)
-                } else {
-                    text(title)
                 }
-            }
-            .opacity(inkingWords ? 0 : 1)
-            .overlay {
-                if inkingWords { SketchLoader(size: 16, color: textColor).accessibilityHidden(true) }
-            }
+                .offset(x: beside ? (box + Self.iconGap) / 2 : 0)
         }
         .foregroundStyle(textColor)
         .padding(.horizontal, padX)
         .padding(.vertical, padY)
         .frame(minHeight: size == .lg ? 52 : minHeight)
     }
+
+    /// The loader standing before the words: 14 on a small button, 16 otherwise.
+    static func loaderBox(_ size: OrganicButton.Size) -> CGFloat { size == .sm ? 14 : 16 }
 
     /// An 18pt brand mark. On a disc it sits on a white wobbly circle 30
     /// across; at `lg` a bare mark keeps the disc's room too, so Apple's and

@@ -10,6 +10,7 @@ import SwiftUI
 struct FeedScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(WriteLauncher.self) private var writer
+    @Environment(\.window) private var window
     @State private var model: FeedModel?
     private static let listTop = "feed.top"
 
@@ -21,6 +22,8 @@ struct FeedScreen: View {
             .animation(.easeInOut(duration: 0.25), value: model?.picksReady ?? false)
             .animation(.easeInOut(duration: 0.25), value: model?.refreshFailure)
         }
+        // A pull's gap wears the first band's paper (round 5 B1).
+        .pullPaper(pullPaper)
         .refreshable {
             // Asked for by hand: the server answers, not the HTTP cache.
             session.httpCache.freshness.invalidate()
@@ -56,6 +59,22 @@ struct FeedScreen: View {
             }
             .padding(.top, 10)
             .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
+    /// The paper of the band at the bar's line, when the feed's top is one: the first card's family
+    /// (the list's colouring gives the first card its own preference), or the first skeleton's. None
+    /// over the bordered grid, an empty or failed feed, or a refresh note above the cards.
+    private var pullPaper: CardPalette? {
+        guard window.layoutClass != .expanded else { return nil }
+        switch model?.phase ?? .idle {
+        case .idle, .loading:
+            return CardPalette(index: CardPalette.palettes([nil])[0])
+        case .failed:
+            return nil
+        case .loaded:
+            guard let model, !model.isEmpty, model.refreshFailure == nil, let first = model.cards.first else { return nil }
+            return CardPalette(index: CardPalette.palettes([first.accentHue])[0])
         }
     }
 
@@ -107,9 +126,10 @@ struct FeedScreen: View {
     /// can, the end mark (design §2), 48 below the last card.
     @ViewBuilder private func footer(_ model: FeedModel) -> some View {
         if model.canLoadMore {
-            OrganicButton(model.isLoadingMore ? L10n.Home.moreLoading : L10n.Home.moreBtn, variant: .tonal) {
+            OrganicButton(L10n.Home.moreBtn, variant: .tonal) {
                 Task { await model.loadMore() }
             }
+            .loading(model.isLoadingMore)
             .frame(maxWidth: .infinity)
             .padding(.top, 64)
             .padding(.horizontal, 20)

@@ -40,24 +40,36 @@ struct ChosenThread {
     }
 }
 
+/// The window's header drawn above a root screen by its host (a two-pane Messages, round 5 B2):
+/// the screen leaves its own bar out and says when it has scrolled, for the header's pen line.
+struct HeaderAbove {
+    var scrolled: (Bool) -> Void
+}
+
 extension EnvironmentValues {
     /// Set in a two-pane Messages: the rows choose rather than push.
     @Entry var chosenThread: ChosenThread? = nil
+    /// Set over the list of a two-pane Messages: its header is the window's, drawn above both panes.
+    @Entry var headerAbove: HeaderAbove? = nil
     /// The thread is the detail pane beside the list: no back arrow, the rule at its leading side.
     @Entry var inDetailPane = false
 }
 
-/// The list | rule | conversation of an expanded window's Messages.
+/// The list | rule | conversation of an expanded window's Messages, under the window's full-width
+/// header (round 5 B2: 私訊 at its leading end, the tabs and the pen over it); the conversation keeps
+/// its own bar at the top of its pane, under the header's wave.
 struct MessagesTwoPane: View {
     let detail: Route?
     let choose: (Route) -> Void
     @Environment(SessionStore.self) private var session
     @Environment(\.window) private var window
+    @State private var listScrolled = false
 
     var body: some View {
         HStack(spacing: 0) {
             ConversationsScreen()
                 .environment(\.chosenThread, ChosenThread(route: detail, choose: choose))
+                .environment(\.headerAbove, HeaderAbove { listScrolled = $0 })
                 .frame(width: Tokens.msgListW)
             ZStack {
                 if case let .thread(handle, uid, note)? = detail {
@@ -70,6 +82,8 @@ struct MessagesTwoPane: View {
                 }
             }
             .environment(\.inDetailPane, true)
+            // The pane's bar is its own, under the window's header: no room kept for the tabs.
+            .environment(\.headerChrome, nil)
             // Exactly what is left beside the list: nothing in the thread may widen its pane.
             .frame(width: max(0, window.contentWidth - Tokens.msgListW))
             .frame(maxHeight: .infinity)
@@ -77,6 +91,13 @@ struct MessagesTwoPane: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Tokens.cream)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            OrganicBrandBar(title: L10n.App.Nav.messages, scrolled: listScrolled)
+        }
+        // The status bar keeps the header's paper.
+        .overlay(alignment: .top) {
+            Color.clear.frame(height: 0).background(Tokens.cream.ignoresSafeArea(edges: .top))
+        }
     }
 
     private var noConversations: Bool {
