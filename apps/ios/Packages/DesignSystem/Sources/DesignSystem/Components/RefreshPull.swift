@@ -113,6 +113,15 @@ extension View {
     public func sketchRefreshInPlace(_ action: @escaping @MainActor @Sendable () async -> Void) -> some View {
         environment(\.sketchRefreshInPlace, SketchInPlaceRefresh(action: action))
     }
+
+    /// The paper the gap a pull opens wears (round 5 B1): a list whose first item is a band starting
+    /// at the bar's line (the feed's) gives that band's palette, so the band simply looks taller
+    /// while it is pulled, docked and easing back — never a strip of the page's cream between the
+    /// bar and the band's colour. Set on the screen around the scroll view; nil (the default) leaves
+    /// the page's cream (the bordered grid, and every list whose top isn't a band).
+    public func pullPaper(_ palette: CardPalette?) -> some View {
+        environment(\.pullPaper, palette)
+    }
 }
 
 /// A refresh that keeps the reader's place (`sketchRefreshInPlace`).
@@ -125,6 +134,8 @@ extension EnvironmentValues {
     @Entry var sketchRefreshRun: SketchRefreshRun? = nil
     /// The screen's refresh in place, for `sketchRefreshAction` away from the top.
     @Entry var sketchRefreshInPlace: SketchInPlaceRefresh? = nil
+    /// The first band's palette, for the gap a pull opens (`pullPaper`).
+    @Entry var pullPaper: CardPalette? = nil
 }
 
 /// A list's refresh, pulled or asked for, one at a time: a pull while an asked-for refresh runs (or
@@ -195,6 +206,7 @@ private struct SketchRefreshActionModifier: ViewModifier {
 private struct SketchRefresh: ViewModifier {
     let action: RefreshAction
     @Environment(\.sketchRefreshInPlace) private var inPlace
+    @Environment(\.pullPaper) private var paper
     /// The refresh itself, shared with the content's accessibility action (`sketchRefreshAction`).
     @State private var run = SketchRefreshRun()
     /// The scroll view's content offset, and its top safe area: where the list rests.
@@ -249,7 +261,12 @@ private struct SketchRefresh: ViewModifier {
                 }
                 settle()
             }
-            .overlay(alignment: .top) { PullLoader(pull: pull) }
+            .overlay(alignment: .top) {
+                ZStack(alignment: .top) {
+                    if let paper { PullPaper(palette: paper, gap: pull.gap) }
+                    PullLoader(pull: pull)
+                }
+            }
             .background(SystemSpinnerFade(pulls: pulls, run: run))
             .sensoryFeedback(.impact(weight: .light), trigger: refreshing) { was, now in !was && now }
     }
@@ -259,6 +276,29 @@ private struct SketchRefresh: ViewModifier {
         guard !holding, -(offset + top) <= 0.5 else { return }
         pulling = false
         ending = false
+    }
+}
+
+/// The gap a pull opens under a band that starts at the bar's line, in that band's paper and grain
+/// (`StoryBand`'s): from the top of the bar's wave band (tucked behind the bar's cream, as the band's
+/// own paper is) down to where the band's paper now begins. Its own grain: at 0.09 of ink the seam
+/// between the two tiles doesn't show.
+private struct PullPaper: View {
+    let palette: CardPalette
+    let gap: CGFloat
+
+    var body: some View {
+        if gap > 0.5 {
+            Rectangle()
+                .fill(palette.interior)
+                .overlay { GrainLayer(shape: Rectangle(), mode: .tile, opacity: StoryGrain.band * 2, tile: "grain-overlay") }
+                // A point over the band's own top, so no hairline shows between the two papers.
+                .frame(maxWidth: .infinity)
+                .frame(height: gap + 1)
+                .offset(y: -HeaderEdge.height)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 }
 
