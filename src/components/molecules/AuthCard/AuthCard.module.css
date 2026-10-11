@@ -156,14 +156,15 @@
   }
 }
 
-/* A phone held upright: the sheet takes a good part of the screen (40%), its
+/* A phone held upright: the sheet takes a good part of the screen (36%), its
    words and buttons in the middle of it, the brand's cover over the rest. */
 @media (max-width: 640px) and (orientation: portrait) {
   .card {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-height: 40dvh;
+    min-height: 36dvh;
+    padding-top: 32px;
   }
 }
 

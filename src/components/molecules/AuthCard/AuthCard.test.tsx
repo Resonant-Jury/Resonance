@@ -184,5 +184,14 @@ describe('the sheet', () => {
     // The paper box's GrainOverlay and this one: no filter per strip.
     expect(host.querySelectorAll('filter')).toHaveLength(2);
     expect(host.querySelector('clipPath')).toBeNull();
+    // The grain is laid over the paper in sRGB, as GrainOverlay's opacity
+    // lays its own: blended in a filter's default linearRGB, it darkens a
+    // light paper far less, and the strip reads as a lighter band.
+    const filter = host.querySelector(`filter[id="${id}"]`)!;
+    const merge = filter.querySelector('feMerge, femerge')!;
+    expect(merge).toHaveAttribute('color-interpolation-filters', 'sRGB');
+    const nodes = Array.from(merge.querySelectorAll('feMergeNode, femergenode'));
+    expect(nodes.map((n) => n.getAttribute('in'))).toEqual(['SourceGraphic', 'grain']);
+    expect(filter.querySelector('[result="grain"]')).not.toBeNull();
   });
 });

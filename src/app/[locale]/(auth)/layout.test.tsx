@@ -51,3 +51,22 @@ describe('the (auth) layout', () => {
     expect(screen.getByRole('main')).toContainElement(screen.getByRole('heading', { name: 'Welcome back' }));
   });
 });
+
+// The storytellers' own module sets their display, and in a production build
+// it can load after the cover's: the rule that hides them on small screens
+// must outrank a single class whatever the order.
+describe('the cover’s storytellers on small screens', () => {
+  it('are hidden by a rule that outranks their own display', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const css = readFileSync(join(process.cwd(), 'src/app/[locale]/(auth)/auth.module.css'), 'utf8');
+    const hides = Array.from(css.matchAll(/([^{}]+)\{\s*display:\s*none;?\s*\}/g), ([, selector]) => selector.trim()).filter(
+      (selector) => /\.proof\b/.test(selector),
+    );
+    expect(hides.length).toBeGreaterThan(0);
+    for (const selector of hides) {
+      // Two classes or more (e.g. `.brand .proof`), never `.proof` alone.
+      expect((selector.match(/\.[\w-]+/g) ?? []).length, selector).toBeGreaterThanOrEqual(2);
+    }
+  });
+});

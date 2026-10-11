@@ -75,15 +75,25 @@ function GrainFilter({ id }: { id: string }) {
     <svg className={styles.defs} aria-hidden>
       <defs>
         <filter id={id} x="0%" y="0%" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves={4} stitchTiles="stitch" />
-          <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.2126 -0.7152 -0.0722 0 1" />
-          <feComposite in2="SourceAlpha" operator="in" />
-          <feComponentTransfer>
+          {/* The noise and its specks as GrainOverlay makes them (linearRGB, a
+              filter's default); every step names its input and result. */}
+          <feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves={4} stitchTiles="stitch" result="noise" />
+          <feColorMatrix
+            in="noise"
+            type="matrix"
+            values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.2126 -0.7152 -0.0722 0 1"
+            result="specks"
+          />
+          <feComposite in="specks" in2="SourceAlpha" operator="in" result="shaped" />
+          <feComponentTransfer in="shaped" result="grain">
             <feFuncA type="linear" slope={GRAIN_OPACITY} />
           </feComponentTransfer>
-          <feMerge>
+          {/* Laid over the paper in sRGB, as GrainOverlay's opacity lays its
+              grain: blended in linearRGB, 8% black darkens a light paper far
+              less to the eye, and the strip showed as a lighter band. */}
+          <feMerge colorInterpolationFilters="sRGB">
             <feMergeNode in="SourceGraphic" />
-            <feMergeNode />
+            <feMergeNode in="grain" />
           </feMerge>
         </filter>
       </defs>

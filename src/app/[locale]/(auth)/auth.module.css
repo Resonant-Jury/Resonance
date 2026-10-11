@@ -211,7 +211,8 @@
 @media (max-width: 640px),
   (orientation: landscape) and (max-width: 900px),
   (orientation: landscape) and (max-height: 640px) {
-  .proof {
+  /* Two classes: StorytellerProof's own display may load after this sheet. */
+  .brand .proof {
     display: none;
   }
 }
