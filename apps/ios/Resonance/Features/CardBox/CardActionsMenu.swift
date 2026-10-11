@@ -49,7 +49,8 @@ struct CardActionsMenu: View {
             // card stays, in the list too), which stays to try again.
             .organicConfirm(isPresented: $confirming, title: L10n.Me.Actions.deleteConfirmTitle,
                             message: L10n.Me.Actions.deleteConfirmBody, cancelLabel: L10n.Me.Actions.deleteCancel,
-                            confirmLabel: L10n.Me.Actions.deleteConfirm, closeLabel: L10n.Me.Actions.deleteCancel, busy: busy,
+                            confirmLabel: L10n.Me.Actions.deleteConfirm, workingLabel: L10n.Me.Actions.delete,
+                            closeLabel: L10n.Me.Actions.deleteCancel, busy: busy,
                             error: failed ? L10n.Safety.actionError : nil, destructive: true, seed: seed + 5) {
                 Task { await delete() }
             }

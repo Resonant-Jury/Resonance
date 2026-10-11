@@ -110,16 +110,27 @@ public struct OrganicButton: View {
         return copy
     }
 
-    /// Working on the last tap (round 5 B6): the words stay what they were ("發布", never "發布中…"),
-    /// a small pen loop (``ButtonLoader``) inks where the glyph was — or, with none, 6 before the
-    /// words, the pair kept centred — and the button keeps its exact size and full colour (not the
-    /// disabled fade: it isn't "not yet possible", it is working), takes no tap, no press ink, no
-    /// haptic, and tells VoiceOver it is in progress.
+    /// Working on the last tap (round 5 B6): a small pen loop (``ButtonLoader``) inks where the glyph
+    /// was — or, with none, 6 before the words — beside the words (never "發布中…"; the bare verb when
+    /// the label has one, ``workingLabel(_:)``), the pair centred in the button's idle size, which it
+    /// keeps exactly: the idle face is laid out unseen under it, so nothing beside it moves, and a pair
+    /// that wouldn't fit leaves the loop alone. Full colour (not the disabled fade: it isn't "not yet
+    /// possible", it is working), no tap, no press ink, no haptic, and VoiceOver hears it is in progress.
     var isLoading = false
+    /// The words while it works, when the label has a shorter form ("刪除卡片" → "刪除"), so the loop
+    /// isn't squeezed against the edge; nil keeps the label.
+    var workingTitle: String?
 
     public func loading(_ loading: Bool) -> OrganicButton {
         var copy = self
         copy.isLoading = loading
+        return copy
+    }
+
+    /// What the button says while it works (``loading(_:)``, or its dialog's foot's `busy`).
+    public func workingLabel(_ label: String?) -> OrganicButton {
+        var copy = self
+        copy.workingTitle = label
         return copy
     }
 
@@ -239,7 +250,7 @@ extension OrganicButton {
                 .padding(.vertical, roomyIcon ? (size == .sm ? 9 : 14) : 9)
                 .frame(minHeight: style.minHeight)
         } else {
-            style.label(title, icon: icon, image: image, onDisc: marksOnDisc, loading: showsLoader)
+            style.label(title, icon: icon, image: image, onDisc: marksOnDisc, loading: showsLoader, workingTitle: workingTitle)
         }
     }
 }
@@ -349,10 +360,12 @@ struct OrganicButtonStyle {
     var textColor: Color { face.label }
 
     /// Label row: 16pt glyphs 6 apart (design §7); brand marks are 18pt, 10 from the text.
-    /// `loading` (round 5 B6): the pen loop takes the glyph's (or the mark's) place; with neither, it
-    /// is drawn 6 before the words and the pair is kept centred — by offsets alone, so the button
-    /// measures the same either way.
-    func label(_ title: String, icon: IconName?, image: String?, onDisc: Bool = false, loading: Bool = false) -> some View {
+    /// `loading` (round 5 B6): the idle row keeps the button's size, unseen, and over it the pen loop —
+    /// in the glyph's (or the mark's) place, else 6 before the words — with `workingTitle` (or the
+    /// title), centred, at least ``workingInset`` from either end; a pair that doesn't fit shows the
+    /// loop alone. The button never measures wider for being at work.
+    func label(_ title: String, icon: IconName?, image: String?, onDisc: Bool = false, loading: Bool = false,
+               workingTitle: String? = nil) -> some View {
         let fontSize: CGFloat = switch size { case .sm: 14; case .md: 15; case .lg: 16 }
         let padX: CGFloat = switch size { case .sm: 18; case .md: 32; case .lg: 16 }
         let padY: CGFloat = switch size { case .sm: 9; case .md: 14; case .lg: 12 }
@@ -375,46 +388,76 @@ struct OrganicButtonStyle {
                 text(s).lineLimit(1)
             }
         }
-        // No glyph to stand in for: the loader goes before the words, which move half its room over.
-        let beside = loading && icon == nil && image == nil
-        let box = Self.loaderBox(size)
+        // The loop in the glyph's place, the mark's (its slot kept), or its own box before the words.
+        @ViewBuilder func loader() -> some View {
+            if icon != nil {
+                ButtonLoader(size: 16, color: textColor)
+            } else if image != nil {
+                ButtonLoader(size: 18, color: textColor).frame(width: markSlot(onDisc: onDisc), height: markSlot(onDisc: onDisc))
+            } else {
+                ButtonLoader(size: Self.loaderBox(size), color: textColor)
+            }
+        }
+        func working(_ scale: CGFloat) -> some View {
+            HStack(spacing: image != nil ? 10 : Self.iconGap) {
+                loader()
+                text(workingTitle ?? title, scale: scale).lineLimit(1)
+            }
+            .fixedSize()
+            .padding(.horizontal, Self.workingInset)
+        }
         return HStack(spacing: image != nil ? 10 : Self.iconGap) {
             if let icon {
                 OrganicIcon(icon, size: 16)
-                    .opacity(loading ? 0 : 1)
-                    .overlay { if loading { ButtonLoader(size: 16, color: textColor).transition(.opacity) } }
             }
             if let image {
                 mark(image, onDisc: onDisc)
-                    .opacity(loading ? 0 : 1)
-                    .overlay { if loading { ButtonLoader(size: 18, color: textColor).transition(.opacity) } }
             }
-            Group {
-                if size == .lg { oneLine(title) } else { text(title) }
-            }
-                .overlay(alignment: .leading) {
-                    if beside {
-                        ButtonLoader(size: box, color: textColor)
-                            .offset(x: -(box + Self.iconGap))
-                            .transition(.opacity)
-                    }
-                }
-                .offset(x: beside ? (box + Self.iconGap) / 2 : 0)
+            if size == .lg { oneLine(title) } else { text(title) }
         }
-        .foregroundStyle(textColor)
+        .opacity(loading ? 0 : 1)
         .padding(.horizontal, padX)
         .padding(.vertical, padY)
         .frame(minHeight: size == .lg ? 52 : minHeight)
+        .overlay {
+            if loading {
+                Group {
+                    if size == .lg {
+                        ViewThatFits(in: .horizontal) {
+                            working(1)
+                            working(0.95)
+                            working(0.9)
+                            working(0.85)
+                            loader()
+                        }
+                    } else {
+                        ViewThatFits(in: .horizontal) {
+                            working(1)
+                            loader()
+                        }
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
+        .foregroundStyle(textColor)
     }
 
     /// The loader standing before the words: 14 on a small button, 16 otherwise.
     static func loaderBox(_ size: OrganicButton.Size) -> CGFloat { size == .sm ? 14 : 16 }
 
+    /// The least room the working pair leaves at either end: a small button's loop beside its own
+    /// label (8 from either end) still fits; a shorter word (``OrganicButton/workingLabel(_:)``) leaves more.
+    static let workingInset: CGFloat = 7
+
+    /// A brand mark's room: the disc's 30 (and at `lg` a bare mark's too), else the mark's 18.
+    private func markSlot(onDisc: Bool) -> CGFloat { onDisc || size == .lg ? 30 : 18 }
+
     /// An 18pt brand mark. On a disc it sits on a white wobbly circle 30
     /// across; at `lg` a bare mark keeps the disc's room too, so Apple's and
     /// Google's buttons stand the same height.
     private func mark(_ image: String, onDisc: Bool) -> some View {
-        let slot: CGFloat = onDisc || size == .lg ? 30 : 18
+        let slot = markSlot(onDisc: onDisc)
         return ZStack {
             if onDisc {
                 WobCircleShape(seed: seed + 9, options: WobCircleOptions(segments: 8, mag: 0.7, cpJitter: 0.4))

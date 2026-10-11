@@ -898,6 +898,8 @@ public enum L10n {
         public static var saveDraftAndLeave: String { Strings.shared.string("write.saveDraftAndLeave") }
         /// Save changes
         public static var saveChanges: String { Strings.shared.string("write.saveChanges") }
+        /// Save
+        public static var saveShort: String { Strings.shared.string("write.saveShort") }
         /// Saving…
         public static var saving: String { Strings.shared.string("write.saving") }
         /// Discard changes

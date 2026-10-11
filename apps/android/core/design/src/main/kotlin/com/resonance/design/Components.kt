@@ -32,6 +32,8 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.modifiers.TextAutoSizeLayoutScope
 import androidx.compose.runtime.Composable
@@ -77,6 +79,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
@@ -387,6 +390,12 @@ fun OrganicButton(
      * and its size, and the button takes no tap — TalkBack hears it as busy.
      */
     loading: Boolean = false,
+    /**
+     * A shorter label while [loading] (the bare verb: 刪除 for 刪除卡片). The idle face keeps the
+     * button's size, unseen and still what TalkBack reads; the loader and this label share its room,
+     * centred, one line — so the button never grows and the loader has air.
+     */
+    loadingTitle: String? = null,
     onClick: () -> Unit,
 ) {
     val active = enabled && !loading
@@ -403,6 +412,41 @@ fun OrganicButton(
         small -> PaddingValues(horizontal = 18.dp, vertical = 9.dp)
         block -> PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         else -> PaddingValues(horizontal = 32.dp, vertical = 14.dp)
+    }
+    // A glyph sits 6 from its label (design note §7); a brand mark in its own 10-gap span (signin/page.tsx).
+    // Centred, so a pill wider than its content (a block) keeps it in the middle.
+    val arrangement = Arrangement.spacedBy(if (image != null) 10.dp else 6.dp, Alignment.CenterHorizontally)
+    val labelStyle = if (block) AppFonts.body(16f, 600, lineHeight = 1.25f, color = text).copy(letterSpacing = 0.02.em, textAlign = TextAlign.Center)
+        else AppFonts.body(if (small) 14f else 15f, 600, lineHeight = 1.3f, color = text).copy(letterSpacing = 0.02.em)
+    val content: @Composable (Boolean) -> Unit = { busy ->
+        if (icon != null) {
+            val glyph = iconSize ?: if (iconOnly) 17.dp else 16.dp
+            val drop = if (iconOnly) Modifier else Modifier.offset(y = labelInkDrop(if (block) 16f else if (small) 14f else 15f))
+            // In progress, the loop takes the glyph's place at its size.
+            if (busy) ButtonLoader(text, glyph, drop) else OrganicIcon(icon, drop, size = glyph, color = text, mirrored = mirrorIcon)
+        }
+        if (image != null && busy) {
+            Box(Modifier.size(if (markOnDisc) 30.dp else 18.dp), contentAlignment = Alignment.Center) { ButtonLoader(text, 18.dp) }
+        } else if (image != null) {
+            // The same disc as the web's (signin/page.tsx) and iOS's: seed 12, 8 segments, mag 0.7.
+            if (markOnDisc) Box(
+                Modifier.size(30.dp).drawWithCache {
+                    val o = WobCircleShape(12.0, WobCircleOptions(segments = 8, mag = 0.7, cpJitter = 0.4)).createOutline(size, layoutDirection, this)
+                    onDrawBehind { drawOutline(o, Color.White) }
+                },
+                contentAlignment = Alignment.Center,
+            ) { Image(image, contentDescription = null, modifier = Modifier.size(18.dp)) }
+            else Image(image, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        if (!iconOnly) {
+            // A block's label takes the largest step down to 85% that fits one line, then wraps at 85%.
+            val autoSize = if (block) remember(labelStyle.fontSize) { OneLineFirst(labelStyle.fontSize) } else null
+            val label: @Composable () -> Unit = { BasicText(title, style = labelStyle, autoSize = autoSize) }
+            // Nothing for the loop to stand in for: it goes 6 before the label, outside the label's
+            // measured room, and the two slide half that over so the pair stays centred.
+            if (icon == null && image == null) LoaderBeforeLabel(busy, text, if (small) ButtonLoaderSmall else ButtonLoaderSize, label)
+            else label()
+        }
     }
     Row(
         modifier
@@ -426,40 +470,23 @@ fun OrganicButton(
             .then(if (loading) Modifier.semantics { stateDescription = L10n.App.busy } else Modifier)
             .padding(padding),
         verticalAlignment = Alignment.CenterVertically,
-        // A glyph sits 6 from its label (design note §7); a brand mark in its own 10-gap span (signin/page.tsx).
-        // Centred, so a pill wider than its content (a block) keeps it in the middle.
-        horizontalArrangement = Arrangement.spacedBy(if (image != null) 10.dp else 6.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = arrangement,
     ) {
-        if (icon != null) {
-            val glyph = iconSize ?: if (iconOnly) 17.dp else 16.dp
-            val drop = if (iconOnly) Modifier else Modifier.offset(y = labelInkDrop(if (block) 16f else if (small) 14f else 15f))
-            // In progress, the loop takes the glyph's place at its size.
-            if (loading) ButtonLoader(text, glyph, drop) else OrganicIcon(icon, drop, size = glyph, color = text, mirrored = mirrorIcon)
-        }
-        if (image != null && loading) {
-            Box(Modifier.size(if (markOnDisc) 30.dp else 18.dp), contentAlignment = Alignment.Center) { ButtonLoader(text, 18.dp) }
-        } else if (image != null) {
-            // The same disc as the web's (signin/page.tsx) and iOS's: seed 12, 8 segments, mag 0.7.
-            if (markOnDisc) Box(
-                Modifier.size(30.dp).drawWithCache {
-                    val o = WobCircleShape(12.0, WobCircleOptions(segments = 8, mag = 0.7, cpJitter = 0.4)).createOutline(size, layoutDirection, this)
-                    onDrawBehind { drawOutline(o, Color.White) }
-                },
-                contentAlignment = Alignment.Center,
-            ) { Image(image, contentDescription = null, modifier = Modifier.size(18.dp)) }
-            else Image(image, contentDescription = null, modifier = Modifier.size(18.dp))
-        }
-        if (!iconOnly) {
-            val style = if (block) AppFonts.body(16f, 600, lineHeight = 1.25f, color = text).copy(letterSpacing = 0.02.em, textAlign = TextAlign.Center)
-                else AppFonts.body(if (small) 14f else 15f, 600, lineHeight = 1.3f, color = text).copy(letterSpacing = 0.02.em)
-            // A block's label takes the largest step down to 85% that fits one line, then wraps at 85%.
-            val autoSize = if (block) remember(style.fontSize) { OneLineFirst(style.fontSize) } else null
-            val label: @Composable () -> Unit = { BasicText(title, style = style, autoSize = autoSize) }
-            // Nothing for the loop to stand in for: it goes 6 before the label, outside the label's
-            // measured room, and the two slide half that over so the pair stays centred.
-            if (icon == null && image == null) LoaderBeforeLabel(loading, text, if (small) ButtonLoaderSmall else ButtonLoaderSize, label)
-            else label()
-        }
+        if (loading && loadingTitle != null && !iconOnly) {
+            // The idle face keeps the button's size (and is what TalkBack reads); the loader and the
+            // short label share its room, centred.
+            Box(contentAlignment = Alignment.Center) {
+                Row(Modifier.alpha(0f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = arrangement) { content(false) }
+                Row(
+                    Modifier.matchParentSize().clearAndSetSemantics { },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                ) {
+                    ButtonLoader(text, if (small) ButtonLoaderSmall else ButtonLoaderSize)
+                    BasicText(loadingTitle, style = labelStyle, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                }
+            }
+        } else content(loading)
     }
 }
 
@@ -856,6 +883,8 @@ fun OrganicTextField(
     maxLength: Int? = null,
     /** A set bow (the writer's title passes 0.8); null keeps the size's own. */
     curve: Double? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
     var focused by remember { mutableStateOf(false) }
     val text = if (display) AppFonts.heading(22f, lineHeight = 1.35f) else AppFonts.body(15f, lineHeight = 1.6f)
@@ -869,13 +898,16 @@ fun OrganicTextField(
                 .fieldSurface(seed, { focused }, curve)
                 .padding(horizontal = Tokens.FieldPadX.dp, vertical = Tokens.FieldPadY.dp),
         ) {
-            if (value.isEmpty()) BasicText(placeholder, style = hint)
+            // A one-line field's hint is one line too, so the field keeps its height once typing starts.
+            if (value.isEmpty()) BasicText(placeholder, style = hint, maxLines = if (multiline) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis)
             BasicTextField(
                 value, { onValueChange(if (maxLength != null) it.take(maxLength) else it) },
                 textStyle = text,
                 singleLine = !multiline,
                 enabled = enabled,
                 minLines = if (multiline) minLines else 1,
+                keyboardOptions = keyboardOptions,
+                keyboardActions = keyboardActions,
                 visualTransformation = if (isSecure) PasswordVisualTransformation() else VisualTransformation.None,
                 modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
             )

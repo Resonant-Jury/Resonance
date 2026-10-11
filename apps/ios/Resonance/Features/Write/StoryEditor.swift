@@ -103,6 +103,11 @@ final class StoryEditorBridge: NSObject, WKScriptMessageHandler, WKNavigationDel
         Task { _ = try? await webView.callAsyncJavaScript("ResonanceEditor.focus()", arguments: [:], contentWorld: .page) }
     }
 
+    /// Lets go of the story's focus (the keyboard goes with it).
+    func blur() {
+        Task { _ = try? await webView.callAsyncJavaScript("ResonanceEditor.blur()", arguments: [:], contentWorld: .page) }
+    }
+
     /// The page's own text doesn't follow Dynamic Type, so the page is zoomed
     /// by the factor the rest of the story text takes (it reflows to the width
     /// and reports its zoomed height).

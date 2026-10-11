@@ -49,8 +49,8 @@ import UIKit
         #expect(abs(working.height - idle.height) < 0.5)
     }
 
-    /// Round 5 B6: every button at work keeps its exact size — the loader in the glyph's place, or
-    /// beside the words by offsets alone — whatever its rank and size.
+    /// Round 5 B6: every button at work keeps its exact size — the loader and its words drawn over the
+    /// idle face, laid out unseen — whatever its rank and size, and whatever it says meanwhile.
     @Test func everyButtonKeepsItsSizeWhileItLoads() {
         func size(_ button: OrganicButton) -> CGSize {
             UIHostingController(rootView: button.fixedSize()).sizeThatFits(in: CGSize(width: 600, height: 400))
@@ -65,6 +65,11 @@ import UIKit
                 }
             }
         }
+        // The bare verb while it works ("刪除卡片" → "刪除") changes nothing beside it either.
+        let delete = size(OrganicButton(L10n.Me.Actions.deleteConfirm, variant: .danger, size: .sm) {})
+        let deleting = size(OrganicButton(L10n.Me.Actions.deleteConfirm, variant: .danger, size: .sm) {}
+            .workingLabel(L10n.Me.Actions.delete).loading(true))
+        #expect(abs(deleting.width - delete.width) < 0.5 && abs(deleting.height - delete.height) < 0.5)
         let chip = size(OrganicButton(icon: .pen, label: "Edit") {})
         #expect(size(OrganicButton(icon: .pen, label: "Edit") {}.loading(true)) == chip)
     }

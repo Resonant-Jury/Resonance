@@ -245,6 +245,7 @@ private fun ProfileSettings(session: Session) {
                 icon = if (saved) IconName.Check else null,
                 enabled = canSave,
                 loading = saving,
+                loadingTitle = L10n.Write.saveShort,
             ) {
                 scope.launch {
                     saving = true
@@ -564,6 +565,7 @@ private fun DeleteAccountSettings(session: Session) {
         confirmLabel = L10n.Settings.Delete.confirm,
         destructive = true,
         busy = busy,
+        busyLabel = L10n.Me.Actions.delete,
         seed = 73.0,
         onCancel = { confirming = false },
         onConfirm = {

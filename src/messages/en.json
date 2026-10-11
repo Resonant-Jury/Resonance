@@ -502,6 +502,7 @@
     "editBufferedIdle": "You have unsaved changes here — only you can see them",
     "saveDraftAndLeave": "Save draft and leave",
     "saveChanges": "Save changes",
+    "saveShort": "Save",
     "saving": "Saving…",
     "discardChanges": "Discard changes",
     "publishPanel": {

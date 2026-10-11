@@ -491,6 +491,9 @@ val BrandBarHeight = 58.dp
 /** The wordmark. */
 private const val BRAND = "Resonance"
 
+/** A screen's title in a phone's bar (a tab's in the brand's place, a pushed page's beside the arrow): Playfair 19/700. */
+private fun phoneBarTitle() = AppFonts.heading(19f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em)
+
 /**
  * The root screens' pinned header (AppHeader on a phone): the brand lockup —
  * ResonanceIcon (the wave glyph, 38, terracotta, INK) and "Resonance" in
@@ -498,8 +501,8 @@ private const val BRAND = "Resonance"
  * content scrolls under it. Lay it over the list.
  *
  * On a phone a tab other than the feed hangs its own title where the brand would be
- * (`brand` = the title, `isHeading`), in the same size, and its actions at the end; beside a
- * tablet header's tabs the brand stays.
+ * (`brand` = the title, `isHeading`), a step smaller (19: its CJK reads larger than the
+ * wordmark), and its actions at the end; beside a tablet header's tabs the brand stays.
  */
 @Composable
 fun OrganicBrandBar(
@@ -512,6 +515,7 @@ fun OrganicBrandBar(
 ) {
     val chrome = LocalHeaderChrome.current
     val style = AppFonts.heading(22f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em)
+    val titleStyle = if (isHeading) phoneBarTitle() else style
     Row(
         modifier
             .fillMaxWidth()
@@ -528,7 +532,7 @@ fun OrganicBrandBar(
             // The mark is nudged down 7% so it sits level with the wordmark's mass.
             OrganicIcon(IconName.Wave, Modifier.offset(y = (38 * 0.07).dp), size = 38.dp, color = Tokens.Terracotta, strokeWidth = Tokens.Ink.value)
             BasicText(
-                brand, maxLines = 1, overflow = TextOverflow.Ellipsis, style = style,
+                brand, maxLines = 1, overflow = TextOverflow.Ellipsis, style = titleStyle,
                 modifier = Modifier.weight(1f).then(if (isHeading) Modifier.semantics { heading() } else Modifier),
             )
         } else {
@@ -567,7 +571,7 @@ fun OrganicPageTitle(title: String, modifier: Modifier = Modifier, trailing: @Co
 
 /**
  * Pushed-screen bar (AppHeader's phone takeover): the bare back arrow and,
- * when given, the screen's title in Playfair 22/700 beside it; trailing
+ * when given, the screen's title in Playfair 19/700 beside it; trailing
  * actions at the end. Edged by the header's wavy line.
  *
  * On a medium or expanded window (round 5, part C) a pushed page's bar is the whole header — no
@@ -602,10 +606,10 @@ fun OrganicInlineBar(
     val back: @Composable () -> Unit = {
         if (showBack && !LocalBarBackHidden.current) OrganicIconButton(IconName.ArrowRight, backLabel, mirrored = true, onClick = onBack) else Spacer(Modifier.width(12.dp))
     }
-    // A phone's title beside the arrow is 22 bold; a tablet header's context, an inline title's 17
+    // A phone's title beside the arrow is 19 bold; a tablet header's context, an inline title's 17
     // semibold (round 5 D5: iPadOS's inline title), one line, truncated.
     val titleStyle = if (chrome != null) AppFonts.heading(17f, 600, lineHeight = 1.25f).copy(letterSpacing = (-0.01).em)
-        else AppFonts.heading(22f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em)
+        else phoneBarTitle()
     val titleText: @Composable (Modifier) -> Unit = { m ->
         BasicText(
             title.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,

@@ -168,6 +168,7 @@ private struct ProfileSettings: View {
                 VStack(alignment: .leading, spacing: 12) {
                     OrganicButton(L10n.Write.saveChanges) { Task { await save(me) } }
                         .loading(saving)
+                        .workingLabel(L10n.Write.saveShort)
                         .disabled(!canSave(me) && !saving)
                     if let error { ModalError(error) }
                 }
@@ -539,7 +540,8 @@ private struct DeleteAccountSettings: View {
                         message: L10n.Settings.Delete.confirmBody(date: Self.purgeDate.formatted(
                             Date.FormatStyle(date: .long, time: .omitted, locale: Strings.shared.locale))),
                         cancelLabel: L10n.Settings.Delete.cancel, confirmLabel: L10n.Settings.Delete.confirm,
-                        closeLabel: L10n.Settings.Delete.cancel, busy: busy, destructive: true, seed: 73) {
+                        workingLabel: L10n.Me.Actions.delete, closeLabel: L10n.Settings.Delete.cancel, busy: busy,
+                        destructive: true, seed: 73) {
             Task { await deleteAccount() }
         }
     }

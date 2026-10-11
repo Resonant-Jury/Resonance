@@ -94,7 +94,8 @@ public struct OrganicTextArea: View {
     @Binding var text: String
     var maxLength: Int?
     var seed: Double
-    /// Field's `tone="display"`: the writing screen's title, set in Playfair 22/700 on two lines.
+    /// Field's `tone="display"`: the writing screen's title, set in Playfair 22/700 on one line — Return
+    /// puts the keyboard away, and a line break pasted into it becomes a space.
     var display: Bool
     var curve: Double?
     @FocusState private var focused: Bool
@@ -113,19 +114,34 @@ public struct OrganicTextArea: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             FieldLabel(text: label).padding(.bottom, 10)
-            // The global placeholder rule sets the body face in italic; the display tone keeps its size and weight.
-            TextField(text: $text, prompt: display ? fieldPrompt(placeholder, size: 22, weight: .bold) : fieldPrompt(placeholder),
-                      axis: .vertical) { Text(label) }
-                .lineLimit(display ? 2... : 3...)
-                .lineSpacing(display ? 22 * 0.35 : 15 * 0.6)
-                .font(display ? AppFonts.heading(22) : AppFonts.body(15))
+            Group {
+                if display {
+                    // The global placeholder rule sets the body face in italic; the display tone keeps its size and weight.
+                    TextField(text: $text, prompt: fieldPrompt(placeholder, size: 22, weight: .bold)) { Text(label) }
+                        .font(AppFonts.heading(22))
+                        .submitLabel(.done)
+                        .onSubmit { focused = false }
+                        // A 22pt line on a 1.35 line box.
+                        .frame(minHeight: 22 * 1.35)
+                } else {
+                    TextField(text: $text, prompt: fieldPrompt(placeholder), axis: .vertical) { Text(label) }
+                        .lineLimit(3...)
+                        .lineSpacing(15 * 0.6)
+                        .font(AppFonts.body(15))
+                }
+            }
                 .foregroundStyle(Tokens.text)
                 .focused($focused)
                 .padding(.horizontal, Tokens.fieldPadX)
                 .padding(.vertical, Tokens.fieldPadY)
                 .modifier(FieldSurface(seed: seed, focused: focused, curve: curve))
                 .onChange(of: text) { _, new in
-                    if let maxLength, new.count > maxLength { text = String(new.prefix(maxLength)) }
+                    // One line: a pasted line break is a space.
+                    var fitted = display && new.contains(where: \.isNewline)
+                        ? new.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).joined(separator: " ")
+                        : new
+                    if let maxLength, fitted.count > maxLength { fitted = String(fitted.prefix(maxLength)) }
+                    if fitted != new { text = fitted }
                 }
             if let maxLength {
                 Text(verbatim: "\(text.count) / \(maxLength)")

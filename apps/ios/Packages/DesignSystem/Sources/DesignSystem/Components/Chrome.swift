@@ -547,6 +547,12 @@ public struct UnreadBadge: View {
     }
 }
 
+/// A page's title in a bar's brand place (a tab that names itself, a settings section, the writer): on a
+/// phone a step under the wordmark's 22, which stays — the heading face's CJK reads larger than "Resonance".
+private func barTitleSize(_ window: WindowLayout) -> CGFloat {
+    window.layoutClass == .compact ? 19 : 22
+}
+
 /// The root tabs' pinned bar (the web AppHeader on a phone): the brand
 /// lockup on cream that ends on the wavy pen line, content scrolling under it.
 /// A tab that names itself in the bar gives its `title`, which takes the
@@ -614,9 +620,10 @@ public struct OrganicBrandBar<Trailing: View>: View {
 
     @ViewBuilder private var words: some View {
         if let title {
+            let size = barTitleSize(window)
             Text(title)
-                .font(AppFonts.heading(22))
-                .tracking(-0.02 * 22)
+                .font(AppFonts.heading(size))
+                .tracking(-0.02 * size)
                 .lineLimit(1)
                 .foregroundStyle(Tokens.text)
                 .accessibilityAddTraits(.isHeader)
@@ -794,10 +801,11 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
 
     @ViewBuilder private var titleText: some View {
         if !title.isEmpty {
+            let size = barTitleSize(window)
             // A tablet's centred context is set as iPadOS sets an inline title (round 5 D5).
             Text(title)
-                .font(chrome != nil ? HeaderContextTitle.font : AppFonts.heading(22))
-                .tracking(chrome != nil ? 0 : -0.02 * 22)
+                .font(chrome != nil ? HeaderContextTitle.font : AppFonts.heading(size))
+                .tracking(chrome != nil ? 0 : -0.02 * size)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundStyle(Tokens.text)

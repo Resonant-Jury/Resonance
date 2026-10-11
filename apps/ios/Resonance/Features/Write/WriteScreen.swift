@@ -48,6 +48,7 @@ struct WriteScreen: View {
     @State private var actionError: String?
     @State private var pickingCard = false
     @State private var coverItem: PhotosPickerItem?
+    @State private var pickingCover = false
     @State private var inlineItem: PhotosPickerItem?
     @State private var pickingInline = false
 
@@ -161,6 +162,9 @@ struct WriteScreen: View {
             // Wider than a phone, the web's writing measure (680 and the page's pads), centred.
             .frame(maxWidth: window.layoutClass == .compact ? .infinity : Tokens.measure + 2 * window.pad)
             .frame(maxWidth: .infinity)
+            // A tap on the page between the fields puts the keyboard away; the fields, the story and the
+            // buttons are in front of it and keep their own taps.
+            .background { Color.clear.contentShape(Rectangle()).onTapGesture { putKeyboardAway(model) } }
         }
         .onHeaderScroll($scrolled)
         .scrollDismissesKeyboard(.interactively)
@@ -168,6 +172,7 @@ struct WriteScreen: View {
         // takes it, through `pane`), and a draft cleared since its last save still goes through
         // leaving, which saves it.
         .photosPicker(isPresented: $pickingInline, selection: $inlineItem, matching: .images)
+        .photosPicker(isPresented: $pickingCover, selection: $coverItem, matching: .images)
         .onChange(of: inlineItem) { _, item in
             guard let item else { return }
             inlineItem = nil
@@ -213,6 +218,13 @@ struct WriteScreen: View {
                 .foregroundStyle(Tokens.textMuted)
                 .contentTransition(.opacity)
         }
+    }
+
+    /// Puts the keyboard away, whichever field has it: the title or the tags resign, and the story's
+    /// island lets go of its focus (as a tap on the page, or an action under the fields, does).
+    private func putKeyboardAway(_ model: WriteModel) {
+        if model.editor.focused { model.editor.blur() }
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     /// Back (the arrow, the edge swipe): with writing to put away, the question first; otherwise at once.
@@ -295,7 +307,10 @@ struct WriteScreen: View {
         VStack(alignment: .leading, spacing: 10) {
             label(L10n.Write.mediaLabel)
             if let url = model.values.imageURL {
-                HandDrawnImage(.url(url), removeLabel: L10n.Write.mediaRemove) { model.removeCover() }
+                HandDrawnImage(.url(url), removeLabel: L10n.Write.mediaRemove, onRemove: {
+                    putKeyboardAway(model)
+                    model.removeCover()
+                })
             } else if let preview = model.partialPreview {
                 HandDrawnImage(.image(preview), blur: 14, wash: Tokens.cream.opacity(0.45)) {
                     VStack(spacing: 6) {
@@ -314,12 +329,18 @@ struct WriteScreen: View {
                 .modifier(MediaFrame(busy: true))
             } else {
                 HStack(spacing: 0) {
-                    PhotosPicker(selection: $coverItem, matching: .images) {
+                    Button {
+                        putKeyboardAway(model)
+                        pickingCover = true
+                    } label: {
                         MediaHalf(icon: .image, title: L10n.Write.mediaPlaceholder, hint: L10n.Write.mediaHint)
                     }
                     .buttonStyle(.plain)
                     OrganicVerticalRule(lineWidth: Tokens.ink)
-                    Button { Task { await model.generateCover() } } label: {
+                    Button {
+                        putKeyboardAway(model)
+                        Task { await model.generateCover() }
+                    } label: {
                         MediaHalf(icon: .sparkle, title: L10n.Write.mediaGenerate,
                                   hint: model.canGenerate ? L10n.Write.mediaGenerateHint : L10n.Write.mediaGenerateNeedStory)
                     }
@@ -372,6 +393,7 @@ struct WriteScreen: View {
 
     private func primaryAction(_ model: WriteModel, fillsWidth: Bool = false) -> some View {
         OrganicButton(model.isPublished ? L10n.Write.saveChanges : L10n.Write.publish) {
+            putKeyboardAway(model)
             actionError = nil
             publishing = true
         }
@@ -382,12 +404,18 @@ struct WriteScreen: View {
     @ViewBuilder
     private func secondaryAction(_ model: WriteModel, fillsWidth: Bool = false) -> some View {
         if !model.isPublished {
-            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .tonal) { Task { await leave(model, exits: false) } }
-                .fillingWidth(fillsWidth)
+            OrganicButton(L10n.Write.saveDraftAndLeave, variant: .tonal) {
+                putKeyboardAway(model)
+                Task { await leave(model, exits: false) }
+            }
+            .fillingWidth(fillsWidth)
         } else if model.hasPendingEdit {
-            OrganicButton(L10n.Write.discardChanges, variant: .tonal) { Task { await discard(model) } }
-                .fillingWidth(fillsWidth)
-                .loading(discarding)
+            OrganicButton(L10n.Write.discardChanges, variant: .tonal) {
+                putKeyboardAway(model)
+                Task { await discard(model) }
+            }
+            .fillingWidth(fillsWidth)
+            .loading(discarding)
         }
     }
 
@@ -517,6 +545,7 @@ private struct PublishPanel: View {
                                   variant: .solid, size: .sm) {
                         Task { await publish() }
                     }
+                    .workingLabel(updating ? L10n.Write.saveShort : nil)
                 }
             }
         }

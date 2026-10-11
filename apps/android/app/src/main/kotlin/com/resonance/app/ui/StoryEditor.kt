@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.webkit.JavascriptInterface
@@ -11,6 +12,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Matrix
+import androidx.compose.ui.input.pointer.pointerInput
 import com.resonance.design.OrganicVerticalRule
 import com.resonance.design.SketchLoader
 import com.resonance.geometry.SegValue
@@ -86,7 +89,7 @@ import kotlin.math.roundToInt
  * http(s) link the writer taps opens in the browser instead. It reads no
  * files but the app's assets, and no content providers.
  */
-@SuppressLint("SetJavaScriptEnabled")
+@SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
 class StoryEditorBridge(context: Context, placeholder: String) {
     data class Active(
         val bold: Boolean = false, val italic: Boolean = false, val h2: Boolean = false, val h3: Boolean = false,
@@ -104,6 +107,12 @@ class StoryEditorBridge(context: Context, placeholder: String) {
         private set
     /** The story as the editor serializes it (the web's Markdown). */
     var onChange: (String) -> Unit = {}
+    /**
+     * When the latest touch on the story went down (its MotionEvent's downTime): the WebView takes a
+     * touch after the page around it has seen it, so the page tells a tap in the story from one beside it by this.
+     */
+    var lastTouchDown = -1L
+        private set
     private var pendingMarkdown: String? = null
 
     val webView: WebView = WebView(context).apply {
@@ -122,6 +131,10 @@ class StoryEditorBridge(context: Context, placeholder: String) {
         // The writing screen scrolls; the island only grows.
         isVerticalScrollBarEnabled = false
         overScrollMode = View.OVER_SCROLL_NEVER
+        setOnTouchListener { _, e ->
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) lastTouchDown = e.downTime
+            false
+        }
         addJavascriptInterface(Bridge(), "ResonanceBridge")
         loadUrl("file://$EDITOR_PATH?embed=1&fonts=&placeholder=" + Uri.encode(placeholder))
     }
@@ -153,10 +166,12 @@ class StoryEditorBridge(context: Context, placeholder: String) {
 
     /**
      * Lets go of the keyboard while the page is still on screen (leaving the
-     * writer): unlike a Compose field, a WebView keeps the IME up after it
-     * leaves the composition.
+     * writer, a tap beside the fields, an action below the story): unlike a
+     * Compose field, a WebView keeps the IME up after it leaves the composition.
+     * The story lets go of its caret too, so its frame goes back to the field's line.
      */
     fun releaseKeyboard() {
+        if (ready) webView.evaluateJavascript("ResonanceEditor.blur()", null)
         webView.clearFocus()
         webView.context.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(webView.windowToken, 0)
     }
@@ -245,6 +260,8 @@ fun StoryEditorField(bridge: StoryEditorBridge, onInsertCard: () -> Unit, onInse
                 .toolbarWave(EDITOR_SEED + 5)
                 // toolbarWrap: 10 above and beside, 12 below for the wave; the toolbar keeps 4 of its own.
                 .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp)
+                // A near miss between the tools is no tap on the page (which lets go of the keyboard).
+                .pointerInput(Unit) { detectTapGestures { } }
                 .semantics { contentDescription = L10n.Write.Editor.toolbarLabel },
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),

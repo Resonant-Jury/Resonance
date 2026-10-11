@@ -127,6 +127,8 @@ fun CardActionsMenu(
             }
         },
         busy = busy,
+        // Working, the verb is the bare 刪除, in the width 刪除卡片 had.
+        busyLabel = L10n.Me.Actions.delete,
         seed = seed + 5,
         error = if (deleteFailed) L10n.Safety.actionError else null,
         destructive = true,

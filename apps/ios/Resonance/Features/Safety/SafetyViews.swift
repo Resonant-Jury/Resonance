@@ -73,6 +73,7 @@ struct ReportForm: View {
                     OrganicButton(L10n.Safety.cancel, variant: .tonal, size: .sm, action: onClose)
                 } verb: {
                     OrganicButton(L10n.Safety.Report.submit, variant: .solid, size: .sm) { Task { await submit() } }
+                        .workingLabel(L10n.Messages.send)
                         .disabled(reason == nil && !sending)
                 }
                 .padding(.top, 4)

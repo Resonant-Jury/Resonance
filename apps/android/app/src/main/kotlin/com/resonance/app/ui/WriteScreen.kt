@@ -64,6 +64,11 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -203,6 +208,7 @@ private fun WriteForm(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
     val model = remember(opened) {
         WriteModel(session.drafts, session.writing, referenceCardId, StoryEditorBridge(context, L10n.Write.storyPlaceholder), opened).apply {
             this.onCreated = onCreated
@@ -271,6 +277,11 @@ private fun WriteForm(
             else -> leave()
         }
     }
+    // A tap beside the fields, or an action below the story, puts the keyboard away, whichever field held it.
+    val dismissKeyboard: () -> Unit = {
+        focusManager.clearFocus()
+        model.editor.releaseKeyboard()
+    }
     // In the workspace's pane the back is the workspace's: it asks here first ([WriterHandle.askToLeave]).
     BackHandler(enabled = bar, onBack = goBack)
     SideEffect {
@@ -301,6 +312,7 @@ private fun WriteForm(
     Column(
         Modifier
             .fillMaxSize()
+            .onBlankTap(model, dismissKeyboard)
             .verticalScroll(scroll)
             .then(if (compactWindow) Modifier else Modifier.fillMaxWidth().wrapContentWidth().widthIn(max = columnMax))
             // The bar lies over the page, so what scrolls shows right up to its pen line.
@@ -315,16 +327,30 @@ private fun WriteForm(
             model.seed("> $question\n\n")
             showGuide = false
         }
+        // One line: a pasted line break becomes a space, and Done puts the keyboard away.
         OrganicTextField(
-            L10n.Write.coreLabel, model.values.title, { t -> model.update { copy(title = t) } },
-            placeholder = L10n.Write.corePlaceholder, multiline = true, minLines = 2, display = true, maxLength = WriteModel.TITLE_MAX, curve = 0.8,
+            L10n.Write.coreLabel, model.values.title, { t -> model.update { copy(title = t.replace(LINE_BREAK, " ")) } },
+            placeholder = L10n.Write.corePlaceholder, display = true, maxLength = WriteModel.TITLE_MAX, curve = 0.8,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
         )
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel(L10n.Write.storyLabel)
-            StoryEditorField(model.editor, onInsertCard = { pickingCard = true }, onInsertImage = { inlinePicker.launch(images) }, uploadingImage = model.uploadingInline)
+            StoryEditorField(
+                model.editor,
+                onInsertCard = {
+                    dismissKeyboard()
+                    pickingCard = true
+                },
+                onInsertImage = {
+                    dismissKeyboard()
+                    inlinePicker.launch(images)
+                },
+                uploadingImage = model.uploadingInline,
+            )
         }
-        Tags(model)
-        Cover(model) { coverPicker.launch(images) }
+        Tags(model, dismissKeyboard)
+        Cover(model, dismissKeyboard) { coverPicker.launch(images) }
         // Everything autosaves; these are only about intent. A draft: publish it, or step away.
         // A live card: put the revision in front of readers, or drop it.
         WriteActions(
@@ -333,11 +359,13 @@ private fun WriteForm(
             primary = { modifier ->
                 if (model.isPublished) {
                     OrganicButton(L10n.Write.saveChanges, modifier, loading = discarding) {
+                        dismissKeyboard()
                         actionError = null
                         publishing = true
                     }
                 } else {
                     OrganicButton(L10n.Write.publish, modifier) {
+                        dismissKeyboard()
                         actionError = null
                         publishing = true
                     }
@@ -347,6 +375,7 @@ private fun WriteForm(
                 model.isPublished && model.hasPendingEdit -> ({ modifier ->
                     OrganicButton(L10n.Write.discardChanges, modifier, variant = ButtonVariant.Tonal, enabled = !discarding) {
                         if (discarding) return@OrganicButton
+                        dismissKeyboard()
                         discarding = true
                         actionError = null
                         scope.launch {
@@ -415,7 +444,7 @@ private fun SectionLabel(text: String) {
  * a muted line on how — the error in its place when there is one.
  */
 @Composable
-private fun Tags(model: WriteModel) {
+private fun Tags(model: WriteModel, dismissKeyboard: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionLabel(L10n.Write.tagsLabel)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -428,7 +457,10 @@ private fun Tags(model: WriteModel) {
                 onRemove = model::removeTag,
                 onRemoveLast = model::removeLastTag,
                 onAdd = model::addTag,
-                onSuggest = model::suggestTags,
+                onSuggest = {
+                    dismissKeyboard()
+                    model.suggestTags()
+                },
             )
             val error = model.tagError
             BasicText(
@@ -473,6 +505,28 @@ private fun WriteActions(
     }
 }
 
+/** What a one-line title holds in place of a line break (a pasted one). */
+private val LINE_BREAK = Regex("\r\n|[\r\n]")
+
+/**
+ * A tap on the page itself — one nothing under it took (a field, a button, the story) and that
+ * didn't turn into a scroll — as tapping beside a field does on the web. Nothing is consumed.
+ * The story's WebView takes its touches after the page has seen them, so a tap there is told
+ * apart by when it went down ([StoryEditorBridge.lastTouchDown]).
+ */
+private fun Modifier.onBlankTap(model: WriteModel, onTap: () -> Unit): Modifier = pointerInput(model) {
+    awaitEachGesture {
+        // The final pass: what lies under the finger has had the touch first, and taken it if it was theirs.
+        val down = awaitFirstDown(pass = PointerEventPass.Final)
+        while (true) {
+            val change = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+            if (change.isConsumed || (change.position - down.position).getDistance() > viewConfiguration.touchSlop) return@awaitEachGesture
+            if (!change.pressed) break
+        }
+        if (model.editor.lastTouchDown != down.uptimeMillis) onTap()
+    }
+}
+
 /** The web's 640px, near enough in dp: from here the writer's actions keep their row. */
 private const val WIDE_SCREEN_DP = 600
 
@@ -483,13 +537,16 @@ private const val WIDE_SCREEN_DP = 600
  * the story on the right, a pen rule between.
  */
 @Composable
-private fun Cover(model: WriteModel, pick: () -> Unit) {
+private fun Cover(model: WriteModel, dismissKeyboard: () -> Unit, pick: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionLabel(L10n.Write.mediaLabel)
         val url = model.values.imageUrl
         val preview = model.partialPreview
         when {
-            url != null -> HandDrawnImage(url = url, removeLabel = L10n.Write.mediaRemove, onRemove = model::removeCover)
+            url != null -> HandDrawnImage(url = url, removeLabel = L10n.Write.mediaRemove, onRemove = {
+                dismissKeyboard()
+                model.removeCover()
+            })
             preview != null -> HandDrawnImage(bitmap = preview.asImageBitmap(), blur = 14.dp, wash = Tokens.Cream.copy(alpha = 0.45f)) {
                 Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     SketchLoader(64.dp)
@@ -507,7 +564,10 @@ private fun Cover(model: WriteModel, pick: () -> Unit) {
             else -> Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).mediaFrame()) {
                 MediaHalf(
                     IconName.Image, L10n.Write.mediaPlaceholder, L10n.Write.mediaHint,
-                    Modifier.weight(1f).fillMaxHeight().plainClickable(role = Role.Button, onClick = pick),
+                    Modifier.weight(1f).fillMaxHeight().plainClickable(role = Role.Button) {
+                        dismissKeyboard()
+                        pick()
+                    },
                 )
                 OrganicVerticalRule(lineWidth = Tokens.Ink)
                 MediaHalf(
@@ -517,7 +577,10 @@ private fun Cover(model: WriteModel, pick: () -> Unit) {
                         .weight(1f)
                         .fillMaxHeight()
                         .fade(if (model.canGenerate) 1f else 0.55f)
-                        .plainClickable(role = Role.Button) { model.generateCover() },
+                        .plainClickable(role = Role.Button) {
+                            dismissKeyboard()
+                            model.generateCover()
+                        },
                 )
             }
         }
@@ -631,9 +694,9 @@ private fun PublishPanel(session: Session, model: WriteModel, showsAnonymousHint
         // The foot every dialog shares: why the last try failed right above it, then 再想想 the tonal way
         // out and the verb solid and rightmost; the row rests while it publishes.
         error?.let { ModalError(it) }
-        // The verb keeps its words while it works: its loader says so (design note B6).
+        // The verb keeps its width while it works, its loader beside the bare verb (design note B6).
         val label = if (updating) L10n.Write.PublishPanel.update else L10n.Write.PublishPanel.publish
-        ModalActions(L10n.Write.PublishPanel.cancel, onCancel, label, busy = pending, topPadding = publishActionsTop(afterError = error != null), onVerb = {
+        ModalActions(L10n.Write.PublishPanel.cancel, onCancel, label, busy = pending, busyLabel = if (updating) L10n.Write.saveShort else null, topPadding = publishActionsTop(afterError = error != null), onVerb = {
             // The server refuses a card without a title; say so in the writer's words.
             if (model.values.title.isBlank()) {
                 error = L10n.Write.titleRequired

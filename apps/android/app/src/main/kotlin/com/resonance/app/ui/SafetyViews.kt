@@ -166,7 +166,7 @@ fun ReportDialog(
             OrganicToggle(alsoBlock, seed = 91.0)
         }
         if (error) ModalError(L10n.Safety.actionError)
-        ModalActions(L10n.Safety.cancel, onClose, L10n.Safety.Report.submit, busy = busy, onVerb = {
+        ModalActions(L10n.Safety.cancel, onClose, L10n.Safety.Report.submit, busy = busy, busyLabel = L10n.Messages.send, onVerb = {
             scope.launch {
                 busy = true
                 error = false

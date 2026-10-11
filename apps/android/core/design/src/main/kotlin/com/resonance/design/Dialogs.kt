@@ -279,6 +279,8 @@ fun OrganicConfirmDialog(
     destructive: Boolean = false,
     /** The question's own words are still on their way: its place is kept, unwritten, rather than changing under the reader. */
     titlePending: Boolean = false,
+    /** The verb's words while [busy], when [confirmLabel] says more than the bare verb (刪除卡片 → 刪除). */
+    busyLabel: String? = null,
 ) {
     // A tap beside the card is the way out at its foot, and says so: "Keep it", not a "Close" it has no button for.
     OrganicModal(if (busy) null else onCancel, title, seed, closeLabel = cancelLabel) {
@@ -288,7 +290,7 @@ fun OrganicConfirmDialog(
             ModalBody(body)
         }
         if (error != null) ModalError(error)
-        ModalActions(cancelLabel, onCancel, confirmLabel, onConfirm, busy = busy, destructive = destructive)
+        ModalActions(cancelLabel, onCancel, confirmLabel, onConfirm, busy = busy, destructive = destructive, busyLabel = busyLabel)
     }
 }
 
@@ -363,7 +365,8 @@ fun ModalActions(topPadding: Dp = ModalActionsTop, content: @Composable () -> Un
  * ModalActions' (cancel, verb) form, the foot most dialogs end in: [cancelLabel] tonal, then the
  * verb — solid, or danger when [destructive] — with an optional glyph ([verbIcon]); [verbEnabled]
  * false while there is nothing to act on yet. While [busy] the verb shows its loader (its words
- * kept, design note B6) and the way out rests, faded; neither takes a tap.
+ * kept, design note B6, or [busyLabel] — the bare verb — in the same width) and the way out rests,
+ * faded; neither takes a tap.
  */
 @Composable
 fun ModalActions(
@@ -376,12 +379,13 @@ fun ModalActions(
     verbEnabled: Boolean = true,
     verbIcon: IconName? = null,
     topPadding: Dp = ModalActionsTop,
+    busyLabel: String? = null,
 ) {
     ModalActions(topPadding) {
         OrganicButton(cancelLabel, variant = ButtonVariant.Tonal, small = true, enabled = !busy, onClick = onCancel)
         OrganicButton(
             verbLabel, variant = if (destructive) ButtonVariant.Danger else ButtonVariant.Solid, icon = verbIcon,
-            small = true, enabled = verbEnabled, loading = busy, onClick = onVerb,
+            small = true, enabled = verbEnabled, loading = busy, loadingTitle = busyLabel, onClick = onVerb,
         )
     }
 }

@@ -900,6 +900,8 @@ object L10n {
         val saveDraftAndLeave: String get() = Strings.string("write.saveDraftAndLeave")
         /** Save changes */
         val saveChanges: String get() = Strings.string("write.saveChanges")
+        /** Save */
+        val saveShort: String get() = Strings.string("write.saveShort")
         /** Saving… */
         val saving: String get() = Strings.string("write.saving")
         /** Discard changes */
