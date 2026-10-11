@@ -1,6 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
+import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
+import { useElementSize } from '@/lib/hooks/useElementSize';
 import { cycleArc } from '@/lib/design/beliefCycle';
 import { wobCircle } from '@/lib/design/wobCircle';
 import { wobRect } from '@/lib/design/wobRect';
@@ -211,5 +213,52 @@ export function ResonanceSketch({ ariaLabel }: { ariaLabel: string }) {
       <path d="M 262,30 C 236,-6 140,-8 104,36" fill="none" stroke={PEN} strokeWidth={INK_LIGHT} strokeDasharray="5 6" strokeLinecap="round" />
       <path d="M 96,26 L 104,37 L 115,30" fill="none" stroke={PEN} strokeWidth={INK_LIGHT} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/**
+ * A sheet of paper for a few lines of text: drawn by hand once measured, a plain card of the same
+ * paper and pen (the CSS stand-in) until then.
+ */
+export function PaperCard({ children, seed, className }: { children: ReactNode; seed: number; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { w, h } = useElementSize(ref);
+  const R = 20;
+  return (
+    <div ref={ref} className={className} style={{ position: 'relative' }}>
+      <div
+        className="res-shape-stand-in"
+        aria-hidden="true"
+        data-shape-pending={w > 0 && h > 0 ? undefined : ''}
+        style={
+          {
+            position: 'absolute',
+            inset: 0,
+            '--shape-fill': 'var(--color-card-bg)',
+            '--shape-ink': PEN,
+            '--shape-ink-width': `${INK}px`,
+            '--shape-radius': `${R}px`,
+          } as CSSProperties
+        }
+      >
+        {w > 0 && h > 0 && (
+          <HandDrawnBorder
+            w={w}
+            h={h}
+            R={R}
+            seed={seed}
+            mag={Math.min(w, h) * 0.02}
+            fillColor="var(--color-card-bg)"
+            strokeColor={PEN}
+            strokeWidth={INK}
+            segmentsH={[2, 3]}
+            segmentsV={[2, 3]}
+            curve={0.6}
+            cornerJitter={0.8}
+          />
+        )}
+      </div>
+      <div style={{ position: 'relative' }}>{children}</div>
+    </div>
   );
 }

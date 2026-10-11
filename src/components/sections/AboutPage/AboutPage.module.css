@@ -111,6 +111,8 @@
   letter-spacing: -0.015em;
   margin: 0;
   text-wrap: balance;
+  /* A title may set its own line break (the mission's two lines). */
+  white-space: pre-line;
   /* A Chinese title breaks at its comma, not mid-phrase (and anywhere, rather than overflow). */
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -124,11 +126,16 @@
   text-wrap: pretty;
 }
 
-/* The paragraph that says what Resonance is: set off like a quote, the pen's terracotta beside it. */
+/* The paragraph that says what Resonance is: set off like a quote, a hand-drawn line beside it. */
 .pull {
-  margin: 1.8em 0 0;
-  padding: 4px 0 4px 22px;
-  border-left: 3px solid var(--about-insight);
+  display: flex;
+  gap: 20px;
+  margin-top: 1.8em;
+}
+
+.pull .prose {
+  margin: 0;
+  padding: 4px 0;
   font-family: var(--font-heading);
   font-size: clamp(17px, 1.9vw, 20px);
   font-weight: 600;
@@ -273,12 +280,23 @@
   gap: clamp(28px, 4vw, 48px);
 }
 
+.shifts > li {
+  display: flex;
+}
+
+/* Each a sheet of paper (AboutArt's PaperCard), the three as tall as the tallest. */
 .shift {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 18px;
-  border-top: 1.5px dashed oklch(55% 0.05 60 / 0.35);
+  padding: 26px 26px 28px;
+}
+
+.shift > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .shiftTitle {
@@ -288,58 +306,46 @@
 /* ── The comparison ──────────────────────────────────────────────── */
 
 .compare {
-  width: 100%;
-  max-width: 860px;
+  max-width: 900px;
   margin: 0 auto;
-  border-collapse: collapse;
   font-family: var(--font-body);
 }
 
-.compare th {
-  font-family: var(--font-heading);
-  font-size: 18px;
-  font-weight: 800;
-  padding: 0 8px 14px;
-  text-align: left;
-}
-
-.compare th.them {
-  color: var(--color-text-muted);
-}
-
-.compare th.us {
-  color: var(--color-terracotta);
-}
-
-.compare tbody tr {
-  border-top: 1.5px dashed oklch(55% 0.05 60 / 0.3);
-}
-
-.compare td {
-  padding: 16px 8px;
-  vertical-align: middle;
+/* Three columns centred on the arrows: theirs set against the arrow, ours leading away from it. */
+.compareRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 16px;
+  padding: 16px 0;
   line-height: 1.6;
 }
 
-.compare td.them {
+.them {
+  text-align: right;
   color: var(--color-text-muted);
   font-size: 15.5px;
-  width: 34%;
 }
 
-.compare td.us {
+.us {
+  text-align: left;
   font-size: 16.5px;
   font-weight: 600;
 }
 
-.arrow {
-  width: 56px;
-  text-align: center;
+.compareHead {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 800;
 }
 
-.arrow svg {
-  display: inline-block;
-  vertical-align: middle;
+.compareHead.us {
+  color: var(--color-terracotta);
+}
+
+.arrow {
+  display: flex;
+  justify-content: center;
 }
 
 /* ── The team ────────────────────────────────────────────────────── */
@@ -450,42 +456,30 @@
   }
 
   /* The comparison reads row by row: what others do, then ours under it. */
-  .compare thead {
+  .compare > .compareRow:first-child {
     display: none;
   }
 
-  .compare,
-  .compare tbody,
-  .compare tr,
-  .compare td {
-    display: block;
-    width: auto;
+  .compareRow {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 14px 4px;
   }
 
-  .compare td {
-    padding: 0;
-  }
-
-  .compare tbody tr {
-    padding: 16px 4px;
-  }
-
-  .compare td.them {
-    width: auto;
+  .them {
+    text-align: left;
     font-size: 14.5px;
     text-decoration: line-through;
     text-decoration-color: oklch(55% 0.05 60 / 0.45);
   }
 
-  .compare td.arrow {
+  .arrow {
     display: none;
   }
 
-  .compare td.us {
-    margin-top: 4px;
-  }
-
-  .compare td.us::before {
+  .us::before {
     content: '→ ';
     color: var(--color-terracotta);
   }

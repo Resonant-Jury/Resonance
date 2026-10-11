@@ -99,9 +99,9 @@ public enum L10n {
         /// Every one of us is born whole and singular, carrying experiences no one else has lived — and stories are the best way to
         public static var lead: String { Strings.shared.string("about.lead") }
         public enum Belief {
-            /// What we believe
+            /// Our mission
             public static var kicker: String { Strings.shared.string("about.belief.kicker") }
-            /// Giving people their depth back
+            /// Let every person, in all their dimensions,\nmeet one another through real stories
             public static var title: String { Strings.shared.string("about.belief.title") }
             /// Day to day we get pressed flat: a school, a job title, a follower count
             public static var p1: String { Strings.shared.string("about.belief.p1") }
@@ -247,7 +247,7 @@ public enum L10n {
             public static var kicker: String { Strings.shared.string("about.team.kicker") }
             /// The Resonance Crew
             public static var title: String { Strings.shared.string("about.team.title") }
-            /// Not a school, a major or a title — we'd rather be known as whole people
+            /// A group of people who met in the <wmm>What Matters Most</wmm> class
             public static var body: String { Strings.shared.string("about.team.body") }
         }
         public enum Closing {

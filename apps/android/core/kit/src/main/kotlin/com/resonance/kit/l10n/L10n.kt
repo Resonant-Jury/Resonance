@@ -101,9 +101,9 @@ object L10n {
         /** Every one of us is born whole and singular, carrying experiences no one else has lived — and stories are the best way to */
         val lead: String get() = Strings.string("about.lead")
         object Belief {
-            /** What we believe */
+            /** Our mission */
             val kicker: String get() = Strings.string("about.belief.kicker")
-            /** Giving people their depth back */
+            /** Let every person, in all their dimensions,\nmeet one another through real stories */
             val title: String get() = Strings.string("about.belief.title")
             /** Day to day we get pressed flat: a school, a job title, a follower count */
             val p1: String get() = Strings.string("about.belief.p1")
@@ -249,7 +249,7 @@ object L10n {
             val kicker: String get() = Strings.string("about.team.kicker")
             /** The Resonance Crew */
             val title: String get() = Strings.string("about.team.title")
-            /** Not a school, a major or a title — we'd rather be known as whole people */
+            /** A group of people who met in the <wmm>What Matters Most</wmm> class */
             val body: String get() = Strings.string("about.team.body")
         }
         object Closing {

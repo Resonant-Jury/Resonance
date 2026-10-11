@@ -2,13 +2,16 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
+import { DriftingBlobs, type DriftPaint } from '@/components/atoms/DriftingBlobs/DriftingBlobs';
+import { Divider } from '@/components/atoms/Divider/Divider';
+import { OrganicLink } from '@/components/atoms/OrganicLink/OrganicLink';
 import { SectionEdge } from '@/components/atoms/SectionEdge/SectionEdge';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Link } from '@/i18n/navigation';
-import { INK_LIGHT } from '@/lib/design/strokes';
-import { BeliefCycle, BeliefMotif, ResonanceSketch, type Belief } from './AboutArt';
+import { INK_LIGHT, INK_STRONG } from '@/lib/design/strokes';
+import { BeliefCycle, BeliefMotif, PaperCard, ResonanceSketch, type Belief } from './AboutArt';
 import styles from './AboutPage.module.css';
 
 const BELIEFS: Belief[] = ['resonance', 'depth', 'insight'];
@@ -19,13 +22,25 @@ const CONTRASTS = ['traffic', 'algorithm', 'performance', 'roles', 'followers', 
 /**
  * The team, by name and face only: no school, major, year or title — we'd
  * rather be met as whole people, as the page says. The pictures are square
- * crops of the pitch deck's photos.
+ * crops of the pitch deck's photos; the English names as their passports
+ * spell them.
  */
 const TEAM = [
-  { name: '陳念誠', src: '/team/chen.webp', seed: 11 },
-  { name: '蕭力文', src: '/team/hsiao.webp', seed: 37 },
-  { name: '方昱晴', src: '/team/fang.webp', seed: 61 },
-  { name: '鄭義信', src: '/team/cheng.webp', seed: 83 },
+  { zh: '陳念誠', en: 'Nien-Cheng Chen', src: '/team/chen.webp', seed: 11 },
+  { zh: '蕭力文', en: 'Li-Wen Hsiao', src: '/team/hsiao.webp', seed: 37 },
+  { zh: '方昱晴', en: 'Yu-Ching Fang', src: '/team/fang.webp', seed: 61 },
+  { zh: '鄭義信', en: 'Yi-Hsin Cheng', src: '/team/cheng.webp', seed: 83 },
+];
+
+/** The course where the team met. */
+const WMM_URL = 'https://www.facebook.com/friendsofstanforduniversityintaiwan/';
+
+/** The landing hero's drifting blobs, in this hero's colours. */
+const BLOB_PAINTS: DriftPaint[] = [
+  { color: '--color-sage', alpha: 0.26 },
+  { color: '--color-terracotta-light', alpha: 0.32 },
+  { color: '--color-lavender', alpha: 0.24 },
+  { color: '--color-yellow', alpha: 0.28 },
 ];
 
 const EDGE_PEN = 'oklch(55% 0.05 60 / 0.3)';
@@ -49,12 +64,15 @@ export function AboutPage() {
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
-        <div className={styles.heroBlobA} aria-hidden="true">
-          <OrganiBlob variant={1} fill="var(--color-sage)" size={320} grain={0.2} />
-        </div>
-        <div className={styles.heroBlobB} aria-hidden="true">
-          <OrganiBlob variant={3} fill="var(--color-terracotta-light)" size={260} grain={0.2} />
-        </div>
+        {/* The landing hero's blobs: still as the server draws them, drifting once the page is live. */}
+        <DriftingBlobs palette={BLOB_PAINTS}>
+          <div className={styles.heroBlobA} data-drift="1,0.1" data-drift-color="--color-sage">
+            <OrganiBlob variant={1} fill="var(--color-sage)" size={320} grain={0.2} />
+          </div>
+          <div className={styles.heroBlobB} data-drift="-1,-0.08" data-drift-color="--color-terracotta-light">
+            <OrganiBlob variant={3} fill="var(--color-terracotta-light)" size={260} grain={0.2} />
+          </div>
+        </DriftingBlobs>
         <div className={styles.heroContent}>
           <TagPill color="var(--color-terracotta-light)">{t('tag')}</TagPill>
           <h1 className={styles.heroTitle}>{t('title')}</h1>
@@ -67,7 +85,10 @@ export function AboutPage() {
           <Heading kicker={t('belief.kicker')} title={t('belief.title')} id="about-belief" />
           <p className={styles.prose}>{t('belief.p1')}</p>
           <p className={styles.prose}>{t('belief.p2')}</p>
-          <p className={`${styles.prose} ${styles.pull}`}>{t('belief.p3')}</p>
+          <div className={styles.pull}>
+            <Divider orientation="vertical" seed={53} amplitude={2.2} strokeWidth={INK_STRONG} color="var(--about-insight)" spacing={0} />
+            <p className={styles.prose}>{t('belief.p3')}</p>
+          </div>
         </div>
       </section>
 
@@ -134,12 +155,14 @@ export function AboutPage() {
           <Heading kicker={t('shift.kicker')} title={t('shift.title')} id="about-shift" />
           <ol className={styles.shifts}>
             {SHIFTS.map((s, i) => (
-              <li key={s} className={styles.shift}>
-                <span className={styles.shiftNum} aria-hidden="true">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <h3 className={styles.shiftTitle}>{t(`shift.${s}.title`)}</h3>
-                <p className={styles.shiftBody}>{t(`shift.${s}.body`)}</p>
+              <li key={s}>
+                <PaperCard seed={97 + i * 23} className={styles.shift}>
+                  <span className={styles.shiftNum} aria-hidden="true">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <h3 className={styles.shiftTitle}>{t(`shift.${s}.title`)}</h3>
+                  <p className={styles.shiftBody}>{t(`shift.${s}.body`)}</p>
+                </PaperCard>
               </li>
             ))}
           </ol>
@@ -150,33 +173,37 @@ export function AboutPage() {
         <SectionEdge topColor="var(--color-cream-dark)" seed={383} height={80} amplitude={0.14} stroke={EDGE_PEN} strokeWidth={INK_LIGHT} />
         <div className={styles.wide}>
           <Heading kicker={t('compare.kicker')} title={t('compare.title')} id="about-compare" />
-          <table className={styles.compare}>
-            <thead>
-              <tr>
-                <th scope="col" className={styles.them}>
-                  {t('compare.them')}
-                </th>
-                <td aria-hidden="true" />
-                <th scope="col" className={styles.us}>
-                  {t('compare.us')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {CONTRASTS.map((c) => (
-                <tr key={c}>
-                  <td className={styles.them}>{t(`compare.${c}.them`)}</td>
-                  <td className={styles.arrow} aria-hidden="true">
+          {/* Centred on the arrows: what platforms do set flush against them, ours leading away. */}
+          <div className={styles.compare} role="table" aria-label={t('compare.title')}>
+            <div className={styles.compareRow} role="row">
+              <span className={`${styles.them} ${styles.compareHead}`} role="columnheader">
+                {t('compare.them')}
+              </span>
+              <span aria-hidden="true" />
+              <span className={`${styles.us} ${styles.compareHead}`} role="columnheader">
+                {t('compare.us')}
+              </span>
+            </div>
+            {CONTRASTS.map((c, i) => (
+              <div key={c} role="rowgroup">
+                <Divider seed={211 + i * 7} amplitude={1.6} steps={9} spacing={0} />
+                <div className={styles.compareRow} role="row">
+                  <span className={styles.them} role="cell">
+                    {t(`compare.${c}.them`)}
+                  </span>
+                  <span className={styles.arrow} aria-hidden="true">
                     <svg viewBox="0 0 40 16" width={40} height={16}>
                       <path d="M 2,8.5 C 12,6.5 24,10 35,8" fill="none" stroke="var(--color-terracotta)" strokeWidth={INK_LIGHT} strokeLinecap="round" />
                       <path d="M 29,3.5 L 36,8 L 29.5,12.5" fill="none" stroke="var(--color-terracotta)" strokeWidth={INK_LIGHT} strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                  </td>
-                  <td className={styles.us}>{t(`compare.${c}.us`)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </span>
+                  <span className={styles.us} role="cell">
+                    {t(`compare.${c}.us`)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -184,12 +211,20 @@ export function AboutPage() {
         <SectionEdge topColor="var(--color-cream)" seed={409} height={80} amplitude={0.14} stroke={EDGE_PEN} strokeWidth={INK_LIGHT} />
         <div className={styles.wide}>
           <Heading kicker={t('team.kicker')} title={t('team.title')} id="about-team" />
-          <p className={styles.intro}>{t('team.body')}</p>
+          <p className={styles.intro}>
+            {t.rich('team.body', {
+              wmm: (chunks) => (
+                <OrganicLink href={WMM_URL} seed={29}>
+                  {chunks}
+                </OrganicLink>
+              ),
+            })}
+          </p>
           <ul className={styles.team}>
             {TEAM.map((m) => (
-              <li key={m.name} className={styles.member}>
-                <HandDrawnAvatar src={m.src} initials={m.name} size={112} seed={m.seed} />
-                <span className={styles.memberName}>{m.name}</span>
+              <li key={m.zh} className={styles.member}>
+                <HandDrawnAvatar src={m.src} initials={latin ? m.en : m.zh} size={112} seed={m.seed} />
+                <span className={styles.memberName}>{latin ? m.en : m.zh}</span>
               </li>
             ))}
           </ul>
