@@ -20,6 +20,14 @@ body {
    white gutter on the right. */
 main { display: block; width: 100%; max-width: 100%; overflow-x: clip; }
 
+/* ── Text selection ───────────────────────────────────────────────
+   A terracotta wash instead of the system blue. See-through, so the ink
+   keeps its own colour: dark text on paper and light text on a filled
+   button both stay readable under it. */
+::selection {
+  background: color-mix(in oklch, var(--color-terracotta) 30%, transparent);
+}
+
 /* ── Form placeholders (global, applied to all inputs/textareas) ── */
 input::placeholder,
 textarea::placeholder {
