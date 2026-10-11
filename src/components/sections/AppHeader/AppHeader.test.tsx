@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { useEffect } from 'react';
 import { renderWithIntl, screen, userEvent } from '@/../test/render';
 import { AppChromeProvider, useAppChrome } from '@/components/providers/AppChrome';
@@ -8,11 +8,13 @@ import { AppHeader } from './AppHeader';
 // Navigation + auth boundaries the account controls reach into. The signed-out
 // path renders none of the firestore-backed children, but the modules still
 // import, so stub them to keep the render hermetic.
+const nav = vi.hoisted(() => ({ pathname: '/home' }));
+
 vi.mock('@/i18n/navigation', async () => {
   const actual = await vi.importActual<typeof import('@/i18n/navigation')>('@/i18n/navigation');
   return {
     ...actual,
-    usePathname: () => '/home',
+    usePathname: () => nav.pathname,
     useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   };
 });
@@ -30,6 +32,31 @@ vi.mock('./MessagesEntry', () => ({
 }));
 
 const user = { initials: 'NC', handle: 'ncchen', accentColor: 'var(--color-terracotta)' };
+
+// The row keeps to the content's column, except on the pages that spread across
+// the whole window, where it stays at the window's edges.
+describe('AppHeader row width', () => {
+  afterEach(() => {
+    nav.pathname = '/home';
+  });
+
+  it.each([
+    ['/home', false],
+    ['/card/what-is-money', false],
+    ['/me', false],
+    ['/settings', false],
+    ['/messages', true],
+    ['/messages/abc', true],
+    ['/write', true],
+    ['/write/abc', true],
+    ['/me/thought-map', true],
+  ])('%s full bleed: %s', (pathname, fullBleed) => {
+    nav.pathname = pathname;
+    renderWithIntl(<AppHeader user={user} signedIn authReady />);
+    const row = screen.getByRole('link', { name: /Resonance|Messages/ }).parentElement!;
+    expect(row.hasAttribute('data-full-bleed')).toBe(fullBleed);
+  });
+});
 
 describe('AppHeader account slot', () => {
   it('shows the sign-in button and no notification bell when signed out', () => {

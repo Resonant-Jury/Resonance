@@ -48,6 +48,14 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
   // two-pane layout owns the full height, so no in-page heading exists.
   const onMessages = pathname === '/messages' || pathname.startsWith('/messages/');
   const onThread = pathname.startsWith('/messages/');
+  // Pages that spread across the whole window (the two panes of Messages, the
+  // writer and the thought map's workspace) keep the row at the window's
+  // edges; every other page's row keeps to the content's column.
+  const fullBleed =
+    onMessages ||
+    pathname === '/write' ||
+    pathname.startsWith('/write/') ||
+    pathname === '/me/thought-map';
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -87,7 +95,7 @@ export function AppHeader({ user, signedIn = true, authReady = true, activeKey }
       <HeaderChrome scrolled={scrolled} splitPen={onMessages} />
       <div id={HEADER_OVERLAY_ID} className={styles.overlay} />
 
-      <div className={styles.row} style={{ height: HEADER_BODY_H }}>
+      <div className={styles.row} style={{ height: HEADER_BODY_H }} data-full-bleed={fullBleed || undefined}>
         <Link href="/home" className={styles.logo}>
           <ResonanceIcon size={38} />
           <span className={styles.brand}>{onMessages ? tNav('messages') : 'Resonance'}</span>

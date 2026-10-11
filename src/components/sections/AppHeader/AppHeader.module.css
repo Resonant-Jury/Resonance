@@ -24,11 +24,15 @@
   /* The row keeps to the wide pages' column (--page-max-w-wide, the feed's,
      a card's, Me's): on a screen wider than it, the logo and the account
      line up with the content's edges instead of the window's, as the
-     landing page's header does. */
+     landing page's header does. A page that spreads across the whole
+     window (Messages, the writer, the thought map) keeps it at the edges. */
   --header-gutter: calc(max(0px, (100% - var(--page-max-w-wide)) / 2) + var(--page-pad-x));
   padding-left: var(--header-gutter);
   padding-right: var(--header-gutter);
   pointer-events: auto;
+}
+.row[data-full-bleed] {
+  --header-gutter: var(--page-pad-x);
 }
 
 .logo {
