@@ -26,7 +26,7 @@ const CONTRASTS = ['traffic', 'algorithm', 'performance', 'roles', 'followers', 
  * spell them.
  */
 const TEAM = [
-  { zh: '陳念誠', en: 'Nien-Cheng Chen', src: '/team/chen.webp', seed: 11 },
+  { zh: '陳念誠', en: 'Nian-Cheng Chen', src: '/team/chen.webp', seed: 11 },
   { zh: '蕭力文', en: 'Li-Wen Hsiao', src: '/team/hsiao.webp', seed: 37 },
   { zh: '方昱晴', en: 'Yu-Ching Fang', src: '/team/fang.webp', seed: 61 },
   { zh: '鄭義信', en: 'Yi-Hsin Cheng', src: '/team/cheng.webp', seed: 83 },
@@ -63,34 +63,44 @@ export function AboutPage() {
   const quote = (s: string) => (latin ? `“${s}”` : `「${s}」`);
   return (
     <main className={styles.page}>
-      <section className={styles.hero}>
-        {/* The landing hero's blobs: still as the server draws them, drifting once the page is live. */}
-        <DriftingBlobs palette={BLOB_PAINTS}>
-          <div className={styles.heroBlobA} data-drift="1,0.1" data-drift-color="--color-sage">
+      {/* The hero and the mission share one paper, and the landing hero's blobs drift over all of it:
+          still as the server draws them, alive once the page is, five or six at a time in this height. */}
+      <div className={styles.opening}>
+        <DriftingBlobs palette={BLOB_PAINTS} crowd={[5, 6]}>
+          <div className={styles.blobA} data-drift="1,0.1" data-drift-color="--color-sage">
             <OrganiBlob variant={1} fill="var(--color-sage)" size={320} grain={0.2} />
           </div>
-          <div className={styles.heroBlobB} data-drift="-1,-0.08" data-drift-color="--color-terracotta-light">
+          <div className={styles.blobB} data-drift="-1,-0.08" data-drift-color="--color-terracotta-light">
             <OrganiBlob variant={3} fill="var(--color-terracotta-light)" size={260} grain={0.2} />
           </div>
-        </DriftingBlobs>
-        <div className={styles.heroContent}>
-          <TagPill color="var(--color-terracotta-light)">{t('tag')}</TagPill>
-          <h1 className={styles.heroTitle}>{t('title')}</h1>
-          <p className={styles.lead}>{t('lead')}</p>
-        </div>
-      </section>
-
-      <section className={styles.belief} aria-labelledby="about-belief">
-        <div className={styles.measure}>
-          <Heading kicker={t('belief.kicker')} title={t('belief.title')} id="about-belief" />
-          <p className={styles.prose}>{t('belief.p1')}</p>
-          <p className={styles.prose}>{t('belief.p2')}</p>
-          <div className={styles.pull}>
-            <Divider orientation="vertical" seed={53} amplitude={2.2} strokeWidth={INK_STRONG} color="var(--about-insight)" spacing={0} />
-            <p className={styles.prose}>{t('belief.p3')}</p>
+          <div className={styles.blobC} data-drift="1,-0.12" data-drift-color="--color-lavender">
+            <OrganiBlob variant={2} fill="var(--color-lavender)" size={240} grain={0.2} />
           </div>
-        </div>
-      </section>
+          <div className={styles.blobD} data-drift="-1,0.06" data-drift-color="--color-yellow">
+            <OrganiBlob variant={0} fill="var(--color-yellow)" size={200} grain={0.2} />
+          </div>
+        </DriftingBlobs>
+
+        <section className={styles.hero}>
+          <div className={styles.heroContent}>
+            <TagPill color="var(--color-terracotta-light)">{t('tag')}</TagPill>
+            <h1 className={styles.heroTitle}>{t('title')}</h1>
+            <p className={styles.lead}>{t('lead')}</p>
+          </div>
+        </section>
+
+        <section className={styles.belief} aria-labelledby="about-belief">
+          <div className={styles.measure}>
+            <Heading kicker={t('belief.kicker')} title={t('belief.title')} id="about-belief" />
+            <p className={styles.prose}>{t('belief.p1')}</p>
+            <p className={styles.prose}>{t('belief.p2')}</p>
+            <div className={styles.pull}>
+              <Divider orientation="vertical" seed={53} amplitude={2.2} strokeWidth={INK_STRONG} color="var(--about-insight)" spacing={0} />
+              <p className={styles.prose}>{t('belief.p3')}</p>
+            </div>
+          </div>
+        </section>
+      </div>
 
       <section className={`${styles.band} ${styles.dark}`} aria-labelledby="about-cycle">
         <SectionEdge topColor="var(--color-cream)" seed={311} height={80} amplitude={0.14} stroke={EDGE_PEN} strokeWidth={INK_LIGHT} />

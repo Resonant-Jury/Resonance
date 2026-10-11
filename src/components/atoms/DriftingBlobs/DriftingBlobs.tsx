@@ -32,6 +32,8 @@ export interface DriftingBlobsProps {
    * lies, at its own opacity, and fades away as the live ones take over.
    */
   children: ReactNode;
+  /** The fewest and most blobs at once (3 to 4 by default); a taller area holds more. */
+  crowd?: readonly [number, number];
 }
 
 /** Field samples every FIELD px, colour samples every COLOUR px (CSS pixels). */
@@ -59,7 +61,9 @@ const FALLBACK: Oklab = [0.88, 0.04, 0.06];
  * positioned parent, under its content, and reads the pointer over that
  * parent to deepen the blob under it.
  */
-export function DriftingBlobs({ palette, children }: DriftingBlobsProps) {
+export function DriftingBlobs({ palette, children, crowd }: DriftingBlobsProps) {
+  // By value, so an inline [5, 6] doesn't restart the world every render.
+  const [fewest, most] = crowd ?? [3, 4];
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -99,6 +103,7 @@ export function DriftingBlobs({ palette, children }: DriftingBlobsProps) {
       palette: paints,
       paper: lab('--color-cream'),
       blobs: seeds,
+      crowd: [fewest, most],
     });
 
     let field = makeGrid(width, height, FIELD);
@@ -247,7 +252,7 @@ export function DriftingBlobs({ palette, children }: DriftingBlobsProps) {
       host.removeEventListener('pointerleave', onLeave);
       delete root.dataset.live;
     };
-  }, [palette]);
+  }, [palette, fewest, most]);
 
   return (
     <div ref={rootRef} className={styles.root} aria-hidden="true">

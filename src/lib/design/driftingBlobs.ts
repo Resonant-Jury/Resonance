@@ -94,8 +94,10 @@ export interface World {
   paper: Oklab;
   rand: () => number;
   nextId: number;
-  /** How many blobs it keeps on the page (3 or 4, picked again after each arrival), and when the next may come. */
+  /** How many blobs it keeps on the page (one end of `crowd` or the other, picked again after each arrival), and when the next may come. */
   population: number;
+  /** The fewest and most blobs it keeps: below the fewest a newcomer is sent at once. */
+  crowd: readonly [number, number];
   spawnAt: number;
   retryAt: number;
   lastPaint: number;
@@ -119,6 +121,8 @@ export interface WorldOptions {
   palette: Paint[];
   paper: Oklab;
   blobs?: SeedBlob[];
+  /** The fewest and most blobs on the page at once; 3 to 4 by default (the landing hero), more for a taller area. */
+  crowd?: readonly [number, number];
 }
 
 const TAU = Math.PI * 2;
@@ -194,7 +198,8 @@ export function createWorld(opts: WorldOptions): World {
     paper: opts.paper,
     rand: makePrng(opts.seed),
     nextId: 1,
-    population: 4,
+    population: opts.crowd?.[1] ?? 4,
+    crowd: opts.crowd ?? [3, 4],
     spawnAt: 6,
     retryAt: 0,
     lastPaint: -1,
@@ -452,13 +457,14 @@ export function step(world: World, dt: number): void {
     const ids = new Set(world.blobs.map((b) => b.id));
     world.pairs = world.pairs.filter((p) => ids.has(p.a) && ids.has(p.b));
   }
-  // Below three a newcomer is sent at once (as soon as there is room at an
-  // edge); a fourth waits its turn.
+  // Below the fewest a newcomer is sent at once (as soon as there is room at
+  // an edge); one more waits its turn.
   const n = world.blobs.length;
-  if (n < world.population && (t >= world.spawnAt || (n < 3 && t >= world.retryAt))) {
+  const [fewest, most] = world.crowd;
+  if (n < world.population && (t >= world.spawnAt || (n < fewest && t >= world.retryAt))) {
     if (spawn(world)) {
       world.spawnAt = t + 6 + world.rand() * 10;
-      world.population = world.rand() < 0.5 ? 3 : 4;
+      world.population = world.rand() < 0.5 ? fewest : most;
     } else {
       world.retryAt = t + 1;
     }

@@ -172,4 +172,20 @@ describe('drifting blobs', () => {
     step(world, 0.1);
     expect([...blobsAt(world, 300, 400)].sort()).toEqual([world.blobs[0].id, world.blobs[1].id].sort());
   });
+
+  it('keeps three or four blobs by default, and as many as a taller area asks for', () => {
+    const most = (crowd?: readonly [number, number], height = H) => {
+      const world = createWorld({ width: W, height, seed: 5, palette: [SAGE, LAVENDER], paper: PAPER, crowd });
+      let top = 0;
+      run(world, 300, (w) => {
+        top = Math.max(top, w.blobs.length);
+      });
+      return top;
+    };
+    expect(most()).toBeGreaterThanOrEqual(3);
+    expect(most()).toBeLessThanOrEqual(4);
+    const tall = most([5, 6], 2 * H);
+    expect(tall).toBeGreaterThanOrEqual(5);
+    expect(tall).toBeLessThanOrEqual(6);
+  });
 });

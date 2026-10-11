@@ -11,16 +11,29 @@
 
 /* ── Hero ─────────────────────────────────────────────────────────── */
 
-.hero {
+/* The hero and the mission: one paper, the blobs drifting over both. */
+.opening {
   position: relative;
-  /* Clear the fixed SiteHeader (68px body + its 14px wave). */
-  padding: clamp(140px, 16vw, 200px) clamp(20px, 5vw, 80px) clamp(48px, 6vw, 80px);
-  display: flex;
-  justify-content: center;
 }
 
-.heroBlobA { position: absolute; top: 18%; left: -90px; opacity: 0.3; pointer-events: none; }
-.heroBlobB { position: absolute; bottom: -40px; right: -60px; opacity: 0.32; pointer-events: none; }
+.blobA { position: absolute; top: 120px; left: -90px; opacity: 0.3; }
+.blobB { position: absolute; top: calc(100svh - 300px); right: -60px; opacity: 0.32; }
+.blobC { position: absolute; top: calc(100svh + 120px); left: 3%; opacity: 0.26; }
+.blobD { position: absolute; bottom: 140px; right: 8%; opacity: 0.28; }
+
+/* The first screen, whole: what we believe, and the rest a scroll away. */
+.hero {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  min-height: 100svh;
+  box-sizing: border-box;
+  /* Clear the fixed SiteHeader (68px body + its 14px wave). */
+  padding: 110px clamp(20px, 5vw, 80px) clamp(48px, 6vw, 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .heroContent {
   position: relative;
@@ -56,6 +69,8 @@
 /* ── Shared section rhythm ───────────────────────────────────────── */
 
 .belief {
+  position: relative;
+  z-index: 1;
   padding: clamp(32px, 5vw, 64px) clamp(20px, 5vw, 80px) clamp(64px, 8vw, 110px);
 }
 
