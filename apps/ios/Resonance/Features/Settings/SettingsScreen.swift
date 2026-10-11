@@ -499,17 +499,25 @@ private struct TermsSettings: View {
 /// DeleteAccountSection: what happens, then two pills of one size, stacked at the
 /// column's width as the web lays them out on a phone — the backup in the tonal
 /// peach, and the way into the deletion in the red tint (it only opens the
-/// dialog, whose confirm is the solid red). Apple 5.1.1(v).
+/// dialog, whose confirm is the solid red). Apple 5.1.1(v): an account that signs in
+/// with Apple confirms in Apple's sheet too, which revokes its Apple token.
 private struct DeleteAccountSettings: View {
     @Environment(SessionStore.self) private var session
     @State private var exportFile: URL?
     @State private var exporting = false
     @State private var confirming = false
+    /// The account signs in with Apple (read as the dialog opens): Apple's sheet comes first.
+    @State private var apple = false
     @State private var busy = false
     @State private var failed = false
 
     /// Seven days from now — when a deletion scheduled today would run.
     private static var purgeDate: Date { Date().addingTimeInterval(7 * 86_400) }
+
+    private var confirmBody: String {
+        let date = Self.purgeDate.formatted(Date.FormatStyle(date: .long, time: .omitted, locale: Strings.shared.locale))
+        return apple ? L10n.Settings.Delete.confirmBodyApple(date: date) : L10n.Settings.Delete.confirmBody(date: date)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -531,14 +539,15 @@ private struct DeleteAccountSettings: View {
                     .fillingWidth()
                     .loading(exporting)
                 }
-                OrganicButton(L10n.Settings.Delete.button, icon: .trash, variant: .dangerTonal) { confirming = true }
-                    .fillingWidth()
+                OrganicButton(L10n.Settings.Delete.button, icon: .trash, variant: .dangerTonal) {
+                    apple = session.signsInWithApple
+                    confirming = true
+                }
+                .fillingWidth()
             }
             if failed { ModalError(L10n.Settings.Delete.error) }
         }
-        .organicConfirm(isPresented: $confirming, title: L10n.Settings.Delete.confirmTitle,
-                        message: L10n.Settings.Delete.confirmBody(date: Self.purgeDate.formatted(
-                            Date.FormatStyle(date: .long, time: .omitted, locale: Strings.shared.locale))),
+        .organicConfirm(isPresented: $confirming, title: L10n.Settings.Delete.confirmTitle, message: confirmBody,
                         cancelLabel: L10n.Settings.Delete.cancel, confirmLabel: L10n.Settings.Delete.confirm,
                         workingLabel: L10n.Me.Actions.delete, closeLabel: L10n.Settings.Delete.cancel, busy: busy,
                         destructive: true, seed: 73) {
@@ -569,6 +578,9 @@ private struct DeleteAccountSettings: View {
         failed = false
         do {
             try await session.scheduleDeletion()
+        } catch is CancellationError {
+            // Apple's sheet was closed: nothing was scheduled, and the dialog stays.
+            busy = false
         } catch {
             busy = false
             confirming = false

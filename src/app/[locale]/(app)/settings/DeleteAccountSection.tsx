@@ -8,21 +8,29 @@ import { ConfirmModal } from '@/components/molecules/ConfirmModal/ConfirmModal';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { downloadMyData, scheduleMyAccountDeletion } from '@/lib/account/client';
 import { DELETION_GRACE_DAYS } from '@/lib/account/constants';
+import { hasAppleToken, revokeAppleToken } from '@/lib/auth/firebase/appleToken';
 import styles from './DeleteAccountSection.module.css';
 
 /**
  * Settings → 刪除帳號. Offers the backup download first, then schedules the
  * deletion (7-day grace), signs the person out and lands them on sign-in with
- * a note that signing back in cancels it.
+ * a note that signing back in cancels it. An account that signs in with Apple
+ * confirms in Apple's window first, which revokes its Apple token (App Store
+ * 5.1.1(v), lib/auth/firebase/appleToken); closing that window schedules
+ * nothing.
  */
 export function DeleteAccountSection() {
   const t = useTranslations('settings.delete');
   const locale = useLocale();
   const auth = useAuth();
   const [confirming, setConfirming] = useState(false);
+  /** The account signs in with Apple (read as the dialog opens). */
+  const [apple, setApple] = useState(false);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(false);
+  /** The browser blocked Apple's window: said in the dialog, which stays for another tap. */
+  const [appleBlocked, setAppleBlocked] = useState(false);
 
   const purgeDate = new Date(Date.now() + DELETION_GRACE_DAYS * 86_400_000).toLocaleDateString(locale, {
     year: 'numeric',
@@ -43,11 +51,26 @@ export function DeleteAccountSection() {
     }
   }
 
+  function openConfirm() {
+    setApple(hasAppleToken());
+    setAppleBlocked(false);
+    setConfirming(true);
+  }
+
   async function confirmDelete() {
     if (busy) return;
     setBusy(true);
     setError(false);
+    setAppleBlocked(false);
     try {
+      // Apple's window opens straight from this click (no await before it) — and
+      // before the deletion, which revokes the session the revocation is made with.
+      const revocation = await revokeAppleToken(locale);
+      if (revocation === 'cancelled' || revocation === 'blocked') {
+        setBusy(false);
+        setAppleBlocked(revocation === 'blocked');
+        return;
+      }
       await scheduleMyAccountDeletion();
       await auth.signOut().catch(() => {});
       window.location.href = `/${locale}/signin?notice=deletion-scheduled`;
@@ -73,7 +96,7 @@ export function DeleteAccountSection() {
           <Icon name="document" size={16} />
           {t('export')}
         </OrganicButton>
-        <OrganicButton variant="dangerTonal" onClick={() => setConfirming(true)}>
+        <OrganicButton variant="dangerTonal" onClick={openConfirm}>
           <Icon name="trash" size={16} />
           {t('button')}
         </OrganicButton>
@@ -86,12 +109,13 @@ export function DeleteAccountSection() {
       <ConfirmModal
         open={confirming}
         title={t('confirmTitle')}
-        body={t('confirmBody', { date: purgeDate })}
+        body={t(apple ? 'confirmBodyApple' : 'confirmBody', { date: purgeDate })}
         cancelLabel={t('cancel')}
         confirmLabel={t('confirm')}
         onCancel={() => setConfirming(false)}
         onConfirm={() => void confirmDelete()}
         busy={busy}
+        error={appleBlocked ? t('appleBlocked') : null}
         destructive
         seed={73}
       />

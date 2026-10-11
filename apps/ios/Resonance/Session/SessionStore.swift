@@ -184,6 +184,10 @@ final class SessionStore {
     /// What the account signed in with (settings → account shows them read-only).
     var email: String? { Auth.auth().currentUser?.email }
     var phoneNumber: String? { Auth.auth().currentUser?.phoneNumber }
+    /// The account signs in with Apple: deleting it goes through Apple's sheet first (``scheduleDeletion()``).
+    var signsInWithApple: Bool { appleUser != nil }
+    /// The account's Apple ID, as Firebase keeps it for its apple.com provider.
+    private var appleUser: String? { Auth.auth().currentUser?.providerData.first { $0.providerID == "apple.com" }?.uid }
 
     // MARK: - Language
 
@@ -230,11 +234,17 @@ final class SessionStore {
     // MARK: - Account deletion
 
     /// Schedules deletion; the server revokes every session, so sign out here
-    /// too — and nothing of the account stays on the phone meanwhile. This
-    /// install stops getting its pushes first, while the token is still good
-    /// (after the revocation the server would refuse the request); should the
-    /// scheduling fail, it registers again.
+    /// too — and nothing of the account stays on the phone meanwhile. An
+    /// account that signs in with Apple confirms in Apple's sheet first, which
+    /// revokes its Apple token (``AppleTokenRevocation``); closing the sheet
+    /// throws `CancellationError` and schedules nothing. This install stops
+    /// getting its pushes next, while the token is still good (after the
+    /// revocation the server would refuse the request); should the scheduling
+    /// fail, it registers again.
     func scheduleDeletion() async throws {
+        let apple = self.apple
+        try await AppleTokenRevocation(appleUser: appleUser, authorize: { try await apple.authorize() },
+                                       revoke: { try await Auth.auth().revokeToken(withAuthorizationCode: $0) }).run()
         PushCenter.lastRegistration = nil
         try? await pushAPI.unregister(installationId: PushCenter.installationId)
         do {

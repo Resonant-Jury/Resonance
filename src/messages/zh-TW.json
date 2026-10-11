@@ -767,9 +767,11 @@
       "button": "刪除帳號",
       "confirmTitle": "確定要刪除帳號？",
       "confirmBody": "你會被登出。{date}之後，帳號與所有內容會永久刪除，無法復原。",
+      "confirmBodyApple": "Apple 會先請你確認身分，接著你會被登出。{date}之後，帳號與所有內容會永久刪除，無法復原。",
       "confirm": "刪除帳號",
       "cancel": "先不要",
-      "error": "沒送出去，再試一次"
+      "error": "沒送出去，再試一次",
+      "appleBlocked": "瀏覽器擋下了 Apple 的視窗，再試一次"
     }
   },
   "safety": {

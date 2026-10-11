@@ -1391,12 +1391,16 @@ public enum L10n {
             public static var confirmTitle: String { Strings.shared.string("settings.delete.confirmTitle") }
             /// You'll be signed out. After {date}, your account and everything in it are deleted and can't be recovered.
             public static func confirmBody(date: String) -> String { Strings.shared.format("settings.delete.confirmBody", ["date": date]) }
+            /// Apple will ask you to confirm it's you, then you'll be signed out. After {date}, your account and everything in it are d
+            public static func confirmBodyApple(date: String) -> String { Strings.shared.format("settings.delete.confirmBodyApple", ["date": date]) }
             /// Delete account
             public static var confirm: String { Strings.shared.string("settings.delete.confirm") }
             /// Keep my account
             public static var cancel: String { Strings.shared.string("settings.delete.cancel") }
             /// That didn't go through — try again
             public static var error: String { Strings.shared.string("settings.delete.error") }
+            /// Your browser blocked Apple's window — try again
+            public static var appleBlocked: String { Strings.shared.string("settings.delete.appleBlocked") }
         }
     }
     public enum Safety {

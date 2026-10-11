@@ -767,9 +767,11 @@
       "button": "Delete account",
       "confirmTitle": "Delete your account?",
       "confirmBody": "You'll be signed out. After {date}, your account and everything in it are deleted and can't be recovered.",
+      "confirmBodyApple": "Apple will ask you to confirm it's you, then you'll be signed out. After {date}, your account and everything in it are deleted and can't be recovered.",
       "confirm": "Delete account",
       "cancel": "Keep my account",
-      "error": "That didn't go through — try again"
+      "error": "That didn't go through — try again",
+      "appleBlocked": "Your browser blocked Apple's window — try again"
     }
   },
   "safety": {

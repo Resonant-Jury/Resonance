@@ -23,6 +23,11 @@ vi.mock('@/lib/account/client', () => ({
   scheduleMyAccountDeletion: vi.fn(),
   downloadMyData: vi.fn(),
 }));
+// The Apple token's revocation (App Store 5.1.1(v)): an account without Apple has none.
+vi.mock('@/lib/auth/firebase/appleToken', () => ({
+  hasAppleToken: vi.fn(() => false),
+  revokeAppleToken: vi.fn(async () => 'none'),
+}));
 vi.mock('@/components/molecules/BlockedListModal/BlockedListModal', () => ({
   BlockedListModal: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Blocked people" /> : null),
 }));
@@ -48,6 +53,7 @@ vi.mock('@/components/molecules/AvatarUpload/AvatarUpload', () => ({
 
 import { updateProfile } from '@/lib/db/firestore/client/profile';
 import { downloadMyData, scheduleMyAccountDeletion } from '@/lib/account/client';
+import { hasAppleToken, revokeAppleToken } from '@/lib/auth/firebase/appleToken';
 import { requestRevalidate } from '@/lib/db/firestore/client/revalidate';
 import { SWRConfig } from 'swr';
 import { SettingsClient } from './SettingsClient';
@@ -213,6 +219,80 @@ describe('SettingsClient account deletion', () => {
 
     await waitFor(() => expect(scheduleMyAccountDeletion).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockSignOut).toHaveBeenCalled());
+  });
+
+  describe('for an account that signs in with Apple', () => {
+    afterEach(() => {
+      vi.mocked(hasAppleToken).mockReset().mockReturnValue(false);
+      vi.mocked(revokeAppleToken).mockReset().mockResolvedValue('none');
+    });
+    const openDialog = async () => {
+      vi.mocked(hasAppleToken).mockReturnValue(true);
+      const u = userEvent.setup({ pointerEventsCheck: 0 });
+      renderWithIntl(<SettingsClient initial={initial} />);
+      await u.click(screen.getByRole('tab', { name: 'Delete account' }));
+      await u.click(screen.getByRole('button', { name: 'Delete account' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete your account?' });
+      return { u, dialog, confirm: within(dialog).getByRole('button', { name: 'Delete account' }) };
+    };
+
+    it('revokes the Apple token first, then schedules the deletion', async () => {
+      const order: string[] = [];
+      vi.mocked(revokeAppleToken).mockImplementation(async () => (order.push('apple'), 'revoked'));
+      vi.mocked(scheduleMyAccountDeletion).mockImplementation(async () => {
+        order.push('schedule');
+        return { requestedAt: '2026-09-27T00:00:00Z', purgeAfter: '2026-10-04T00:00:00Z' };
+      });
+      const { u, dialog, confirm } = await openDialog();
+      // The dialog says Apple's window is coming.
+      expect(within(dialog).getByText(/^Apple will ask you to confirm it's you/)).toBeInTheDocument();
+      await u.click(confirm);
+
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalled());
+      expect(order).toEqual(['apple', 'schedule']);
+      // Apple's own page in the site's language.
+      expect(revokeAppleToken).toHaveBeenCalledWith('en');
+    });
+
+    it("schedules nothing when Apple's window is closed, and the dialog stays", async () => {
+      vi.mocked(revokeAppleToken).mockResolvedValue('cancelled');
+      const { u, dialog, confirm } = await openDialog();
+      await u.click(confirm);
+
+      await waitFor(() => expect(revokeAppleToken).toHaveBeenCalled());
+      expect(scheduleMyAccountDeletion).not.toHaveBeenCalled();
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(dialog).toBeInTheDocument();
+      await waitFor(() => expect(confirm).not.toHaveAttribute('aria-busy', 'true'));
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it("asks for another tap when the browser blocks Apple's window", async () => {
+      vi.mocked(revokeAppleToken).mockResolvedValueOnce('blocked').mockResolvedValueOnce('revoked');
+      vi.mocked(scheduleMyAccountDeletion).mockResolvedValue({
+        requestedAt: '2026-09-27T00:00:00Z',
+        purgeAfter: '2026-10-04T00:00:00Z',
+      });
+      const { u, dialog, confirm } = await openDialog();
+      await u.click(confirm);
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent("Your browser blocked Apple's window — try again");
+      expect(scheduleMyAccountDeletion).not.toHaveBeenCalled();
+      await u.click(confirm);
+      await waitFor(() => expect(scheduleMyAccountDeletion).toHaveBeenCalledTimes(1));
+    });
+
+    it('still deletes the account when the revocation fails', async () => {
+      vi.mocked(revokeAppleToken).mockResolvedValue('failed');
+      vi.mocked(scheduleMyAccountDeletion).mockResolvedValue({
+        requestedAt: '2026-09-27T00:00:00Z',
+        purgeAfter: '2026-10-04T00:00:00Z',
+      });
+      const { u, confirm } = await openDialog();
+      await u.click(confirm);
+      await waitFor(() => expect(scheduleMyAccountDeletion).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalled());
+    });
   });
 
   it('keeps the account when the confirmation is dismissed', async () => {

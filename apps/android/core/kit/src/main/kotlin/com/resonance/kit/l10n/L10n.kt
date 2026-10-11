@@ -1393,12 +1393,16 @@ object L10n {
             val confirmTitle: String get() = Strings.string("settings.delete.confirmTitle")
             /** You'll be signed out. After {date}, your account and everything in it are deleted and can't be recovered. */
             fun confirmBody(date: String): String = Strings.format("settings.delete.confirmBody", mapOf("date" to date))
+            /** Apple will ask you to confirm it's you, then you'll be signed out. After {date}, your account and everything in it are d */
+            fun confirmBodyApple(date: String): String = Strings.format("settings.delete.confirmBodyApple", mapOf("date" to date))
             /** Delete account */
             val confirm: String get() = Strings.string("settings.delete.confirm")
             /** Keep my account */
             val cancel: String get() = Strings.string("settings.delete.cancel")
             /** That didn't go through — try again */
             val error: String get() = Strings.string("settings.delete.error")
+            /** Your browser blocked Apple's window — try again */
+            val appleBlocked: String get() = Strings.string("settings.delete.appleBlocked")
         }
     }
     object Safety {

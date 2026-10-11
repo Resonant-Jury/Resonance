@@ -87,7 +87,7 @@
   > - Reports are reviewed within 24 hours; offending content is removed and accounts suspended.
   > - Contact: support@resonance.channel
   >
-  > Account deletion (5.1.1(v)): My Card Box → Edit profile → Delete account. The account is deleted after a 7-day grace period (signing back in cancels it).
+  > Account deletion (5.1.1(v)): My Card Box → Edit profile → Delete account. The account is deleted after a 7-day grace period (signing back in cancels it). An account that signs in with Apple confirms with Apple once more, and its Sign in with Apple token is revoked as the deletion is scheduled.
   >
   > Push notifications are used for resonances, notes and messages from other users.
 

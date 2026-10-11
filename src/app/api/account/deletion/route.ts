@@ -34,7 +34,10 @@ export async function GET() {
  * within the hour its current ID token has left. Until then writes and these
  * account routes refuse it at once, reads within REVOCATION_CACHE_MS, and
  * Firestore (which a device can reach directly) not before it expires.
- * Signing back in within the grace period can still cancel.
+ * Signing back in within the grace period can still cancel. An account that
+ * signs in with Apple has revoked its Apple token just before, from the
+ * client (lib/auth/firebase/appleToken.ts, the iOS app's
+ * AppleTokenRevocation): that takes a session this revokes.
  */
 export async function POST() {
   const user = await getCurrentUser();

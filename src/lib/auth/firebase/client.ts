@@ -233,6 +233,13 @@ export function mapFirebaseUser(user: FirebaseUser): AuthUser {
   };
 }
 
+/** Sign in with Apple's provider, Apple's own page in `locale`'s language. */
+export function appleProvider(locale?: string): OAuthProvider {
+  const provider = new OAuthProvider('apple.com');
+  if (locale) provider.setCustomParameters({ locale: locale === 'zh-TW' ? 'zh_TW' : 'en_US' });
+  return provider;
+}
+
 /**
  * An explicit sign-in waits for its cookie: the sign-in page navigates on to
  * `next` right after, and the middleware turns /write, /me and /settings
@@ -264,10 +271,9 @@ export class FirebaseClientAuthProvider implements IAuthProvider {
 
   /** Sign in with Apple (APPLE_SIGN_IN in ../providers: the web needs it set up first). */
   async signInWithApple(locale?: string): Promise<AuthUser> {
-    const provider = new OAuthProvider('apple.com');
+    const provider = appleProvider(locale);
     provider.addScope('email');
     provider.addScope('name');
-    if (locale) provider.setCustomParameters({ locale: locale === 'zh-TW' ? 'zh_TW' : 'en_US' });
     const { user } = await signInWithPopup(getFirebaseClientAuth(), provider, browserPopupRedirectResolver);
     return signedIn(user);
   }
