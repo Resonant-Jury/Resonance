@@ -1,0 +1,492 @@
+.page {
+  /* The beliefs' colours, after the deck's wheel: an olive sage, a sea-glass blue, a warm orange. */
+  --about-resonance: color-mix(in oklch, var(--color-sage) 70%, oklch(70% 0.1 115));
+  --about-depth: color-mix(in oklch, color-mix(in oklch, var(--color-sky) 55%, var(--color-sage)) 70%, var(--color-cream));
+  --about-insight: color-mix(in oklch, var(--color-terracotta) 50%, var(--color-terracotta-light));
+
+  background: var(--color-cream);
+  color: var(--color-text);
+  overflow-x: clip;
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  /* Clear the fixed SiteHeader (68px body + its 14px wave). */
+  padding: clamp(140px, 16vw, 200px) clamp(20px, 5vw, 80px) clamp(48px, 6vw, 80px);
+  display: flex;
+  justify-content: center;
+}
+
+.heroBlobA { position: absolute; top: 18%; left: -90px; opacity: 0.3; pointer-events: none; }
+.heroBlobB { position: absolute; bottom: -40px; right: -60px; opacity: 0.32; pointer-events: none; }
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.heroTitle {
+  font-family: var(--font-heading);
+  font-size: clamp(34px, 5.6vw, 64px);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.lead {
+  font-family: var(--font-body);
+  font-size: clamp(16px, 1.9vw, 19px);
+  line-height: 1.85;
+  color: var(--color-text-muted);
+  margin: 0;
+  max-width: 640px;
+  text-wrap: pretty;
+}
+
+/* ── Shared section rhythm ───────────────────────────────────────── */
+
+.belief {
+  padding: clamp(32px, 5vw, 64px) clamp(20px, 5vw, 80px) clamp(64px, 8vw, 110px);
+}
+
+.band {
+  position: relative;
+  padding: clamp(110px, 12vw, 160px) clamp(20px, 5vw, 80px) clamp(56px, 7vw, 100px);
+  background: var(--color-cream);
+}
+
+.dark {
+  background: var(--color-cream-dark);
+}
+
+.measure {
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+.wide {
+  position: relative;
+  z-index: 2;
+  max-width: var(--page-max-w);
+  margin: 0 auto;
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: clamp(24px, 3vw, 36px);
+}
+
+.wide > .heading {
+  align-items: center;
+  text-align: center;
+}
+
+.kicker {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--button-on-tonal);
+  margin: 0;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+  /* A Chinese title breaks at its comma, not mid-phrase (and anywhere, rather than overflow). */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.prose {
+  font-family: var(--font-body);
+  font-size: clamp(16px, 1.7vw, 18px);
+  line-height: 1.95;
+  margin: 0 0 1.2em;
+  text-wrap: pretty;
+}
+
+/* The paragraph that says what Resonance is: set off like a quote, the pen's terracotta beside it. */
+.pull {
+  margin: 1.8em 0 0;
+  padding: 4px 0 4px 22px;
+  border-left: 3px solid var(--about-insight);
+  font-family: var(--font-heading);
+  font-size: clamp(17px, 1.9vw, 20px);
+  font-weight: 600;
+}
+
+.intro {
+  font-family: var(--font-body);
+  font-size: clamp(15px, 1.6vw, 17px);
+  line-height: 1.85;
+  color: var(--color-text-muted);
+  text-align: center;
+  max-width: 640px;
+  margin: calc(-1 * clamp(8px, 1.2vw, 14px)) auto clamp(36px, 5vw, 56px);
+  text-wrap: pretty;
+}
+
+/* ── The belief cycle ────────────────────────────────────────────── */
+
+.cycle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 72px);
+}
+
+.cycleArt {
+  width: 100%;
+  max-width: 440px;
+  justify-self: center;
+}
+
+.beliefs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.beliefItem {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.beliefName {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 800;
+  margin: 2px 0 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+}
+
+.motto {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--button-on-tonal);
+}
+
+.beliefBody {
+  font-family: var(--font-body);
+  font-size: 15.5px;
+  line-height: 1.8;
+  color: var(--color-text-muted);
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* ── How it works ────────────────────────────────────────────────── */
+
+.how {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 72px);
+}
+
+.sketch {
+  width: 100%;
+  max-width: 460px;
+  justify-self: center;
+  padding-top: 12px;
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.step {
+  display: flex;
+  gap: 18px;
+  align-items: baseline;
+}
+
+.stepNum,
+.shiftNum {
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--color-terracotta);
+  line-height: 1;
+  font-variant-numeric: lining-nums;
+  flex-shrink: 0;
+}
+
+.stepTitle,
+.shiftTitle {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+
+.stepBody,
+.shiftBody {
+  font-family: var(--font-body);
+  font-size: 15.5px;
+  line-height: 1.8;
+  color: var(--color-text-muted);
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* ── The shift ───────────────────────────────────────────────────── */
+
+.shifts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(28px, 4vw, 48px);
+}
+
+.shift {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 18px;
+  border-top: 1.5px dashed oklch(55% 0.05 60 / 0.35);
+}
+
+.shiftTitle {
+  margin: 0;
+}
+
+/* ── The comparison ──────────────────────────────────────────────── */
+
+.compare {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  border-collapse: collapse;
+  font-family: var(--font-body);
+}
+
+.compare th {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 800;
+  padding: 0 8px 14px;
+  text-align: left;
+}
+
+.compare th.them {
+  color: var(--color-text-muted);
+}
+
+.compare th.us {
+  color: var(--color-terracotta);
+}
+
+.compare tbody tr {
+  border-top: 1.5px dashed oklch(55% 0.05 60 / 0.3);
+}
+
+.compare td {
+  padding: 16px 8px;
+  vertical-align: middle;
+  line-height: 1.6;
+}
+
+.compare td.them {
+  color: var(--color-text-muted);
+  font-size: 15.5px;
+  width: 34%;
+}
+
+.compare td.us {
+  font-size: 16.5px;
+  font-weight: 600;
+}
+
+.arrow {
+  width: 56px;
+  text-align: center;
+}
+
+.arrow svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* ── The team ────────────────────────────────────────────────────── */
+
+.team {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 760px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 32px 20px;
+}
+
+.member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.memberName {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* ── Closing band ────────────────────────────────────────────────── */
+
+.closing {
+  position: relative;
+  background: var(--color-terracotta);
+  padding: clamp(140px, 14vw, 200px) clamp(20px, 5vw, 80px) clamp(72px, 9vw, 120px);
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+
+.closingBlob {
+  position: absolute;
+  top: 110px;
+  left: -40px;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+.closingContent {
+  position: relative;
+  z-index: 2;
+  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.closingTitle {
+  font-family: var(--font-heading);
+  font-size: clamp(28px, 4.2vw, 48px);
+  font-weight: 800;
+  color: var(--color-cream);
+  line-height: 1.2;
+  margin: 0 0 14px;
+  text-wrap: balance;
+}
+
+.closingBody {
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.7;
+  color: color-mix(in oklch, var(--color-cream) 85%, transparent);
+  margin: 0 0 8px;
+}
+
+.motto2 {
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-size: 18px;
+  color: color-mix(in oklch, var(--color-cream) 85%, transparent);
+  margin: 0 0 36px;
+}
+
+/* ── Narrower screens ────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .cycle,
+  .how {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cycleArt {
+    max-width: 360px;
+  }
+
+  .sketch {
+    max-width: 400px;
+  }
+
+  .shifts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .team {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* The comparison reads row by row: what others do, then ours under it. */
+  .compare thead {
+    display: none;
+  }
+
+  .compare,
+  .compare tbody,
+  .compare tr,
+  .compare td {
+    display: block;
+    width: auto;
+  }
+
+  .compare td {
+    padding: 0;
+  }
+
+  .compare tbody tr {
+    padding: 16px 4px;
+  }
+
+  .compare td.them {
+    width: auto;
+    font-size: 14.5px;
+    text-decoration: line-through;
+    text-decoration-color: oklch(55% 0.05 60 / 0.45);
+  }
+
+  .compare td.arrow {
+    display: none;
+  }
+
+  .compare td.us {
+    margin-top: 4px;
+  }
+
+  .compare td.us::before {
+    content: '→ ';
+    color: var(--color-terracotta);
+  }
+}

@@ -3,6 +3,9 @@
  * Pages are logical paths, served under every locale (localePrefix: 'always').
  */
 
+/** The site's own pages beside the landing page, public in every locale. */
+export const SITE_PAGES = ['/about'] as const;
+
 /** The policy pages, public in every locale. */
 export const POLICY_PAGES = ['/privacy', '/terms', '/support', '/child-safety'] as const;
 

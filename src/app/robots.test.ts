@@ -39,7 +39,7 @@ describe('/robots.txt in production', () => {
     return robots();
   };
 
-  it('opens the public pages: the landing page, cards, profiles, the policies, share images', () => {
+  it('opens the public pages: the landing and About pages, cards, profiles, the policies, share images', () => {
     const txt = production();
     for (const path of [
       '/',
@@ -49,6 +49,8 @@ describe('/robots.txt in production', () => {
       '/zh-TW/card/a-quiet-turning-point',
       '/en/u/alice',
       '/zh-TW/u/%E5%B0%8F%E6%98%8E',
+      '/en/about',
+      '/zh-TW/about',
       '/en/privacy',
       '/zh-TW/terms',
       '/en/support',

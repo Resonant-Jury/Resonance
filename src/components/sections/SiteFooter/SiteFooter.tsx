@@ -10,7 +10,7 @@ import { INK_LIGHT } from '@/lib/design/strokes';
 
 const LINK_KEYS = ['about', 'contact', 'privacy', 'terms'] as const;
 const HREFS: Record<(typeof LINK_KEYS)[number], string> = {
-  about: '/#about',
+  about: '/about',
   contact: '/support',
   privacy: '/privacy',
   terms: '/terms',

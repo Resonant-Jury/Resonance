@@ -47,10 +47,10 @@ afterEach(() => {
 });
 
 describe('/sitemap.xml', () => {
-  it('lists the landing and policy pages in both locales, each naming the other (hreflang)', async () => {
+  it('lists the landing, About and policy pages in both locales, each naming the other (hreflang)', async () => {
     const entries = await sitemap();
     expect(entries.map((e) => e.url)).toEqual(
-      ['', '/privacy', '/terms', '/support', '/child-safety'].flatMap((p) => [`${BASE}/en${p}`, `${BASE}/zh-TW${p}`]),
+      ['', '/about', '/privacy', '/terms', '/support', '/child-safety'].flatMap((p) => [`${BASE}/en${p}`, `${BASE}/zh-TW${p}`]),
     );
     for (const e of entries) {
       const path = e.url.replace(/^https:\/\/resonance\.channel\/(en|zh-TW)/, '');
@@ -126,7 +126,7 @@ describe('/sitemap.xml', () => {
   it('still lists the pages when the cards cannot be read', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     failRead = true;
-    expect(await urls()).toHaveLength(10);
+    expect(await urls()).toHaveLength(12);
     expect(error).toHaveBeenCalledWith('sitemap: card read failed', expect.any(Error));
   });
 

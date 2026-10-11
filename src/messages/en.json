@@ -48,6 +48,115 @@
     "copyright": "© 2026 Resonance. All rights reserved.",
     "trademarks": "Apple and App Store are trademarks of Apple Inc. Google Play and the Google Play logo are trademarks of Google LLC."
   },
+  "about": {
+    "metaTitle": "About us",
+    "metaDescription": "We believe in the power of stories. On Resonance, when a story moves you, you don't answer with a like: you write a card of your own that resonates with it.",
+    "tag": "✦ About us",
+    "title": "We believe in the power of stories",
+    "lead": "Every one of us is born whole and singular, carrying experiences no one else has lived — and stories are the best way to connect one person to another and to make a difference. That's why we built Resonance.",
+    "belief": {
+      "kicker": "What we believe",
+      "title": "Giving people their depth back",
+      "p1": "With different people and in different places, we show different sides of ourselves; each of us is a whole built of all those sides. Yet day to day we get pressed flat — into a school, a job title, a follower count.",
+      "p2": "We believe stories are what give a person their depth back. When someone writes down the thought we could never quite put into words, that moment is resonance.",
+      "p3": "So on Resonance you write a stretch of your life as a story card. When a story moves you, you don't answer with a like: you write a card of your own that resonates with it, and lives influence lives."
+    },
+    "cycle": {
+      "kicker": "Three things we hold to",
+      "title": "Resonance · Depth · Insight",
+      "intro": "They aren't three separate ideas but one cycle: a story sets off resonance, resonance shows us more of who we are, those sides of us give us our own insight into the world — and every insight can become a new story",
+      "center": "Story",
+      "diagramLabel": "A cycle of resonance, depth and insight, each leading to the next, with stories at its centre",
+      "resonance": {
+        "name": "Resonance",
+        "motto": "Different stories, the same insight",
+        "body": "When someone speaks the thought we never finished, that is the moment resonance happens"
+      },
+      "depth": {
+        "name": "Depth",
+        "motto": "People are born three-dimensional",
+        "body": "We show different sides of ourselves to different people and things. Each of us is a whole built of those sides."
+      },
+      "insight": {
+        "name": "Insight",
+        "motto": "The same story, different insights",
+        "body": "Taking a story that moved us and reading it through our own eyes"
+      }
+    },
+    "how": {
+      "kicker": "How it works",
+      "title": "A story is answered by another story",
+      "sketchLabel": "Two story cards, the second answering the first with ripples",
+      "write": {
+        "title": "Write a stretch of your life",
+        "body": "An experience, a change of heart, a question you're still turning over — each can become a story card"
+      },
+      "read": {
+        "title": "Read what moves you",
+        "body": "Among life stories from all over, meet the people on your wavelength"
+      },
+      "resonate": {
+        "title": "Resonate with a card of your own",
+        "body": "Answer with your own story. The two cards stay linked, and two people meet."
+      }
+    },
+    "shift": {
+      "kicker": "Why now",
+      "title": "Social media is shifting",
+      "fatigue": {
+        "title": "Twofold fatigue",
+        "body": "A flood of information turns content into fast food, the worry of being rated makes us chase reach, and AI-made content makes it all louder"
+      },
+      "depth": {
+        "title": "Toward depth",
+        "body": "People are turning to more personal spaces and looking for connections with depth"
+      },
+      "warmth": {
+        "title": "Growth and warmth",
+        "body": "Inner growth over blind exposure; the warmth of people over handing everything to tools"
+      }
+    },
+    "compare": {
+      "kicker": "What's different",
+      "title": "Traditional platforms and Resonance",
+      "them": "Traditional platforms",
+      "us": "Resonance",
+      "traffic": {
+        "them": "Chasing reach",
+        "us": "Seeing the sides of yourself that go unnoticed, and connecting with the world"
+      },
+      "algorithm": {
+        "them": "Fed by an algorithm",
+        "us": "Resonating with people on your wavelength"
+      },
+      "performance": {
+        "them": "Performing for exposure",
+        "us": "Writing stories and insights"
+      },
+      "roles": {
+        "them": "Creators and readers",
+        "us": "An equal exchange: everyone is a storyteller and a listener"
+      },
+      "followers": {
+        "them": "Follower counts",
+        "us": "Connections made by real stories"
+      },
+      "likes": {
+        "them": "A like",
+        "us": "A card written in resonance"
+      }
+    },
+    "team": {
+      "kicker": "Who we are",
+      "title": "The Resonance Crew",
+      "body": "We're four people still learning. Rather than by a school, a major or a title, we'd like to be known as whole people — just like you, behind every card."
+    },
+    "closing": {
+      "title": "Everyone has a story to share",
+      "body": "Someone as singular as you is bound to send ripples out into the world",
+      "start": "Write your story"
+    }
+  },
   "tweaks": {
     "title": "Tweaks",
     "open": "Open tweaks panel",

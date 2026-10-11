@@ -3,7 +3,7 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { routing } from '@/i18n/routing';
 import { properlyPublished } from '@/lib/api/v1/service';
 import { getAdminDb } from '@/lib/db/firestore/admin';
-import { POLICY_PAGES, SITEMAP_MAX_CARDS } from '@/lib/seo';
+import { POLICY_PAGES, SITE_PAGES, SITEMAP_MAX_CARDS } from '@/lib/seo';
 import { siteUrl } from '@/lib/site';
 
 // Built with the deployment, then again at most once an hour (on the next
@@ -51,14 +51,14 @@ function inEveryLocale(base: string, path: string, lastModified?: Date): Metadat
 }
 
 /**
- * /sitemap.xml: the landing and policy pages, and the newest public cards
+ * /sitemap.xml: the landing, About and policy pages, and the newest public cards
  * (SITEMAP_MAX_CARDS), by slug. Profiles aren't listed; crawlers find them
  * from the cards. If the cards can't be read, the pages go out alone (a
  * build isn't failed for it; the next regeneration tries again).
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
-  const pages = ['', ...POLICY_PAGES].flatMap((path) => inEveryLocale(base, path));
+  const pages = ['', ...SITE_PAGES, ...POLICY_PAGES].flatMap((path) => inEveryLocale(base, path));
   let cards: Listed[] = [];
   try {
     cards = await listedCards(getAdminDb());
