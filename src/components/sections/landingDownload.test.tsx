@@ -65,7 +65,7 @@ describe('the download badges on the landing page', () => {
     vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(UA.macChrome);
     renderWithIntl(<CTASection />);
     expect(screen.queryByRole('group', { name: en.download.title })).toBeNull();
-    expect(screen.getByRole('link', { name: en.cta.start })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: en.cta.write })).toBeInTheDocument();
   });
 });
 

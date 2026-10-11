@@ -41,7 +41,7 @@ struct SignInScreen: View {
                 .lineSpacing(24 * 0.3)
                 .accessibilityAddTraits(.isHeader)
                 .padding(.bottom, 8)
-            Text(L10n.Auth.appleGoogleIntro)
+            Text(L10n.Auth.signInSubtitle)
                 .font(AppFonts.body(14))
                 .foregroundStyle(Tokens.textMuted)
                 .lineSpacing(14 * 0.6)

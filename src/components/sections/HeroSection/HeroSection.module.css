@@ -70,19 +70,4 @@
 
 .proof {
   margin-top: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-
-.avatarStack {
-  display: flex;
-}
-
-.proofText {
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--color-text-muted);
-  font-style: italic;
 }

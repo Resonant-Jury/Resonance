@@ -29,8 +29,8 @@
   "cta": {
     "title": "分享你的故事，讓世界聽見你的聲音",
     "description": "每一個故事都有意義。你的故事，也許正是改變某個人那天的那個故事。",
-    "start": "開始分享",
-    "create": "建立故事"
+    "write": "寫下你的故事",
+    "read": "先讀讀大家的故事"
   },
   "download": {
     "title": "下載 App",
@@ -650,6 +650,9 @@
   "auth": {
     "signInTitle": "回到共振",
     "signUpTitle": "第一次造訪",
+    "signInSubtitle": "你寫下的故事，和與你共振的人，都在這裡",
+    "signUpSubtitle": "寫下一個真實的故事，遇見和你共振的人",
+    "profileSubtitle": "取一個筆名，讓大家認識你",
     "email": "電子郵件",
     "password": "密碼",
     "magicLink": "寄登入連結給我",
@@ -659,10 +662,9 @@
     "creating": "建立中⋯",
     "continueWithGoogle": "使用 Google 繼續",
     "continueWithApple": "使用 Apple 繼續",
-    "googleIntro": "我們透過 Google 登入，從不會看到你的密碼",
-    "appleGoogleIntro": "我們透過 Apple 或 Google 登入，從不會看到你的密碼",
     "signInError": "登入失敗，請再試一次",
     "signUpError": "建立帳號失敗，請稍後再試",
+    "otherProviderError": "這個 Email 已經用其他方式註冊過，請用原本的方式登入",
     "switchToSignUp": "還沒有帳號？",
     "switchToSignIn": "已經有帳號？",
     "step": "第 {current} / {total} 步",

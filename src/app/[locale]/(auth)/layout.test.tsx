@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import en from '@/messages/en.json';
-import { render, screen, within } from '@/../test/render';
+import { renderWithIntl, screen, within } from '@/../test/render';
 
 vi.mock('next-intl/server', () => ({
   setRequestLocale: vi.fn(),
@@ -24,10 +24,13 @@ describe('the (auth) layout', () => {
     expect(viewport).toEqual({ viewportFit: 'cover' });
   });
 
-  // On a phone the brand is a cover over the card's sheet, the hero's line
-  // under the wordmark (a wide screen hides the line: auth.module.css).
-  it('sets the brand over the card, the hero’s line under the wordmark', async () => {
-    render(await AuthLayout({ children: <h1>Welcome back</h1>, params: Promise.resolve({ locale: 'en' }) }));
+  // The brand is a cover beside the sheet (over it on a phone or an upright
+  // tablet): the mark over the wordmark, the hero's line under it, then its
+  // storytellers (screens with room only: auth.module.css).
+  it('sets the brand on its cover, the hero’s line and storytellers under the wordmark', async () => {
+    const { container } = renderWithIntl(
+      await AuthLayout({ children: <h1>Welcome back</h1>, params: Promise.resolve({ locale: 'en' }) }),
+    );
 
     const home = screen.getByRole('link', { name: 'Resonance' });
     expect(home).toHaveAttribute('href', '/');
@@ -36,6 +39,14 @@ describe('the (auth) layout', () => {
     // The accent word carries the hero's pen-wave underline.
     const accent = within(line).getByText(en.hero.headlineAccent).parentElement!;
     expect(accent.querySelector('svg path')).toHaveAttribute('fill', 'none');
+
+    const proof = screen.getByText(en.hero.proof);
+    expect(line.compareDocumentPosition(proof) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // The hero's drifting blobs behind it, their still stand-ins in the HTML;
+    // no fixed blob behind the mark.
+    expect(container.querySelectorAll('[data-drift]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-drift-color]')).toHaveLength(3);
 
     expect(screen.getByRole('main')).toContainElement(screen.getByRole('heading', { name: 'Welcome back' }));
   });

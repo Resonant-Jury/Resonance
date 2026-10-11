@@ -1,30 +1,54 @@
-/* The sign-in / sign-up card. Its two designs are both in the HTML and CSS
-   picks one (640px), so a phone's first paint — before any script, or with
-   none — is already the phone's. */
+/* The sign-in / sign-up sheet. Two arrangements, both chosen by CSS so the
+   first paint — before any script, or with none — is already the right one:
+   - side by side (a screen wider than a phone and not held upright): the
+     sheet is the screen's right part, its left edge a wavy pen line, the
+     (auth) layout's cover beside it;
+   - stacked (a phone, or a tablet held upright, ≤ 1024px): the sheet sits at
+     the foot of the screen under the cover, its top edge a wavy pen line, and
+     runs on under the home indicator. What is on it keeps to a 480px column
+     (the apps' rule on a tablet).
+   The stacked query is auth.module.css's too: (max-width: 640px),
+   (max-width: 1024px) and (orientation: portrait). */
 .card {
   /* Derived from the accent token so the Tweaks themes (sage / lavender /
-     gold …) re-tint the card instead of it staying locked to terracotta. */
+     gold …) re-tint the sheet instead of it staying locked to terracotta. */
   --auth-interior: color-mix(in oklch, var(--color-terracotta-light) 14%, var(--color-card-bg));
   position: relative;
-  width: 100%;
-  max-width: 420px;
-  padding: 48px clamp(24px, 5vw, 48px);
+  flex: 0 0 clamp(440px, 44vw, 620px);
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 56px clamp(40px, 5vw, 72px) 56px calc(clamp(40px, 5vw, 72px) + 14px);
 }
 
-.desktopChrome,
-.mobileChrome {
+/* The sheet's paper and grain, its own layer under the words and buttons. */
+.chrome {
   position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
+  background: var(--auth-interior);
 }
 
-.mobileChrome {
+/* The side edge: the page's paper left of the line, laid over the sheet's. */
+.side {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 14px;
+  height: 100%;
+  overflow: visible;
+  z-index: 11;
+}
+
+.top {
   display: none;
 }
 
-/* The sheet's top edge, one strip per band of widths (AuthCard.tsx), only the
-   band's own shown. It lies above the grain, so the page's paper it lays above
-   the line hides the grain there too. */
+/* The top edge, one strip per band of widths (AuthCard.tsx), only the band's
+   own shown. It lies above the grain, so the page's paper it lays above the
+   line hides the grain there too. */
 .edge {
   display: none;
   position: absolute;
@@ -39,44 +63,51 @@
 .body {
   position: relative;
   z-index: 1;
+  width: 100%;
+  max-width: 400px;
 }
 
 .title {
   font-family: var(--font-heading);
-  font-size: 26px;
+  font-size: 30px;
+  line-height: 1.25;
   font-weight: 700;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
   color: var(--color-text);
 }
 
-.intro {
+/* A line of welcome under the title. */
+.title[data-subtitle] {
+  margin-bottom: 10px;
+}
+.subtitle {
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.65;
   color: var(--color-text-muted);
-  line-height: 1.6;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  text-wrap: pretty;
 }
 
-/* On phones the card is a sheet at the foot of the screen, under the (auth)
-   layout's cover: the card's paper and grain, full width, one wavy pen line
-   for a top edge and no rule below — it runs on under the home indicator. */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-width: 1024px) and (orientation: portrait) {
   .card {
-    align-self: stretch;
+    flex: none;
+    display: block;
     width: auto;
-    max-width: none;
     padding: 40px clamp(20px, 6.4vw, 28px) calc(env(safe-area-inset-bottom) + 20px);
   }
 
-  .desktopChrome {
+  .side {
     display: none;
   }
 
-  /* Its own layer, so the grain stays under the words and buttons. */
-  .mobileChrome {
+  .top {
     display: block;
-    z-index: 0;
-    background: var(--auth-interior);
+  }
+
+  .body {
+    max-width: 480px;
+    margin: 0 auto;
   }
 
   .title {
@@ -85,13 +116,21 @@
     margin-bottom: 22px;
   }
 
-  .title[data-intro] {
+  .title[data-subtitle] {
     margin-bottom: 8px;
   }
 
-  .intro {
+  .subtitle {
+    font-size: 14px;
     margin-bottom: 22px;
-    text-wrap: pretty;
+  }
+}
+
+/* A phone filling in a form (`focus`): the sheet alone, from the top of the
+   screen to its foot (auth.module.css leaves the cover out). */
+@media (max-width: 640px) {
+  .card[data-focus] {
+    flex: 1 1 auto;
   }
 }
 
@@ -117,8 +156,38 @@
     display: block;
   }
 }
-@media (min-width: 578px) {
+@media (min-width: 578px) and (max-width: 645.98px) {
   .edge[data-turns='9'] {
+    display: block;
+  }
+}
+@media (min-width: 646px) and (max-width: 713.98px) {
+  .edge[data-turns='10'] {
+    display: block;
+  }
+}
+@media (min-width: 714px) and (max-width: 781.98px) {
+  .edge[data-turns='11'] {
+    display: block;
+  }
+}
+@media (min-width: 782px) and (max-width: 849.98px) {
+  .edge[data-turns='12'] {
+    display: block;
+  }
+}
+@media (min-width: 850px) and (max-width: 917.98px) {
+  .edge[data-turns='13'] {
+    display: block;
+  }
+}
+@media (min-width: 918px) and (max-width: 985.98px) {
+  .edge[data-turns='14'] {
+    display: block;
+  }
+}
+@media (min-width: 986px) {
+  .edge[data-turns='15'] {
     display: block;
   }
 }

@@ -29,8 +29,8 @@
   "cta": {
     "title": "Share your story and let the world hear your voice",
     "description": "Every story matters. Yours might be the one that changes someone’s day.",
-    "start": "Start sharing",
-    "create": "Create a story"
+    "write": "Write your story",
+    "read": "Read stories first"
   },
   "download": {
     "title": "Get the app",
@@ -650,6 +650,9 @@
   "auth": {
     "signInTitle": "Welcome back",
     "signUpTitle": "First visit",
+    "signInSubtitle": "Your stories, and the people who resonate with them, are here",
+    "signUpSubtitle": "Write a true story and meet the people it resonates with",
+    "profileSubtitle": "Pick a pen name so others know you",
     "email": "Email",
     "password": "Password",
     "magicLink": "Send me a magic link",
@@ -659,10 +662,9 @@
     "creating": "Creating…",
     "continueWithGoogle": "Continue with Google",
     "continueWithApple": "Continue with Apple",
-    "googleIntro": "We use Google to sign you in. We never see your password.",
-    "appleGoogleIntro": "We use Apple or Google to sign you in. We never see your password.",
     "signInError": "Couldn’t sign in — please try again",
     "signUpError": "Couldn’t create the account — please try again",
+    "otherProviderError": "This email already has an account. Sign in the way you did before.",
     "switchToSignUp": "No account yet?",
     "switchToSignIn": "Already have one?",
     "step": "Step {current} / {total}",

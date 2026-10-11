@@ -4,18 +4,11 @@ import { useTranslations } from 'next-intl';
 import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
 import { DriftingBlobs, type DriftPaint } from '@/components/atoms/DriftingBlobs/DriftingBlobs';
 import { TagPill } from '@/components/atoms/TagPill/TagPill';
-import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { GetTheApp } from '@/components/molecules/GetTheApp/GetTheApp';
+import { StorytellerProof } from '@/components/molecules/StorytellerProof/StorytellerProof';
 import { DOWNLOAD_ANCHOR } from '@/lib/appStores';
 import styles from './HeroSection.module.css';
 import { INK_STRONG } from '@/lib/design/strokes';
-
-const AVATARS: { ini: string; color: string }[] = [
-  { ini: '念', color: 'var(--color-terracotta-light)' },
-  { ini: '蕭', color: 'var(--color-lavender)' },
-  { ini: '方', color: 'var(--color-sage)' },
-  { ini: 'TE', color: 'var(--color-yellow)' },
-];
 
 /** The colours a newcomer among the hero's blobs is drawn in, and how strongly each shows. */
 const BLOB_PAINTS: DriftPaint[] = [
@@ -59,17 +52,7 @@ export function HeroSection() {
 
         <GetTheApp id={DOWNLOAD_ANCHOR} className={styles.download} />
 
-        <div className={styles.proof}>
-          <div className={styles.avatarStack}>
-            {/* Overlapping by 6px: each one's initials stay whole beside the next (10px cut into them). */}
-            {AVATARS.map((a, i) => (
-              <div key={a.ini} style={{ marginLeft: i > 0 ? -6 : 0 }}>
-                <HandDrawnAvatar initials={a.ini} size={30} seed={i * 55 + 3} color={a.color} />
-              </div>
-            ))}
-          </div>
-          <span className={styles.proofText}>{t('proof')}</span>
-        </div>
+        <StorytellerProof className={styles.proof} />
       </div>
     </section>
   );

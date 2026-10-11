@@ -17,6 +17,8 @@ interface AuthContextValue {
   signIn(input: SignInInput): Promise<AuthUser>;
   signUp(input: SignUpInput): Promise<AuthUser>;
   signInWithGoogle(): Promise<AuthUser>;
+  /** Sign in with Apple; `locale` sets the language of Apple's own page. */
+  signInWithApple(locale?: string): Promise<AuthUser>;
   /** Mint the session cookie again for the signed-in user, and wait for it. */
   refreshSession(): Promise<void>;
   signOut(): Promise<void>;
@@ -87,6 +89,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       async signInWithGoogle() {
         const next = await firebaseClientAuthProvider.signInWithGoogle();
+        setUser(next);
+        return next;
+      },
+      async signInWithApple(locale) {
+        const next = await firebaseClientAuthProvider.signInWithApple(locale);
         setUser(next);
         return next;
       },

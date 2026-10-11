@@ -54,10 +54,10 @@ public enum L10n {
         public static var title: String { Strings.shared.string("cta.title") }
         /// Every story matters. Yours might be the one that changes someone’s day.
         public static var description: String { Strings.shared.string("cta.description") }
-        /// Start sharing
-        public static var start: String { Strings.shared.string("cta.start") }
-        /// Create a story
-        public static var create: String { Strings.shared.string("cta.create") }
+        /// Write your story
+        public static var write: String { Strings.shared.string("cta.write") }
+        /// Read stories first
+        public static var read: String { Strings.shared.string("cta.read") }
     }
     public enum Download {
         /// Get the app
@@ -1174,6 +1174,12 @@ public enum L10n {
         public static var signInTitle: String { Strings.shared.string("auth.signInTitle") }
         /// First visit
         public static var signUpTitle: String { Strings.shared.string("auth.signUpTitle") }
+        /// Your stories, and the people who resonate with them, are here
+        public static var signInSubtitle: String { Strings.shared.string("auth.signInSubtitle") }
+        /// Write a true story and meet the people it resonates with
+        public static var signUpSubtitle: String { Strings.shared.string("auth.signUpSubtitle") }
+        /// Pick a pen name so others know you
+        public static var profileSubtitle: String { Strings.shared.string("auth.profileSubtitle") }
         /// Email
         public static var email: String { Strings.shared.string("auth.email") }
         /// Password
@@ -1192,14 +1198,12 @@ public enum L10n {
         public static var continueWithGoogle: String { Strings.shared.string("auth.continueWithGoogle") }
         /// Continue with Apple
         public static var continueWithApple: String { Strings.shared.string("auth.continueWithApple") }
-        /// We use Google to sign you in. We never see your password.
-        public static var googleIntro: String { Strings.shared.string("auth.googleIntro") }
-        /// We use Apple or Google to sign you in. We never see your password.
-        public static var appleGoogleIntro: String { Strings.shared.string("auth.appleGoogleIntro") }
         /// Couldn’t sign in — please try again
         public static var signInError: String { Strings.shared.string("auth.signInError") }
         /// Couldn’t create the account — please try again
         public static var signUpError: String { Strings.shared.string("auth.signUpError") }
+        /// This email already has an account. Sign in the way you did before.
+        public static var otherProviderError: String { Strings.shared.string("auth.otherProviderError") }
         /// No account yet?
         public static var switchToSignUp: String { Strings.shared.string("auth.switchToSignUp") }
         /// Already have one?

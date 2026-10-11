@@ -3,6 +3,7 @@
 import { getApps, initializeApp } from 'firebase/app';
 import {
   GoogleAuthProvider,
+  OAuthProvider,
   browserLocalPersistence,
   browserPopupRedirectResolver,
   browserSessionPersistence,
@@ -257,6 +258,16 @@ export class FirebaseClientAuthProvider implements IAuthProvider {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     // Named explicitly: Auth may have been set up without a default resolver.
+    const { user } = await signInWithPopup(getFirebaseClientAuth(), provider, browserPopupRedirectResolver);
+    return signedIn(user);
+  }
+
+  /** Sign in with Apple (APPLE_SIGN_IN in ../providers: the web needs it set up first). */
+  async signInWithApple(locale?: string): Promise<AuthUser> {
+    const provider = new OAuthProvider('apple.com');
+    provider.addScope('email');
+    provider.addScope('name');
+    if (locale) provider.setCustomParameters({ locale: locale === 'zh-TW' ? 'zh_TW' : 'en_US' });
     const { user } = await signInWithPopup(getFirebaseClientAuth(), provider, browserPopupRedirectResolver);
     return signedIn(user);
   }

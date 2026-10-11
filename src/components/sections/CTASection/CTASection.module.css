@@ -1,7 +1,10 @@
 .section {
   position: relative;
   background: var(--color-terracotta);
-  padding: clamp(150px, 15vw, 220px) clamp(24px, 5vw, 80px) clamp(120px, 14vw, 180px);
+  /* The top padding includes the 100px wavy edge, and the footer's own wave
+     rises into the bottom one: these leave the words and buttons centred in
+     the terracotta that shows. */
+  padding: clamp(184px, 17.8vw, 256px) clamp(24px, 5vw, 80px) clamp(96px, 9.4vw, 136px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -39,18 +42,25 @@
   font-size: clamp(30px, 4.5vw, 52px);
   font-weight: 800;
   color: var(--color-cream);
-  margin: 0 0 16px;
+  margin: 0 0 20px;
   line-height: 1.15;
   letter-spacing: -0.025em;
   text-wrap: balance;
+}
+
+/* A clause holds together: a title too long for one line breaks at its
+   comma (titleClauses), not inside a clause. */
+.clause {
+  display: inline-block;
 }
 
 .description {
   font-family: var(--font-body);
   font-size: 17px;
   color: color-mix(in oklch, var(--color-cream) 80%, transparent);
-  margin: 0 0 40px;
+  margin: 0 0 clamp(44px, 5vw, 56px);
   line-height: 1.65;
+  text-wrap: pretty;
 }
 
 .ctaRow {
@@ -58,4 +68,23 @@
   gap: 14px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+/* A phone: the two stacked, one width, rather than wrapped to two widths. */
+@media (max-width: 640px) {
+  .section {
+    padding-top: 196px;
+    padding-bottom: 64px;
+  }
+
+  .ctaRow {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .ctaRow > a {
+    width: 100%;
+    max-width: 288px;
+  }
 }

@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { AuthCard } from '@/components/molecules/AuthCard/AuthCard';
+import { Divider } from '@/components/atoms/Divider/Divider';
 import { TermsConsent } from '@/components/molecules/TermsConsent/TermsConsent';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { sanitizeNextPath } from '@/lib/auth/nextPath';
+import { signInFailure, type SignInProvider } from '@/lib/auth/providers';
 import { ProviderButtons } from '../ProviderButtons';
 import styles from '../auth.module.css';
 
@@ -44,7 +46,7 @@ export default function SignInPage() {
   const locale = useLocale();
   const auth = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<SignInProvider | null>(null);
   const [deletionScheduled, setDeletionScheduled] = useState(false);
   useEffect(() => {
     setDeletionScheduled(queryParam('notice') === 'deletion-scheduled');
@@ -69,23 +71,25 @@ export default function SignInPage() {
     );
   }, [authLoading, signedInId, refreshSession]);
 
-  async function signIn() {
+  async function signIn(provider: SignInProvider) {
     if (pending) return;
-    setPending(true);
+    setPending(provider);
     setError(null);
     try {
-      await auth.signInWithGoogle();
+      if (provider === 'apple') await auth.signInWithApple(locale);
+      else await auth.signInWithGoogle();
       const next = sanitizeNextPath(queryParam('next')) ?? `/${locale}/home`;
+      // The button keeps working until the next page takes over.
       window.location.href = next;
-    } catch {
-      setError(t('signInError'));
-    } finally {
-      setPending(false);
+    } catch (err) {
+      setPending(null);
+      const failure = signInFailure(err);
+      if (failure !== 'cancelled') setError(t(failure === 'otherProvider' ? 'otherProviderError' : 'signInError'));
     }
   }
 
   return (
-    <AuthCard title={t('signInTitle')} intro={t('googleIntro')}>
+    <AuthCard title={t('signInTitle')} subtitle={t('signInSubtitle')}>
       {deletionScheduled && (
         <p role="status" className={styles.notice}>
           {t('deletionScheduled')}
@@ -93,6 +97,9 @@ export default function SignInPage() {
       )}
       <ProviderButtons pending={pending} onPick={signIn} />
       {error && <p className={styles.error}>{error}</p>}
+      <div className={styles.rule}>
+        <Divider seed={29} spacing={0} />
+      </div>
       <div className={styles.terms}>
         <TermsConsent />
       </div>

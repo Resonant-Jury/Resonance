@@ -56,10 +56,10 @@ object L10n {
         val title: String get() = Strings.string("cta.title")
         /** Every story matters. Yours might be the one that changes someone’s day. */
         val description: String get() = Strings.string("cta.description")
-        /** Start sharing */
-        val start: String get() = Strings.string("cta.start")
-        /** Create a story */
-        val create: String get() = Strings.string("cta.create")
+        /** Write your story */
+        val write: String get() = Strings.string("cta.write")
+        /** Read stories first */
+        val read: String get() = Strings.string("cta.read")
     }
     object Download {
         /** Get the app */
@@ -1176,6 +1176,12 @@ object L10n {
         val signInTitle: String get() = Strings.string("auth.signInTitle")
         /** First visit */
         val signUpTitle: String get() = Strings.string("auth.signUpTitle")
+        /** Your stories, and the people who resonate with them, are here */
+        val signInSubtitle: String get() = Strings.string("auth.signInSubtitle")
+        /** Write a true story and meet the people it resonates with */
+        val signUpSubtitle: String get() = Strings.string("auth.signUpSubtitle")
+        /** Pick a pen name so others know you */
+        val profileSubtitle: String get() = Strings.string("auth.profileSubtitle")
         /** Email */
         val email: String get() = Strings.string("auth.email")
         /** Password */
@@ -1194,14 +1200,12 @@ object L10n {
         val continueWithGoogle: String get() = Strings.string("auth.continueWithGoogle")
         /** Continue with Apple */
         val continueWithApple: String get() = Strings.string("auth.continueWithApple")
-        /** We use Google to sign you in. We never see your password. */
-        val googleIntro: String get() = Strings.string("auth.googleIntro")
-        /** We use Apple or Google to sign you in. We never see your password. */
-        val appleGoogleIntro: String get() = Strings.string("auth.appleGoogleIntro")
         /** Couldn’t sign in — please try again */
         val signInError: String get() = Strings.string("auth.signInError")
         /** Couldn’t create the account — please try again */
         val signUpError: String get() = Strings.string("auth.signUpError")
+        /** This email already has an account. Sign in the way you did before. */
+        val otherProviderError: String get() = Strings.string("auth.otherProviderError")
         /** No account yet? */
         val switchToSignUp: String get() = Strings.string("auth.switchToSignUp")
         /** Already have one? */

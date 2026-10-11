@@ -54,7 +54,7 @@ fun SignInScreen(session: Session) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     AuthShell(BrandTagline(L10n.Hero.headlinePrefix, L10n.Hero.headlineAccent, L10n.Hero.headlineSuffix)) {
-        SheetHeading(L10n.Auth.signInTitle, L10n.Auth.googleIntro)
+        SheetHeading(L10n.Auth.signInTitle, L10n.Auth.signInSubtitle)
         if (signedOutForDeletion) {
             BasicText(L10n.Auth.deletionScheduled, style = AppFonts.body(14f, 600, lineHeight = 1.6f, color = Tokens.Terracotta), modifier = Modifier.padding(bottom = 16.dp))
         }

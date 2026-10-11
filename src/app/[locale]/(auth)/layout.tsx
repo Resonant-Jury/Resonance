@@ -1,6 +1,8 @@
 import type { Viewport } from 'next';
 import { ResonanceIcon } from '@/components/atoms/ResonanceIcon/ResonanceIcon';
 import { OrganiBlob } from '@/components/atoms/OrganiBlob/OrganiBlob';
+import { DriftingBlobs, type DriftPaint } from '@/components/atoms/DriftingBlobs/DriftingBlobs';
+import { StorytellerProof } from '@/components/molecules/StorytellerProof/StorytellerProof';
 import { Emphasis } from '@/components/atoms/Emphasis/Emphasis';
 import { Link } from '@/i18n/navigation';
 import { INK } from '@/lib/design/strokes';
@@ -15,10 +17,20 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+/** The landing hero's blob colours, a touch fainter behind the lockup. */
+const BLOB_PAINTS: DriftPaint[] = [
+  { color: '--color-terracotta-light', alpha: 0.28 },
+  { color: '--color-lavender', alpha: 0.22 },
+  { color: '--color-sage', alpha: 0.18 },
+  { color: '--color-yellow', alpha: 0.26 },
+];
+const STAND_IN_GRAIN = 0.2;
+
 /**
- * The brand over the sign-in / sign-up card. On a wide screen both sit
- * centred on the paper; on a phone the brand is a cover filling what the
- * card's sheet leaves, with the hero's line under the wordmark (auth.module.css).
+ * The brand's cover beside the sign-in / sign-up sheet on a wide screen, over
+ * it on a phone or an upright tablet: the mark over the wordmark, the hero's
+ * line and its storytellers under it, the hero's blobs drifting behind
+ * (auth.module.css).
  */
 export default async function AuthLayout({
   children,
@@ -33,10 +45,19 @@ export default async function AuthLayout({
   return (
     <main className={styles.page}>
       <div className={styles.cover}>
-        <div className={styles.brand}>
-          <div className={styles.blob} aria-hidden>
-            <OrganiBlob fill="var(--color-terracotta-light)" size={176} />
+        {/* Still as the server draws the page; on the client they drift as the landing hero's do. */}
+        <DriftingBlobs palette={BLOB_PAINTS}>
+          <div className={styles.drift1} data-drift="1,0.15" data-drift-color="--color-lavender">
+            <OrganiBlob variant={3} fill="var(--color-lavender)" size={260} grain={STAND_IN_GRAIN} />
           </div>
+          <div className={styles.drift2} data-drift="-1,-0.1" data-drift-color="--color-sage">
+            <OrganiBlob variant={2} fill="var(--color-sage)" size={200} grain={STAND_IN_GRAIN} />
+          </div>
+          <div className={styles.drift3} data-drift="-0.6,0.4" data-drift-color="--color-yellow">
+            <OrganiBlob variant={0} fill="var(--color-yellow)" size={150} grain={STAND_IN_GRAIN} />
+          </div>
+        </DriftingBlobs>
+        <div className={styles.brand}>
           <Link href="/" className={styles.lockup}>
             <ResonanceIcon size={44} />
             <span className={styles.wordmark}>Resonance</span>
@@ -48,6 +69,7 @@ export default async function AuthLayout({
             </Emphasis>
             {t('headlineSuffix')}
           </p>
+          <StorytellerProof className={styles.proof} />
         </div>
       </div>
       {children}

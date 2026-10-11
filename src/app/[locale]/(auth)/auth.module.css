@@ -1,52 +1,108 @@
-/* The (auth) pages: the brand (layout.tsx) over the sign-in / sign-up card.
-   A wide screen centres both on the paper. A phone (≤640px) splits the screen
-   by job: a cover holding the brand fills what the card's sheet leaves, and
-   the sheet (AuthCard) runs to the bottom edge. Everything here is CSS, so the
-   server's HTML is already the phone's. */
+/* The (auth) pages: a cover holding the brand (layout.tsx) and the sign-in /
+   sign-up sheet (AuthCard). Side by side on a screen wider than a phone and
+   not held upright — the cover the left part, the sheet the right; stacked on
+   a phone or an upright tablet (≤ 1024px) — the cover fills what the sheet,
+   running to the bottom edge, leaves. The stacked query is AuthCard's too.
+   Everything here is CSS, so the server's HTML is already the right one. */
 .page {
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  background: var(--color-cream);
+}
+
+.cover {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 auto;
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px;
-  background: var(--color-cream);
+  padding: 48px 32px;
 }
 
 .brand {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  text-align: center;
 }
 
+/* The tall lockup: the mark over the wordmark. The wordmark is a logo, set
+   at a fixed size. */
 .lockup {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   text-decoration: none;
-  margin-bottom: clamp(36px, 6vw, 56px);
+}
+.lockup svg {
+  width: 76px;
+  height: 76px;
 }
 
 .wordmark {
   font-family: var(--font-heading);
-  font-size: 26px;
+  font-size: 44px;
   font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: var(--color-text);
 }
 
-/* The phone's cover only. */
-.blob,
+/* The hero's line: 讓生命影響生命. */
 .tagline {
-  display: none;
+  position: relative;
+  margin-top: 18px;
+  font-family: var(--font-heading);
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  text-wrap: balance;
+}
+.accent {
+  color: var(--color-terracotta);
 }
 
-@media (max-width: 640px) {
+/* The hero's storytellers, under the line. */
+.proof {
+  margin-top: 36px;
+}
+
+/* The drifting blobs' stand-ins (DriftingBlobs), around the cover's edges. */
+.drift1,
+.drift2,
+.drift3 {
+  position: absolute;
+  pointer-events: none;
+}
+.drift1 {
+  top: 6%;
+  left: -6%;
+  opacity: 0.3;
+}
+.drift2 {
+  bottom: 8%;
+  right: 4%;
+  opacity: 0.24;
+}
+.drift3 {
+  top: 14%;
+  right: 12%;
+  opacity: 0.22;
+}
+
+@media (max-width: 640px), (max-width: 1024px) and (orientation: portrait) {
   .page {
-    align-items: stretch;
-    justify-content: flex-start;
+    flex-direction: column;
     padding: env(safe-area-inset-top) 0 0;
   }
 
@@ -54,10 +110,7 @@
      brand at 70% of what is free, and keep their minimums when there is none
      to spare (the page scrolls then, the sheet staying last). */
   .cover {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    justify-content: flex-start;
     padding: 0 24px;
   }
   .cover::before {
@@ -71,16 +124,8 @@
     min-height: 28px;
   }
 
-  .brand {
-    text-align: center;
-  }
-
-  /* The tall lockup: the mark over the wordmark. The wordmark is a logo, set
-     at a fixed size. */
   .lockup {
-    flex-direction: column;
     gap: 6px;
-    margin-bottom: 0;
   }
   .lockup svg {
     width: 60px;
@@ -88,47 +133,38 @@
   }
   .wordmark {
     font-size: 34px;
-    line-height: 1.15;
-    letter-spacing: -0.02em;
   }
-
-  /* The hero's line: 讓生命影響生命. */
   .tagline {
-    display: block;
-    position: relative;
     margin-top: 14px;
-    font-family: var(--font-heading);
     font-size: 19px;
-    font-weight: 500;
-    line-height: 1.45;
-    color: var(--color-text-muted);
-    text-wrap: balance;
   }
-  .accent {
-    color: var(--color-terracotta);
-  }
-
-  /* A soft blob behind the mark, a little to its left; it takes no room. */
-  .blob {
-    display: block;
-    position: absolute;
-    left: 50%;
-    top: 34px;
-    width: 176px;
-    height: 176px;
-    margin: -88px 0 0 -112px;
-    opacity: 0.26;
-    transform: rotate(-18deg) scaleX(1.18);
-    pointer-events: none;
-  }
-  .blob svg {
-    width: 100%;
-    height: 100%;
+  .proof {
+    margin-top: 24px;
   }
 }
 
-/* A short cover (a short screen; the sign-up form): the lockup folds to one
-   row, then the line goes. */
+/* A phone's cover is narrow: smaller blobs, so they frame the lockup rather
+   than pile up behind it. */
+@media (max-width: 640px) {
+  .drift1,
+  .drift2,
+  .drift3 {
+    transform: scale(0.62);
+  }
+  .drift1 {
+    transform-origin: top left;
+  }
+  .drift2 {
+    transform-origin: bottom right;
+  }
+  .drift3 {
+    transform-origin: top right;
+  }
+}
+
+/* A short stacked cover (a short phone; the sign-up form): the lockup folds
+   to one row, then the line goes. (An upright screen this short is a phone's
+   width too.) */
 @media (max-width: 640px) and (max-height: 620px) {
   .lockup {
     flex-direction: row;
@@ -145,51 +181,54 @@
     margin-top: 8px;
     font-size: 17px;
   }
-  .blob {
-    top: 22px;
-    width: 120px;
-    height: 120px;
-    margin: -60px 0 0 -100px;
-  }
 }
 
-/* Shorter still: the line goes, and the blob with it (with the cover at its
-   minimum it would reach under the sheet's paper edge). */
-@media (max-width: 640px) and (max-height: 520px) {
-  .tagline,
-  .blob {
+/* A phone keeps its cover to the brand: the storytellers are for screens with room. */
+@media (max-width: 640px) {
+  .proof {
     display: none;
   }
 }
 
-/* ── The sign-in page's card (signin/page.tsx) ───────────────────── */
+/* A phone filling in the sign-up's profile (AuthCard's `focus`): the sheet
+   takes the whole screen — the cover would only push the form down. */
+@media (max-width: 640px) {
+  .page:has([data-focus]) .cover {
+    display: none;
+  }
+  .page:has([data-focus]) {
+    padding-top: calc(env(safe-area-inset-top) + 12px);
+  }
+}
+
+/* Shorter still: the line goes too. */
+@media (max-width: 640px) and (max-height: 520px) {
+  .tagline {
+    display: none;
+  }
+}
+
+/* ── The sheet's contents (signin/page.tsx, signup/page.tsx) ─────── */
 
 .notice {
   font-size: 14px;
   line-height: 1.6;
   font-weight: 600;
   color: var(--color-terracotta);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
-/* The card's provider buttons and the sheet's are both in the HTML; the
-   width shows one. The card keeps its outline buttons; on the sheet (itself
-   the frame) they are full-width faces with no pen line of their own. */
-.cardButtons {
+/* The provider buttons: full-width faces with no pen line of their own (the
+   sheet is the frame), Apple's in ink over Google's in terracotta, as in the
+   apps. */
+.providerButtons {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-}
-
-.sheetButtons {
-  display: none;
   flex-direction: column;
   gap: 12px;
 }
 
 /* Two classes: outranks OrganicButton's own .btn whichever sheet loads first. */
-.sheetButtons .sheetButton {
+.providerButtons .providerButton {
   min-height: 52px;
   padding: 11px 16px;
   font-size: 16px;
@@ -203,7 +242,7 @@
   gap: 10px;
 }
 
-/* Google's mark in a 30px slot. */
+/* A provider's mark in a 30px slot. */
 .mark {
   display: inline-grid;
   place-items: center;
@@ -223,43 +262,53 @@
 .error {
   color: var(--color-terracotta);
   font-size: 13px;
+  line-height: 1.6;
   margin-top: 12px;
 }
 
-/* Sign-up's "Already have an account? Sign in", ruled off inside the card;
-   on the sheet, spacing alone (the sheet's edge is its only line). */
+/* The sign-up's profile step: the fields, then its one verb full width. */
+.profileFields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.handleState {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 18px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.finish {
+  margin-top: 28px;
+}
+
+/* A wide sheet's pen rule before its small print (the terms, the way to the
+   other page); a phone's sheet keeps to spacing alone. */
+.rule {
+  margin-top: 28px;
+}
+
+/* Sign-up's "Already have an account? Sign in". */
 .switchLine {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid oklch(85% 0.02 75);
+  margin-top: 20px;
   font-size: 14px;
   line-height: 1.75;
   color: var(--color-text-muted);
 }
 
+/* TermsConsent sets its own 24px top margin; the sheet's rhythm is 16, and
+   the wrapper's −8 collapses into it. */
+.terms {
+  margin-top: -8px;
+  text-wrap: pretty;
+}
+
 @media (max-width: 640px) {
-  .notice {
-    margin-bottom: 16px;
-  }
-
-  .cardButtons {
+  .rule {
     display: none;
-  }
-
-  .sheetButtons {
-    display: flex;
-  }
-
-  .switchLine {
-    margin-top: 20px;
-    padding-top: 0;
-    border-top: none;
-  }
-
-  /* TermsConsent sets its own 24px top margin; the sheet's rhythm is 16, and
-     the wrapper's −8 collapses into it. */
-  .terms {
-    margin-top: -8px;
-    text-wrap: pretty;
   }
 }

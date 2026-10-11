@@ -5,19 +5,21 @@ import { useTranslations } from 'next-intl';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { ButtonLoader } from '@/components/atoms/ButtonLoader/ButtonLoader';
 import { GoogleMark } from '@/components/atoms/GoogleMark/GoogleMark';
+import { AppleMark } from '@/components/atoms/AppleMark/AppleMark';
+import { APPLE_SIGN_IN, type SignInProvider } from '@/lib/auth/providers';
 import { wobCircle } from '@/lib/design/wobCircle';
 import styles from './auth.module.css';
 
-// The white disc under Google's G on the sheet's terracotta button.
+// The white disc under Google's G on the terracotta button.
 const DISC = wobCircle(15, 15, 14.6, 12, { segments: 8, mag: 0.7, cpJitter: 0.4 });
 
 /**
- * Google's mark in the sheet buttons' 30px slot: the G keeps its colours on a
- * white wobbly disc (the terracotta face would swallow its red). While the
- * sign-in is on its way the slot holds the button's pen loop instead (B6), so
- * nothing moves.
+ * A provider's mark in the buttons' 30px slot: Google's G keeps its colours on
+ * a white wobbly disc (the terracotta face would swallow its red); Apple's
+ * logo stands bare in the ink face's own white. While its sign-in is on its
+ * way the slot holds the button's pen loop instead (B6), so nothing moves.
  */
-function ProviderMark({ busy = false, children }: { busy?: boolean; children: ReactNode }) {
+function ProviderMark({ busy, disc, children }: { busy: boolean; disc: boolean; children: ReactNode }) {
   if (busy) {
     return (
       <span className={styles.mark}>
@@ -27,50 +29,57 @@ function ProviderMark({ busy = false, children }: { busy?: boolean; children: Re
   }
   return (
     <span className={styles.mark}>
-      <svg className={styles.disc} viewBox="0 0 30 30" aria-hidden="true">
-        <path d={DISC} fill="#FFFFFF" />
-      </svg>
+      {disc && (
+        <svg className={styles.disc} viewBox="0 0 30 30" aria-hidden="true">
+          <path d={DISC} fill="#FFFFFF" />
+        </svg>
+      )}
       {children}
     </span>
   );
 }
 
 /**
- * The sign-in and sign-up pages' provider button. Both copies are in the
- * HTML and the width shows one: the desktop card's sits at its own width,
- * the phone sheet's spans it. Either way it wears the same face and no pen
- * line (a button is a filled shape; the card or the sheet is the frame).
- * Sign in with Apple lives in the iOS app only.
+ * The sign-in and sign-up pages' provider buttons, full width on the sheet
+ * with no pen line of their own (a button is a filled shape; the sheet is the
+ * frame). Sign in with Apple, once the web has it (APPLE_SIGN_IN), comes
+ * first in ink — Apple asks for a black button at least as prominent as the
+ * others, as in the apps — and Google follows in terracotta. The one pressed
+ * shows it is working; the other waits.
  */
-export function ProviderButtons({ pending, onPick }: { pending: boolean; onPick: () => void }) {
+export function ProviderButtons({
+  pending,
+  onPick,
+}: {
+  pending: SignInProvider | null;
+  onPick: (provider: SignInProvider) => void;
+}) {
   const t = useTranslations('auth');
-  const button = (layout: 'card' | 'sheet') => (
+  const button = (provider: SignInProvider) => (
     <OrganicButton
-      variant="solid"
-      block={layout === 'sheet'}
-      className={layout === 'sheet' ? styles.sheetButton : undefined}
-      loading={pending}
+      key={provider}
+      variant={provider === 'apple' ? 'ink' : 'solid'}
+      block
+      className={styles.providerButton}
+      loading={pending === provider}
       callerLoader
+      disabled={pending !== null && pending !== provider}
       onClick={() => {
-        if (!pending) onPick();
+        if (!pending) onPick(provider);
       }}
     >
       <span className={styles.markLabel}>
-        <ProviderMark busy={pending}>
-          <GoogleMark size={18} />
+        <ProviderMark busy={pending === provider} disc={provider === 'google'}>
+          {provider === 'apple' ? <AppleMark size={20} /> : <GoogleMark size={18} />}
         </ProviderMark>
-        {t('continueWithGoogle')}
+        {t(provider === 'apple' ? 'continueWithApple' : 'continueWithGoogle')}
       </span>
     </OrganicButton>
   );
   return (
-    <>
-      <div className={styles.cardButtons} data-layout="card">
-        {button('card')}
-      </div>
-      <div className={styles.sheetButtons} data-layout="sheet">
-        {button('sheet')}
-      </div>
-    </>
+    <div className={styles.providerButtons}>
+      {APPLE_SIGN_IN && button('apple')}
+      {button('google')}
+    </div>
   );
 }
