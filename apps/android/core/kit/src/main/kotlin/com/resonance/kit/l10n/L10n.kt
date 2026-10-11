@@ -20,6 +20,8 @@ object L10n {
         val stories: String get() = Strings.string("nav.stories")
         /** Sign In */
         val signIn: String get() = Strings.string("nav.signIn")
+        /** Enter Resonance */
+        val enterApp: String get() = Strings.string("nav.enterApp")
         /** 中 */
         val languageSwitch: String get() = Strings.string("nav.languageSwitch")
         /** Open menu */

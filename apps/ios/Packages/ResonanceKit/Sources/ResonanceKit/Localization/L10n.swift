@@ -18,6 +18,8 @@ public enum L10n {
         public static var stories: String { Strings.shared.string("nav.stories") }
         /// Sign In
         public static var signIn: String { Strings.shared.string("nav.signIn") }
+        /// Enter Resonance
+        public static var enterApp: String { Strings.shared.string("nav.enterApp") }
         /// 中
         public static var languageSwitch: String { Strings.shared.string("nav.languageSwitch") }
         /// Open menu

@@ -19,7 +19,7 @@ const account = vi.hoisted(() => ({ loaded: vi.fn() }));
 vi.mock('./SiteHeaderAccount', () => {
   account.loaded();
   return {
-    SiteHeaderAvatar: () => <span>alice&apos;s avatar</span>,
+    SiteHeaderAccountMenu: () => <span>alice&apos;s account menu</span>,
     SiteHeaderSignedInNav: () => null,
   };
 });
@@ -51,11 +51,22 @@ describe('SiteHeader', () => {
     expect(account.loaded).not.toHaveBeenCalled();
   });
 
-  it("loads it once someone is signed in, and shows their avatar", async () => {
+  it("loads it once someone is signed in, and shows their account menu", async () => {
     auth.user = { id: 'alice' };
     renderWithIntl(<SiteHeader />);
-    expect(await screen.findByText("alice's avatar")).toBeInTheDocument();
+    expect(await screen.findByText("alice's account menu")).toBeInTheDocument();
     expect(account.loaded).toHaveBeenCalled();
     expect(screen.queryByRole('link', { name: 'Sign In' })).not.toBeInTheDocument();
+  });
+
+  // Signed in, the way into the app stands where 登入 does for a visitor — the
+  // avatar opens the account menu, as in the app, and is no way in.
+  it('offers a signed-in viewer the way into the app, a solid button to the feed', async () => {
+    auth.user = { id: 'alice' };
+    renderWithIntl(<SiteHeader />);
+    const enter = await screen.findByRole('link', { name: 'Enter Resonance' });
+    expect(enter).toHaveAttribute('href', '/home');
+    expect(enter.querySelector('button')).toHaveAttribute('data-variant', 'solid');
+    expect(screen.queryByRole('link', { name: 'My Profile' })).toBeNull();
   });
 });

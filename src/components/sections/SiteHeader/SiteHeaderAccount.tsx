@@ -1,8 +1,7 @@
 'use client';
 
-import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { AppMobileNavModal } from '@/components/sections/AppHeader/AppMobileNavModal';
-import { Link } from '@/i18n/navigation';
+import { Subnavbar } from '@/components/sections/AppHeader/Subnavbar';
 import { useMyProfile } from '@/lib/data/hooks';
 import { AVATAR_PLACEHOLDER as PLACEHOLDER } from './avatarPlaceholder';
 
@@ -13,19 +12,23 @@ import { AVATAR_PLACEHOLDER as PLACEHOLDER } from './avatarPlaceholder';
  * Firestore.
  */
 
-/** The signed-in viewer's avatar, linking to their page. */
-export function SiteHeaderAvatar() {
+/**
+ * The signed-in viewer's avatar and the account menu it opens — the app
+ * header's own (Subnavbar: 我的卡片盒 / 私訊 / 設定 / 登出), so the avatar does the
+ * same on the landing and policy pages as everywhere else.
+ */
+export function SiteHeaderAccountMenu() {
   const { data: profile } = useMyProfile();
   return (
-    <Link href="/me" aria-label="My Profile" style={{ textDecoration: 'none' }}>
-      <HandDrawnAvatar
-        src={profile?.avatarUrl}
-        initials={profile?.initials || PLACEHOLDER.initials}
-        size={36}
-        color={profile?.accentColor || PLACEHOLDER.color}
-        seed={Number(profile?.avatarSeed) || PLACEHOLDER.seed}
-      />
-    </Link>
+    <Subnavbar
+      user={{
+        initials: profile?.initials || PLACEHOLDER.initials,
+        handle: profile?.handle || '',
+        accentColor: profile?.accentColor || PLACEHOLDER.color,
+        avatarUrl: profile?.avatarUrl,
+        avatarSeed: profile?.avatarSeed ?? String(PLACEHOLDER.seed),
+      }}
+    />
   );
 }
 

@@ -19,7 +19,7 @@ import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
 // What a signed-in viewer sees reads their profile, and with it the data
 // layer: loaded only once someone is signed in, so a signed-out visitor's
 // landing and policy pages never load Firestore.
-const SiteHeaderAvatar = dynamic(() => import('./SiteHeaderAccount').then((m) => m.SiteHeaderAvatar), {
+const SiteHeaderAccountMenu = dynamic(() => import('./SiteHeaderAccount').then((m) => m.SiteHeaderAccountMenu), {
   ssr: false,
   loading: SiteHeaderAvatarPlaceholder,
 });
@@ -181,8 +181,18 @@ export function SiteHeader() {
                   </OrganicButton>
                 </Link>
               ) : (
-                // The avatar reads the viewer's profile: not on a phone, whose header doesn't show it.
-                !isMobile && <SiteHeaderAvatar />
+                // Signed in: the way into the app (where 登入 stands for a visitor), and the avatar's account
+                // menu, the app header's own. Not on a phone, whose menu holds both.
+                !isMobile && (
+                  <>
+                    <Link href="/home" style={{ textDecoration: 'none' }}>
+                      <OrganicButton variant="solid" style={{ padding: '9px 22px', fontSize: '14px' }}>
+                        {t('enterApp')}
+                      </OrganicButton>
+                    </Link>
+                    <SiteHeaderAccountMenu />
+                  </>
+                )
               )}
             </>
           )}
