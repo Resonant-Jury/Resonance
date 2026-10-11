@@ -15,13 +15,19 @@
   /* Derived from the accent token so the Tweaks themes (sage / lavender /
      gold …) re-tint the sheet instead of it staying locked to terracotta. */
   --auth-interior: color-mix(in oklch, var(--color-terracotta-light) 14%, var(--color-card-bg));
+  /* Side by side, the sheet's width follows the screen's shape: about 44% of
+     a 16:10 screen and narrower as the screen nears a square (38% at 1:1),
+     so the cover keeps room to breathe — 54vw − 16vh is that line, with no
+     step between the two. Its side margin scales with it. */
+  --sheet-w: clamp(340px, calc(54vw - 16vh), 620px);
+  --sheet-pad: clamp(32px, calc(var(--sheet-w) * 0.11), 72px);
   position: relative;
-  flex: 0 0 clamp(440px, 44vw, 620px);
+  flex: 0 0 var(--sheet-w);
   align-self: stretch;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 56px clamp(40px, 5vw, 72px) 56px calc(clamp(40px, 5vw, 72px) + 14px);
+  padding: 56px var(--sheet-pad) 56px calc(var(--sheet-pad) + 14px);
 }
 
 /* The sheet's paper and grain, its own layer under the words and buttons. */
@@ -32,17 +38,27 @@
   pointer-events: none;
 }
 
-/* The paper past the edge's strip (the strip paints its own up to the line,
-   overlapping this by a pixel or two so no seam shows): nothing of the sheet
-   lies beyond its pen line. */
+/* The paper past the edge's strip (the strip paints its own paper and grain
+   up to the line, overlapping this by a few pixels so no seam shows):
+   nothing of the sheet lies beyond its pen line. */
 .paper {
   position: absolute;
   inset: 0 0 0 12px;
   background: var(--auth-interior);
 }
 
-/* The side edge: the sheet's paper right of the line, nothing left of it. */
+/* The strips' shared grain filter: rendered (so it paints), taking no room. */
+.defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* The side edge: the sheet's paper right of the line, nothing left of it.
+   One strip per band of heights, only the band's own shown. */
 .side {
+  display: none;
   position: absolute;
   top: 0;
   left: 0;
@@ -95,7 +111,8 @@
   line-height: 1.65;
   color: var(--color-text-muted);
   margin-bottom: 28px;
-  text-wrap: pretty;
+  /* Even lines: a narrow sheet never leaves a word alone on the last one. */
+  text-wrap: balance;
 }
 
 @media (max-width: 640px), (max-width: 1024px) and (orientation: portrait) {
@@ -106,7 +123,7 @@
     padding: 40px clamp(20px, 6.4vw, 28px) calc(env(safe-area-inset-bottom) + 20px);
   }
 
-  .side {
+  .sides {
     display: none;
   }
 
@@ -139,68 +156,229 @@
   }
 }
 
-/* A phone filling in a form (`focus`): the sheet alone, from the top of the
-   screen to its foot (auth.module.css leaves the cover out). */
-@media (max-width: 640px) {
-  .card[data-focus] {
-    flex: 1 1 auto;
+/* A phone held upright: the sheet takes a good part of the screen (40%), its
+   words and buttons in the middle of it, the brand's cover over the rest. */
+@media (max-width: 640px) and (orientation: portrait) {
+  .card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 40dvh;
   }
 }
 
-/* A turn of the edge per ~68px: the band where round(width / 68) is the
-   strip's turns. */
-@media (max-width: 373.98px) {
+/* A phone filling in a form (`focus`): the sheet alone, from the top of the
+   screen to its foot (auth.module.css leaves the cover out), the form at the
+   top, where the keyboard leaves it. */
+@media (max-width: 640px) {
+  .card[data-focus] {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+  }
+}
+
+/* Each edge shows the strip drawn for its length (AuthCard.tsx's edgeTurns,
+   at whole pixels): the top edge by the screen's width, the side edge by its
+   height. A band ends 0.04px before the next begins: Chrome matches a media
+   length within 1/64px either way, so a seam of 2/64px or less would show
+   two strips at once at some width. */
+@media (max-width: 319.96px) {
+  .edge[data-turns='3'] {
+    display: block;
+  }
+}
+@media (min-width: 320px) and (max-width: 396.96px) {
+  .edge[data-turns='4'] {
+    display: block;
+  }
+}
+@media (min-width: 397px) and (max-width: 468.96px) {
   .edge[data-turns='5'] {
     display: block;
   }
 }
-@media (min-width: 374px) and (max-width: 441.98px) {
+@media (min-width: 469px) and (max-width: 536.96px) {
   .edge[data-turns='6'] {
     display: block;
   }
 }
-@media (min-width: 442px) and (max-width: 509.98px) {
+@media (min-width: 537px) and (max-width: 599.96px) {
   .edge[data-turns='7'] {
     display: block;
   }
 }
-@media (min-width: 510px) and (max-width: 577.98px) {
+@media (min-width: 600px) and (max-width: 659.96px) {
   .edge[data-turns='8'] {
     display: block;
   }
 }
-@media (min-width: 578px) and (max-width: 645.98px) {
+@media (min-width: 660px) and (max-width: 715.96px) {
   .edge[data-turns='9'] {
     display: block;
   }
 }
-@media (min-width: 646px) and (max-width: 713.98px) {
+@media (min-width: 716px) and (max-width: 769.96px) {
   .edge[data-turns='10'] {
     display: block;
   }
 }
-@media (min-width: 714px) and (max-width: 781.98px) {
+@media (min-width: 770px) and (max-width: 819.96px) {
   .edge[data-turns='11'] {
     display: block;
   }
 }
-@media (min-width: 782px) and (max-width: 849.98px) {
+@media (min-width: 820px) and (max-width: 866.96px) {
   .edge[data-turns='12'] {
     display: block;
   }
 }
-@media (min-width: 850px) and (max-width: 917.98px) {
+@media (min-width: 867px) and (max-width: 911.96px) {
   .edge[data-turns='13'] {
     display: block;
   }
 }
-@media (min-width: 918px) and (max-width: 985.98px) {
+@media (min-width: 912px) and (max-width: 954.96px) {
   .edge[data-turns='14'] {
     display: block;
   }
 }
-@media (min-width: 986px) {
+@media (min-width: 955px) and (max-width: 995.96px) {
   .edge[data-turns='15'] {
+    display: block;
+  }
+}
+@media (min-width: 996px) {
+  .edge[data-turns='16'] {
+    display: block;
+  }
+}
+@media (max-height: 319.96px) {
+  .side[data-side-turns='3'] {
+    display: block;
+  }
+}
+@media (min-height: 320px) and (max-height: 396.96px) {
+  .side[data-side-turns='4'] {
+    display: block;
+  }
+}
+@media (min-height: 397px) and (max-height: 468.96px) {
+  .side[data-side-turns='5'] {
+    display: block;
+  }
+}
+@media (min-height: 469px) and (max-height: 536.96px) {
+  .side[data-side-turns='6'] {
+    display: block;
+  }
+}
+@media (min-height: 537px) and (max-height: 599.96px) {
+  .side[data-side-turns='7'] {
+    display: block;
+  }
+}
+@media (min-height: 600px) and (max-height: 659.96px) {
+  .side[data-side-turns='8'] {
+    display: block;
+  }
+}
+@media (min-height: 660px) and (max-height: 715.96px) {
+  .side[data-side-turns='9'] {
+    display: block;
+  }
+}
+@media (min-height: 716px) and (max-height: 769.96px) {
+  .side[data-side-turns='10'] {
+    display: block;
+  }
+}
+@media (min-height: 770px) and (max-height: 819.96px) {
+  .side[data-side-turns='11'] {
+    display: block;
+  }
+}
+@media (min-height: 820px) and (max-height: 866.96px) {
+  .side[data-side-turns='12'] {
+    display: block;
+  }
+}
+@media (min-height: 867px) and (max-height: 911.96px) {
+  .side[data-side-turns='13'] {
+    display: block;
+  }
+}
+@media (min-height: 912px) and (max-height: 954.96px) {
+  .side[data-side-turns='14'] {
+    display: block;
+  }
+}
+@media (min-height: 955px) and (max-height: 995.96px) {
+  .side[data-side-turns='15'] {
+    display: block;
+  }
+}
+@media (min-height: 996px) and (max-height: 1033.96px) {
+  .side[data-side-turns='16'] {
+    display: block;
+  }
+}
+@media (min-height: 1034px) and (max-height: 1070.96px) {
+  .side[data-side-turns='17'] {
+    display: block;
+  }
+}
+@media (min-height: 1071px) and (max-height: 1105.96px) {
+  .side[data-side-turns='18'] {
+    display: block;
+  }
+}
+@media (min-height: 1106px) and (max-height: 1139.96px) {
+  .side[data-side-turns='19'] {
+    display: block;
+  }
+}
+@media (min-height: 1140px) and (max-height: 1171.96px) {
+  .side[data-side-turns='20'] {
+    display: block;
+  }
+}
+@media (min-height: 1172px) and (max-height: 1202.96px) {
+  .side[data-side-turns='21'] {
+    display: block;
+  }
+}
+@media (min-height: 1203px) and (max-height: 1231.96px) {
+  .side[data-side-turns='22'] {
+    display: block;
+  }
+}
+@media (min-height: 1232px) and (max-height: 1259.96px) {
+  .side[data-side-turns='23'] {
+    display: block;
+  }
+}
+@media (min-height: 1260px) and (max-height: 1286.96px) {
+  .side[data-side-turns='24'] {
+    display: block;
+  }
+}
+@media (min-height: 1287px) and (max-height: 1325.96px) {
+  .side[data-side-turns='25'] {
+    display: block;
+  }
+}
+@media (min-height: 1326px) and (max-height: 1377.96px) {
+  .side[data-side-turns='26'] {
+    display: block;
+  }
+}
+@media (min-height: 1378px) and (max-height: 1429.96px) {
+  .side[data-side-turns='27'] {
+    display: block;
+  }
+}
+@media (min-height: 1430px) {
+  .side[data-side-turns='28'] {
     display: block;
   }
 }

@@ -158,8 +158,16 @@
 }
 
 /* A phone's cover is narrow: smaller blobs, so they frame the lockup rather
-   than pile up behind it. */
+   than pile up behind it. Its sheet is taller (AuthCard), so the brand sits
+   near the middle of what is left (spacers 5 : 4) rather than low over it. */
 @media (max-width: 640px) {
+  .cover::before {
+    flex-grow: 5;
+  }
+  .cover::after {
+    flex-grow: 4;
+  }
+
   .drift1,
   .drift2,
   .drift3 {
@@ -197,8 +205,12 @@
   }
 }
 
-/* A phone keeps its cover to the brand: the storytellers are for screens with room. */
-@media (max-width: 640px) {
+/* A phone, or a small or short screen side by side (a landscape phone, a
+   small window), keeps its cover to the brand: the storytellers are for
+   screens with room. */
+@media (max-width: 640px),
+  (orientation: landscape) and (max-width: 900px),
+  (orientation: landscape) and (max-height: 640px) {
   .proof {
     display: none;
   }
