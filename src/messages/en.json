@@ -57,14 +57,14 @@
     "belief": {
       "kicker": "What we believe",
       "title": "Giving people their depth back",
-      "p1": "With different people and in different places, we show different sides of ourselves; each of us is a whole built of all those sides. Yet day to day we get pressed flat — into a school, a job title, a follower count.",
-      "p2": "We believe stories are what give a person their depth back. When someone writes down the thought we could never quite put into words, that moment is resonance.",
-      "p3": "So on Resonance you write a stretch of your life as a story card. When a story moves you, you don't answer with a like: you write a card of your own that resonates with it, and lives influence lives."
+      "p1": "Day to day we get pressed flat: a school, a job title, a follower count",
+      "p2": "Stories give a person their depth back",
+      "p3": "On Resonance you write a stretch of your life as a story card. When a story moves you, you don't answer with a like: you write a card of your own that resonates with it."
     },
     "cycle": {
       "kicker": "Three things we hold to",
       "title": "Resonance · Depth · Insight",
-      "intro": "They aren't three separate ideas but one cycle: a story sets off resonance, resonance shows us more of who we are, those sides of us give us our own insight into the world — and every insight can become a new story",
+      "intro": "One cycle: a story sets off resonance, resonance gives us depth, depth brings insight, and insight becomes a new story",
       "center": "Story",
       "diagramLabel": "A cycle of resonance, depth and insight, each leading to the next, with stories at its centre",
       "resonance": {
@@ -89,15 +89,15 @@
       "sketchLabel": "Two story cards, the second answering the first with ripples",
       "write": {
         "title": "Write a stretch of your life",
-        "body": "An experience, a change of heart, a question you're still turning over — each can become a story card"
+        "body": "An experience, a change of heart, a question you're still asking — each can become a card"
       },
       "read": {
         "title": "Read what moves you",
-        "body": "Among life stories from all over, meet the people on your wavelength"
+        "body": "Meet the people on your wavelength in life stories from all over"
       },
       "resonate": {
         "title": "Resonate with a card of your own",
-        "body": "Answer with your own story. The two cards stay linked, and two people meet."
+        "body": "Answer with your own story, and the two cards stay linked"
       }
     },
     "shift": {
@@ -105,15 +105,15 @@
       "title": "Social media is shifting",
       "fatigue": {
         "title": "Twofold fatigue",
-        "body": "A flood of information turns content into fast food, the worry of being rated makes us chase reach, and AI-made content makes it all louder"
+        "body": "Information overload, the worry of being rated, and a flood of AI-made content"
       },
       "depth": {
         "title": "Toward depth",
-        "body": "People are turning to more personal spaces and looking for connections with depth"
+        "body": "People are turning to more personal spaces and deeper connections"
       },
       "warmth": {
         "title": "Growth and warmth",
-        "body": "Inner growth over blind exposure; the warmth of people over handing everything to tools"
+        "body": "Inner growth and human warmth over exposure"
       }
     },
     "compare": {
@@ -123,7 +123,7 @@
       "us": "Resonance",
       "traffic": {
         "them": "Chasing reach",
-        "us": "Seeing the sides of yourself that go unnoticed, and connecting with the world"
+        "us": "Seeing the overlooked sides of yourself, and connecting with the world"
       },
       "algorithm": {
         "them": "Fed by an algorithm",
@@ -135,7 +135,7 @@
       },
       "roles": {
         "them": "Creators and readers",
-        "us": "An equal exchange: everyone is a storyteller and a listener"
+        "us": "An equal, two-way exchange"
       },
       "followers": {
         "them": "Follower counts",
@@ -149,7 +149,7 @@
     "team": {
       "kicker": "Who we are",
       "title": "The Resonance Crew",
-      "body": "We're four people still learning. Rather than by a school, a major or a title, we'd like to be known as whole people — just like you, behind every card."
+      "body": "Not a school, a major or a title — we'd rather be known as whole people"
     },
     "closing": {
       "title": "Everyone has a story to share",

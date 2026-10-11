@@ -103,11 +103,11 @@ public enum L10n {
             public static var kicker: String { Strings.shared.string("about.belief.kicker") }
             /// Giving people their depth back
             public static var title: String { Strings.shared.string("about.belief.title") }
-            /// With different people and in different places, we show different sides of ourselves; each of us is a whole built of all 
+            /// Day to day we get pressed flat: a school, a job title, a follower count
             public static var p1: String { Strings.shared.string("about.belief.p1") }
-            /// We believe stories are what give a person their depth back. When someone writes down the thought we could never quite pu
+            /// Stories give a person their depth back
             public static var p2: String { Strings.shared.string("about.belief.p2") }
-            /// So on Resonance you write a stretch of your life as a story card. When a story moves you, you don't answer with a like: 
+            /// On Resonance you write a stretch of your life as a story card. When a story moves you, you don't answer with a like: you
             public static var p3: String { Strings.shared.string("about.belief.p3") }
         }
         public enum Cycle {
@@ -115,7 +115,7 @@ public enum L10n {
             public static var kicker: String { Strings.shared.string("about.cycle.kicker") }
             /// Resonance · Depth · Insight
             public static var title: String { Strings.shared.string("about.cycle.title") }
-            /// They aren't three separate ideas but one cycle: a story sets off resonance, resonance shows us more of who we are, those
+            /// One cycle: a story sets off resonance, resonance gives us depth, depth brings insight, and insight becomes a new story
             public static var intro: String { Strings.shared.string("about.cycle.intro") }
             /// Story
             public static var center: String { Strings.shared.string("about.cycle.center") }
@@ -156,19 +156,19 @@ public enum L10n {
             public enum Write {
                 /// Write a stretch of your life
                 public static var title: String { Strings.shared.string("about.how.write.title") }
-                /// An experience, a change of heart, a question you're still turning over — each can become a story card
+                /// An experience, a change of heart, a question you're still asking — each can become a card
                 public static var body: String { Strings.shared.string("about.how.write.body") }
             }
             public enum Read {
                 /// Read what moves you
                 public static var title: String { Strings.shared.string("about.how.read.title") }
-                /// Among life stories from all over, meet the people on your wavelength
+                /// Meet the people on your wavelength in life stories from all over
                 public static var body: String { Strings.shared.string("about.how.read.body") }
             }
             public enum Resonate {
                 /// Resonate with a card of your own
                 public static var title: String { Strings.shared.string("about.how.resonate.title") }
-                /// Answer with your own story. The two cards stay linked, and two people meet.
+                /// Answer with your own story, and the two cards stay linked
                 public static var body: String { Strings.shared.string("about.how.resonate.body") }
             }
         }
@@ -180,19 +180,19 @@ public enum L10n {
             public enum Fatigue {
                 /// Twofold fatigue
                 public static var title: String { Strings.shared.string("about.shift.fatigue.title") }
-                /// A flood of information turns content into fast food, the worry of being rated makes us chase reach, and AI-made content 
+                /// Information overload, the worry of being rated, and a flood of AI-made content
                 public static var body: String { Strings.shared.string("about.shift.fatigue.body") }
             }
             public enum Depth {
                 /// Toward depth
                 public static var title: String { Strings.shared.string("about.shift.depth.title") }
-                /// People are turning to more personal spaces and looking for connections with depth
+                /// People are turning to more personal spaces and deeper connections
                 public static var body: String { Strings.shared.string("about.shift.depth.body") }
             }
             public enum Warmth {
                 /// Growth and warmth
                 public static var title: String { Strings.shared.string("about.shift.warmth.title") }
-                /// Inner growth over blind exposure; the warmth of people over handing everything to tools
+                /// Inner growth and human warmth over exposure
                 public static var body: String { Strings.shared.string("about.shift.warmth.body") }
             }
         }
@@ -208,7 +208,7 @@ public enum L10n {
             public enum Traffic {
                 /// Chasing reach
                 public static var them: String { Strings.shared.string("about.compare.traffic.them") }
-                /// Seeing the sides of yourself that go unnoticed, and connecting with the world
+                /// Seeing the overlooked sides of yourself, and connecting with the world
                 public static var us: String { Strings.shared.string("about.compare.traffic.us") }
             }
             public enum Algorithm {
@@ -226,7 +226,7 @@ public enum L10n {
             public enum Roles {
                 /// Creators and readers
                 public static var them: String { Strings.shared.string("about.compare.roles.them") }
-                /// An equal exchange: everyone is a storyteller and a listener
+                /// An equal, two-way exchange
                 public static var us: String { Strings.shared.string("about.compare.roles.us") }
             }
             public enum Followers {
@@ -247,7 +247,7 @@ public enum L10n {
             public static var kicker: String { Strings.shared.string("about.team.kicker") }
             /// The Resonance Crew
             public static var title: String { Strings.shared.string("about.team.title") }
-            /// We're four people still learning. Rather than by a school, a major or a title, we'd like to be known as whole people — j
+            /// Not a school, a major or a title — we'd rather be known as whole people
             public static var body: String { Strings.shared.string("about.team.body") }
         }
         public enum Closing {
