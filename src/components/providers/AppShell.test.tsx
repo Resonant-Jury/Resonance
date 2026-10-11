@@ -37,10 +37,22 @@ describe('AppShell', () => {
     await waitFor(() => expect(replace).not.toHaveBeenCalled());
   });
 
+  // Straight to the profile step; from the feed, on to a first card after it
+  // (no next), from any other page back to that page.
   it('sends a signed-in account without a profile to onboarding', async () => {
     profile.data = null;
+    const view = shell();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/signup?step=profile'));
+    view.unmount();
+
+    replace.mockClear();
+    pathname = '/messages';
+    window.history.replaceState(null, '', '/en/messages?with=bo');
     shell();
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/signup'));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(`/signup?step=profile&next=${encodeURIComponent('/en/messages?with=bo')}`),
+    );
+    window.history.replaceState(null, '', '/');
   });
 
   it('sends a profile that never got a pen name to onboarding to choose one', async () => {
@@ -48,7 +60,7 @@ describe('AppShell', () => {
       replace.mockClear();
       profile.data = named(handle);
       const view = shell();
-      await waitFor(() => expect(replace).toHaveBeenCalledWith('/signup'));
+      await waitFor(() => expect(replace).toHaveBeenCalledWith('/signup?step=profile'));
       view.unmount();
     }
   });

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { NextIntlClientProvider } from 'next-intl';
 import en from '@/messages/en.json';
-import { renderWithIntl, screen, userEvent } from '@/../test/render';
+import { renderWithIntl, screen, userEvent, waitFor } from '@/../test/render';
 import buttonStyles from '@/components/atoms/OrganicButton/OrganicButton.module.css';
 
 const auth = vi.hoisted(() => ({
@@ -12,6 +12,13 @@ const auth = vi.hoisted(() => ({
   signInWithApple: vi.fn(),
 }));
 const flags = vi.hoisted(() => ({ apple: false }));
+const profile = vi.hoisted(() => ({ getCurrentUserHandle: vi.fn() }));
+const pages = vi.hoisted(() => ({ replacePage: vi.fn() }));
+vi.mock('@/lib/db/firestore/client/profile', () => profile);
+vi.mock('@/lib/auth/afterSignIn', async (original) => ({
+  ...(await original<typeof import('@/lib/auth/afterSignIn')>()),
+  replacePage: pages.replacePage,
+}));
 
 vi.mock('@/components/providers/AuthProvider', () => ({
   useAuth: () => ({ user: null, loading: false, ...auth }),
@@ -130,3 +137,28 @@ describe('the buttons on the sheet', () => {
     expect(await screen.findByText(en.auth.otherProviderError)).toBeInTheDocument();
   });
 });
+
+// Signed in, the page leaves for the next one in its own place (out of the
+// tab's history). A first sign-in goes straight to the sign-up's profile step:
+// it used to open the feed first, which then sent it on to sign-up.
+describe('after signing in', () => {
+  it('sends a first sign-in straight to the profile step, carrying next', async () => {
+    window.history.replaceState(null, '', '/en/signin?next=%2Fen%2Fwrite');
+    auth.signInWithGoogle.mockResolvedValue({ id: 'u1' });
+    profile.getCurrentUserHandle.mockResolvedValue(null);
+    renderWithIntl(<SignInPage />);
+    await userEvent.click(screen.getByRole('button', { name: en.auth.continueWithGoogle }));
+    await waitFor(() =>
+      expect(pages.replacePage).toHaveBeenCalledWith(`/en/signup?step=profile&next=${encodeURIComponent('/en/write')}`),
+    );
+  });
+
+  it('sends an account with a pen name to next, else the feed', async () => {
+    auth.signInWithGoogle.mockResolvedValue({ id: 'u1' });
+    profile.getCurrentUserHandle.mockResolvedValue('Nian');
+    renderWithIntl(<SignInPage />);
+    await userEvent.click(screen.getByRole('button', { name: en.auth.continueWithGoogle }));
+    await waitFor(() => expect(pages.replacePage).toHaveBeenCalledWith('/en/home'));
+  });
+});
+

@@ -8,6 +8,7 @@ import { TermsConsent } from '@/components/molecules/TermsConsent/TermsConsent';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { sanitizeNextPath } from '@/lib/auth/nextPath';
 import { signInFailure, type SignInProvider } from '@/lib/auth/providers';
+import { destinationAfterSignIn, replacePage } from '@/lib/auth/afterSignIn';
 import { ProviderButtons } from '../ProviderButtons';
 import styles from '../auth.module.css';
 
@@ -51,6 +52,15 @@ export default function SignInPage() {
   useEffect(() => {
     setDeletionScheduled(queryParam('notice') === 'deletion-scheduled');
   }, []);
+  // Stepped back to from the browser's page cache, the page comes back as it
+  // was left — mid-sign-in. The way in answers again.
+  useEffect(() => {
+    const restored = (e: PageTransitionEvent) => {
+      if (e.persisted) setPending(null);
+    };
+    window.addEventListener('pageshow', restored);
+    return () => window.removeEventListener('pageshow', restored);
+  }, []);
 
   // Sent here by the middleware (a protected page with no session cookie)
   // while still signed in — the cookie is refreshed in the background, and a
@@ -78,9 +88,10 @@ export default function SignInPage() {
     try {
       if (provider === 'apple') await auth.signInWithApple(locale);
       else await auth.signInWithGoogle();
-      const next = sanitizeNextPath(queryParam('next')) ?? `/${locale}/home`;
-      // The button keeps working until the next page takes over.
-      window.location.href = next;
+      // A first sign-in goes straight on to the sign-up's profile step (no hop
+      // through the feed); this page leaves the tab's history, so no way back
+      // lands on it again. The button keeps working until the next page takes over.
+      replacePage(await destinationAfterSignIn(locale, queryParam('next')));
     } catch (err) {
       setPending(null);
       const failure = signInFailure(err);

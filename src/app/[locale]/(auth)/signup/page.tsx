@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { sanitizeNextPath, nextQuery } from '@/lib/auth/nextPath';
 import { PROFILE_REGIONS, regionDisplayName } from '@/lib/regionName';
 import { signInFailure, type SignInProvider } from '@/lib/auth/providers';
+import { PROFILE_STEP, afterSignupPath, needsProfile, replacePage } from '@/lib/auth/afterSignIn';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { OrganicLink } from '@/components/atoms/OrganicLink/OrganicLink';
 import { AuthCard } from '@/components/molecules/AuthCard/AuthCard';
@@ -17,6 +18,7 @@ import {
   HANDLE_FORBIDDEN,
   checkHandleAvailable,
   createCurrentUserProfile,
+  getCurrentUserHandle,
   isHandleTaken,
 } from '@/lib/db/firestore/client/profile';
 import { ProviderButtons } from '../ProviderButtons';
@@ -28,6 +30,7 @@ type Step = 'provider' | 'profile';
 function nextParam(): string | null {
   return new URLSearchParams(window.location.search).get('next');
 }
+
 
 /**
  * Renders whole on the server, like the sign-in page: the query string is
@@ -44,11 +47,41 @@ export default function SignUpPage() {
   const [step, setStep] = useState<Step>('provider');
   const handleId = useId();
 
+  // Sent here for the profile step (a first sign-in, the shell finding no pen
+  // name): show it at once rather than the providers first. The account is
+  // still checked below.
   useEffect(() => {
-    if (!auth.loading && auth.user && step === 'provider') {
-      setStep('profile');
+    if (new URLSearchParams(window.location.search).get('step') === PROFILE_STEP) setStep('profile');
+  }, []);
+
+  // A signed-in reader: the profile step if the account has no pen name yet;
+  // one that has (signed in here with an existing account, or stepped back
+  // to this page) goes on to `next`, else the feed — never the form again.
+  const checkedFor = useRef<string | null>(null);
+  const uid = auth.user?.id ?? null;
+  useEffect(() => {
+    if (auth.loading) return;
+    if (!uid) {
+      checkedFor.current = null;
+      setStep('provider');
+      return;
     }
-  }, [auth.loading, auth.user, step]);
+    if (checkedFor.current === uid) return;
+    checkedFor.current = uid;
+    let live = true;
+    getCurrentUserHandle()
+      .then((current) => {
+        if (!live) return;
+        if (needsProfile(current)) setStep('profile');
+        else replacePage(sanitizeNextPath(nextParam()) ?? `/${locale}/home`);
+      })
+      // Unknown: the form, whose save answers for an account that has a profile already.
+      .catch(() => live && setStep('profile'));
+    return () => {
+      live = false;
+      checkedFor.current = null;
+    };
+  }, [auth.loading, uid, locale]);
   const [handle, setHandle] = useState('');
   const [region, setRegion] = useState('TW');
   const [primaryLocale, setPrimaryLocale] = useState<'en' | 'zh-TW'>('zh-TW');
@@ -56,6 +89,18 @@ export default function SignUpPage() {
   const [pending, setPending] = useState<SignInProvider | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Stepped back to from the browser's page cache, the page comes back as it
+  // was left — mid-save, its button working for ever. It answers again.
+  useEffect(() => {
+    const restored = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      setPending(null);
+      setSaving(false);
+    };
+    window.addEventListener('pageshow', restored);
+    return () => window.removeEventListener('pageshow', restored);
+  }, []);
 
   useEffect(() => {
     if (step !== 'profile' || handle.trim().length < 2) {
@@ -81,9 +126,10 @@ export default function SignUpPage() {
     setPending(provider);
     setError(null);
     try {
+      // Signed in: the account check above takes it from here (the profile
+      // step, or on for an account that has a pen name).
       if (provider === 'apple') await auth.signInWithApple(locale);
       else await auth.signInWithGoogle();
-      setStep('profile');
     } catch (err) {
       const failure = signInFailure(err);
       if (failure !== 'cancelled') setError(t(failure === 'otherProvider' ? 'otherProviderError' : 'signUpError'));
@@ -98,8 +144,9 @@ export default function SignUpPage() {
     setError(null);
     try {
       await createCurrentUserProfile({ handle: handle.trim(), region, primaryLocale });
-      const next = sanitizeNextPath(nextParam()) ?? `/${locale}/write`;
-      window.location.href = next;
+      // On to the first card (or `next`); the writer's way out goes to the
+      // feed, not back here — the card can wait (useLeaveWriter).
+      replacePage(afterSignupPath(sanitizeNextPath(nextParam()) ?? `/${locale}/write`));
     } catch (err) {
       // Someone took the name between the check and the save.
       if (isHandleTaken(err)) setHandleState('taken');

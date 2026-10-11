@@ -8,6 +8,7 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile } from '@/lib/data/hooks';
 import { useRouter, usePathname } from '@/i18n/navigation';
 import { nextQuery } from '@/lib/auth/nextPath';
+import { needsProfile, signupProfileQuery } from '@/lib/auth/afterSignIn';
 
 const PLACEHOLDER_USER = {
   initials: '··',
@@ -47,9 +48,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (!isPublicPath(pathname)) router.replace(`/signin${nextQuery(pathname)}`);
       return;
     }
-    // Authenticated but no profile document yet, or one that never got a pen name → finish onboarding.
-    if (!profileLoading && (profile === null || (profile && !profile.handle.trim()))) {
-      router.replace('/signup');
+    // Authenticated but no profile document yet, or one that never got a pen name → finish onboarding:
+    // straight to the profile step, then back to this page — or, from the feed, on to a first card
+    // (the sign-up's own next step), whose way out returns to the feed.
+    if (!profileLoading && (profile === null || (profile && needsProfile(profile.handle)))) {
+      const here = pathname === '/home' ? null : window.location.pathname + window.location.search;
+      router.replace(`/signup${signupProfileQuery(here)}`);
     }
   }, [loading, authUser, profileLoading, profile, pathname, router]);
 
