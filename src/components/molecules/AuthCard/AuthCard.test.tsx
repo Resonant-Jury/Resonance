@@ -55,18 +55,21 @@ describe('the sheet', () => {
       expect(line).toHaveAttribute('stroke-width', String(INK_LIGHT));
       // A curve per turn.
       expect(line.getAttribute('d')?.match(/C/g)).toHaveLength(Number(edge.getAttribute('data-turns')));
-      // Above the line lies the page's paper, so the sheet starts at the line.
-      expect(edge.querySelector('path[fill="var(--color-cream)"]')).not.toBeNull();
+      // The sheet's paper starts at the line and nothing is painted above
+      // it, so the cover's blobs go under the sheet exactly at its edge.
+      expect(edge.querySelector('path[fill="var(--auth-interior)"]')).not.toBeNull();
+      expect(edge.querySelector('path[fill="var(--color-cream)"]')).toBeNull();
     }
   });
 
-  // Side by side: one line down its left, the page's paper left of it.
+  // Side by side: one line down its left, the sheet's paper right of it.
   it('has its side edge in the server HTML too', () => {
     const host = serverHtml(<AuthCard title="Welcome back">…</AuthCard>);
     const side = host.querySelector('svg[data-side]')!;
     expect(penLines(side)).toHaveLength(1);
     expect(penLines(side)[0]).toHaveAttribute('stroke-width', String(INK_LIGHT));
-    expect(side.querySelector('path[fill="var(--color-cream)"]')).not.toBeNull();
+    expect(side.querySelector('path[fill="var(--auth-interior)"]')).not.toBeNull();
+    expect(side.querySelector('path[fill="var(--color-cream)"]')).toBeNull();
   });
 
   it('draws nothing along its bottom', () => {

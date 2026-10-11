@@ -11,11 +11,13 @@
   flex-direction: row;
   align-items: stretch;
   background: var(--color-cream);
+  /* The blobs reach past the cover (under the sheet) and its corners: cut
+     them at the page, never at the cover's box. */
+  overflow: clip;
 }
 
 .cover {
   position: relative;
-  overflow: hidden;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
@@ -77,6 +79,15 @@
   margin-top: 36px;
 }
 
+/* Where the blobs drift: the cover and a little under the sheet beside it,
+   so they go under the sheet at its wavy edge (the sheet's paper begins at
+   the line, nothing of it before), not at a straight line short of it. */
+.drift {
+  position: absolute;
+  inset: 0 -48px 0 0;
+  pointer-events: none;
+}
+
 /* The drifting blobs' stand-ins (DriftingBlobs), around the cover's edges. */
 .drift1,
 .drift2,
@@ -112,6 +123,9 @@
   .cover {
     justify-content: flex-start;
     padding: 0 24px;
+  }
+  .drift {
+    inset: 0 0 -48px 0;
   }
   .cover::before {
     content: '';

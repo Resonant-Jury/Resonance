@@ -46,17 +46,19 @@ export default async function AuthLayout({
     <main className={styles.page}>
       <div className={styles.cover}>
         {/* Still as the server draws the page; on the client they drift as the landing hero's do. */}
-        <DriftingBlobs palette={BLOB_PAINTS}>
-          <div className={styles.drift1} data-drift="1,0.15" data-drift-color="--color-lavender">
-            <OrganiBlob variant={3} fill="var(--color-lavender)" size={260} grain={STAND_IN_GRAIN} />
-          </div>
-          <div className={styles.drift2} data-drift="-1,-0.1" data-drift-color="--color-sage">
-            <OrganiBlob variant={2} fill="var(--color-sage)" size={200} grain={STAND_IN_GRAIN} />
-          </div>
-          <div className={styles.drift3} data-drift="-0.6,0.4" data-drift-color="--color-yellow">
-            <OrganiBlob variant={0} fill="var(--color-yellow)" size={150} grain={STAND_IN_GRAIN} />
-          </div>
-        </DriftingBlobs>
+        <div className={styles.drift}>
+          <DriftingBlobs palette={BLOB_PAINTS}>
+            <div className={styles.drift1} data-drift="1,0.15" data-drift-color="--color-lavender">
+              <OrganiBlob variant={3} fill="var(--color-lavender)" size={260} grain={STAND_IN_GRAIN} />
+            </div>
+            <div className={styles.drift2} data-drift="-1,-0.1" data-drift-color="--color-sage">
+              <OrganiBlob variant={2} fill="var(--color-sage)" size={200} grain={STAND_IN_GRAIN} />
+            </div>
+            <div className={styles.drift3} data-drift="-0.6,0.4" data-drift-color="--color-yellow">
+              <OrganiBlob variant={0} fill="var(--color-yellow)" size={150} grain={STAND_IN_GRAIN} />
+            </div>
+          </DriftingBlobs>
+        </div>
         <div className={styles.brand}>
           <Link href="/" className={styles.lockup}>
             <ResonanceIcon size={44} />

@@ -23,9 +23,10 @@ const EDGE_AMP = 4.5;
 const SHEET_EDGES = SHEET_EDGE_TURNS.map((turns) => {
   const W = turns * SHEET_EDGE_TURN_PX;
   const line = pointsToBezier(wavyPoints(W, EDGE_Y, EDGE_AMP, SEED, turns));
-  // Above the line is the page's paper, laid over the sheet's fill and grain,
-  // so the sheet starts at the line.
-  return { turns, W, line, above: `${line} L ${W},-1 L 0,-1 Z` };
+  // The sheet's paper below the line (the rest of it is a box under the
+  // strip); above it nothing, so what lies behind — the cover's blobs —
+  // goes under the sheet exactly at its edge.
+  return { turns, W, line, paper: `${line} L ${W},${EDGE_H + 1} L 0,${EDGE_H + 1} Z` };
 });
 
 // The side edge: one line for a screen ~900px tall (13 turns), stretched to
@@ -42,8 +43,8 @@ const SIDE = (() => {
     const midY = (y0 + y1) / 2;
     line += ` C ${f(x0)},${f(midY)} ${f(x1)},${f(midY)} ${f(x1)},${f(y1)}`;
   }
-  // Left of the line is the page's paper.
-  return { line, left: `${line} L -1,${SIDE_H} L -1,0 Z` };
+  // The sheet's paper right of the line; left of it nothing.
+  return { line, paper: `${line} L ${EDGE_H + 1},${SIDE_H} L ${EDGE_H + 1},0 Z` };
 })();
 
 /**
@@ -66,9 +67,11 @@ export function AuthCard({
   return (
     <div className={styles.card} data-focus={focus ? '' : undefined}>
       <div className={styles.chrome} aria-hidden>
-        <GrainOverlay opacity={0.04} />
+        <div className={styles.paper}>
+          <GrainOverlay opacity={0.04} />
+        </div>
         <div className={styles.top}>
-          {SHEET_EDGES.map(({ turns, W, line, above }) => (
+          {SHEET_EDGES.map(({ turns, W, line, paper }) => (
             <svg
               key={turns}
               className={styles.edge}
@@ -76,7 +79,7 @@ export function AuthCard({
               viewBox={`0 0 ${W} ${EDGE_H}`}
               preserveAspectRatio="none"
             >
-              <path d={above} fill="var(--color-cream)" />
+              <path d={paper} fill="var(--auth-interior)" />
               <path
                 d={line}
                 fill="none"
@@ -89,7 +92,7 @@ export function AuthCard({
           ))}
         </div>
         <svg className={styles.side} data-side="" viewBox={`0 0 ${EDGE_H} ${SIDE_H}`} preserveAspectRatio="none">
-          <path d={SIDE.left} fill="var(--color-cream)" />
+          <path d={SIDE.paper} fill="var(--auth-interior)" />
           <path
             d={SIDE.line}
             fill="none"

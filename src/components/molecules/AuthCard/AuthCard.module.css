@@ -10,6 +10,8 @@
    The stacked query is auth.module.css's too: (max-width: 640px),
    (max-width: 1024px) and (orientation: portrait). */
 .card {
+  /* Over the cover's blobs, which reach a little under it. */
+  z-index: 1;
   /* Derived from the accent token so the Tweaks themes (sage / lavender /
      gold …) re-tint the sheet instead of it staying locked to terracotta. */
   --auth-interior: color-mix(in oklch, var(--color-terracotta-light) 14%, var(--color-card-bg));
@@ -28,10 +30,18 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
+}
+
+/* The paper past the edge's strip (the strip paints its own up to the line,
+   overlapping this by a pixel or two so no seam shows): nothing of the sheet
+   lies beyond its pen line. */
+.paper {
+  position: absolute;
+  inset: 0 0 0 12px;
   background: var(--auth-interior);
 }
 
-/* The side edge: the page's paper left of the line, laid over the sheet's. */
+/* The side edge: the sheet's paper right of the line, nothing left of it. */
 .side {
   position: absolute;
   top: 0;
@@ -47,8 +57,7 @@
 }
 
 /* The top edge, one strip per band of widths (AuthCard.tsx), only the band's
-   own shown. It lies above the grain, so the page's paper it lays above the
-   line hides the grain there too. */
+   own shown: the sheet's paper below the line, nothing above it. */
 .edge {
   display: none;
   position: absolute;
@@ -103,6 +112,10 @@
 
   .top {
     display: block;
+  }
+
+  .paper {
+    inset: 12px 0 0 0;
   }
 
   .body {
