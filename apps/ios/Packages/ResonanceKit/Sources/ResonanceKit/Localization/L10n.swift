@@ -87,6 +87,178 @@ public enum L10n {
         /// Apple and App Store are trademarks of Apple Inc. Google Play and the Google Play logo are trademarks of Google LLC.
         public static var trademarks: String { Strings.shared.string("footer.trademarks") }
     }
+    public enum About {
+        /// About us
+        public static var metaTitle: String { Strings.shared.string("about.metaTitle") }
+        /// We believe in the power of stories. On Resonance, when a story moves you, you don't answer with a like: you write a card
+        public static var metaDescription: String { Strings.shared.string("about.metaDescription") }
+        /// ✦ About us
+        public static var tag: String { Strings.shared.string("about.tag") }
+        /// We believe in the power of stories
+        public static var title: String { Strings.shared.string("about.title") }
+        /// Every one of us is born whole and singular, carrying experiences no one else has lived — and stories are the best way to
+        public static var lead: String { Strings.shared.string("about.lead") }
+        public enum Belief {
+            /// What we believe
+            public static var kicker: String { Strings.shared.string("about.belief.kicker") }
+            /// Giving people their depth back
+            public static var title: String { Strings.shared.string("about.belief.title") }
+            /// With different people and in different places, we show different sides of ourselves; each of us is a whole built of all 
+            public static var p1: String { Strings.shared.string("about.belief.p1") }
+            /// We believe stories are what give a person their depth back. When someone writes down the thought we could never quite pu
+            public static var p2: String { Strings.shared.string("about.belief.p2") }
+            /// So on Resonance you write a stretch of your life as a story card. When a story moves you, you don't answer with a like: 
+            public static var p3: String { Strings.shared.string("about.belief.p3") }
+        }
+        public enum Cycle {
+            /// Three things we hold to
+            public static var kicker: String { Strings.shared.string("about.cycle.kicker") }
+            /// Resonance · Depth · Insight
+            public static var title: String { Strings.shared.string("about.cycle.title") }
+            /// They aren't three separate ideas but one cycle: a story sets off resonance, resonance shows us more of who we are, those
+            public static var intro: String { Strings.shared.string("about.cycle.intro") }
+            /// Story
+            public static var center: String { Strings.shared.string("about.cycle.center") }
+            /// A cycle of resonance, depth and insight, each leading to the next, with stories at its centre
+            public static var diagramLabel: String { Strings.shared.string("about.cycle.diagramLabel") }
+            public enum Resonance {
+                /// Resonance
+                public static var name: String { Strings.shared.string("about.cycle.resonance.name") }
+                /// Different stories, the same insight
+                public static var motto: String { Strings.shared.string("about.cycle.resonance.motto") }
+                /// When someone speaks the thought we never finished, that is the moment resonance happens
+                public static var body: String { Strings.shared.string("about.cycle.resonance.body") }
+            }
+            public enum Depth {
+                /// Depth
+                public static var name: String { Strings.shared.string("about.cycle.depth.name") }
+                /// People are born three-dimensional
+                public static var motto: String { Strings.shared.string("about.cycle.depth.motto") }
+                /// We show different sides of ourselves to different people and things. Each of us is a whole built of those sides.
+                public static var body: String { Strings.shared.string("about.cycle.depth.body") }
+            }
+            public enum Insight {
+                /// Insight
+                public static var name: String { Strings.shared.string("about.cycle.insight.name") }
+                /// The same story, different insights
+                public static var motto: String { Strings.shared.string("about.cycle.insight.motto") }
+                /// Taking a story that moved us and reading it through our own eyes
+                public static var body: String { Strings.shared.string("about.cycle.insight.body") }
+            }
+        }
+        public enum How {
+            /// How it works
+            public static var kicker: String { Strings.shared.string("about.how.kicker") }
+            /// A story is answered by another story
+            public static var title: String { Strings.shared.string("about.how.title") }
+            /// Two story cards, the second answering the first with ripples
+            public static var sketchLabel: String { Strings.shared.string("about.how.sketchLabel") }
+            public enum Write {
+                /// Write a stretch of your life
+                public static var title: String { Strings.shared.string("about.how.write.title") }
+                /// An experience, a change of heart, a question you're still turning over — each can become a story card
+                public static var body: String { Strings.shared.string("about.how.write.body") }
+            }
+            public enum Read {
+                /// Read what moves you
+                public static var title: String { Strings.shared.string("about.how.read.title") }
+                /// Among life stories from all over, meet the people on your wavelength
+                public static var body: String { Strings.shared.string("about.how.read.body") }
+            }
+            public enum Resonate {
+                /// Resonate with a card of your own
+                public static var title: String { Strings.shared.string("about.how.resonate.title") }
+                /// Answer with your own story. The two cards stay linked, and two people meet.
+                public static var body: String { Strings.shared.string("about.how.resonate.body") }
+            }
+        }
+        public enum Shift {
+            /// Why now
+            public static var kicker: String { Strings.shared.string("about.shift.kicker") }
+            /// Social media is shifting
+            public static var title: String { Strings.shared.string("about.shift.title") }
+            public enum Fatigue {
+                /// Twofold fatigue
+                public static var title: String { Strings.shared.string("about.shift.fatigue.title") }
+                /// A flood of information turns content into fast food, the worry of being rated makes us chase reach, and AI-made content 
+                public static var body: String { Strings.shared.string("about.shift.fatigue.body") }
+            }
+            public enum Depth {
+                /// Toward depth
+                public static var title: String { Strings.shared.string("about.shift.depth.title") }
+                /// People are turning to more personal spaces and looking for connections with depth
+                public static var body: String { Strings.shared.string("about.shift.depth.body") }
+            }
+            public enum Warmth {
+                /// Growth and warmth
+                public static var title: String { Strings.shared.string("about.shift.warmth.title") }
+                /// Inner growth over blind exposure; the warmth of people over handing everything to tools
+                public static var body: String { Strings.shared.string("about.shift.warmth.body") }
+            }
+        }
+        public enum Compare {
+            /// What's different
+            public static var kicker: String { Strings.shared.string("about.compare.kicker") }
+            /// Traditional platforms and Resonance
+            public static var title: String { Strings.shared.string("about.compare.title") }
+            /// Traditional platforms
+            public static var them: String { Strings.shared.string("about.compare.them") }
+            /// Resonance
+            public static var us: String { Strings.shared.string("about.compare.us") }
+            public enum Traffic {
+                /// Chasing reach
+                public static var them: String { Strings.shared.string("about.compare.traffic.them") }
+                /// Seeing the sides of yourself that go unnoticed, and connecting with the world
+                public static var us: String { Strings.shared.string("about.compare.traffic.us") }
+            }
+            public enum Algorithm {
+                /// Fed by an algorithm
+                public static var them: String { Strings.shared.string("about.compare.algorithm.them") }
+                /// Resonating with people on your wavelength
+                public static var us: String { Strings.shared.string("about.compare.algorithm.us") }
+            }
+            public enum Performance {
+                /// Performing for exposure
+                public static var them: String { Strings.shared.string("about.compare.performance.them") }
+                /// Writing stories and insights
+                public static var us: String { Strings.shared.string("about.compare.performance.us") }
+            }
+            public enum Roles {
+                /// Creators and readers
+                public static var them: String { Strings.shared.string("about.compare.roles.them") }
+                /// An equal exchange: everyone is a storyteller and a listener
+                public static var us: String { Strings.shared.string("about.compare.roles.us") }
+            }
+            public enum Followers {
+                /// Follower counts
+                public static var them: String { Strings.shared.string("about.compare.followers.them") }
+                /// Connections made by real stories
+                public static var us: String { Strings.shared.string("about.compare.followers.us") }
+            }
+            public enum Likes {
+                /// A like
+                public static var them: String { Strings.shared.string("about.compare.likes.them") }
+                /// A card written in resonance
+                public static var us: String { Strings.shared.string("about.compare.likes.us") }
+            }
+        }
+        public enum Team {
+            /// Who we are
+            public static var kicker: String { Strings.shared.string("about.team.kicker") }
+            /// The Resonance Crew
+            public static var title: String { Strings.shared.string("about.team.title") }
+            /// We're four people still learning. Rather than by a school, a major or a title, we'd like to be known as whole people — j
+            public static var body: String { Strings.shared.string("about.team.body") }
+        }
+        public enum Closing {
+            /// Everyone has a story to share
+            public static var title: String { Strings.shared.string("about.closing.title") }
+            /// Someone as singular as you is bound to send ripples out into the world
+            public static var body: String { Strings.shared.string("about.closing.body") }
+            /// Write your story
+            public static var start: String { Strings.shared.string("about.closing.start") }
+        }
+    }
     public enum Tweaks {
         /// Tweaks
         public static var title: String { Strings.shared.string("tweaks.title") }

@@ -89,6 +89,178 @@ object L10n {
         /** Apple and App Store are trademarks of Apple Inc. Google Play and the Google Play logo are trademarks of Google LLC. */
         val trademarks: String get() = Strings.string("footer.trademarks")
     }
+    object About {
+        /** About us */
+        val metaTitle: String get() = Strings.string("about.metaTitle")
+        /** We believe in the power of stories. On Resonance, when a story moves you, you don't answer with a like: you write a card */
+        val metaDescription: String get() = Strings.string("about.metaDescription")
+        /** ✦ About us */
+        val tag: String get() = Strings.string("about.tag")
+        /** We believe in the power of stories */
+        val title: String get() = Strings.string("about.title")
+        /** Every one of us is born whole and singular, carrying experiences no one else has lived — and stories are the best way to */
+        val lead: String get() = Strings.string("about.lead")
+        object Belief {
+            /** What we believe */
+            val kicker: String get() = Strings.string("about.belief.kicker")
+            /** Giving people their depth back */
+            val title: String get() = Strings.string("about.belief.title")
+            /** With different people and in different places, we show different sides of ourselves; each of us is a whole built of all  */
+            val p1: String get() = Strings.string("about.belief.p1")
+            /** We believe stories are what give a person their depth back. When someone writes down the thought we could never quite pu */
+            val p2: String get() = Strings.string("about.belief.p2")
+            /** So on Resonance you write a stretch of your life as a story card. When a story moves you, you don't answer with a like:  */
+            val p3: String get() = Strings.string("about.belief.p3")
+        }
+        object Cycle {
+            /** Three things we hold to */
+            val kicker: String get() = Strings.string("about.cycle.kicker")
+            /** Resonance · Depth · Insight */
+            val title: String get() = Strings.string("about.cycle.title")
+            /** They aren't three separate ideas but one cycle: a story sets off resonance, resonance shows us more of who we are, those */
+            val intro: String get() = Strings.string("about.cycle.intro")
+            /** Story */
+            val center: String get() = Strings.string("about.cycle.center")
+            /** A cycle of resonance, depth and insight, each leading to the next, with stories at its centre */
+            val diagramLabel: String get() = Strings.string("about.cycle.diagramLabel")
+            object Resonance {
+                /** Resonance */
+                val name: String get() = Strings.string("about.cycle.resonance.name")
+                /** Different stories, the same insight */
+                val motto: String get() = Strings.string("about.cycle.resonance.motto")
+                /** When someone speaks the thought we never finished, that is the moment resonance happens */
+                val body: String get() = Strings.string("about.cycle.resonance.body")
+            }
+            object Depth {
+                /** Depth */
+                val name: String get() = Strings.string("about.cycle.depth.name")
+                /** People are born three-dimensional */
+                val motto: String get() = Strings.string("about.cycle.depth.motto")
+                /** We show different sides of ourselves to different people and things. Each of us is a whole built of those sides. */
+                val body: String get() = Strings.string("about.cycle.depth.body")
+            }
+            object Insight {
+                /** Insight */
+                val name: String get() = Strings.string("about.cycle.insight.name")
+                /** The same story, different insights */
+                val motto: String get() = Strings.string("about.cycle.insight.motto")
+                /** Taking a story that moved us and reading it through our own eyes */
+                val body: String get() = Strings.string("about.cycle.insight.body")
+            }
+        }
+        object How {
+            /** How it works */
+            val kicker: String get() = Strings.string("about.how.kicker")
+            /** A story is answered by another story */
+            val title: String get() = Strings.string("about.how.title")
+            /** Two story cards, the second answering the first with ripples */
+            val sketchLabel: String get() = Strings.string("about.how.sketchLabel")
+            object Write {
+                /** Write a stretch of your life */
+                val title: String get() = Strings.string("about.how.write.title")
+                /** An experience, a change of heart, a question you're still turning over — each can become a story card */
+                val body: String get() = Strings.string("about.how.write.body")
+            }
+            object Read {
+                /** Read what moves you */
+                val title: String get() = Strings.string("about.how.read.title")
+                /** Among life stories from all over, meet the people on your wavelength */
+                val body: String get() = Strings.string("about.how.read.body")
+            }
+            object Resonate {
+                /** Resonate with a card of your own */
+                val title: String get() = Strings.string("about.how.resonate.title")
+                /** Answer with your own story. The two cards stay linked, and two people meet. */
+                val body: String get() = Strings.string("about.how.resonate.body")
+            }
+        }
+        object Shift {
+            /** Why now */
+            val kicker: String get() = Strings.string("about.shift.kicker")
+            /** Social media is shifting */
+            val title: String get() = Strings.string("about.shift.title")
+            object Fatigue {
+                /** Twofold fatigue */
+                val title: String get() = Strings.string("about.shift.fatigue.title")
+                /** A flood of information turns content into fast food, the worry of being rated makes us chase reach, and AI-made content  */
+                val body: String get() = Strings.string("about.shift.fatigue.body")
+            }
+            object Depth {
+                /** Toward depth */
+                val title: String get() = Strings.string("about.shift.depth.title")
+                /** People are turning to more personal spaces and looking for connections with depth */
+                val body: String get() = Strings.string("about.shift.depth.body")
+            }
+            object Warmth {
+                /** Growth and warmth */
+                val title: String get() = Strings.string("about.shift.warmth.title")
+                /** Inner growth over blind exposure; the warmth of people over handing everything to tools */
+                val body: String get() = Strings.string("about.shift.warmth.body")
+            }
+        }
+        object Compare {
+            /** What's different */
+            val kicker: String get() = Strings.string("about.compare.kicker")
+            /** Traditional platforms and Resonance */
+            val title: String get() = Strings.string("about.compare.title")
+            /** Traditional platforms */
+            val them: String get() = Strings.string("about.compare.them")
+            /** Resonance */
+            val us: String get() = Strings.string("about.compare.us")
+            object Traffic {
+                /** Chasing reach */
+                val them: String get() = Strings.string("about.compare.traffic.them")
+                /** Seeing the sides of yourself that go unnoticed, and connecting with the world */
+                val us: String get() = Strings.string("about.compare.traffic.us")
+            }
+            object Algorithm {
+                /** Fed by an algorithm */
+                val them: String get() = Strings.string("about.compare.algorithm.them")
+                /** Resonating with people on your wavelength */
+                val us: String get() = Strings.string("about.compare.algorithm.us")
+            }
+            object Performance {
+                /** Performing for exposure */
+                val them: String get() = Strings.string("about.compare.performance.them")
+                /** Writing stories and insights */
+                val us: String get() = Strings.string("about.compare.performance.us")
+            }
+            object Roles {
+                /** Creators and readers */
+                val them: String get() = Strings.string("about.compare.roles.them")
+                /** An equal exchange: everyone is a storyteller and a listener */
+                val us: String get() = Strings.string("about.compare.roles.us")
+            }
+            object Followers {
+                /** Follower counts */
+                val them: String get() = Strings.string("about.compare.followers.them")
+                /** Connections made by real stories */
+                val us: String get() = Strings.string("about.compare.followers.us")
+            }
+            object Likes {
+                /** A like */
+                val them: String get() = Strings.string("about.compare.likes.them")
+                /** A card written in resonance */
+                val us: String get() = Strings.string("about.compare.likes.us")
+            }
+        }
+        object Team {
+            /** Who we are */
+            val kicker: String get() = Strings.string("about.team.kicker")
+            /** The Resonance Crew */
+            val title: String get() = Strings.string("about.team.title")
+            /** We're four people still learning. Rather than by a school, a major or a title, we'd like to be known as whole people — j */
+            val body: String get() = Strings.string("about.team.body")
+        }
+        object Closing {
+            /** Everyone has a story to share */
+            val title: String get() = Strings.string("about.closing.title")
+            /** Someone as singular as you is bound to send ripples out into the world */
+            val body: String get() = Strings.string("about.closing.body")
+            /** Write your story */
+            val start: String get() = Strings.string("about.closing.start")
+        }
+    }
     object Tweaks {
         /** Tweaks */
         val title: String get() = Strings.string("tweaks.title")
