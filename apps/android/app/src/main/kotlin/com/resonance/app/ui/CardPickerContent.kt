@@ -48,6 +48,7 @@ import com.resonance.api.models.FeedCard
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
 import com.resonance.design.ModalCloseButton
+import com.resonance.design.ModalGap
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicIcon
@@ -92,8 +93,8 @@ fun CardPickerContent(session: Session, title: String, subtitle: String, onPick:
         } else {
             CardPickList(list, onPick, empty = { PickNote(L10n.Write.Editor.CardModal.empty) })
         }
-        // A list to pick from, its one way out centred under it (its rows carry their own 10).
-        ModalCloseButton(L10n.Write.Editor.CardModal.cancel, onCancel)
+        // A list to pick from, its one way out under it at the right — the modal's gap given here, in a column of its own.
+        ModalCloseButton(L10n.Write.Editor.CardModal.cancel, onCancel, Modifier.padding(top = ModalGap))
     }
 }
 

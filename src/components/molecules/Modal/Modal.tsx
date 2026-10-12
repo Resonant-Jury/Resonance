@@ -30,7 +30,7 @@ export interface ModalProps {
   closeLabel?: string;
   /**
    * For a modal whose foot has nothing else to do — a list, a picker, a
-   * notice: the close is drawn there, a small centred tonal pill, as in the
+   * notice: the close is drawn there, a small tonal pill at the right, as in the
    * apps (`ModalCloseRow`).
    */
   closeButton?: boolean;

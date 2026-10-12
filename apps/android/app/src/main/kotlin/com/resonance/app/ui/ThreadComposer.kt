@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.resonance.design.AppFonts
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicSendButton
+import com.resonance.design.SendHeight
 import com.resonance.design.ReplyRule
 import com.resonance.design.fieldHintStyle
 import com.resonance.design.fieldSurface
@@ -85,7 +86,8 @@ internal fun Composer(model: ThreadModel, handle: String, focus: FocusRequester,
             }
         }
         model.replyingTo?.let { ReplyBar(model, it) }
-        // Send is a little shorter than the field: it stays at the foot of the field as that grows.
+        // One line high, the field is Send's height and the two stand level (iOS's composer); as the
+        // field grows, Send stays at its foot.
         Row(
             Modifier.padding(top = 12.dp),
             verticalAlignment = Alignment.Bottom,
@@ -93,7 +95,7 @@ internal fun Composer(model: ThreadModel, handle: String, focus: FocusRequester,
         ) {
             Box(
                 Modifier
-                    .padding(bottom = 6.dp)
+                    .padding(bottom = (SendHeight - 40.dp) / 2)
                     .size(40.dp)
                     .plainClickable(role = Role.Button, onClickLabel = L10n.Messages.attachCard) { onPickCard() }
                     .semantics { contentDescription = L10n.Messages.attachCard },
@@ -103,7 +105,8 @@ internal fun Composer(model: ThreadModel, handle: String, focus: FocusRequester,
                 Modifier
                     .weight(1f)
                     .fieldSurface(17.0, { focused })
-                    .padding(horizontal = Tokens.FieldPadX.dp, vertical = Tokens.FieldPadY.dp),
+                    // A 24 line (15 at 1.6) and 10 above and below: 44, Send's height.
+                    .padding(horizontal = Tokens.FieldPadX.dp, vertical = (SendHeight - COMPOSER_LINE) / 2),
             ) {
                 if (model.draft.isEmpty()) BasicText(L10n.Messages.placeholder, style = fieldHintStyle())
                 BasicTextField(
@@ -123,11 +126,14 @@ internal fun Composer(model: ThreadModel, handle: String, focus: FocusRequester,
                         .semantics { contentDescription = L10n.Messages.threadWith(handle) },
                 )
             }
-            OrganicSendButton(L10n.Messages.send, enabled = model.canSend, modifier = Modifier.padding(bottom = 4.dp)) { model.send() }
+            OrganicSendButton(L10n.Messages.send, enabled = model.canSend) { model.send() }
         }
         model.error?.let { BasicText(it, style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.Terracotta), modifier = Modifier.padding(top = 6.dp)) }
     }
 }
+
+/** One line of the composer's text (15 at a 1.6 line height), at the default text size. */
+private val COMPOSER_LINE = 24.dp
 
 /** Over the field while replying: a wavy terracotta rule, whom to and a line of what, and a ✕. */
 @Composable

@@ -108,7 +108,7 @@ export function ReportModal({ open, target, offerBlock = true, onClose, onReport
             <p className={styles.body}>{t('doneBody')}</p>
             {done.blocked && <p className={styles.body}>{t('doneBlocked', { handle })}</p>}
           </div>
-          {/* Nothing left to do but leave: the one-exit notice's centred close, not a verb. */}
+          {/* Nothing left to do but leave: the one-exit notice's close, not a verb. */}
           <ModalCloseRow label={t('close')} onClose={onClose} />
         </>
       ) : (

@@ -23,7 +23,7 @@ struct CardPickerContent: View {
                 Text(cards == nil ? "…" : L10n.Write.Editor.CardModal.empty)
                     .font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted).padding(.vertical, 12)
             }
-            // A list to pick from: its one way out, centred under it.
+            // A list to pick from: its one way out, under it at the right.
             ModalCloseButton(L10n.Write.Editor.CardModal.cancel, action: onCancel)
         }
         // getCardsByAuthor(me, 'published'), public ones only.

@@ -41,13 +41,14 @@
   text-wrap: balance;
 }
 
-/* `closeButton`: the only thing at the foot, so in the middle of it — a
-   small tonal pill, which stands on the modal's own bottom padding (a bare
-   word once pulled itself down into it). */
+/* `closeButton`: the only thing at the foot, at its right like a choice's
+   actions, so every dialog ends at the same corner — a small tonal pill,
+   18px under the content, which stands on the modal's own bottom padding (a
+   bare word once pulled itself down into it). */
 .closeRow {
   display: flex;
-  justify-content: center;
-  margin-top: 14px;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 
 /* ModalActions: a choice's foot. Right-aligned, the verb rightmost; a pair

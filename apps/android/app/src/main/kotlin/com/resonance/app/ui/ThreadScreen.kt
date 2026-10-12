@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.em
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.BuildConfig
+import com.resonance.app.ConversationsStore
 import com.resonance.app.DebugLaunch
 import com.resonance.app.PushCenter
 import com.resonance.app.SafetyService
@@ -65,6 +66,7 @@ import com.resonance.design.EmptyAction
 import com.resonance.design.HandDrawnAvatar
 import com.resonance.design.MenuTrigger
 import com.resonance.design.ModalCloseButton
+import com.resonance.design.ModalGap
 import com.resonance.design.ModalTitle
 import com.resonance.design.OklchColor
 import com.resonance.design.OrganicConfirmDialog
@@ -231,28 +233,19 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     Box(Modifier.fillMaxSize().cream().onSizeChanged { listWidth = with(density) { it.width.toDp() } }) {
         Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
             when (model.phase) {
-                // Finding who it is with: the thread's shapes, over the room the composer will take.
-                ThreadModel.Phase.Loading -> ThreadSkeleton(Modifier.padding(top = top, bottom = 72.dp))
-                ThreadModel.Phase.Missing -> {
-                    BasicText(
-                        L10n.Messages.userNotFound,
-                        style = AppFonts.body(13f, lineHeight = 1.3f, color = Tokens.TextMuted),
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = top + 20.dp),
-                    )
-                }
-                // Who they are couldn't be asked (offline): a retry, never "user not found".
-                ThreadModel.Phase.Failed -> Box(Modifier.padding(top = top)) {
-                    OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { model.load() } }, action = EmptyAction.Outline)
-                }
-                // The messages show whoever may write; only the foot changes (ThreadFoot).
-                ThreadModel.Phase.Ready -> {
+                // One layout while it is found and once it is: what the thread always has is there from the
+                // start (the bar's back and ⋯, the composer), and only what isn't known yet is in the shimmer.
+                ThreadModel.Phase.Loading, ThreadModel.Phase.Ready -> {
+                    val ready = model.phase == ThreadModel.Phase.Ready
                     val foot = model.foot
                     Box(Modifier.weight(1f).fillMaxWidth()) {
-                        MessageList(rows, ctx, list, top, Modifier.fillMaxSize(), pillVisible = !(searching && showResults), sayEmpty = foot.composes)
-                        // The first read still on its way: the thread's shapes until the messages take their place.
-                        if (!model.threadReady) ThreadSkeleton(Modifier.padding(top = top))
-                        if (searching && showResults) SearchResults(model, query, top, resultsList, pick)
+                        if (ready) MessageList(rows, ctx, list, top, Modifier.fillMaxSize(), pillVisible = !(searching && showResults), sayEmpty = foot.composes)
+                        // Who it is with, or the first read, still on its way: the thread's shapes until the messages take their place.
+                        if (!ready || !model.threadReady) ThreadSkeleton(Modifier.padding(top = top))
+                        if (ready && searching && showResults) SearchResults(model, query, top, resultsList, pick)
                     }
+                    // While they are found the composer is there already (nothing to send to until they are): a
+                    // thread mostly is somewhere to write, and the field stays put — what was typed, the keyboard.
                     // In a wide pane the composer keeps to a column of its own, centred under the thread.
                     val padded = Modifier.readableColumn(ComposerMax).padding(horizontal = 14.dp).padding(bottom = 14.dp)
                     when (foot) {
@@ -276,12 +269,26 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
                         ThreadFoot.Pending -> {}
                     }
                 }
+                ThreadModel.Phase.Missing -> {
+                    BasicText(
+                        L10n.Messages.userNotFound,
+                        style = AppFonts.body(13f, lineHeight = 1.3f, color = Tokens.TextMuted),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = top + 20.dp),
+                    )
+                }
+                // Who they are couldn't be asked (offline): a retry, never "user not found".
+                ThreadModel.Phase.Failed -> Box(Modifier.padding(top = top)) {
+                    OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { model.load() } }, action = EmptyAction.Outline)
+                }
             }
         }
 
+        val conversations by session.conversations.state.collectAsStateWithLifecycle()
+        val conversationIds by session.conversations.ids.collectAsStateWithLifecycle()
         ThreadBar(
             model, handle, searching, query, showResults, currentHit, searchFocus,
             scrolled = if (searching && showResults) resultsList.canScrollBackward else list.canScrollForward,
+            menuShown = threadMenuShown(model, conversations, conversationIds),
             onQuery = { query = it },
             onShowResults = { showResults = true },
             onPick = pick,
@@ -434,7 +441,9 @@ private fun barMenu(
  * The thread's bar, over the messages: back, the person (their face and pen name, a tap goes to
  * their page) and the ⋯ — edged by the header's wavy pen line like every pushed page's, half ink
  * at rest and full once messages scroll under it. Search takes the person's place with its field
- * (and, once a match was chosen, "3/12" and the way through them).
+ * (and, once a match was chosen, "3/12" and the way through them). While the person is found it is
+ * already the same bar: the pen name the way here carried beside the face's place, and the ⋯ in its
+ * place ([menuShown]), taking a tap once there is a conversation to act on.
  */
 @Composable
 private fun ThreadBar(
@@ -446,6 +455,7 @@ private fun ThreadBar(
     currentHit: String?,
     searchFocus: FocusRequester,
     scrolled: Boolean,
+    menuShown: Boolean,
     onQuery: (String) -> Unit,
     onShowResults: () -> Unit,
     onPick: (SearchHit) -> Unit,
@@ -454,19 +464,16 @@ private fun ThreadBar(
     open: (Route) -> Unit,
     back: () -> Unit,
 ) {
-    if (model.phase != ThreadModel.Phase.Ready) {
-        // Finding who it is with: the pen name the way here carried, beside the face's place.
-        OrganicInlineBar(L10n.Messages.back, back, centre = if (model.phase == ThreadModel.Phase.Loading) ({ PersonPlaceholder(handle) }) else null)
-        return
-    }
+    val ready = model.phase == ThreadModel.Phase.Ready
+    val found = ready || model.phase == ThreadModel.Phase.Loading
     val pair = model.pairId
     val other = model.other
     OrganicInlineBar(
         L10n.Messages.back, back,
-        scrolled = scrolled,
-        showBack = !searching,
+        scrolled = ready && scrolled,
+        showBack = !(ready && searching),
         leading = {
-            if (searching) {
+            if (ready && searching) {
                 SearchField(query, onQuery, searchFocus, onFocus = onShowResults, onSearch = onShowResults)
                 val hits = model.searchHits
                 val at = currentHit?.let { id -> hits.indexOfFirst { it.messageId == id } } ?: -1
@@ -482,7 +489,7 @@ private fun ThreadBar(
         // The person: beside the arrow on a phone and in a pane, in the middle of a tablet's header
         // when the thread fills the window (round 5, part C) — the thread's bar is the header there.
         // Their profile not read yet: the pen name the way here carried, beside the face's place.
-        centre = if (searching) null else if (other == null) ({ PersonPlaceholder(handle) }) else {
+        centre = if (!found || (ready && searching)) null else if (other == null || !ready) ({ PersonPlaceholder(handle) }) else {
             {
                 Row(
                     Modifier
@@ -501,14 +508,31 @@ private fun ThreadBar(
             }
         },
         trailing = {
-            if (searching) {
+            if (ready && searching) {
                 OrganicIconButton(IconName.Close, L10n.Messages.searchClose, size = 16.dp, onClick = onCloseSearch)
-            } else if (model.conversationExists && pair != null) {
+            } else if (menuShown) {
                 // A bare glyph; its 48 hit box is the bar's own end margin.
-                OrganicMenu(menu, L10n.Messages.moreMenu, seed = seedFromString(pair).toDouble(), triggerSize = 34.dp, trigger = MenuTrigger.Bare)
+                OrganicMenu(
+                    menu, L10n.Messages.moreMenu, seed = seedFromString(pair ?: handle).toDouble(), triggerSize = 34.dp, trigger = MenuTrigger.Bare,
+                    enabled = ready && model.conversationExists && pair != null,
+                )
             }
         },
     )
+}
+
+/**
+ * The ⋯ is a conversation's: in the bar from the start when Messages lists this one — or hasn't been
+ * read yet (a push opened the app here) — rather than coming once the conversation has been read; for
+ * someone not written to yet, once the first message makes it. iOS's ThreadScreen.menuShown.
+ */
+private fun threadMenuShown(model: ThreadModel, list: ConversationsStore.State, ids: Set<String>): Boolean {
+    if (model.phase != ThreadModel.Phase.Loading && model.phase != ThreadModel.Phase.Ready) return false
+    if (model.conversationExists) return true
+    val pair = model.pairId
+    val name = model.other?.handle ?: model.handle
+    val listed = if (pair != null) pair in ids else list.conversations.any { it.other.handle.equals(name, ignoreCase = true) }
+    return listed || (!list.loaded && !model.threadReady)
 }
 
 /**
@@ -604,7 +628,7 @@ private fun SharedMediaContent(model: ThreadModel, opener: LinkOpener, onClose: 
             }
         }
         // Nothing to choose here, only to look through: the way out is under the list.
-        ModalCloseButton(L10n.Safety.Report.close, onClose, Modifier.padding(top = 14.dp))
+        ModalCloseButton(L10n.Safety.Report.close, onClose, Modifier.padding(top = ModalGap))
     }
 }
 

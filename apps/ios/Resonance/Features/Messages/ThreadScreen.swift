@@ -182,9 +182,10 @@ struct ThreadScreen: View {
 
     @ViewBuilder private func content(_ model: ThreadModel) -> some View {
         switch model.phase {
-        case .loading:
-            // Finding who it is with: the thread's shapes, over the room the composer will take.
-            ThreadSkeleton().padding(.bottom, 72)
+        // One view while it is found and once it is: what the thread always has is there from the start
+        // (the bar's back and ⋯, the composer), and only what isn't known yet is in the shimmer.
+        case .loading, .ready:
+            thread(model)
         case .missing:
             Text(L10n.Messages.userNotFound)
                 .font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
@@ -198,30 +199,37 @@ struct ThreadScreen: View {
             }
             .padding(.top, barHeight)
             Spacer()
-        case .ready:
-            // The messages show whoever may write: only the foot changes with it.
-            ZStack(alignment: .bottom) {
+        }
+    }
+
+    /// The messages over the foot. The messages show whoever may write: only the foot changes with it.
+    @ViewBuilder private func thread(_ model: ThreadModel) -> some View {
+        let ready = model.phase == .ready
+        ZStack(alignment: .bottom) {
+            if ready {
                 MessageList(rows: model.rows, ctx: context(model), position: $scroll, topMargin: barHeight,
                             pillVisible: !(searching && showResults) && toast == nil, underBar: $underBar)
                     // Under the search's list of matches the thread is out of sight: out of VoiceOver's reach too.
                     .accessibilityHidden(searching && showResults)
-                // The first read still on its way: the thread's shapes until the messages take their place.
-                if !model.threadReady {
-                    ThreadSkeleton().transition(.opacity)
-                }
-                if searching && showResults {
-                    ThreadSearchResults(model: model, query: query, topMargin: barHeight, underBar: $resultsUnderBar) { pick($0) }
-                }
-                if let toast {
-                    ThreadPill(icon: .check, text: toast)
-                        .padding(.bottom, 10)
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                }
             }
-            .frame(maxHeight: .infinity)
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
-            foot(model)
+            // Who it is with, or the first read, still on its way: the thread's shapes until the messages take their place.
+            if !ready || !model.threadReady {
+                ThreadSkeleton().transition(.opacity)
+            }
+            if ready && searching && showResults {
+                ThreadSearchResults(model: model, query: query, topMargin: barHeight, underBar: $resultsUnderBar) { pick($0) }
+            }
+            if let toast {
+                ThreadPill(icon: .check, text: toast)
+                    .padding(.bottom, 10)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
         }
+        .frame(maxHeight: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
+        // While they are found the composer is there already (nothing to send to until they are): a thread
+        // mostly is somewhere to write, and the field stays put — what was typed, the keyboard — once they are.
+        foot(model)
     }
 
     /// Under the messages: the composer — with a quiet line over it when answering their note
@@ -374,16 +382,30 @@ struct ThreadScreen: View {
                 }
             }
         } trailing: {
-            if let model, model.phase == .ready {
-                if searching {
-                    OrganicIconButton(.close, label: L10n.Messages.searchClose, size: 16, action: closeSearch)
-                } else if model.conversationExists, let pair = model.pairId {
-                    OrganicMenu(items: menuItems(model), label: L10n.Messages.moreMenu, seed: Double(seedFromString(pair)), triggerSize: 34, trigger: .bare)
-                }
+            if let model, model.phase == .ready, searching {
+                OrganicIconButton(.close, label: L10n.Messages.searchClose, size: 16, action: closeSearch)
+            } else if let model, menuShown(model) {
+                OrganicMenu(items: menuItems(model), label: L10n.Messages.moreMenu, seed: Double(seedFromString(model.pairId ?? model.handle)),
+                            triggerSize: 34, trigger: .bare)
+                    // In its place from the start, it takes a tap once there is a conversation to act on.
+                    .disabled(!(model.phase == .ready && model.conversationExists && model.pairId != nil))
             }
         }
         .backHidden(searching || inPane)
         .leadingInset(inPane ? PaneLines.gutter : 0)
+    }
+
+    /// The ⋯ is a conversation's: in the bar from the start when Messages lists this one — or hasn't been
+    /// read yet (a push opened the app here) — rather than coming once the conversation has been read; for
+    /// someone not written to yet, once the first message makes it.
+    private func menuShown(_ model: ThreadModel) -> Bool {
+        guard model.phase == .loading || model.phase == .ready else { return false }
+        if model.conversationExists { return true }
+        let listed = session.conversations.conversations.contains { conversation in
+            if let pair = model.pairId { return conversation.id == pair }
+            return conversation.other.handle.caseInsensitiveCompare(model.displayHandle) == .orderedSame
+        }
+        return listed || (!session.conversations.loaded && !model.threadReady)
     }
 
     /// Where in the matches the thread is (1 is the newest), once one was chosen and the list put away.

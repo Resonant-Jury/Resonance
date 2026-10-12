@@ -300,8 +300,9 @@ internal fun MessageList(
 /**
  * A thread whose messages are still on their way (opened from a bell or a push, before the first
  * read): a few bubbles in the shimmer, theirs on the left with a face under each run and yours on
- * the right, resting on the foot as the newest messages do. It shows only after a moment, so a
- * thread the cache answers at once doesn't flash it. iOS's ThreadSkeleton.
+ * the right, resting on the foot as the newest messages do — the newest theirs, since a thread is
+ * mostly opened for what they just sent. It shows only after a moment, so a thread the cache
+ * answers at once doesn't flash it. iOS's ThreadSkeleton.
  */
 @Composable
 internal fun ThreadSkeleton(modifier: Modifier = Modifier) {
@@ -343,8 +344,7 @@ internal fun ThreadSkeleton(modifier: Modifier = Modifier) {
 private val SKELETON_BUBBLES = listOf(
     Triple(false, 168, 40), Triple(false, 120, 40),
     Triple(true, 200, 58), Triple(true, 96, 40),
-    Triple(false, 220, 58),
-    Triple(true, 140, 40),
+    Triple(false, 220, 58), Triple(false, 132, 40),
 )
 
 /** How long a thread waits for its first read before its skeleton shows. */

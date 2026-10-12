@@ -238,14 +238,15 @@ private fun EdgeToEdgeDialogWindow() {
 
 /**
  * The way out of a modal with nothing else at its foot (a list to look through, a note just
- * sent, "thanks", "that didn't go through"): its close words as a small tonal pill, centred under
- * the content (the web's ModalCloseRow / `Modal closeButton`), at least [ModalActionMinHeight]
- * tall for a finger. Where there is a choice (cancel and a verb) the two sit at the bottom right
- * instead, in [ModalActions].
+ * sent, "thanks", "that didn't go through"): its close words as a small tonal pill at the bottom
+ * right (the web's ModalCloseRow / `Modal closeButton`) — where a choice's cancel and verb stand
+ * ([ModalActions]), so every dialog ends at the same corner — at least [ModalActionMinHeight] tall
+ * for a finger. It stands 18 under the content: the modal's own [ModalGap] and 4 of its own (a
+ * content that lays itself out in a column of its own adds the gap, `Modifier.padding(top = ModalGap)`).
  */
 @Composable
 fun ModalCloseButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.CenterEnd) {
         OrganicButton(label, Modifier.heightIn(min = ModalActionMinHeight).widthIn(min = ModalActionMinWidth), variant = ButtonVariant.Tonal, small = true, onClick = onClick)
     }
 }
@@ -473,7 +474,8 @@ enum class MenuTrigger { Chip, Bare }
 /**
  * OrganicMenu's trigger (and the header's other actions, share): the glyph in
  * the menu's pen (or a card's hue) at 0.53 of the chip, or bare at 20dp in the
- * text ink. A press washes an organic squircle — never a rectangle.
+ * text ink. A press washes an organic squircle — never a rectangle. Not [enabled], it looks the
+ * same and takes no tap (a thread's ⋯ while the conversation is still being read).
  */
 @Composable
 fun OrganicMenuChip(
@@ -484,6 +486,7 @@ fun OrganicMenuChip(
     expanded: Boolean = false,
     hue: Double? = null,
     trigger: MenuTrigger = MenuTrigger.Chip,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val colors = remember(hue) { MenuColors(hue) }
@@ -491,7 +494,7 @@ fun OrganicMenuChip(
         Box(
             Modifier
                 .size(BareHitBox)
-                .clickable(interactionSource = null, indication = OrganicIndication(inset = BareWashInset), role = Role.Button, onClickLabel = label, onClick = onClick)
+                .clickable(interactionSource = null, indication = OrganicIndication(inset = BareWashInset), enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick)
                 .semantics { contentDescription = label },
             contentAlignment = Alignment.Center,
         ) { OrganicIcon(icon, size = 20.dp, color = if (expanded) Tokens.Terracotta else Tokens.Text) }
@@ -501,7 +504,7 @@ fun OrganicMenuChip(
     Box(
         Modifier
             .size(MenuHitBox)
-            .clickable(interactionSource = null, indication = OrganicIndication(inset = (MenuHitBox - size) / 2), role = Role.Button, onClickLabel = label, onClick = onClick)
+            .clickable(interactionSource = null, indication = OrganicIndication(inset = (MenuHitBox - size) / 2), enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
@@ -534,7 +537,8 @@ private const val MenuRowHeight = 42.0
 /**
  * The web's OrganicMenu: the ⋯ chip, dropping a hand-drawn cream panel 8
  * under its trailing edge — terracotta pen (or a card's `hue`), wavy dividers
- * between rows, the destructive row on a yellow wash — not Material's menu.
+ * between rows, the destructive row on a yellow wash — not Material's menu. Not [enabled], the
+ * trigger is in its place and takes no tap.
  */
 @Composable
 fun OrganicMenu(
@@ -545,13 +549,14 @@ fun OrganicMenu(
     hue: Double? = null,
     triggerSize: Dp = 38.dp,
     trigger: MenuTrigger = MenuTrigger.Chip,
+    enabled: Boolean = true,
 ) {
     var open by remember { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
     val menuScope = rememberCoroutineScope()
     val colors = remember(hue) { MenuColors(hue) }
     Box {
-        OrganicMenuChip(triggerIcon, label, seed, size = triggerSize, expanded = open, hue = hue, trigger = trigger) { open = !open }
+        OrganicMenuChip(triggerIcon, label, seed, size = triggerSize, expanded = open, hue = hue, trigger = trigger, enabled = enabled) { open = !open }
         if (open) {
             val gap = with(LocalDensity.current) { 8.dp.roundToPx() }
             // The chip (or a bare glyph's wash) is centred in its hit box: the panel hangs from it, not from the box.
@@ -824,7 +829,7 @@ fun OrganicToggle(checked: Boolean, seed: Double = 9.0, enabled: Boolean = true)
 
 /**
  * A notice with nothing to choose (an action that didn't go through), in the web's Modal: its
- * words, then the one way out — the quiet close, centred under them ([ModalCloseButton]), in the
+ * words, then the one way out — the quiet close, under them at the right ([ModalCloseButton]), in the
  * reader's language, as every one-exit modal ends.
  */
 @Composable

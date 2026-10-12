@@ -133,7 +133,7 @@ fun ReportDialog(
             ModalTitle(L10n.Safety.Report.doneTitle)
             ModalBody(L10n.Safety.Report.doneBody)
             if (blocked) ModalBody(L10n.Safety.Report.doneBlocked(name))
-            // Nothing left to do but leave: the one-exit notice's centred close, not a verb.
+            // Nothing left to do but leave: the one-exit notice's close, not a verb.
             ModalCloseButton(L10n.Safety.Report.close, onClose)
             return@OrganicModal
         }

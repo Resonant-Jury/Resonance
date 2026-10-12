@@ -39,8 +39,8 @@ extension View {
 
 extension View {
     /// A one-exit notice: something happened that leaves nothing to choose (an action the server
-    /// refused, the card as it was) — its heading, a line saying what happened, and the centred
-    /// tonal close (``ModalCloseButton``), never a cancel beside a retry. The web's Modal with
+    /// refused, the card as it was) — its heading, a line saying what happened, and the tonal close
+    /// at the bottom right (``ModalCloseButton``), never a cancel beside a retry. The web's Modal with
     /// `closeButton`, Android's OrganicAlert.
     public func organicNotice(isPresented: Binding<Bool>, title: String, message: String, closeLabel: String,
                               seed: Double = 67) -> some View {
@@ -50,7 +50,7 @@ extension View {
     }
 }
 
-/// A one-exit notice's inside: heading, the line, the centred close.
+/// A one-exit notice's inside: heading, the line, the close at the bottom right.
 public struct OrganicNoticeContent: View {
     let title: String
     let message: String
@@ -67,7 +67,7 @@ public struct OrganicNoticeContent: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ModalTitle(title).padding(.bottom, 8)
-            ModalBody(message).padding(.bottom, 4)
+            ModalBody(message)
             ModalCloseButton(closeLabel, action: onClose)
         }
     }
@@ -212,9 +212,10 @@ public enum ModalMetrics {
 }
 
 /// The way out of a modal with nothing else at its foot (a list to look through, a note just
-/// sent, a thank-you, "that didn't go through"): its close words as a small tonal pill, centred
-/// under the content (ModalCloseRow). Where there is a choice (cancel and a verb) the two sit at
-/// the bottom right instead, in ``ModalActions``. Android's ModalCloseButton.
+/// sent, a thank-you, "that didn't go through"): its close words as a small tonal pill at the
+/// bottom right, 18 under the content (ModalCloseRow) — where a choice's cancel and verb stand
+/// (``ModalActions``, after the body's 18), so every dialog ends at the same corner. Android's
+/// ModalCloseButton.
 public struct ModalCloseButton: View {
     let label: String
     let action: () -> Void
@@ -227,8 +228,8 @@ public struct ModalCloseButton: View {
     public var body: some View {
         OrganicButton(label, variant: .tonal, size: .sm, action: action)
             .environment(\.organicButtonMinHeight, ModalMetrics.minButtonHeight)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 14)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.top, 18)
     }
 }
 

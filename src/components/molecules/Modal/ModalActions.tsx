@@ -37,8 +37,9 @@ export interface ModalCloseRowProps {
 
 /**
  * A dialog's foot when leaving is all there is left to do (a list, a notice,
- * "sent", "thanks", "that didn't go through"): one small tonal Close, centred
- * — what `Modal closeButton` draws, for content that ends inside the modal.
+ * "sent", "thanks", "that didn't go through"): one small tonal Close at the
+ * bottom right, where a choice's actions stand — what `Modal closeButton`
+ * draws, for content that ends inside the modal.
  */
 export function ModalCloseRow({ label, onClose }: ModalCloseRowProps) {
   return (

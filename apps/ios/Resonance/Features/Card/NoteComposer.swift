@@ -42,7 +42,7 @@ struct NoteComposer: View {
                     Text(L10n.Card.Note.sent).font(AppFonts.body(14)).foregroundStyle(Tokens.text)
                     Spacer(minLength: 0)
                 }
-                // Said and done: the one-exit notice's close, centred under the confirmation (a modal keeps no ✕).
+                // Said and done: the one-exit notice's close, under the confirmation (a modal keeps no ✕).
                 ModalCloseButton(L10n.Card.Note.close, action: onClose)
             }
         } else {

@@ -204,16 +204,16 @@ extension MessageList {
 
 /// A thread whose messages are still on their way (opened from a bell or a push, before the first
 /// read): a few bubbles in the shimmer, theirs on the left with a face under each run and yours on
-/// the right, resting on the foot as the newest messages do. It shows only after a moment, so a
-/// thread the cache answers at once doesn't flash it. Android's ThreadSkeleton.
+/// the right, resting on the foot as the newest messages do — the newest theirs, since a thread is
+/// mostly opened for what they just sent. It shows only after a moment, so a thread the cache
+/// answers at once doesn't flash it. Android's ThreadSkeleton.
 struct ThreadSkeleton: View {
     private struct Bubble { let mine: Bool; let width: CGFloat; let height: CGFloat }
     /// Oldest first; a change of side starts a new run.
     private static let bubbles = [
         Bubble(mine: false, width: 168, height: 40), Bubble(mine: false, width: 120, height: 40),
         Bubble(mine: true, width: 200, height: 58), Bubble(mine: true, width: 96, height: 40),
-        Bubble(mine: false, width: 220, height: 58),
-        Bubble(mine: true, width: 140, height: 40),
+        Bubble(mine: false, width: 220, height: 58), Bubble(mine: false, width: 132, height: 40),
     ]
     @State private var shown = false
 
