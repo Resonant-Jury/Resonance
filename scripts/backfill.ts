@@ -15,6 +15,10 @@
  *       anonymous cards' pictures under keys that name no one (needs R2 credentials to apply)
  *   npx tsx scripts/backfill.ts rehost-images [--apply] [--emulator]
  *       stored pictures' URLs on a former base (R2_FORMER_PUBLIC_BASES) → the same key on R2_PUBLIC_BASE
+ *   npx tsx scripts/backfill.ts square-avatars [--apply]
+ *       profile photos stored before photos were cut square → cut square as a new one is (the middle,
+ *       256 px, WebP) under a new key on record as their owner's, the profile pointing at it; the old
+ *       picture stays (reads the photos by their public URLs; --apply needs R2 credentials)
  *   npx tsx scripts/backfill.ts notes         [--apply] [--emulator]
  *       notes left before notes went into the thread → a `kind: 'note'` message in the two people's
  *       conversation (never on an anonymous card; no unread counted; opens a missing conversation,
@@ -105,6 +109,20 @@ async function main() {
       await rehostImages(db, { apply, publicBase, formerBases });
       return;
     }
+    case 'square-avatars': {
+      const { squareAvatars } = await import('./backfills/squareAvatars');
+      if (!publicBase) throw new Error('R2_PUBLIC_BASE is not set');
+      if (useEmulator && apply) throw new Error('square-avatars stores pictures in R2: never --apply on the emulator');
+      const storage = apply ? new (await import('../src/lib/storage/r2')).R2StorageProvider() : null;
+      const read = async (url: string) => {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+        if (!res.ok) return null;
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        return bytes.byteLength > 20 * 1024 * 1024 ? null : bytes;
+      };
+      await squareAvatars(db, storage, { apply, publicBases: [publicBase, ...formerBases], read });
+      return;
+    }
     case 'notes': {
       const { backfillNotes } = await import('./backfills/notes');
       await backfillNotes(db, { apply });
@@ -136,7 +154,7 @@ async function main() {
       return;
     }
     default:
-      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images | notes | anonymous-bells | orphan-notes | link-previews)`);
+      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images | square-avatars | notes | anonymous-bells | orphan-notes | link-previews)`);
   }
 }
 

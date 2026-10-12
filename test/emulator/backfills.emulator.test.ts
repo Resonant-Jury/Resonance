@@ -8,6 +8,8 @@ import { deleteOrphanNotes } from '../../scripts/backfills/orphanNotes';
 import { setStorageHost } from '../../scripts/backfills/storageHost';
 import { rekeyAnonymousImages, type Storage } from '../../scripts/backfills/rekeyImages';
 import { rehostImages } from '../../scripts/backfills/rehostImages';
+import { squareAvatars, type AvatarStorage } from '../../scripts/backfills/squareAvatars';
+import sharp from 'sharp';
 import { backfillNotes } from '../../scripts/backfills/notes';
 import { sendNote } from '@/lib/api/v1/conversations';
 import { backfillLinkPreviews } from '../../scripts/backfills/linkPreviews';
@@ -271,6 +273,65 @@ describe('rehost-images', () => {
 
   it('needs a former host to move from', async () => {
     await expect(rehostImages(db, { apply: false, publicBase: NOW, formerBases: [`${NOW}/`], log: quiet })).rejects.toThrow(/R2_FORMER_PUBLIC_BASES/);
+  });
+});
+
+describe('square-avatars', () => {
+  const BASE = 'https://img.resonance.test';
+  const tall = `${BASE}/image/alice/2026-06/tall.jpg`;
+  const square = `${BASE}/image/2026-10/square.webp`;
+  const picture = (width: number, height: number) =>
+    sharp({ create: { width, height, channels: 3, background: { r: 200, g: 120, b: 80 } } }).jpeg().toBuffer().then((b) => new Uint8Array(b));
+
+  async function world() {
+    const pictures = new Map<string, Uint8Array>([[tall, await picture(300, 420)], [square, await picture(256, 256)]]);
+    const stored: { key: string; body: Uint8Array; ownerId: string }[] = [];
+    const storage: AvatarStorage = {
+      uploadObject: async (intent, body) => {
+        const key = `image/2026-10/${stored.length}-new.webp`;
+        stored.push({ key, body, ownerId: intent.ownerId });
+        pictures.set(`${BASE}/${key}`, body);
+        return { key, publicUrl: `${BASE}/${key}` };
+      },
+      deleteObject: async () => {},
+    };
+    const read = async (url: string) => pictures.get(url) ?? null;
+    return { storage, stored, read };
+  }
+
+  beforeEach(async () => {
+    await db.doc('users/alice').set({ handle: 'alice', avatarUrl: tall, bio: 'hi' });
+    await db.doc('users/bob').set({ handle: 'bob', avatarUrl: square });
+    await db.doc('users/carol').set({ handle: 'carol', avatarUrl: 'https://lh3.googleusercontent.com/a/c.png' });
+    await db.doc('users/dave').set({ handle: 'dave', avatarUrl: `${BASE}/image/2026-06/gone.jpg` });
+    await db.doc('users/erin').set({ handle: 'erin' });
+  });
+
+  it("cuts a stored photo that isn't square as a new one is, under a new key on record as its owner's, and leaves the rest", async () => {
+    const { storage, stored, read } = await world();
+    const before = { bob: await data('users/bob'), carol: await data('users/carol'), dave: await data('users/dave') };
+
+    expect(await squareAvatars(db, null, { apply: false, publicBases: [BASE], read, log: quiet }))
+      .toMatchObject({ users: 5, photos: 4, notOurs: 1, unreadable: 1, square: 1, squared: 0 });
+    expect((await data('users/alice'))!.avatarUrl).toBe(tall);
+
+    expect(await squareAvatars(db, storage, { apply: true, publicBases: [BASE], read, log: quiet })).toMatchObject({ squared: 1, notWritten: 0 });
+    expect(stored).toHaveLength(1);
+    const meta = await sharp(stored[0].body).metadata();
+    expect([meta.format, meta.width, meta.height]).toEqual(['webp', 256, 256]);
+    expect(await data('users/alice')).toEqual({ handle: 'alice', bio: 'hi', avatarUrl: `${BASE}/${stored[0].key}` });
+    const records = (await db.collection('uploads').get()).docs.map((d) => d.data());
+    expect(records).toEqual([expect.objectContaining({ ownerId: 'alice', key: stored[0].key, kind: 'image' })]);
+    expect({ bob: await data('users/bob'), carol: await data('users/carol'), dave: await data('users/dave') }).toEqual(before);
+
+    // A second run finds nothing left to cut.
+    expect(await squareAvatars(db, storage, { apply: true, publicBases: [BASE], read, log: quiet })).toMatchObject({ square: 2, squared: 0 });
+    expect(stored).toHaveLength(1);
+  });
+
+  it('needs the storage to apply', async () => {
+    const { read } = await world();
+    await expect(squareAvatars(db, null, { apply: true, publicBases: [BASE], read, log: quiet })).rejects.toThrow(/storage/);
   });
 });
 
