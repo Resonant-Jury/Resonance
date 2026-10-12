@@ -3,7 +3,7 @@
  * feature graphic and the Play icon, in Traditional Chinese (zh-TW) and English (en-US).
  *
  *   npx tsx docs/store/graphics/render.ts                 # everything, both languages
- *   npx tsx docs/store/graphics/render.ts ios             # one target: ios | android | ipad | tablet | play
+ *   npx tsx docs/store/graphics/render.ts ios             # one target: ios | android | ipad | tablet | play | header
  *   npx tsx docs/store/graphics/render.ts ios --only=feed,card
  *   npx tsx docs/store/graphics/render.ts --lang=en       # one language: --lang=zh-TW | --lang=en (default: both)
  *   npx tsx docs/store/graphics/render.ts ios android --lang=en --check
@@ -524,6 +524,126 @@ async function slideHtml(
   return { html: htmlDoc(`${variantDir(p, lang)} ${slide.key}`, css, fonts, body, lang === 'en' ? 'en' : undefined), g };
 }
 
+/* ── App Store header & search asset (iOS 27 product page) ───────────────── */
+
+/**
+ * One universal 16:9 PNG per language for App Store Connect's 「標題和搜尋結果」: the product page header crops it to
+ * 21:9 and the search result to 3:2, both around its centre, so the phrase and the top of the middle iPad sit in
+ * the rectangle both crops keep (HEADER_SAFE); the side iPads and the doodles only fill the wider views.
+ */
+const HEADER = { w: 5244, h: 2950 };
+/** Where every crop keeps the content: the header's 21:9 safe area (~43 % × 40 % of its crop), inside the search one. */
+const HEADER_SAFE = { l: 1500, t: 1025, r: 3744, b: 1925 };
+const HEADER_COPY: Record<Lang, { text: string; em: string; size: number }> = {
+  'zh-TW': { text: '用故事回應故事', em: '回應', size: 250 },
+  en: { text: 'Answer stories with stories', em: 'Answer', size: 168 },
+};
+
+/** A landscape iPad capture in the slides' hand-drawn frame, `outerW` wide. */
+async function ipadFrame(rawFile: string, outerW: number, seed: number, U: number) {
+  const raw = imageSize(rawFile);
+  const top = Math.round(raw.h * CROP_TOP.ipad);
+  const rows = Math.round(raw.h * (1 - CROP_TOP.ipad - CROP_BOTTOM.ipad));
+  const bezel = Math.round(outerW * 0.022);
+  const innerW = outerW - 2 * bezel;
+  const innerH = Math.round(innerW * (rows / raw.w));
+  const outerH = innerH + 2 * bezel;
+  const img = await sharp(rawFile)
+    .extract({ left: 0, top, width: raw.w, height: rows })
+    .flatten({ background: '#faf2e9' })
+    .resize({ width: innerW, height: innerH, fit: 'fill', kernel: 'lanczos3' })
+    .jpeg({ quality: 92 })
+    .toBuffer();
+  const R = Math.round(innerW * SCREEN_RADIUS.ipad);
+  const outerD = wobRect(outerW, outerH, R + bezel, seed, U * 0.0045, { segmentsH: 5, segmentsV: 3 });
+  const innerD = wobRect(innerW, innerH, R, seed + 1, U * 0.0012, { cornerJitter: 0.25, segmentsH: 3, segmentsV: 2 });
+  const pen = INK * (U / 390) * 0.62;
+  const svg =
+    `<svg viewBox="0 0 ${outerW} ${outerH}" width="${outerW}" height="${outerH}" style="overflow:visible">` +
+    `<defs><clipPath id="scr${seed}"><path d="${innerD}" transform="translate(${bezel} ${bezel})"/></clipPath></defs>` +
+    `<path d="${outerD}" fill="var(--card)" stroke="var(--ink)" stroke-width="${num(pen)}" stroke-linejoin="round"/>` +
+    `<image href="data:image/jpeg;base64,${img.toString('base64')}" x="${bezel}" y="${bezel}" width="${innerW}" height="${innerH}" clip-path="url(#scr${seed})"/>` +
+    `<path d="${innerD}" transform="translate(${bezel} ${bezel})" fill="none" stroke="var(--ink)" stroke-opacity=".85" stroke-width="${num(INK_LIGHT * (U / 390) * 0.62)}"/></svg>`;
+  return { svg, w: outerW, h: outerH };
+}
+
+async function headerHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>, lang: Lang): Promise<string> {
+  const { w: W, h: H } = HEADER;
+  const U = H;
+  const dir = variantDir('ipad', lang);
+  const raw = (key: Key) => path.join(RAW, dir, `${key}.png`);
+  for (const k of ['feed', 'write', 'messages'] as const) {
+    if (!fs.existsSync(raw(k))) throw new Error(`header: raw/${dir}/${k}.png is missing`);
+  }
+  const terra = A.terracotta;
+  const s = (U / 390) * 0.62;
+  const pen = INK * s;
+  const centre = await ipadFrame(raw('feed'), 2500, 11, U);
+  const left = await ipadFrame(raw('write'), 2050, 37, U);
+  const right = await ipadFrame(raw('messages'), 2050, 53, U);
+  const copy = HEADER_COPY[lang];
+  const [b1, b2] = copy.text.split(copy.em);
+  const ty = TYPE[lang];
+  const grainId = 'blobgrain';
+  const shadow = `filter:drop-shadow(0 ${Math.round(U * 0.03)}px ${Math.round(U * 0.045)}px oklch(20% 0.04 60 / 0.22)) drop-shadow(0 ${Math.round(U * 0.005)}px ${Math.round(U * 0.01)}px oklch(20% 0.04 60 / 0.16))`;
+  const centreTop = 1430;
+  const sideTop = 1640;
+  const body = `<div class="canvas">
+  <svg class="layer" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+    <defs>${grainDefs('grain', 0.72 / s, 5)}
+      <filter id="${grainId}" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${num(0.9 / s)}" numOctaves="2" stitchTiles="stitch" seed="3"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer><feComposite in2="SourceGraphic" operator="in"/></filter></defs>
+    ${blob(W * 0.5, H * 0.92, U * 0.62, 11, terra.tone, 0.55, grainId)}
+    ${blob(W * 0.12, H * 0.2, U * 0.3, 41, A.lavender.tone, 0.5, grainId)}
+    ${blob(W * 0.9, H * 0.16, U * 0.27, 23, A.sage.tone, 0.5, grainId)}
+    ${blob(W * 0.04, H * 0.86, U * 0.24, 37, A.yellow.tone, 0.45, grainId)}
+    ${blob(W * 0.97, H * 0.82, U * 0.25, 53, A.sky.tone, 0.45, grainId)}
+    ${ring(W * 0.27, H * 0.17, U * 0.022, 21, terra.mid, pen)}
+    ${squiggle(W * 0.69, H * 0.15, U * 0.09, -8, 22, A.sage.mid, pen)}
+    ${sparkle(W * 0.21, H * 0.33, U * 0.026, 23, A.lavender.mid, pen * 0.85)}
+    ${sparkle(W * 0.79, H * 0.3, U * 0.022, 24, terra.mid, pen * 0.85)}
+    ${dot(W * 0.74, H * 0.24, U * 0.008, 25, A.sky.mid)}${dot(W * 0.755, H * 0.255, U * 0.005, 26, A.sky.mid)}
+    ${ring(W * 0.83, H * 0.42, U * 0.016, 27, A.sky.mid, pen)}
+    ${squiggle(W * 0.15, H * 0.44, U * 0.08, 80, 28, A.yellow.mid, pen)}
+    <rect width="${W}" height="${H}" filter="url(#grain)" opacity="0.055"/>
+  </svg>
+  <div class="dev" style="left:${Math.round(W / 2 - 1700 - left.w / 2)}px;top:${sideTop}px;${shadow}">${left.svg}</div>
+  <div class="dev" style="left:${Math.round(W / 2 + 1700 - right.w / 2)}px;top:${sideTop}px;${shadow}">${right.svg}</div>
+  <div class="dev" style="left:${Math.round(W / 2 - centre.w / 2)}px;top:${centreTop}px;${shadow}">${centre.svg}</div>
+  <div class="text">
+    <h1><span class="fitbox" data-max="${HEADER_SAFE.r - HEADER_SAFE.l - 60}" data-fs="${copy.size}" data-measure="headline" data-safe="1">${esc(b1)}<span class="em" style="color:${terra.ink}">${esc(copy.em)}${underline(waveUnits(copy.em, lang), 9, terra.mid)}</span>${esc(b2)}</span></h1>
+  </div>
+</div>`;
+  const css = `${pageCss(T, W, H, lang)}
+  .canvas{background:linear-gradient(180deg,var(--cream) 0%,var(--cream) 45%,color-mix(in oklch,var(--cream) 86%,${terra.tone} 14%) 100%)}
+  .dev{position:absolute}
+  .text{position:absolute;left:0;right:0;top:${HEADER_SAFE.t + 30}px;text-align:center}
+  h1{font:${ty.hWeight} ${copy.size}px/1.2 var(--serif);letter-spacing:${ty.hTrack};color:var(--ink)}${lang === 'en' ? `\n  .uline{bottom:${ty.uline}}` : ''}`;
+  return htmlDoc(`App Store header ${lang}`, css, fonts, body, lang === 'en' ? 'en' : 'zh-Hant-TW');
+}
+
+async function renderHeader(T: Tokens, fonts: string, fontsEn: string, langs: Lang[], check: boolean) {
+  console.log('\nappstore header & search');
+  const A = accentsFrom(T);
+  const { w, h } = HEADER;
+  for (const lang of langs) {
+    const name = lang === 'en' ? 'header-search.en' : 'header-search';
+    const htmlPath = path.join(BUILD, 'appstore', `${name}.html`);
+    const shot = path.join(BUILD, 'appstore', `${name}.raw.png`);
+    const png = path.join(OUT, 'appstore', `${name}.png`);
+    mkdirp(path.dirname(htmlPath));
+    mkdirp(path.dirname(png));
+    fs.writeFileSync(htmlPath, await headerHtml(T, lang === 'en' ? fontsEn : fonts, A, lang));
+    await screenshot(htmlPath, shot, w, h);
+    // Apple refuses transparency: an opaque RGB PNG.
+    await sharp(shot).flatten({ background: '#faf2e9' }).removeAlpha().png({ compressionLevel: 9 }).toFile(png);
+    assertSize(png, w, h);
+    console.log(`  ${path.relative(ROOT, png)}  ${Math.round(fs.statSync(png).size / 1024)} KB`);
+    if (check) {
+      report(`appstore/${name}`, SLIDE_FONTS[lang].slice(0, 1), await measure(htmlPath, w, h), w, h, HEADER_SAFE);
+    }
+  }
+}
+
 /* ── play feature graphic ─────────────────────────────────────────────── */
 
 function featureHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>, lang: Lang): string {
@@ -711,13 +831,13 @@ async function renderPlay(T: Tokens, fonts: string, langs: Lang[], check: boolea
 
 async function main() {
   const argv = process.argv.slice(2);
-  const targets = (['ios', 'android', 'ipad', 'tablet', 'play'] as const).filter((t) => argv.includes(t));
-  const run = targets.length ? targets : (['ios', 'android', 'ipad', 'tablet', 'play'] as const);
+  const targets = (['ios', 'android', 'ipad', 'tablet', 'play', 'header'] as const).filter((t) => argv.includes(t));
+  const run = targets.length ? targets : (['ios', 'android', 'ipad', 'tablet', 'play', 'header'] as const);
   const only = argv.find((a) => a.startsWith('--only='))?.slice(7).split(',') ?? null;
   const check = argv.includes('--check');
   const regen = argv.includes('--regen-placeholders');
   const langs = parseLangs(argv);
-  const screens = run.filter((t): t is Platform => t !== 'play');
+  const screens = run.filter((t): t is Platform => t !== 'play' && t !== 'header');
   if (only) for (const k of only) if (!(KEYS as readonly string[]).includes(k)) throw new Error(`unknown key "${k}"`);
 
   mkdirp(BUILD);
@@ -742,7 +862,7 @@ async function main() {
   // The English screenshots: Playfair Display for the headline, DM Sans for the subline, Latin glyphs only.
   const copyEn = [...SLIDES.flatMap((s) => [s.copy.en, s.tabletCopy?.en].flatMap((c) => (c ? [c.headline, c.subline] : []))), ' 0123456789'].join('');
   const fontsEn =
-    langs.includes('en') && screens.length
+    langs.includes('en') && (screens.length || run.includes('header'))
       ? await embeddedFonts([
           { family: 'Playfair Display', weights: [700], text: copyEn },
           { family: 'DM Sans', weights: [400, 500], text: copyEn },
@@ -751,6 +871,7 @@ async function main() {
 
   for (const t of run) {
     if (t === 'play') await renderPlay(T, fonts, langs, check);
+    else if (t === 'header') await renderHeader(T, fonts, fontsEn, langs, check);
     else {
       for (const lang of langs) await renderScreens(t, lang, T, lang === 'en' ? fontsEn : fonts, only, check, regen);
     }
